@@ -42,12 +42,6 @@ arena_memory_slice := func(arena: EvalArena, offset: I64, size: I64) returns Vec
     return bytes
 }
 
-/// Saved offsets for struct copy when source and dest have the same name
-SavedOffsets := struct {
-    mut offsets: Vec = Vec.new(EvalArenaMapping)
-    mut temp_src_key: Str = ""
-}
-
 EvalResult := struct {
     mut value: Str = ""
     mut is_return: Bool = false
@@ -2251,35 +2245,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 }
                                 if is_identifier {
                                     id_ := source_id // Use the full path we calculated
-                                    // If source and dest have the same name, we need to save the source offsets
-                                    // before insert_struct overwrites them
-                                    mut saved_offsets := SavedOffsets()
-                                    mut has_saved_offsets := false
-                                    if id_.eq(arg.name) {
-                                        mut save_offsets := Vec.new(EvalArenaMapping)
-                                        // Save all arena_index entries that start with the struct name
-                                        // This includes the base offset and all nested field offsets
-                                        save_prefix := format(id_, ".")
-                                        save_last_frame := context.scope_stack.last_frame()?
-                                        for save_key: Str in save_last_frame.arena_index.keys {
-                                            if save_key.eq(id_).or(save_key.starts_with(save_prefix)) {
-                                                mut save_offset := 0
-                                                save_last_frame.arena_index.get(save_key, save_offset)?
-                                                save_offsets.push(EvalArenaMapping(name=save_key.clone(), offset=save_offset))
-                                            }
-                                        }
-                                        saved_offsets.offsets = save_offsets
-                                        saved_offsets.temp_src_key = format("__temp_src_", id_)
-                                        has_saved_offsets = true
-                                    }
 
-                                    // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
+                                    // For pass-by-reference (non-copy, non-Type), just share the offset
+                                    // own params also pass by ref but invalidate source after
                                     mut should_share_offset := false
                                     if not(arg.is_copy) {
-                                        if not(arg.is_own) {
-                                            if not(resolved_type_name.eq("Type")) {
-                                                should_share_offset = true
-                                            }
+                                        if not(resolved_type_name.eq("Type")) {
+                                            should_share_offset = true
                                         }
                                     }
                                     if should_share_offset {
@@ -2336,23 +2308,40 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                                         // Track that this was passed by reference
                                         pass_by_ref_params.push(arg.name.clone())
+
+                                        // For own params, invalidate the source in caller's context
+                                        if arg.is_own {
+                                            _ := context.scope_stack.remove_var(id_)?
+                                            _ := context.scope_stack.remove_symbol(id_)?
+                                            // Also remove field entries
+                                            own_cleanup_prefix := format(id_, ".")
+                                            mut own_cleanup_keys := Vec.new(Str)
+                                            last_frame := context.scope_stack.last_frame()?
+                                            for key: Str in last_frame.arena_index.keys {
+                                                if key.starts_with(own_cleanup_prefix) {
+                                                    own_cleanup_keys.push(key.clone())
+                                                }
+                                            }
+                                            for own_cleanup_key: Str in own_cleanup_keys {
+                                                _ := context.scope_stack.remove_var(own_cleanup_key)?
+                                                _ := context.scope_stack.remove_symbol(own_cleanup_key)?
+                                            }
+                                        }
                                     }
                                     if not(should_share_offset) {
-                                        // For copy/own parameters, allocate and copy
-                                        // Bug #159 fix: For copy params, call clone() for deep copy of all structs
+                                        // For copy parameters, allocate and clone
+                                        // Bug #159 fix: call clone() for deep copy of all structs
                                         // Skip cloning when calling clone methods to avoid infinite recursion
                                         is_clone_method := name.ends_with(".clone")
                                         mut copy_source := id_.clone()
-                                        if arg.is_copy {
-                                            if not(is_clone_method) {
-                                                // Clone BEFORE frame manipulation while source is accessible
-                                                clone_result := try_call_clone(context, resolved_type_name.clone(), id_.clone(), e)?
-                                                if clone_result.is_throw {
-                                                    return clone_result
-                                                }
-                                                if not(clone_result.value.is_empty()) {
-                                                    copy_source = clone_result.value.clone()
-                                                }
+                                        if not(is_clone_method) {
+                                            // Clone BEFORE frame manipulation while source is accessible
+                                            clone_result := try_call_clone(context, resolved_type_name.clone(), id_.clone(), e)?
+                                            if clone_result.is_throw {
+                                                return clone_result
+                                            }
+                                            if not(clone_result.value.is_empty()) {
+                                                copy_source = clone_result.value.clone()
                                             }
                                         }
 
@@ -2361,80 +2350,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Push frame temporarily for copy_fields (needs dest accessible)
                                         context.scope_stack.frames.push(function_frame)
 
-                                        // For copy params, clone result is accessible, just copy from it
-                                        // For own params, use saved_offsets logic
-                                        if arg.is_copy {
-                                            EvalArena.copy_fields(context, resolved_type_name, copy_source, arg.name, e)?
-                                        } else if has_saved_offsets {
-                                            // For own params with same name, restore saved offsets
-                                            for restore_mi in 0..saved_offsets.offsets.len() {
-                                                mut restore_mapping := EvalArenaMapping()
-                                                saved_offsets.offsets.get(restore_mi, restore_mapping)?
-                                                mut restore_new_key := ""
-                                                if restore_mapping.name.eq(id_) {
-                                                    restore_new_key = saved_offsets.temp_src_key.clone()
-                                                } else if restore_mapping.name.starts_with(format(id_, ".")) {
-                                                    restore_new_key = format(saved_offsets.temp_src_key, restore_mapping.name.get_substr(id_.len(), restore_mapping.name.len())?)
-                                                } else {
-                                                    restore_new_key = restore_mapping.name.clone()
-                                                }
-                                                mut lf9_idx := context.scope_stack.frames.len().sub(1)
-                                                mut lf9 := ScopeFrame()
-                                                context.scope_stack.frames.get(lf9_idx, lf9)?
-                                                lf9.arena_index.set(restore_new_key, restore_mapping.offset)
-                                                context.scope_stack.frames.set(lf9_idx, lf9)?
-                                            }
-
-                                            EvalArena.copy_fields(context, resolved_type_name, saved_offsets.temp_src_key, arg.name, e)?
-
-                                            // Clean up temp keys
-                                            for cleanup_ci in 0..saved_offsets.offsets.len() {
-                                                mut cleanup_mapping := EvalArenaMapping()
-                                                saved_offsets.offsets.get(cleanup_ci, cleanup_mapping)?
-                                                mut cleanup_new_key := ""
-                                                if cleanup_mapping.name.eq(id_) {
-                                                    cleanup_new_key = saved_offsets.temp_src_key.clone()
-                                                } else if cleanup_mapping.name.starts_with(format(id_, ".")) {
-                                                    cleanup_new_key = format(saved_offsets.temp_src_key, cleanup_mapping.name.get_substr(id_.len(), cleanup_mapping.name.len())?)
-                                                } else {
-                                                    cleanup_new_key = cleanup_mapping.name.clone()
-                                                }
-                                                _ := context.scope_stack.remove_var(cleanup_new_key)?
-                                            }
-                                        } else {
-                                            // Own params without saved offsets - temporarily register source
-                                            mut copy_src_offset := 0
-                                            mut copy_src_offset_found := false
-                                            copy_src_offset = context.scope_stack.lookup_var(id_)?
-                                            copy_src_offset_found = true
-                                            catch (err: KeyNotFoundError) { }
-                                            if not(copy_src_offset_found) {
-                                                if id_.contains(".") {
-                                                    // Field path - calculate offset dynamically
-                                                    copy_src_offset = context.get_field_offset(id_)?
-                                                } else {
-                                                    throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context arena_index"))
-                                                }
-                                            }
-                                            mut copy_src_symbol := SymbolInfo()
-                                            mut copy_src_symbol_found := false
-                                            copy_src_symbol = context.scope_stack.lookup_symbol(id_)?
-                                            copy_src_symbol_found = true
-                                            catch (err: KeyNotFoundError) { }
-                                            if not(copy_src_symbol_found) {
-                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context symbols"))
-                                            }
-
-                                            mut lf10_idx := context.scope_stack.frames.len().sub(1)
-                                            mut lf10 := ScopeFrame()
-                                            context.scope_stack.frames.get(lf10_idx, lf10)?
-                                            lf10.arena_index.set(id_.clone(), copy_src_offset)
-                                            context.scope_stack.frames.set(lf10_idx, lf10)?
-                                            context.scope_stack.declare_symbol(id_.clone(), copy_src_symbol.clone())?
-                                            EvalArena.copy_fields(context, resolved_type_name, id_, arg.name, e)?
-                                            _ := context.scope_stack.remove_var(id_)?
-                                            _ := context.scope_stack.remove_symbol(id_)?
-                                        }
+                                        // Clone result is accessible, just copy from it
+                                        EvalArena.copy_fields(context, resolved_type_name, copy_source, arg.name, e)?
 
                                         // Pop frame back for remaining arg processing
                                         function_frame = context.scope_stack.pop()?

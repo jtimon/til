@@ -107,13 +107,6 @@ fn to_ast_str(e: &Expr) -> String {
 
 use crate::rs::eval_arena::{EvalArena, EvalArenaMapping, SymbolEntry};
 
-/// Saved offsets for struct copy when source and dest have the same name
-struct SavedOffsets {
-    offsets: Vec<EvalArenaMapping>,
-    temp_src_key: String,
-}
-
-
 #[derive(Clone, Debug)]
 pub struct EvalResult {
     pub value: String,
@@ -2119,27 +2112,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     NodeType::Identifier(_id_) => {
                                         let id_ = &source_id; // Use the full path we calculated
                                         // If source and dest have the same name, we need to save the source offsets
-                                        // before insert_struct overwrites them
-                                        let saved_offsets: Option<SavedOffsets> = if id_ == &arg.name {
-                                            let mut save_offsets = Vec::new();
-
-                                            // Save all arena_index entries that start with the struct name
-                                            // This includes the base offset and all nested field offsets
-                                            let save_prefix = format!("{}.", id_);
-                                            let save_last_frame = context.scope_stack.frames.last().unwrap();
-                                            for (save_key, save_offset) in save_last_frame.arena_index.iter() {
-                                                if save_key == id_ || save_key.starts_with(&save_prefix) {
-                                                    save_offsets.push(EvalArenaMapping { name: save_key.clone(), offset: *save_offset });
-                                                }
-                                            }
-
-                                            Some(SavedOffsets { offsets: save_offsets, temp_src_key: format!("__temp_src_{}", id_) })
-                                        } else {
-                                            None
-                                        };
-
-                                        // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
-                                        if !arg.is_copy && !arg.is_own && resolved_type_name != "Type" {
+                                        // For pass-by-reference (non-copy, non-Type), just share the offset
+                                        // own params also pass by ref but invalidate source after
+                                        if !arg.is_copy && resolved_type_name != "Type" {
                                             let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
                                                 offset
                                             } else if id_.contains('.') {
@@ -2191,12 +2166,28 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                                             // Track that this was passed by reference
                                             pass_by_ref_params.insert(arg.name.clone());
+
+                                            // For own params, invalidate the source in caller's context
+                                            if arg.is_own {
+                                                context.scope_stack.remove_var(id_);
+                                                context.scope_stack.remove_symbol(id_);
+                                                // Also remove field entries
+                                                let own_cleanup_prefix = format!("{}.", id_);
+                                                let own_cleanup_keys: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
+                                                    .filter(|k| k.starts_with(&own_cleanup_prefix))
+                                                    .cloned()
+                                                    .collect();
+                                                for own_cleanup_key in own_cleanup_keys {
+                                                    context.scope_stack.remove_var(&own_cleanup_key);
+                                                    context.scope_stack.remove_symbol(&own_cleanup_key);
+                                                }
+                                            }
                                         } else {
-                                            // For copy/own parameters, allocate and copy
-                                            // Bug #159 fix: For copy params, call clone() for deep copy of all structs
+                                            // For copy parameters, allocate and clone
+                                            // Bug #159 fix: call clone() for deep copy of all structs
                                             // Skip cloning when calling clone methods to avoid infinite recursion
                                             let is_clone_method = name.ends_with(".clone");
-                                            let copy_source = if arg.is_copy && !is_clone_method {
+                                            let copy_source = if !is_clone_method {
                                                 // Clone BEFORE frame manipulation while source is accessible
                                                 if let Some(clone_result) = try_call_clone(context, &resolved_type_name, id_, e)? {
                                                     if clone_result.is_throw {
@@ -2208,7 +2199,6 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                     id_.clone()
                                                 }
                                             } else {
-                                                // For own params, use original
                                                 id_.clone()
                                             };
 
@@ -2217,58 +2207,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             // Push frame temporarily for copy_fields (needs dest accessible)
                                             context.scope_stack.frames.push(function_frame);
 
-                                            // Use copy_source (either clone result or original for own)
-                                            // The clone result is already in the current frame, so no offset manipulation needed for copy params
-                                            if arg.is_copy {
-                                                // Clone result is accessible, just copy from it
-                                                EvalArena::copy_fields(context, &resolved_type_name, &copy_source, &arg.name, e)?;
-                                            } else if let Some(saved) = saved_offsets {
-                                                // For own params with same name, restore saved offsets
-                                                for mapping in saved.offsets.iter() {
-                                                    let new_key = if &mapping.name == id_ {
-                                                        saved.temp_src_key.clone()
-                                                    } else if mapping.name.starts_with(&format!("{}.", id_)) {
-                                                        format!("{}{}", saved.temp_src_key, &mapping.name[id_.len()..])
-                                                    } else {
-                                                        mapping.name.clone()
-                                                    };
-                                                    context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key, mapping.offset);
-                                                }
-
-                                                EvalArena::copy_fields(context, &resolved_type_name, &saved.temp_src_key, &arg.name, e)?;
-
-                                                // Clean up temp keys
-                                                for mapping in saved.offsets.iter() {
-                                                    let new_key = if &mapping.name == id_ {
-                                                        saved.temp_src_key.clone()
-                                                    } else if mapping.name.starts_with(&format!("{}.", id_)) {
-                                                        format!("{}{}", saved.temp_src_key, &mapping.name[id_.len()..])
-                                                    } else {
-                                                        mapping.name.clone()
-                                                    };
-                                                    context.scope_stack.remove_var(&new_key);
-                                                }
-                                            } else {
-                                                // For own params, temporarily register source struct's base offset and symbol
-                                                // so that copy_fields() can calculate field offsets dynamically
-                                                let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
-                                                    offset
-                                                } else if id_.contains('.') {
-                                                    // Field path - calculate offset dynamically
-                                                    context.get_field_offset( id_)
-                                                        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-copy: {}", err)))?
-                                                } else {
-                                                    return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
-                                                };
-                                                let src_symbol = context.scope_stack.lookup_symbol(id_).cloned()
-                                                    .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context symbols", id_)))?;
-
-                                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(id_.clone(), src_offset);
-                                                context.scope_stack.declare_symbol(id_.clone(), src_symbol);
-                                                EvalArena::copy_fields(context, &resolved_type_name, &id_, &arg.name, e)?;
-                                                context.scope_stack.remove_var(id_);
-                                                context.scope_stack.remove_symbol(id_);
-                                            }
+                                            // Clone result is accessible, just copy from it
+                                            EvalArena::copy_fields(context, &resolved_type_name, &copy_source, &arg.name, e)?;
 
                                             // Pop frame back for remaining arg processing
                                             function_frame = context.scope_stack.frames.pop().unwrap();
