@@ -1066,7 +1066,7 @@ til_CfVec2 til_CfVec2_magic(void) {
 }
 
 til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y) {
-    return (til_CfVec2){.x = (*til_I64_x), .y = (*til_I64_y)};
+    return (til_CfVec2){.x = til_I64_clone(&(*til_I64_x)), .y = til_I64_clone(&(*til_I64_y))};
     return (til_CfVec2){0};
 }
 

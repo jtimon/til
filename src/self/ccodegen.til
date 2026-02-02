@@ -1727,14 +1727,12 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
                 // Bug #159: Clone struct fields when value is an identifier
                 mut final_value := value_str
                 if not(field_type_name.is_empty()) {
-                    if not(field_type_name.eq("I64")).and(not(field_type_name.eq("U8"))).and(not(field_type_name.eq("Str"))).and(not(field_type_name.eq("Ptr"))).and(not(field_type_name.eq("Bool"))).and(not(field_type_name.eq("Type"))) {
-                        switch value_expr.node_type {
-                        case NodeType.Identifier:
-                            if context.scope_stack.has_struct(field_type_name) {
-                                final_value = format(TIL_PREFIX, field_type_name, "_clone(&", value_str, ")")
-                            }
-                        case:
+                    switch value_expr.node_type {
+                    case NodeType.Identifier:
+                        if context.scope_stack.has_struct(field_type_name) {
+                            final_value = format(TIL_PREFIX, field_type_name, "_clone(&", value_str, ")")
                         }
+                    case:
                     }
                 }
                 field_values.set(field_name, final_value)
@@ -6667,18 +6665,16 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     mut cloned := false
                     switch member.value_type {
                     case ValueType.TCustom(ft):
-                        if not(ft.eq("I64")).and(not(ft.eq("U8"))).and(not(ft.eq("Str"))).and(not(ft.eq("Ptr"))).and(not(ft.eq("Bool"))).and(not(ft.eq("Type"))) {
-                            switch value_expr.node_type {
-                            case NodeType.Identifier:
-                                if context.scope_stack.has_struct(ft) {
-                                    output.push_str(til_name(ft))
-                                    output.push_str("_clone(&")
-                                    emit_expr(value_expr, output, 0, ctx, context)?
-                                    output.push_str(")")
-                                    cloned = true
-                                }
-                            case:
+                        switch value_expr.node_type {
+                        case NodeType.Identifier:
+                            if context.scope_stack.has_struct(ft) {
+                                output.push_str(til_name(ft))
+                                output.push_str("_clone(&")
+                                emit_expr(value_expr, output, 0, ctx, context)?
+                                output.push_str(")")
+                                cloned = true
                             }
+                        case:
                         }
                     case:
                     }
@@ -7963,18 +7959,16 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                         mut cloned := false
                         switch member.value_type {
                         case ValueType.TCustom(ft):
-                            if not(ft.eq("I64")).and(not(ft.eq("U8"))).and(not(ft.eq("Str"))).and(not(ft.eq("Ptr"))).and(not(ft.eq("Bool"))).and(not(ft.eq("Type"))) {
-                                switch member_value_expr.node_type {
-                                case NodeType.Identifier:
-                                    if context.scope_stack.has_struct(ft) {
-                                        output.push_str(til_name(ft))
-                                        output.push_str("_clone(&")
-                                        emit_expr(member_value_expr, output, 0, ctx, context)?
-                                        output.push_str(")")
-                                        cloned = true
-                                    }
-                                case:
+                            switch member_value_expr.node_type {
+                            case NodeType.Identifier:
+                                if context.scope_stack.has_struct(ft) {
+                                    output.push_str(til_name(ft))
+                                    output.push_str("_clone(&")
+                                    emit_expr(member_value_expr, output, 0, ctx, context)?
+                                    output.push_str(")")
+                                    cloned = true
                                 }
+                            case:
                             }
                         case:
                         }

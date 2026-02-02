@@ -600,10 +600,10 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 EvalArena::insert_enum(context, &field_id, &field_type_name, &named_value_result.value, named_arg)?;
                                             },
                                             ValueType::TType(TTypeDef::TStructDef) => {
-                                                // Bug #159 fix: Use clone() for deep copy
-                                                // Skip primitive-like types that don't need deep cloning
-                                                let skip_clone = matches!(field_type_name.as_str(), "Ptr" | "Bool" | "Type");
-                                                if !skip_clone {
+                                                // Bug #159 fix: Use clone() for deep copy when value is identifier
+                                                // Only clone when source is an existing variable, not a fresh constructor
+                                                let is_identifier = matches!(&named_value_expr.node_type, NodeType::Identifier(_));
+                                                if is_identifier {
                                                     if let Some(clone_result) = try_call_clone(context, &field_type_name, &named_value_result.value, named_arg)? {
                                                         if clone_result.is_throw {
                                                             return Ok(clone_result);
@@ -614,7 +614,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                         EvalArena::copy_fields(context, &field_type_name, &named_value_result.value, &field_id, named_arg)?;
                                                     }
                                                 } else {
-                                                    // Primitive types - shallow copy is fine
+                                                    // Constructor or other expression - value is already fresh, just copy
                                                     EvalArena::copy_fields(context, &field_type_name, &named_value_result.value, &field_id, named_arg)?;
                                                 }
                                             },
@@ -1236,10 +1236,10 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                             }
                             let expr_result_str = result.value;
 
-                            // Bug #159 fix: Use clone() for deep copy instead of copy_fields
-                            // Skip primitive-like types that don't need deep cloning
-                            let skip_clone = matches!(custom_type_name.as_str(), "Ptr" | "Bool" | "Type");
-                            if !skip_clone {
+                            // Bug #159 fix: Use clone() for deep copy when assigning from identifier
+                            // Only clone when source is an existing variable, not a fresh constructor call
+                            let is_identifier = matches!(&inner_e.node_type, NodeType::Identifier(_));
+                            if is_identifier {
                                 if let Some(clone_result) = try_call_clone(context, custom_type_name, &expr_result_str, inner_e)? {
                                     if clone_result.is_throw {
                                         return Ok(clone_result);
@@ -1250,7 +1250,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     EvalArena::copy_fields(context, custom_type_name, &expr_result_str, var_name, inner_e)?;
                                 }
                             } else {
-                                // Primitive types - shallow copy is fine
+                                // Constructor call or other expression - value is already fresh, just copy
                                 EvalArena::copy_fields(context, custom_type_name, &expr_result_str, var_name, inner_e)?;
                             }
                         },
@@ -2193,10 +2193,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             pass_by_ref_params.insert(arg.name.clone());
                                         } else {
                                             // For copy/own parameters, allocate and copy
-                                            // Bug #159 fix: For copy params, call clone() for deep copy
-                                            // Skip primitive-like types that don't need deep cloning
-                                            let skip_clone = matches!(resolved_type_name.as_str(), "Ptr" | "Bool" | "Type");
-                                            let copy_source = if arg.is_copy && !skip_clone {
+                                            // Bug #159 fix: For copy params, call clone() for deep copy of all structs
+                                            // Skip cloning when calling clone methods to avoid infinite recursion
+                                            let is_clone_method = name.ends_with(".clone");
+                                            let copy_source = if arg.is_copy && !is_clone_method {
                                                 // Clone BEFORE frame manipulation while source is accessible
                                                 if let Some(clone_result) = try_call_clone(context, &resolved_type_name, id_, e)? {
                                                     if clone_result.is_throw {
@@ -2208,7 +2208,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                     id_.clone()
                                                 }
                                             } else {
-                                                // For own params or primitive types, use original
+                                                // For own params, use original
                                                 id_.clone()
                                             };
 
@@ -2277,23 +2277,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     _ => {
                                         // For expression arguments (like Vec.new(Expr)), the struct is already
                                         // allocated and evaluated in result_str. We need to copy it to the parameter.
-
-                                        // Bug #159 fix: For copy params, call clone() for deep copy
-                                        // Skip primitive-like types that don't need deep cloning
-                                        let skip_clone = matches!(resolved_type_name.as_str(), "Ptr" | "Bool" | "Type");
-                                        let copy_source = if arg.is_copy && !skip_clone {
-                                            if let Some(clone_result) = try_call_clone(context, &resolved_type_name, &source_id, e)? {
-                                                if clone_result.is_throw {
-                                                    return Ok(clone_result);
-                                                }
-                                                clone_result.value
-                                            } else {
-                                                // No clone method - fall back to original
-                                                source_id.clone()
-                                            }
-                                        } else {
-                                            source_id.clone()
-                                        };
+                                        // No cloning needed - expression results are fresh values.
+                                        let copy_source = source_id.clone();
 
                                         insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
 

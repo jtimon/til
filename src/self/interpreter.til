@@ -557,17 +557,22 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 case ValueType.TType(TTypeDef.TEnumDef):
                                     _ := EvalArena.insert_enum(context, field_id.clone(), field_type_name.clone(), named_value_result.value.clone(), named_arg)?
                                 case ValueType.TType(TTypeDef.TStructDef):
-                                    // Bug #159 fix: Use clone() for deep copy
-                                    // Skip primitive-like types that don't need deep cloning
-                                    skip_clone := field_type_name.eq("Ptr").or(field_type_name.eq("Bool")).or(field_type_name.eq("Type"))
-                                    if not(skip_clone) {
+                                    // Bug #159 fix: Use clone() for deep copy when value is identifier
+                                    // Only clone when source is an existing variable, not a fresh constructor
+                                    mut is_identifier := false
+                                    switch named_value_expr.node_type {
+                                    case NodeType.Identifier:
+                                        is_identifier = true
+                                    case:
+                                    }
+                                    if is_identifier {
                                         clone_result := try_call_clone(context, field_type_name.clone(), named_value_result.value.clone(), named_arg)?
                                         if clone_result.is_throw {
                                             return clone_result
                                         }
                                         EvalArena.copy_fields(context, field_type_name.clone(), clone_result.value.clone(), field_id.clone(), named_arg)?
                                     } else {
-                                        // Primitive types - shallow copy is fine
+                                        // Constructor or other expression - value is already fresh, just copy
                                         EvalArena.copy_fields(context, field_type_name.clone(), named_value_result.value.clone(), field_id.clone(), named_arg)?
                                     }
                                 case:
@@ -1283,17 +1288,22 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                 }
                 assign_struct_expr_result_str := assign_struct_result.value
 
-                // Bug #159 fix: Use clone() for deep copy instead of copy_fields
-                // Skip primitive-like types that don't need deep cloning
-                skip_clone := assign_custom_type_name.eq("Ptr").or(assign_custom_type_name.eq("Bool")).or(assign_custom_type_name.eq("Type"))
-                if not(skip_clone) {
+                // Bug #159 fix: Use clone() for deep copy when assigning from identifier
+                // Only clone when source is an existing variable, not a fresh constructor call
+                mut is_identifier := false
+                switch inner_e.node_type {
+                case NodeType.Identifier:
+                    is_identifier = true
+                case:
+                }
+                if is_identifier {
                     clone_result := try_call_clone(context, assign_custom_type_name, assign_struct_expr_result_str, inner_e)?
                     if clone_result.is_throw {
                         return clone_result
                     }
                     EvalArena.copy_fields(context, assign_custom_type_name, clone_result.value, var_name, inner_e)?
                 } else {
-                    // Primitive types - shallow copy is fine
+                    // Constructor call or other expression - value is already fresh, just copy
                     EvalArena.copy_fields(context, assign_custom_type_name, assign_struct_expr_result_str, var_name, inner_e)?
                 }
             case:
