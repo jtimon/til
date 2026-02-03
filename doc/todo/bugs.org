@@ -52,6 +52,11 @@ Vec/Map/etc can then delegate to Ptr, simplifying their implementations.
 Change interpreter's =mut x := y= to call =Type.clone(y)= instead of =copy_fields=.
 Previous attempt caused stack overflows - should work after Step 2.
 
+*** Failed Attempt: branch failure159
+Branch =failure159= contains Steps 2-8 of the implementation, but caused massive
+performance regression (benchmark total went from ~570s to ~1179s). The approach
+of adding dynamic type info to Ptr and using clone everywhere was too expensive.
+
 *** Future Optimization (post self-hosting)
 Make Ptr templated (=Ptr(T)=) instead of storing type info at runtime:
 - Static type info, compile-time type checking
