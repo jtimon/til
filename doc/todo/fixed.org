@@ -7,6 +7,31 @@
 
 * Fixed Bugs
 
+** Bug #139: Type checker allows assigning I64 to Ptr field
+:PROPERTIES:
+:DISCOVERED: 2026-01-25
+:FIXED: 2026-02-03
+:IMPACT: Type errors silently pass, causing gcc warnings
+:STATUS: Fixed
+:END:
+
+*** Description
+The type checker allowed assigning an I64 value to a Ptr field without error.
+For example, ~TestStruct(ptr_field=0)~ where ~ptr_field: Ptr~ would compile
+without error, causing gcc warnings about incompatible types.
+
+*** Fix
+Added type checking for struct field assignments in both Rust typer (typer.rs)
+and TIL typer (typer.til). When a named argument is provided to a struct
+constructor, the type checker now verifies that the value's type matches the
+field's declared type.
+
+Special case: I64 literals can still be assigned to U8 fields (Bug #124
+coercion rule) to allow ~Bool(data=0)~ and similar patterns.
+
+*** Test
+~src/test/bug139.til~ - now expects exit status 1 (type error detected).
+
 ** Bug #157: Field access on throwing calls in declarations
 :PROPERTIES:
 :DISCOVERED: 2026-01-31

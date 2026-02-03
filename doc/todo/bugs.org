@@ -231,42 +231,6 @@ If for-in iterated by reference, ~to_ptr(expr)~ would give the same address
 for the same element regardless of which function is iterating. This would
 make the Rust-style memory address approach work in TIL too.
 
-** Bug #139: Type checker allows assigning I64 to Ptr field
-:PROPERTIES:
-:DISCOVERED: 2026-01-25
-:IMPACT: Type errors silently pass, causing gcc warnings
-:STATUS: Open
-:END:
-
-*** Description
-The type checker allows assigning an I64 value to a Ptr field without error.
-This was discovered when fixing Bug #99 Step 5f (-Wmissing-braces).
-
-*** Example
-~NULL := 0~ is defined as I64, but ~Declaration.default_value~ is Ptr:
-#+BEGIN_SRC til
-// This should be a type error but isn't:
-index_decl := Declaration(..., default_value=NULL)
-
-// Correct code:
-index_decl := Declaration(..., default_value=Ptr())
-#+END_SRC
-
-*** Reproducer
-Run any of:
-- ~rstil interpret src/test/bug139.til~
-- ~rstil run src/test/bug139.til~
-- ~rstil_til interpret src/test/bug139.til~
-- ~rstil_til run src/test/bug139.til~
-
-Currently exits 0 (no error). Once fixed, should exit 1 with type error.
-
-*** When Fixed
-In ~src/tests.til~, add ~expected_status=1~ to the all_common entry for bug139.til.
-
-*** Fix Reference
-See commit 5031b866 which fixed the symptom by using Ptr() instead of NULL.
-
 ** Bug #133: Precomputed heap values (Vec, List, etc.) have invalid pointers at runtime (COMPILED MODES)
 :PROPERTIES:
 :DISCOVERED: 2026-01-22

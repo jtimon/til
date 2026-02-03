@@ -658,6 +658,51 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
                         mut err_msg := format("Field '", field_name, "' does not exist in struct '", f_name, "'")
                         mut field_err := struct_arg.error(context.path, "type", err_msg)
                         errors.push(field_err)
+                    } else {
+                        // Bug #139: Check that the argument type matches the field type
+                        mut field_decl := _struct_def.get_member(field_name)?
+                        mut expected_type := field_decl.value_type
+                        if struct_arg.params.len().gt(0) {
+                            mut value_expr := Expr()
+                            struct_arg.params.get(0, value_expr)?
+                            mut actual_type := get_value_type(context, value_expr)?
+                            // Bug #124: Allow I64 literals to be passed as U8 fields
+                            mut is_u8_i64_coercion := false
+                            switch expected_type {
+                            case ValueType.TCustom(tn):
+                                if tn.eq("U8") {
+                                    switch actual_type {
+                                    case ValueType.TCustom(ft):
+                                        if ft.eq("I64") {
+                                            switch value_expr.node_type {
+                                            case NodeType.LLiteral(literal):
+                                                switch literal {
+                                                case Literal.Number(_):
+                                                    is_u8_i64_coercion = true
+                                                case:
+                                                }
+                                            case:
+                                            }
+                                        }
+                                    case:
+                                    }
+                                }
+                            case:
+                            }
+                            if not(value_type_to_str(actual_type).eq(value_type_to_str(expected_type))).and(not(is_u8_i64_coercion)) {
+                                mut err_msg := format("Field '", field_name, "' expects type '", value_type_to_str(expected_type), "' but got '", value_type_to_str(actual_type), "'")
+                                errors.push(struct_arg.error(context.path, "type", err_msg))
+                            }
+                            catch (err: IndexOutOfBoundsError) {
+                                // params.get failed - no value expr
+                            }
+                            catch (err: Str) {
+                                // get_value_type failed
+                            }
+                        }
+                        catch (err: Str) {
+                            // get_member failed - field not found (shouldn't happen if we passed contains check)
+                        }
                     }
                 case:
                 }

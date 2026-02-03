@@ -517,19 +517,35 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Vec<String>
         Ok(func_def_) => match func_def_ {
             Some(func_def_) => func_def_,
             None => {
-                // Struct or enum instantiation - validate field names for structs (Bug #85)
-                // Clone member names to avoid borrow conflict with check_types_with_context
-                let struct_member_names: Option<Vec<String>> = context.scope_stack
+                // Struct or enum instantiation - validate field names and types for structs (Bug #85, Bug #139)
+                // Clone member info to avoid borrow conflict with check_types_with_context
+                let struct_members: Option<Vec<(String, ValueType)>> = context.scope_stack
                     .lookup_struct(&f_name)
-                    .map(|s| s.members.iter().map(|m| m.name.clone()).collect());
+                    .map(|s| s.members.iter().map(|m| (m.name.clone(), m.value_type.clone())).collect());
 
                 for struct_arg_idx in 1..e.params.len() {
                     if let Ok(struct_arg) = e.get(struct_arg_idx) {
                         if let NodeType::NamedArg(field_name) = &struct_arg.node_type {
-                            if let Some(ref member_names) = struct_member_names {
-                                if !member_names.contains(field_name) {
+                            if let Some(ref members) = struct_members {
+                                let field_info = members.iter().find(|(n, _)| n == field_name);
+                                if field_info.is_none() {
                                     errors.push(struct_arg.error(&context.path, "type",
                                         &format!("Field '{}' does not exist in struct '{}'", field_name, f_name)));
+                                } else if let Some((_, expected_type)) = field_info {
+                                    // Bug #139: Check that the argument type matches the field type
+                                    if let Some(value_expr) = struct_arg.params.get(0) {
+                                        if let Ok(actual_type) = get_value_type(&context, value_expr) {
+                                            // Bug #124: Allow I64 literals to be passed as U8 fields
+                                            let is_u8_i64_coercion = matches!(expected_type, ValueType::TCustom(tn) if tn == "U8")
+                                                && matches!(&actual_type, ValueType::TCustom(ft) if ft == "I64")
+                                                && matches!(&value_expr.node_type, NodeType::LLiteral(Literal::Number(_)));
+                                            if &actual_type != expected_type && !is_u8_i64_coercion {
+                                                errors.push(struct_arg.error(&context.path, "type",
+                                                    &format!("Field '{}' expects type '{}' but got '{}'",
+                                                        field_name, value_type_to_str(expected_type), value_type_to_str(&actual_type))));
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
