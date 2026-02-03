@@ -7,6 +7,34 @@
 
 * Fixed Bugs
 
+** Bug #158: test_runner.til compiled mode timing may include compilation
+:PROPERTIES:
+:DISCOVERED: 2026-01-31
+:FIXED: 2026-02-03
+:IMPACT: Benchmark numbers for compiled modes inaccurate after make clean
+:STATUS: Fixed
+:END:
+
+*** Description
+After ~make clean~, benchmark showed compiled mode times ~30% higher than
+subsequent cached runs. Tests with expected_status != 0 were not pre-built,
+so their timing included compilation.
+
+*** Root Cause
+In tests.til ~run_parallel~, pre-build only happened for tests where
+~expected_status.eq(0)~. Error tests (expected_status=1) were skipped,
+causing compilation to happen during timing on first run.
+
+*** Fix
+Removed the ~expected_status.eq(0)~ condition from pre-build logic.
+All tests are now pre-built regardless of expected status. Some pre-builds
+fail for intentional error tests, but those failures also occur during
+the actual test run, so timing is unaffected.
+
+*** Results
+Before fix: til compiled 40.447s after clean, 30.249s cached (34% diff)
+After fix: til compiled 30.442s after clean (matches cached performance)
+
 ** Bug #139: Type checker allows assigning I64 to Ptr field
 :PROPERTIES:
 :DISCOVERED: 2026-01-25

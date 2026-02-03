@@ -356,18 +356,16 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
 
     // Pre-build binaries for compiled modes to avoid race conditions
     // when multiple tests use the same source file (e.g., music.til with different args)
+    // Bug #158: Pre-build ALL tests so timing doesn't include compilation
     // Step 1: Collect unique paths per compiler
     mut rs_paths := Set.new(Str)
     mut til_paths := Set.new(Str)
     for entry: TestEntry in tests {
-        // Only pre-build if expected_status is 0 (error tests need to run to generate error output)
-        if entry.expected_status.eq(0) {
-            for phase: TestPhase in phases {
-                if phase.test_mode.eq("rs_compiled") {
-                    _ := rs_paths.insert(entry.path)
-                } else if phase.test_mode.eq("til_compiled") {
-                    _ := til_paths.insert(entry.path)
-                }
+        for phase: TestPhase in phases {
+            if phase.test_mode.eq("rs_compiled") {
+                _ := rs_paths.insert(entry.path)
+            } else if phase.test_mode.eq("til_compiled") {
+                _ := til_paths.insert(entry.path)
             }
         }
     }
@@ -381,12 +379,12 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
     for rs_i in 0..rs_paths.len() {
         mut rs_path := ""
         rs_paths.get(rs_i, rs_path)?
-        build_cmds.push(format("./bin/rstil build ", force_flag, rs_path))
+        build_cmds.push(format("./bin/rstil build ", force_flag, rs_path, " > /dev/null 2>&1"))
     }
     for til_i in 0..til_paths.len() {
         mut til_path := ""
         til_paths.get(til_i, til_path)?
-        build_cmds.push(format("./bin/rs/til build ", force_flag, til_path))
+        build_cmds.push(format("./bin/rs/til build ", force_flag, til_path, " > /dev/null 2>&1"))
     }
 
     // Step 3: Spawn builds with parallelism limit
@@ -412,10 +410,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
             build_pids.get(bpid_i, bpid)?
             bstatus := check_cmd_status(bpid)
             if not(bstatus.eq(sub(0, 1))) {
-                // Build finished
-                if not(bstatus.eq(0)) {
-                    println("Pre-build failed (pid ", bpid.to_str(), "), exit status: ", bstatus.to_str())
-                }
+                // Build finished (failures are expected for error tests, will show during run)
                 build_completed = build_completed.add(1)
                 // Remove this pid and spawn next if available
                 blast_idx := build_pids.len().sub(1)
