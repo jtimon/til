@@ -1131,7 +1131,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/bug55.til"))
     all_common.push(TestEntry(path="src/test/bug56.til"))
     all_common.push(TestEntry(path="src/test/bug57.til"))
-    all_common.push(TestEntry(path="src/test/bug139.til"))  // TODO: expected_status=1 once Bug #139 is fixed
+    all_common.push(TestEntry(path="src/test/bug139.til", expected_status=1))  // Bug #139: now caught at runtime
     all_common.push(TestEntry(path="src/test/bug157.til"))
     all_common.push(TestEntry(path="src/test/bug159.til"))  // Bug #159: FIXED - deep copy via clone()
     all_common.push(TestEntry(path="src/test/c_mem.til"))

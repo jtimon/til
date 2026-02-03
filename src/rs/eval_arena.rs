@@ -111,14 +111,24 @@ impl EvalArena {
     }
 
     pub fn get_u8(ctx: &Context, id: &str, e: &Expr) -> Result<u8, String> {
-        // Try direct lookup first (for base variables)
-        let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+        // For field paths (e.g., "v.x"), check if base is a struct instance variable.
+        // If so, use get_field_offset to compute offset dynamically (handles reassignment correctly).
+        let offset = if id.contains('.') {
+            let base_var = id.split('.').next().unwrap();
+            let is_struct_instance = ctx.scope_stack.lookup_symbol(base_var)
+                .map(|sym| matches!(&sym.value_type, ValueType::TCustom(t) if ctx.scope_stack.has_struct(t)))
+                .unwrap_or(false);
+            if is_struct_instance {
+                ctx.get_field_offset(id).map_err(|err| {
+                    e.lang_error(&ctx.path, "context", &format!("get_u8: {}", err))
+                })?
+            } else if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+                offset
+            } else {
+                return Err(e.lang_error(&ctx.path, "context", &format!("u8 not found for id '{}'", id)));
+            }
+        } else if let Some(offset) = ctx.scope_stack.lookup_var(id) {
             offset
-        } else if id.contains('.') {
-            // For field paths, calculate offset dynamically
-            ctx.get_field_offset( id).map_err(|err| {
-                e.lang_error(&ctx.path, "context", &format!("get_u8: {}", err))
-            })?
         } else {
             return Err(e.lang_error(&ctx.path, "context", &format!("u8 not found for id '{}'", id)));
         };
@@ -127,14 +137,26 @@ impl EvalArena {
     }
 
     pub fn get_i64(ctx: &Context, id: &str, e: &Expr) -> Result<i64, String> {
-        // Try direct lookup first (for base variables)
-        let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+        // For field paths (e.g., "v.x"), check if base is a struct instance variable.
+        // If so, use get_field_offset to compute offset dynamically (handles reassignment correctly).
+        // Otherwise fall back to direct lookup (for type constants like Ptr.size).
+        let offset = if id.contains('.') {
+            let base_var = id.split('.').next().unwrap();
+            // Check if base is a struct instance (has TCustom struct type in symbols)
+            let is_struct_instance = ctx.scope_stack.lookup_symbol(base_var)
+                .map(|sym| matches!(&sym.value_type, ValueType::TCustom(t) if ctx.scope_stack.has_struct(t)))
+                .unwrap_or(false);
+            if is_struct_instance {
+                ctx.get_field_offset(id).map_err(|err| {
+                    e.lang_error(&ctx.path, "context", &format!("get_i64: {}", err))
+                })?
+            } else if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+                offset
+            } else {
+                return Err(e.lang_error(&ctx.path, "context", &format!("i64 not found for id '{}'", id)));
+            }
+        } else if let Some(offset) = ctx.scope_stack.lookup_var(id) {
             offset
-        } else if id.contains('.') {
-            // For field paths, calculate offset dynamically
-            ctx.get_field_offset( id).map_err(|err| {
-                e.lang_error(&ctx.path, "context", &format!("get_i64: {}", err))
-            })?
         } else {
             return Err(e.lang_error(&ctx.path, "context", &format!("i64 not found for id '{}'", id)));
         };
@@ -232,77 +254,6 @@ impl EvalArena {
         if let Some(offset) = Self::insert_u8_core(ctx, id, u8_str, e)? {
             frame.arena_index.insert(id.to_string(), offset);
         }
-        Ok(())
-    }
-
-    // TODO all args should be passed as pointers/references and we wouldn't need this
-    pub fn copy_fields(ctx: &mut Context, custom_type_name: &str, src: &str, dest: &str, e: &Expr) -> Result<(), String> {
-        let struct_def = ctx.scope_stack.lookup_struct(custom_type_name)
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
-
-        let is_mut = ctx.scope_stack.lookup_symbol(dest)
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination symbol '{}' not found", dest)))?
-            .is_mut;
-
-        let dest_base_offset = ctx.scope_stack.lookup_var(dest)
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination arena offset for '{}' not found", dest)))?;
-
-        let members = struct_def.members.clone();
-
-        let mut current_offset = 0;
-        for decl in members {
-            if decl.is_mut {
-                let field_size = match &decl.value_type {
-                    ValueType::TCustom(name) => ctx.get_type_size( name)?,
-                    _ => return Err(e.lang_error(&ctx.path, "context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
-                };
-
-                let src_key = format!("{}.{}", src, decl.name);
-                let dest_key = format!("{}.{}", dest, decl.name);
-
-                // Try to get source offset - first from arena_index, then calculate dynamically
-                let src_offset_result = if let Some(offset) = ctx.scope_stack.lookup_var(&src_key) {
-                    Some(offset)
-                } else {
-                    // Calculate offset dynamically from struct definition
-                    match ctx.get_field_offset(&src_key) {
-                        Ok(offset) => Some(offset),
-                        Err(_) => {
-                            // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
-                            current_offset += field_size;
-                            None
-                        }
-                    }
-                };
-
-                if let Some(src_offset) = src_offset_result {
-                    let dest_offset = dest_base_offset + current_offset;
-
-                    ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
-                    ctx.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo {
-                        value_type: decl.value_type.clone(),
-                        is_mut,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    });
-
-                    let data = EvalArena::g().get(src_offset, field_size).to_vec();
-                    EvalArena::g().set(dest_offset, &data)?;
-
-                    if let ValueType::TCustom(type_name) = &decl.value_type {
-                        if ctx.scope_stack.has_struct(type_name) {
-                            EvalArena::copy_fields(ctx, type_name, &src_key, &dest_key, e).map_err(|_| {
-                                e.lang_error(&ctx.path, "context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
-                            })?;
-                        }
-                    }
-
-                    current_offset += field_size;
-                }
-            }
-        }
-
         Ok(())
     }
 
@@ -811,13 +762,20 @@ impl EvalArena {
             }
         };
 
-        // Try to get offset - first from arena_index, then calculate dynamically for fields
-        let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+        // For field paths (e.g., "s.color"), check if base variable exists in arena_index.
+        // If so, use get_field_offset to compute offset dynamically (handles reassignment correctly).
+        let offset = if id.contains('.') {
+            let base_var = id.split('.').next().unwrap();
+            if ctx.scope_stack.lookup_var(base_var).is_some() {
+                ctx.get_field_offset(id)
+                    .map_err(|err| e.lang_error(&ctx.path, "context", &format!("get_enum: {}", err)))?
+            } else if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+                offset
+            } else {
+                return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: EvalArena index for '{}' not found", id)))
+            }
+        } else if let Some(offset) = ctx.scope_stack.lookup_var(id) {
             offset
-        } else if id.contains('.') {
-            // Field path - calculate offset dynamically
-            ctx.get_field_offset(id)
-                .map_err(|err| e.lang_error(&ctx.path, "context", &format!("get_enum: {}", err)))?
         } else {
             return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: EvalArena index for '{}' not found", id)))
         };
@@ -919,7 +877,7 @@ impl EvalArena {
         let mapping = {
             let is_field = id.contains('.');
             if is_field {
-                if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+                if let Some(offset) = ctx.lookup_var_or_field(id) {
                     // Update existing enum value (no new mapping needed)
                     EvalArena::g().set(offset, &enum_value.to_le_bytes())?;
                     if let Some(payload_bytes) = &payload_data {

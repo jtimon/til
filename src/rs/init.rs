@@ -1461,59 +1461,6 @@ impl Context {
         return Ok(selfi.variants[position as usize].name.clone())
     }
 
-    pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
-        let struct_def = self.scope_stack.lookup_struct(custom_type_name)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;
-
-        let is_mut = self.scope_stack.lookup_symbol(instance_name)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: instance '{}' not found in symbols", instance_name)))?
-            .is_mut;
-
-        let base_offset = self.scope_stack.lookup_var(instance_name)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: base offset for '{}' not found", instance_name)))?;
-
-        let members = struct_def.members.clone();
-
-        let mut current_offset = 0;
-        for decl in members {
-            if decl.is_mut {
-                let combined_name = format!("{}.{}", instance_name, decl.name);
-                let field_offset = base_offset + current_offset;
-                self.scope_stack.insert_var(combined_name.clone(), field_offset);
-
-                self.scope_stack.declare_symbol(
-                    combined_name.clone(),
-                    SymbolInfo {
-                        value_type: decl.value_type.clone(),
-                        is_mut,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    },
-                );
-
-                if let ValueType::TCustom(type_name) = &decl.value_type {
-                    if self.scope_stack.has_struct(type_name) {
-                        self.map_instance_fields(type_name, &combined_name, e).map_err(|_| {
-                            e.lang_error(&self.path, "context", &format!("map_instance_fields: failed to map nested struct field '{}'", combined_name))
-                        })?;
-                    }
-                }
-
-                let field_size = match &decl.value_type {
-                    ValueType::TCustom(name) => self.get_type_size(name)?,
-                    _ => return Err(e.lang_error(&self.path, "context", &format!(
-                        "map_instance_fields: Unsupported value type '{}'", value_type_to_str(&decl.value_type)
-                    ))),
-                };
-
-                current_offset += field_size;
-            }
-            // Immutable struct fields are handled generically through struct_defs
-        }
-        return Ok(())
-    }
-
     pub fn get_struct(&self, id: &str, e: &Expr) -> Result<String, String> {
         // Validate that the struct variable exists by checking if we can get its offset
         if self.scope_stack.has_var(id) {
@@ -1727,6 +1674,22 @@ impl Context {
         }
 
         Ok(current_offset)
+    }
+
+    /// Lookup a variable or field path, falling back to get_field_offset for field paths
+    /// This provides backwards compatibility for code that expects field paths in arena_index
+    pub fn lookup_var_or_field(&self, name: &str) -> Option<usize> {
+        // First try direct lookup
+        if let Some(offset) = self.scope_stack.lookup_var(name) {
+            return Some(offset);
+        }
+        // If name contains '.', try get_field_offset as fallback
+        if name.contains('.') {
+            if let Ok(offset) = self.get_field_offset(name) {
+                return Some(offset);
+            }
+        }
+        None
     }
 
     /// Get the type for a field path (e.g., "s.color" returns the type of the color field)

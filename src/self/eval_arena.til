@@ -255,78 +255,6 @@ EvalArena := struct {
         }
     }
 
-    // TODO all args should be passed as pointers/references and we wouldn't need this
-    copy_fields := proc(mut ctx: Context, custom_type_name: Str, src: Str, dest: Str, e: Expr) throws Str {
-        mut struct_def := ctx.scope_stack.lookup_struct(custom_type_name)?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("copy_fields: definition for '", custom_type_name, "' not found"))
-        }
-
-        mut dest_sym := ctx.scope_stack.lookup_symbol(dest)?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("copy_fields: destination symbol '", dest, "' not found"))
-        }
-        is_mut := dest_sym.is_mut
-
-        mut dest_base_offset := ctx.scope_stack.lookup_var(dest)?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("copy_fields: destination arena offset for '", dest, "' not found"))
-        }
-
-        mut current_offset := 0
-        for decl: Declaration in struct_def.members {
-            if decl.is_mut {
-                mut field_size := 0
-                switch decl.value_type {
-                case ValueType.TCustom(name):
-                    field_size = ctx.get_type_size(name)?
-                case:
-                    throw e.lang_error(ctx.path, "context", format("copy_fields: unsupported field type '", value_type_to_str(decl.value_type), "'"))
-                }
-
-                src_key := format(src, ".", decl.name)
-                dest_key := format(dest, ".", decl.name)
-
-                // Try to get source offset - first from arena_index, then calculate dynamically
-                mut src_offset := 0
-                mut have_src_offset := true
-                src_offset = ctx.scope_stack.lookup_var(src_key)?
-                catch (err: KeyNotFoundError) {
-                    // Calculate offset dynamically from struct definition
-                    src_offset = ctx.get_field_offset(src_key)?
-                    catch (err2: Str) {
-                        // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
-                        current_offset = add(current_offset, field_size)
-                        have_src_offset = false
-                    }
-                }
-
-                if have_src_offset {
-                    dest_offset := add(dest_base_offset, current_offset)
-
-                    ctx.scope_stack.insert_var(dest_key, dest_offset)?
-                    ctx.scope_stack.declare_symbol(dest_key, SymbolInfo(value_type=decl.value_type, is_mut=is_mut))?
-
-                    g_arena.set(dest_offset, g_arena.get(src_offset, field_size), field_size)
-
-                    switch decl.value_type {
-                    case ValueType.TCustom(type_name):
-                        // Check if it's a struct (not enum)
-                        if ctx.scope_stack.has_struct(type_name) {
-                            EvalArena.copy_fields(ctx, type_name, src_key, dest_key, e)?
-                            catch (err: Str) {
-                                throw e.lang_error(ctx.path, "context", format("copy_fields: failed to recursively copy field '", dest_key, "'"))
-                            }
-                        }
-                    case:
-                    }
-
-                    current_offset = add(current_offset, field_size)
-                }
-            }
-        }
-    }
-
     // Core logic for insert_struct - does all the work but returns mappings instead of inserting them
     // existing_offset: -1 means None (allocate new), >= 0 means use that offset
     insert_struct_core := proc(mut ctx: Context, id: Str, custom_type_name: Str, existing_offset: I64, defaults: Map, e: Expr) returns StructInsertResult throws Str {
@@ -1128,7 +1056,7 @@ EvalArena := struct {
         is_field := id.contains(".")
         if is_field {
             mut have_offset := true
-            mut offset := ctx.scope_stack.lookup_var(id)?
+            mut offset := ctx.lookup_var_or_field(id)?
             catch (err: KeyNotFoundError) {
                 have_offset = false
             }

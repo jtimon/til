@@ -551,28 +551,42 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 case ValueType.TType(TTypeDef.TEnumDef):
                                     _ := EvalArena.insert_enum(context, field_id.clone(), field_type_name.clone(), named_value_result.value.clone(), named_arg)?
                                 case ValueType.TType(TTypeDef.TStructDef):
-                                    // Bug #159 fix: Use clone() for deep copy when value is identifier
-                                    // Only clone when source is an existing variable, not a fresh constructor
+                                    // Bug #159 fix: For struct fields, copy bytes to field's position within parent struct
+                                    // get_field_offset computes offset dynamically based on struct layout, so we must copy bytes
                                     mut is_identifier := false
                                     switch named_value_expr.node_type {
                                     case NodeType.Identifier:
                                         is_identifier = true
                                     case:
                                     }
+                                    mut source_offset := 0
                                     if is_identifier {
                                         clone_result := try_call_clone(context, field_type_name.clone(), named_value_result.value.clone(), named_arg)?
                                         if clone_result.is_throw {
                                             return clone_result
                                         }
-                                        EvalArena.copy_fields(context, field_type_name.clone(), clone_result.value.clone(), field_id.clone(), named_arg)?
+                                        source_offset = context.scope_stack.lookup_var(clone_result.value)?
                                         catch (err: KeyNotFoundError) {
-                                            // No clone method - fall back to shallow copy
-                                            EvalArena.copy_fields(context, field_type_name.clone(), named_value_result.value.clone(), field_id.clone(), named_arg)?
+                                            // No clone method - use source offset
+                                            // Use lookup_var_or_field to handle field paths
+                                            source_offset = context.lookup_var_or_field(named_value_result.value)?
+                                            catch (src_err: KeyNotFoundError) {
+                                                throw named_arg.lang_error(context.path, "eval", format("Could not find arena index for source '", named_value_result.value, "'"))
+                                            }
                                         }
                                     } else {
-                                        // Constructor or other expression - value is already fresh, just copy
-                                        EvalArena.copy_fields(context, field_type_name.clone(), named_value_result.value.clone(), field_id.clone(), named_arg)?
+                                        // Constructor or other expression - use source offset
+                                        // Use lookup_var_or_field to handle field paths
+                                        source_offset = context.lookup_var_or_field(named_value_result.value)?
+                                        catch (err: KeyNotFoundError) {
+                                            throw named_arg.lang_error(context.path, "eval", format("Type mismatch: expected struct '", field_type_name, "' but got '", named_value_result.value, "'"))
+                                        }
                                     }
+                                    // Copy bytes from source to field's position within parent struct
+                                    dest_offset := context.get_field_offset(field_id)?
+                                    struct_size := context.get_type_size(field_type_name)?
+                                    src_ptr := g_arena.get(source_offset, struct_size)
+                                    g_arena.set(dest_offset, src_ptr, struct_size)
                                 case:
                                     throw named_arg.error(context.path, "eval", format("Unsupported field type '", field_type_name, "' for field '", field_name, "'"))
                                 }
@@ -1092,7 +1106,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         context.scope_stack.frames.get(clone_last_idx, clone_last_frame)?
                         clone_last_frame.arena_index.set(declaration.name, clone_offset)
                         context.scope_stack.frames.set(clone_last_idx, clone_last_frame)?
-                        context.map_instance_fields(custom_type_name, declaration.name, e)?
                     } else {
                         // Share offset for temp return value (zero-copy transfer)
                         struct_offset := context.scope_stack.lookup_var(struct_expr_result_str)?
@@ -1104,20 +1117,27 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         context.scope_stack.frames.get(struct_last_idx, struct_last_frame)?
                         struct_last_frame.arena_index.set(declaration.name, struct_offset)
                         context.scope_stack.frames.set(struct_last_idx, struct_last_frame)?
-                        context.map_instance_fields(custom_type_name, declaration.name, e)?
                     }
                 } else {
                     // Share offset for non-mut declaration (zero-copy transfer)
-                    struct_offset2 := context.scope_stack.lookup_var(struct_expr_result_str)?
-                    catch (err: KeyNotFoundError) {
-                        throw e.lang_error(context.path, "eval", format("Could not find arena index for '", struct_expr_result_str, "'"))
+                    // For field paths (e.g., "my_struct.vec2_field"), use get_field_offset
+                    mut struct_offset2 := 0
+                    if struct_expr_result_str.contains(".") {
+                        struct_offset2 = context.get_field_offset(struct_expr_result_str)?
+                        catch (err: Str) {
+                            throw e.lang_error(context.path, "eval", format("Failed to get field offset for '", struct_expr_result_str, "': ", err))
+                        }
+                    } else {
+                        struct_offset2 = context.scope_stack.lookup_var(struct_expr_result_str)?
+                        catch (err: KeyNotFoundError) {
+                            throw e.lang_error(context.path, "eval", format("Could not find arena index for '", struct_expr_result_str, "'"))
+                        }
                     }
                     mut struct_last_idx2 := context.scope_stack.frames.len().sub(1)
                     mut struct_last_frame2 := ScopeFrame()
                     context.scope_stack.frames.get(struct_last_idx2, struct_last_frame2)?
                     struct_last_frame2.arena_index.set(declaration.name, struct_offset2)
                     context.scope_stack.frames.set(struct_last_idx2, struct_last_frame2)?
-                    context.map_instance_fields(custom_type_name, declaration.name, e)?
                 }
             } else {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(custom_symbol.value_type), "'. Only 'enum' and 'struct' custom types allowed."))
@@ -1173,8 +1193,12 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         } else if member_type_name.eq("Str") {
                             EvalArena.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
                         } else {
-                            insert_struct_instance(context, combined_name, member_type_name, e)?
-                            EvalArena.copy_fields(context, member_type_name, member_expr_result_str, combined_name, e)?
+                            // Expression result is fresh - share its offset, no byte copying
+                            source_offset := context.scope_stack.lookup_var(member_expr_result_str)?
+                            catch (err: KeyNotFoundError) {
+                                throw e.lang_error(context.path, "eval", format("Could not find arena index for source '", member_expr_result_str, "'"))
+                            }
+                            context.scope_stack.insert_var(combined_name, source_offset)?
                         }
                     case ValueType.TFunction(func_type):
                         switch default_value.node_type {
@@ -1302,19 +1326,61 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                     is_identifier = true
                 case:
                 }
+                // Determine source offset (clone result or expression result)
+                mut source_offset := 0
                 if is_identifier {
                     clone_result := try_call_clone(context, assign_custom_type_name, assign_struct_expr_result_str, inner_e)?
                     if clone_result.is_throw {
                         return clone_result
                     }
-                    EvalArena.copy_fields(context, assign_custom_type_name, clone_result.value, var_name, inner_e)?
+                    source_offset = context.scope_stack.lookup_var(clone_result.value)?
                     catch (err: KeyNotFoundError) {
-                        // No clone method - fall back to shallow copy
-                        EvalArena.copy_fields(context, assign_custom_type_name, assign_struct_expr_result_str, var_name, inner_e)?
+                        // No clone method - use source offset
+                        source_offset = context.scope_stack.lookup_var(assign_struct_expr_result_str)?
+                        catch (src_err: KeyNotFoundError) {
+                            throw inner_e.lang_error(context.path, "eval", format("Could not find arena index for source '", assign_struct_expr_result_str, "'"))
+                        }
                     }
                 } else {
-                    // Constructor call or other expression - value is already fresh, just copy
-                    EvalArena.copy_fields(context, assign_custom_type_name, assign_struct_expr_result_str, var_name, inner_e)?
+                    // Constructor call or other expression - value is already fresh
+                    source_offset = context.scope_stack.lookup_var(assign_struct_expr_result_str)?
+                    catch (err: KeyNotFoundError) {
+                        throw inner_e.lang_error(context.path, "eval", format("Could not find arena index for source '", assign_struct_expr_result_str, "'"))
+                    }
+                }
+
+                // For field assignments (var_name contains '.'), copy bytes to existing location
+                // For top-level variable assignments, can just update arena_index
+                if var_name.contains(".") {
+                    dest_offset := context.get_field_offset(var_name)?
+                    struct_size := context.get_type_size(assign_custom_type_name)?
+                    mut i := 0
+                    while i.lt(struct_size) {
+                        g_arena.set(dest_offset.add(i), g_arena.get(source_offset.add(i), 1), 1)
+                        i = i.add(1)
+                    }
+                } else {
+                    // Find the frame that contains var_name and update that frame's arena_index
+                    // (not just the innermost frame, which would create shadowing for outer-scope variables)
+                    mut found := false
+                    for frame_idx in context.scope_stack.frames.len().sub(1)..sub(0, 1) {
+                        mut frame := ScopeFrame()
+                        context.scope_stack.frames.get(frame_idx, frame)?
+                        if frame.arena_index.contains_key(var_name) {
+                            frame.arena_index.set(var_name, source_offset)
+                            context.scope_stack.frames.set(frame_idx, frame)?
+                            found = true
+                            break
+                        }
+                    }
+                    if found.not() {
+                        // Variable not found in any frame - insert into current frame
+                        mut assign_last_idx := context.scope_stack.frames.len().sub(1)
+                        mut assign_last_frame := ScopeFrame()
+                        context.scope_stack.frames.get(assign_last_idx, assign_last_frame)?
+                        assign_last_frame.arena_index.set(var_name, source_offset)
+                        context.scope_stack.frames.set(assign_last_idx, assign_last_frame)?
+                    }
                 }
             case:
                 throw inner_e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of custom type '", assign_custom_type_name, "' of value type '", value_type_to_str(assign_custom_symbol_info.value_type), "'."))
@@ -1994,6 +2060,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             enum_type_sym = context.scope_stack.lookup_symbol(enum_arg_type_name)?
                             switch enum_type_sym.value_type {
                             case ValueType.TType(TTypeDef.TEnumDef):
+                                // Preconditions verified: symbol exists, is enum type
+                                // get_enum should succeed - let errors propagate if it fails
                                 enum_val := EvalArena.get_enum(context, id_name, e)?
                                 if not(NULL.eq(enum_val.payload.data)) {
                                     mut payload_vec := Vec.new(U8)
@@ -2005,7 +2073,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         has_enum_backup = true
                                     }
                                 }
-                                catch (err3: Str) { }
                             case:
                             }
                             catch (err2: KeyNotFoundError) { }
@@ -2359,10 +2426,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             // Reuse clone result's offset directly
                                             clone_offset := context.scope_stack.lookup_var(clone_result.value)?
                                             function_frame.arena_index.set(arg.name.clone(), clone_offset)
-                                            // Push frame temporarily for map_instance_fields
-                                            context.scope_stack.frames.push(function_frame)
-                                            context.map_instance_fields(resolved_type_name, arg.name, e)?
-                                            function_frame = context.scope_stack.pop()?
+                                            function_frame.symbols.set(arg.name.clone(), SymbolInfo(
+                                                value_type=resolved_value_type,
+                                                is_mut=arg.is_mut,
+                                                is_copy=arg.is_copy,
+                                                is_own=arg.is_own
+                                            ))
                                             used_clone = true
                                             catch (err: KeyNotFoundError) {
                                                 // No clone method or lookup failed - fall back to shallow copy
@@ -2374,9 +2443,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 // The clone method will read from source and create the deep copy
                                                 source_offset := context.scope_stack.lookup_var(id_)?
                                                 function_frame.arena_index.set(arg.name.clone(), source_offset)
-                                                context.scope_stack.frames.push(function_frame)
-                                                context.map_instance_fields(resolved_type_name, arg.name, e)?
-                                                function_frame = context.scope_stack.pop()?
+                                                function_frame.symbols.set(arg.name.clone(), SymbolInfo(
+                                                    value_type=resolved_value_type,
+                                                    is_mut=arg.is_mut,
+                                                    is_copy=arg.is_copy,
+                                                    is_own=arg.is_own
+                                                ))
                                             } else {
                                                 // No clone method for non-clone-method call
                                                 // This means empty struct (no mutable fields) - just allocate, nothing to copy
@@ -2386,34 +2458,18 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     }
                                 } else {
                                     // For expression arguments (like Vec.new(Expr)), the struct is already
-                                    // allocated and evaluated in result_str. We need to copy it to the parameter.
-                                    insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
-
-                                    // Push frame temporarily for copy_fields
-                                    context.scope_stack.frames.push(function_frame)
-
-                                    // Temporarily register source for copy_fields
+                                    // allocated and evaluated in result_str. Share its offset directly.
                                     expr_src_offset := context.scope_stack.lookup_var(source_id)?
                                     catch (err: KeyNotFoundError) {
                                         throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
                                     }
-                                    expr_src_symbol := context.scope_stack.lookup_symbol(source_id)?
-                                    catch (err: KeyNotFoundError) {
-                                        throw e.lang_error(context.path, "eval", format("Source symbol '", source_id, "' not found"))
-                                    }
-
-                                    mut lf11_idx := context.scope_stack.frames.len().sub(1)
-                                    mut lf11 := ScopeFrame()
-                                    context.scope_stack.frames.get(lf11_idx, lf11)?
-                                    lf11.arena_index.set(source_id.clone(), expr_src_offset)
-                                    context.scope_stack.frames.set(lf11_idx, lf11)?
-                                    context.scope_stack.declare_symbol(source_id.clone(), expr_src_symbol.clone())?
-                                    EvalArena.copy_fields(context, resolved_type_name, source_id, arg.name, e)?
-                                    _ := context.scope_stack.remove_var(source_id)?
-                                    _ := context.scope_stack.remove_symbol(source_id)?
-
-                                    // Pop frame back for remaining arg processing
-                                    function_frame = context.scope_stack.pop()?
+                                    function_frame.arena_index.set(arg.name.clone(), expr_src_offset)
+                                    function_frame.symbols.set(arg.name.clone(), SymbolInfo(
+                                        value_type=resolved_value_type,
+                                        is_mut=arg.is_mut,
+                                        is_copy=arg.is_copy,
+                                        is_own=arg.is_own
+                                    ))
 
                                     // For own parameters, remove the source from caller's context (ownership transferred)
                                     if arg.is_own {
@@ -2563,7 +2619,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             case "Str":
                 // None for primitives
             case:
-                saved_return_offset = context.scope_stack.lookup_var(result_str)?
+                // Use lookup_var_or_field to handle both direct vars and field paths
+                saved_return_offset = context.lookup_var_or_field(result_str)?
                 has_saved_return_offset = true
                 catch (err: KeyNotFoundError) { }
             }
@@ -2604,10 +2661,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 if ret_is_enum_def {
                     if not(result_str.contains(".")) {
                         // This is a variable, not a constructor - save the enum value
+                        // Preconditions verified: return type is enum def
+                        // get_enum should succeed - let errors propagate if it fails
                         saved_enum_value = EvalArena.get_enum(context, result_str, e)?
                         has_saved_enum_value = true
-                        // May fail if not actually an enum - that's okay, has_saved_enum_value stays false
-                        catch (err: Str) { }
                     }
                 }
             }
@@ -2736,13 +2793,36 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             }
             _ := EvalArena.insert_enum(context, c.source_name, writeback_enum_val.enum_type, format(writeback_enum_val.enum_type, ".", writeback_enum_val.enum_name), e)?
         case MutArgValue.Struct(struct_data):
-            mut lf12_idx := context.scope_stack.frames.len().sub(1)
-            mut lf12 := ScopeFrame()
-            context.scope_stack.frames.get(lf12_idx, lf12)?
-            lf12.arena_index.set(c.source_name.clone(), struct_data.offset)
-            context.scope_stack.frames.set(lf12_idx, lf12)?
-            if not(struct_data.was_passed_by_ref) {
-                context.map_instance_fields(struct_data.type_name, c.source_name, e)?
+            if struct_data.was_passed_by_ref {
+                // Pass-by-ref: just update arena_index (data already modified in-place)
+                mut lf12_idx := context.scope_stack.frames.len().sub(1)
+                mut lf12 := ScopeFrame()
+                context.scope_stack.frames.get(lf12_idx, lf12)?
+                lf12.arena_index.set(c.source_name.clone(), struct_data.offset)
+                context.scope_stack.frames.set(lf12_idx, lf12)?
+            } else {
+                // Bug #43 fix: For non-pass-by-ref (struct was copied), we need to copy
+                // the modified data back to the original location, especially for field
+                // access chains like "frame.funcs" where just updating arena_index won't
+                // update the actual bytes in the parent struct.
+                if c.source_name.contains(".") {
+                    // Field access: copy data back to original location
+                    dest_offset := context.get_field_offset(c.source_name)?
+                    struct_size := context.get_type_size(struct_data.type_name)?
+                    // Copy from callee's offset to original location
+                    mut i := 0
+                    while i.lt(struct_size) {
+                        g_arena.set(dest_offset.add(i), g_arena.get(struct_data.offset.add(i), 1), 1)
+                        i = i.add(1)
+                    }
+                } else {
+                    // Simple identifier: update arena_index
+                    mut lf12_idx := context.scope_stack.frames.len().sub(1)
+                    mut lf12 := ScopeFrame()
+                    context.scope_stack.frames.get(lf12_idx, lf12)?
+                    lf12.arena_index.set(c.source_name.clone(), struct_data.offset)
+                    context.scope_stack.frames.set(lf12_idx, lf12)?
+                }
             }
         }
     }

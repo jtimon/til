@@ -1483,8 +1483,6 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                 continue_loop = false
             }
         }
-
-        result = result
     case:
         result = e
     }

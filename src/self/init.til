@@ -1976,69 +1976,6 @@ Context := struct {
         return result
     }
 
-    map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str {
-        mut struct_def := self.scope_stack.lookup_struct(custom_type_name)?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(self.path, "context", format("map_instance_fields: definition for '", custom_type_name, "' not found"))
-        }
-
-        mut instance_symbol := self.scope_stack.lookup_symbol(instance_name)?
-        catch (sym_err: KeyNotFoundError) {
-            throw e.lang_error(self.path, "context", format("map_instance_fields: instance '", instance_name, "' not found in symbols"))
-        }
-        mut is_mut := instance_symbol.is_mut
-
-        mut base_offset := self.scope_stack.lookup_var(instance_name)?
-        catch (var_err: KeyNotFoundError) {
-            throw e.lang_error(self.path, "context", format("map_instance_fields: base offset for '", instance_name, "' not found"))
-        }
-
-        mut current_offset := 0
-        for decl: Declaration in struct_def.members {
-            mut field_name := decl.name
-
-            if decl.is_mut {
-                mut combined_name := format(instance_name, ".", field_name)
-                mut field_offset := base_offset.add(current_offset)
-                self.scope_stack.insert_var(combined_name.clone(), field_offset)?
-
-                self.scope_stack.declare_symbol(
-                    combined_name.clone(),
-                    SymbolInfo(value_type=value_type_clone(decl.value_type), is_mut=is_mut)
-                )?
-
-                switch decl.value_type {
-                case ValueType.TCustom(type_name):
-                    mut found_nested_struct := false
-                    mut nested_struct_def := SStructDef()
-                    nested_struct_def = self.scope_stack.lookup_struct(type_name)?
-                    found_nested_struct = true
-                    catch (nested_err: KeyNotFoundError) {
-                        // Nested struct not found
-                    }
-                    if found_nested_struct {
-                        self.map_instance_fields(type_name, combined_name, e)?
-                        // Error will propagate via throws Str
-                    }
-                case:
-                    # Not a custom type
-                }
-
-                mut field_size := 0
-                switch decl.value_type {
-                case ValueType.TCustom(name):
-                    field_size = self.get_type_size(name)?
-                    // Errors propagate via throws Str
-                case:
-                    throw e.lang_error(self.path, "context", format("map_instance_fields: Unsupported value type '", value_type_to_str(decl.value_type), "'"))
-                }
-
-                current_offset = current_offset.add(field_size)
-            }
-            # Immutable struct fields are handled generically through struct_defs
-        }
-    }
-
     get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str {
         # Validate that the struct variable exists by checking if we can get its offset
         mut found_var := false
@@ -2273,6 +2210,31 @@ Context := struct {
         }
 
         return current_offset
+    }
+
+    /// Lookup a variable or field path, falling back to get_field_offset for field paths
+    /// This provides backwards compatibility for code that expects field paths in arena_index
+    lookup_var_or_field := func(self: Context, name: Str) returns I64 throws KeyNotFoundError {
+        // First try direct lookup
+        direct_offset := self.scope_stack.lookup_var(name)?
+        return direct_offset
+
+        catch (err: KeyNotFoundError) {
+            // Direct lookup failed, continue below
+        }
+
+        // If name contains '.', try get_field_offset as fallback
+        if name.contains(".") {
+            field_offset := self.get_field_offset(name)?
+            return field_offset
+
+            catch (err: Str) {
+                // get_field_offset failed, continue below
+            }
+        }
+
+        // All attempts failed
+        throw KeyNotFoundError(msg=name)
     }
 
     // Get the ValueType for a field path (e.g., "s.color")

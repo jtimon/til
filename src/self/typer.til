@@ -2830,10 +2830,12 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
             }
         }
         // Check if this is actually a field being called as a function
-        mut is_field := true
-        field_value_type := get_value_type(context, func_expr)?
+        mut is_field := false
+        mut field_value_type := ValueType.TCustom("")
+        field_value_type = get_value_type(context, func_expr)?
+        is_field = true
         catch (err: Str) {
-            is_field = false
+            // get_value_type failed - not a field
         }
         if is_field {
             throw func_expr.error(context.path, "type", format(
