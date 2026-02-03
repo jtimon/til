@@ -1,1 +1,6 @@
+# Use Odin for now, maybe Go would be better? Roc?
 *.til linguist-language=Odin
+
+# Mark auto-generated/example C files so they don't skew language statistics
+bootstrap/til.c linguist-generated=true
+src/test/constfold.c linguist-generated=true
