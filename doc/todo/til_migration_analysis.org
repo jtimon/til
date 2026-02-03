@@ -19,22 +19,28 @@ lines), which is an auto-generated file - the TIL compiler compiled to C. This i
 
 ** Current Architecture
 
+*** Translation Chain
+#+BEGIN_EXAMPLE
+rstil.rs (Rust) --[manual port]--> til.til (TIL) --[compile]--> til.c (C)
+#+END_EXAMPLE
+
+Simplifying Rust code directly reduces all three: the Rust implementation, the TIL
+port, and the generated C bootstrap.
+
 *** Compilation Pipeline
 #+BEGIN_EXAMPLE
 TIL Source -> [rstil (Rust)] -> C Code -> [gcc] -> Binary
                                   ^
                                   |
-                              + ext.c (755 lines runtime support)
+                              + ext.c (multiplatform runtime for compiled mode)
 #+END_EXAMPLE
 
 *** Self-Hosting Pipeline (in progress)
 #+BEGIN_EXAMPLE
 TIL Source -> [rstil_til (TIL via Rust)] -> C Code -> [gcc] -> Binary
-     ^                                                          |
-     |                                                          |
-     +----------------------------------------------------------+
-                        (self-compilation)
 #+END_EXAMPLE
+
+Note: til doesn't compile itself yet due to memory issues (copies and leaks memory).
 
 ** Analysis by Component
 
@@ -60,16 +66,21 @@ Location: src/rs/*.rs + src/rstil.rs
 | preinit.rs      |   428 | DONE            | preinit.til (466)            |
 | target.rs       |   226 | DONE            | target.til (308)             |
 | mode.rs         |   142 | DONE            | mode.til (148)               |
-| ordered_map.rs  |   110 | NOT PORTED      | Simple O(n) ordered map      |
+| ordered_map.rs  |   110 | DONE            | Maps to src/std/map.til      |
 | arena.rs        |    60 | EQUIVALENT      | src/std/arena.til exists     |
 | precomp_ext.rs  |    50 | DONE            | precomp_ext.til (45)         |
 | garbager.rs     |    11 | DONE            | garbager.til (13)            |
 
-Status: 18 of 20 modules ported. Only ordered_map.rs (110 lines) truly missing.
+Status: All 20 modules ported to TIL. Self-hosting is complete at the module level.
 
 *** 2. C Runtime Support (755 lines)
 
 Location: src/ext.c
+
+This is the multiplatform runtime for compiled mode. There are three ext files:
+- ext.c - C runtime for compiled mode (included in generated C)
+- ext.til - TIL runtime for interpreted/compiled TIL
+- ext.rs - Rust runtime for rstil (will be removed with Issue #100)
 
 Functions provided:
 - Printing: til_single_print, til_print_flush
@@ -84,8 +95,8 @@ Functions provided:
 - Filesystem: til_list_dir_raw, til_fs_parent_dir, til_fs_mkdir_p
 - Enum support: til_enum_get_payload
 
-These are C functions that get included in generated code. They cannot be trivially
-replaced with TIL because they ARE the primitive operations TIL uses.
+ext.c is necessary and fair - these are the primitive operations that compiled TIL
+programs need. The only way to reduce this is simplification, not elimination.
 
 *** 3. Bootstrap Binary (82,034 lines)
 
@@ -99,49 +110,34 @@ it's machine-generated from the TIL compiler (src/self/*.til).
 
 ** Strategies to Increase TIL Percentage
 
-*** Strategy 1: Complete Self-Hosting [HIGH IMPACT]
+*** Strategy 1: Simplify Rust Code [HIGH IMPACT]
 
-*Impact: Enables removal of ~23K lines of Rust*
+*Impact: Reduces Rust, TIL, and C bootstrap simultaneously*
 
-Remaining work:
-1. Port ordered_map.rs to TIL (110 lines)
-   - Simple: just a Vec of (key, value) pairs with linear search
-   - TIL already has src/std/map.til but it's sorted, not insertion-ordered
-   - Need: OrderedMap type that preserves insertion order
+Due to the translation chain (rstil.rs -> til.til -> til.c), simplifying the Rust
+implementation directly reduces:
+- The Rust codebase (23K lines)
+- The TIL self-hosted port (29K lines)
+- The generated C bootstrap (82K lines)
 
-2. Verify full self-compilation works
-   - rstil_til should be able to compile itself completely
-   - Once verified, Rust code becomes optional (kept for reference/debugging)
+This is the primary lever for reducing non-TIL code.
 
-Effort: LOW (110 lines to port)
-Impact: HIGH (23K lines of Rust become optional)
+Areas to simplify:
+- Remove ext.rs when Issue #100 is completed
+- Refactor verbose code patterns
+- Eliminate dead code paths
+- Simplify data structures where possible
 
-*** Strategy 2: Reduce ext.c [MEDIUM IMPACT]
+Effort: ONGOING
+Impact: HIGH (affects all three codebases)
 
-*Impact: Reduce ~755 lines of required C*
+*** Strategy 2: ext.c is Necessary [NO ACTION]
 
-The functions in ext.c fall into categories:
+ext.c provides multiplatform runtime primitives for compiled mode. This is fair and
+necessary C code - it cannot be replaced with TIL because these ARE the primitives
+TIL programs use (malloc, file I/O, process control, etc).
 
-**** Category A: Truly primitive (CANNOT replace)
-- Memory allocation (malloc, free, memcpy, memcmp, memset)
-- Process control (exit, fork, exec)
-- File I/O (fopen, fread, fwrite, fclose)
-- These MUST be C because they're the primitives TIL uses
-
-**** Category B: Convenience wrappers (CAN replace with TIL generating inline C)
-- U8/I64 arithmetic functions
-- Type conversions
-- These could be inlined directly in generated C instead of calling functions
-
-**** Category C: Complex functions (CAN partially replace)
-- til_run_cmd: Complex string handling could be simplified
-- til_list_dir_raw: Platform-specific but could use simpler approach
-
-Strategy: Have ccodegen generate inline C for Category B instead of function calls.
-This wouldn't reduce ext.c but would make it optional for simple programs.
-
-Effort: MEDIUM
-Impact: MEDIUM (ext.c remains but becomes more modular)
+The only way to reduce ext.c is simplification, not elimination.
 
 *** Strategy 3: Shrink bootstrap/til.c [HIGH IMPACT ON METRICS]
 
@@ -200,25 +196,20 @@ Impact: LOW (Makefile is small)
 
 ** Recommended Action Plan
 
-*** Phase 1: Quick Wins (1-2 days)
-1. [X] Mark bootstrap/til.c as linguist-generated
-2. [ ] Port ordered_map.rs to TIL (110 lines)
-3. [ ] Verify self-compilation works end-to-end
+*** Phase 1: Quick Wins (done)
+1. [X] Mark bootstrap/til.c as linguist-generated in .gitattributes
+2. [X] Mark constfold.c as linguist-generated (example file, may go away)
 
-*** Phase 2: Self-Hosting Completion (1 week)
-1. [ ] Test rstil_til compiling itself
-2. [ ] Document bootstrap process without Rust
-3. [ ] Consider moving Rust code to separate "bootstrap" branch
+*** Phase 2: Fix til Self-Compilation
+Current blocker: til copies and leaks memory, preventing self-compilation.
+1. [ ] Fix memory management in til compiler
+2. [ ] Test rstil_til compiling itself
+3. [ ] Document bootstrap process
 
-*** Phase 3: Runtime Optimization (2-3 weeks)
-1. [ ] Identify which ext.c functions could be inlined
-2. [ ] Modify ccodegen to inline primitive operations
-3. [ ] Make ext.c modular (only include what's needed)
-
-*** Phase 4: Alternative Bootstrap (1-2 months)
-1. [ ] Design minimal stage-1 interpreter in C
-2. [ ] Implement stage-1 capable of running stage-2 TIL compiler
-3. [ ] Replace 82K bootstrap with ~20K minimal bootstrap
+*** Phase 3: Simplify Rust Implementation
+1. [ ] Complete Issue #100 (remove ext.rs)
+2. [ ] Identify verbose patterns in Rust that can be simplified
+3. [ ] Port simplifications to TIL (reduces all three codebases)
 
 ** Metrics After Full Plan
 
@@ -272,7 +263,7 @@ Note: These are estimates assuming:
 | rstil.rs           | 308   | (entry point)                 |
 | target.rs          | 226   | target.til (308)              |
 | mode.rs            | 142   | mode.til (148)                |
-| ordered_map.rs     | 110   | NOT PORTED (need OrderedMap)  |
+| ordered_map.rs     | 110   | DONE (src/std/map.til)        |
 | arena.rs           | 60    | src/std/arena.til (55)        |
 | precomp_ext.rs     | 50    | precomp_ext.til (45)          |
 | garbager.rs        | 11    | garbager.til (13)             |
@@ -282,10 +273,13 @@ Note: These are estimates assuming:
 The high C percentage is misleading because 82K of those lines are auto-generated
 bootstrap code. The real picture is:
 
-- TIL compiler is 95% self-hosted (18/20 modules ported)
-- Only 110 lines of Rust truly need porting (ordered_map.rs)
-- ext.c (755 lines) contains genuinely necessary C primitives
-- bootstrap/til.c should be marked as generated or replaced with minimal bootstrap
+- TIL compiler is 100% self-hosted at the module level (all 20 modules ported)
+- ext.c (755 lines) is necessary for multiplatform compiled mode
+- bootstrap/til.c is now marked as linguist-generated
+- The primary strategy to reduce code is simplifying Rust, which cascades to TIL and C
 
-Immediate recommendation: Mark bootstrap/til.c as linguist-generated and port
-ordered_map.rs. This alone would show TIL at ~60% of the "real" codebase.
+Current blocker for true self-hosting: til copies and leaks memory, preventing
+self-compilation. Once fixed, Rust becomes optional for development.
+
+Key insight: The translation chain (rstil.rs -> til.til -> til.c) means every
+simplification in Rust pays off three times.
