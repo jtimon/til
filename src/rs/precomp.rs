@@ -6,7 +6,7 @@ use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef,
+    Expr, NodeType, ValueType, SStructDef, SFuncDef, SNamespaceDef, Literal, TTypeDef,
     value_type_to_str, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
@@ -82,10 +82,8 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             Ok(Expr::new_clone(NodeType::NamedArg(name.clone()), e, new_params))
         },
-        // Issue #108: NamespaceDef already processed by init - members merged into type
-        NodeType::NamespaceDef(ns_def) => {
-            Ok(Expr::new_clone(NodeType::NamespaceDef(ns_def.clone()), e, vec![]))
-        },
+        // Issue #108: NamespaceDef - transform function bodies like StructDef
+        NodeType::NamespaceDef(ns_def) => precomp_namespace_def(context, e, ns_def),
         // ForIn should have been desugared in desugarer phase
         NodeType::ForIn(_) => {
             panic!("ForIn should have been desugared in desugarer phase");
@@ -287,6 +285,33 @@ fn precomp_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) 
         default_values: new_default_values,
     };
     Ok(Expr::new_clone(NodeType::StructDef(new_struct_def), e, e.params.clone()))
+}
+
+/// Issue #108: Transform NamespaceDef - recursively transform function bodies
+fn precomp_namespace_def(context: &mut Context, e: &Expr, ns_def: &SNamespaceDef) -> Result<Expr, String> {
+    let mut new_default_values = HashMap::new();
+    for (name, value_expr) in &ns_def.default_values {
+        let is_func = matches!(&value_expr.node_type, NodeType::FuncDef(_));
+        let saved_func = context.current_precomp_func.clone();
+        let saved_counter = context.precomp_forin_counter;
+        if is_func {
+            context.current_precomp_func = name.clone();
+            context.precomp_forin_counter = 0;
+        }
+
+        new_default_values.insert(name.clone(), precomp_expr(context, value_expr)?);
+
+        if is_func {
+            context.current_precomp_func = saved_func;
+            context.precomp_forin_counter = saved_counter;
+        }
+    }
+    let new_ns_def = SNamespaceDef {
+        type_name: ns_def.type_name.clone(),
+        members: ns_def.members.clone(),
+        default_values: new_default_values,
+    };
+    Ok(Expr::new_clone(NodeType::NamespaceDef(new_ns_def), e, vec![]))
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame

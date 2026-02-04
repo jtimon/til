@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::rs::init::{Context, SymbolInfo, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
-    Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,
+    Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, SNamespaceDef, Declaration, PatternInfo, FunctionType, TTypeDef,
     value_type_to_str, str_to_value_type,
 };
 
@@ -265,8 +265,9 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 errors.extend(check_types_with_context(context, p, expr_context));
             }
         },
-        NodeType::NamespaceDef(_ns_def) => {
-            // Issue #108: NamespaceDef already processed by init - members merged into type
+        NodeType::NamespaceDef(ns_def) => {
+            // Issue #108: Type-check namespace function bodies
+            errors.extend(check_namespace_def(context, &e, ns_def));
         },
         NodeType::ForIn(_var_type) => {
             errors.extend(check_forin_statement(context, &e));
@@ -2140,6 +2141,23 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
     return errors
 }
 
+/// Issue #108: Type-check namespace function bodies (like check_struct_def but simpler)
+fn check_namespace_def(context: &mut Context, _e: &Expr, ns_def: &SNamespaceDef) -> Vec<String> {
+    let mut errors: Vec<String> = Vec::new();
+
+    for member_decl in &ns_def.members {
+        if let Some(inner_e) = ns_def.default_values.get(&member_decl.name) {
+            if let NodeType::FuncDef(func_def) = &inner_e.node_type {
+                context.scope_stack.push(ScopeType::Function);
+                errors.extend(check_func_proc_types(&func_def, context, &inner_e));
+                context.scope_stack.pop().ok();
+            }
+        }
+    }
+
+    return errors
+}
+
 pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) -> Result<Option<SFuncDef>, String> {
     if !matches!(fcall_expr.node_type, NodeType::FCall(_)) {
         return Err(fcall_expr.lang_error(&context.path, "type", "Expected FCall node type"));
@@ -2770,6 +2788,20 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 default_values: new_default_values,
             };
             Ok(Expr::new_explicit(NodeType::StructDef(new_struct_def), e.params.clone(), e.line, e.col))
+        }
+
+        // Issue #108: NamespaceDef - recurse into default_values (function bodies)
+        NodeType::NamespaceDef(ns_def) => {
+            let mut new_default_values = HashMap::new();
+            for (name, value_expr) in &ns_def.default_values {
+                new_default_values.insert(name.clone(), resolve_inferred_types(context, value_expr)?);
+            }
+            let new_ns_def = SNamespaceDef {
+                type_name: ns_def.type_name.clone(),
+                members: ns_def.members.clone(),
+                default_values: new_default_values,
+            };
+            Ok(Expr::new_explicit(NodeType::NamespaceDef(new_ns_def), e.params.clone(), e.line, e.col))
         }
 
         // Default: recurse into all params

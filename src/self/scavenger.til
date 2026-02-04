@@ -272,6 +272,22 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
             case:
             }
         }
+    // Issue #108: Handle namespace definitions - register their functions
+    case NodeType.NamespaceDef(ns_def):
+        for member_name: Str in ns_def.default_values.keys {
+            mut default_expr := Expr()
+            ns_def.default_values.get(member_name, default_expr)?
+            switch default_expr.node_type {
+            case NodeType.FuncDef(func_def):
+                full_name := format(ns_def.type_name, ".", member_name)
+                context.scope_stack.declare_func(full_name, func_def.clone())?
+                // Recurse into method body for local declarations
+                for stmt: Expr in func_def.body {
+                    register_declarations_recursive(context, stmt)?
+                }
+            case:
+            }
+        }
     case NodeType.FuncDef(func_def):
         // Anonymous function - recurse into body
         for stmt: Expr in func_def.body {
@@ -533,24 +549,49 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         used_types_snapshot.push(type_name.clone())
     }
     for eq_type_name: Str in used_types_snapshot {
-        // Skip primitive types - they don't have user-defined eq methods
+        // Skip primitive types for eq method check (they don't need implicit eq for switch)
+        // But continue processing for namespace functions below
         is_primitive := eq_type_name.eq("Str").or(eq_type_name.eq("I64")).or(eq_type_name.eq("U8")).or(eq_type_name.eq("Bool"))
-        if is_primitive {
-            continue
-        }
-        // Check if this is a struct with an eq method
-        mut eq_found_struct := false
-        _sd := context.scope_stack.lookup_struct(eq_type_name)?
-        eq_found_struct = true
-        catch (err: KeyNotFoundError) { }
-        if eq_found_struct {
-            eq_method_name := format(eq_type_name, ".eq")
-            mut found_eq := false
-            _fd := context.scope_stack.lookup_func(eq_method_name)?
-            found_eq = true
+        if not(is_primitive) {
+            // Check if this is a struct with an eq method
+            mut eq_found_struct := false
+            _sd := context.scope_stack.lookup_struct(eq_type_name)?
+            eq_found_struct = true
             catch (err: KeyNotFoundError) { }
-            if found_eq {
-                mark_reachable(eq_method_name, reachable, worklist)
+            if eq_found_struct {
+                eq_method_name := format(eq_type_name, ".eq")
+                mut found_eq := false
+                _fd := context.scope_stack.lookup_func(eq_method_name)?
+                found_eq = true
+                catch (err: KeyNotFoundError) { }
+                if found_eq {
+                    mark_reachable(eq_method_name, reachable, worklist)
+                }
+            }
+        }
+
+        // Issue #108: Mark all namespace methods as reachable when their type is used
+        // This ensures that dependencies of namespace functions are tracked
+        // Walk the AST to find NamespaceDef for this type
+        for stmt: Expr in e.params {
+            switch stmt.node_type {
+            case NodeType.NamespaceDef(ns_def):
+                if ns_def.type_name.eq(eq_type_name) {
+                    for method_name: Str in ns_def.default_values.keys {
+                        mut method_expr := Expr()
+                        ns_def.default_values.get(method_name, method_expr)?
+                        catch (err: KeyNotFoundError) {
+                            panic(loc(), "scavenger: KeyNotFoundError iterating default_values.keys: ", err.msg)
+                        }
+                        switch method_expr.node_type {
+                        case NodeType.FuncDef(_func_def):
+                            full_name := format(eq_type_name, ".", method_name)
+                            mark_reachable(full_name, reachable, worklist)
+                        case:
+                        }
+                    }
+                }
+            case:
             }
         }
     }

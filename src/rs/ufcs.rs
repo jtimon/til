@@ -5,7 +5,7 @@
 use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
 use crate::rs::typer::func_proc_has_multi_arg;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SFuncDef, INFER_TYPE,
+    Expr, NodeType, ValueType, SStructDef, SFuncDef, SNamespaceDef, INFER_TYPE,
 };
 
 // ---------- Named argument reordering
@@ -221,10 +221,8 @@ pub fn ufcs_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             Ok(Expr::new_clone(NodeType::NamedArg(name.clone()), e, new_params))
         },
-        // Issue #108: NamespaceDef already processed by init - members merged into type
-        NodeType::NamespaceDef(ns_def) => {
-            Ok(Expr::new_clone(NodeType::NamespaceDef(ns_def.clone()), e, vec![]))
-        },
+        // Issue #108: NamespaceDef - transform function bodies like StructDef
+        NodeType::NamespaceDef(ns_def) => ufcs_namespace_def(context, e, ns_def),
         // ForIn should have been desugared in desugarer phase
         NodeType::ForIn(_) => {
             panic!("ForIn should have been desugared in desugarer phase");
@@ -263,6 +261,20 @@ fn ufcs_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) -> 
         default_values: new_default_values,
     };
     Ok(Expr::new_clone(NodeType::StructDef(new_struct_def), e, e.params.clone()))
+}
+
+/// Issue #108: Transform NamespaceDef - recursively transform function bodies
+fn ufcs_namespace_def(context: &mut Context, e: &Expr, ns_def: &SNamespaceDef) -> Result<Expr, String> {
+    let mut new_default_values = std::collections::HashMap::new();
+    for (name, value_expr) in &ns_def.default_values {
+        new_default_values.insert(name.clone(), ufcs_expr(context, value_expr)?);
+    }
+    let new_ns_def = SNamespaceDef {
+        type_name: ns_def.type_name.clone(),
+        members: ns_def.members.clone(),
+        default_values: new_default_values,
+    };
+    Ok(Expr::new_clone(NodeType::NamespaceDef(new_ns_def), e, vec![]))
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
@@ -422,16 +434,10 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     if let NodeType::Identifier(_id_name) = &func_expr.node_type {
         let combined_name = crate::rs::parser::get_combined_name(&context.path, func_expr)?;
 
-        // Regular function call - check if it exists
-        if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
-            // Reorder named arguments to positional order
-            let e = reorder_named_args(context, &e, &func_def)?;
-            return Ok(e);
-        }
-
         // UFCS for chained calls: func(result, args) -> Type.func(result, args)
-        // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
-        // This only applies when no standalone function with this name exists (checked above).
+        // e.g., or(a.and(b), c) becomes Bool.or(a.and(b), c) when Bool.or exists
+        // Associated methods take priority over standalone functions (checked below)
+        // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
         if e.params.len() >= 2 {
             let first_arg = e.get(1)?;
             if let Ok(target_type) = get_value_type(context, first_arg) {
@@ -443,18 +449,33 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 };
                 if let Some(type_name) = custom_type_name {
                     let method_name = format!("{}.{}", type_name, combined_name);
-                    if context.scope_stack.has_func(&method_name) {
-                        // Transform: func(target, args...) -> Type.func(target, args...)
-                        let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), e.get(0)?, Vec::new());
-                        let mut new_args = Vec::new();
-                        new_args.push(new_e);
-                        new_args.extend(e.params[1..].to_vec());
-                        // Issue #132: Preserve does_throw flag from original FCall
-                        let does_throw = matches!(e.node_type, NodeType::FCall(true));
-                        return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.get(0)?, new_args));
+                    if let Some(method_def) = context.scope_stack.lookup_func(&method_name) {
+                        // Only transform if argument count matches
+                        // e.params includes func name at [0], so actual args are params.len() - 1
+                        let call_arg_count = e.params.len() - 1;
+                        let method_arg_count = method_def.args.len();
+                        // Check if method has variadic args (marked with TMulti value type)
+                        let method_is_variadic = method_def.args.iter().any(|arg| matches!(arg.value_type, ValueType::TMulti(_)));
+                        if call_arg_count == method_arg_count || method_is_variadic {
+                            // Transform: func(target, args...) -> Type.func(target, args...)
+                            let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), e.get(0)?, Vec::new());
+                            let mut new_args = Vec::new();
+                            new_args.push(new_e);
+                            new_args.extend(e.params[1..].to_vec());
+                            // Issue #132: Preserve does_throw flag from original FCall
+                            let does_throw = matches!(e.node_type, NodeType::FCall(true));
+                            return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.get(0)?, new_args));
+                        }
                     }
                 }
             }
+        }
+
+        // Regular function call - check if it exists (after associated method check)
+        if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
+            // Reorder named arguments to positional order
+            let e = reorder_named_args(context, &e, &func_def)?;
+            return Ok(e);
         }
 
         // UFCS with dot notation (e.g., a.method(b) or a.field.method())

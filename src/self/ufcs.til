@@ -311,9 +311,9 @@ ufcs_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             new_params.push(ufcs_expr(context, p)?)
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
-    // Issue #108: NamespaceDef already processed by init - members merged into type
+    // Issue #108: NamespaceDef - transform function bodies like StructDef
     case NodeType.NamespaceDef(ns_def):
-        return Expr.new_clone(NodeType.NamespaceDef(ns_def.clone()), e, Vec.new(Expr))
+        return ufcs_namespace_def(context, e, ns_def)?
     // ForIn should have been desugared in desugarer phase
     case NodeType.ForIn(_):
         panic(loc(), "ForIn should have been desugared in desugarer phase")
@@ -554,6 +554,26 @@ ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     return Expr.new_clone(NodeType.Catch, e, new_params)
 }
 
+/// Transform NamespaceDef - transform function bodies inside namespace
+ufcs_namespace_def := proc(mut context: Context, e: Expr, ns_def: SNamespaceDef) returns Expr throws Str {
+    mut new_default_values := Map.new(Str, Expr)
+    for name: Str in ns_def.default_values.keys {
+        mut value_expr := Expr()
+        ns_def.default_values.get(name, value_expr)?
+        new_default_values.set(name, ufcs_expr(context, value_expr)?)
+    }
+    mut new_ns_def := SNamespaceDef()
+    new_ns_def.type_name = ns_def.type_name.clone()
+    new_ns_def.members = ns_def.members.clone()
+    new_ns_def.default_values = new_default_values
+
+    catch (err: KeyNotFoundError) {
+        throw format("ufcs_namespace_def: ", err.msg)
+    }
+
+    return Expr.new_clone(NodeType.NamespaceDef(new_ns_def), e, Vec.new(Expr))
+}
+
 /// Transform FCall node - this is where UFCS resolution happens
 ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Transform all arguments first
@@ -573,22 +593,10 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.Identifier:
         combined_name := get_combined_name(context.path, func_expr)?
 
-        // Regular function call - check if it exists
-        mut func_found := false
-        mut func_def := context.scope_stack.lookup_func(combined_name)?
-        func_found = true
-        catch (err: KeyNotFoundError) {
-            // Not found
-        }
-        if func_found {
-            // Reorder named arguments to positional order
-            reordered := reorder_named_args(context, new_e, func_def)?
-            return reordered
-        }
-
         // UFCS for chained calls: func(result, args) -> Type.func(result, args)
-        // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
-        // This only applies when no standalone function with this name exists (checked above).
+        // e.g., or(a.and(b), c) becomes Bool.or(a.and(b), c) when Bool.or exists
+        // Associated methods take priority over standalone functions (checked below)
+        // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
         if new_e.params.len().gteq(2) {
             mut first_arg := Expr()
             new_e.params.get(1, first_arg)?
@@ -612,13 +620,21 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 }
                 if has_type_name {
                     mut method_name := format(type_name, ".", combined_name)
-                    mut method_found := false
-                    _dummy := context.scope_stack.lookup_func(method_name)?
-                    method_found = true
-                    catch (err: KeyNotFoundError) {
-                        // Not found
+                    mut method_def := context.scope_stack.lookup_func(method_name)?
+                    // Only transform if argument count matches
+                    // new_e.params includes func name at [0], so actual args are params.len() - 1
+                    call_arg_count := new_e.params.len().sub(1)
+                    method_arg_count := method_def.args.len()
+                    // Check if method has variadic args (marked with TMulti value type)
+                    mut method_is_variadic := false
+                    for arg: Declaration in method_def.args {
+                        switch arg.value_type {
+                        case ValueType.TMulti(_):
+                            method_is_variadic = true
+                        case:
+                        }
                     }
-                    if method_found {
+                    if call_arg_count.eq(method_arg_count).or(method_is_variadic) {
                         // Transform: func(target, args...) -> Type.func(target, args...)
                         mut new_id_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
                         mut new_args := Vec.new(Expr)
@@ -633,8 +649,24 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                         }
                         return Expr.new_clone(NodeType.FCall(get_fcall_does_throw(func_expr)), func_expr, new_args)
                     }
+                    catch (err: KeyNotFoundError) {
+                        // Method not found - fall through
+                    }
                 }
             }
+        }
+
+        // Regular function call - check if it exists (after associated method check)
+        mut func_found := false
+        mut func_def := context.scope_stack.lookup_func(combined_name)?
+        func_found = true
+        catch (err: KeyNotFoundError) {
+            // Not found
+        }
+        if func_found {
+            // Reorder named arguments to positional order
+            reordered := reorder_named_args(context, new_e, func_def)?
+            return reordered
         }
 
         // UFCS with dot notation (e.g., a.method(b) or a.field.method())

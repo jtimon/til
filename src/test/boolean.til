@@ -77,6 +77,34 @@ test(loc(), true.eq(true), "Bool.eq: true.eq(true) == true")
 test(loc(), false.eq(false), "Bool.eq: false.eq(false) == true")
 
 // ============================================================
+// UFCS Method Chaining - Issue #108
+// Tests that a.and(b).or(c) works correctly
+// ============================================================
+
+// Basic chaining: and().or()
+test(loc(), true.and(true).or(false), "Chain: true.and(true).or(false) == true")
+test(loc(), true.and(false).or(true), "Chain: true.and(false).or(true) == true")
+test(loc(), not(false.and(true).or(false)), "Chain: false.and(true).or(false) == false")
+test(loc(), false.and(false).or(true), "Chain: false.and(false).or(true) == true")
+
+// Basic chaining: or().and()
+test(loc(), true.or(false).and(true), "Chain: true.or(false).and(true) == true")
+test(loc(), not(true.or(false).and(false)), "Chain: true.or(false).and(false) == false")
+test(loc(), false.or(true).and(true), "Chain: false.or(true).and(true) == true")
+test(loc(), not(false.or(false).and(true)), "Chain: false.or(false).and(true) == false")
+
+// Three-level chaining
+test(loc(), true.and(true).or(false).and(true), "Chain: true.and(true).or(false).and(true) == true")
+test(loc(), not(true.and(false).or(false).and(true)), "Chain: true.and(false).or(false).and(true) == false")
+test(loc(), false.or(true).and(true).or(false), "Chain: false.or(true).and(true).or(false) == true")
+
+// Chaining with eq()
+test(loc(), true.and(true).eq(true), "Chain: true.and(true).eq(true) == true")
+test(loc(), not(true.and(false).eq(true)), "Chain: true.and(false).eq(true) == false")
+test(loc(), true.or(false).eq(true), "Chain: true.or(false).eq(true) == true")
+test(loc(), false.or(false).eq(false), "Chain: false.or(false).eq(false) == true")
+
+// ============================================================
 // Bool.to_i64 - conversion to integer
 // ============================================================
 

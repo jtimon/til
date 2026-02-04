@@ -95,6 +95,15 @@ til_Bool til_U8_eq(const til_U8* til_U8_a, const til_U8* til_U8_b);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y);
 til_CfRect til_CfRect_sample(void);
+til_I64 til_Bool_len(const til_Bool* _self);
+til_Bool til_Bool_eq(const til_Bool* til_Bool_a, const til_Bool* til_Bool_b);
+til_Bool til_Bool_and(const til_Bool* til_Bool_self, const til_Bool* til_Bool_other);
+til_Bool til_Bool_or(const til_Bool* til_Bool_self, const til_Bool* til_Bool_other);
+til_Str til_Bool_to_str(const til_Bool* til_Bool_self);
+til_I64 til_Bool_to_i64(const til_Bool* til_Bool_self);
+til_U8 til_Bool_to_u8(const til_Bool* til_Bool_self);
+til_Bool til_Bool_from_i64(const til_I64* til_I64_i);
+til_I64 til_Bool_size(void);
 
 #include <ext.c>
 
@@ -931,6 +940,72 @@ til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y) {
 til_CfRect til_CfRect_sample(void) {
     return (til_CfRect){.top_left = (til_CfVec2){.x = 5, .y = 10}, .bottom_right = (til_CfVec2){.x = 100, .y = 200}};
     return (til_CfRect){0};
+}
+
+til_I64 til_Bool_len(const til_Bool* _self) {
+    return 1;
+    return (til_I64){0};
+}
+
+til_Bool til_Bool_eq(const til_Bool* til_Bool_a, const til_Bool* til_Bool_b) {
+    til_Bool _tmp_til_Bool_eq_0 = til_Bool_and(til_Bool_a, til_Bool_b);
+    til_Bool _tmp_til_Bool_eq_1 = til_not(til_Bool_b);
+    til_Bool _tmp_til_Bool_eq_2 = til_not(til_Bool_a);
+    til_Bool _tmp_til_Bool_eq_3 = til_Bool_and(&_tmp_til_Bool_eq_1, &_tmp_til_Bool_eq_2);
+    return til_Bool_or(&_tmp_til_Bool_eq_0, &_tmp_til_Bool_eq_3);
+    return (til_Bool){0};
+}
+
+til_Bool til_Bool_and(const til_Bool* til_Bool_self, const til_Bool* til_Bool_other) {
+    if ((*til_Bool_self).data) {
+        return (*til_Bool_other);
+    }
+    return false;
+    return (til_Bool){0};
+}
+
+til_Bool til_Bool_or(const til_Bool* til_Bool_self, const til_Bool* til_Bool_other) {
+    if ((*til_Bool_self).data) {
+        return true;
+    }
+    return (*til_Bool_other);
+    return (til_Bool){0};
+}
+
+til_Str til_Bool_to_str(const til_Bool* til_Bool_self) {
+    if ((*til_Bool_self).data) {
+        return ((til_Str){((til_Ptr){(til_I64)"true", 1}), 4, 0});
+    }
+    return ((til_Str){((til_Ptr){(til_I64)"false", 1}), 5, 0});
+    return (til_Str){0};
+}
+
+til_I64 til_Bool_to_i64(const til_Bool* til_Bool_self) {
+    if ((*til_Bool_self).data) {
+        return 1;
+    }
+    return 0;
+    return (til_I64){0};
+}
+
+til_U8 til_Bool_to_u8(const til_Bool* til_Bool_self) {
+    return til_Bool_self->data;
+    return (til_U8){0};
+}
+
+til_Bool til_Bool_from_i64(const til_I64* til_I64_i) {
+    til_Bool til_Bool_b = {.data = 0};
+    til_I64 _tmp_til_Bool_from_i64_0 = 0;
+    if (til_I64_gt(til_I64_i, &_tmp_til_Bool_from_i64_0).data) {
+        til_Bool_b.data = 1;
+    }
+    return til_Bool_b;
+    return (til_Bool){0};
+}
+
+til_I64 til_Bool_size(void) {
+    return 1;
+    return (til_I64){0};
 }
 
 int main(int argc, char** argv) {
