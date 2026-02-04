@@ -513,11 +513,14 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     }
 
     // Handle StructDef early
+    // Issue #108: Don't overwrite if struct already exists with merged namespace members
     switch value_type {
     case ValueType.TType(TTypeDef.TStructDef):
         switch inner_e.node_type {
         case NodeType.StructDef(struct_def):
-            context.scope_stack.declare_struct(decl.name, struct_def)?
+            if not(context.scope_stack.has_struct(decl.name)) {
+                context.scope_stack.declare_struct(decl.name, struct_def)?
+            }
             saved_path := context.path
             _ := eval_declaration(decl, context, e)?
             context.path = saved_path

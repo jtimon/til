@@ -389,7 +389,10 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     }
     if let ValueType::TType(TTypeDef::TStructDef) = value_type {
         if let NodeType::StructDef(struct_def) = &inner_e.node_type {
-            context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+            // Issue #108: Don't overwrite if struct already exists with merged namespace members
+            if context.scope_stack.lookup_struct(&decl.name).is_none() {
+                context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+            }
             let saved_path = context.path.clone();
             eval_declaration(decl, context, e)?;
             context.path = saved_path;

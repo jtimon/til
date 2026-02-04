@@ -328,8 +328,11 @@ fn ufcs_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::D
     }
 
     // For struct definitions, register the struct so methods can be resolved
+    // Issue #108: Don't overwrite if struct already exists with merged namespace members
     if let NodeType::StructDef(struct_def) = &inner_e.node_type {
-        context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+        if context.scope_stack.lookup_struct(&decl.name).is_none() {
+            context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+        }
     }
 
     // For enum definitions, register the enum

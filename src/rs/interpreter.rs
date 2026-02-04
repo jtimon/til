@@ -927,8 +927,12 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
         ValueType::TType(TTypeDef::TStructDef) => {
             match &inner_e.node_type {
                 NodeType::StructDef(struct_def) => {
-                    context.scope_stack.declare_struct(declaration.name.to_string(), struct_def.clone());
+                    // Issue #108: Don't overwrite struct if already declared (may have merged namespace members)
+                    if context.scope_stack.lookup_struct(&declaration.name).is_none() {
+                        context.scope_stack.declare_struct(declaration.name.to_string(), struct_def.clone());
+                    }
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                    // Process members from AST struct_def (not merged struct - namespace members handled separately)
                     for member_decl in &struct_def.members {
                         if !member_decl.is_mut {
                             let combined_name = format!("{}.{}", declaration.name, member_decl.name);

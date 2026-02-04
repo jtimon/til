@@ -56,6 +56,16 @@ Str := struct {
         return cloned
     }
 
+    delete := proc(mut self: Str) {
+        // Only free if the string is owned (cap > 0)
+        if self.cap.gt(0) {
+            self.c_string.delete()
+        }
+        self.c_string = Ptr()
+        self._len = 0
+        self.cap = 0
+    }
+
     /// Convert a single byte to a 1-character string
     from_byte := func(byte: U8) returns Str {
         mut s := Str()

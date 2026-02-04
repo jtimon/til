@@ -1,10 +1,10 @@
-mode liba
+mode lib
 
 import("self.parser")
 
-// Preinit phase: Auto-generates delete() and clone() methods for structs and enums.
-// This phase runs before init so the generated methods are visible during type checking.
-// Future consolidation: May be merged into init phase.
+// Preinit phase: Auto-generates delete() and clone() methods for structs/enums.
+// Issue #108: Methods are generated into namespace blocks, not into struct definitions.
+// This keeps structs clean (only storage fields) while still providing auto-generated methods.
 
 /// Result of generating a method - contains the declaration and expression.
 MethodResult := struct {
@@ -12,14 +12,44 @@ MethodResult := struct {
     mut expr: Expr = Expr()
 }
 
-/// Generate a delete() method for a struct that doesn't have one.
+/// Check if a value type has no fields (no delete/clone needed).
+/// - I64, U8: true built-in primitives
+/// - Dynamic, Type: empty structs with no fields
+is_primitive_type := func(vt: ValueType) returns Bool {
+    switch vt {
+    case ValueType.TCustom(name):
+        if name.eq("I64") { return true }
+        if name.eq("U8") { return true }
+        if name.eq("Dynamic") { return true }
+        if name.eq("Type") { return true }
+        return false
+    case:
+        return false
+    }
+}
+
+/// Generate a delete() method for a struct.
 /// The method calls field.delete() for each mutable field in reverse declaration order.
 generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns MethodResult {
     // Build: delete := proc(mut self: StructName) { self.field_n.delete(); ... self.field_0.delete(); }
 
-    // Create the self parameter: mut self: StructName
+    // Check if there will be any delete calls (determines if we use _self or self)
+    mut has_non_primitive_fields := false
+    for mf: Declaration in struct_def.members {
+        if mf.is_mut {
+            if not(is_primitive_type(mf.value_type)) {
+                has_non_primitive_fields = true
+            }
+        }
+    }
+
+    mut self_param_name := "_self"
+    if has_non_primitive_fields {
+        self_param_name = "self"
+    }
+
     self_decl := Declaration(
-        name="self",
+        name=self_param_name,
         value_type=ValueType.TCustom(struct_name),
         is_mut=true,
         is_copy=false,
@@ -27,7 +57,6 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
         default_value=Ptr()
     )
 
-    // Build the body: call delete() on each field in reverse order
     mut body_stmts := Vec.new(Expr)
 
     // Process fields in reverse order (like C++/Rust destructors)
@@ -35,31 +64,28 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
     while member_i.gteq(0) {
         mut member := Declaration()
         struct_def.members.get(member_i, member)?
-        catch (err: IndexOutOfBoundsError) {
-            // Shouldn't happen
-        }
+        catch (err: IndexOutOfBoundsError) { }
 
-        // Skip non-mut fields (constants/methods don't need delete)
+        // Skip non-mut fields and primitive types
         if member.is_mut {
-            // Build: self.field_name.delete()
-            // self.field_name.delete is: Identifier("self") [ Identifier("field_name"), Identifier("delete") ]
-            mut delete_access_params := Vec.new(Expr)
-            delete_access_params.push(Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
-            delete_access_params.push(Expr.new_explicit(NodeType.Identifier("delete"), Vec.new(Expr), line, col))
-            delete_access := Expr.new_explicit(NodeType.Identifier("self"), delete_access_params, line, col)
+            if not(is_primitive_type(member.value_type)) {
+                // Build: self.field_name.delete()
+                mut delete_access_params := Vec.new(Expr)
+                delete_access_params.push(Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
+                delete_access_params.push(Expr.new_explicit(NodeType.Identifier("delete"), Vec.new(Expr), line, col))
+                delete_access := Expr.new_explicit(NodeType.Identifier("self"), delete_access_params, line, col)
 
-            // FCall for self.field_name.delete()
-            mut delete_call_params := Vec.new(Expr)
-            delete_call_params.push(delete_access)
-            delete_call := Expr.new_explicit(NodeType.FCall(false), delete_call_params, line, col)
+                mut delete_call_params := Vec.new(Expr)
+                delete_call_params.push(delete_access)
+                delete_call := Expr.new_explicit(NodeType.FCall(false), delete_call_params, line, col)
 
-            body_stmts.push(delete_call)
+                body_stmts.push(delete_call)
+            }
         }
 
         member_i.dec()
     }
 
-    // Create the FuncDef
     mut args := Vec.new(Declaration)
     args.push(self_decl)
     func_def := SFuncDef(
@@ -71,7 +97,6 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
         source_path=""
     )
 
-    // Create the declaration for the method
     method_decl := Declaration(
         name="delete",
         value_type=ValueType.TFunction(FunctionType.FTProc),
@@ -82,16 +107,14 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
     )
 
     func_expr := Expr.new_explicit(NodeType.FuncDef(func_def), Vec.new(Expr), line, col)
-
     return MethodResult(decl=method_decl, expr=func_expr)
 }
 
-/// Generate a clone() method for a struct that doesn't have one.
+/// Generate a clone() method for a struct.
 /// The method returns a new instance with each mutable field cloned.
 generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns MethodResult {
     // Build: clone := func(self: StructName) returns StructName { return StructName(field1 = self.field1.clone(), ...) }
 
-    // Create the self parameter: self: StructName (not mut - we're reading from it)
     self_decl := Declaration(
         name="self",
         value_type=ValueType.TCustom(struct_name),
@@ -101,41 +124,41 @@ generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I6
         default_value=Ptr()
     )
 
-    // Build named arguments for the struct literal: field1 = self.field1.clone(), field2 = self.field2.clone(), ...
     mut named_args := Vec.new(Expr)
 
     for member_i in 0..struct_def.members.len() {
         mut member := Declaration()
         struct_def.members.get(member_i, member)?
-        catch (err: IndexOutOfBoundsError) {
-            // Shouldn't happen
-        }
+        catch (err: IndexOutOfBoundsError) { }
 
-        // Skip non-mut fields (constants/methods don't need cloning)
         if member.is_mut {
-            // Build: self.field_name.clone()
-            // This is: Identifier("self") [ Identifier("field_name"), Identifier("clone") ]
-            mut clone_access_params := Vec.new(Expr)
-            clone_access_params.push(Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
-            clone_access_params.push(Expr.new_explicit(NodeType.Identifier("clone"), Vec.new(Expr), line, col))
-            clone_access := Expr.new_explicit(NodeType.Identifier("self"), clone_access_params, line, col)
+            // For primitive types, just copy the value directly: self.field_name
+            // For other types, call clone: self.field_name.clone()
+            mut field_value := Expr()
+            if is_primitive_type(member.value_type) {
+                // Build: self.field_name
+                mut access_params := Vec.new(Expr)
+                access_params.push(Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
+                field_value = Expr.new_explicit(NodeType.Identifier("self"), access_params, line, col)
+            } else {
+                // Build: self.field_name.clone()
+                mut clone_access_params := Vec.new(Expr)
+                clone_access_params.push(Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
+                clone_access_params.push(Expr.new_explicit(NodeType.Identifier("clone"), Vec.new(Expr), line, col))
+                clone_access := Expr.new_explicit(NodeType.Identifier("self"), clone_access_params, line, col)
 
-            // FCall for self.field_name.clone()
-            mut clone_call_params := Vec.new(Expr)
-            clone_call_params.push(clone_access)
-            clone_call := Expr.new_explicit(NodeType.FCall(false), clone_call_params, line, col)
+                mut clone_call_params := Vec.new(Expr)
+                clone_call_params.push(clone_access)
+                field_value = Expr.new_explicit(NodeType.FCall(false), clone_call_params, line, col)
+            }
 
-            // Build named argument: field_name = self.field_name.clone()
             mut named_arg_params := Vec.new(Expr)
-            named_arg_params.push(clone_call)
+            named_arg_params.push(field_value)
             named_arg := Expr.new_explicit(NodeType.NamedArg(member.name), named_arg_params, line, col)
-
             named_args.push(named_arg)
         }
     }
 
-    // Build: StructName(field1 = ..., field2 = ...)
-    // This is: Identifier("StructName") followed by named args
     struct_name_id := Expr.new_explicit(NodeType.Identifier(struct_name), Vec.new(Expr), line, col)
 
     mut struct_literal_params := Vec.new(Expr)
@@ -149,12 +172,10 @@ generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I6
 
     struct_literal := Expr.new_explicit(NodeType.FCall(false), struct_literal_params, line, col)
 
-    // Build: return StructName(...)
     mut return_params := Vec.new(Expr)
     return_params.push(struct_literal)
     return_stmt := Expr.new_explicit(NodeType.Return, return_params, line, col)
 
-    // Create the FuncDef
     mut args := Vec.new(Declaration)
     args.push(self_decl)
     mut return_types := Vec.new(ValueType)
@@ -170,7 +191,6 @@ generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I6
         source_path=""
     )
 
-    // Create the declaration for the method
     method_decl := Declaration(
         name="clone",
         value_type=ValueType.TFunction(FunctionType.FTFunc),
@@ -181,13 +201,11 @@ generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I6
     )
 
     func_expr := Expr.new_explicit(NodeType.FuncDef(func_def), Vec.new(Expr), line, col)
-
     return MethodResult(decl=method_decl, expr=func_expr)
 }
 
 /// Generate a delete() method for an enum - no-op since enums are value types.
 generate_enum_delete_method := func(enum_name: Str, line: I64, col: I64) returns Expr {
-    // Build: delete := proc(mut self: EnumName) {}
     self_decl := Declaration(
         name="self",
         value_type=ValueType.TCustom(enum_name),
@@ -204,7 +222,7 @@ generate_enum_delete_method := func(enum_name: Str, line: I64, col: I64) returns
         args=args,
         return_types=Vec.new(ValueType),
         throw_types=Vec.new(ValueType),
-        body=Vec.new(Expr),  // Empty body - no-op
+        body=Vec.new(Expr),
         source_path=""
     )
 
@@ -213,7 +231,6 @@ generate_enum_delete_method := func(enum_name: Str, line: I64, col: I64) returns
 
 /// Generate a clone() method for an enum - returns self since enums are value types.
 generate_enum_clone_method := func(enum_name: Str, line: I64, col: I64) returns Expr {
-    // Build: clone := func(self: EnumName) returns EnumName { return self }
     self_decl := Declaration(
         name="self",
         value_type=ValueType.TCustom(enum_name),
@@ -223,7 +240,6 @@ generate_enum_clone_method := func(enum_name: Str, line: I64, col: I64) returns 
         default_value=Ptr()
     )
 
-    // Build: return self
     mut return_params := Vec.new(Expr)
     return_params.push(Expr.new_explicit(NodeType.Identifier("self"), Vec.new(Expr), line, col))
     return_stmt := Expr.new_explicit(NodeType.Return, return_params, line, col)
@@ -246,149 +262,231 @@ generate_enum_clone_method := func(enum_name: Str, line: I64, col: I64) returns 
     return Expr.new_explicit(NodeType.FuncDef(func_def), Vec.new(Expr), line, col)
 }
 
-/// Preinit phase entry point: Recursively process AST to auto-generate delete and clone methods.
-preinit_expr := func(e: Expr) returns Expr {
+/// Collect all methods defined in namespace blocks.
+/// Returns a Set of "TypeName.methodName" strings.
+collect_namespace_methods := func(ast: Expr) returns Set {
+    mut methods := Set.new(Str)
+
+    switch ast.node_type {
+    case NodeType.Body:
+        for ci in 0..ast.params.len() {
+            mut child := Expr()
+            ast.params.get(ci, child)?
+            catch (err: IndexOutOfBoundsError) {}
+
+            switch child.node_type {
+            case NodeType.NamespaceDef(ns_def):
+                for mi in 0..ns_def.members.len() {
+                    mut member := Declaration()
+                    ns_def.members.get(mi, member)?
+                    catch (err: IndexOutOfBoundsError) {}
+                    _ := methods.insert(format(ns_def.type_name, ".", member.name))
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    return methods
+}
+
+/// Info about a struct that needs auto-generated methods.
+StructNeedingMethods := struct {
+    mut struct_name: Str = ""
+    mut struct_def: SStructDef = SStructDef()
+    mut line: I64 = 0
+    mut col: I64 = 0
+    mut needs_delete: Bool = false
+    mut needs_clone: Bool = false
+}
+
+/// Collect all structs that need auto-generated methods.
+collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) returns Vec {
+    mut structs := Vec.new(StructNeedingMethods)
+
+    switch ast.node_type {
+    case NodeType.Body:
+        for ci in 0..ast.params.len() {
+            mut child := Expr()
+            ast.params.get(ci, child)?
+            catch (err: IndexOutOfBoundsError) {}
+
+            switch child.node_type {
+            case NodeType.Declaration(decl):
+                if child.params.len().gt(0) {
+                    mut value_expr := Expr()
+                    child.params.get(0, value_expr)?
+                    catch (err: IndexOutOfBoundsError) {}
+
+                    switch value_expr.node_type {
+                    case NodeType.StructDef(struct_def):
+                        // Check if struct has any mutable fields
+                        mut has_mut_fields := false
+                        for mfi in 0..struct_def.members.len() {
+                            mut mf := Declaration()
+                            struct_def.members.get(mfi, mf)?
+                            catch (err: IndexOutOfBoundsError) {}
+                            if mf.is_mut {
+                                has_mut_fields = true
+                            }
+                        }
+                        if not(has_mut_fields) {
+                            // continue - skip to next child
+                        } else {
+                            // Check if delete/clone are already defined (in struct or namespace)
+                            mut has_delete_inline := false
+                            for di in 0..struct_def.members.len() {
+                                mut dm := Declaration()
+                                struct_def.members.get(di, dm)?
+                                catch (err: IndexOutOfBoundsError) {}
+                                if dm.name.eq("delete") {
+                                    has_delete_inline = true
+                                }
+                            }
+                            if struct_def.default_values.contains_key("delete") {
+                                has_delete_inline = true
+                            }
+                            has_delete_namespace := namespace_methods.contains(format(decl.name, ".delete"))
+                            has_delete := has_delete_inline.or(has_delete_namespace)
+
+                            mut has_clone_inline := false
+                            for cli in 0..struct_def.members.len() {
+                                mut clm := Declaration()
+                                struct_def.members.get(cli, clm)?
+                                catch (err: IndexOutOfBoundsError) {}
+                                if clm.name.eq("clone") {
+                                    has_clone_inline = true
+                                }
+                            }
+                            if struct_def.default_values.contains_key("clone") {
+                                has_clone_inline = true
+                            }
+                            has_clone_namespace := namespace_methods.contains(format(decl.name, ".clone"))
+                            has_clone := has_clone_inline.or(has_clone_namespace)
+
+                            needs_delete := not(has_delete)
+                            needs_clone := not(has_clone)
+
+                            if needs_delete.or(needs_clone) {
+                                mut info := StructNeedingMethods()
+                                info.struct_name = decl.name.clone()
+                                info.struct_def = struct_def.clone()
+                                info.line = child.line
+                                info.col = child.col
+                                info.needs_delete = needs_delete
+                                info.needs_clone = needs_clone
+                                structs.push(info)
+                            }
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    return structs
+}
+
+/// Generate a namespace block with auto-generated methods for a struct.
+generate_namespace_block := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64, needs_delete: Bool, needs_clone: Bool) returns Expr {
+    mut members := Vec.new(Declaration)
+    mut default_values := Map.new(Str, Expr)
+
+    if needs_delete {
+        delete_result := generate_delete_method(struct_name, struct_def, line, col)
+        members.push(delete_result.decl)
+        default_values.set("delete", delete_result.expr)
+    }
+
+    if needs_clone {
+        clone_result := generate_clone_method(struct_name, struct_def, line, col)
+        members.push(clone_result.decl)
+        default_values.set("clone", clone_result.expr)
+    }
+
+    ns_def := SNamespaceDef(
+        type_name=struct_name,
+        members=members,
+        default_values=default_values
+    )
+
+    return Expr.new_explicit(NodeType.NamespaceDef(ns_def), Vec.new(Expr), line, col)
+}
+
+/// Recursively process expression (for nested function bodies, etc.)
+preinit_expr_inner := func(e: Expr) returns Expr {
     switch e.node_type {
-    // Handle Declaration nodes - check for struct definitions that need delete/clone methods
+    case NodeType.FuncDef(func_def):
+        mut new_body := Vec.new(Expr)
+        for fi in 0..func_def.body.len() {
+            mut stmt := Expr()
+            func_def.body.get(fi, stmt)?
+            catch (err: IndexOutOfBoundsError) {}
+            new_body.push(preinit_expr_inner(stmt))
+        }
+        new_func_def := SFuncDef(
+            function_type=func_def.function_type,
+            args=func_def.args,
+            return_types=func_def.return_types,
+            throw_types=func_def.throw_types,
+            body=new_body,
+            source_path=func_def.source_path
+        )
+        return Expr.new_clone(NodeType.FuncDef(new_func_def), e, e.params)
+
+    case NodeType.StructDef(struct_def):
+        // Recurse into default values but DON'T add delete/clone here
+        mut new_default_values := Map.new(Str, Expr)
+        mut sdi := 0
+        while sdi.lt(struct_def.default_values.keys.len()) {
+            mut sd_name := ""
+            struct_def.default_values.keys.get(sdi, sd_name)?
+            catch (err: IndexOutOfBoundsError) {}
+            mut sd_value_expr := Expr()
+            struct_def.default_values.get(sd_name, sd_value_expr)?
+            catch (err: KeyNotFoundError) {}
+            new_default_values.set(sd_name, preinit_expr_inner(sd_value_expr))
+            sdi.inc()
+        }
+        new_struct_def := SStructDef(
+            members=struct_def.members,
+            default_values=new_default_values
+        )
+        return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params)
+
     case NodeType.Declaration(decl):
-        // Check if this is a struct definition
+        // For enum definitions, still add delete/clone directly (enums don't use namespace blocks yet)
         if e.params.len().gt(0) {
             mut value_expr := Expr()
             e.params.get(0, value_expr)?
-            catch (err: IndexOutOfBoundsError) {
-                // Shouldn't happen since we checked len > 0
-            }
+            catch (err: IndexOutOfBoundsError) {}
 
             switch value_expr.node_type {
-            case NodeType.StructDef(struct_def):
-                // Check if struct already has delete method (check both members and default_values)
-                mut has_delete_in_members := false
-                for mi in 0..struct_def.members.len() {
-                    mut m := Declaration()
-                    struct_def.members.get(mi, m)?
-                    catch (err: IndexOutOfBoundsError) {}
-                    if m.name.eq("delete") {
-                        has_delete_in_members = true
-                    }
-                }
-                mut has_delete_in_values := false
-                mut dummy_expr := Expr()
-                struct_def.default_values.get("delete", dummy_expr)?
-                has_delete_in_values = true
-                catch (err: KeyNotFoundError) {
-                    // Not found
-                }
-                has_delete := has_delete_in_members.or(has_delete_in_values)
-
-                // Check if struct already has clone method
-                mut has_clone_in_members := false
-                for ci in 0..struct_def.members.len() {
-                    mut cm := Declaration()
-                    struct_def.members.get(ci, cm)?
-                    catch (err: IndexOutOfBoundsError) {}
-                    if cm.name.eq("clone") {
-                        has_clone_in_members = true
-                    }
-                }
-                mut has_clone_in_values := false
-                mut dummy_expr2 := Expr()
-                struct_def.default_values.get("clone", dummy_expr2)?
-                has_clone_in_values = true
-                catch (err: KeyNotFoundError) {
-                    // Not found
-                }
-                has_clone := has_clone_in_members.or(has_clone_in_values)
-
-                // Check if struct has any mutable fields (skip methods for empty/constant-only structs)
-                mut has_mut_fields := false
-                for mfi in 0..struct_def.members.len() {
-                    mut mf := Declaration()
-                    struct_def.members.get(mfi, mf)?
-                    catch (err: IndexOutOfBoundsError) {}
-                    if mf.is_mut {
-                        has_mut_fields = true
-                    }
-                }
-
-                // Generate missing methods if struct has mutable fields
-                needs_delete := not(has_delete).and(has_mut_fields)
-                needs_clone := not(has_clone).and(has_mut_fields)
-
-                if needs_delete.or(needs_clone) {
-                    mut new_members := struct_def.members.clone()
-                    mut new_default_values := Map.new(Str, Expr)
-
-                    // Copy existing default values (recursively process them)
-                    mut dvi := 0
-                    while dvi.lt(struct_def.default_values.keys.len()) {
-                        mut dv_name := ""
-                        struct_def.default_values.keys.get(dvi, dv_name)?
-                        catch (err: IndexOutOfBoundsError) {}
-                        mut dv_val_expr := Expr()
-                        struct_def.default_values.get(dv_name, dv_val_expr)?
-                        catch (err: KeyNotFoundError) {}
-                        new_default_values.set(dv_name, preinit_expr(dv_val_expr))
-                        dvi.inc()
-                    }
-
-                    // Generate delete method if needed
-                    if needs_delete {
-                        delete_result := generate_delete_method(decl.name, struct_def, e.line, e.col)
-                        new_members.push(delete_result.decl)
-                        new_default_values.set("delete", delete_result.expr)
-                    }
-
-                    // Generate clone method if needed
-                    if needs_clone {
-                        clone_result := generate_clone_method(decl.name, struct_def, e.line, e.col)
-                        new_members.push(clone_result.decl)
-                        new_default_values.set("clone", clone_result.expr)
-                    }
-
-                    new_struct_def := SStructDef(
-                        members=new_members,
-                        default_values=new_default_values
-                    )
-
-                    new_struct_expr := Expr.new_clone(
-                        NodeType.StructDef(new_struct_def),
-                        value_expr,
-                        value_expr.params
-                    )
-
-                    mut new_params := Vec.new(Expr)
-                    new_params.push(new_struct_expr)
-                    return Expr.new_clone(NodeType.Declaration(decl), e, new_params)
-                }
-
             case NodeType.EnumDef(enum_def):
-                // Check if enum already has delete/clone methods
-                mut has_enum_delete := false
-                mut dummy_enum_del := Expr()
-                enum_def.methods.get("delete", dummy_enum_del)?
-                has_enum_delete = true
-                catch (err: KeyNotFoundError) {
-                    // Not found
-                }
+                mut has_delete := false
+                mut dummy_del := Expr()
+                enum_def.methods.get("delete", dummy_del)?
+                has_delete = true
+                catch (err: KeyNotFoundError) {}
 
-                mut has_enum_clone := false
-                mut dummy_enum_cln := Expr()
-                enum_def.methods.get("clone", dummy_enum_cln)?
-                has_enum_clone = true
-                catch (err: KeyNotFoundError) {
-                    // Not found
-                }
+                mut has_clone := false
+                mut dummy_cln := Expr()
+                enum_def.methods.get("clone", dummy_cln)?
+                has_clone = true
+                catch (err: KeyNotFoundError) {}
 
-                if not(has_enum_delete).or(not(has_enum_clone)) {
+                if not(has_delete).or(not(has_clone)) {
                     mut new_methods := enum_def.methods.clone()
 
-                    // Generate delete method if needed
-                    if not(has_enum_delete) {
+                    if not(has_delete) {
                         new_methods.set("delete", generate_enum_delete_method(decl.name, e.line, e.col))
                     }
 
-                    // Generate clone method if needed
-                    if not(has_enum_clone) {
+                    if not(has_clone) {
                         new_methods.set("clone", generate_enum_clone_method(decl.name, e.line, e.col))
                     }
 
@@ -406,9 +504,7 @@ preinit_expr := func(e: Expr) returns Expr {
                     new_params.push(new_enum_expr)
                     return Expr.new_clone(NodeType.Declaration(decl), e, new_params)
                 }
-
             case:
-                // Not a struct or enum definition, fall through to default handling
             }
         }
 
@@ -418,50 +514,10 @@ preinit_expr := func(e: Expr) returns Expr {
             mut p := Expr()
             e.params.get(pi, p)?
             catch (err: IndexOutOfBoundsError) {}
-            new_params.push(preinit_expr(p))
+            new_params.push(preinit_expr_inner(p))
         }
         return Expr.new_clone(e.node_type, e, new_params)
 
-    // Recurse into FuncDef bodies
-    case NodeType.FuncDef(func_def):
-        mut new_body := Vec.new(Expr)
-        for fi in 0..func_def.body.len() {
-            mut stmt := Expr()
-            func_def.body.get(fi, stmt)?
-            catch (err: IndexOutOfBoundsError) {}
-            new_body.push(preinit_expr(stmt))
-        }
-        new_func_def := SFuncDef(
-            function_type=func_def.function_type,
-            args=func_def.args,
-            return_types=func_def.return_types,
-            throw_types=func_def.throw_types,
-            body=new_body,
-            source_path=func_def.source_path
-        )
-        return Expr.new_clone(NodeType.FuncDef(new_func_def), e, e.params)
-
-    // Recurse into StructDef default values (which may contain function defs)
-    case NodeType.StructDef(struct_def):
-        mut new_default_values := Map.new(Str, Expr)
-        mut sdi := 0
-        while sdi.lt(struct_def.default_values.keys.len()) {
-            mut sd_name := ""
-            struct_def.default_values.keys.get(sdi, sd_name)?
-            catch (err: IndexOutOfBoundsError) {}
-            mut sd_value_expr := Expr()
-            struct_def.default_values.get(sd_name, sd_value_expr)?
-            catch (err: KeyNotFoundError) {}
-            new_default_values.set(sd_name, preinit_expr(sd_value_expr))
-            sdi.inc()
-        }
-        new_struct_def := SStructDef(
-            members=struct_def.members,
-            default_values=new_default_values
-        )
-        return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params)
-
-    // For all other nodes, recurse into params
     case:
         if e.params.len().eq(0) {
             return e.clone()
@@ -471,9 +527,54 @@ preinit_expr := func(e: Expr) returns Expr {
                 mut op := Expr()
                 e.params.get(opi, op)?
                 catch (err: IndexOutOfBoundsError) {}
-                new_params.push(preinit_expr(op))
+                new_params.push(preinit_expr_inner(op))
             }
             return Expr.new_clone(e.node_type, e, new_params)
         }
+    }
+}
+
+/// Preinit phase entry point.
+/// For structs: generates namespace blocks with delete/clone methods.
+/// For enums: adds delete/clone directly to the enum definition.
+preinit_expr := func(e: Expr) returns Expr {
+    // For Body nodes (the AST root), do the two-pass approach
+    switch e.node_type {
+    case NodeType.Body:
+        // Pass 1: Collect namespace-defined methods
+        namespace_methods := collect_namespace_methods(e)
+
+        // Pass 2: Find structs that need auto-generated methods
+        structs_needing := collect_structs_needing_methods(e, namespace_methods)
+
+        // Pass 3: Process all children and generate namespace blocks
+        mut new_params := Vec.new(Expr)
+        for ci in 0..e.params.len() {
+            mut child := Expr()
+            e.params.get(ci, child)?
+            catch (err: IndexOutOfBoundsError) {}
+            new_params.push(preinit_expr_inner(child))
+        }
+
+        // Append generated namespace blocks for structs that need them
+        for si in 0..structs_needing.len() {
+            mut info := StructNeedingMethods()
+            structs_needing.get(si, info)?
+            catch (err: IndexOutOfBoundsError) {}
+            ns_block := generate_namespace_block(
+                info.struct_name,
+                info.struct_def,
+                info.line,
+                info.col,
+                info.needs_delete,
+                info.needs_clone
+            )
+            new_params.push(ns_block)
+        }
+
+        return Expr.new_clone(e.node_type, e, new_params)
+    case:
+        // For non-Body nodes, just recurse
+        return preinit_expr_inner(e)
     }
 }

@@ -1079,7 +1079,10 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
     case ValueType.TType(TTypeDef.TStructDef):
         switch inner_e.node_type {
         case NodeType.StructDef(struct_def):
-            context.scope_stack.declare_struct(declaration.name, struct_def.clone())?
+            // Issue #108: Don't overwrite struct if already declared (may have merged namespace members)
+            if not(context.scope_stack.has_struct(declaration.name)) {
+                context.scope_stack.declare_struct(declaration.name, struct_def.clone())?
+            }
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             // Process struct members with default values
             for member_decl: Declaration in struct_def.members {

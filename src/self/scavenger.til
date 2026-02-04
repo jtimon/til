@@ -299,7 +299,10 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
                 }
             case NodeType.StructDef(struct_def):
                 // Struct declaration
-                context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone())?
+                // Issue #108: Don't overwrite if struct already exists with merged namespace members
+                if not(context.scope_stack.has_struct(decl.name)) {
+                    context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone())?
+                }
                 // Struct methods
                 for member_name: Str in struct_def.default_values.keys {
                     mut default_expr := Expr()

@@ -1823,15 +1823,33 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             mut merged_struct := existing_struct.clone()
             for ns_member_decl: Declaration in ns_def.members {
                 // Check for duplicate member names
-                mut is_duplicate := false
+                mut found_existing := false
+                mut existing_is_mut := false
                 for existing_member: Declaration in merged_struct.members {
                     if existing_member.name.eq(ns_member_decl.name) {
-                        is_duplicate = true
+                        found_existing = true
+                        existing_is_mut = existing_member.is_mut
                     }
                 }
-                if is_duplicate {
-                    errors.push(e.error(context.path, "init", format(
-                        "namespace block for '", ns_def.type_name, "': member '", ns_member_decl.name, "' already exists in struct")))
+                if found_existing {
+                    // Issue #108: Allow namespace-defined methods to override auto-generated
+                    // methods (delete/clone from preinit). Storage fields (is_mut) cannot be
+                    // overridden.
+                    if existing_is_mut {
+                        errors.push(e.error(context.path, "init", format(
+                            "namespace block for '", ns_def.type_name, "': cannot override storage field '", ns_member_decl.name, "'")))
+                    } else {
+                        // Remove the existing method so the namespace version takes precedence
+                        mut new_members := Vec.new(Declaration)
+                        for m: Declaration in merged_struct.members {
+                            if not(m.name.eq(ns_member_decl.name)) {
+                                new_members.push(m.clone())
+                            }
+                        }
+                        merged_struct.members.delete()
+                        merged_struct.members = new_members
+                        merged_struct.members.push(ns_member_decl.clone())
+                    }
                 } else {
                     merged_struct.members.push(ns_member_decl.clone())
                 }

@@ -1830,6 +1830,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
+    // 2b1: Issue #108 - enum methods (delete/clone)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_method_prototypes(child, context, &mut output)?;
+            }
+        }
+    }
     // 2b2: Issue #108 - namespace functions (with mangled names)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
@@ -1923,6 +1931,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         for child in &ast.params {
             if is_struct_declaration(child) {
                 emit_struct_func_bodies(child, &mut output, &mut ctx, context)?;
+            }
+        }
+    }
+    // 5b1: Issue #108 - enum methods (delete/clone)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_method_bodies(child, &mut output, &mut ctx, context)?;
             }
         }
     }
@@ -3138,6 +3154,53 @@ fn emit_enum_to_str_for_declaration(
         }
     }
     Err("emit_enum_to_str_for_declaration: not an enum declaration".to_string())
+}
+
+// Issue #108: Emit enum method prototypes (delete/clone)
+fn emit_enum_method_prototypes(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+                let enum_name = til_name(&decl.name);
+                for (method_name, method_expr) in &enum_def.methods {
+                    if let NodeType::FuncDef(func_def) = &method_expr.node_type {
+                        let mangled_name = format!("{}_{}", enum_name, method_name);
+                        emit_func_signature(&mangled_name, func_def, context, output)?;
+                        output.push_str(";\n");
+                    }
+                }
+                return Ok(());
+            }
+        }
+    }
+    Ok(())
+}
+
+// Issue #108: Emit enum method bodies (delete/clone)
+fn emit_enum_method_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+                let enum_name = til_name(&decl.name);
+                for (method_name, method_expr) in &enum_def.methods {
+                    if let NodeType::FuncDef(func_def) = &method_expr.node_type {
+                        // Create a fake Declaration for emit_struct_func_body
+                        let method_decl = crate::rs::parser::Declaration {
+                            name: method_name.clone(),
+                            value_type: ValueType::TFunction(func_def.function_type.clone()),
+                            is_mut: false,
+                            is_copy: false,
+                            is_own: false,
+                            default_value: None,
+                        };
+                        emit_struct_func_body(&enum_name, &method_decl, func_def, output, ctx, context)?;
+                    }
+                }
+                return Ok(());
+            }
+        }
+    }
+    Ok(())
 }
 
 // Emit struct function prototypes for all functions in a struct

@@ -269,7 +269,10 @@ fn register_declarations_recursive(context: &mut Context, e: &Expr) {
                     }
                 } else if let NodeType::StructDef(struct_def) = &e.params[0].node_type {
                     // Struct declaration
-                    context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+                    // Issue #108: Don't overwrite if struct already exists with merged namespace members
+                    if context.scope_stack.lookup_struct(&decl.name).is_none() {
+                        context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+                    }
                     // Struct methods
                     for (member_name, default_expr) in &struct_def.default_values {
                         if let NodeType::FuncDef(func_def) = &default_expr.node_type {

@@ -2291,6 +2291,16 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         }
     case:
     }
+    // 2b1: Issue #108 - enum methods (delete/clone)
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_method_prototypes(child, context, output)?
+            }
+        }
+    case:
+    }
     // 2b2: Issue #108 - namespace functions (with mangled names)
     switch ast.node_type {
     case NodeType.Body:
@@ -2398,6 +2408,16 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         for child: Expr in ast.params {
             if is_struct_declaration(child) {
                 emit_struct_func_bodies(child, output, ctx, context)?
+            }
+        }
+    case:
+    }
+    // 5b1: Issue #108 - enum methods (delete/clone)
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_method_bodies(child, output, ctx, context)?
             }
         }
     case:
@@ -3892,6 +3912,81 @@ emit_enum_to_str_for_declaration := proc(expr: Expr, mut output: Str, context: C
     case:
     }
     throw "emit_enum_to_str_for_declaration: not an enum declaration"
+}
+
+// Issue #108: Emit enum method prototypes (delete/clone)
+emit_enum_method_prototypes := proc(expr: Expr, context: Context, mut output: Str) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            mut first_param := Expr()
+            expr.params.get(0, first_param)?
+            switch first_param.node_type {
+            case NodeType.EnumDef(enum_def):
+                enum_name := til_name(decl.name)
+                for method_name: Str in enum_def.methods.keys {
+                    mut method_expr := Expr()
+                    enum_def.methods.get(method_name, method_expr)?
+                    catch (err: KeyNotFoundError) {}
+                    switch method_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        mangled_name := enum_name.concat("_").concat(method_name)
+                        emit_func_signature(mangled_name, func_def, context, output)?
+                        output.push_str(";\n")
+                    case:
+                    }
+                }
+                return
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), format("IndexOutOfBoundsError in emit_enum_method_prototypes: ", err.msg))
+    }
+}
+
+// Issue #108: Emit enum method bodies (delete/clone)
+emit_enum_method_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            mut first_param := Expr()
+            expr.params.get(0, first_param)?
+            switch first_param.node_type {
+            case NodeType.EnumDef(enum_def):
+                enum_name := til_name(decl.name)
+                for method_name: Str in enum_def.methods.keys {
+                    mut method_expr := Expr()
+                    enum_def.methods.get(method_name, method_expr)?
+                    catch (err: KeyNotFoundError) {}
+                    switch method_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        // Create a fake Declaration for emit_struct_func_body
+                        method_decl := Declaration(
+                            name=method_name,
+                            value_type=ValueType.TFunction(func_def.function_type),
+                            is_mut=false,
+                            is_copy=false,
+                            is_own=false,
+                            default_value=Ptr()
+                        )
+                        emit_struct_func_body(enum_name, method_decl, func_def, output, ctx, context)?
+                    case:
+                    }
+                }
+                return
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), format("IndexOutOfBoundsError in emit_enum_method_bodies: ", err.msg))
+    }
 }
 
 // Emit struct function prototypes for all functions in a struct

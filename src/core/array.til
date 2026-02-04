@@ -12,7 +12,9 @@ Array := struct {
     mut type_size : I64  = 0
     mut ptr       : I64  = 0
     mut _len      : I64  = 0
+}
 
+namespace Array {
     /** Get number of elements in array. */
     len := func(self: Array) returns I64 {
         return self._len

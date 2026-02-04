@@ -1328,11 +1328,18 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             let mut merged_struct = existing_struct;
             for member_decl in &ns_def.members {
                 // Check for duplicate member names
-                if merged_struct.get_member(&member_decl.name).is_some() {
-                    errors.push(e.error(&context.path, "init", &format!(
-                        "namespace block for '{}': member '{}' already exists in struct",
-                        ns_def.type_name, member_decl.name)));
-                    continue;
+                if let Some(existing_member) = merged_struct.get_member(&member_decl.name) {
+                    // Issue #108: Allow namespace-defined methods to override auto-generated
+                    // methods (delete/clone from preinit). Storage fields (is_mut) cannot be
+                    // overridden.
+                    if existing_member.is_mut {
+                        errors.push(e.error(&context.path, "init", &format!(
+                            "namespace block for '{}': cannot override storage field '{}'",
+                            ns_def.type_name, member_decl.name)));
+                        continue;
+                    }
+                    // Remove the existing method so the namespace version takes precedence
+                    merged_struct.members.retain(|m| m.name != member_decl.name);
                 }
                 merged_struct.members.push(member_decl.clone());
             }

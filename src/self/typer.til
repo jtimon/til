@@ -308,8 +308,9 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
         for p: Expr in e.params {
             errors.extend(check_types_with_context(context, p, ExprContext.ValueUsed)?)
         }
-    case NodeType.NamespaceDef(_ns_def):
-        // Issue #108: NamespaceDef already processed by init - members merged into type
+    case NodeType.NamespaceDef(ns_def):
+        // Issue #108: Type-check namespace function bodies
+        errors.extend(check_namespace_def(context, e, ns_def)?)
     case NodeType.ForIn(_var_type):
         errors.extend(check_forin_statement(context, e)?)
     case:
@@ -1075,6 +1076,34 @@ check_fcall_return_usage := proc(context: Context, e: Expr, expr_context: ExprCo
         )))
     }
 
+    return errors
+}
+
+// Issue #108: Check namespace definition function bodies
+check_namespace_def := proc(mut context: Context, _e: Expr, ns_def: SNamespaceDef) returns Vec throws Str {
+    mut errors := Vec.new(Str)
+
+    for member_decl: Declaration in ns_def.members {
+        if ns_def.default_values.contains_key(member_decl.name) {
+            mut inner_e := Expr()
+            ns_def.default_values.get(member_decl.name, inner_e)?
+
+            switch inner_e.node_type {
+            case NodeType.FuncDef(func_def):
+                context.scope_stack.push(ScopeType.Function)
+                errors.extend(check_func_proc_types(func_def, context, inner_e)?)
+                _ := context.scope_stack.pop()?
+            case:
+            }
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: KeyNotFoundError) {
+        throw err.msg
+    }
     return errors
 }
 

@@ -443,9 +443,12 @@ ufcs_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retur
     }
 
     // For struct definitions, register the struct so methods can be resolved
+    // Issue #108: Don't overwrite if struct already exists with merged namespace members
     switch inner_e.node_type {
     case NodeType.StructDef(struct_def):
-        context.scope_stack.declare_struct(decl.name, struct_def)?
+        if not(context.scope_stack.has_struct(decl.name)) {
+            context.scope_stack.declare_struct(decl.name, struct_def)?
+        }
     case:
     }
 
