@@ -1781,15 +1781,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                                 # Failed to get type - just use INFER_TYPE default
                             }
                             mut full_name := format(decl.name, ".", member_decl.name)  # Note: using '.' not '::'
-                            # Register in symbols
+                            # Register in symbols (constants only - functions now go in namespace blocks)
                             ScopeStack.declare_symbol(context.scope_stack, full_name.clone(), SymbolInfo(value_type=value_type_clone(member_value_type), is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
-                            # If it's a function, also register in funcs
-                            switch member_expr.node_type {
-                            case NodeType.FuncDef(func_def):
-                                ScopeStack.declare_func(context.scope_stack, full_name, func_def.clone())?
-                            case:
-                                # Not a function, skip
-                            }
                         }
                     }
                 }

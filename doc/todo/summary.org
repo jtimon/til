@@ -37,7 +37,7 @@
 |  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (7 issues)
+* pre.org (6 issues)
 
 | #   | Issue                                        | Category     |
 |-----+----------------------------------------------+--------------|
@@ -46,7 +46,6 @@
 | 117 | ASAP Destruction (auto-delete on last use)   | Memory mgmt  |
 | 115 | Owned struct fields and auto-generated methods | Memory mgmt |
 | 135 | True cross-compilation via precompiled ext.o | Build system |
-| 108 | Implement Namespaces                         | Language     |
 |  82 | make.til - Replace Makefile with TIL         | Build system |
 
 * post.org (11 issues)

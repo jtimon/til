@@ -4541,6 +4541,63 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #108: Namespace blocks for associated functions
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPLEMENTED: 2026-02-04
+:IMPACT: Unified syntax for associated functions on structs and enums
+:STATUS: Fixed
+:END:
+
+*** Description
+Structs could define associated functions (AFs) inline because the ~mut~ keyword
+distinguishes storage fields from AFs. Enums couldn't do this - their syntax just
+lists variants. Users needed a way to define AFs for enums (like ~to_str()~,
+~eq()~, custom methods).
+
+*** Solution
+Added ~namespace TypeName { ... }~ blocks where AFs can be defined and associated
+with a type's namespace. After init phase, namespace members are merged into the
+type - other phases never see NamespaceDef.
+
+#+begin_src til
+Color := enum { Red, Green, Blue }
+
+namespace Color {
+    to_str := func(c: Color) returns Str {
+        switch c {
+            Color.Red   => return "red"
+            Color.Green => return "green"
+            Color.Blue  => return "blue"
+        }
+    }
+}
+#+end_src
+
+Both ~Color.to_str(my_color)~ and ~my_color.to_str()~ work via UFCS.
+
+*** Implementation Steps
+1. Lexer: Added ~Namespace~ token
+2. Parser: Added ~SNamespaceDef~ struct and ~NamespaceDef~ variant
+3. Init: Merge namespace members into existing type's scope
+4. Migrated all struct AFs to namespace blocks across codebase
+5. Typer: Added check to reject FuncDef inside struct blocks
+6. Dead code removal: Removed ~200 lines handling inline struct functions
+
+*** Files Changed
+- lexer.rs/til: Namespace token
+- parser.rs/til: NamespaceDef parsing
+- init.rs/til: Namespace merging, removed inline function registration
+- typer.rs/til: Reject functions in structs
+- ccodegen.rs/til: Removed emit_struct_func_prototypes/bodies
+- interpreter.rs/til: Removed TFunction handling for struct members
+- All core/*.til files: Migrated AFs to namespace blocks
+
+*** Future Steps (not implemented)
+- Step 3: Associated constants in namespaces (I64.Max instead of MAX_I64)
+- Step 5: Per-instance immutable fields
+- Step 6: Associated mutable state in namespaces
+
 ** Issue #110: Desugar switch to if/else in desugarer
 :PROPERTIES:
 :DISCOVERED: 2026-01-13

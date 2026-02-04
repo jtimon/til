@@ -969,20 +969,6 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                                         },
                                     }
                                 },
-                                ValueType::TFunction(_) => {
-                                    match &default_value.node_type {
-                                        NodeType::FuncDef(func_def) => {
-                                            context.scope_stack.declare_func(combined_name.to_string(), func_def.clone());
-                                        },
-                                        _ => {
-                                            return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}.{}' of type '{}', expected '{}' definition.",
-                                                                                     &declaration.name,
-                                                                                     &member_decl.name,
-                                                                                     value_type_to_str(&member_value_type),
-                                                                                     value_type_to_str(&member_decl.value_type))));
-                                        },
-                                    }
-                                },
                                _ => {
                                     return Err(e.todo_error(&context.path, "eval", &format!("Cannot declare '{}.{}' of type '{}'",
                                                                              &declaration.name,

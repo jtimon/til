@@ -1124,13 +1124,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                             insert_struct_instance(context, combined_name, member_type_name, e)?
                             EvalArena.copy_fields(context, member_type_name, member_expr_result_str, combined_name, e)?
                         }
-                    case ValueType.TFunction(func_type):
-                        switch default_value.node_type {
-                        case NodeType.FuncDef(func_def):
-                            context.scope_stack.declare_func(combined_name, func_def.clone())?
-                        case:
-                            throw e.lang_error(context.path, "eval", format("Cannot declare '", declaration.name, ".", member_decl.name, "' of type '", value_type_to_str(member_value_type), "', expected function definition."))
-                        }
                     case:
                         throw e.todo_error(context.path, "eval", format("Cannot declare '", declaration.name, ".", member_decl.name, "' of type '", value_type_to_str(member_decl.value_type), "'"))
                     }
