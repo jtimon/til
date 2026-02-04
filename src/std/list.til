@@ -13,7 +13,9 @@ List := struct {
     mut _len : I64 = 0      // Number of elements stored
     mut type_names : Vec = Vec()  // Vec<Str> - type name per element
     mut type_sizes : Vec = Vec()  // Vec<I64> - size per element
+}
 
+namespace List {
     /** Get number of elements in list. */
     len := func(self: List) returns I64 {
         return self._len

@@ -7,7 +7,9 @@ Arena := struct {
     mut _memory : Vec = Vec()
 
     INITIAL_CAPACITY : I64 = 32768  // 32KB
+}
 
+namespace Arena {
     new := proc() returns Arena {
         mut a := Arena()
         a._memory = Vec.with_capacity(U8, Arena.INITIAL_CAPACITY)

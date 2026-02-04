@@ -6,7 +6,9 @@ import("core.mem")
 Ptr := struct {
     mut data: I64 = NULL
     mut is_borrowed: I64 = 0  // 0 = owned, 1 = borrowed (don't free)
+}
 
+namespace Ptr {
     new_by_size := proc(size: I64) returns Ptr {
         if size.lteq(0) {
             panic(loc(), "Ptr.new_by_size: invalid size")
@@ -76,9 +78,7 @@ Ptr := struct {
     dereference := proc(self: Ptr, T: Type, mut dest: Dynamic) {
         memcpy(to_ptr(dest), self.data, size_of(T))
     }
-}
 
-namespace Ptr {
     // TODO FIX should type error because size is already declared
     size_of := func() returns I64 { return size_of(I64) }
 

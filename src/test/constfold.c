@@ -92,11 +92,6 @@ void til_test_loc_folded_correctly(void);
 void til_test_struct_fold_simple(void);
 void til_test_struct_fold_values(void);
 void til_test_struct_fold_nested(void);
-til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size);
-void til_Ptr_delete(til_Ptr* til_Ptr_self);
-til_Ptr til_Ptr_offset(const til_Ptr* til_Ptr_self, const til_I64* til_I64_offset);
-void til_Ptr_copy_from(til_Ptr* til_Ptr_self, const til_Ptr* til_Ptr_src, const til_I64* til_I64_size);
-void til_Ptr_copy_from_dynamic(til_Ptr* til_Ptr_self, const til_Dynamic* til_Dynamic_value, const til_I64* til_I64_size);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y);
 til_CfRect til_CfRect_sample(void);
@@ -145,6 +140,17 @@ til_Bool til_I64_lteq(const til_I64* til_I64_a, const til_I64* til_I64_b);
 til_I64 til_I64_size(void);
 void til_I64_delete(til_I64* _self);
 til_I64 til_I64_clone(const til_I64* til_I64_self);
+til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size);
+til_Ptr til_Ptr_new(til_Type til_Type_T);
+void til_Ptr_delete(til_Ptr* til_Ptr_self);
+til_Ptr til_Ptr_clone(const til_Ptr* til_Ptr_self);
+til_Ptr til_Ptr_offset(const til_Ptr* til_Ptr_self, const til_I64* til_I64_offset);
+void til_Ptr_copy_from(til_Ptr* til_Ptr_self, const til_Ptr* til_Ptr_src, const til_I64* til_I64_size);
+void til_Ptr_copy_to(const til_Ptr* til_Ptr_self, til_Ptr* til_Ptr_dest, const til_I64* til_I64_size);
+void til_Ptr_set_zero(til_Ptr* til_Ptr_self, const til_I64* til_I64_size);
+void til_Ptr_copy_from_dynamic(til_Ptr* til_Ptr_self, const til_Dynamic* til_Dynamic_value, const til_I64* til_I64_size);
+void til_Ptr_copy_to_dynamic(const til_Ptr* til_Ptr_self, til_Dynamic* til_Dynamic_dest, const til_I64* til_I64_size);
+void til_Ptr_dereference(const til_Ptr* til_Ptr_self, til_Type til_Type_T, til_Dynamic* til_Dynamic_dest);
 til_I64 til_Ptr_size_of(void);
 til_Bool til_Ptr_is_null(const til_Ptr* til_Ptr_self);
 til_Vec til_Vec_new(til_Type til_Type_T);
@@ -737,66 +743,6 @@ void til_test_struct_fold_nested(void) {
     til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:100:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_3, &til_CfRect_r.bottom_right.y);
 }
 
-til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size) {
-    til_BadAlloc _thrown_BadAlloc__tmp_til_Ptr_new_by_size_0;
-    til_I64 _tmp_til_Ptr_new_by_size_1 = 0;
-    if (til_I64_lteq(til_I64_size, &_tmp_til_Ptr_new_by_size_1).data) {
-        til_Array _tmp_til_Ptr_new_by_size_2;
-        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Ptr_new_by_size_3;
-        til_Type _tmp_til_Ptr_new_by_size_4 = "Str";
-        til_I64 _tmp_til_Ptr_new_by_size_5 = 0;
-        _tmp_til_Ptr_new_by_size_2 = til_Array_new(_tmp_til_Ptr_new_by_size_4, &_tmp_til_Ptr_new_by_size_5);
-        int __attribute__((unused)) _arr_status__tmp_til_Ptr_new_by_size_3;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:12:19:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: invalid size", 1}), 29, 0}), &_tmp_til_Ptr_new_by_size_2);
-        til_Array_delete(&_tmp_til_Ptr_new_by_size_2);
-    }
-    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0};
-    til_I64 _ret__tmp_til_Ptr_new_by_size_6;
-    int __attribute__((unused)) _status__tmp_til_Ptr_new_by_size_6 = til_malloc(&_ret__tmp_til_Ptr_new_by_size_6, til_I64_size);
-    if (_status__tmp_til_Ptr_new_by_size_6 == 1) { goto _catch_BadAlloc__tmp_til_Ptr_new_by_size_0; }
-    til_Ptr_p.data = _ret__tmp_til_Ptr_new_by_size_6;
-    if (0) { _catch_BadAlloc__tmp_til_Ptr_new_by_size_0:;
-        til_BadAlloc til_BadAlloc_err = _thrown_BadAlloc__tmp_til_Ptr_new_by_size_0;
-        til_Array _tmp_til_Ptr_new_by_size_7;
-        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Ptr_new_by_size_8;
-        til_Type _tmp_til_Ptr_new_by_size_9 = "Str";
-        til_I64 _tmp_til_Ptr_new_by_size_10 = 0;
-        _tmp_til_Ptr_new_by_size_7 = til_Array_new(_tmp_til_Ptr_new_by_size_9, &_tmp_til_Ptr_new_by_size_10);
-        int __attribute__((unused)) _arr_status__tmp_til_Ptr_new_by_size_8;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:16:39:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: malloc failed", 1}), 30, 0}), &_tmp_til_Ptr_new_by_size_7);
-        til_Array_delete(&_tmp_til_Ptr_new_by_size_7);
-    }
-    return til_Ptr_p;
-    return (til_Ptr){0};
-}
-
-void til_Ptr_delete(til_Ptr* til_Ptr_self) {
-    if (til_I64_eq(&til_I64_NULL, &til_Ptr_self->data).data) {
-        return;
-    }
-    til_I64 _tmp_til_Ptr_delete_0 = 0;
-    if (til_I64_eq(&til_Ptr_self->is_borrowed, &_tmp_til_Ptr_delete_0).data) {
-        til_free(&til_Ptr_self->data);
-    }
-    til_Ptr_self->data = til_I64_NULL;
-}
-
-til_Ptr til_Ptr_offset(const til_Ptr* til_Ptr_self, const til_I64* til_I64_offset) {
-    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0};
-    til_Ptr_p.data = til_I64_add(&til_Ptr_self->data, til_I64_offset);
-    return til_Ptr_p;
-    return (til_Ptr){0};
-}
-
-void til_Ptr_copy_from(til_Ptr* til_Ptr_self, const til_Ptr* til_Ptr_src, const til_I64* til_I64_size) {
-    til_memcpy(&til_Ptr_self->data, &til_Ptr_src->data, til_I64_size);
-}
-
-void til_Ptr_copy_from_dynamic(til_Ptr* til_Ptr_self, const til_Dynamic* til_Dynamic_value, const til_I64* til_I64_size) {
-    til_I64 _tmp_til_Ptr_copy_from_dynamic_0 = (til_I64)til_Dynamic_value;
-    til_memcpy(&til_Ptr_self->data, &_tmp_til_Ptr_copy_from_dynamic_0, til_I64_size);
-}
-
 til_CfVec2 til_CfVec2_magic(void) {
     return (til_CfVec2){.x = 42, .y = 99};
     return (til_CfVec2){0};
@@ -1341,6 +1287,100 @@ void til_I64_delete(til_I64* _self) {
 til_I64 til_I64_clone(const til_I64* til_I64_self) {
     return (*til_I64_self);
     return (til_I64){0};
+}
+
+til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size) {
+    til_BadAlloc _thrown_BadAlloc__tmp_til_Ptr_new_by_size_0;
+    til_I64 _tmp_til_Ptr_new_by_size_1 = 0;
+    if (til_I64_lteq(til_I64_size, &_tmp_til_Ptr_new_by_size_1).data) {
+        til_Array _tmp_til_Ptr_new_by_size_2;
+        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Ptr_new_by_size_3;
+        til_Type _tmp_til_Ptr_new_by_size_4 = "Str";
+        til_I64 _tmp_til_Ptr_new_by_size_5 = 0;
+        _tmp_til_Ptr_new_by_size_2 = til_Array_new(_tmp_til_Ptr_new_by_size_4, &_tmp_til_Ptr_new_by_size_5);
+        int __attribute__((unused)) _arr_status__tmp_til_Ptr_new_by_size_3;
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:14:19:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: invalid size", 1}), 29, 0}), &_tmp_til_Ptr_new_by_size_2);
+        til_Array_delete(&_tmp_til_Ptr_new_by_size_2);
+    }
+    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0};
+    til_I64 _ret__tmp_til_Ptr_new_by_size_6;
+    int __attribute__((unused)) _status__tmp_til_Ptr_new_by_size_6 = til_malloc(&_ret__tmp_til_Ptr_new_by_size_6, til_I64_size);
+    if (_status__tmp_til_Ptr_new_by_size_6 == 1) { goto _catch_BadAlloc__tmp_til_Ptr_new_by_size_0; }
+    til_Ptr_p.data = _ret__tmp_til_Ptr_new_by_size_6;
+    if (0) { _catch_BadAlloc__tmp_til_Ptr_new_by_size_0:;
+        til_BadAlloc til_BadAlloc_err = _thrown_BadAlloc__tmp_til_Ptr_new_by_size_0;
+        til_Array _tmp_til_Ptr_new_by_size_7;
+        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Ptr_new_by_size_8;
+        til_Type _tmp_til_Ptr_new_by_size_9 = "Str";
+        til_I64 _tmp_til_Ptr_new_by_size_10 = 0;
+        _tmp_til_Ptr_new_by_size_7 = til_Array_new(_tmp_til_Ptr_new_by_size_9, &_tmp_til_Ptr_new_by_size_10);
+        int __attribute__((unused)) _arr_status__tmp_til_Ptr_new_by_size_8;
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:18:39:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: malloc failed", 1}), 30, 0}), &_tmp_til_Ptr_new_by_size_7);
+        til_Array_delete(&_tmp_til_Ptr_new_by_size_7);
+    }
+    return til_Ptr_p;
+    return (til_Ptr){0};
+}
+
+til_Ptr til_Ptr_new(til_Type til_Type_T) {
+    til_I64 _tmp_til_Ptr_new_0 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1}), strlen(til_Type_T), 0}));
+    return til_Ptr_new_by_size(&_tmp_til_Ptr_new_0);
+    return (til_Ptr){0};
+}
+
+void til_Ptr_delete(til_Ptr* til_Ptr_self) {
+    if (til_I64_eq(&til_I64_NULL, &til_Ptr_self->data).data) {
+        return;
+    }
+    til_I64 _tmp_til_Ptr_delete_0 = 0;
+    if (til_I64_eq(&til_Ptr_self->is_borrowed, &_tmp_til_Ptr_delete_0).data) {
+        til_free(&til_Ptr_self->data);
+    }
+    til_Ptr_self->data = til_I64_NULL;
+}
+
+til_Ptr til_Ptr_clone(const til_Ptr* til_Ptr_self) {
+    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr_p.data = til_Ptr_self->data;
+    til_Ptr_p.is_borrowed = 1;
+    return til_Ptr_p;
+    return (til_Ptr){0};
+}
+
+til_Ptr til_Ptr_offset(const til_Ptr* til_Ptr_self, const til_I64* til_I64_offset) {
+    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr_p.data = til_I64_add(&til_Ptr_self->data, til_I64_offset);
+    return til_Ptr_p;
+    return (til_Ptr){0};
+}
+
+void til_Ptr_copy_from(til_Ptr* til_Ptr_self, const til_Ptr* til_Ptr_src, const til_I64* til_I64_size) {
+    til_memcpy(&til_Ptr_self->data, &til_Ptr_src->data, til_I64_size);
+}
+
+void til_Ptr_copy_to(const til_Ptr* til_Ptr_self, til_Ptr* til_Ptr_dest, const til_I64* til_I64_size) {
+    til_memcpy(&til_Ptr_dest->data, &til_Ptr_self->data, til_I64_size);
+}
+
+void til_Ptr_set_zero(til_Ptr* til_Ptr_self, const til_I64* til_I64_size) {
+    const til_U8 til_U8_zero = 0;
+    til_memset(&til_Ptr_self->data, &til_U8_zero, til_I64_size);
+}
+
+void til_Ptr_copy_from_dynamic(til_Ptr* til_Ptr_self, const til_Dynamic* til_Dynamic_value, const til_I64* til_I64_size) {
+    til_I64 _tmp_til_Ptr_copy_from_dynamic_0 = (til_I64)til_Dynamic_value;
+    til_memcpy(&til_Ptr_self->data, &_tmp_til_Ptr_copy_from_dynamic_0, til_I64_size);
+}
+
+void til_Ptr_copy_to_dynamic(const til_Ptr* til_Ptr_self, til_Dynamic* til_Dynamic_dest, const til_I64* til_I64_size) {
+    til_I64 _tmp_til_Ptr_copy_to_dynamic_0 = (til_I64)til_Dynamic_dest;
+    til_memcpy(&_tmp_til_Ptr_copy_to_dynamic_0, &til_Ptr_self->data, til_I64_size);
+}
+
+void til_Ptr_dereference(const til_Ptr* til_Ptr_self, til_Type til_Type_T, til_Dynamic* til_Dynamic_dest) {
+    til_I64 _tmp_til_Ptr_dereference_0 = (til_I64)til_Dynamic_dest;
+    til_I64 _tmp_til_Ptr_dereference_1 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1}), strlen(til_Type_T), 0}));
+    til_memcpy(&_tmp_til_Ptr_dereference_0, &til_Ptr_self->data, &_tmp_til_Ptr_dereference_1);
 }
 
 til_I64 til_Ptr_size_of(void) {
