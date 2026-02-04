@@ -1970,6 +1970,17 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
         return errors
     }
 
+    // Get struct name from first param (used for error messages)
+    let struct_name = e.params.get(0)
+        .and_then(|param| {
+            if let NodeType::Identifier(name) = &param.node_type {
+                Some(name.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
     for member_decl in &struct_def.members {
         // Validate that the member's declared type exists (if it's a custom type)
         match &member_decl.value_type {
@@ -2008,11 +2019,14 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
             Some(inner_e) => {
                 // println!("inner_e {:?}", inner_e);
                 match &inner_e.node_type {
-                    // If the member's default value is a function (method), type check it
-                    NodeType::FuncDef(func_def) => {
-                        context.scope_stack.push(ScopeType::Function);
-                        errors.extend(check_func_proc_types(&func_def, context, &inner_e));
-                        context.scope_stack.pop().ok();
+                    // Issue #108: Functions inside structs are no longer allowed.
+                    // They must be moved to a namespace block.
+                    NodeType::FuncDef(_func_def) => {
+                        errors.push(inner_e.error(&context.path, "type", &format!(
+                            "Function '{}' is defined inside struct. Functions must be in namespace blocks.\n\
+                             Move this function outside the struct into: namespace {} {{ {} := func(...) {{ ... }} }}",
+                            member_decl.name, struct_name, member_decl.name
+                        )));
                     },
                     // For other types of members, check type and purity
                     _ => {
@@ -2069,15 +2083,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
     // A struct is considered collection-like if it has push/get/set/insert methods
     // Note: delete() is excluded as it's a cleanup method, not a collection operation
     // Issue #108: Use merged struct from scope_stack (includes namespace methods)
-    let struct_name = e.params.get(0)
-        .and_then(|param| {
-            if let NodeType::Identifier(name) = &param.node_type {
-                Some(name.clone())
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| "unknown".to_string());
+    // struct_name already extracted at top of function
 
     // Get the merged struct from scope_stack (includes namespace members)
     let merged_struct = context.scope_stack.lookup_struct(&struct_name)

@@ -216,20 +216,27 @@ struct methods that:
 - Use variadic functions (format, panic)
 - Are called by the runtime (panic calling Array methods)
 
-**** Step 2.2: Migrate existing struct AFs to namespace blocks
+**** Step 2.2: Migrate existing struct AFs to namespace blocks [DONE]
 
 Update all struct definitions in the codebase to use the new syntax:
 - Move AFs from inside struct blocks to namespace blocks
 - Keep only =mut= fields inside struct blocks
 
-**** Step 2.3: Disallow inline AFs in structs
+All struct AFs migrated to namespace blocks across the codebase.
+
+**** Step 2.3: Disallow inline AFs in structs [DONE]
 
 Once migration is complete, update the parser/type checker to reject AFs
 defined inside struct blocks. Only =mut= fields allowed inline.
 
-**** Step 2.4: Port to TIL
+Added check in typer (both Rust and TIL) to reject FuncDef inside struct
+definitions. Error message guides users to move functions to namespace blocks.
+
+**** Step 2.4: Port to TIL [DONE]
 
 Port all changes from Rust to the self-hosted TIL implementation.
+
+Ported alongside Rust changes - both typer.rs and typer.til updated together.
 
 **** Step 2.5: Update documentation
 

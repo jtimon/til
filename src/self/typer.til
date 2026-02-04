@@ -166,7 +166,7 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
     case NodeType.EnumDef(enum_def):
         errors.extend(check_enum_def(context, e, enum_def)?)
     case NodeType.StructDef(struct_def):
-        errors.extend(check_struct_def(context, e, struct_def)?)
+        errors.extend(check_struct_def(context, e, struct_def))
     case NodeType.If:
         errors.extend(check_if_statement(context, e)?)
     case NodeType.While:
@@ -2386,12 +2386,24 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     return errors
 }
 
-check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) returns Vec throws Str {
+check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) returns Vec {
     mut errors := Vec.new(Str)
 
     if not(e.params.len().eq(0)) {
         errors.push(e.error(context.path, "type", "in check_struct_def(): struct declarations must take exactly 0 params."))
         return errors
+    }
+
+    // Get struct name from first param (used for error messages)
+    mut struct_name := "unknown"
+    if e.params.len().gt(0) {
+        first_param := e.get(0)?
+        switch first_param.node_type {
+        case NodeType.Identifier(name):
+            struct_name = name
+        case:
+            struct_name = "unknown"
+        }
     }
 
     // Iterate through struct members
@@ -2444,12 +2456,12 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
 
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
-                // If the member's default value is a function (method), type check it
-                context.scope_stack.push(ScopeType.Function)
-                mut func_errors := check_func_proc_types(func_def, context, inner_e)?
-                errors.extend(func_errors)
-                func_errors.delete()
-                _ := context.scope_stack.pop()?
+                // Issue #108: Functions inside structs are no longer allowed.
+                // They must be moved to a namespace block.
+                errors.push(inner_e.error(context.path, "type", format(
+                    "Function '", member_decl.name, "' is defined inside struct. Functions must be in namespace blocks.\n",
+                    "Move this function outside the struct into: namespace ", struct_name, " { ", member_decl.name, " := func(...) { ... } }"
+                )))
             case:
                 // For other types of members, check type and purity
                 // Bug #148: Type-check the default value expression (catches ? on non-throwing calls)
@@ -2551,16 +2563,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
     // A struct is considered collection-like if it has push/get/set/insert methods
     // Note: delete() is excluded as it's a cleanup method, not a collection operation
     // Issue #108: Use merged struct from scope_stack (includes namespace methods)
-    mut struct_name := "unknown"
-    if e.params.len().gt(0) {
-        mut first_param := e.get(0)?
-        switch first_param.node_type {
-        case NodeType.Identifier(name):
-            struct_name = name
-        case:
-            struct_name = "unknown"
-        }
-    }
+    // struct_name already extracted at top of function
 
     // Get the merged struct from scope_stack (includes namespace members)
     mut merged_struct := struct_def.clone()
@@ -2684,10 +2687,6 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
                 "Note: size() should return the total size in bytes, not element count (use len() for that)."
             )))
         }
-    }
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
     }
 
     return errors
