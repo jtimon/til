@@ -1678,6 +1678,24 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             default_values=new_default_values
         )
         return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params)
+    // Issue #108: Recurse into NamespaceDef default values (which may contain function defs)
+    case NodeType.NamespaceDef(ns_def):
+        mut new_default_values := Map.new(Str, Expr)
+        mut ns_i := 0
+        while ns_i.lt(ns_def.default_values.keys.len()) {
+            mut name := ""
+            ns_def.default_values.keys.get(ns_i, name)?
+            mut value_expr := Expr()
+            ns_def.default_values.get(name, value_expr)?
+            new_default_values.set(name, desugar_expr(context, value_expr)?)
+            ns_i.inc()
+        }
+        new_ns_def := SNamespaceDef(
+            type_name=ns_def.type_name,
+            members=ns_def.members,
+            default_values=new_default_values
+        )
+        return Expr.new_clone(NodeType.NamespaceDef(new_ns_def), e, Vec.new(Expr))
     // Track declarations in scope_stack so get_value_type can find local variables
     // This is needed for switch desugaring to determine the type of expressions like var.field
     case NodeType.Declaration(decl):

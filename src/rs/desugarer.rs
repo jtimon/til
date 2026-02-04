@@ -4,7 +4,7 @@
 
 use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal,
+    Expr, NodeType, ValueType, SStructDef, SNamespaceDef, SFuncDef, Literal,
     Declaration, str_to_value_type, transform_continue_with_step,
 };
 
@@ -1009,6 +1009,19 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 default_values: new_default_values,
             };
             Ok(Expr::new_clone(NodeType::StructDef(new_struct_def), e, e.params.clone()))
+        },
+        // Issue #108: Recurse into NamespaceDef default values (which may contain function defs)
+        NodeType::NamespaceDef(ns_def) => {
+            let mut new_default_values = std::collections::HashMap::new();
+            for (name, value_expr) in &ns_def.default_values {
+                new_default_values.insert(name.clone(), desugar_expr(context, value_expr)?);
+            }
+            let new_ns_def = SNamespaceDef {
+                type_name: ns_def.type_name.clone(),
+                members: ns_def.members.clone(),
+                default_values: new_default_values,
+            };
+            Ok(Expr::new_clone(NodeType::NamespaceDef(new_ns_def), e, vec![]))
         },
         // Track declarations in scope_stack so get_value_type can find local variables
         // This is needed for switch desugaring to determine the type of expressions like var.field
