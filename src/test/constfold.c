@@ -104,6 +104,8 @@ til_I64 til_Bool_to_i64(const til_Bool* til_Bool_self);
 til_U8 til_Bool_to_u8(const til_Bool* til_Bool_self);
 til_Bool til_Bool_from_i64(const til_I64* til_I64_i);
 til_I64 til_Bool_size(void);
+til_I64 til_Ptr_size_of(void);
+til_Bool til_Ptr_is_null(const til_Ptr* til_Ptr_self);
 
 #include <ext.c>
 
@@ -674,7 +676,7 @@ til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size) {
         til_I64 _tmp_til_Ptr_new_by_size_5 = 0;
         _tmp_til_Ptr_new_by_size_2 = til_Array_new(_tmp_til_Ptr_new_by_size_4, &_tmp_til_Ptr_new_by_size_5);
         int __attribute__((unused)) _arr_status__tmp_til_Ptr_new_by_size_3;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:19:19:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: invalid size", 1}), 29, 0}), &_tmp_til_Ptr_new_by_size_2);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:12:19:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: invalid size", 1}), 29, 0}), &_tmp_til_Ptr_new_by_size_2);
         til_Array_delete(&_tmp_til_Ptr_new_by_size_2);
     }
     til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0};
@@ -690,7 +692,7 @@ til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size) {
         til_I64 _tmp_til_Ptr_new_by_size_10 = 0;
         _tmp_til_Ptr_new_by_size_7 = til_Array_new(_tmp_til_Ptr_new_by_size_9, &_tmp_til_Ptr_new_by_size_10);
         int __attribute__((unused)) _arr_status__tmp_til_Ptr_new_by_size_8;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:23:39:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: malloc failed", 1}), 30, 0}), &_tmp_til_Ptr_new_by_size_7);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:16:39:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: malloc failed", 1}), 30, 0}), &_tmp_til_Ptr_new_by_size_7);
         til_Array_delete(&_tmp_til_Ptr_new_by_size_7);
     }
     return til_Ptr_p;
@@ -1006,6 +1008,16 @@ til_Bool til_Bool_from_i64(const til_I64* til_I64_i) {
 til_I64 til_Bool_size(void) {
     return 1;
     return (til_I64){0};
+}
+
+til_I64 til_Ptr_size_of(void) {
+    return til_size_of(&((til_Str){((til_Ptr){(til_I64)"I64", 1}), 3, 0}));
+    return (til_I64){0};
+}
+
+til_Bool til_Ptr_is_null(const til_Ptr* til_Ptr_self) {
+    return til_I64_eq(&til_I64_NULL, &til_Ptr_self->data);
+    return (til_Bool){0};
 }
 
 int main(int argc, char** argv) {

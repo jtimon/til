@@ -101,9 +101,12 @@ changes for NamespaceDef - they never see it because init has already merged
 it into the existing type. The todo_error cases added in Step 1.1 are just
 safety nets that should never trigger after init is implemented.
 
-**** Step 1.3: Port to TIL
+**** Step 1.3: Port to TIL [DONE]
 
-Port init changes from Rust to the self-hosted TIL implementation.
+Ported all changes to TIL:
+- typer.til, ufcs.til, precomp.til, interpreter.til: Skip NamespaceDef (already processed by init)
+- ccodegen.til: Added is_namespace_definition, emit_namespace_func_prototypes, emit_namespace_func_bodies
+- init.til: Check registered functions before struct members in get_fcall_value_type
 
 **** Step 1.4: Tests
 
@@ -116,10 +119,8 @@ Add tests for:
 
 Test file: =src/test/108.til= (not in tests.til yet - will fail until Step 1 complete)
 
-Current status: UFCS calls work (=f.get_x()=), but qualified calls fail (=Foo.get_x(f)=).
-The issue is that =get_fcall_value_type= looks up struct members directly instead of
-checking the registered functions first. The merged struct loses namespace members
-somewhere between init and precomp phases.
+Current status: Both UFCS calls (=f.get_x()=) and qualified calls (=Foo.get_x(f)=) now work.
+The fix was to check registered functions before struct members in get_fcall_value_type.
 
 *** Step 2: Unify AF syntax for structs
 
