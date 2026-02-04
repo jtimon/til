@@ -102,7 +102,7 @@ impl EvalArena {
     // They take Context as parameter to access type info and arena_index
 
     /// Check if id refers to an instance field (e.g., "myStruct.field") vs a type constant
-    fn is_instance_field(ctx: &Context, id: &str) -> bool {
+    pub fn is_instance_field(ctx: &Context, id: &str) -> bool {
         if !id.contains('.') { return false; }
         let base = id.split('.').next().unwrap();
         ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
@@ -111,32 +111,56 @@ impl EvalArena {
     }
 
     pub fn get_u8(ctx: &Context, id: &str, e: &Expr) -> Result<u8, String> {
-        // Try direct lookup first (for base variables)
-        let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
-            offset
-        } else if id.contains('.') {
-            // For field paths, calculate offset dynamically
-            ctx.get_field_offset( id).map_err(|err| {
+        // Bug #160: Deterministic dispatch based on identifier structure
+        // Use is_instance_field to distinguish field paths from type constants (e.g., Ptr.NULL)
+        let offset = if Self::is_instance_field(ctx, id) {
+            // Instance field path - ALWAYS calculate offset dynamically
+            ctx.get_field_offset(id).map_err(|err| {
                 e.lang_error(&ctx.path, "context", &format!("get_u8: {}", err))
             })?
         } else {
-            return Err(e.lang_error(&ctx.path, "context", &format!("u8 not found for id '{}'", id)));
+            // Variable or type constant - try direct lookup first
+            // If not found and path has dots, use get_field_offset (for namespace field subpaths)
+            match ctx.scope_stack.lookup_var(id) {
+                Some(offset) => offset,
+                None => {
+                    if id.contains('.') {
+                        ctx.get_field_offset(id).map_err(|err| {
+                            e.lang_error(&ctx.path, "context", &format!("get_u8 fallback: {}", err))
+                        })?
+                    } else {
+                        return Err(e.lang_error(&ctx.path, "context", &format!("u8 not found for id '{}'", id)));
+                    }
+                }
+            }
         };
 
         Ok(EvalArena::g().get(offset, 1)[0])
     }
 
     pub fn get_i64(ctx: &Context, id: &str, e: &Expr) -> Result<i64, String> {
-        // Try direct lookup first (for base variables)
-        let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
-            offset
-        } else if id.contains('.') {
-            // For field paths, calculate offset dynamically
-            ctx.get_field_offset( id).map_err(|err| {
+        // Bug #160: Deterministic dispatch based on identifier structure
+        // Use is_instance_field to distinguish field paths from type constants (e.g., Ptr.NULL)
+        let offset = if Self::is_instance_field(ctx, id) {
+            // Instance field path - ALWAYS calculate offset dynamically
+            ctx.get_field_offset(id).map_err(|err| {
                 e.lang_error(&ctx.path, "context", &format!("get_i64: {}", err))
             })?
         } else {
-            return Err(e.lang_error(&ctx.path, "context", &format!("i64 not found for id '{}'", id)));
+            // Variable or type constant - try direct lookup first
+            // If not found and path has dots, use get_field_offset (for namespace field subpaths)
+            match ctx.scope_stack.lookup_var(id) {
+                Some(offset) => offset,
+                None => {
+                    if id.contains('.') {
+                        ctx.get_field_offset(id).map_err(|err| {
+                            e.lang_error(&ctx.path, "context", &format!("get_i64 fallback: {}", err))
+                        })?
+                    } else {
+                        return Err(e.lang_error(&ctx.path, "context", &format!("i64 not found for id '{}'", id)));
+                    }
+                }
+            }
         };
 
         match EvalArena::g().get(offset, 8).try_into() {
@@ -155,17 +179,10 @@ impl EvalArena {
         let bytes = v.to_ne_bytes();
 
         if Self::is_instance_field(ctx, id) {
-            // For instance field paths, calculate offset dynamically
-            // REM renamed to field_offset (vs Rust's offset) due to C scope flattening
-            let field_offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
-                // Pre-registered field (old path)
-                offset
-            } else {
-                // Calculate offset from struct definition
-                ctx.get_field_offset( id).map_err(|err| {
-                    e.lang_error(&ctx.path, "context", &format!("insert_i64: {}", err))
-                })?
-            };
+            // Bug #160: Deterministic dispatch - field paths ALWAYS use get_field_offset
+            let field_offset = ctx.get_field_offset(id).map_err(|err| {
+                e.lang_error(&ctx.path, "context", &format!("insert_i64: {}", err))
+            })?;
 
             // Ensure arena has enough space
             let required_len = field_offset + 8;
@@ -202,17 +219,10 @@ impl EvalArena {
             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid u8 literal '{}'", u8_str)))?;
 
         if Self::is_instance_field(ctx, id) {
-            // For instance field paths, calculate offset dynamically
-            // REM renamed to field_offset (vs Rust's offset) due to C scope flattening
-            let field_offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
-                // Pre-registered field (old path)
-                offset
-            } else {
-                // Calculate offset from struct definition
-                ctx.get_field_offset( id).map_err(|err| {
-                    e.lang_error(&ctx.path, "context", &format!("insert_u8: {}", err))
-                })?
-            };
+            // Bug #160: Deterministic dispatch - field paths ALWAYS use get_field_offset
+            let field_offset = ctx.get_field_offset(id).map_err(|err| {
+                e.lang_error(&ctx.path, "context", &format!("insert_u8: {}", err))
+            })?;
             EvalArena::g().set(field_offset, &[v])?;
             return Ok(None)
         }
@@ -240,11 +250,20 @@ impl EvalArena {
         let struct_def = ctx.scope_stack.lookup_struct(custom_type_name)
             .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
 
-        let is_mut = ctx.scope_stack.lookup_symbol(dest)
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination symbol '{}' not found", dest)))?
+        // Bug #160: Get is_mut from base variable (first part of path) since field symbols may not be registered
+        let base_var = dest.split('.').next().unwrap_or(dest);
+        let is_mut = ctx.scope_stack.lookup_symbol(base_var)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination base symbol '{}' not found", base_var)))?
             .is_mut;
 
+        // Get base offsets for src and dest
+        // Bug #160: Try lookup_var first (may be registered by caller), then get_field_offset for field paths
+        let src_base_offset = ctx.scope_stack.lookup_var(src)
+            .or_else(|| if src.contains('.') { ctx.get_field_offset(src).ok() } else { None })
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: source arena offset for '{}' not found", src)))?;
+
         let dest_base_offset = ctx.scope_stack.lookup_var(dest)
+            .or_else(|| if dest.contains('.') { ctx.get_field_offset(dest).ok() } else { None })
             .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination arena offset for '{}' not found", dest)))?;
 
         let members = struct_def.members.clone();
@@ -253,53 +272,43 @@ impl EvalArena {
         for decl in members {
             if decl.is_mut {
                 let field_size = match &decl.value_type {
-                    ValueType::TCustom(name) => ctx.get_type_size( name)?,
+                    ValueType::TCustom(name) => ctx.get_type_size(name)?,
                     _ => return Err(e.lang_error(&ctx.path, "context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
                 };
 
                 let src_key = format!("{}.{}", src, decl.name);
                 let dest_key = format!("{}.{}", dest, decl.name);
 
-                // Try to get source offset - first from arena_index, then calculate dynamically
-                let src_offset_result = if let Some(offset) = ctx.scope_stack.lookup_var(&src_key) {
-                    Some(offset)
-                } else {
-                    // Calculate offset dynamically from struct definition
-                    match ctx.get_field_offset(&src_key) {
-                        Ok(offset) => Some(offset),
-                        Err(_) => {
-                            // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
-                            current_offset += field_size;
-                            None
-                        }
+                // Bug #160: Calculate offsets directly from struct definition
+                // Don't use is_instance_field/get_field_offset for field paths - the base symbol
+                // might have a different declared type (e.g., Dynamic) than the actual type
+                let src_offset = src_base_offset + current_offset;
+                let dest_offset = dest_base_offset + current_offset;
+
+                // Register src and dest fields for recursive calls
+                ctx.scope_stack.insert_var(src_key.clone(), src_offset);
+                ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
+                ctx.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo {
+                    value_type: decl.value_type.clone(),
+                    is_mut,
+                    is_copy: false,
+                    is_own: false,
+                    is_comptime_const: false,
+                });
+
+                let data = EvalArena::g().get(src_offset, field_size).to_vec();
+                EvalArena::g().set(dest_offset, &data)?;
+
+                if let ValueType::TCustom(type_name) = &decl.value_type {
+                    // Dynamic is a special opaque type - its contents are copied via memcpy above, not recursively
+                    if type_name != "Dynamic" && ctx.scope_stack.has_struct(type_name) {
+                        EvalArena::copy_fields(ctx, type_name, &src_key, &dest_key, e).map_err(|inner_err| {
+                            e.lang_error(&ctx.path, "context", &format!("copy_fields: failed to recursively copy field '{}': {}", dest_key, inner_err))
+                        })?;
                     }
-                };
-
-                if let Some(src_offset) = src_offset_result {
-                    let dest_offset = dest_base_offset + current_offset;
-
-                    ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
-                    ctx.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo {
-                        value_type: decl.value_type.clone(),
-                        is_mut,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    });
-
-                    let data = EvalArena::g().get(src_offset, field_size).to_vec();
-                    EvalArena::g().set(dest_offset, &data)?;
-
-                    if let ValueType::TCustom(type_name) = &decl.value_type {
-                        if ctx.scope_stack.has_struct(type_name) {
-                            EvalArena::copy_fields(ctx, type_name, &src_key, &dest_key, e).map_err(|_| {
-                                e.lang_error(&ctx.path, "context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
-                            })?;
-                        }
-                    }
-
-                    current_offset += field_size;
                 }
+
+                current_offset += field_size;
             }
         }
 
@@ -439,9 +448,9 @@ impl EvalArena {
                 }
             }
 
+            // Bug #160: Removed field arena_mappings.push - offsets are now calculated dynamically
+            // Symbol still needed for type checking
             let combined_name = format!("{}.{}", id, decl.name);
-            let field_arena_offset = offset + field_offset;
-            result.arena_mappings.push(EvalArenaMapping { name: combined_name.clone(), offset: field_arena_offset });
             result.symbols.push(SymbolEntry { name: combined_name, info: SymbolInfo {
                 value_type: decl.value_type.clone(),
                 is_mut,
@@ -490,14 +499,14 @@ impl EvalArena {
         // Add base struct mapping
         result.arena_mappings.push(EvalArenaMapping { name: id.to_string(), offset: base_offset });
 
-        // Generate mappings for each field
+        // Generate symbols for each field (Bug #160: no longer generate field arena mappings)
         for decl in struct_def.members.iter() {
             if decl.is_mut {
                 let field_rel_offset = field_offsets.get(&decl.name).copied().unwrap_or(0);
                 let field_abs_offset = base_offset + field_rel_offset;
                 let combined_name = format!("{}.{}", id, decl.name);
 
-                result.arena_mappings.push(EvalArenaMapping { name: combined_name.clone(), offset: field_abs_offset });
+                // Bug #160: Removed arena_mappings.push - offsets are now calculated dynamically
                 result.symbols.push(SymbolEntry { name: combined_name.clone(), info: SymbolInfo {
                     value_type: decl.value_type.clone(),
                     is_mut,
@@ -671,10 +680,11 @@ impl EvalArena {
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "insert_string", "Str template not found - ensure str.til is imported"))?;
             EvalArena::insert_struct(ctx, id, "Str", template_offset, e)?;
-            let c_string_offset = ctx.scope_stack.lookup_var(&format!("{}.c_string", id))
-                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))?;
-            let len_offset = ctx.scope_stack.lookup_var(&format!("{}._len", id))
-                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}._len'", id)))?;
+            // Bug #160: Use get_field_offset instead of lookup_var for field paths
+            let c_string_offset = ctx.get_field_offset(&format!("{}.c_string", id))
+                .map_err(|err| e.lang_error(&ctx.path, "insert_string", &format!("missing '{}.c_string': {}", id, err)))?;
+            let len_offset = ctx.get_field_offset(&format!("{}._len", id))
+                .map_err(|err| e.lang_error(&ctx.path, "insert_string", &format!("missing '{}._len': {}", id, err)))?;
             EvalArena::g().set(c_string_offset, &info.string_offset_bytes)?;
             EvalArena::g().set(len_offset, &info.len_bytes)?;
         }
@@ -688,12 +698,34 @@ impl EvalArena {
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "insert_string_into_frame", "Str template not found - ensure str.til is imported"))?;
             EvalArena::insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?;
-            let c_string_offset = frame.arena_index.get(&format!("{}.c_string", id))
+            // Bug #160: Calculate field offsets from base offset in frame
+            // The base struct was just inserted into frame.arena_index
+            let base_offset = frame.arena_index.get(id)
                 .copied()
-                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.c_string'", id)))?;
-            let len_offset = frame.arena_index.get(&format!("{}._len", id))
-                .copied()
-                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}._len'", id)))?;
+                .ok_or_else(|| e.lang_error(&ctx.path, "insert_string_into_frame", &format!("missing '{}' in frame", id)))?;
+            // Str layout: c_string (Ptr), _len (I64), cap (I64)
+            // Get field offsets from struct definition
+            let str_def = ctx.scope_stack.lookup_struct("Str")
+                .ok_or_else(|| e.lang_error(&ctx.path, "insert_string_into_frame", "Str struct not found"))?;
+            let mut c_string_rel_offset = 0usize;
+            let mut len_rel_offset = 0usize;
+            let mut current_offset = 0usize;
+            for decl in &str_def.members {
+                if decl.is_mut {
+                    if decl.name == "c_string" {
+                        c_string_rel_offset = current_offset;
+                    } else if decl.name == "_len" {
+                        len_rel_offset = current_offset;
+                    }
+                    let field_size = match &decl.value_type {
+                        ValueType::TCustom(type_name) => ctx.get_type_size(type_name)?,
+                        _ => return Err(e.lang_error(&ctx.path, "insert_string_into_frame", "unexpected field type")),
+                    };
+                    current_offset += field_size;
+                }
+            }
+            let c_string_offset = base_offset + c_string_rel_offset;
+            let len_offset = base_offset + len_rel_offset;
             EvalArena::g().set(c_string_offset, &info.string_offset_bytes)?;
             EvalArena::g().set(len_offset, &info.len_bytes)?;
         }
@@ -811,15 +843,16 @@ impl EvalArena {
             }
         };
 
-        // Try to get offset - first from arena_index, then calculate dynamically for fields
-        let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
-            offset
-        } else if id.contains('.') {
-            // Field path - calculate offset dynamically
+        // Bug #160: Deterministic dispatch based on identifier structure
+        // Use is_instance_field to distinguish field paths from type constants
+        let offset = if Self::is_instance_field(ctx, id) {
+            // Instance field path - ALWAYS calculate offset dynamically
             ctx.get_field_offset(id)
                 .map_err(|err| e.lang_error(&ctx.path, "context", &format!("get_enum: {}", err)))?
         } else {
-            return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: EvalArena index for '{}' not found", id)))
+            // Variable or type constant - ALWAYS direct lookup
+            ctx.scope_stack.lookup_var(id)
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("get_enum: EvalArena index for '{}' not found", id)))?
         };
 
         let enum_value_bytes = EvalArena::g().get(offset, 8);
@@ -917,32 +950,20 @@ impl EvalArena {
         let actual_size = 8 + payload_size; // tag + current payload
 
         let mapping = {
-            let is_field = id.contains('.');
-            if is_field {
-                if let Some(offset) = ctx.scope_stack.lookup_var(id) {
-                    // Update existing enum value (no new mapping needed)
-                    EvalArena::g().set(offset, &enum_value.to_le_bytes())?;
-                    if let Some(payload_bytes) = &payload_data {
-                        let payload_offset = offset + 8;
-                        let payload_end = payload_offset + payload_bytes.len();
-                        if EvalArena::g().len() < payload_end {
-                            EvalArena::g().reserve(payload_end - EvalArena::g().len())?;
-                        }
-                        EvalArena::g().set(payload_offset, &payload_bytes)?;
+            // Bug #160: Deterministic dispatch - instance fields use get_field_offset for in-place update
+            if Self::is_instance_field(ctx, id) {
+                let offset = ctx.get_field_offset(id)?;
+                // Update existing enum value in-place (no new mapping needed)
+                EvalArena::g().set(offset, &enum_value.to_le_bytes())?;
+                if let Some(payload_bytes) = &payload_data {
+                    let payload_offset = offset + 8;
+                    let payload_end = payload_offset + payload_bytes.len();
+                    if EvalArena::g().len() < payload_end {
+                        EvalArena::g().reserve(payload_end - EvalArena::g().len())?;
                     }
-                    None
-                } else {
-                    // Allocate max enum size, write tag and payload, then zero-pad remaining
-                    let offset = EvalArena::g().put(&enum_value.to_le_bytes())?;
-                    if let Some(payload_bytes) = &payload_data {
-                        EvalArena::g().put(&payload_bytes)?;
-                    }
-                    // Pad with zeros to reach max_enum_size
-                    if actual_size < max_enum_size {
-                        EvalArena::g().reserve(max_enum_size - actual_size)?;
-                    }
-                    Some(EvalArenaMapping { name: id.to_string(), offset })
+                    EvalArena::g().set(payload_offset, &payload_bytes)?;
                 }
+                None
             } else {
                 // Allocate max enum size, write tag and payload, then zero-pad remaining
                 let new_enum_offset = EvalArena::g().put(&enum_value.to_le_bytes())?;
@@ -1061,21 +1082,46 @@ impl EvalArena {
             }
         }
 
-        // Update Array fields from frame.arena_index
-        let ptr_offset = frame.arena_index.get(&format!("{}.ptr", name)).copied()
-            .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}.ptr'", name)))?;
+        // Bug #160: Calculate field offsets from base offset in frame
+        let base_offset = frame.arena_index.get(name).copied()
+            .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing base offset for '{}'", name)))?;
+        let array_def = ctx.scope_stack.lookup_struct("Array")
+            .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", "Array struct definition not found"))?;
+
+        // Calculate relative offsets for each field
+        let mut type_name_rel_offset = 0usize;
+        let mut type_size_rel_offset = 0usize;
+        let mut ptr_rel_offset = 0usize;
+        let mut len_rel_offset = 0usize;
+        let mut current_offset = 0usize;
+        for decl in &array_def.members {
+            if decl.is_mut {
+                let field_size = match &decl.value_type {
+                    ValueType::TCustom(t) => ctx.get_type_size(t)?,
+                    _ => return Err(e.lang_error(&ctx.path, "insert_array", "unsupported field type")),
+                };
+                match &decl.name[..] {
+                    "type_name" => type_name_rel_offset = current_offset,
+                    "type_size" => type_size_rel_offset = current_offset,
+                    "ptr" => ptr_rel_offset = current_offset,
+                    "_len" => len_rel_offset = current_offset,
+                    _ => {}
+                }
+                current_offset += field_size;
+            }
+        }
+
+        // Update Array fields using calculated offsets
+        let ptr_offset = base_offset + ptr_rel_offset;
         EvalArena::g().set(ptr_offset, &(ptr as i64).to_ne_bytes())?;
 
-        let len_offset = frame.arena_index.get(&format!("{}._len", name)).copied()
-            .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}._len'", name)))?;
+        let len_offset = base_offset + len_rel_offset;
         EvalArena::g().set(len_offset, &len.to_ne_bytes())?;
 
-        let type_size_offset = frame.arena_index.get(&format!("{}.type_size", name)).copied()
-            .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}.type_size'", name)))?;
+        let type_size_offset = base_offset + type_size_rel_offset;
         EvalArena::g().set(type_size_offset, &(elem_size as i64).to_ne_bytes())?;
 
         // Set type_name field (it's a Str)
-        let type_name_field = format!("{}.type_name", name);
         let temp_type_name_id = format!("{}_type_name_temp", name);
         frame.symbols.insert(temp_type_name_id.clone(), SymbolInfo {
             value_type: ValueType::TCustom("Str".to_string()),
@@ -1087,8 +1133,7 @@ impl EvalArena {
         Self::insert_string_into_frame(ctx, frame, &temp_type_name_id, &elem_type.to_string(), e)?;
         let temp_str_offset = frame.arena_index.get(&temp_type_name_id).copied()
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", "missing type_name temp Str offset"))?;
-        let type_name_offset = frame.arena_index.get(&type_name_field).copied()
-            .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}'", type_name_field)))?;
+        let type_name_offset = base_offset + type_name_rel_offset;
         let str_size = ctx.get_type_size("Str")?;
         let data = EvalArena::g().get(temp_str_offset, str_size).to_vec();
         EvalArena::g().set(type_name_offset, &data)?;

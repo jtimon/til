@@ -1976,68 +1976,8 @@ Context := struct {
         return result
     }
 
-    map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str {
-        mut struct_def := self.scope_stack.lookup_struct(custom_type_name)?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(self.path, "context", format("map_instance_fields: definition for '", custom_type_name, "' not found"))
-        }
-
-        mut instance_symbol := self.scope_stack.lookup_symbol(instance_name)?
-        catch (sym_err: KeyNotFoundError) {
-            throw e.lang_error(self.path, "context", format("map_instance_fields: instance '", instance_name, "' not found in symbols"))
-        }
-        mut is_mut := instance_symbol.is_mut
-
-        mut base_offset := self.scope_stack.lookup_var(instance_name)?
-        catch (var_err: KeyNotFoundError) {
-            throw e.lang_error(self.path, "context", format("map_instance_fields: base offset for '", instance_name, "' not found"))
-        }
-
-        mut current_offset := 0
-        for decl: Declaration in struct_def.members {
-            mut field_name := decl.name
-
-            if decl.is_mut {
-                mut combined_name := format(instance_name, ".", field_name)
-                mut field_offset := base_offset.add(current_offset)
-                self.scope_stack.insert_var(combined_name.clone(), field_offset)?
-
-                self.scope_stack.declare_symbol(
-                    combined_name.clone(),
-                    SymbolInfo(value_type=value_type_clone(decl.value_type), is_mut=is_mut)
-                )?
-
-                switch decl.value_type {
-                case ValueType.TCustom(type_name):
-                    mut found_nested_struct := false
-                    mut nested_struct_def := SStructDef()
-                    nested_struct_def = self.scope_stack.lookup_struct(type_name)?
-                    found_nested_struct = true
-                    catch (nested_err: KeyNotFoundError) {
-                        // Nested struct not found
-                    }
-                    if found_nested_struct {
-                        self.map_instance_fields(type_name, combined_name, e)?
-                        // Error will propagate via throws Str
-                    }
-                case:
-                    # Not a custom type
-                }
-
-                mut field_size := 0
-                switch decl.value_type {
-                case ValueType.TCustom(name):
-                    field_size = self.get_type_size(name)?
-                    // Errors propagate via throws Str
-                case:
-                    throw e.lang_error(self.path, "context", format("map_instance_fields: Unsupported value type '", value_type_to_str(decl.value_type), "'"))
-                }
-
-                current_offset = current_offset.add(field_size)
-            }
-            # Immutable struct fields are handled generically through struct_defs
-        }
-    }
+    // Bug #160: map_instance_fields removed - symbols are registered by type checker
+    // via register_struct_fields_for_typecheck, offsets calculated dynamically via get_field_offset
 
     get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str {
         # Validate that the struct variable exists by checking if we can get its offset
@@ -2197,18 +2137,68 @@ Context := struct {
             throw "get_field_offset: empty field path"
         }
 
+        // Bug #160: Check if the first part is an instance variable
+        // If so, use only the first part as the base (to avoid interference from copy_fields entries)
+        // If not (type constant), use longest-prefix matching
+        mut first_part := ""
+        parts.get(0, first_part)?
+        mut first_part_is_instance := false
+        mut first_sym := self.scope_stack.lookup_symbol(first_part)?
+        switch first_sym.value_type {
+        case ValueType.TType(inner):
+            first_part_is_instance = false
+        case:
+            first_part_is_instance = true
+        }
+        catch (err: KeyNotFoundError) {
+            first_part_is_instance = false
+        }
+
+        mut base_end_idx := 0
+        mut current_offset := 0
+        mut found_base := false
+
+        if first_part_is_instance {
+            // Instance variable: only look up the first part
+            current_offset = self.scope_stack.lookup_var(first_part)?
+            base_end_idx = 0
+            found_base = true
+            catch (err: KeyNotFoundError) {
+                throw format("get_field_offset: base variable '", first_part, "' not found in arena_index")
+            }
+        } else {
+            // Type constant: find the longest prefix that exists in arena_index
+            for i in 0..parts.len() {
+                // Build candidate by joining parts[0..=i] with "."
+                mut candidate := ""
+                parts.get(0, candidate)?
+                for j in 1..i.add(1) {
+                    mut part := ""
+                    parts.get(j, part)?
+                    candidate = candidate.concat(".").concat(part)
+                }
+                mut offset := 0
+                offset = self.scope_stack.lookup_var(candidate)?
+                base_end_idx = i
+                current_offset = offset
+                found_base = true
+                catch (err: KeyNotFoundError) {
+                    // Not found, continue searching
+                }
+            }
+            if not(found_base) {
+                throw format("get_field_offset: no base found in arena_index for path '", field_path, "'")
+            }
+        }
+
+        // Build base_var by joining parts[0..=base_end_idx] with "."
         mut base_var := ""
         parts.get(0, base_var)?
-        catch (err: IndexOutOfBoundsError) {
-            throw "get_field_offset: empty field path"
+        for j in 1..base_end_idx.add(1) {
+            mut part := ""
+            parts.get(j, part)?
+            base_var = base_var.concat(".").concat(part)
         }
-
-        mut base_offset := self.scope_stack.lookup_var(base_var)?
-        catch (err: KeyNotFoundError) {
-            throw format("get_field_offset: base variable '", base_var, "' not found in arena_index")
-        }
-        mut current_offset := base_offset
-
         // Get the base variable's type
         mut base_symbol := self.scope_stack.lookup_symbol(base_var)?
         catch (err: KeyNotFoundError) {
@@ -2225,7 +2215,7 @@ Context := struct {
 
         // Walk through the remaining parts of the path
         mut should_continue_path := true
-        mut idx := 1
+        mut idx := base_end_idx.add(1)
         while idx.lt(parts.len()) {
             if should_continue_path {
                 mut field_name := ""

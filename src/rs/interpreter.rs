@@ -165,7 +165,8 @@ pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<Stri
 
     // Read string bytes from EvalArena and convert to String
     let bytes = EvalArena::g().get(c_string_ptr, length);
-    Ok(String::from_utf8_lossy(bytes).to_string())
+    let result = String::from_utf8_lossy(bytes).to_string();
+    Ok(result)
 }
 
 // Helper function to validate conditional statement parameters
@@ -621,15 +622,26 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 return Ok(EvalResult::new(&temp_name));
             } else {
                 // Default constructor: Vec2()
-                let id_name = match &id_expr.node_type {
-                    NodeType::Identifier(s) => s,
-                    _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
-                };
-                insert_struct_instance(context, &id_name, &name, e)?;
-                return Ok(EvalResult::new(match id_name.as_str() {
+                // Bug #160 fix: Create temp instance instead of using type name
+                // This ensures field access via get_field_offset works correctly
+                let temp_id = EvalArena::g().temp_id_counter;
+                EvalArena::g().temp_id_counter += 1;
+                let temp_name = format!("{}{}", RETURN_INSTANCE_NAME, temp_id);
+
+                // Declare temp symbol
+                context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
+                    value_type: ValueType::TCustom(name.to_string()),
+                    is_mut: true,
+                    is_copy: false,
+                    is_own: false,
+                    is_comptime_const: false,
+                });
+
+                insert_struct_instance(context, &temp_name, &name, e)?;
+                return Ok(EvalResult::new(match &name[..] {
                     "U8" | "I64" => "0",
                     "Str" => "",
-                    _ => id_name,
+                    _ => &temp_name,
                 }))
             }
         }
@@ -1057,13 +1069,16 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                             EvalArena::copy_fields(context, custom_type_name, &expr_result_str, &declaration.name, e)?;
                         } else {
                             // Share offset for non-mut declaration or temp return value (zero-copy transfer)
-                            if let Some(offset) = context.scope_stack.lookup_var(&expr_result_str) {
-                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(declaration.name.to_string(), offset);
+                            // Bug #160: Deterministic dispatch - instance fields use get_field_offset
+                            let offset = if EvalArena::is_instance_field(context, &expr_result_str) {
+                                context.get_field_offset(&expr_result_str)
+                                    .map_err(|err| e.lang_error(&context.path, "eval", &format!("Could not find arena index for '{}': {}", expr_result_str, err)))?
                             } else {
-                                return Err(e.lang_error(&context.path, "eval", &format!("Could not find arena index for '{}'", expr_result_str)));
-                            }
-                            // Keep map_instance_fields for now as fallback for copy_fields
-                            context.map_instance_fields(custom_type_name, &declaration.name, e)?;
+                                context.scope_stack.lookup_var(&expr_result_str)
+                                    .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Could not find arena index for '{}'", expr_result_str)))?
+                            };
+                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(declaration.name.to_string(), offset);
+                            // Bug #160: map_instance_fields removed - type checker handles symbol registration
                         }
                     } else {
                         return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
@@ -1090,7 +1105,9 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
     let symbol_info = match context.scope_stack.lookup_symbol(base_var_name) {
         Some(sym) => sym,
-        None => return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", base_var_name))),
+        None => {
+            return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", base_var_name)));
+        }
     };
     if !symbol_info.is_mut && !symbol_info.is_copy && !symbol_info.is_own {
         return Err(e.lang_error(&context.path, "eval", &format!("in eval_assignment, while assigning to '{}': Assignments can only be to mut values. Offending expr: {:?}", var_name, e)));
@@ -2242,11 +2259,14 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         }
                     }
 
-                    // Copy symbol entries for fields
+                    // Copy symbol entries for fields to caller's frame (not current frame which is about to be popped)
                     let throw_symbol_keys_to_copy = context.scope_stack.get_symbols_with_prefix(&throw_source_prefix);
                     for throw_sym_key in throw_symbol_keys_to_copy {
-                        if let Some(throw_src_symbol) = context.scope_stack.lookup_symbol(&throw_sym_key) {
-                            context.scope_stack.declare_symbol(throw_sym_key, throw_src_symbol.clone());
+                        let throw_src_symbol_opt = context.scope_stack.lookup_symbol(&throw_sym_key).cloned();
+                        if let Some(throw_src_symbol) = throw_src_symbol_opt {
+                            if throw_frame_count >= 2 {
+                                context.scope_stack.frames[throw_frame_count - 2].symbols.insert(throw_sym_key, throw_src_symbol);
+                            }
                         }
                     }
                 }
@@ -2260,11 +2280,18 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     let result_str = result.value;
 
     // Save struct/enum return value info BEFORE popping (needed for return handling)
+    // Bug #160: Deterministic dispatch - instance fields use get_field_offset
     let saved_return_offset: Option<usize> = if func_def.return_types.len() == 1 {
         if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
             match custom_type_name.as_str() {
                 "I64" | "U8" | "Str" => None,
-                _ => context.scope_stack.lookup_var(&result_str),
+                _ => {
+                    if EvalArena::is_instance_field(context, &result_str) {
+                        context.get_field_offset(&result_str).ok()
+                    } else {
+                        context.scope_stack.lookup_var(&result_str)
+                    }
+                },
             }
         } else {
             None
@@ -2423,9 +2450,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             EvalArena::g().set(dest_offset + i, &[byte])?;
                         }
                     } else {
-                        // Simple identifier: update arena_index and map fields
+                        // Simple identifier: update arena_index
+                        // Bug #160: map_instance_fields removed - type checker handles symbol registration
                         context.scope_stack.frames.last_mut().unwrap().arena_index.insert(c.source_name.to_string(), offset);
-                        context.map_instance_fields(&type_name, &c.source_name, e)?;
                     }
                 }
             },

@@ -103,6 +103,10 @@ EvalArena := struct {
     // They take Context as parameter to access type info and arena_index
 
     // Check if id refers to an instance field (e.g., "myStruct.field") vs a type constant
+    // Bug #160: Now checks if ANY prefix of the path exists in arena_index
+    // This handles type constants like "MyNamespace.field_static_str.c_string.data"
+    // where the base is "MyNamespace.field_static_str", not "MyNamespace"
+    /// Check if id refers to an instance field (e.g., "myStruct.field") vs a type constant
     is_instance_field := func(ctx: Context, id: Str) returns Bool {
         if not(id.contains(".")) {
             return false
@@ -126,16 +130,31 @@ EvalArena := struct {
     }
 
     get_u8 := func(ctx: Context, id: Str, e: Expr) returns U8 throws Str {
-        // Try direct lookup first (for base variables)
-        mut offset := ctx.scope_stack.lookup_var(id)?
-        catch (err: KeyNotFoundError) {
-            if id.contains(".") {
-                // For field paths, calculate offset dynamically
-                offset = ctx.get_field_offset(id)?
-                catch (err2: Str) {
-                    throw e.lang_error(ctx.path, "context", format("get_u8: ", err2))
+        // Bug #160: Deterministic dispatch based on identifier structure
+        // Use is_instance_field to distinguish field paths from type constants (e.g., Ptr.NULL)
+        mut offset := 0
+        if EvalArena.is_instance_field(ctx, id) {
+            // Instance field path - ALWAYS calculate offset dynamically
+            offset = ctx.get_field_offset(id)?
+            catch (err: Str) {
+                throw e.lang_error(ctx.path, "context", format("get_u8: ", err))
+            }
+        } else {
+            // Variable or type constant - try direct lookup first
+            // If not found and path has dots, use get_field_offset (for namespace field subpaths)
+            mut found := false
+            offset = ctx.scope_stack.lookup_var(id)?
+            found = true
+            catch (err: KeyNotFoundError) {
+                if id.contains(".") {
+                    offset = ctx.get_field_offset(id)?
+                    found = true
+                    catch (err2: Str) {
+                        throw e.lang_error(ctx.path, "context", format("get_u8 fallback: ", err2))
+                    }
                 }
-            } else {
+            }
+            if not(found) {
                 throw e.lang_error(ctx.path, "context", format("u8 not found for id '", id, "'"))
             }
         }
@@ -146,16 +165,31 @@ EvalArena := struct {
     }
 
     get_i64 := func(ctx: Context, id: Str, e: Expr) returns I64 throws Str {
-        // Try direct lookup first (for base variables)
-        mut offset := ctx.scope_stack.lookup_var(id)?
-        catch (err: KeyNotFoundError) {
-            if id.contains(".") {
-                // For field paths, calculate offset dynamically
-                offset = ctx.get_field_offset(id)?
-                catch (err2: Str) {
-                    throw e.lang_error(ctx.path, "context", format("get_i64: ", err2))
+        // Bug #160: Deterministic dispatch based on identifier structure
+        // Use is_instance_field to distinguish field paths from type constants (e.g., Ptr.NULL)
+        mut offset := 0
+        if EvalArena.is_instance_field(ctx, id) {
+            // Instance field path - ALWAYS calculate offset dynamically
+            offset = ctx.get_field_offset(id)?
+            catch (err: Str) {
+                throw e.lang_error(ctx.path, "context", format("get_i64: ", err))
+            }
+        } else {
+            // Variable or type constant - try direct lookup first
+            // If not found and path has dots, use get_field_offset (for namespace field subpaths)
+            mut found := false
+            offset = ctx.scope_stack.lookup_var(id)?
+            found = true
+            catch (err: KeyNotFoundError) {
+                if id.contains(".") {
+                    offset = ctx.get_field_offset(id)?
+                    found = true
+                    catch (err2: Str) {
+                        throw e.lang_error(ctx.path, "context", format("get_i64 fallback: ", err2))
+                    }
                 }
-            } else {
+            }
+            if not(found) {
                 throw e.lang_error(ctx.path, "context", format("i64 not found for id '", id, "'"))
             }
         }
@@ -171,15 +205,10 @@ EvalArena := struct {
         // Note: I64.from_str currently panics on invalid input, doesn't throw
 
         if EvalArena.is_instance_field(ctx, id) {
-            // For instance field paths, calculate offset dynamically
-            // REM renamed to field_offset (vs Rust's offset) due to C scope flattening
-            mut field_offset := ctx.scope_stack.lookup_var(id)?
-            catch (err: KeyNotFoundError) {
-                // Calculate offset from struct definition
-                field_offset = ctx.get_field_offset(id)?
-                catch (err2: Str) {
-                    throw e.lang_error(ctx.path, "context", format("insert_i64: ", err2))
-                }
+            // Bug #160: Deterministic dispatch - field paths ALWAYS use get_field_offset
+            field_offset := ctx.get_field_offset(id)?
+            catch (err: Str) {
+                throw e.lang_error(ctx.path, "context", format("insert_i64: ", err))
             }
 
             // Ensure arena has enough space
@@ -221,15 +250,10 @@ EvalArena := struct {
         }
 
         if EvalArena.is_instance_field(ctx, id) {
-            // For instance field paths, calculate offset dynamically
-            // REM renamed to field_offset (vs Rust's offset) due to C scope flattening
-            mut field_offset := ctx.scope_stack.lookup_var(id)?
-            catch (err: KeyNotFoundError) {
-                // Calculate offset from struct definition
-                field_offset = ctx.get_field_offset(id)?
-                catch (err2: Str) {
-                    throw e.lang_error(ctx.path, "context", format("insert_u8: ", err2))
-                }
+            // Bug #160: Deterministic dispatch - field paths ALWAYS use get_field_offset
+            field_offset := ctx.get_field_offset(id)?
+            catch (err: Str) {
+                throw e.lang_error(ctx.path, "context", format("insert_u8: ", err))
             }
             g_arena.set(field_offset, to_ptr(v), 1)
             throw KeyNotFoundError(msg="already handled")
@@ -262,15 +286,34 @@ EvalArena := struct {
             throw e.lang_error(ctx.path, "context", format("copy_fields: definition for '", custom_type_name, "' not found"))
         }
 
-        mut dest_sym := ctx.scope_stack.lookup_symbol(dest)?
+        // Bug #160: Get is_mut from base variable (first part of path) since field symbols may not be registered
+        mut base_var := dest
+        if dest.contains(".") {
+            mut parts := dest.split(".")?
+            parts.get(0, base_var)?
+            catch (err: IndexOutOfBoundsError) { }
+        }
+        mut dest_sym := ctx.scope_stack.lookup_symbol(base_var)?
         catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("copy_fields: destination symbol '", dest, "' not found"))
+            throw e.lang_error(ctx.path, "context", format("copy_fields: destination base symbol '", base_var, "' not found"))
         }
         is_mut := dest_sym.is_mut
 
-        mut dest_base_offset := ctx.scope_stack.lookup_var(dest)?
+        // Bug #160: For destinations, try lookup_var first (parent call registered it via insert_var),
+        // fall back to get_field_offset for non-Dynamic types
+        mut dest_base_offset := 0
+        mut found_dest := false
+        dest_base_offset = ctx.scope_stack.lookup_var(dest)?
+        found_dest = true
         catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("copy_fields: destination arena offset for '", dest, "' not found"))
+            // Not found in arena_index, will try get_field_offset below
+        }
+        if not(found_dest) {
+            if dest.contains(".") {
+                dest_base_offset = ctx.get_field_offset(dest)?
+            } else {
+                throw e.lang_error(ctx.path, "context", format("copy_fields: destination arena offset for '", dest, "' not found"))
+            }
         }
 
         mut current_offset := 0
@@ -287,18 +330,14 @@ EvalArena := struct {
                 src_key := format(src, ".", decl.name)
                 dest_key := format(dest, ".", decl.name)
 
-                // Try to get source offset - first from arena_index, then calculate dynamically
+                // Bug #160: Deterministic dispatch - field paths ALWAYS use get_field_offset
                 mut src_offset := 0
                 mut have_src_offset := true
-                src_offset = ctx.scope_stack.lookup_var(src_key)?
-                catch (err: KeyNotFoundError) {
-                    // Calculate offset dynamically from struct definition
-                    src_offset = ctx.get_field_offset(src_key)?
-                    catch (err2: Str) {
-                        // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
-                        current_offset = add(current_offset, field_size)
-                        have_src_offset = false
-                    }
+                src_offset = ctx.get_field_offset(src_key)?
+                catch (err: Str) {
+                    // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
+                    current_offset = add(current_offset, field_size)
+                    have_src_offset = false
                 }
 
                 if have_src_offset {
@@ -501,12 +540,9 @@ EvalArena := struct {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Unsupported field value type '", value_type_to_str(decl.value_type), "'"))
                 }
 
+                // Bug #160: Removed field arena_mappings.push - offsets are now calculated dynamically
+                // Symbol still needed for type checking
                 combined_name := format(id, ".", decl.name)
-                field_arena_offset := add(offset, field_offset)
-                mut field_mapping := EvalArenaMapping()
-                field_mapping.name = combined_name
-                field_mapping.offset = field_arena_offset
-                result.arena_mappings.push(field_mapping)
                 mut field_sym := SymbolEntry()
                 field_sym.name = combined_name
                 field_sym.info = SymbolInfo(value_type=decl.value_type, is_mut=is_mut)
@@ -563,7 +599,7 @@ EvalArena := struct {
         base_mapping.offset = base_offset
         result.arena_mappings.push(base_mapping)
 
-        // Generate mappings for each field
+        // Generate symbols for each field (Bug #160: no longer generate field arena mappings)
         for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_rel_offset := 0
@@ -574,11 +610,7 @@ EvalArena := struct {
                 field_abs_offset := add(base_offset, field_rel_offset)
                 combined_name := format(id, ".", decl.name)
 
-                mut field_mapping := EvalArenaMapping()
-                field_mapping.name = combined_name
-                field_mapping.offset = field_abs_offset
-                result.arena_mappings.push(field_mapping)
-
+                // Bug #160: Removed arena_mappings.push - offsets are now calculated dynamically
                 mut field_sym := SymbolEntry()
                 field_sym.name = combined_name
                 field_sym.info = SymbolInfo(value_type=decl.value_type, is_mut=is_mut)
@@ -779,13 +811,14 @@ EvalArena := struct {
             throw e.lang_error(ctx.path, "insert_string", "Str template not found - ensure str.til is imported")
         }
         EvalArena.insert_struct(ctx, id, "Str", template_offset, e)?
-        c_string_offset := ctx.scope_stack.lookup_var(format(id, ".c_string"))?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("insert_string: missing '", id, ".c_string'"))
+        // Bug #160: Use get_field_offset instead of lookup_var for field paths
+        c_string_offset := ctx.get_field_offset(format(id, ".c_string"))?
+        catch (err: Str) {
+            throw e.lang_error(ctx.path, "insert_string", format("missing '", id, ".c_string': ", err))
         }
-        len_offset := ctx.scope_stack.lookup_var(format(id, "._len"))?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("insert_string: missing '", id, "._len'"))
+        len_offset := ctx.get_field_offset(format(id, "._len"))?
+        catch (err: Str) {
+            throw e.lang_error(ctx.path, "insert_string", format("missing '", id, "._len': ", err))
         }
         g_arena.set(c_string_offset, to_ptr(info.string_offset), 8)
         g_arena.set(len_offset, to_ptr(info.str_len), 8)
@@ -804,16 +837,41 @@ EvalArena := struct {
             throw e.lang_error(ctx.path, "insert_string_into_frame", "Str template not found - ensure str.til is imported")
         }
         EvalArena.insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?
-        mut c_string_offset := 0
-        frame.arena_index.get(format(id, ".c_string"), c_string_offset)?
+        // Bug #160: Calculate field offsets from base offset in frame
+        // The base struct was just inserted into frame.arena_index
+        mut base_offset := 0
+        frame.arena_index.get(id, base_offset)?
         catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, ".c_string'"))
+            throw e.lang_error(ctx.path, "insert_string_into_frame", format("missing '", id, "' in frame"))
         }
-        mut len_offset := 0
-        frame.arena_index.get(format(id, "._len"), len_offset)?
+        // Str layout: c_string (Ptr), _len (I64), cap (I64)
+        // Get field offsets from struct definition
+        mut str_def := ctx.scope_stack.lookup_struct("Str")?
         catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, "._len'"))
+            throw e.lang_error(ctx.path, "insert_string_into_frame", "Str struct not found")
         }
+        mut c_string_rel_offset := 0
+        mut len_rel_offset := 0
+        mut current_offset := 0
+        for decl: Declaration in str_def.members {
+            if decl.is_mut {
+                if decl.name.eq("c_string") {
+                    c_string_rel_offset = current_offset
+                } else if decl.name.eq("_len") {
+                    len_rel_offset = current_offset
+                }
+                mut field_size := 0
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    field_size = ctx.get_type_size(type_name)?
+                case:
+                    throw e.lang_error(ctx.path, "insert_string_into_frame", "unexpected field type")
+                }
+                current_offset = add(current_offset, field_size)
+            }
+        }
+        c_string_offset := add(base_offset, c_string_rel_offset)
+        len_offset := add(base_offset, len_rel_offset)
         g_arena.set(c_string_offset, to_ptr(info.string_offset), 8)
         g_arena.set(len_offset, to_ptr(info.str_len), 8)
     }
@@ -972,16 +1030,19 @@ EvalArena := struct {
             }
         }
 
-        // Try to get offset - first from arena_index, then calculate dynamically for fields
-        mut offset := ctx.scope_stack.lookup_var(id)?
-        catch (err: KeyNotFoundError) {
-            if id.contains(".") {
-                // Field path - calculate offset dynamically
-                offset = ctx.get_field_offset(id)?
-                catch (err2: Str) {
-                    throw e.lang_error(ctx.path, "context", format("get_enum: ", err2))
-                }
-            } else {
+        // Bug #160: Deterministic dispatch based on identifier structure
+        // Use is_instance_field to distinguish field paths from type constants
+        mut offset := 0
+        if EvalArena.is_instance_field(ctx, id) {
+            // Instance field path - ALWAYS calculate offset dynamically
+            offset = ctx.get_field_offset(id)?
+            catch (err: Str) {
+                throw e.lang_error(ctx.path, "context", format("get_enum: ", err))
+            }
+        } else {
+            // Variable or type constant - ALWAYS direct lookup
+            offset = ctx.scope_stack.lookup_var(id)?
+            catch (err: KeyNotFoundError) {
                 throw e.lang_error(ctx.path, "context", format("get_enum: EvalArena index for '", id, "' not found"))
             }
         }
@@ -1127,10 +1188,15 @@ EvalArena := struct {
 
         is_field := id.contains(".")
         if is_field {
+            // Bug #160 fix: Try lookup_var first, then get_field_offset
             mut have_offset := true
             mut offset := ctx.scope_stack.lookup_var(id)?
             catch (err: KeyNotFoundError) {
-                have_offset = false
+                // Field path not in arena_index - calculate from struct definition
+                offset = ctx.get_field_offset(id)?
+                catch (err2: Str) {
+                    have_offset = false
+                }
             }
 
             if have_offset {
@@ -1289,33 +1355,59 @@ EvalArena := struct {
             i = add(i, 1)
         }
 
-        // Update Array fields from frame.arena_index
-        mut ptr_offset := 0
-        frame.arena_index.get(format(name, ".ptr"), ptr_offset)?
+        // Bug #160: Calculate field offsets from base offset in frame
+        mut base_offset := 0
+        frame.arena_index.get(name, base_offset)?
         catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "insert_array", format("missing '", name, ".ptr'"))
+            throw e.lang_error(ctx.path, "insert_array", format("missing base offset for '", name, "'"))
         }
+        mut array_def := ctx.scope_stack.lookup_struct("Array")?
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "insert_array", "Array struct definition not found")
+        }
+
+        // Calculate relative offsets for each field
+        mut type_name_rel_offset := 0
+        mut type_size_rel_offset := 0
+        mut ptr_rel_offset := 0
+        mut len_rel_offset := 0
+        mut current_field_offset := 0
+        for decl: Declaration in array_def.members {
+            if decl.is_mut {
+                mut field_size := 0
+                switch decl.value_type {
+                case ValueType.TCustom(t):
+                    field_size = ctx.get_type_size(t)?
+                case:
+                    throw e.lang_error(ctx.path, "insert_array", "unsupported field type")
+                }
+                if Str.eq(decl.name, "type_name") {
+                    type_name_rel_offset = current_field_offset
+                } else if Str.eq(decl.name, "type_size") {
+                    type_size_rel_offset = current_field_offset
+                } else if Str.eq(decl.name, "ptr") {
+                    ptr_rel_offset = current_field_offset
+                } else if Str.eq(decl.name, "_len") {
+                    len_rel_offset = current_field_offset
+                }
+                current_field_offset = add(current_field_offset, field_size)
+            }
+        }
+
+        // Update Array fields using calculated offsets
+        ptr_offset := add(base_offset, ptr_rel_offset)
         mut ptr_val := ptr
         g_arena.set(ptr_offset, to_ptr(ptr_val), 8)
 
-        mut len_offset := 0
-        frame.arena_index.get(format(name, "._len"), len_offset)?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "insert_array", format("missing '", name, "._len'"))
-        }
+        len_offset := add(base_offset, len_rel_offset)
         mut len_val := len
         g_arena.set(len_offset, to_ptr(len_val), 8)
 
-        mut type_size_offset := 0
-        frame.arena_index.get(format(name, ".type_size"), type_size_offset)?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "insert_array", format("missing '", name, ".type_size'"))
-        }
+        type_size_offset := add(base_offset, type_size_rel_offset)
         mut elem_size_val := elem_size
         g_arena.set(type_size_offset, to_ptr(elem_size_val), 8)
 
         // Set type_name field (it's a Str)
-        type_name_field := format(name, ".type_name")
         temp_type_name_id := format(name, "_type_name_temp")
         temp_symbol2 := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
         frame.symbols.set(temp_type_name_id, temp_symbol2)
@@ -1328,12 +1420,7 @@ EvalArena := struct {
             throw e.lang_error(ctx.path, "insert_array", "missing type_name temp Str offset")
         }
 
-        mut type_name_offset := 0
-        frame.arena_index.get(type_name_field, type_name_offset)?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "insert_array", format("missing '", type_name_field, "'"))
-        }
-
+        type_name_offset := add(base_offset, type_name_rel_offset)
         str_size := ctx.get_type_size("Str")?
         g_arena.set(type_name_offset, g_arena.get(temp_str_offset, str_size), str_size)
 

@@ -1461,58 +1461,8 @@ impl Context {
         return Ok(selfi.variants[position as usize].name.clone())
     }
 
-    pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
-        let struct_def = self.scope_stack.lookup_struct(custom_type_name)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;
-
-        let is_mut = self.scope_stack.lookup_symbol(instance_name)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: instance '{}' not found in symbols", instance_name)))?
-            .is_mut;
-
-        let base_offset = self.scope_stack.lookup_var(instance_name)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: base offset for '{}' not found", instance_name)))?;
-
-        let members = struct_def.members.clone();
-
-        let mut current_offset = 0;
-        for decl in members {
-            if decl.is_mut {
-                let combined_name = format!("{}.{}", instance_name, decl.name);
-                let field_offset = base_offset + current_offset;
-                self.scope_stack.insert_var(combined_name.clone(), field_offset);
-
-                self.scope_stack.declare_symbol(
-                    combined_name.clone(),
-                    SymbolInfo {
-                        value_type: decl.value_type.clone(),
-                        is_mut,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    },
-                );
-
-                if let ValueType::TCustom(type_name) = &decl.value_type {
-                    if self.scope_stack.has_struct(type_name) {
-                        self.map_instance_fields(type_name, &combined_name, e).map_err(|_| {
-                            e.lang_error(&self.path, "context", &format!("map_instance_fields: failed to map nested struct field '{}'", combined_name))
-                        })?;
-                    }
-                }
-
-                let field_size = match &decl.value_type {
-                    ValueType::TCustom(name) => self.get_type_size(name)?,
-                    _ => return Err(e.lang_error(&self.path, "context", &format!(
-                        "map_instance_fields: Unsupported value type '{}'", value_type_to_str(&decl.value_type)
-                    ))),
-                };
-
-                current_offset += field_size;
-            }
-            // Immutable struct fields are handled generically through struct_defs
-        }
-        return Ok(())
-    }
+    // Bug #160: map_instance_fields removed - symbols are registered by type checker
+    // via register_struct_fields_for_typecheck, offsets calculated dynamically via get_field_offset
 
     pub fn get_struct(&self, id: &str, e: &Expr) -> Result<String, String> {
         // Validate that the struct variable exists by checking if we can get its offset
@@ -1687,20 +1637,49 @@ impl Context {
             return Err(format!("get_field_offset: empty field path"));
         }
 
+        // Bug #160: Check if the first part is an instance variable
+        // If so, use only the first part as the base (to avoid interference from copy_fields entries)
+        // If not (type constant), use longest-prefix matching
         let base_var = parts[0];
-        let mut current_offset = self.scope_stack.lookup_var(base_var)
-            .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
+        let first_part_is_instance = self.scope_stack.lookup_symbol(base_var)
+            .map_or(false, |sym| !matches!(sym.value_type, ValueType::TType(_)));
 
-        let mut current_type = match self.scope_stack.lookup_symbol(base_var) {
-            Some(symbol) => match &symbol.value_type {
-                ValueType::TCustom(type_name) => type_name.clone(),
-                _ => return Err(format!("get_field_offset: base variable '{}' is not a struct", base_var)),
-            },
-            None => return Err(format!("get_field_offset: base variable '{}' not found in symbols", base_var)),
+        let (base_end_idx, current_offset) = if first_part_is_instance {
+            // Instance variable: only look up the first part
+            let offset = self.scope_stack.lookup_var(base_var)
+                .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
+            (0, offset)
+        } else {
+            // Type constant: find the longest prefix that exists
+            let mut end_idx = 0;
+            let mut found_offset = 0usize;
+            let mut found = false;
+            for i in 0..parts.len() {
+                let candidate = parts[0..=i].join(".");
+                if let Some(offset) = self.scope_stack.lookup_var(&candidate) {
+                    end_idx = i;
+                    found_offset = offset;
+                    found = true;
+                }
+            }
+            if !found {
+                return Err(format!("get_field_offset: no base found in arena_index for path '{}'", field_path));
+            }
+            (end_idx, found_offset)
         };
 
+        let base_var_str = parts[0..=base_end_idx].join(".");
+        let mut current_type = match self.scope_stack.lookup_symbol(&base_var_str) {
+            Some(symbol) => match &symbol.value_type {
+                ValueType::TCustom(type_name) => type_name.clone(),
+                _ => return Err(format!("get_field_offset: base variable '{}' is not a struct", base_var_str)),
+            },
+            None => return Err(format!("get_field_offset: base variable '{}' not found in symbols", base_var_str)),
+        };
+
+        let mut current_offset = current_offset;
         let mut should_continue_path = true;
-        for field_name in &parts[1..] {
+        for field_name in &parts[base_end_idx + 1..] {
             if should_continue_path {
                 let field_offset = self.calculate_field_offset(&current_type, field_name)?;
                 current_offset += field_offset;

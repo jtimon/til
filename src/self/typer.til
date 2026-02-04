@@ -2693,8 +2693,12 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
 
     switch func_expr.node_type {
     case NodeType.Identifier(id_str):
+        // Declare variables early so they exist if any throw is caught by catch(Str) below
+        mut is_field := true
+        mut combined_name := ""
+
         // Regular functions and associated functions used directly
-        combined_name := get_combined_name(context.path, func_expr)?
+        combined_name = get_combined_name(context.path, func_expr)?
 
         // Regular function call - check if it exists
         mut func_found := false
@@ -2875,7 +2879,8 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
             }
         }
         // Check if this is actually a field being called as a function
-        mut is_field := true
+        // (is_field was declared at top of case, reset it here)
+        is_field = true
         field_value_type := get_value_type(context, func_expr)?
         catch (err: Str) {
             is_field = false

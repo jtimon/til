@@ -571,20 +571,22 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                 return EvalResult.new(temp_name)
             } else {
                 // Default constructor: Vec2()
-                mut id_name := ""
-                switch id_expr.node_type {
-                case NodeType.Identifier(s):
-                    id_name = s
-                case:
-                    throw e.todo_error(context.path, "eval", "Expected identifier name for struct instantiation")
-                }
-                insert_struct_instance(context, id_name, name, e)?
-                mut result_val := id_name
-                if id_name.eq("U8") {
+                // Bug #160 fix: Create temp instance instead of using type name
+                // This ensures field access via get_field_offset works correctly
+                temp_id := g_arena.temp_id_counter
+                g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
+                temp_name := format(RETURN_INSTANCE_NAME, I64.to_str(temp_id))
+
+                // Declare temp symbol
+                context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo(value_type=ValueType.TCustom(name.clone()), is_mut=true))?
+
+                insert_struct_instance(context, temp_name.clone(), name, e)?
+                mut result_val := temp_name
+                if name.eq("U8") {
                     result_val = "0"
-                } else if id_name.eq("I64") {
+                } else if name.eq("I64") {
                     result_val = "0"
-                } else if id_name.eq("Str") {
+                } else if name.eq("Str") {
                     result_val = ""
                 }
                 return EvalResult.new(result_val)
@@ -1015,8 +1017,18 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         EvalArena.copy_fields(context, custom_type_name, struct_expr_result_str, declaration.name, e)?
                     } else {
                         // Share offset for temp return value (zero-copy transfer)
-                        struct_offset := context.scope_stack.lookup_var(struct_expr_result_str)?
+                        // Bug #160: Try lookup_var first, then get_field_offset for field paths
+                        mut struct_offset := 0
+                        mut struct_found_offset := false
+                        struct_offset = context.scope_stack.lookup_var(struct_expr_result_str)?
+                        struct_found_offset = true
                         catch (err: KeyNotFoundError) {
+                            if struct_expr_result_str.contains(".") {
+                                struct_offset = context.get_field_offset(struct_expr_result_str)?
+                                struct_found_offset = true
+                            }
+                        }
+                        if not(struct_found_offset) {
                             throw e.lang_error(context.path, "eval", format("Could not find arena index for '", struct_expr_result_str, "'"))
                         }
                         mut struct_last_idx := context.scope_stack.frames.len().sub(1)
@@ -1024,12 +1036,22 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         context.scope_stack.frames.get(struct_last_idx, struct_last_frame)?
                         struct_last_frame.arena_index.set(declaration.name, struct_offset)
                         context.scope_stack.frames.set(struct_last_idx, struct_last_frame)?
-                        context.map_instance_fields(custom_type_name, declaration.name, e)?
+                        // Bug #160: map_instance_fields removed - type checker handles symbol registration
                     }
                 } else {
                     // Share offset for non-mut declaration (zero-copy transfer)
-                    struct_offset2 := context.scope_stack.lookup_var(struct_expr_result_str)?
+                    // Bug #160: Try lookup_var first, then get_field_offset for field paths
+                    mut struct_offset2 := 0
+                    mut struct_found_offset2 := false
+                    struct_offset2 = context.scope_stack.lookup_var(struct_expr_result_str)?
+                    struct_found_offset2 = true
                     catch (err: KeyNotFoundError) {
+                        if struct_expr_result_str.contains(".") {
+                            struct_offset2 = context.get_field_offset(struct_expr_result_str)?
+                            struct_found_offset2 = true
+                        }
+                    }
+                    if not(struct_found_offset2) {
                         throw e.lang_error(context.path, "eval", format("Could not find arena index for '", struct_expr_result_str, "'"))
                     }
                     mut struct_last_idx2 := context.scope_stack.frames.len().sub(1)
@@ -1037,7 +1059,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     context.scope_stack.frames.get(struct_last_idx2, struct_last_frame2)?
                     struct_last_frame2.arena_index.set(declaration.name, struct_offset2)
                     context.scope_stack.frames.set(struct_last_idx2, struct_last_frame2)?
-                    context.map_instance_fields(custom_type_name, declaration.name, e)?
+                    // Bug #160: map_instance_fields removed - type checker handles symbol registration
                 }
             } else {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(custom_symbol.value_type), "'. Only 'enum' and 'struct' custom types allowed."))
@@ -2463,7 +2485,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         }
                     }
 
-                    // Copy symbol entries for fields
+                    // Copy symbol entries for fields to caller's frame (not current frame which is about to be popped)
                     throw_symbol_keys_to_copy := context.scope_stack.get_symbols_with_prefix(throw_source_prefix)
                     for throw_sym_key: Str in throw_symbol_keys_to_copy {
                         mut throw_src_symbol := SymbolInfo()
@@ -2472,7 +2494,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         throw_src_symbol_found = true
                         catch (err: KeyNotFoundError) { }
                         if throw_src_symbol_found {
-                            context.scope_stack.declare_symbol(throw_sym_key, throw_src_symbol.clone())?
+                            if throw_frame_count.gt(1) {
+                                mut throw_sym_caller_frame := ScopeFrame()
+                                context.scope_stack.frames.get(throw_frame_count.sub(2), throw_sym_caller_frame)?
+                                throw_sym_caller_frame.symbols.set(throw_sym_key, throw_src_symbol.clone())
+                                context.scope_stack.frames.set(throw_frame_count.sub(2), throw_sym_caller_frame)?
+                            }
                         }
                     }
                 }
@@ -2506,9 +2533,18 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             case "Str":
                 // None for primitives
             case:
+                // Bug #160: Try lookup_var first, then get_field_offset for field paths
                 saved_return_offset = context.scope_stack.lookup_var(result_str)?
                 has_saved_return_offset = true
-                catch (err: KeyNotFoundError) { }
+                catch (err: KeyNotFoundError) {
+                    if result_str.contains(".") {
+                        saved_return_offset = context.get_field_offset(result_str)?
+                        has_saved_return_offset = true
+                        catch (err2: Str) {
+                            // REM: Field offset not found, has_saved_return_offset stays false
+                        }
+                    }
+                }
             }
         }
     }
@@ -2684,9 +2720,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             context.scope_stack.frames.get(lf12_idx, lf12)?
             lf12.arena_index.set(c.source_name.clone(), struct_data.offset)
             context.scope_stack.frames.set(lf12_idx, lf12)?
-            if not(struct_data.was_passed_by_ref) {
-                context.map_instance_fields(struct_data.type_name, c.source_name, e)?
-            }
+            // Bug #160: map_instance_fields removed - type checker handles symbol registration
         }
     }
 
