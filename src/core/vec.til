@@ -22,16 +22,6 @@ Vec := struct {
         return self._len
     }
 
-    /** Check if vec is empty. */
-    is_empty := func(self: Vec) returns Bool {
-        return self._len.eq(0)
-    }
-
-    /** Clear all elements from vec (keeps capacity). */
-    clear := proc(mut self: Vec) {
-        self._len = 0
-    }
-
     /** Get total size in bytes. */
     size := func(self: Vec) returns I64 {
         return mul(self._len, self.type_size)
@@ -326,6 +316,18 @@ Vec := struct {
         }
         result = result.concat("]")
         return result
+    }
+}
+
+namespace Vec {
+    /** Check if vec is empty. */
+    is_empty := func(self: Vec) returns Bool {
+        return self._len.eq(0)
+    }
+
+    /** Clear all elements from vec (keeps capacity). */
+    clear := proc(mut self: Vec) {
+        self._len = 0
     }
 }
 
