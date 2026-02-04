@@ -2068,28 +2068,34 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
     // Check if collection-like structs have mandatory len() and size() methods
     // A struct is considered collection-like if it has push/get/set/insert methods
     // Note: delete() is excluded as it's a cleanup method, not a collection operation
-    let has_push = struct_def.get_member("push").is_some();
-    let has_get = struct_def.get_member("get").is_some();
-    let has_set = struct_def.get_member("set").is_some();
-    let has_insert = struct_def.get_member("insert").is_some();
+    // Issue #108: Use merged struct from scope_stack (includes namespace methods)
+    let struct_name = e.params.get(0)
+        .and_then(|param| {
+            if let NodeType::Identifier(name) = &param.node_type {
+                Some(name.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // Get the merged struct from scope_stack (includes namespace members)
+    let merged_struct = context.scope_stack.lookup_struct(&struct_name)
+        .cloned()
+        .unwrap_or_else(|| struct_def.clone());
+
+    let has_push = merged_struct.get_member("push").is_some();
+    let has_get = merged_struct.get_member("get").is_some();
+    let has_set = merged_struct.get_member("set").is_some();
+    let has_insert = merged_struct.get_member("insert").is_some();
 
     if has_push || has_get || has_set || has_insert {
         // This looks like a collection type - check for len() method
-        let has_len = struct_def.get_member("len")
+        let has_len = merged_struct.get_member("len")
             .map(|decl| !decl.is_mut)
             .unwrap_or(false);
 
         if !has_len {
-            let struct_name = e.params.get(0)
-                .and_then(|param| {
-                    if let NodeType::Identifier(name) = &param.node_type {
-                        Some(name.as_str())
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or("unknown");
-
             let methods: Vec<&str> = vec![
                 if has_push { Some("push()") } else { None },
                 if has_get { Some("get()") } else { None },
@@ -2106,21 +2112,11 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
         }
 
         // Also check for size() method (returns size in bytes)
-        let has_size = struct_def.get_member("size")
+        let has_size = merged_struct.get_member("size")
             .map(|decl| !decl.is_mut)
             .unwrap_or(false);
 
         if !has_size {
-            let size_struct_name = e.params.get(0)
-                .and_then(|size_first_param| {
-                    if let NodeType::Identifier(name) = &size_first_param.node_type {
-                        Some(name.as_str())
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or("unknown");
-
             let size_methods_str: Vec<&str> = vec![
                 if has_push { Some("push()") } else { None },
                 if has_get { Some("get()") } else { None },
@@ -2133,7 +2129,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                  Reason: Collection types must provide their size in bytes.\n\
                  Suggestion: add 'size := func(self: {}) returns I64 {{ ... }}' to struct '{}'.\n\
                  Note: size() should return the total size in bytes, not element count (use len() for that).",
-                size_struct_name, size_methods_str.join("/"), size_struct_name, size_struct_name
+                struct_name, size_methods_str.join("/"), struct_name, struct_name
             )));
         }
     }

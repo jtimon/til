@@ -299,7 +299,15 @@ fn precomp_namespace_def(context: &mut Context, e: &Expr, ns_def: &SNamespaceDef
             context.precomp_forin_counter = 0;
         }
 
-        new_default_values.insert(name.clone(), precomp_expr(context, value_expr)?);
+        let transformed = precomp_expr(context, value_expr)?;
+
+        // Issue #108: Update scope_stack with transformed FuncDef so interpreter uses it
+        if let NodeType::FuncDef(func_def) = &transformed.node_type {
+            let full_name = format!("{}.{}", ns_def.type_name, name);
+            context.scope_stack.update_func(&full_name, func_def.clone());
+        }
+
+        new_default_values.insert(name.clone(), transformed);
 
         if is_func {
             context.current_precomp_func = saved_func;

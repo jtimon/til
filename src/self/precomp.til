@@ -92,10 +92,56 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             new_params.push(precomp_expr(context, p)?)
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
-    // Issue #108: NamespaceDef - clone without transformation for now
-    // TODO: Adding precomp_namespace_def causes closure detection bugs in TIL typer
+    // Issue #108: NamespaceDef - transform function bodies and update scope_stack
     case NodeType.NamespaceDef(ns_def):
-        return Expr.new_clone(NodeType.NamespaceDef(ns_def.clone()), e, Vec.new(Expr))
+        mut new_default_values := Map.new(Str, Expr)
+        for name: Str in ns_def.default_values.keys {
+            mut value_expr := Expr()
+            ns_def.default_values.get(name, value_expr)?
+            catch (err: KeyNotFoundError) {
+                panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
+            }
+
+            mut is_func := false
+            switch value_expr.node_type {
+            case NodeType.FuncDef(_):
+                is_func = true
+            case:
+            }
+
+            saved_func := context.current_precomp_func.clone()
+            saved_counter := context.precomp_forin_counter
+            if is_func {
+                context.current_precomp_func = name.clone()
+                context.precomp_forin_counter = 0
+            }
+
+            transformed := precomp_expr(context, value_expr)?
+
+            // Update scope_stack with transformed FuncDef so interpreter uses it
+            switch transformed.node_type {
+            case NodeType.FuncDef(func_def):
+                full_name := format(ns_def.type_name, ".", name)
+                context.scope_stack.update_func(full_name, func_def.clone())?
+                catch (err: Str) {
+                    panic(loc(), format("update_func failed: ", err))
+                }
+            case:
+                // Not a func, nothing to update
+            }
+
+            new_default_values.set(name.clone(), transformed)
+
+            if is_func {
+                context.current_precomp_func = saved_func
+                context.precomp_forin_counter = saved_counter
+            }
+        }
+        mut new_ns_def := SNamespaceDef()
+        new_ns_def.type_name = ns_def.type_name.clone()
+        new_ns_def.members = ns_def.members.clone()
+        new_ns_def.default_values = new_default_values
+        return Expr.new_clone(NodeType.NamespaceDef(new_ns_def), e, Vec.new(Expr))
     // ForIn should have been desugared in desugarer phase
     case NodeType.ForIn(_):
         panic(loc(), "ForIn should have been desugared in desugarer phase")
