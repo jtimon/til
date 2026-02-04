@@ -73,7 +73,9 @@ CodegenContext := struct {
     // Bug #133 fix: Map var_name -> static array name for precomputed heap values
     // When emitting assignments in main(), Ptr fields will use these static pointers
     mut precomputed_static_arrays: Map = Map.new(Str, PrecomputedStaticInfo)
+}
 
+namespace CodegenContext {
     new := func() returns CodegenContext {
         return CodegenContext()
     }

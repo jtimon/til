@@ -7,7 +7,9 @@ import("core.vec")
 Vec2 := struct {
     mut x : I64 = 0
     mut y : I64 = 0
+}
 
+namespace Vec2 {
     clone := func(self: Vec2) returns Vec2 {
         return Vec2(x=self.x, y=self.y)
     }
