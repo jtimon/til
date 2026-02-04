@@ -55,7 +55,9 @@ EvalResult := struct {
     mut is_break: Bool = false
     mut is_continue: Bool = false
     mut thrown_type: Str = ""  // Empty string = None
+}
 
+namespace EvalResult {
     new := func(value: Str) returns EvalResult {
         return EvalResult(value=value)
     }

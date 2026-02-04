@@ -44,7 +44,9 @@ VecContents := struct {
     mut element_type_name: Str = ""
     mut type_size: I64 = 0
     mut element_bytes: Vec = Vec.new(Vec)  // Vec of Vec<U8>
+}
 
+namespace VecContents {
     clone := func(self: VecContents) returns VecContents {
         return VecContents(element_type_name=self.element_type_name.clone(), type_size=self.type_size, element_bytes=self.element_bytes.clone())
     }
@@ -59,7 +61,9 @@ EvalArena := struct {
     mut _arena: Arena = Arena()
     mut temp_id_counter: I64 = 0
     mut default_instances: Map = Map.new(Str, I64)  // type name -> arena offset of default template
+}
 
+namespace EvalArena {
     new := proc() returns EvalArena {
         mut a := EvalArena()
         a._arena = Arena.new()

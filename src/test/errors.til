@@ -112,6 +112,9 @@ another_func := proc() throws ErrorUndeclaredInFunc { // REM proc so precomp doe
 }
 
 SomeStruct := struct {
+}
+
+namespace SomeStruct {
     some_method := func(_self: SomeStruct) throws ErrorUndeclaredInFunc {
         throw ErrorUndeclaredInFunc() // FIXED: the compiler now correctly tells us this error must be declared!
     }

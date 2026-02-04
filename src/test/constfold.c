@@ -92,9 +92,6 @@ void til_test_loc_folded_correctly(void);
 void til_test_struct_fold_simple(void);
 void til_test_struct_fold_values(void);
 void til_test_struct_fold_nested(void);
-til_CfVec2 til_CfVec2_magic(void);
-til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y);
-til_CfRect til_CfRect_sample(void);
 void til_IndexOutOfBoundsError_delete(til_IndexOutOfBoundsError* til_IndexOutOfBoundsError_self);
 til_IndexOutOfBoundsError til_IndexOutOfBoundsError_clone(const til_IndexOutOfBoundsError* til_IndexOutOfBoundsError_self);
 til_I64 til_Array_len(const til_Array* til_Array_self);
@@ -209,6 +206,9 @@ til_Bool til_U8_lteq(const til_U8* til_U8_a, const til_U8* til_U8_b);
 til_I64 til_U8_size(void);
 void til_U8_delete(til_U8* _self);
 til_U8 til_U8_clone(const til_U8* til_U8_self);
+til_CfVec2 til_CfVec2_magic(void);
+til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y);
+til_CfRect til_CfRect_sample(void);
 void til_CfVec2_delete(til_CfVec2* _self);
 til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self);
 void til_CfRect_delete(til_CfRect* til_CfRect_self);
@@ -716,9 +716,9 @@ void til_test_loc_folded_correctly(void) {
 void til_test_struct_fold_simple(void) {
     const til_CfVec2 til_CfVec2_v = til_CfVec2_magic();
     til_I64 _tmp_test_struct_fold_simple_0 = 42;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:71:15:", 1}), 29, 0}), &_tmp_test_struct_fold_simple_0, &til_CfVec2_v.x);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:73:15:", 1}), 29, 0}), &_tmp_test_struct_fold_simple_0, &til_CfVec2_v.x);
     til_I64 _tmp_test_struct_fold_simple_1 = 99;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:72:15:", 1}), 29, 0}), &_tmp_test_struct_fold_simple_1, &til_CfVec2_v.y);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:74:15:", 1}), 29, 0}), &_tmp_test_struct_fold_simple_1, &til_CfVec2_v.y);
 }
 
 void til_test_struct_fold_values(void) {
@@ -726,36 +726,21 @@ void til_test_struct_fold_values(void) {
     til_I64 _tmp_test_struct_fold_values_1 = 20;
     const til_CfVec2 til_CfVec2_p = til_CfVec2_at(&_tmp_test_struct_fold_values_0, &_tmp_test_struct_fold_values_1);
     til_I64 _tmp_test_struct_fold_values_2 = 10;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:79:15:", 1}), 29, 0}), &_tmp_test_struct_fold_values_2, &til_CfVec2_p.x);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:81:15:", 1}), 29, 0}), &_tmp_test_struct_fold_values_2, &til_CfVec2_p.x);
     til_I64 _tmp_test_struct_fold_values_3 = 20;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:80:15:", 1}), 29, 0}), &_tmp_test_struct_fold_values_3, &til_CfVec2_p.y);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:82:15:", 1}), 29, 0}), &_tmp_test_struct_fold_values_3, &til_CfVec2_p.y);
 }
 
 void til_test_struct_fold_nested(void) {
     const til_CfRect til_CfRect_r = til_CfRect_sample();
     til_I64 _tmp_test_struct_fold_nested_0 = 5;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:97:15:", 1}), 29, 0}), &_tmp_test_struct_fold_nested_0, &til_CfRect_r.top_left.x);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:101:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_0, &til_CfRect_r.top_left.x);
     til_I64 _tmp_test_struct_fold_nested_1 = 10;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:98:15:", 1}), 29, 0}), &_tmp_test_struct_fold_nested_1, &til_CfRect_r.top_left.y);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:102:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_1, &til_CfRect_r.top_left.y);
     til_I64 _tmp_test_struct_fold_nested_2 = 100;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:99:15:", 1}), 29, 0}), &_tmp_test_struct_fold_nested_2, &til_CfRect_r.bottom_right.x);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:103:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_2, &til_CfRect_r.bottom_right.x);
     til_I64 _tmp_test_struct_fold_nested_3 = 200;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:100:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_3, &til_CfRect_r.bottom_right.y);
-}
-
-til_CfVec2 til_CfVec2_magic(void) {
-    return (til_CfVec2){.x = 42, .y = 99};
-    return (til_CfVec2){0};
-}
-
-til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y) {
-    return (til_CfVec2){.x = (*til_I64_x), .y = (*til_I64_y)};
-    return (til_CfVec2){0};
-}
-
-til_CfRect til_CfRect_sample(void) {
-    return (til_CfRect){.top_left = (til_CfVec2){.x = 5, .y = 10}, .bottom_right = (til_CfVec2){.x = 100, .y = 200}};
-    return (til_CfRect){0};
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:104:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_3, &til_CfRect_r.bottom_right.y);
 }
 
 void til_IndexOutOfBoundsError_delete(til_IndexOutOfBoundsError* til_IndexOutOfBoundsError_self) {
@@ -2929,6 +2914,21 @@ void til_U8_delete(til_U8* _self) {
 til_U8 til_U8_clone(const til_U8* til_U8_self) {
     return (*til_U8_self);
     return (til_U8){0};
+}
+
+til_CfVec2 til_CfVec2_magic(void) {
+    return (til_CfVec2){.x = 42, .y = 99};
+    return (til_CfVec2){0};
+}
+
+til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y) {
+    return (til_CfVec2){.x = (*til_I64_x), .y = (*til_I64_y)};
+    return (til_CfVec2){0};
+}
+
+til_CfRect til_CfRect_sample(void) {
+    return (til_CfRect){.top_left = (til_CfVec2){.x = 5, .y = 10}, .bottom_right = (til_CfVec2){.x = 100, .y = 200}};
+    return (til_CfRect){0};
 }
 
 void til_CfVec2_delete(til_CfVec2* _self) {

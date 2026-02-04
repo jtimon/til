@@ -12,6 +12,9 @@ mode test
 // Test struct with methods that use for-in loops
 // The method receives items directly to avoid copy semantics issues
 TestHelper := struct {
+}
+
+namespace TestHelper {
     // Method with for-in loop - tests precomp_struct_def fix
     sum_items := func(items: Vec) returns I64 {
         mut total := 0

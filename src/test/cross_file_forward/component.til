@@ -7,7 +7,9 @@ Component := struct {
     mut name: Str = ""
     mut value: I64 = 0
     mut owner_id: I64 = 0  // Reference back to Entity by ID
+}
 
+namespace Component {
     /** Attach this component to an entity */
     attach_to := proc(mut self: Component, entity: Entity) {
         self.owner_id = entity.id

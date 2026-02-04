@@ -93,7 +93,9 @@ DataStruct1 := struct {
 // Test 10: Struct method with forward-referenced return type
 MyStruct1 := struct {
     mut x: I64 = 0
+}
 
+namespace MyStruct1 {
     get_status := func(_self: MyStruct1) returns ForwardStatus1 {
         return ForwardStatus1.Active
     }

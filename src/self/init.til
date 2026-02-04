@@ -23,7 +23,9 @@ SymbolInfo := struct {
     mut is_copy: Bool = false
     mut is_own: Bool = false
     mut is_comptime_const: Bool = false  // true if value was comptime-evaluable at declaration
+}
 
+namespace SymbolInfo {
     clone := func(self: SymbolInfo) returns SymbolInfo {
         // Uses standalone value_type_clone since ValueType enum doesn't have .clone() method
         return SymbolInfo(value_type=value_type_clone(self.value_type), is_mut=self.is_mut, is_copy=self.is_copy, is_own=self.is_own, is_comptime_const=self.is_comptime_const)
@@ -45,7 +47,9 @@ FunctionLocal := struct {
     mut name: Str = ""
     mut line: I64 = 0
     mut col: I64 = 0
+}
 
+namespace FunctionLocal {
     eq := func(self: FunctionLocal, other: FunctionLocal) returns Bool {
         return self.name.eq(other.name).and(self.line.eq(other.line)).and(self.col.eq(other.col))
     }
@@ -93,8 +97,9 @@ ScopeStack := struct {
     mut function_locals: Vec = Vec.new(FunctionLocal)
     // Bug #101: Track which symbols have been used in the current function.
     mut used_symbols: Set = Set.new(Str)
+}
 
-
+namespace ScopeStack {
     new := func() returns ScopeStack {
         mut stack := ScopeStack()
         stack.frames = Vec.new(ScopeFrame)
@@ -1953,7 +1958,9 @@ Context := struct {
     mut precomp_forin_counter: I64 = 0
     # Bug #133 fix: Track precomputed heap values for static array serialization
     mut precomputed_heap_values: Vec = Vec.new(PrecomputedHeapValue)
+}
 
+namespace Context {
     # Context methods (insert/get/copy methods moved to EvalArena in interpreter.til)
     new := func(path: Str, mode_name: Str) returns Context throws Str {
         mut scope_stack := ScopeStack.new()

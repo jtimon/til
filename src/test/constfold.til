@@ -53,7 +53,9 @@ test_loc_folded_correctly()
 CfVec2 := struct {
     mut x: I64 = 0
     mut y: I64 = 0
+}
 
+namespace CfVec2 {
     // Pure func (not proc!) so it can be folded
     // Use non-default values to ensure we're not relying on defaults
     magic := func() returns CfVec2 {
@@ -85,7 +87,9 @@ test_struct_fold_values()
 CfRect := struct {
     mut top_left: CfVec2 = CfVec2()
     mut bottom_right: CfVec2 = CfVec2()
+}
 
+namespace CfRect {
     // Use non-default values to verify nested folding works
     sample := func() returns CfRect {
         return CfRect(top_left=CfVec2(x=5, y=10), bottom_right=CfVec2(x=100, y=200))

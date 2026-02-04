@@ -258,7 +258,9 @@ test_mut_array()
 Point := struct {
     mut x : I64 = 0
     mut y : I64 = 0
+}
 
+namespace Point {
     clone := func(self: Point) returns Point {
         return Point(x=self.x, y=self.y)
     }
@@ -267,7 +269,9 @@ Point := struct {
 Line := struct {
     mut start : Point = Point()
     mut end   : Point = Point()
+}
 
+namespace Line {
     clone := func(self: Line) returns Line {
         return Line(start=self.start.clone(), end=self.end.clone())
     }

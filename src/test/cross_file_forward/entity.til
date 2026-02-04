@@ -7,7 +7,9 @@ Entity := struct {
     mut id: I64 = 0
     mut name: Str = ""
     mut components: Vec = Vec()  // Will hold Component instances
+}
 
+namespace Entity {
     new := proc(id: I64, name: Str) returns Entity {
         mut e := Entity()
         e.id = id
