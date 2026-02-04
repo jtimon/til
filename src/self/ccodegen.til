@@ -2283,16 +2283,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         }
     case:
     }
-    // 2b: struct functions (with mangled names)
-    switch ast.node_type {
-    case NodeType.Body:
-        for child: Expr in ast.params {
-            if is_struct_declaration(child) {
-                emit_struct_func_prototypes(child, context, output)?
-            }
-        }
-    case:
-    }
     // 2b1: Issue #108 - enum methods (delete/clone)
     switch ast.node_type {
     case NodeType.Body:
@@ -2400,16 +2390,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         for child: Expr in ast.params {
             if is_func_declaration(child) {
                 emit_func_declaration(child, output, ctx, context)?
-            }
-        }
-    case:
-    }
-    // 5b: struct functions (with mangled names)
-    switch ast.node_type {
-    case NodeType.Body:
-        for child: Expr in ast.params {
-            if is_struct_declaration(child) {
-                emit_struct_func_bodies(child, output, ctx, context)?
             }
         }
     case:
@@ -2848,35 +2828,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     case:
                     }
                     idx.inc()
-                }
-            case NodeType.StructDef(struct_def):
-                // Struct methods - use mangled names (StructName_methodName)
-                struct_name := decl.name
-                for member_name: Str in struct_def.default_values.keys {
-                    mut default_expr := Expr()
-                    struct_def.default_values.get(member_name, default_expr)?
-                    catch (err: KeyNotFoundError) {
-                        panic(loc(), "KeyNotFoundError iterating keys: ", err.msg)
-                    }
-                    switch default_expr.node_type {
-                    case NodeType.FuncDef(method_func_def):
-                        mangled_name := struct_name.concat("_").concat(member_name)
-                        // Check for variadic args (TMulti) in struct methods
-                        mut method_idx := 0
-                        for method_func_def_arg: Declaration in method_func_def.args {
-                            switch method_func_def_arg.value_type {
-                            case ValueType.TMulti(method_elem_type):
-                                mut method_info := VariadicParamInfo()
-                                method_info.elem_type = method_elem_type.clone()
-                                method_info.regular_count = method_idx
-                                ctx.func_variadic_args.set(mangled_name.clone(), method_info)
-                                break
-                            case:
-                            }
-                            method_idx.inc()
-                        }
-                    case:
-                    }
                 }
             case:
             }
@@ -3991,43 +3942,7 @@ emit_enum_method_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
     }
 }
 
-// Emit struct function prototypes for all functions in a struct
-emit_struct_func_prototypes := proc(expr: Expr, context: Context, mut output: Str) throws Str {
-    switch expr.node_type {
-    case NodeType.Declaration(decl):
-        if not(expr.params.is_empty()) {
-            mut first_param := Expr()
-            expr.params.get(0, first_param)?
-            switch first_param.node_type {
-            case NodeType.StructDef(struct_def):
-                struct_name := til_name(decl.name)
-                for member: Declaration in struct_def.members {
-                    // Check if default_value is a function definition
-                    mut func_expr := Expr()
-                    struct_def.default_values.get(member.name, func_expr)?
-                    catch (err: KeyNotFoundError) {
-                        // REM: member has no default value, skip
-                    }
-                    switch func_expr.node_type {
-                    case NodeType.FuncDef(func_def):
-                        mangled_name := struct_name.concat("_").concat(member.name)
-                        emit_func_signature(mangled_name, func_def, context, output)?
-                        output.push_str(";\n")
-                    case:
-                    }
-                }
-            case:
-            }
-        }
-    case:
-    }
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-}
-
-// Emit a struct function body with mangled name: StructName_funcname
+// Emit a struct/namespace/enum function body with mangled name: TypeName_funcname
 emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: SFuncDef, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
     // Skip external functions
     if func_def.is_ext() {
@@ -4114,40 +4029,6 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     // Clear current function context
     ctx.current_throw_types.clear()
     ctx.current_return_types.clear()
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-}
-
-// Emit struct function bodies for all functions in a struct
-emit_struct_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
-    switch expr.node_type {
-    case NodeType.Declaration(decl):
-        if not(expr.params.is_empty()) {
-            mut first_param := Expr()
-            expr.params.get(0, first_param)?
-            switch first_param.node_type {
-            case NodeType.StructDef(struct_def):
-                struct_name := til_name(decl.name)
-                for member: Declaration in struct_def.members {
-                    // Check if default_value is a function definition
-                    mut func_expr := Expr()
-                    struct_def.default_values.get(member.name, func_expr)?
-                    catch (err: KeyNotFoundError) {
-                        // REM: member has no default value, skip
-                    }
-                    switch func_expr.node_type {
-                    case NodeType.FuncDef(func_def):
-                        emit_struct_func_body(struct_name, member, func_def, output, ctx, context)?
-                    case:
-                    }
-                }
-            case:
-            }
-        }
-    case:
-    }
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg

@@ -1822,14 +1822,6 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
-    // 2b: struct functions (with mangled names)
-    if let NodeType::Body = &ast.node_type {
-        for child in &ast.params {
-            if is_struct_declaration(child) {
-                emit_struct_func_prototypes(child, context, &mut output)?;
-            }
-        }
-    }
     // 2b1: Issue #108 - enum methods (delete/clone)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
@@ -1923,14 +1915,6 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         for child in &ast.params {
             if is_func_declaration(child) {
                 emit_func_declaration(child, &mut output, &mut ctx, context)?;
-            }
-        }
-    }
-    // 5b: struct functions (with mangled names)
-    if let NodeType::Body = &ast.node_type {
-        for child in &ast.params {
-            if is_struct_declaration(child) {
-                emit_struct_func_bodies(child, &mut output, &mut ctx, context)?;
             }
         }
     }
@@ -2227,28 +2211,6 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                                     }
                                 );
                                 break; // Only one variadic arg per function
-                            }
-                        }
-                    },
-                    NodeType::StructDef(struct_def) => {
-                        // Struct methods - use mangled names (StructName_methodName)
-                        let struct_name = &decl.name;
-                        for (member_name, default_expr) in &struct_def.default_values {
-                            if let NodeType::FuncDef(func_def) = &default_expr.node_type {
-                                let mangled_name = format!("{}_{}", struct_name, member_name);
-                                // Check for variadic args (TMulti) in struct methods
-                                for (idx, func_def_arg) in func_def.args.iter().enumerate() {
-                                    if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
-                                        ctx.func_variadic_args.insert(
-                                            mangled_name.clone(),
-                                            VariadicParamInfo {
-                                                elem_type: elem_type.clone(),
-                                                regular_count: idx,
-                                            }
-                                        );
-                                        break;
-                                    }
-                                }
                             }
                         }
                     },
@@ -3203,29 +3165,7 @@ fn emit_enum_method_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
     Ok(())
 }
 
-// Emit struct function prototypes for all functions in a struct
-fn emit_struct_func_prototypes(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
-    if let NodeType::Declaration(decl) = &expr.node_type {
-        if !expr.params.is_empty() {
-            if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
-                let struct_name = til_name(&decl.name);
-                for member in &struct_def.members {
-                    // Check if default_value is a function definition
-                    if let Some(func_expr) = struct_def.default_values.get(&member.name) {
-                        if let NodeType::FuncDef(func_def) = &func_expr.node_type {
-                            let mangled_name = format!("{}_{}", struct_name, member.name);
-                            emit_func_signature(&mangled_name, func_def, context, output)?;
-                            output.push_str(";\n");
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-// Emit a struct function body with mangled name: StructName_funcname
+// Emit a struct/namespace/enum function body with mangled name: TypeName_funcname
 fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Skip external functions
     if func_def.is_ext() {
@@ -3312,26 +3252,6 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     ctx.current_throw_types.clear();
     ctx.current_return_types.clear();
 
-    Ok(())
-}
-
-// Emit struct function bodies for all functions in a struct
-fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
-    if let NodeType::Declaration(decl) = &expr.node_type {
-        if !expr.params.is_empty() {
-            if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
-                let struct_name = til_name(&decl.name);
-                for member in &struct_def.members {
-                    // Check if default_value is a function definition
-                    if let Some(func_expr) = struct_def.default_values.get(&member.name) {
-                        if let NodeType::FuncDef(func_def) = &func_expr.node_type {
-                            emit_struct_func_body(&struct_name, member, func_def, output, ctx, context)?;
-                        }
-                    }
-                }
-            }
-        }
-    }
     Ok(())
 }
 
