@@ -48,12 +48,6 @@ Ptr := struct {
         return p
     }
 
-    // cast := macro(self: Ptr, type_name: Str) returns Dynamic {
-    //     // TODO: This cast is purely cosmetic for now.
-    //     // Proper type-changing macros are not implemented yet.
-    //     return self
-    // }
-
     copy_from := proc(mut self: Ptr, src: Ptr, size: I64) {
         // TODO this should fail if self arg is not declared as mut
         memcpy(self.data, src.data, size)
