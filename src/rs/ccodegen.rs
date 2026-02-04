@@ -5382,6 +5382,40 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 emit_struct_literal_assign(output, &type_name, already_declared, "{0}");
             } else {
                 // Has default values or named args - emit designated initializer
+                // Issue #108: Pre-hoist any function calls in member values before struct literal
+                // C doesn't allow statements inside struct initializers, so we must hoist first
+                // Use emit_arg_string which handles nested hoisting (function call arguments)
+                let mut hoisted_values: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+                for member in &struct_def.members {
+                    if !member.is_mut {
+                        continue;
+                    }
+                    let value_expr_opt = named_values.get(&member.name)
+                        .map(|e| *e)
+                        .or_else(|| struct_def.default_values.get(&member.name));
+                    if let Some(value_expr) = value_expr_opt {
+                        if let NodeType::FCall(_) = &value_expr.node_type {
+                            // This is a function call - must hoist to a temp variable
+                            // Use emit_arg_string which properly hoists nested function call arguments
+                            let call_str = emit_arg_string(value_expr, Some(&member.value_type), false, output, indent, ctx, context)?;
+                            // Now hoist the call result to a temp var
+                            let temp_var = next_mangled(ctx);
+                            let value_type = get_value_type(context, value_expr)
+                                .unwrap_or(member.value_type.clone());
+                            let c_type = til_type_to_c(&value_type)
+                                .map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+                            output.push_str(&indent_str);
+                            output.push_str(&c_type);
+                            output.push_str(" ");
+                            output.push_str(&temp_var);
+                            output.push_str(" = ");
+                            output.push_str(&call_str);
+                            output.push_str(";\n");
+                            hoisted_values.insert(member.name.clone(), temp_var);
+                        }
+                    }
+                }
+
                 output.push_str(&indent_str);
                 if !already_declared {
                     if !is_mut {
@@ -5408,8 +5442,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     output.push_str(".");
                     output.push_str(&member.name);
                     output.push_str(" = ");
-                    // Use named arg value if provided, otherwise use default
-                    if let Some(value_expr) = named_values.get(&member.name) {
+                    // Use hoisted temp if available, otherwise emit inline
+                    if let Some(temp_var) = hoisted_values.get(&member.name) {
+                        output.push_str(temp_var);
+                    } else if let Some(value_expr) = named_values.get(&member.name) {
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         emit_expr(default_expr, output, 0, ctx, context)?;

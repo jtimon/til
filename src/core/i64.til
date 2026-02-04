@@ -15,7 +15,9 @@ DivideByZero := struct {}
 // think of them as "half-external types" for now
 I64 := struct {
     // mut data : Array = Array.new("U8", size_of(U8), 8) // TODO Use [8]U8 for this one
+}
 
+namespace I64 {
     /** Division that throws DivideByZero when dividing by zero.
      *  Use div() if you want silent behavior (returns 0). */
     safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {

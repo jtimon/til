@@ -7,7 +7,9 @@ Set := struct {
     mut elem_type_size: I64 = 0       // from size_of(ElemType)
     mut elements: Vec = Vec()         // Dynamic array of elements
     mut _size: I64 = 0                // Number of elements (internal, use len() to access)
+}
 
+namespace Set {
     /**
      * Create new empty set with specified element type
      * Example: Set.new(Str)

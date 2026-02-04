@@ -6693,7 +6693,58 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             emit_struct_literal_assign(output, struct_type, already_declared, "{0}")
         } else {
             // Has default values or named args - emit designated initializer
-            // Bug #143: emit_arg_string handles throwing/variadic calls inline
+            // Issue #108: Pre-hoist any function calls in member values before struct literal
+            // C doesn't allow statements inside struct initializers, so we must hoist first
+            // Use emit_arg_string which handles nested hoisting (function call arguments)
+            mut hoisted_values := Map.new(Str, Str)
+            for member: Declaration in struct_def.members {
+                if not(member.is_mut) {
+                    continue
+                }
+                // Get value expr from named_values or default_values
+                mut value_expr := Expr()
+                mut has_value := false
+                if named_values.contains_key(member.name) {
+                    named_values.get(member.name, value_expr)?
+                    has_value = true
+                } else {
+                    struct_def.default_values.get(member.name, value_expr)?
+                    has_value = true
+                    catch (err: KeyNotFoundError) {
+                        has_value = false
+                    }
+                }
+                if has_value {
+                    mut is_fcall := false
+                    switch value_expr.node_type {
+                    case NodeType.FCall(_):
+                        is_fcall = true
+                    case:
+                    }
+                    if is_fcall {
+                        // This is a function call - must hoist to a temp variable
+                        // Use emit_arg_string which properly hoists nested function call arguments
+                        mut member_type_ptr := Ptr()
+                        member_type_ptr.data = to_ptr(member.value_type)
+                        call_str := emit_arg_string(value_expr, member_type_ptr, false, output, indent, ctx, context)?
+                        // Now hoist the call result to a temp var
+                        temp_var := next_mangled(ctx)
+                        value_type := get_value_type(context, value_expr)?
+                        c_type := til_type_to_c(value_type)?
+                        output.push_str(indent_str)
+                        output.push_str(c_type)
+                        output.push_str(" ")
+                        output.push_str(temp_var)
+                        output.push_str(" = ")
+                        output.push_str(call_str)
+                        output.push_str(";\n")
+                        hoisted_values.insert(member.name.clone(), temp_var)?
+                        catch (err: DuplicatedKeyError) {
+                            // Should not happen - each member name is unique
+                        }
+                    }
+                }
+            }
 
             output.push_str(indent_str)
             if not(already_declared) {
@@ -6721,22 +6772,19 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 output.push_str(".")
                 output.push_str(member.name)
                 output.push_str(" = ")
-                // Use named arg value if provided, otherwise use default
-                // Bug #143: Use emit_arg_string to handle throwing/variadic calls
-                if named_values.contains_key(member.name) {
+                // Use hoisted temp if available, otherwise emit inline
+                if hoisted_values.contains_key(member.name) {
+                    mut temp_var := ""
+                    hoisted_values.get(member.name, temp_var)?
+                    output.push_str(temp_var)
+                } else if named_values.contains_key(member.name) {
                     mut value_expr := Expr()
                     named_values.get(member.name, value_expr)?
-                    mut member_type_ptr := Ptr()
-                    member_type_ptr.data = to_ptr(member.value_type)
-                    value_str := emit_arg_string(value_expr, member_type_ptr, false, output, indent, ctx, context)?
-                    output.push_str(value_str)
+                    emit_expr(value_expr, output, 0, ctx, context)?
                 } else {
                     mut member_default_expr := Expr()
                     struct_def.default_values.get(member.name, member_default_expr)?
-                    mut default_member_type_ptr := Ptr()
-                    default_member_type_ptr.data = to_ptr(member.value_type)
-                    default_str := emit_arg_string(member_default_expr, default_member_type_ptr, false, output, indent, ctx, context)?
-                    output.push_str(default_str)
+                    emit_expr(member_default_expr, output, 0, ctx, context)?
                     catch (err: KeyNotFoundError) {
                         // No default - use zero
                         output.push_str("0")

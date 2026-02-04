@@ -84,7 +84,7 @@ Vec2 := struct {
     mut y : I64 = 0
 
     add_all_coordinates := func(self: Vec2) returns I64 {
-        return add(self.x, self.y)
+        return self.x.add(self.y)
     }
 }
 
@@ -141,7 +141,7 @@ impure_proc := proc() returns I64 {
 PurityTestStruct := struct {
     mut value1: I64 = 10
     mut value2: I64 = pure_func()  // OK: calling func
-    mut value3: I64 = add(20, 30)  // OK: calling func
+    mut value3: I64 = I64.add(20, 30)  // OK: calling func
 }
 
 // Test: Nested struct with func calls OK
@@ -258,12 +258,12 @@ TestAssociatedFunctions := struct {
 
     // Type parameter doesn't have to be first - but then UFCS won't work for it
     add_with_instance_last := func(amount: I64, instance: TestAssociatedFunctions) returns I64 {
-        return add(instance.value, amount)
+        return instance.value.add(amount)
     }
 
     // Type parameter in the middle
     add_with_instance_middle := func(amount1: I64, instance: TestAssociatedFunctions, amount2: I64) returns I64 {
-        return add(add(instance.value, amount1), amount2)
+        return instance.value.add(amount1).add(amount2)
     }
 }
 
