@@ -15,6 +15,289 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #161: Namespace constants, static mutables, and per-instance immutables
+:PROPERTIES:
+:DISCOVERED: 2026-02-04
+:IMPACT: Unified syntax for type-level and instance-level data
+:STATUS: Open - detailed plan ready
+:RELATED: Issue #108 (namespace blocks - implemented)
+:END:
+
+*** Overview
+
+Follow-up to Issue #108 (namespace blocks for associated functions). This issue
+extends namespaces to support constants and mutable state, and adds per-instance
+immutable fields to structs.
+
+After this issue, four kinds of declarations exist:
+
+| Location  | Syntax             | Meaning                          |
+|-----------+--------------------+----------------------------------|
+| namespace | ~Max := 100~       | Associated constant (static)     |
+| namespace | ~mut counter := 0~ | Associated mutable (static)      |
+| struct    | ~id := 0~          | Per-instance immutable (frozen)  |
+| struct    | ~mut name := ""~   | Per-instance mutable             |
+
+*** Step 1: Associated constants in namespace blocks
+
+Move type-level constants from standalone globals into type namespaces.
+
+**** Current state
+Constants are standalone globals with naming conventions:
+#+BEGIN_SRC til
+MAX_I64 := 9223372036854775807
+MIN_I64 := -9223372036854775808
+I64_SIZE := 8
+#+END_SRC
+
+**** Target state
+Constants live in type namespaces:
+#+BEGIN_SRC til
+namespace I64 {
+    Max := 9223372036854775807
+    Min := -9223372036854775808
+    Size := 8
+}
+// Usage: I64.Max instead of MAX_I64
+#+END_SRC
+
+**** Implementation
+
+***** Step 1.1: Verify namespace blocks support constants
+Namespace blocks already support function definitions. Verify they also support
+constant declarations (non-mut, non-function). This likely already works since
+init.rs merges all namespace members into the type.
+
+Test with:
+#+BEGIN_SRC til
+namespace I64 {
+    TestConst := 42
+}
+assert_eq(loc(), 42, I64.TestConst)
+#+END_SRC
+
+Files to check: init.rs:1311-1400, init.til (NamespaceDef handling)
+
+***** Step 1.2: Audit existing constants
+Find all type-related constants in the codebase:
+- I64: MAX_I64, MIN_I64, I64_SIZE
+- U8: (check if any exist)
+- Str: (check if any exist)
+- Other types in src/core/
+
+***** Step 1.3: Migrate constants to namespaces
+For each type, move constants into namespace blocks:
+#+BEGIN_SRC til
+// Before (in i64.til)
+MAX_I64 := 9223372036854775807
+
+// After (in i64.til)
+namespace I64 {
+    Max := 9223372036854775807
+}
+#+END_SRC
+
+***** Step 1.4: Update all usages
+Find and replace all old constant names:
+- ~MAX_I64~ -> ~I64.Max~
+- ~MIN_I64~ -> ~I64.Min~
+- etc.
+
+***** Step 1.5: Port to TIL
+All changes to .rs files must be ported to .til files.
+
+*** Step 2: Associated mutable state in namespace blocks
+
+Allow ~mut~ declarations in namespace blocks - these work like static variables.
+
+**** Use case
+#+BEGIN_SRC til
+Soldier := struct {
+    mut id := 0
+    mut name := "unknown"
+}
+
+namespace Soldier {
+    mut counter := 0  // Static counter shared by all instances
+
+    new := func(name: Str = "unknown") returns Soldier {
+        s := Soldier(id=counter, name=name)
+        counter = counter + 1
+        return s
+    }
+}
+
+// Usage:
+s1 := Soldier.new("Alice")  // id=0
+s2 := Soldier.new("Bob")    // id=1
+#+END_SRC
+
+**** Implementation
+
+***** Step 2.1: Parser - allow mut in namespace blocks
+Check if parser already accepts ~mut~ declarations in namespace blocks.
+If not, update parse_namespace_definition to accept them.
+
+Files: parser.rs, parser.til
+
+***** Step 2.2: Init - register namespace mutables
+When init processes NamespaceDef, it currently registers functions.
+Extend to also register mutable variables with their initial values.
+
+The mutable needs to be:
+- Registered as a symbol with is_mut=true
+- Stored in the global scope (not per-instance)
+
+Files: init.rs, init.til
+
+***** Step 2.3: Interpreter - handle namespace mutable access
+When evaluating ~TypeName.mutable_var~, look up and return/assign the value.
+This is similar to how ~TypeName.constant~ works, but allows mutation.
+
+Files: interpreter.rs, interpreter.til
+
+***** Step 2.4: Ccodegen - emit namespace mutable as static
+In C, namespace mutables become static variables:
+#+BEGIN_SRC c
+// For: namespace Soldier { mut counter := 0 }
+static long long til_Soldier_counter = 0;
+#+END_SRC
+
+Files: ccodegen.rs, ccodegen.til, scavenger.rs, scavenger.til
+
+***** Step 2.5: Port to TIL
+All changes to .rs files must be ported to .til files.
+
+*** Step 3: Per-instance immutable fields in structs
+
+Allow non-mut fields in structs that are set at construction and frozen afterward.
+
+**** Use case
+#+BEGIN_SRC til
+Entry := struct {
+    id := 0              // Immutable after construction
+    mut name := ""       // Mutable
+    mut desc := ""       // Mutable
+}
+
+mut e := Entry(id=get_unique_id(), name="test", desc="description")
+e.name = "new name"  // OK - name is mut
+e.id = 999           // ERROR - id is not mut, frozen after construction
+#+END_SRC
+
+**** Current state
+Non-mut fields in structs are currently used for associated constants/functions:
+#+BEGIN_SRC til
+MyStruct := struct {
+    static_const := 42       // Associated constant (no mut)
+    mut instance_data := 0   // Instance field (mut)
+}
+#+END_SRC
+
+After Issue #108, functions are in namespace blocks. But constants in struct
+still work as associated constants (e.g., Cell.CHAR_WIDTH in hello_gui.til).
+
+**** Design decision
+With namespace blocks, associated constants should move to namespaces (Step 1).
+This frees up non-mut struct fields for a new meaning: per-instance immutables.
+
+Migration path:
+1. Step 1 moves associated constants to namespaces
+2. Step 3 repurposes non-mut fields for instance immutables
+3. Deprecation warning for old pattern during transition
+
+**** Implementation
+
+***** Step 3.1: Migrate existing struct constants to namespaces
+Before changing semantics, move all existing struct constants to namespace blocks.
+Example from hello_gui.til:
+#+BEGIN_SRC til
+// Before
+Cell := struct {
+    CHAR_WIDTH := 8
+    LINE_HEIGHT := 16
+}
+
+// After
+Cell := struct {}
+namespace Cell {
+    CHAR_WIDTH := 8
+    LINE_HEIGHT := 16
+}
+#+END_SRC
+
+***** Step 3.2: Typer - track field mutability
+The typer needs to know which struct fields are mutable vs immutable.
+Add check: if assigning to a non-mut field after construction, emit error.
+
+Challenge: distinguishing construction from assignment.
+- Construction: ~Entry(id=42)~ - allowed to set immutable fields
+- Assignment: ~e.id = 42~ - not allowed for immutable fields
+
+Files: typer.rs, typer.til
+
+***** Step 3.3: Interpreter - enforce field immutability
+After struct construction, track which fields are frozen.
+Reject mutations to immutable fields.
+
+Approach: In eval_set, before modifying a struct field, check if field is mut.
+If not mut and struct already exists, error.
+
+Files: interpreter.rs, interpreter.til
+
+***** Step 3.4: Ccodegen - enforce field immutability (optional)
+Could add runtime checks in generated C, or rely on typer catching it.
+Typer-only enforcement is simpler and sufficient.
+
+***** Step 3.5: Port to TIL
+All changes to .rs files must be ported to .til files.
+
+*** Testing
+
+**** Step 1 tests
+#+BEGIN_SRC til
+// Test namespace constants
+namespace I64 {
+    TestMax := 9223372036854775807
+}
+assert_eq(loc(), 9223372036854775807, I64.TestMax)
+#+END_SRC
+
+**** Step 2 tests
+#+BEGIN_SRC til
+// Test namespace mutable (static)
+Counter := struct {}
+namespace Counter {
+    mut value := 0
+    increment := func() returns I64 {
+        value = value + 1
+        return value
+    }
+}
+assert_eq(loc(), 1, Counter.increment())
+assert_eq(loc(), 2, Counter.increment())
+assert_eq(loc(), 2, Counter.value)
+#+END_SRC
+
+**** Step 3 tests
+#+BEGIN_SRC til
+// Test per-instance immutable
+ImmutableTest := struct {
+    id := 0        // Immutable
+    mut name := "" // Mutable
+}
+
+mut t := ImmutableTest(id=42, name="test")
+assert_eq(loc(), 42, t.id)
+t.name = "changed"  // OK
+// t.id = 99       // Should error: cannot assign to immutable field
+#+END_SRC
+
+*** Verification
+1. Run ~make benchmark~ after each step - all tests must pass
+2. Port each .rs change to .til immediately
+3. Test both interpreter and compiler modes
+
 ** Issue #159: copy keyword does shallow copies (byte copy, not clone)
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
