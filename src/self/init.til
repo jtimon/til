@@ -359,6 +359,26 @@ ScopeStack := struct {
         }
     }
 
+    /// Update an existing func_def wherever it was originally declared.
+    /// Unlike declare_func (which always inserts at current scope), this finds
+    /// where the func was originally declared and updates it there.
+    update_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws Str {
+        for i in 0..self.frames.len() {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+            if frame.funcs.contains_key(name) {
+                frame.funcs.set(name, func_def)
+                self.frames.set(i, frame)?
+                return
+            }
+        }
+        // If not found, insert at current scope (fallback)
+        self.declare_func(name, func_def)?
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+    }
+
     lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()

@@ -3404,6 +3404,34 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         new_struct_def := SStructDef(members=new_members, default_values=new_default_values)
         return Expr.new_explicit(NodeType.StructDef(new_struct_def), e.params, e.line, e.col)
 
+    // Issue #108: NamespaceDef - recurse into default_values (function bodies)
+    case NodeType.NamespaceDef(ns_def):
+        mut new_default_values := Map.new(Str, Expr)
+        for name: Str in ns_def.default_values.keys {
+            mut value_expr := Expr()
+            ns_def.default_values.get(name, value_expr)?
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
+            }
+            resolved_expr := resolve_inferred_types(context, value_expr)?
+            // Re-register resolved func_defs in scope_stack so interpreter uses resolved types
+            switch resolved_expr.node_type {
+            case NodeType.FuncDef(func_def):
+                full_name := format(ns_def.type_name, ".", name)
+                // Use update_func to update at original declaration site, not current scope
+                context.scope_stack.update_func(full_name, func_def)?
+            case:
+                // Not a function, nothing to register
+            }
+            new_default_values.set(name, resolved_expr)
+        }
+        new_ns_def := SNamespaceDef(
+            type_name=ns_def.type_name,
+            members=ns_def.members,
+            default_values=new_default_values
+        )
+        return Expr.new_explicit(NodeType.NamespaceDef(new_ns_def), e.params, e.line, e.col)
+
     case NodeType.Catch:
         // Catch - declare catch variable in scope before processing body
         if not(e.params.len().eq(3)) {

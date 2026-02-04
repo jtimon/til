@@ -324,6 +324,22 @@ impl ScopeStack {
         }
     }
 
+    /// Update an existing func_def wherever it was originally declared.
+    /// Unlike declare_func (which always inserts at current scope), this finds
+    /// where the func was originally declared and updates it there.
+    pub fn update_func(&mut self, name: &str, func_def: SFuncDef) {
+        for frame in self.frames.iter_mut() {
+            if frame.funcs.contains_key(name) {
+                frame.funcs.insert(name.to_string(), func_def);
+                return;
+            }
+        }
+        // If not found, insert at current scope (fallback)
+        if let Some(current_frame) = self.frames.last_mut() {
+            current_frame.funcs.insert(name.to_string(), func_def);
+        }
+    }
+
     pub fn lookup_enum(&self, name: &str) -> Option<&SEnumDef> {
         for frame in self.frames.iter().rev() {
             if let Some(enum_def) = frame.enums.get(name) {

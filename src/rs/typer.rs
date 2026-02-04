@@ -2794,7 +2794,14 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
         NodeType::NamespaceDef(ns_def) => {
             let mut new_default_values = HashMap::new();
             for (name, value_expr) in &ns_def.default_values {
-                new_default_values.insert(name.clone(), resolve_inferred_types(context, value_expr)?);
+                let resolved_expr = resolve_inferred_types(context, value_expr)?;
+                // Re-register resolved func_defs in scope_stack so interpreter uses resolved types
+                if let NodeType::FuncDef(func_def) = &resolved_expr.node_type {
+                    let full_name = format!("{}.{}", ns_def.type_name, name);
+                    // Use update_func to update at original declaration site, not current scope
+                    context.scope_stack.update_func(&full_name, func_def.clone());
+                }
+                new_default_values.insert(name.clone(), resolved_expr);
             }
             let new_ns_def = SNamespaceDef {
                 type_name: ns_def.type_name.clone(),
