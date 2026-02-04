@@ -265,9 +265,8 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 errors.extend(check_types_with_context(context, p, expr_context));
             }
         },
-        NodeType::NamespaceDef(ns_def) => {
-            // NamespaceDef should be caught by init phase with todo_error
-            errors.push(e.todo_error(&context.path, "type", &format!("Issue #108 - namespace block for '{}' not implemented", ns_def.type_name)));
+        NodeType::NamespaceDef(_ns_def) => {
+            // Issue #108: NamespaceDef already processed by init - members merged into type
         },
         NodeType::ForIn(_var_type) => {
             errors.extend(check_forin_statement(context, &e));

@@ -221,9 +221,9 @@ pub fn ufcs_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             Ok(Expr::new_clone(NodeType::NamedArg(name.clone()), e, new_params))
         },
-        // NamespaceDef should have been caught by init phase with todo_error
+        // Issue #108: NamespaceDef already processed by init - members merged into type
         NodeType::NamespaceDef(ns_def) => {
-            Err(e.todo_error(&context.path, "ufcs", &format!("Issue #108 - namespace block for '{}' not implemented", ns_def.type_name)))
+            Ok(Expr::new_clone(NodeType::NamespaceDef(ns_def.clone()), e, vec![]))
         },
         // ForIn should have been desugared in desugarer phase
         NodeType::ForIn(_) => {

@@ -1830,6 +1830,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
+    // 2b2: Issue #108 - namespace functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_namespace_definition(child) {
+                emit_namespace_func_prototypes(child, context, &mut output)?;
+            }
+        }
+    }
     // 2c: hoisted nested function prototypes (collected in Pass 0a)
     if !ctx.hoisted_prototypes.is_empty() {
         output.push_str("\n// Nested function prototypes (hoisted)\n");
@@ -1915,6 +1923,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         for child in &ast.params {
             if is_struct_declaration(child) {
                 emit_struct_func_bodies(child, &mut output, &mut ctx, context)?;
+            }
+        }
+    }
+    // 5b2: Issue #108 - namespace functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_namespace_definition(child) {
+                emit_namespace_func_bodies(child, &mut output, &mut ctx, context)?;
             }
         }
     }
@@ -3256,6 +3272,43 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
     Ok(())
 }
 
+// Issue #108: Check if expression is a namespace definition
+fn is_namespace_definition(expr: &Expr) -> bool {
+    matches!(&expr.node_type, NodeType::NamespaceDef(_))
+}
+
+// Issue #108: Emit namespace function prototypes (forward declarations)
+fn emit_namespace_func_prototypes(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
+    if let NodeType::NamespaceDef(ns_def) = &expr.node_type {
+        let type_name = til_name(&ns_def.type_name);
+        for member in &ns_def.members {
+            if let Some(func_expr) = ns_def.default_values.get(&member.name) {
+                if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                    let mangled_name = format!("{}_{}", type_name, member.name);
+                    emit_func_signature(&mangled_name, func_def, context, output)?;
+                    output.push_str(";\n");
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// Issue #108: Emit namespace function bodies
+fn emit_namespace_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    if let NodeType::NamespaceDef(ns_def) = &expr.node_type {
+        let type_name = til_name(&ns_def.type_name);
+        for member in &ns_def.members {
+            if let Some(func_expr) = ns_def.default_values.get(&member.name) {
+                if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                    emit_struct_func_body(&type_name, member, func_def, output, ctx, context)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 // Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
 fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Result<String, String> {
     match til_type {
@@ -3633,7 +3686,8 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Range => Err("ccodegen: Range not yet supported".to_string()),
         NodeType::Pattern(_) => Err(expr.lang_error(&context.path, "ccodegen", "Pattern should have been desugared with Switch")),
         NodeType::NamedArg(_) => Err(expr.error(&context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")),
-        NodeType::NamespaceDef(ns_def) => Err(expr.todo_error(&context.path, "ccodegen", &format!("Issue #108 - namespace block for '{}' not implemented", ns_def.type_name))),
+        // Issue #108: NamespaceDef already processed by init - members merged into type
+        NodeType::NamespaceDef(_ns_def) => Ok(()),
         NodeType::ForIn(_) => Err(expr.lang_error(&context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")),
     }
 }

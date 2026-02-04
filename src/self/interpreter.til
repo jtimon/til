@@ -439,8 +439,9 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         return EvalResult.new_break()
     case NodeType.Continue:
         return EvalResult.new_continue()
-    case NodeType.NamespaceDef(ns_def):
-        throw e.todo_error(context.path, "eval", format("Issue #108 - namespace block for '", ns_def.type_name, "' not implemented"))
+    // Issue #108: NamespaceDef already processed by init - members merged into type
+    case NodeType.NamespaceDef(_ns_def):
+        return EvalResult.new("")
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }
