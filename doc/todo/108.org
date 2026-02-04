@@ -178,6 +178,44 @@ The correct approach should be:
 - Modify ccodegen to emit namespace block functions (look at NamespaceDef nodes)
 - Do NOT modify the struct AST to include namespace members
 
+***** Typer fix for collection-like structs (DONE)
+
+The typer checks that collection-like structs (those with get/set/push/insert
+methods) also have len() and size() methods. This check was using the original
+struct_def from the AST, which doesn't include namespace methods.
+
+Fix: Modified check_struct_def in typer.rs and typer.til to use
+context.scope_stack.lookup_struct() to get the merged struct (which includes
+namespace members merged by init). Falls back to original struct_def if not found.
+
+This enables collection-like structs (Array, Vec, etc.) to have their methods
+in namespace blocks without failing the collection validation check.
+
+***** Precomp fix for namespace methods (DONE)
+
+precomp now calls update_func() after transforming namespace functions so the
+interpreter uses the precomp-transformed version (with loc() resolved, etc.)
+rather than the original untransformed version from init.
+
+***** Scavenger fix for variadic support (DONE)
+
+When namespace methods are discovered after the main reachability loop, they're
+processed in a second loop. This second loop wasn't checking for variadic
+parameters, so when format() was discovered via namespace methods,
+needs_variadic_support stayed false. This caused Array.set and Array.delete
+prototypes to not be emitted.
+
+Fix: Added variadic parameter check to the second while loop so that functions
+discovered via namespace blocks properly trigger variadic support.
+
+***** Status: Ready for Step 2.2
+
+All blocking issues have been fixed. Namespace blocks now work correctly for
+struct methods that:
+- Call external functions (malloc, loc, memset, etc.)
+- Use variadic functions (format, panic)
+- Are called by the runtime (panic calling Array methods)
+
 **** Step 2.2: Migrate existing struct AFs to namespace blocks
 
 Update all struct definitions in the codebase to use the new syntax:

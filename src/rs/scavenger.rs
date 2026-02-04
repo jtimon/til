@@ -487,10 +487,19 @@ fn compute_reachable(
         }
     }
 
-    // Process any newly added eq methods
+    // Process any newly added eq methods and namespace methods
     while let Some(func_name) = worklist.pop() {
         if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
             collect_used_types_from_func(context, &func_def, &mut used_types);
+
+            // Issue #108: Also check for variadic params in second loop
+            for arg in &func_def.args {
+                if let crate::rs::parser::ValueType::TMulti(_) = &arg.value_type {
+                    needs_variadic_support = true;
+                    break;
+                }
+            }
+
             if func_def.is_ext() {
                 continue;
             }

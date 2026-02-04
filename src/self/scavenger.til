@@ -642,7 +642,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         }
     }
 
-    // Process any newly added eq methods
+    // Process any newly added eq methods and namespace methods
     while worklist.len().gt(0) {
         mut eq_func_name := ""
         worklist.pop(eq_func_name)?
@@ -652,6 +652,16 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         catch (err: KeyNotFoundError) { }
         if eq_found_func {
             collect_used_types_from_func(context, eq_func_def, used_types)?
+
+            // Issue #108: Also check for variadic params in second loop
+            for arg: Declaration in eq_func_def.args {
+                switch arg.value_type {
+                case ValueType.TMulti(_):
+                    needs_variadic_support = true
+                case:
+                }
+            }
+
             if eq_func_def.is_ext() {
                 continue
             }
