@@ -128,6 +128,24 @@ Areas to simplify:
 - Eliminate dead code paths
 - Simplify data structures where possible
 
+**** Specific Opportunities Identified
+
+**ccodegen.rs (6,800 lines):**
+1. `emit_fcall` (626 lines) - Split builtins (type_as_str, enum_to_str,
+   enum_get_payload, size_of, to_ptr) into separate functions
+2. Declaration hoisting duplicated 3x between emit_if (then/else) and emit_while
+3. `is_namespace_definition()` one-liner used 2x - could inline
+
+**interpreter.rs:**
+1. `eval_user_func_proc_call` has documented TODO REFACTOR (line 1659)
+   - Replace context.clone() with scope push/pop
+   - 20+ return paths need cleanup
+   - Already documented with specific line numbers
+
+**Patterns repeated 10+ times:**
+- Type checking pattern: `if let Some(sym) = lookup { matches!(sym.value_type, ...) }`
+- Could be helper: `is_type_variable(name, context) -> bool`
+
 Effort: ONGOING
 Impact: HIGH (affects all three codebases)
 
