@@ -6732,13 +6732,40 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             output.push_str(c_var_name.clone())
             if not(expr.params.is_empty()) {
                 output.push_str(" = ")
-                // Bug #143: Use rhs_string if available (already hoisted args)
-                if has_rhs_string {
+                // Issue #159: For struct types, when RHS is an existing variable (not a function call
+                // or literal), we need to call clone() to get a deep copy instead of shallow struct assignment.
+                // Function calls (has_rhs_string) already return fresh instances, no clone needed.
+                // Literals don't need cloning - they create new values directly.
+                mut rhs_is_identifier := false
+                mut rhs_first_param := Expr()
+                expr.params.get(0, rhs_first_param)?
+                switch rhs_first_param.node_type {
+                case NodeType.Identifier(_):
+                    rhs_is_identifier = true
+                case:
+                }
+                mut needs_clone := false
+                if not(has_rhs_string).and(rhs_is_identifier) {
+                    switch var_type {
+                    case ValueType.TCustom(type_name):
+                        needs_clone = context.scope_stack.has_struct(type_name)
+                    case:
+                    }
+                }
+                if needs_clone {
+                    switch var_type {
+                    case ValueType.TCustom(type_name):
+                        output.push_str(til_name(type_name))
+                        output.push_str("_clone(&")
+                        emit_expr(rhs_first_param, output, 0, ctx, context)?
+                        output.push_str(")")
+                    case:
+                        emit_expr(rhs_first_param, output, 0, ctx, context)?
+                    }
+                } else if has_rhs_string {
                     output.push_str(rhs_string)
                 } else {
-                    mut mut_emit_first_param := Expr()
-                    expr.params.get(0, mut_emit_first_param)?
-                    emit_expr(mut_emit_first_param, output, 0, ctx, context)?
+                    emit_expr(rhs_first_param, output, 0, ctx, context)?
                 }
             }
             output.push_str(";\n")

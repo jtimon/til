@@ -103,6 +103,43 @@ eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr)
 
 // validate_func_arg_count is in typer.til
 
+/// Issue #159: Call Type.clone(source) and return the cloned instance.
+/// This creates a deep copy instead of the shallow byte copy that copy_fields does.
+call_clone_method := proc(mut ctx: Context, type_name: Str, src: Str, e: Expr) returns EvalResult throws Str {
+    // If src contains "." (field path like "self.elements"), we need to register a temp
+    // variable that points to the same arena offset, because the clone AST evaluation
+    // won't have access to "self" from the outer scope.
+    mut actual_src := ""
+    if src.contains(".") {
+        temp_name := format(RETURN_INSTANCE_NAME, "clone_src_", I64.to_str(g_arena.temp_id_counter))
+        g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
+        // Get the source offset and register temp variable pointing to it
+        src_offset := ctx.get_field_offset(src)?
+        ctx.scope_stack.insert_var(temp_name, src_offset)?
+        ctx.scope_stack.declare_symbol(temp_name, SymbolInfo(
+            value_type=ValueType.TCustom(type_name),
+            is_mut=false,
+            is_copy=false,
+            is_own=false,
+            is_comptime_const=false
+        ))?
+        actual_src = temp_name
+    } else {
+        actual_src = src
+    }
+
+    // Build AST: Type.clone(actual_src)
+    // Structure: FCall( Identifier("Type").Identifier("clone"), Identifier(actual_src) )
+    clone_ident := Expr(node_type=NodeType.Identifier("clone"), line=e.line, col=e.col)
+    mut type_clone_access := Expr(node_type=NodeType.Identifier(type_name), line=e.line, col=e.col)
+    type_clone_access.params.push(clone_ident)
+    src_id := Expr(node_type=NodeType.Identifier(actual_src), line=e.line, col=e.col)
+    mut clone_call := Expr(node_type=NodeType.FCall(false), line=e.line, col=e.col)
+    clone_call.params.push(type_clone_access)
+    clone_call.params.push(src_id)
+    return eval_expr(ctx, clone_call)?
+}
+
 /// Read PRIMITIVE field values from an already-evaluated struct instance.
 /// This reads ACTUAL primitive values (I64, U8, Str) from the arena.
 /// For nested struct fields (Str, Vec, etc.), recursively reads primitive values
@@ -1015,35 +1052,46 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
 
                 if declaration.is_mut {
                     if not(is_temp_return_val) {
-                        // Allocate space and copy fields for mut declaration (independent copy)
-                        insert_struct_instance(context, declaration.name, custom_type_name, e)?
-                        EvalArena.copy_fields(context, custom_type_name, struct_expr_result_str, declaration.name, e)?
+                        // Issue #159: Use clone() for deep copy instead of shallow copy_fields
+                        clone_result := call_clone_method(context, custom_type_name, struct_expr_result_str, e)?
+                        if clone_result.is_throw {
+                            return clone_result
+                        }
+                        // Bind declaration name to the cloned instance's offset
+                        clone_offset := context.scope_stack.lookup_var(clone_result.value)?
+                        catch (err: KeyNotFoundError) {
+                            throw e.lang_error(context.path, "eval", format("Could not find clone result '", clone_result.value, "'"))
+                        }
+                        mut clone_last_idx := context.scope_stack.frames.len().sub(1)
+                        mut clone_last_frame := ScopeFrame()
+                        context.scope_stack.frames.get(clone_last_idx, clone_last_frame)?
+                        clone_last_frame.arena_index.set(declaration.name, clone_offset)
+                        context.scope_stack.frames.set(clone_last_idx, clone_last_frame)?
                     } else {
                         // Share offset for temp return value (zero-copy transfer)
-                        // Bug #160: Try lookup_var first, then get_field_offset for field paths
-                        mut struct_offset := 0
-                        mut struct_found_offset := false
-                        struct_offset = context.scope_stack.lookup_var(struct_expr_result_str)?
-                        struct_found_offset = true
+                        // Bug #160: Deterministic dispatch - instance fields use get_field_offset
+                        mut temp_offset := 0
+                        mut temp_found := false
+                        temp_offset = context.scope_stack.lookup_var(struct_expr_result_str)?
+                        temp_found = true
                         catch (err: KeyNotFoundError) {
                             if struct_expr_result_str.contains(".") {
-                                struct_offset = context.get_field_offset(struct_expr_result_str)?
-                                struct_found_offset = true
+                                temp_offset = context.get_field_offset(struct_expr_result_str)?
+                                temp_found = true
                             }
                         }
-                        if not(struct_found_offset) {
+                        if not(temp_found) {
                             throw e.lang_error(context.path, "eval", format("Could not find arena index for '", struct_expr_result_str, "'"))
                         }
-                        mut struct_last_idx := context.scope_stack.frames.len().sub(1)
-                        mut struct_last_frame := ScopeFrame()
-                        context.scope_stack.frames.get(struct_last_idx, struct_last_frame)?
-                        struct_last_frame.arena_index.set(declaration.name, struct_offset)
-                        context.scope_stack.frames.set(struct_last_idx, struct_last_frame)?
-                        // Bug #160: map_instance_fields removed - type checker handles symbol registration
+                        mut temp_last_idx := context.scope_stack.frames.len().sub(1)
+                        mut temp_last_frame := ScopeFrame()
+                        context.scope_stack.frames.get(temp_last_idx, temp_last_frame)?
+                        temp_last_frame.arena_index.set(declaration.name, temp_offset)
+                        context.scope_stack.frames.set(temp_last_idx, temp_last_frame)?
                     }
                 } else {
-                    // Share offset for non-mut declaration (zero-copy transfer)
-                    // Bug #160: Try lookup_var first, then get_field_offset for field paths
+                    // Share offset for non-mut declaration or temp return value (zero-copy transfer)
+                    // Bug #160: Deterministic dispatch - instance fields use get_field_offset
                     mut struct_offset2 := 0
                     mut struct_found_offset2 := false
                     struct_offset2 = context.scope_stack.lookup_var(struct_expr_result_str)?

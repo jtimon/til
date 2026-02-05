@@ -197,6 +197,44 @@ fn eval_condition_to_bool(context: &Context, result: &EvalResult, expr: &Expr) -
     Ok(u8_val != 0)
 }
 
+/// Issue #159: Call Type.clone(source) and return the cloned instance.
+/// This creates a deep copy instead of the shallow byte copy that copy_fields does.
+fn call_clone_method(ctx: &mut Context, type_name: &str, src: &str, e: &Expr) -> Result<EvalResult, String> {
+    // If src contains "." (field path like "self.elements"), we need to register a temp
+    // variable that points to the same arena offset, because the clone AST evaluation
+    // won't have access to "self" from the outer scope.
+    let actual_src = if src.contains('.') {
+        let temp_name = format!("{}clone_src_{}", RETURN_INSTANCE_NAME, EvalArena::g().temp_id_counter);
+        EvalArena::g().temp_id_counter += 1;
+        // Get the source offset and register temp variable pointing to it
+        let src_offset = ctx.get_field_offset(src)
+            .map_err(|err| e.lang_error(&ctx.path, "eval", &format!("call_clone_method: could not get offset for '{}': {}", src, err)))?;
+        ctx.scope_stack.insert_var(temp_name.clone(), src_offset);
+        ctx.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
+            value_type: ValueType::TCustom(type_name.to_string()),
+            is_mut: false,
+            is_copy: false,
+            is_own: false,
+            is_comptime_const: false,
+        });
+        temp_name
+    } else {
+        src.to_string()
+    };
+
+    // Build AST: Type.clone(actual_src)
+    // Structure: FCall( Identifier("Type").Identifier("clone"), Identifier(actual_src) )
+    let type_clone_access = Expr::new_explicit(
+        NodeType::Identifier(type_name.to_string()),
+        vec![Expr::new_explicit(NodeType::Identifier("clone".to_string()), vec![], e.line, e.col)],
+        e.line,
+        e.col,
+    );
+    let src_id = Expr::new_explicit(NodeType::Identifier(actual_src.to_string()), vec![], e.line, e.col);
+    let clone_call = Expr::new_explicit(NodeType::FCall(false), vec![type_clone_access, src_id], e.line, e.col);
+    eval_expr(ctx, &clone_call)
+}
+
 // Helper function to validate function/procedure argument counts
 fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -> Result<(), String> {
     let provided_args = e.params.len() - 1;
@@ -1053,9 +1091,15 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                         let is_temp_return_val = expr_result_str.starts_with(RETURN_INSTANCE_NAME);
 
                         if declaration.is_mut && !is_temp_return_val {
-                            // Allocate space and copy fields for mut declaration (independent copy)
-                            insert_struct_instance(context, &declaration.name, custom_type_name, e)?;
-                            EvalArena::copy_fields(context, custom_type_name, &expr_result_str, &declaration.name, e)?;
+                            // Issue #159: Use clone() for deep copy instead of shallow copy_fields
+                            let clone_result = call_clone_method(context, custom_type_name, &expr_result_str, e)?;
+                            if clone_result.is_throw {
+                                return Ok(clone_result);
+                            }
+                            // Bind declaration name to the cloned instance's offset
+                            let clone_offset = context.scope_stack.lookup_var(&clone_result.value)
+                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Could not find clone result '{}'", clone_result.value)))?;
+                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(declaration.name.to_string(), clone_offset);
                         } else {
                             // Share offset for non-mut declaration or temp return value (zero-copy transfer)
                             // Bug #160: Deterministic dispatch - instance fields use get_field_offset

@@ -209,10 +209,10 @@ til_U8 til_U8_clone(const til_U8* til_U8_self);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y);
 til_CfRect til_CfRect_sample(void);
-void til_CfRect_delete(til_CfRect* til_CfRect_self);
-til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self);
 void til_CfVec2_delete(til_CfVec2* _self);
 til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self);
+void til_CfRect_delete(til_CfRect* til_CfRect_self);
+til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self);
 
 #include <ext.c>
 
@@ -1711,7 +1711,7 @@ til_Bool til_Str_contains(const til_Str* til_Str_self, const til_Str* til_Str_ne
             til_I64 _tmp_til_Str_contains_9 = 1;
             til_I64 _tmp_til_Str_contains_10 = til_I64_add(&til_I64_max_start, &_tmp_til_Str_contains_9);
             if (!(til_I64_lt(&til_I64_start_idx, &_tmp_til_Str_contains_10).data)) break;
-            til_Bool_matches = true;
+            til_Bool_matches = til_Bool_clone(&true);
             til_I64_needle_idx = 0;
             til_I64 _tmp_til_Str_contains_11 = 0;
             til_I64 _tmp_til_Str_contains_12 = til_Str_len(til_Str_needle);
@@ -1768,7 +1768,7 @@ til_Bool til_Str_contains(const til_Str* til_Str_self, const til_Str* til_Str_ne
             til_I64 _tmp_til_Str_contains_31 = 1;
             til_I64 _tmp_til_Str_contains_32 = til_I64_add(&til_I64_max_start, &_tmp_til_Str_contains_31);
             if (!(til_I64_gt(&til_I64_start_idx, &_tmp_til_Str_contains_32).data)) break;
-            til_Bool_matches = true;
+            til_Bool_matches = til_Bool_clone(&true);
             til_I64_needle_idx = 0;
             til_I64 _tmp_til_Str_contains_33 = 0;
             til_I64 _tmp_til_Str_contains_34 = til_Str_len(til_Str_needle);
@@ -1849,7 +1849,7 @@ til_I64 til_Str_find(const til_Str* til_Str_self, const til_Str* til_Str_needle)
     til_U8 til_U8_self_byte;
     til_U8 til_U8_needle_byte;
     while (til_I64_lteq(&til_I64_start_idx, &til_I64_max_start).data) {
-        til_Bool_matches = true;
+        til_Bool_matches = til_Bool_clone(&true);
         til_I64_needle_idx = 0;
         while (1) {
             til_I64 _tmp_til_Str_find_10 = til_Str_len(til_Str_needle);
@@ -1920,7 +1920,7 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
             til_I64 _tmp_til_Str_rfind_15 = 1;
             til_I64 _tmp_til_Str_rfind_16 = til_I64_add(&til_I64_max_start, &_tmp_til_Str_rfind_15);
             if (!(til_I64_lt(&til_I64_start_idx, &_tmp_til_Str_rfind_16).data)) break;
-            til_Bool_matches = true;
+            til_Bool_matches = til_Bool_clone(&true);
             til_I64_needle_idx = 0;
             til_I64 _tmp_til_Str_rfind_17 = 0;
             til_I64 _tmp_til_Str_rfind_18 = til_Str_len(til_Str_needle);
@@ -1977,7 +1977,7 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
             til_I64 _tmp_til_Str_rfind_37 = 1;
             til_I64 _tmp_til_Str_rfind_38 = til_I64_add(&til_I64_max_start, &_tmp_til_Str_rfind_37);
             if (!(til_I64_gt(&til_I64_start_idx, &_tmp_til_Str_rfind_38).data)) break;
-            til_Bool_matches = true;
+            til_Bool_matches = til_Bool_clone(&true);
             til_I64_needle_idx = 0;
             til_I64 _tmp_til_Str_rfind_39 = 0;
             til_I64 _tmp_til_Str_rfind_40 = til_Str_len(til_Str_needle);
@@ -2051,7 +2051,7 @@ til_Str til_Str_replace(const til_Str* til_Str_self, const til_Str* til_Str_from
         til_I64 _tmp_til_Str_replace_3 = til_Str_len(til_Str_from);
         til_I64 _tmp_til_Str_replace_4 = til_I64_sub(&_tmp_til_Str_replace_2, &_tmp_til_Str_replace_3);
         if (!(til_I64_lteq(&til_I64_search_start, &_tmp_til_Str_replace_4).data)) break;
-        til_Bool_matches = true;
+        til_Bool_matches = til_Bool_clone(&true);
         til_I64_i = 0;
         til_I64 _tmp_til_Str_replace_5 = 0;
         til_I64 _tmp_til_Str_replace_6 = til_Str_len(til_Str_from);
@@ -2133,7 +2133,7 @@ til_Str til_Str_replace(const til_Str* til_Str_self, const til_Str* til_Str_from
     while (1) {
         til_I64 _tmp_til_Str_replace_35 = til_Str_len(til_Str_self);
         if (!(til_I64_lt(&til_I64_src_idx, &_tmp_til_Str_replace_35).data)) break;
-        til_Bool_found_match = true;
+        til_Bool_found_match = til_Bool_clone(&true);
         til_I64 _tmp_til_Str_replace_36 = til_Str_len(til_Str_self);
         til_I64 _tmp_til_Str_replace_37 = til_Str_len(til_Str_from);
         til_I64 _tmp_til_Str_replace_38 = til_I64_sub(&_tmp_til_Str_replace_36, &_tmp_til_Str_replace_37);
@@ -2438,7 +2438,7 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
         til_I64 _tmp_til_Str_split_4 = til_Str_len(til_Str_delimiter);
         til_I64 _tmp_til_Str_split_5 = til_I64_sub(&_tmp_til_Str_split_3, &_tmp_til_Str_split_4);
         if (!(til_I64_lteq(&til_I64_pos, &_tmp_til_Str_split_5).data)) break;
-        til_Bool_matches = true;
+        til_Bool_matches = til_Bool_clone(&true);
         til_I64_i = 0;
         til_I64 _tmp_til_Str_split_6 = 0;
         til_I64 _tmp_til_Str_split_7 = til_Str_len(til_Str_delimiter);
@@ -2572,7 +2572,7 @@ til_I64 til_Str_hash(const til_Str* til_Str_self) {
     til_I64 _tmp_til_Str_hash_1 = 3750763034362895579;
     const til_I64 til_I64_FNV_OFFSET_BASIS = til_I64_sub(&_tmp_til_Str_hash_0, &_tmp_til_Str_hash_1);
     const til_I64 til_I64_FNV_PRIME = 1099511628211;
-    til_I64 til_I64_h = til_I64_FNV_OFFSET_BASIS;
+    til_I64 til_I64_h = til_I64_clone(&til_I64_FNV_OFFSET_BASIS);
     til_I64 til_I64_i = 0;
     til_U8 til_U8_byte_val;
     til_I64 _tmp_til_Str_hash_2 = 0;
@@ -2931,6 +2931,14 @@ til_CfRect til_CfRect_sample(void) {
     return (til_CfRect){0};
 }
 
+void til_CfVec2_delete(til_CfVec2* _self) {
+}
+
+til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {
+    return (til_CfVec2){.x = til_CfVec2_self->x, .y = til_CfVec2_self->y};
+    return (til_CfVec2){0};
+}
+
 void til_CfRect_delete(til_CfRect* til_CfRect_self) {
     til_CfVec2_delete(&til_CfRect_self->bottom_right);
     til_CfVec2_delete(&til_CfRect_self->top_left);
@@ -2939,14 +2947,6 @@ void til_CfRect_delete(til_CfRect* til_CfRect_self) {
 til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self) {
     return (til_CfRect){.top_left = til_CfVec2_clone(&til_CfRect_self->top_left), .bottom_right = til_CfVec2_clone(&til_CfRect_self->bottom_right)};
     return (til_CfRect){0};
-}
-
-void til_CfVec2_delete(til_CfVec2* _self) {
-}
-
-til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {
-    return (til_CfVec2){.x = til_CfVec2_self->x, .y = til_CfVec2_self->y};
-    return (til_CfVec2){0};
 }
 
 int main(int argc, char** argv) {

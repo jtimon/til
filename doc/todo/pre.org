@@ -409,17 +409,25 @@ Files: garbager.rs, garbager.til
 
 **** Step 2: Replace copy_fields() with clone()
 
-**Current copy_fields call sites (interpreter.rs):**
+**copy_fields call sites (interpreter.rs) - DONE items use clone() now:**
 
-| Line | Context | Pattern |
-|------|---------|---------|
-| 602 | Struct literal field | ~MyStruct(field = nested_struct)~ |
-| 952 | Struct member default | Nested struct in struct definition |
-| 1056 | mut declaration | ~mut x := struct_expr~ (Bug #25 fix) |
-| 1143 | Assignment | ~x = struct_expr~ |
-| 2102 | copy param (saved offsets) | Complex case with name collision |
-| 2132 | copy param (identifier) | ~func(copy p: T)~ with variable |
-| 2157 | copy param (expression) | ~func(copy p: T)~ with expr |
+| Line | Context | Pattern | Status |
+|------|---------|---------|--------|
+| 641 | Struct literal field | ~MyStruct(field = nested_struct)~ | TODO |
+| 1006 | Struct member default | Nested struct in struct definition | TODO |
+| 1094 | mut declaration | ~mut x := struct_expr~ (Bug #25 fix) | DONE |
+| 1194 | Assignment | ~x = struct_expr~ | TODO |
+| 2153 | copy param (saved offsets) | Complex case with name collision | TODO |
+| 2183 | copy param (identifier) | ~func(copy p: T)~ with variable | TODO |
+| 2208 | copy param (expression) | ~func(copy p: T)~ with expr | TODO |
+
+**ccodegen call sites (ccodegen.rs) - generates C code:**
+
+| Context | Pattern | Status |
+|---------|---------|--------|
+| mut declaration | ~mut x := existing_var~ | DONE |
+
+Note: Compiler generates ~Type_clone(&var)~ for struct identifier assignments.
 
 **Current pattern (complex):**
 #+BEGIN_SRC rust
