@@ -19,26 +19,14 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 *** CRITICAL: The Goal
 Remove =copy_fields= (shallow copy) from interpreter and codegen. Replace with:
 1. Garbager inserts =Type.clone()= calls for struct-typed identifier args
-2. Interpreter uses offset binding instead of copy_fields
+2. Interpreter/ccodegen use offset binding instead of copy_fields (or the equivalent in codegen)
 
 *** CRITICAL: The Rule
 - *MUST* remove the corresponding shallow copy for every deep copy added
 - *MUST NOT* commit with both shallow and deep copy for the same case
 
-*** CRITICAL: User Decides Order
-- *MUST* wait for user to specify which copy_fields case to tackle next
-- *MUST NOT* jump ahead or work on cases user hasn't assigned
-
 *** MUST: Port to TIL
 Any Rust changes *MUST* be ported to equivalent TIL files before testing.
-
-*** Known Blocker: Function Return Scope Problem
-When function returns struct literal with rebound fields:
-1. Field rebindings exist in function scope
-2. Function returns, scope pops
-3. Rebindings lost before caller can use them
-
-This may block struct literal fields. User aware. Wait for user direction.
 
 *** Description
 When doing =mut cloned := original=, the interpreter uses =copy_fields= which does
@@ -75,13 +63,134 @@ This allows Ptr.clone to:
 
 Vec/Map/etc can then delegate to Ptr, simplifying their implementations.
 
-**** Step 3: DONE - Move clone logic from interpreter to garbager (mut declarations)
-Changed garbager phase to transform =mut x := y= (where y is a struct identifier)
-to =mut x := Type.clone(y)= at the AST level. This means:
-- Clone insertion happens at AST transformation time, not during interpretation
-- Removed =call_clone_method= function from interpreter (both Rust and TIL)
-- Simplified interpreter declaration handling to just bind offsets
-- Removed duplicate clone logic from ccodegen (both Rust and TIL)
+**** Step 3: DONE - mut declarations (commits ba5054fe, 045c0307, 2c2bd35e)
+
+The pattern for replacing copy_fields with clone:
+
+**1. Garbager (AST transformation)**:
+- Detect: =mut x := y= where y is struct identifier
+- Transform to: =mut x := Type.clone(y)=
+
+Rust (garbager.rs):
+#+BEGIN_SRC rust
+if decl.is_mut && !new_params.is_empty() {
+    if let NodeType::Identifier(_) = &new_params[0].node_type {
+        if let ValueType::TCustom(type_name) = &decl.value_type {
+            let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Str" | "Type" | "Dynamic");
+            if !is_primitive && context.scope_stack.has_struct(type_name) {
+                let clone_call = build_clone_call_expr(type_name, rhs_expr, e.line, e.col);
+                // Replace RHS with clone call
+            }
+        }
+    }
+}
+#+END_SRC
+
+TIL (garbager.til):
+#+BEGIN_SRC til
+if decl.is_mut.and(new_params.len().gt(0)) {
+    mut first_param := Expr()
+    new_params.get(0, first_param)?
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
+    }
+    switch first_param.node_type {
+    case NodeType.Identifier(_):
+        switch decl.value_type {
+        case ValueType.TCustom(type_name):
+            is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Str")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
+            if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+                clone_call := build_clone_call_expr(type_name, rhs_expr, e.line, e.col)
+                // Replace RHS with clone call
+            }
+        case:
+            // Not a TCustom type
+        }
+    case:
+        // Not an identifier
+    }
+}
+#+END_SRC
+
+**2. Interpreter (offset binding only)**:
+- No special handling for mut vs non-mut
+- Just bind declaration name to result offset
+- No copy_fields, no field mapping
+
+Rust (interpreter.rs):
+#+BEGIN_SRC rust
+let offset = context.scope_stack.lookup_var(&expr_result_str)
+    .ok_or_else(|| ...)?;
+context.scope_stack.frames.last_mut().unwrap()
+    .arena_index.insert(declaration.name.to_string(), offset);
+#+END_SRC
+
+TIL (interpreter.til):
+#+BEGIN_SRC til
+mut struct_offset := 0
+struct_offset = context.scope_stack.lookup_var(struct_expr_result_str)?
+catch (err: KeyNotFoundError) {
+    if struct_expr_result_str.contains(".") {
+        struct_offset = context.get_field_offset(struct_expr_result_str)?
+    }
+}
+mut struct_last_idx := context.scope_stack.frames.len().sub(1)
+mut struct_last_frame := ScopeFrame()
+context.scope_stack.frames.get(struct_last_idx, struct_last_frame)?
+struct_last_frame.arena_index.set(declaration.name, struct_offset)
+context.scope_stack.frames.set(struct_last_idx, struct_last_frame)?
+#+END_SRC
+
+**3. Ccodegen (removed duplicate logic)**:
+- Clone call is already in AST from garbager, no special handling needed
+- Just emit the expression normally
+
+Rust (ccodegen.rs) - REMOVED this code:
+#+BEGIN_SRC rust
+// REMOVED - garbager handles this now
+let rhs_is_identifier = matches!(&expr.params[0].node_type, NodeType::Identifier(_));
+let needs_clone = rhs_string.is_none() && rhs_is_identifier && match &var_type {
+    ValueType::TCustom(type_name) => context.scope_stack.has_struct(type_name),
+    _ => false,
+};
+if needs_clone {
+    if let ValueType::TCustom(type_name) = &var_type {
+        output.push_str(&til_name(type_name));
+        output.push_str("_clone(&");
+        emit_expr(&expr.params[0], output, 0, ctx, context)?;
+        output.push_str(")");
+    }
+}
+#+END_SRC
+
+TIL (ccodegen.til) - REMOVED this code:
+#+BEGIN_SRC til
+// REMOVED - garbager handles this now
+mut rhs_is_identifier := false
+switch rhs_first_param.node_type {
+case NodeType.Identifier(_):
+    rhs_is_identifier = true
+case:
+}
+mut needs_clone := false
+if not(has_rhs_string).and(rhs_is_identifier) {
+    switch var_type {
+    case ValueType.TCustom(type_name):
+        needs_clone = context.scope_stack.has_struct(type_name)
+    case:
+    }
+}
+if needs_clone {
+    switch var_type {
+    case ValueType.TCustom(type_name):
+        output.push_str(til_name(type_name))
+        output.push_str("_clone(&")
+        emit_expr(rhs_first_param, output, 0, ctx, context)?
+        output.push_str(")")
+    case:
+    }
+}
+#+END_SRC
 
 **Root cause of previous stack overflow**: Bool was incorrectly marked as "primitive"
 in garbager's exclusion list. When =mut val := false= was not transformed to
@@ -89,20 +198,14 @@ in garbager's exclusion list. When =mut val := false= was not transformed to
 constant, modifying =val= later would corrupt =false=, causing infinite loops in
 code that depended on =false= being correct. Fix: removed Bool from primitives list.
 
-**** Remaining copy_fields locations (progress tracking)
-| Location             | Purpose                    | Status                      |
-|----------------------+----------------------------+-----------------------------|
-| mut declarations     | =mut x := y=               | DONE (garbager inserts clone) |
-| Struct literal fields | interpreter.rs:603, .til:563 | TODO                        |
-| Nested member assign | interpreter.rs:968, .til:1090 | TODO                        |
-| Assignment statements | interpreter.rs:1139, .til:1202 | TODO                        |
-| Function copy params | interpreter.rs:2098,2128,2153 / .til:2261,2308,2340 | TODO |
-
-**** Step 4: TODO - Handle assignment statements
-Transform =x = y= (where y is a struct) to =x = Type.clone(y)= in garbager.
-
-**** Step 5: TODO - Handle copy function params
-Transform copy params at call sites to use clone in garbager.
+**** Step 4: TODO - Remaining copy_fields locations (progress tracking)
+| Location              | Purpose                                             | Status                        |
+|-----------------------+-----------------------------------------------------+-------------------------------|
+| mut declarations      | =mut x := y=                                        | DONE (garbager inserts clone) |
+| Function copy params  | interpreter.rs:2098,2128,2153 / .til:2261,2308,2340 | TODO                          |
+| Struct literal fields | interpreter.rs:603, .til:563                        | TODO                          |
+| Assignment statements | interpreter.rs:1139, .til:1202                      | TODO                          |
+| Nested member assign  | interpreter.rs:968, .til:1090                       | TODO                          |
 
 *** Failed Attempt: branch failure159
 Branch =failure159= contains Steps 2-8 of the implementation, but caused massive
@@ -1229,4 +1332,3 @@ Tests moved back from all_common (failed til_compiled):
 
 *** Final Verification
 ~make benchmark~ - all tests pass
-
