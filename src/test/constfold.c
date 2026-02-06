@@ -33,6 +33,9 @@ struct til_CfRect {
 struct til_Ptr {
     til_I64 data;
     til_I64 is_borrowed;
+    til_I64 alloc_size;
+    til_I64 elem_type;
+    til_I64 elem_size;
 };
 
 struct til_Str {
@@ -139,9 +142,10 @@ void til_I64_delete(til_I64* _self);
 til_I64 til_I64_clone(const til_I64* til_I64_self);
 til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size);
 til_Ptr til_Ptr_new(til_Type til_Type_T);
+til_Ptr til_Ptr_new_array(til_Type til_Type_T, const til_I64* til_I64_count);
 void til_Ptr_delete(til_Ptr* til_Ptr_self);
 til_Ptr til_Ptr_clone(const til_Ptr* til_Ptr_self);
-til_Ptr til_Ptr_offset(const til_Ptr* til_Ptr_self, const til_I64* til_I64_offset);
+til_Ptr til_Ptr_offset(const til_Ptr* til_Ptr_self, const til_I64* til_I64_byte_offset);
 void til_Ptr_copy_from(til_Ptr* til_Ptr_self, const til_Ptr* til_Ptr_src, const til_I64* til_I64_size);
 void til_Ptr_copy_to(const til_Ptr* til_Ptr_self, til_Ptr* til_Ptr_dest, const til_I64* til_I64_size);
 void til_Ptr_set_zero(til_Ptr* til_Ptr_self, const til_I64* til_I64_size);
@@ -151,6 +155,7 @@ void til_Ptr_dereference(const til_Ptr* til_Ptr_self, til_Type til_Type_T, til_D
 til_I64 til_Ptr_size_of(void);
 til_Bool til_Ptr_is_null(const til_Ptr* til_Ptr_self);
 til_Vec til_Vec_new(til_Type til_Type_T);
+til_Ptr til_Vec__alloc_ptr(til_Vec* til_Vec_self, const til_I64* til_I64_capacity);
 void til_Vec_push(til_Vec* til_Vec_self, const til_Dynamic* til_Dynamic_value);
 til_I64 til_Str_len(const til_Str* til_Str_self);
 til_Bool til_Str_is_empty(const til_Str* til_Str_self);
@@ -209,10 +214,10 @@ til_U8 til_U8_clone(const til_U8* til_U8_self);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y);
 til_CfRect til_CfRect_sample(void);
-void til_CfVec2_delete(til_CfVec2* _self);
-til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self);
 void til_CfRect_delete(til_CfRect* til_CfRect_self);
 til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self);
+void til_CfVec2_delete(til_CfVec2* _self);
+til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self);
 
 #include <ext.c>
 
@@ -281,7 +286,7 @@ void til_panic(const til_Str* til_Str_loc_str, const til_Str* til_Str_msg, til_A
         til_I64 _tmp_panic_0 = til_Array_len(til_Array_extra_msgs);
         if (!(til_I64_lt(&_for_i_panic_0, &_tmp_panic_0).data)) break;
         til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp_panic_1;
-        til_Ptr _tmp_panic_2 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+        til_Ptr _tmp_panic_2 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
         til_Str_extra_msg = (til_Str){.c_string = _tmp_panic_2, ._len = 0, .cap = 0};
         til_IndexOutOfBoundsError _err0__tmp_panic_3 = {};
         int __attribute__((unused)) _status__tmp_panic_3 = til_Array_get(&_err0__tmp_panic_3, til_Array_extra_msgs, &_for_i_panic_0, (til_Dynamic*)&til_Str_extra_msg);
@@ -294,14 +299,14 @@ void til_panic(const til_Str* til_Str_loc_str, const til_Str* til_Str_msg, til_A
             til_I64 _tmp_panic_7 = 0;
             _tmp_panic_4 = til_Array_new(_tmp_panic_6, &_tmp_panic_7);
             int __attribute__((unused)) _arr_status__tmp_panic_5;
-            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/exit.til:13:5:", 1}), 23, 0}), &_err_forin_0.msg, &_tmp_panic_4);
+            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/exit.til:13:5:", 1, 0, 0, 0}), 23, 0}), &_err_forin_0.msg, &_tmp_panic_4);
             til_Array_delete(&_tmp_panic_4);
         }
         til_single_print(&til_Str_extra_msg);
         til_I64 _tmp_panic_8 = 1;
         _for_i_panic_0 = til_I64_add(&_for_i_panic_0, &_tmp_panic_8);
     }
-    til_single_print(&((til_Str){((til_Ptr){(til_I64)"\n", 1}), 1, 0}));
+    til_single_print(&((til_Str){((til_Ptr){(til_I64)"\n", 1, 0, 0, 0}), 1, 0}));
     til_print_flush();
     til_I64 _tmp_panic_9 = 1;
     til_exit(&_tmp_panic_9);
@@ -319,7 +324,7 @@ void til_assertm(const til_Str* til_Str_loc_str, const til_Bool* til_Bool_cond, 
         int __attribute__((unused)) _arr_status__tmp_assertm_2;
         til_I64 _tmp_assertm_6 = 0;
         _arr_status__tmp_assertm_2 = til_Array_set(&_err_idx__tmp_assertm_2, &_tmp_assertm_1, &_tmp_assertm_6, (til_Dynamic*)&_tmp_assertm_3);
-        _tmp_assertm_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"assert failed: ", 1}), 15, 0}), &_tmp_assertm_1);
+        _tmp_assertm_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"assert failed: ", 1, 0, 0, 0}), 15, 0}), &_tmp_assertm_1);
         til_Array_delete(&_tmp_assertm_1);
         til_Array _tmp_assertm_7;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_assertm_8;
@@ -339,7 +344,7 @@ void til_println(til_Array* til_Array_args) {
         til_I64 _tmp_println_0 = til_Array_len(til_Array_args);
         if (!(til_I64_lt(&_for_i_println_0, &_tmp_println_0).data)) break;
         til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp_println_1;
-        til_Ptr _tmp_println_2 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+        til_Ptr _tmp_println_2 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
         til_Str_print_arg = (til_Str){.c_string = _tmp_println_2, ._len = 0, .cap = 0};
         til_IndexOutOfBoundsError _err0__tmp_println_3 = {};
         int __attribute__((unused)) _status__tmp_println_3 = til_Array_get(&_err0__tmp_println_3, til_Array_args, &_for_i_println_0, (til_Dynamic*)&til_Str_print_arg);
@@ -352,14 +357,14 @@ void til_println(til_Array* til_Array_args) {
             til_I64 _tmp_println_7 = 0;
             _tmp_println_4 = til_Array_new(_tmp_println_6, &_tmp_println_7);
             int __attribute__((unused)) _arr_status__tmp_println_5;
-            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/print.til:16:5:", 1}), 24, 0}), &_err_forin_0.msg, &_tmp_println_4);
+            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/print.til:16:5:", 1, 0, 0, 0}), 24, 0}), &_err_forin_0.msg, &_tmp_println_4);
             til_Array_delete(&_tmp_println_4);
         }
         til_single_print(&til_Str_print_arg);
         til_I64 _tmp_println_8 = 1;
         _for_i_println_0 = til_I64_add(&_for_i_println_0, &_tmp_println_8);
     }
-    til_single_print(&((til_Str){((til_Ptr){(til_I64)"\n", 1}), 1, 0}));
+    til_single_print(&((til_Str){((til_Ptr){(til_I64)"\n", 1, 0, 0, 0}), 1, 0}));
     til_print_flush();
 }
 
@@ -369,9 +374,9 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, const til_St
         til_Str _tmp_get_substr_1;
         til_Array _tmp_get_substr_2;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_get_substr_3;
-        til_Str _tmp_get_substr_4 = ((til_Str){((til_Ptr){(til_I64)"get_substr: start index ", 1}), 24, 0});
+        til_Str _tmp_get_substr_4 = ((til_Str){((til_Ptr){(til_I64)"get_substr: start index ", 1, 0, 0, 0}), 24, 0});
         til_Str _tmp_get_substr_5 = til_I64_to_str(til_I64_start);
-        til_Str _tmp_get_substr_6 = ((til_Str){((til_Ptr){(til_I64)" cannot be negative", 1}), 19, 0});
+        til_Str _tmp_get_substr_6 = ((til_Str){((til_Ptr){(til_I64)" cannot be negative", 1, 0, 0, 0}), 19, 0});
         til_Type _tmp_get_substr_7 = "Str";
         til_I64 _tmp_get_substr_8 = 3;
         _tmp_get_substr_2 = til_Array_new(_tmp_get_substr_7, &_tmp_get_substr_8);
@@ -382,7 +387,7 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, const til_St
         _arr_status__tmp_get_substr_3 = til_Array_set(&_err_idx__tmp_get_substr_3, &_tmp_get_substr_2, &_tmp_get_substr_10, (til_Dynamic*)&_tmp_get_substr_5);
         til_I64 _tmp_get_substr_11 = 2;
         _arr_status__tmp_get_substr_3 = til_Array_set(&_err_idx__tmp_get_substr_3, &_tmp_get_substr_2, &_tmp_get_substr_11, (til_Dynamic*)&_tmp_get_substr_6);
-        _tmp_get_substr_1 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:560:48:", 1}), 24, 0}), &_tmp_get_substr_2);
+        _tmp_get_substr_1 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:560:48:", 1, 0, 0, 0}), 24, 0}), &_tmp_get_substr_2);
         til_Array_delete(&_tmp_get_substr_2);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_get_substr_1};
         return 1;
@@ -392,9 +397,9 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, const til_St
         til_Str _tmp_get_substr_13;
         til_Array _tmp_get_substr_14;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_get_substr_15;
-        til_Str _tmp_get_substr_16 = ((til_Str){((til_Ptr){(til_I64)"get_substr: end index ", 1}), 22, 0});
+        til_Str _tmp_get_substr_16 = ((til_Str){((til_Ptr){(til_I64)"get_substr: end index ", 1, 0, 0, 0}), 22, 0});
         til_Str _tmp_get_substr_17 = til_I64_to_str(til_I64_end);
-        til_Str _tmp_get_substr_18 = ((til_Str){((til_Ptr){(til_I64)" cannot be negative", 1}), 19, 0});
+        til_Str _tmp_get_substr_18 = ((til_Str){((til_Ptr){(til_I64)" cannot be negative", 1, 0, 0, 0}), 19, 0});
         til_Type _tmp_get_substr_19 = "Str";
         til_I64 _tmp_get_substr_20 = 3;
         _tmp_get_substr_14 = til_Array_new(_tmp_get_substr_19, &_tmp_get_substr_20);
@@ -405,7 +410,7 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, const til_St
         _arr_status__tmp_get_substr_15 = til_Array_set(&_err_idx__tmp_get_substr_15, &_tmp_get_substr_14, &_tmp_get_substr_22, (til_Dynamic*)&_tmp_get_substr_17);
         til_I64 _tmp_get_substr_23 = 2;
         _arr_status__tmp_get_substr_15 = til_Array_set(&_err_idx__tmp_get_substr_15, &_tmp_get_substr_14, &_tmp_get_substr_23, (til_Dynamic*)&_tmp_get_substr_18);
-        _tmp_get_substr_13 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:563:48:", 1}), 24, 0}), &_tmp_get_substr_14);
+        _tmp_get_substr_13 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:563:48:", 1, 0, 0, 0}), 24, 0}), &_tmp_get_substr_14);
         til_Array_delete(&_tmp_get_substr_14);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_get_substr_13};
         return 1;
@@ -414,9 +419,9 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, const til_St
         til_Str _tmp_get_substr_24;
         til_Array _tmp_get_substr_25;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_get_substr_26;
-        til_Str _tmp_get_substr_27 = ((til_Str){((til_Ptr){(til_I64)"get_substr: start index ", 1}), 24, 0});
+        til_Str _tmp_get_substr_27 = ((til_Str){((til_Ptr){(til_I64)"get_substr: start index ", 1, 0, 0, 0}), 24, 0});
         til_Str _tmp_get_substr_28 = til_I64_to_str(til_I64_start);
-        til_Str _tmp_get_substr_29 = ((til_Str){((til_Ptr){(til_I64)" is greater than end index ", 1}), 27, 0});
+        til_Str _tmp_get_substr_29 = ((til_Str){((til_Ptr){(til_I64)" is greater than end index ", 1, 0, 0, 0}), 27, 0});
         til_Str _tmp_get_substr_30 = til_I64_to_str(til_I64_end);
         til_Type _tmp_get_substr_31 = "Str";
         til_I64 _tmp_get_substr_32 = 4;
@@ -430,7 +435,7 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, const til_St
         _arr_status__tmp_get_substr_26 = til_Array_set(&_err_idx__tmp_get_substr_26, &_tmp_get_substr_25, &_tmp_get_substr_35, (til_Dynamic*)&_tmp_get_substr_29);
         til_I64 _tmp_get_substr_36 = 3;
         _arr_status__tmp_get_substr_26 = til_Array_set(&_err_idx__tmp_get_substr_26, &_tmp_get_substr_25, &_tmp_get_substr_36, (til_Dynamic*)&_tmp_get_substr_30);
-        _tmp_get_substr_24 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:566:48:", 1}), 24, 0}), &_tmp_get_substr_25);
+        _tmp_get_substr_24 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:566:48:", 1, 0, 0, 0}), 24, 0}), &_tmp_get_substr_25);
         til_Array_delete(&_tmp_get_substr_25);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_get_substr_24};
         return 1;
@@ -441,9 +446,9 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, const til_St
         til_Str _tmp_get_substr_39;
         til_Array _tmp_get_substr_40;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_get_substr_41;
-        til_Str _tmp_get_substr_42 = ((til_Str){((til_Ptr){(til_I64)"get_substr: end index ", 1}), 22, 0});
+        til_Str _tmp_get_substr_42 = ((til_Str){((til_Ptr){(til_I64)"get_substr: end index ", 1, 0, 0, 0}), 22, 0});
         til_Str _tmp_get_substr_43 = til_I64_to_str(til_I64_end);
-        til_Str _tmp_get_substr_44 = ((til_Str){((til_Ptr){(til_I64)" is greater than string length ", 1}), 31, 0});
+        til_Str _tmp_get_substr_44 = ((til_Str){((til_Ptr){(til_I64)" is greater than string length ", 1, 0, 0, 0}), 31, 0});
         til_Str _tmp_get_substr_45 = til_I64_to_str(&_tmp_get_substr_38);
         til_Type _tmp_get_substr_46 = "Str";
         til_I64 _tmp_get_substr_47 = 4;
@@ -457,16 +462,16 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, const til_St
         _arr_status__tmp_get_substr_41 = til_Array_set(&_err_idx__tmp_get_substr_41, &_tmp_get_substr_40, &_tmp_get_substr_50, (til_Dynamic*)&_tmp_get_substr_44);
         til_I64 _tmp_get_substr_51 = 3;
         _arr_status__tmp_get_substr_41 = til_Array_set(&_err_idx__tmp_get_substr_41, &_tmp_get_substr_40, &_tmp_get_substr_51, (til_Dynamic*)&_tmp_get_substr_45);
-        _tmp_get_substr_39 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:569:48:", 1}), 24, 0}), &_tmp_get_substr_40);
+        _tmp_get_substr_39 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:569:48:", 1, 0, 0, 0}), 24, 0}), &_tmp_get_substr_40);
         til_Array_delete(&_tmp_get_substr_40);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_get_substr_39};
         return 1;
     }
     if (til_I64_eq(til_I64_start, til_I64_end).data) {
-        *_ret = ((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0});
+        *_ret = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
         return 0;
     }
-    til_Ptr _tmp_get_substr_52 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr _tmp_get_substr_52 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Str til_Str_substr = {.c_string = _tmp_get_substr_52, ._len = 0, .cap = 0};
     til_Str_substr._len = til_I64_sub(til_I64_end, til_I64_start);
     til_I64 _tmp_get_substr_53 = 1;
@@ -485,7 +490,7 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, const til_St
 }
 
 til_Str til_concat(const til_Str* til_Str_a, const til_Str* til_Str_b) {
-    til_Ptr _tmp_concat_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr _tmp_concat_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Str til_Str_result = {.c_string = _tmp_concat_0, ._len = 0, .cap = 0};
     til_Str_result._len = til_I64_add(&til_Str_a->_len, &til_Str_b->_len);
     if (til_I64_lt(&til_Str_result._len, &til_Str_a->_len).data) {
@@ -495,7 +500,7 @@ til_Str til_concat(const til_Str* til_Str_a, const til_Str* til_Str_b) {
         til_I64 _tmp_concat_4 = 0;
         _tmp_concat_1 = til_Array_new(_tmp_concat_3, &_tmp_concat_4);
         int __attribute__((unused)) _arr_status__tmp_concat_2;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:666:15:", 1}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"concat: integer overflow", 1}), 24, 0}), &_tmp_concat_1);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:666:15:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"concat: integer overflow", 1, 0, 0, 0}), 24, 0}), &_tmp_concat_1);
         til_Array_delete(&_tmp_concat_1);
     }
     til_I64 _tmp_concat_5 = 1;
@@ -515,7 +520,7 @@ til_Str til_concat(const til_Str* til_Str_a, const til_Str* til_Str_b) {
 
 til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
     til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp_format_0;
-    til_Ptr _tmp_format_1 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr _tmp_format_1 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Str til_Str_result = {.c_string = _tmp_format_1, ._len = 0, .cap = 0};
     til_Str_result._len = til_Str_prefix->_len;
     til_I64 til_I64_i = 0;
@@ -526,7 +531,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
         while (1) {
             til_I64 _tmp_format_4 = til_Array_len(til_Array_args);
             if (!(til_I64_lt(&til_I64_i, &_tmp_format_4).data)) break;
-            til_Str_arg = ((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0});
+            til_Str_arg = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
             til_IndexOutOfBoundsError _err0__tmp_format_5 = {};
             int __attribute__((unused)) _status__tmp_format_5 = til_Array_get(&_err0__tmp_format_5, til_Array_args, &til_I64_i, (til_Dynamic*)&til_Str_arg);
             til_Str_result._len = til_I64_add(&til_Str_result._len, &til_Str_arg._len);
@@ -537,7 +542,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
                 til_I64 _tmp_format_9 = 0;
                 _tmp_format_6 = til_Array_new(_tmp_format_8, &_tmp_format_9);
                 int __attribute__((unused)) _arr_status__tmp_format_7;
-                til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:692:19:", 1}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"format: integer overflow while summing cap", 1}), 42, 0}), &_tmp_format_6);
+                til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:692:19:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"format: integer overflow while summing cap", 1, 0, 0, 0}), 42, 0}), &_tmp_format_6);
                 til_Array_delete(&_tmp_format_6);
             }
             til_I64_inc(&til_I64_i);
@@ -546,7 +551,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
         while (1) {
             til_I64 _tmp_format_10 = til_Array_len(til_Array_args);
             if (!(til_I64_gt(&til_I64_i, &_tmp_format_10).data)) break;
-            til_Str_arg = ((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0});
+            til_Str_arg = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
             til_IndexOutOfBoundsError _err0__tmp_format_11 = {};
             int __attribute__((unused)) _status__tmp_format_11 = til_Array_get(&_err0__tmp_format_11, til_Array_args, &til_I64_i, (til_Dynamic*)&til_Str_arg);
             til_Str_result._len = til_I64_add(&til_Str_result._len, &til_Str_arg._len);
@@ -557,7 +562,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
                 til_I64 _tmp_format_15 = 0;
                 _tmp_format_12 = til_Array_new(_tmp_format_14, &_tmp_format_15);
                 int __attribute__((unused)) _arr_status__tmp_format_13;
-                til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:692:19:", 1}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"format: integer overflow while summing cap", 1}), 42, 0}), &_tmp_format_12);
+                til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:692:19:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"format: integer overflow while summing cap", 1, 0, 0, 0}), 42, 0}), &_tmp_format_12);
                 til_Array_delete(&_tmp_format_12);
             }
             til_I64_dec(&til_I64_i);
@@ -576,7 +581,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
         til_I64 _tmp_format_17 = til_Array_len(til_Array_args);
         if (!(til_I64_lt(&_for_i_format_0, &_tmp_format_17).data)) break;
         til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp_format_18;
-        til_Ptr _tmp_format_19 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+        til_Ptr _tmp_format_19 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
         til_Str_s = (til_Str){.c_string = _tmp_format_19, ._len = 0, .cap = 0};
         til_IndexOutOfBoundsError _err0__tmp_format_20 = {};
         int __attribute__((unused)) _status__tmp_format_20 = til_Array_get(&_err0__tmp_format_20, til_Array_args, &_for_i_format_0, (til_Dynamic*)&til_Str_s);
@@ -589,7 +594,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
             til_I64 _tmp_format_24 = 0;
             _tmp_format_21 = til_Array_new(_tmp_format_23, &_tmp_format_24);
             int __attribute__((unused)) _arr_status__tmp_format_22;
-            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:704:5:", 1}), 23, 0}), &_err_forin_0.msg, &_tmp_format_21);
+            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:704:5:", 1, 0, 0, 0}), 23, 0}), &_err_forin_0.msg, &_tmp_format_21);
             til_Array_delete(&_tmp_format_21);
         }
         til_I64 _tmp_format_25 = til_Ptr_offset(&til_Str_result.c_string, &til_I64_fmt_offset).data;
@@ -610,7 +615,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
         til_I64 _tmp_format_32 = 0;
         _tmp_format_29 = til_Array_new(_tmp_format_31, &_tmp_format_32);
         int __attribute__((unused)) _arr_status__tmp_format_30;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:714:15:", 1}), 24, 0}), &til_IndexOutOfBoundsError_err.msg, &_tmp_format_29);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:714:15:", 1, 0, 0, 0}), 24, 0}), &til_IndexOutOfBoundsError_err.msg, &_tmp_format_29);
         til_Array_delete(&_tmp_format_29);
     }
     return til_Str_result;
@@ -627,11 +632,11 @@ void til_assert_eq(const til_Str* til_Str_loc_str, const til_I64* til_I64_a, con
         til_Array _tmp_assert_eq_1;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_assert_eq_2;
         til_Str _tmp_assert_eq_3 = (*til_Str_loc_str);
-        til_Str _tmp_assert_eq_4 = ((til_Str){((til_Ptr){(til_I64)"assert_eq failed: expected '", 1}), 28, 0});
+        til_Str _tmp_assert_eq_4 = ((til_Str){((til_Ptr){(til_I64)"assert_eq failed: expected '", 1, 0, 0, 0}), 28, 0});
         til_Str _tmp_assert_eq_5 = til_I64_to_str(til_I64_a);
-        til_Str _tmp_assert_eq_6 = ((til_Str){((til_Ptr){(til_I64)"', found '", 1}), 10, 0});
+        til_Str _tmp_assert_eq_6 = ((til_Str){((til_Ptr){(til_I64)"', found '", 1, 0, 0, 0}), 10, 0});
         til_Str _tmp_assert_eq_7 = til_I64_to_str(til_I64_b);
-        til_Str _tmp_assert_eq_8 = ((til_Str){((til_Ptr){(til_I64)"'", 1}), 1, 0});
+        til_Str _tmp_assert_eq_8 = ((til_Str){((til_Ptr){(til_I64)"'", 1, 0, 0, 0}), 1, 0});
         til_Type _tmp_assert_eq_9 = "Str";
         til_I64 _tmp_assert_eq_10 = 6;
         _tmp_assert_eq_1 = til_Array_new(_tmp_assert_eq_9, &_tmp_assert_eq_10);
@@ -661,7 +666,7 @@ void til_test_simple_add(void) {
     const til_I64 til_I64_result = til_I64_add(&_tmp_test_simple_add_0, &_tmp_test_simple_add_1);
     til_I64 _tmp_test_simple_add_2 = 3;
     til_Bool _tmp_test_simple_add_3 = til_I64_eq(&til_I64_result, &_tmp_test_simple_add_2);
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:8:10:", 1}), 28, 0}), &_tmp_test_simple_add_3, &((til_Str){((til_Ptr){(til_I64)"add(1, 2) should be 3", 1}), 21, 0}));
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:8:10:", 1, 0, 0, 0}), 28, 0}), &_tmp_test_simple_add_3, &((til_Str){((til_Ptr){(til_I64)"add(1, 2) should be 3", 1, 0, 0, 0}), 21, 0}));
 }
 
 void til_test_nested_arithmetic(void) {
@@ -674,7 +679,7 @@ void til_test_nested_arithmetic(void) {
     const til_I64 til_I64_result = til_I64_mul(&_tmp_test_nested_arithmetic_2, &_tmp_test_nested_arithmetic_5);
     til_I64 _tmp_test_nested_arithmetic_6 = 15;
     til_Bool _tmp_test_nested_arithmetic_7 = til_I64_eq(&til_I64_result, &_tmp_test_nested_arithmetic_6);
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:15:10:", 1}), 29, 0}), &_tmp_test_nested_arithmetic_7, &((til_Str){((til_Ptr){(til_I64)"mul(add(1, 2), sub(10, 5)) should be 15", 1}), 39, 0}));
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:15:10:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_nested_arithmetic_7, &((til_Str){((til_Ptr){(til_I64)"mul(add(1, 2), sub(10, 5)) should be 15", 1, 0, 0, 0}), 39, 0}));
 }
 
 void til_test_deeply_nested(void) {
@@ -687,13 +692,13 @@ void til_test_deeply_nested(void) {
     const til_I64 til_I64_result = til_I64_add(&_tmp_test_deeply_nested_2, &_tmp_test_deeply_nested_5);
     til_I64 _tmp_test_deeply_nested_6 = 26;
     til_Bool _tmp_test_deeply_nested_7 = til_I64_eq(&til_I64_result, &_tmp_test_deeply_nested_6);
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:22:10:", 1}), 29, 0}), &_tmp_test_deeply_nested_7, &((til_Str){((til_Ptr){(til_I64)"add(mul(2, 3), mul(4, 5)) should be 26", 1}), 38, 0}));
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:22:10:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_deeply_nested_7, &((til_Str){((til_Ptr){(til_I64)"add(mul(2, 3), mul(4, 5)) should be 26", 1, 0, 0, 0}), 38, 0}));
 }
 
 void til_test_string_concat(void) {
-    const til_Str til_Str_result = til_concat(&((til_Str){((til_Ptr){(til_I64)"hello", 1}), 5, 0}), &((til_Str){((til_Ptr){(til_I64)" world", 1}), 6, 0}));
-    til_Bool _tmp_test_string_concat_0 = til_Str_eq(&til_Str_result, &((til_Str){((til_Ptr){(til_I64)"hello world", 1}), 11, 0}));
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:29:10:", 1}), 29, 0}), &_tmp_test_string_concat_0, &((til_Str){((til_Ptr){(til_I64)"concat is folded at compile time", 1}), 32, 0}));
+    const til_Str til_Str_result = til_concat(&((til_Str){((til_Ptr){(til_I64)"hello", 1, 0, 0, 0}), 5, 0}), &((til_Str){((til_Ptr){(til_I64)" world", 1, 0, 0, 0}), 6, 0}));
+    til_Bool _tmp_test_string_concat_0 = til_Str_eq(&til_Str_result, &((til_Str){((til_Ptr){(til_I64)"hello world", 1, 0, 0, 0}), 11, 0}));
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:29:10:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_string_concat_0, &((til_Str){((til_Ptr){(til_I64)"concat is folded at compile time", 1, 0, 0, 0}), 32, 0}));
 }
 
 void til_test_fold_variable(void) {
@@ -702,23 +707,23 @@ void til_test_fold_variable(void) {
     const til_I64 til_I64_result = til_I64_add(&til_I64_x, &_tmp_test_fold_variable_0);
     til_I64 _tmp_test_fold_variable_1 = 8;
     til_Bool _tmp_test_fold_variable_2 = til_I64_eq(&til_I64_result, &_tmp_test_fold_variable_1);
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:38:10:", 1}), 29, 0}), &_tmp_test_fold_variable_2, &((til_Str){((til_Ptr){(til_I64)"add(x, 3) should fold to 8", 1}), 26, 0}));
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:38:10:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_fold_variable_2, &((til_Str){((til_Ptr){(til_I64)"add(x, 3) should fold to 8", 1, 0, 0, 0}), 26, 0}));
 }
 
 void til_test_loc_folded_correctly(void) {
-    const til_Str til_Str_location = ((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:44:17:", 1}), 29, 0});
-    til_Bool _tmp_test_loc_folded_correctly_0 = til_Str_contains(&til_Str_location, &((til_Str){((til_Ptr){(til_I64)"constfold.til", 1}), 13, 0}));
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:45:10:", 1}), 29, 0}), &_tmp_test_loc_folded_correctly_0, &((til_Str){((til_Ptr){(til_I64)"loc() should contain filename", 1}), 29, 0}));
-    til_Bool _tmp_test_loc_folded_correctly_1 = til_Str_contains(&til_Str_location, &((til_Str){((til_Ptr){(til_I64)":44:", 1}), 4, 0}));
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:46:10:", 1}), 29, 0}), &_tmp_test_loc_folded_correctly_1, &((til_Str){((til_Ptr){(til_I64)"loc() should contain correct line number", 1}), 40, 0}));
+    const til_Str til_Str_location = ((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:44:17:", 1, 0, 0, 0}), 29, 0});
+    til_Bool _tmp_test_loc_folded_correctly_0 = til_Str_contains(&til_Str_location, &((til_Str){((til_Ptr){(til_I64)"constfold.til", 1, 0, 0, 0}), 13, 0}));
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:45:10:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_loc_folded_correctly_0, &((til_Str){((til_Ptr){(til_I64)"loc() should contain filename", 1, 0, 0, 0}), 29, 0}));
+    til_Bool _tmp_test_loc_folded_correctly_1 = til_Str_contains(&til_Str_location, &((til_Str){((til_Ptr){(til_I64)":44:", 1, 0, 0, 0}), 4, 0}));
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:46:10:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_loc_folded_correctly_1, &((til_Str){((til_Ptr){(til_I64)"loc() should contain correct line number", 1, 0, 0, 0}), 40, 0}));
 }
 
 void til_test_struct_fold_simple(void) {
     const til_CfVec2 til_CfVec2_v = til_CfVec2_magic();
     til_I64 _tmp_test_struct_fold_simple_0 = 42;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:73:15:", 1}), 29, 0}), &_tmp_test_struct_fold_simple_0, &til_CfVec2_v.x);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:73:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_simple_0, &til_CfVec2_v.x);
     til_I64 _tmp_test_struct_fold_simple_1 = 99;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:74:15:", 1}), 29, 0}), &_tmp_test_struct_fold_simple_1, &til_CfVec2_v.y);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:74:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_simple_1, &til_CfVec2_v.y);
 }
 
 void til_test_struct_fold_values(void) {
@@ -726,21 +731,21 @@ void til_test_struct_fold_values(void) {
     til_I64 _tmp_test_struct_fold_values_1 = 20;
     const til_CfVec2 til_CfVec2_p = til_CfVec2_at(&_tmp_test_struct_fold_values_0, &_tmp_test_struct_fold_values_1);
     til_I64 _tmp_test_struct_fold_values_2 = 10;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:81:15:", 1}), 29, 0}), &_tmp_test_struct_fold_values_2, &til_CfVec2_p.x);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:81:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_values_2, &til_CfVec2_p.x);
     til_I64 _tmp_test_struct_fold_values_3 = 20;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:82:15:", 1}), 29, 0}), &_tmp_test_struct_fold_values_3, &til_CfVec2_p.y);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:82:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_values_3, &til_CfVec2_p.y);
 }
 
 void til_test_struct_fold_nested(void) {
     const til_CfRect til_CfRect_r = til_CfRect_sample();
     til_I64 _tmp_test_struct_fold_nested_0 = 5;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:101:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_0, &til_CfRect_r.top_left.x);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:101:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_0, &til_CfRect_r.top_left.x);
     til_I64 _tmp_test_struct_fold_nested_1 = 10;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:102:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_1, &til_CfRect_r.top_left.y);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:102:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_1, &til_CfRect_r.top_left.y);
     til_I64 _tmp_test_struct_fold_nested_2 = 100;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:103:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_2, &til_CfRect_r.bottom_right.x);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:103:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_2, &til_CfRect_r.bottom_right.x);
     til_I64 _tmp_test_struct_fold_nested_3 = 200;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:104:15:", 1}), 30, 0}), &_tmp_test_struct_fold_nested_3, &til_CfRect_r.bottom_right.y);
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:104:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_3, &til_CfRect_r.bottom_right.y);
 }
 
 void til_IndexOutOfBoundsError_delete(til_IndexOutOfBoundsError* til_IndexOutOfBoundsError_self) {
@@ -764,9 +769,9 @@ til_I64 til_Array_size(const til_Array* til_Array_self) {
 
 til_Array til_Array_new(til_Type til_Type_T, const til_I64* til_I64_capacity) {
     til_BadAlloc _thrown_BadAlloc__tmp_til_Array_new_0;
-    til_Array til_Array_arr = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0}), .type_size = 0, .ptr = 0, ._len = 0};
-    til_Array_arr.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1}), strlen(til_Type_T), 0});
-    til_Array_arr.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1}), strlen(til_Type_T), 0}));
+    til_Array til_Array_arr = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}), .type_size = 0, .ptr = 0, ._len = 0};
+    til_Array_arr.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0});
+    til_Array_arr.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
     const til_I64 til_I64_size_bytes = til_I64_mul(til_I64_capacity, &til_Array_arr.type_size);
     til_I64 _ret__tmp_til_Array_new_1;
     int __attribute__((unused)) _status__tmp_til_Array_new_1 = til_malloc(&_ret__tmp_til_Array_new_1, &til_I64_size_bytes);
@@ -780,7 +785,7 @@ til_Array til_Array_new(til_Type til_Type_T, const til_I64* til_I64_capacity) {
         til_I64 _tmp_til_Array_new_5 = 0;
         _tmp_til_Array_new_2 = til_Array_new(_tmp_til_Array_new_4, &_tmp_til_Array_new_5);
         int __attribute__((unused)) _arr_status__tmp_til_Array_new_3;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:35:39:", 1}), 25, 0}), &((til_Str){((til_Ptr){(til_I64)"Array.new: malloc failed", 1}), 24, 0}), &_tmp_til_Array_new_2);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:35:39:", 1, 0, 0, 0}), 25, 0}), &((til_Str){((til_Ptr){(til_I64)"Array.new: malloc failed", 1, 0, 0, 0}), 24, 0}), &_tmp_til_Array_new_2);
         til_Array_delete(&_tmp_til_Array_new_2);
     }
     const til_U8 til_U8_zero = 0;
@@ -795,14 +800,14 @@ int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array* til_Array_s
         til_Str _tmp_til_Array_get_0;
         til_Array _tmp_til_Array_get_1;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Array_get_2;
-        til_Str _tmp_til_Array_get_3 = ((til_Str){((til_Ptr){(til_I64)"Array.get: index out of bounds", 1}), 30, 0});
+        til_Str _tmp_til_Array_get_3 = ((til_Str){((til_Ptr){(til_I64)"Array.get: index out of bounds", 1, 0, 0, 0}), 30, 0});
         til_Type _tmp_til_Array_get_4 = "Str";
         til_I64 _tmp_til_Array_get_5 = 1;
         _tmp_til_Array_get_1 = til_Array_new(_tmp_til_Array_get_4, &_tmp_til_Array_get_5);
         int __attribute__((unused)) _arr_status__tmp_til_Array_get_2;
         til_I64 _tmp_til_Array_get_6 = 0;
         _arr_status__tmp_til_Array_get_2 = til_Array_set(&_err_idx__tmp_til_Array_get_2, &_tmp_til_Array_get_1, &_tmp_til_Array_get_6, (til_Dynamic*)&_tmp_til_Array_get_3);
-        _tmp_til_Array_get_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:45:52:", 1}), 25, 0}), &_tmp_til_Array_get_1);
+        _tmp_til_Array_get_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:45:52:", 1, 0, 0, 0}), 25, 0}), &_tmp_til_Array_get_1);
         til_Array_delete(&_tmp_til_Array_get_1);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Array_get_0};
         return 1;
@@ -819,14 +824,14 @@ int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_Array_self, c
         til_Str _tmp_til_Array_set_0;
         til_Array _tmp_til_Array_set_1;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Array_set_2;
-        til_Str _tmp_til_Array_set_3 = ((til_Str){((til_Ptr){(til_I64)"Array.set: index out of bounds", 1}), 30, 0});
+        til_Str _tmp_til_Array_set_3 = ((til_Str){((til_Ptr){(til_I64)"Array.set: index out of bounds", 1, 0, 0, 0}), 30, 0});
         til_Type _tmp_til_Array_set_4 = "Str";
         til_I64 _tmp_til_Array_set_5 = 1;
         _tmp_til_Array_set_1 = til_Array_new(_tmp_til_Array_set_4, &_tmp_til_Array_set_5);
         int __attribute__((unused)) _arr_status__tmp_til_Array_set_2;
         til_I64 _tmp_til_Array_set_6 = 0;
         _arr_status__tmp_til_Array_set_2 = til_Array_set(&_err_idx__tmp_til_Array_set_2, &_tmp_til_Array_set_1, &_tmp_til_Array_set_6, (til_Dynamic*)&_tmp_til_Array_set_3);
-        _tmp_til_Array_set_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:60:52:", 1}), 25, 0}), &_tmp_til_Array_set_1);
+        _tmp_til_Array_set_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:60:52:", 1, 0, 0, 0}), 25, 0}), &_tmp_til_Array_set_1);
         til_Array_delete(&_tmp_til_Array_set_1);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Array_set_0};
         return 1;
@@ -846,7 +851,7 @@ void til_Array_delete(til_Array* til_Array_self) {
 
 til_Array til_Array_clone(const til_Array* til_Array_self) {
     til_BadAlloc _thrown_BadAlloc__tmp_til_Array_clone_0;
-    til_Array til_Array_cloned = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0}), .type_size = 0, .ptr = 0, ._len = 0};
+    til_Array til_Array_cloned = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}), .type_size = 0, .ptr = 0, ._len = 0};
     til_Array_cloned.type_name = til_Array_self->type_name;
     til_Array_cloned.type_size = til_Array_self->type_size;
     til_Array_cloned._len = til_Array_self->_len;
@@ -863,7 +868,7 @@ til_Array til_Array_clone(const til_Array* til_Array_self) {
         til_I64 _tmp_til_Array_clone_5 = 0;
         _tmp_til_Array_clone_2 = til_Array_new(_tmp_til_Array_clone_4, &_tmp_til_Array_clone_5);
         int __attribute__((unused)) _arr_status__tmp_til_Array_clone_3;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:86:39:", 1}), 25, 0}), &((til_Str){((til_Ptr){(til_I64)"Array.clone: malloc failed", 1}), 26, 0}), &_tmp_til_Array_clone_2);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:86:39:", 1, 0, 0, 0}), 25, 0}), &((til_Str){((til_Ptr){(til_I64)"Array.clone: malloc failed", 1, 0, 0, 0}), 26, 0}), &_tmp_til_Array_clone_2);
         til_Array_delete(&_tmp_til_Array_clone_2);
     }
     til_memcpy(&til_Array_cloned.ptr, &til_Array_self->ptr, &til_I64_total_bytes);
@@ -878,7 +883,7 @@ til_Bool til_Array_contains(const til_Array* til_Array_self, const til_Str* til_
         til_I64 _tmp_til_Array_contains_0 = til_Array_len(til_Array_self);
         if (!(til_I64_lt(&_for_i_0, &_tmp_til_Array_contains_0).data)) break;
         til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp_til_Array_contains_1;
-        til_Ptr _tmp_til_Array_contains_2 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+        til_Ptr _tmp_til_Array_contains_2 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
         til_Str_elem = (til_Str){.c_string = _tmp_til_Array_contains_2, ._len = 0, .cap = 0};
         til_IndexOutOfBoundsError _err0__tmp_til_Array_contains_3 = {};
         int __attribute__((unused)) _status__tmp_til_Array_contains_3 = til_Array_get(&_err0__tmp_til_Array_contains_3, til_Array_self, &_for_i_0, (til_Dynamic*)&til_Str_elem);
@@ -891,7 +896,7 @@ til_Bool til_Array_contains(const til_Array* til_Array_self, const til_Str* til_
             til_I64 _tmp_til_Array_contains_7 = 0;
             _tmp_til_Array_contains_4 = til_Array_new(_tmp_til_Array_contains_6, &_tmp_til_Array_contains_7);
             int __attribute__((unused)) _arr_status__tmp_til_Array_contains_5;
-            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:93:9:", 1}), 24, 0}), &_err_forin_0.msg, &_tmp_til_Array_contains_4);
+            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:93:9:", 1, 0, 0, 0}), 24, 0}), &_err_forin_0.msg, &_tmp_til_Array_contains_4);
             til_Array_delete(&_tmp_til_Array_contains_4);
         }
         if (til_Str_eq(&til_Str_elem, til_Str_value).data) {
@@ -936,9 +941,9 @@ til_Bool til_Bool_or(const til_Bool* til_Bool_self, const til_Bool* til_Bool_oth
 
 til_Str til_Bool_to_str(const til_Bool* til_Bool_self) {
     if ((*til_Bool_self).data) {
-        return ((til_Str){((til_Ptr){(til_I64)"true", 1}), 4, 0});
+        return ((til_Str){((til_Ptr){(til_I64)"true", 1, 0, 0, 0}), 4, 0});
     }
-    return ((til_Str){((til_Ptr){(til_I64)"false", 1}), 5, 0});
+    return ((til_Str){((til_Ptr){(til_I64)"false", 1, 0, 0, 0}), 5, 0});
     return (til_Str){0};
 }
 
@@ -996,9 +1001,9 @@ int til_I64_safe_add(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             til_Str _tmp_til_I64_safe_add_1;
             til_Array _tmp_til_I64_safe_add_2;
             til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_I64_safe_add_3;
-            til_Str _tmp_til_I64_safe_add_4 = ((til_Str){((til_Ptr){(til_I64)"I64 overflow: ", 1}), 14, 0});
+            til_Str _tmp_til_I64_safe_add_4 = ((til_Str){((til_Ptr){(til_I64)"I64 overflow: ", 1, 0, 0, 0}), 14, 0});
             til_Str _tmp_til_I64_safe_add_5 = til_I64_to_str(til_I64_a);
-            til_Str _tmp_til_I64_safe_add_6 = ((til_Str){((til_Ptr){(til_I64)" + ", 1}), 3, 0});
+            til_Str _tmp_til_I64_safe_add_6 = ((til_Str){((til_Ptr){(til_I64)" + ", 1, 0, 0, 0}), 3, 0});
             til_Str _tmp_til_I64_safe_add_7 = til_I64_to_str(til_I64_b);
             til_Type _tmp_til_I64_safe_add_8 = "Str";
             til_I64 _tmp_til_I64_safe_add_9 = 4;
@@ -1012,7 +1017,7 @@ int til_I64_safe_add(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             _arr_status__tmp_til_I64_safe_add_3 = til_Array_set(&_err_idx__tmp_til_I64_safe_add_3, &_tmp_til_I64_safe_add_2, &_tmp_til_I64_safe_add_12, (til_Dynamic*)&_tmp_til_I64_safe_add_6);
             til_I64 _tmp_til_I64_safe_add_13 = 3;
             _arr_status__tmp_til_I64_safe_add_3 = til_Array_set(&_err_idx__tmp_til_I64_safe_add_3, &_tmp_til_I64_safe_add_2, &_tmp_til_I64_safe_add_13, (til_Dynamic*)&_tmp_til_I64_safe_add_7);
-            _tmp_til_I64_safe_add_1 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:37:47:", 1}), 23, 0}), &_tmp_til_I64_safe_add_2);
+            _tmp_til_I64_safe_add_1 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:37:47:", 1, 0, 0, 0}), 23, 0}), &_tmp_til_I64_safe_add_2);
             til_Array_delete(&_tmp_til_I64_safe_add_2);
             *_err1 = (til_I64_Overflow){.msg = _tmp_til_I64_safe_add_1};
             return 1;
@@ -1024,9 +1029,9 @@ int til_I64_safe_add(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             til_Str _tmp_til_I64_safe_add_15;
             til_Array _tmp_til_I64_safe_add_16;
             til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_I64_safe_add_17;
-            til_Str _tmp_til_I64_safe_add_18 = ((til_Str){((til_Ptr){(til_I64)"I64 overflow: ", 1}), 14, 0});
+            til_Str _tmp_til_I64_safe_add_18 = ((til_Str){((til_Ptr){(til_I64)"I64 overflow: ", 1, 0, 0, 0}), 14, 0});
             til_Str _tmp_til_I64_safe_add_19 = til_I64_to_str(til_I64_a);
-            til_Str _tmp_til_I64_safe_add_20 = ((til_Str){((til_Ptr){(til_I64)" + ", 1}), 3, 0});
+            til_Str _tmp_til_I64_safe_add_20 = ((til_Str){((til_Ptr){(til_I64)" + ", 1, 0, 0, 0}), 3, 0});
             til_Str _tmp_til_I64_safe_add_21 = til_I64_to_str(til_I64_b);
             til_Type _tmp_til_I64_safe_add_22 = "Str";
             til_I64 _tmp_til_I64_safe_add_23 = 4;
@@ -1040,7 +1045,7 @@ int til_I64_safe_add(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             _arr_status__tmp_til_I64_safe_add_17 = til_Array_set(&_err_idx__tmp_til_I64_safe_add_17, &_tmp_til_I64_safe_add_16, &_tmp_til_I64_safe_add_26, (til_Dynamic*)&_tmp_til_I64_safe_add_20);
             til_I64 _tmp_til_I64_safe_add_27 = 3;
             _arr_status__tmp_til_I64_safe_add_17 = til_Array_set(&_err_idx__tmp_til_I64_safe_add_17, &_tmp_til_I64_safe_add_16, &_tmp_til_I64_safe_add_27, (til_Dynamic*)&_tmp_til_I64_safe_add_21);
-            _tmp_til_I64_safe_add_15 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:42:47:", 1}), 23, 0}), &_tmp_til_I64_safe_add_16);
+            _tmp_til_I64_safe_add_15 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:42:47:", 1, 0, 0, 0}), 23, 0}), &_tmp_til_I64_safe_add_16);
             til_Array_delete(&_tmp_til_I64_safe_add_16);
             *_err1 = (til_I64_Overflow){.msg = _tmp_til_I64_safe_add_15};
             return 1;
@@ -1059,9 +1064,9 @@ int til_I64_safe_sub(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             til_Str _tmp_til_I64_safe_sub_1;
             til_Array _tmp_til_I64_safe_sub_2;
             til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_I64_safe_sub_3;
-            til_Str _tmp_til_I64_safe_sub_4 = ((til_Str){((til_Ptr){(til_I64)"I64 underflow: ", 1}), 15, 0});
+            til_Str _tmp_til_I64_safe_sub_4 = ((til_Str){((til_Ptr){(til_I64)"I64 underflow: ", 1, 0, 0, 0}), 15, 0});
             til_Str _tmp_til_I64_safe_sub_5 = til_I64_to_str(til_I64_a);
-            til_Str _tmp_til_I64_safe_sub_6 = ((til_Str){((til_Ptr){(til_I64)" - ", 1}), 3, 0});
+            til_Str _tmp_til_I64_safe_sub_6 = ((til_Str){((til_Ptr){(til_I64)" - ", 1, 0, 0, 0}), 3, 0});
             til_Str _tmp_til_I64_safe_sub_7 = til_I64_to_str(til_I64_b);
             til_Type _tmp_til_I64_safe_sub_8 = "Str";
             til_I64 _tmp_til_I64_safe_sub_9 = 4;
@@ -1075,7 +1080,7 @@ int til_I64_safe_sub(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             _arr_status__tmp_til_I64_safe_sub_3 = til_Array_set(&_err_idx__tmp_til_I64_safe_sub_3, &_tmp_til_I64_safe_sub_2, &_tmp_til_I64_safe_sub_12, (til_Dynamic*)&_tmp_til_I64_safe_sub_6);
             til_I64 _tmp_til_I64_safe_sub_13 = 3;
             _arr_status__tmp_til_I64_safe_sub_3 = til_Array_set(&_err_idx__tmp_til_I64_safe_sub_3, &_tmp_til_I64_safe_sub_2, &_tmp_til_I64_safe_sub_13, (til_Dynamic*)&_tmp_til_I64_safe_sub_7);
-            _tmp_til_I64_safe_sub_1 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:55:47:", 1}), 23, 0}), &_tmp_til_I64_safe_sub_2);
+            _tmp_til_I64_safe_sub_1 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:55:47:", 1, 0, 0, 0}), 23, 0}), &_tmp_til_I64_safe_sub_2);
             til_Array_delete(&_tmp_til_I64_safe_sub_2);
             *_err1 = (til_I64_Overflow){.msg = _tmp_til_I64_safe_sub_1};
             return 1;
@@ -1087,9 +1092,9 @@ int til_I64_safe_sub(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             til_Str _tmp_til_I64_safe_sub_15;
             til_Array _tmp_til_I64_safe_sub_16;
             til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_I64_safe_sub_17;
-            til_Str _tmp_til_I64_safe_sub_18 = ((til_Str){((til_Ptr){(til_I64)"I64 underflow: ", 1}), 15, 0});
+            til_Str _tmp_til_I64_safe_sub_18 = ((til_Str){((til_Ptr){(til_I64)"I64 underflow: ", 1, 0, 0, 0}), 15, 0});
             til_Str _tmp_til_I64_safe_sub_19 = til_I64_to_str(til_I64_a);
-            til_Str _tmp_til_I64_safe_sub_20 = ((til_Str){((til_Ptr){(til_I64)" - ", 1}), 3, 0});
+            til_Str _tmp_til_I64_safe_sub_20 = ((til_Str){((til_Ptr){(til_I64)" - ", 1, 0, 0, 0}), 3, 0});
             til_Str _tmp_til_I64_safe_sub_21 = til_I64_to_str(til_I64_b);
             til_Type _tmp_til_I64_safe_sub_22 = "Str";
             til_I64 _tmp_til_I64_safe_sub_23 = 4;
@@ -1103,7 +1108,7 @@ int til_I64_safe_sub(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             _arr_status__tmp_til_I64_safe_sub_17 = til_Array_set(&_err_idx__tmp_til_I64_safe_sub_17, &_tmp_til_I64_safe_sub_16, &_tmp_til_I64_safe_sub_26, (til_Dynamic*)&_tmp_til_I64_safe_sub_20);
             til_I64 _tmp_til_I64_safe_sub_27 = 3;
             _arr_status__tmp_til_I64_safe_sub_17 = til_Array_set(&_err_idx__tmp_til_I64_safe_sub_17, &_tmp_til_I64_safe_sub_16, &_tmp_til_I64_safe_sub_27, (til_Dynamic*)&_tmp_til_I64_safe_sub_21);
-            _tmp_til_I64_safe_sub_15 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:60:47:", 1}), 23, 0}), &_tmp_til_I64_safe_sub_16);
+            _tmp_til_I64_safe_sub_15 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:60:47:", 1, 0, 0, 0}), 23, 0}), &_tmp_til_I64_safe_sub_16);
             til_Array_delete(&_tmp_til_I64_safe_sub_16);
             *_err1 = (til_I64_Overflow){.msg = _tmp_til_I64_safe_sub_15};
             return 1;
@@ -1125,9 +1130,9 @@ int til_I64_safe_mul(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             til_Str _tmp_til_I64_safe_mul_4;
             til_Array _tmp_til_I64_safe_mul_5;
             til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_I64_safe_mul_6;
-            til_Str _tmp_til_I64_safe_mul_7 = ((til_Str){((til_Ptr){(til_I64)"I64 overflow: ", 1}), 14, 0});
+            til_Str _tmp_til_I64_safe_mul_7 = ((til_Str){((til_Ptr){(til_I64)"I64 overflow: ", 1, 0, 0, 0}), 14, 0});
             til_Str _tmp_til_I64_safe_mul_8 = til_I64_to_str(til_I64_a);
-            til_Str _tmp_til_I64_safe_mul_9 = ((til_Str){((til_Ptr){(til_I64)" * ", 1}), 3, 0});
+            til_Str _tmp_til_I64_safe_mul_9 = ((til_Str){((til_Ptr){(til_I64)" * ", 1, 0, 0, 0}), 3, 0});
             til_Str _tmp_til_I64_safe_mul_10 = til_I64_to_str(til_I64_b);
             til_Type _tmp_til_I64_safe_mul_11 = "Str";
             til_I64 _tmp_til_I64_safe_mul_12 = 4;
@@ -1141,7 +1146,7 @@ int til_I64_safe_mul(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_
             _arr_status__tmp_til_I64_safe_mul_6 = til_Array_set(&_err_idx__tmp_til_I64_safe_mul_6, &_tmp_til_I64_safe_mul_5, &_tmp_til_I64_safe_mul_15, (til_Dynamic*)&_tmp_til_I64_safe_mul_9);
             til_I64 _tmp_til_I64_safe_mul_16 = 3;
             _arr_status__tmp_til_I64_safe_mul_6 = til_Array_set(&_err_idx__tmp_til_I64_safe_mul_6, &_tmp_til_I64_safe_mul_5, &_tmp_til_I64_safe_mul_16, (til_Dynamic*)&_tmp_til_I64_safe_mul_10);
-            _tmp_til_I64_safe_mul_4 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:73:47:", 1}), 23, 0}), &_tmp_til_I64_safe_mul_5);
+            _tmp_til_I64_safe_mul_4 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/i64.til:73:47:", 1, 0, 0, 0}), 23, 0}), &_tmp_til_I64_safe_mul_5);
             til_Array_delete(&_tmp_til_I64_safe_mul_5);
             *_err1 = (til_I64_Overflow){.msg = _tmp_til_I64_safe_mul_4};
             return 1;
@@ -1284,10 +1289,10 @@ til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size) {
         til_I64 _tmp_til_Ptr_new_by_size_5 = 0;
         _tmp_til_Ptr_new_by_size_2 = til_Array_new(_tmp_til_Ptr_new_by_size_4, &_tmp_til_Ptr_new_by_size_5);
         int __attribute__((unused)) _arr_status__tmp_til_Ptr_new_by_size_3;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:14:19:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: invalid size", 1}), 29, 0}), &_tmp_til_Ptr_new_by_size_2);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:18:19:", 1, 0, 0, 0}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: invalid size", 1, 0, 0, 0}), 29, 0}), &_tmp_til_Ptr_new_by_size_2);
         til_Array_delete(&_tmp_til_Ptr_new_by_size_2);
     }
-    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_I64 _ret__tmp_til_Ptr_new_by_size_6;
     int __attribute__((unused)) _status__tmp_til_Ptr_new_by_size_6 = til_malloc(&_ret__tmp_til_Ptr_new_by_size_6, til_I64_size);
     if (_status__tmp_til_Ptr_new_by_size_6 == 1) { goto _catch_BadAlloc__tmp_til_Ptr_new_by_size_0; }
@@ -1300,16 +1305,28 @@ til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size) {
         til_I64 _tmp_til_Ptr_new_by_size_10 = 0;
         _tmp_til_Ptr_new_by_size_7 = til_Array_new(_tmp_til_Ptr_new_by_size_9, &_tmp_til_Ptr_new_by_size_10);
         int __attribute__((unused)) _arr_status__tmp_til_Ptr_new_by_size_8;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:18:39:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: malloc failed", 1}), 30, 0}), &_tmp_til_Ptr_new_by_size_7);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/ptr.til:22:39:", 1, 0, 0, 0}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Ptr.new_by_size: malloc failed", 1, 0, 0, 0}), 30, 0}), &_tmp_til_Ptr_new_by_size_7);
         til_Array_delete(&_tmp_til_Ptr_new_by_size_7);
     }
+    til_Ptr_p.alloc_size = (*til_I64_size);
     return til_Ptr_p;
     return (til_Ptr){0};
 }
 
 til_Ptr til_Ptr_new(til_Type til_Type_T) {
-    til_I64 _tmp_til_Ptr_new_0 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1}), strlen(til_Type_T), 0}));
-    return til_Ptr_new_by_size(&_tmp_til_Ptr_new_0);
+    til_I64 _tmp_til_Ptr_new_0 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    til_Ptr til_Ptr_p = til_Ptr_new_by_size(&_tmp_til_Ptr_new_0);
+    til_Ptr_p.elem_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    return til_Ptr_p;
+    return (til_Ptr){0};
+}
+
+til_Ptr til_Ptr_new_array(til_Type til_Type_T, const til_I64* til_I64_count) {
+    const til_I64 til_I64_elem_sz = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    const til_I64 til_I64_total = til_I64_mul(&til_I64_elem_sz, til_I64_count);
+    til_Ptr til_Ptr_p = til_Ptr_new_by_size(&til_I64_total);
+    til_Ptr_p.elem_size = til_I64_elem_sz;
+    return til_Ptr_p;
     return (til_Ptr){0};
 }
 
@@ -1325,16 +1342,31 @@ void til_Ptr_delete(til_Ptr* til_Ptr_self) {
 }
 
 til_Ptr til_Ptr_clone(const til_Ptr* til_Ptr_self) {
-    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0};
-    til_Ptr_p.data = til_Ptr_self->data;
-    til_Ptr_p.is_borrowed = 1;
-    return til_Ptr_p;
+    if (til_I64_eq(&til_I64_NULL, &til_Ptr_self->data).data) {
+        return (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
+    }
+    til_Ptr til_Ptr_borrowed;
+    til_I64 _tmp_til_Ptr_clone_0 = 0;
+    if (til_I64_lteq(&til_Ptr_self->alloc_size, &_tmp_til_Ptr_clone_0).data) {
+        til_Ptr_borrowed = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
+        til_Ptr_borrowed.data = til_Ptr_self->data;
+        til_Ptr_borrowed.is_borrowed = 1;
+        return til_Ptr_borrowed;
+    }
+    til_Ptr til_Ptr_cloned = til_Ptr_new_by_size(&til_Ptr_self->alloc_size);
+    til_Ptr_cloned.elem_type = til_Ptr_self->elem_type;
+    til_Ptr_cloned.elem_size = til_Ptr_self->elem_size;
+    til_memcpy(&til_Ptr_cloned.data, &til_Ptr_self->data, &til_Ptr_self->alloc_size);
+    return til_Ptr_cloned;
     return (til_Ptr){0};
 }
 
-til_Ptr til_Ptr_offset(const til_Ptr* til_Ptr_self, const til_I64* til_I64_offset) {
-    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0};
-    til_Ptr_p.data = til_I64_add(&til_Ptr_self->data, til_I64_offset);
+til_Ptr til_Ptr_offset(const til_Ptr* til_Ptr_self, const til_I64* til_I64_byte_offset) {
+    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
+    til_Ptr_p.data = til_I64_add(&til_Ptr_self->data, til_I64_byte_offset);
+    til_Ptr_p.is_borrowed = 1;
+    til_Ptr_p.elem_type = til_Ptr_self->elem_type;
+    til_Ptr_p.elem_size = til_Ptr_self->elem_size;
     return til_Ptr_p;
     return (til_Ptr){0};
 }
@@ -1364,12 +1396,12 @@ void til_Ptr_copy_to_dynamic(const til_Ptr* til_Ptr_self, til_Dynamic* til_Dynam
 
 void til_Ptr_dereference(const til_Ptr* til_Ptr_self, til_Type til_Type_T, til_Dynamic* til_Dynamic_dest) {
     til_I64 _tmp_til_Ptr_dereference_0 = (til_I64)til_Dynamic_dest;
-    til_I64 _tmp_til_Ptr_dereference_1 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1}), strlen(til_Type_T), 0}));
+    til_I64 _tmp_til_Ptr_dereference_1 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
     til_memcpy(&_tmp_til_Ptr_dereference_0, &til_Ptr_self->data, &_tmp_til_Ptr_dereference_1);
 }
 
 til_I64 til_Ptr_size_of(void) {
-    return til_size_of(&((til_Str){((til_Ptr){(til_I64)"I64", 1}), 3, 0}));
+    return til_size_of(&((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0}));
     return (til_I64){0};
 }
 
@@ -1379,15 +1411,24 @@ til_Bool til_Ptr_is_null(const til_Ptr* til_Ptr_self) {
 }
 
 til_Vec til_Vec_new(til_Type til_Type_T) {
-    til_Ptr _tmp_til_Vec_new_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
-    til_Vec til_Vec_vec = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0}), .type_size = 0, .ptr = _tmp_til_Vec_new_0, ._len = 0, .cap = 0};
-    til_Vec_vec.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1}), strlen(til_Type_T), 0});
-    til_Vec_vec.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1}), strlen(til_Type_T), 0}));
-    til_Vec_vec.ptr = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr _tmp_til_Vec_new_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
+    til_Vec til_Vec_vec = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}), .type_size = 0, .ptr = _tmp_til_Vec_new_0, ._len = 0, .cap = 0};
+    til_Vec_vec.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0});
+    til_Vec_vec.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    til_Vec_vec.ptr = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Vec_vec._len = 0;
     til_Vec_vec.cap = 0;
     return til_Vec_vec;
     return (til_Vec){0};
+}
+
+til_Ptr til_Vec__alloc_ptr(til_Vec* til_Vec_self, const til_I64* til_I64_capacity) {
+    til_I64 _tmp_til_Vec__alloc_ptr_0 = til_I64_mul(til_I64_capacity, &til_Vec_self->type_size);
+    til_Ptr til_Ptr_p = til_Ptr_new_by_size(&_tmp_til_Vec__alloc_ptr_0);
+    til_Ptr_p.elem_type = til_Vec_self->type_name.c_string.data;
+    til_Ptr_p.elem_size = til_Vec_self->type_size;
+    return til_Ptr_p;
+    return (til_Ptr){0};
 }
 
 void til_Vec_push(til_Vec* til_Vec_self, const til_Dynamic* til_Dynamic_value) {
@@ -1408,28 +1449,27 @@ void til_Vec_push(til_Vec* til_Vec_self, const til_Dynamic* til_Dynamic_value) {
             til_I64 _tmp_til_Vec_push_6 = 0;
             _tmp_til_Vec_push_3 = til_Array_new(_tmp_til_Vec_push_5, &_tmp_til_Vec_push_6);
             int __attribute__((unused)) _arr_status__tmp_til_Vec_push_4;
-            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:88:23:", 1}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.push: capacity exceeded Vec.MAX_CAP", 1}), 39, 0}), &_tmp_til_Vec_push_3);
+            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:96:23:", 1, 0, 0, 0}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.push: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 39, 0}), &_tmp_til_Vec_push_3);
             til_Array_delete(&_tmp_til_Vec_push_3);
         }
-        til_I64 _tmp_til_Vec_push_7 = til_I64_mul(&til_I64_new_cap, &til_Vec_self->type_size);
-        til_Ptr_new_ptr = til_Ptr_new_by_size(&_tmp_til_Vec_push_7);
-        til_I64 _tmp_til_Vec_push_8 = 0;
-        if (til_I64_gt(&til_Vec_self->_len, &_tmp_til_Vec_push_8).data) {
-            til_I64 _tmp_til_Vec_push_9 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->type_size);
-            til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_push_9);
+        til_Ptr_new_ptr = til_Vec__alloc_ptr(til_Vec_self, &til_I64_new_cap);
+        til_I64 _tmp_til_Vec_push_7 = 0;
+        if (til_I64_gt(&til_Vec_self->_len, &_tmp_til_Vec_push_7).data) {
+            til_I64 _tmp_til_Vec_push_8 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->type_size);
+            til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_push_8);
         }
-        til_Bool _tmp_til_Vec_push_10 = til_Ptr_is_null(&til_Vec_self->ptr);
-        if (til_not(&_tmp_til_Vec_push_10).data) {
+        til_Bool _tmp_til_Vec_push_9 = til_Ptr_is_null(&til_Vec_self->ptr);
+        if (til_not(&_tmp_til_Vec_push_9).data) {
             til_Ptr_delete(&til_Vec_self->ptr);
         }
         til_Vec_self->ptr = til_Ptr_new_ptr;
         til_Vec_self->cap = til_I64_new_cap;
     }
-    til_I64 _tmp_til_Vec_push_11 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->type_size);
-    til_Ptr til_Ptr_dest = til_Ptr_offset(&til_Vec_self->ptr, &_tmp_til_Vec_push_11);
+    til_I64 _tmp_til_Vec_push_10 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->type_size);
+    til_Ptr til_Ptr_dest = til_Ptr_offset(&til_Vec_self->ptr, &_tmp_til_Vec_push_10);
     til_Ptr_copy_from_dynamic(&til_Ptr_dest, (til_Dynamic*)til_Dynamic_value, &til_Vec_self->type_size);
-    til_I64 _tmp_til_Vec_push_12 = 1;
-    til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_push_12);
+    til_I64 _tmp_til_Vec_push_11 = 1;
+    til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_push_11);
 }
 
 til_I64 til_Str_len(const til_Str* til_Str_self) {
@@ -1499,7 +1539,7 @@ til_I64 til_Str_to_i64(const til_Str* til_Str_self) {
 }
 
 til_Str til_Str_clone(const til_Str* til_Str_self) {
-    til_Ptr _tmp_til_Str_clone_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr _tmp_til_Str_clone_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Str til_Str_cloned = {.c_string = _tmp_til_Str_clone_0, ._len = 0, .cap = 0};
     til_Str_cloned._len = til_Str_self->_len;
     til_I64 _tmp_til_Str_clone_1 = 1;
@@ -1520,13 +1560,13 @@ void til_Str_delete(til_Str* til_Str_self) {
     if (til_I64_gt(&til_Str_self->cap, &_tmp_til_Str_delete_0).data) {
         til_Ptr_delete(&til_Str_self->c_string);
     }
-    til_Str_self->c_string = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+    til_Str_self->c_string = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Str_self->_len = 0;
     til_Str_self->cap = 0;
 }
 
 til_Str til_Str_from_byte(const til_U8* til_U8_byte) {
-    til_Ptr _tmp_til_Str_from_byte_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr _tmp_til_Str_from_byte_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Str til_Str_s = {.c_string = _tmp_til_Str_from_byte_0, ._len = 0, .cap = 0};
     til_I64 _tmp_til_Str_from_byte_1 = 2;
     til_Str_s.c_string = til_Ptr_new_by_size(&_tmp_til_Str_from_byte_1);
@@ -1677,7 +1717,7 @@ til_Str til_Str_to_lowercase(const til_Str* til_Str_self) {
         til_I64 _tmp_til_Str_to_lowercase_25 = 0;
         _tmp_til_Str_to_lowercase_22 = til_Array_new(_tmp_til_Str_to_lowercase_24, &_tmp_til_Str_to_lowercase_25);
         int __attribute__((unused)) _arr_status__tmp_til_Str_to_lowercase_23;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:138:19:", 1}), 24, 0}), &til_U8_Overflow_err.msg, &_tmp_til_Str_to_lowercase_22);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:138:19:", 1, 0, 0, 0}), 24, 0}), &til_U8_Overflow_err.msg, &_tmp_til_Str_to_lowercase_22);
         til_Array_delete(&_tmp_til_Str_to_lowercase_22);
     }
     return til_Str_result;
@@ -2117,7 +2157,7 @@ til_Str til_Str_replace(const til_Str* til_Str_self, const til_Str* til_Str_from
     til_I64 _tmp_til_Str_replace_31 = til_Str_len(til_Str_to);
     til_I64 _tmp_til_Str_replace_32 = til_I64_mul(&til_I64_count, &_tmp_til_Str_replace_31);
     til_I64 til_I64_new_len = til_I64_add(&_tmp_til_Str_replace_30, &_tmp_til_Str_replace_32);
-    til_Ptr _tmp_til_Str_replace_33 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr _tmp_til_Str_replace_33 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Str til_Str_result = {.c_string = _tmp_til_Str_replace_33, ._len = 0, .cap = 0};
     til_Str_result._len = til_I64_new_len;
     til_I64 _tmp_til_Str_replace_34 = 1;
@@ -2495,7 +2535,7 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
                 til_Str_part = _ret__tmp_til_Str_split_26;
                 til_Vec_push(&til_Vec_parts, (til_Dynamic*)&til_Str_part);
             } else {
-                til_Vec_push(&til_Vec_parts, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0}));
+                til_Vec_push(&til_Vec_parts, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
             }
             til_I64 _tmp_til_Str_split_27 = til_Str_len(til_Str_delimiter);
             til_I64_start = til_I64_add(&til_I64_pos, &_tmp_til_Str_split_27);
@@ -2518,7 +2558,7 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
     } else {
         til_I64 _tmp_til_Str_split_31 = til_Str_len(til_Str_self);
         if (til_I64_eq(&til_I64_start, &_tmp_til_Str_split_31).data) {
-            til_Vec_push(&til_Vec_parts, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0}));
+            til_Vec_push(&til_Vec_parts, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
         }
     }
     *_ret = til_Vec_parts;
@@ -2529,13 +2569,13 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
 til_Str til_Str_repeat(const til_Str* til_Str_self, const til_I64* til_I64_n) {
     til_I64 _tmp_til_Str_repeat_0 = 0;
     if (til_I64_lteq(til_I64_n, &_tmp_til_Str_repeat_0).data) {
-        return ((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0});
+        return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
     }
     til_I64 _tmp_til_Str_repeat_1 = 1;
     if (til_I64_eq(til_I64_n, &_tmp_til_Str_repeat_1).data) {
         return til_Str_clone(til_Str_self);
     }
-    til_Ptr _tmp_til_Str_repeat_2 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0};
+    til_Ptr _tmp_til_Str_repeat_2 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Str til_Str_result = {.c_string = _tmp_til_Str_repeat_2, ._len = 0, .cap = 0};
     til_Str_result._len = til_I64_mul(&til_Str_self->_len, til_I64_n);
     til_I64 _tmp_til_Str_repeat_3 = 1;
@@ -2655,11 +2695,11 @@ int til_U8_safe_add(til_U8* _ret, til_U8_Overflow* _err1, const til_U8* til_U8_a
         til_Str _tmp_til_U8_safe_add_2;
         til_Array _tmp_til_U8_safe_add_3;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_U8_safe_add_4;
-        til_Str _tmp_til_U8_safe_add_5 = ((til_Str){((til_Ptr){(til_I64)"U8 overflow: ", 1}), 13, 0});
+        til_Str _tmp_til_U8_safe_add_5 = ((til_Str){((til_Ptr){(til_I64)"U8 overflow: ", 1, 0, 0, 0}), 13, 0});
         til_Str _tmp_til_U8_safe_add_6 = til_U8_to_str(til_U8_a);
-        til_Str _tmp_til_U8_safe_add_7 = ((til_Str){((til_Ptr){(til_I64)" + ", 1}), 3, 0});
+        til_Str _tmp_til_U8_safe_add_7 = ((til_Str){((til_Ptr){(til_I64)" + ", 1, 0, 0, 0}), 3, 0});
         til_Str _tmp_til_U8_safe_add_8 = til_U8_to_str(til_U8_b);
-        til_Str _tmp_til_U8_safe_add_9 = ((til_Str){((til_Ptr){(til_I64)" = ", 1}), 3, 0});
+        til_Str _tmp_til_U8_safe_add_9 = ((til_Str){((til_Ptr){(til_I64)" = ", 1, 0, 0, 0}), 3, 0});
         til_Str _tmp_til_U8_safe_add_10 = til_I64_to_str(&til_I64_sum);
         til_Type _tmp_til_U8_safe_add_11 = "Str";
         til_I64 _tmp_til_U8_safe_add_12 = 6;
@@ -2677,7 +2717,7 @@ int til_U8_safe_add(til_U8* _ret, til_U8_Overflow* _err1, const til_U8* til_U8_a
         _arr_status__tmp_til_U8_safe_add_4 = til_Array_set(&_err_idx__tmp_til_U8_safe_add_4, &_tmp_til_U8_safe_add_3, &_tmp_til_U8_safe_add_17, (til_Dynamic*)&_tmp_til_U8_safe_add_9);
         til_I64 _tmp_til_U8_safe_add_18 = 5;
         _arr_status__tmp_til_U8_safe_add_4 = til_Array_set(&_err_idx__tmp_til_U8_safe_add_4, &_tmp_til_U8_safe_add_3, &_tmp_til_U8_safe_add_18, (til_Dynamic*)&_tmp_til_U8_safe_add_10);
-        _tmp_til_U8_safe_add_2 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:72:42:", 1}), 22, 0}), &_tmp_til_U8_safe_add_3);
+        _tmp_til_U8_safe_add_2 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:72:42:", 1, 0, 0, 0}), 22, 0}), &_tmp_til_U8_safe_add_3);
         til_Array_delete(&_tmp_til_U8_safe_add_3);
         *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_safe_add_2};
         return 1;
@@ -2701,11 +2741,11 @@ int til_U8_safe_sub(til_U8* _ret, til_U8_Overflow* _err1, const til_U8* til_U8_a
         til_Str _tmp_til_U8_safe_sub_3;
         til_Array _tmp_til_U8_safe_sub_4;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_U8_safe_sub_5;
-        til_Str _tmp_til_U8_safe_sub_6 = ((til_Str){((til_Ptr){(til_I64)"U8 underflow: ", 1}), 14, 0});
+        til_Str _tmp_til_U8_safe_sub_6 = ((til_Str){((til_Ptr){(til_I64)"U8 underflow: ", 1, 0, 0, 0}), 14, 0});
         til_Str _tmp_til_U8_safe_sub_7 = til_U8_to_str(til_U8_a);
-        til_Str _tmp_til_U8_safe_sub_8 = ((til_Str){((til_Ptr){(til_I64)" - ", 1}), 3, 0});
+        til_Str _tmp_til_U8_safe_sub_8 = ((til_Str){((til_Ptr){(til_I64)" - ", 1, 0, 0, 0}), 3, 0});
         til_Str _tmp_til_U8_safe_sub_9 = til_U8_to_str(til_U8_b);
-        til_Str _tmp_til_U8_safe_sub_10 = ((til_Str){((til_Ptr){(til_I64)" = ", 1}), 3, 0});
+        til_Str _tmp_til_U8_safe_sub_10 = ((til_Str){((til_Ptr){(til_I64)" = ", 1, 0, 0, 0}), 3, 0});
         til_Str _tmp_til_U8_safe_sub_11 = til_I64_to_str(&til_I64_diff);
         til_Type _tmp_til_U8_safe_sub_12 = "Str";
         til_I64 _tmp_til_U8_safe_sub_13 = 6;
@@ -2723,7 +2763,7 @@ int til_U8_safe_sub(til_U8* _ret, til_U8_Overflow* _err1, const til_U8* til_U8_a
         _arr_status__tmp_til_U8_safe_sub_5 = til_Array_set(&_err_idx__tmp_til_U8_safe_sub_5, &_tmp_til_U8_safe_sub_4, &_tmp_til_U8_safe_sub_18, (til_Dynamic*)&_tmp_til_U8_safe_sub_10);
         til_I64 _tmp_til_U8_safe_sub_19 = 5;
         _arr_status__tmp_til_U8_safe_sub_5 = til_Array_set(&_err_idx__tmp_til_U8_safe_sub_5, &_tmp_til_U8_safe_sub_4, &_tmp_til_U8_safe_sub_19, (til_Dynamic*)&_tmp_til_U8_safe_sub_11);
-        _tmp_til_U8_safe_sub_3 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:91:42:", 1}), 22, 0}), &_tmp_til_U8_safe_sub_4);
+        _tmp_til_U8_safe_sub_3 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:91:42:", 1, 0, 0, 0}), 22, 0}), &_tmp_til_U8_safe_sub_4);
         til_Array_delete(&_tmp_til_U8_safe_sub_4);
         *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_safe_sub_3};
         return 1;
@@ -2746,11 +2786,11 @@ int til_U8_safe_mul(til_U8* _ret, til_U8_Overflow* _err1, const til_U8* til_U8_a
         til_Str _tmp_til_U8_safe_mul_2;
         til_Array _tmp_til_U8_safe_mul_3;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_U8_safe_mul_4;
-        til_Str _tmp_til_U8_safe_mul_5 = ((til_Str){((til_Ptr){(til_I64)"U8 overflow: ", 1}), 13, 0});
+        til_Str _tmp_til_U8_safe_mul_5 = ((til_Str){((til_Ptr){(til_I64)"U8 overflow: ", 1, 0, 0, 0}), 13, 0});
         til_Str _tmp_til_U8_safe_mul_6 = til_U8_to_str(til_U8_a);
-        til_Str _tmp_til_U8_safe_mul_7 = ((til_Str){((til_Ptr){(til_I64)" * ", 1}), 3, 0});
+        til_Str _tmp_til_U8_safe_mul_7 = ((til_Str){((til_Ptr){(til_I64)" * ", 1, 0, 0, 0}), 3, 0});
         til_Str _tmp_til_U8_safe_mul_8 = til_U8_to_str(til_U8_b);
-        til_Str _tmp_til_U8_safe_mul_9 = ((til_Str){((til_Ptr){(til_I64)" = ", 1}), 3, 0});
+        til_Str _tmp_til_U8_safe_mul_9 = ((til_Str){((til_Ptr){(til_I64)" = ", 1, 0, 0, 0}), 3, 0});
         til_Str _tmp_til_U8_safe_mul_10 = til_I64_to_str(&til_I64_product);
         til_Type _tmp_til_U8_safe_mul_11 = "Str";
         til_I64 _tmp_til_U8_safe_mul_12 = 6;
@@ -2768,7 +2808,7 @@ int til_U8_safe_mul(til_U8* _ret, til_U8_Overflow* _err1, const til_U8* til_U8_a
         _arr_status__tmp_til_U8_safe_mul_4 = til_Array_set(&_err_idx__tmp_til_U8_safe_mul_4, &_tmp_til_U8_safe_mul_3, &_tmp_til_U8_safe_mul_17, (til_Dynamic*)&_tmp_til_U8_safe_mul_9);
         til_I64 _tmp_til_U8_safe_mul_18 = 5;
         _arr_status__tmp_til_U8_safe_mul_4 = til_Array_set(&_err_idx__tmp_til_U8_safe_mul_4, &_tmp_til_U8_safe_mul_3, &_tmp_til_U8_safe_mul_18, (til_Dynamic*)&_tmp_til_U8_safe_mul_10);
-        _tmp_til_U8_safe_mul_2 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:110:42:", 1}), 23, 0}), &_tmp_til_U8_safe_mul_3);
+        _tmp_til_U8_safe_mul_2 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:110:42:", 1, 0, 0, 0}), 23, 0}), &_tmp_til_U8_safe_mul_3);
         til_Array_delete(&_tmp_til_U8_safe_mul_3);
         *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_safe_mul_2};
         return 1;
@@ -2818,14 +2858,14 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_I64
         til_Str _tmp_til_U8_from_i64_1;
         til_Array _tmp_til_U8_from_i64_2;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_U8_from_i64_3;
-        til_Str _tmp_til_U8_from_i64_4 = ((til_Str){((til_Ptr){(til_I64)"Negative values cannot be cast into 'U8'", 1}), 40, 0});
+        til_Str _tmp_til_U8_from_i64_4 = ((til_Str){((til_Ptr){(til_I64)"Negative values cannot be cast into 'U8'", 1, 0, 0, 0}), 40, 0});
         til_Type _tmp_til_U8_from_i64_5 = "Str";
         til_I64 _tmp_til_U8_from_i64_6 = 1;
         _tmp_til_U8_from_i64_2 = til_Array_new(_tmp_til_U8_from_i64_5, &_tmp_til_U8_from_i64_6);
         int __attribute__((unused)) _arr_status__tmp_til_U8_from_i64_3;
         til_I64 _tmp_til_U8_from_i64_7 = 0;
         _arr_status__tmp_til_U8_from_i64_3 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_3, &_tmp_til_U8_from_i64_2, &_tmp_til_U8_from_i64_7, (til_Dynamic*)&_tmp_til_U8_from_i64_4);
-        _tmp_til_U8_from_i64_1 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:158:42:", 1}), 23, 0}), &_tmp_til_U8_from_i64_2);
+        _tmp_til_U8_from_i64_1 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:158:42:", 1, 0, 0, 0}), 23, 0}), &_tmp_til_U8_from_i64_2);
         til_Array_delete(&_tmp_til_U8_from_i64_2);
         *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_from_i64_1};
         return 1;
@@ -2834,7 +2874,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_I64
         til_Str _tmp_til_U8_from_i64_8;
         til_Array _tmp_til_U8_from_i64_9;
         til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_U8_from_i64_10;
-        til_Str _tmp_til_U8_from_i64_11 = ((til_Str){((til_Ptr){(til_I64)"U8: cannot be casted from an I64 greater than: ", 1}), 47, 0});
+        til_Str _tmp_til_U8_from_i64_11 = ((til_Str){((til_Ptr){(til_I64)"U8: cannot be casted from an I64 greater than: ", 1, 0, 0, 0}), 47, 0});
         til_Str _tmp_til_U8_from_i64_12 = til_I64_to_str(&til_I64_MAX_U8);
         til_Type _tmp_til_U8_from_i64_13 = "Str";
         til_I64 _tmp_til_U8_from_i64_14 = 2;
@@ -2844,7 +2884,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_I64
         _arr_status__tmp_til_U8_from_i64_10 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_10, &_tmp_til_U8_from_i64_9, &_tmp_til_U8_from_i64_15, (til_Dynamic*)&_tmp_til_U8_from_i64_11);
         til_I64 _tmp_til_U8_from_i64_16 = 1;
         _arr_status__tmp_til_U8_from_i64_10 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_10, &_tmp_til_U8_from_i64_9, &_tmp_til_U8_from_i64_16, (til_Dynamic*)&_tmp_til_U8_from_i64_12);
-        _tmp_til_U8_from_i64_8 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:161:42:", 1}), 23, 0}), &_tmp_til_U8_from_i64_9);
+        _tmp_til_U8_from_i64_8 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/u8.til:161:42:", 1, 0, 0, 0}), 23, 0}), &_tmp_til_U8_from_i64_9);
         til_Array_delete(&_tmp_til_U8_from_i64_9);
         *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_from_i64_8};
         return 1;
@@ -2931,14 +2971,6 @@ til_CfRect til_CfRect_sample(void) {
     return (til_CfRect){0};
 }
 
-void til_CfVec2_delete(til_CfVec2* _self) {
-}
-
-til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {
-    return (til_CfVec2){.x = til_CfVec2_self->x, .y = til_CfVec2_self->y};
-    return (til_CfVec2){0};
-}
-
 void til_CfRect_delete(til_CfRect* til_CfRect_self) {
     til_CfVec2_delete(&til_CfRect_self->bottom_right);
     til_CfVec2_delete(&til_CfRect_self->top_left);
@@ -2947,6 +2979,14 @@ void til_CfRect_delete(til_CfRect* til_CfRect_self) {
 til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self) {
     return (til_CfRect){.top_left = til_CfVec2_clone(&til_CfRect_self->top_left), .bottom_right = til_CfVec2_clone(&til_CfRect_self->bottom_right)};
     return (til_CfRect){0};
+}
+
+void til_CfVec2_delete(til_CfVec2* _self) {
+}
+
+til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {
+    return (til_CfVec2){.x = til_CfVec2_self->x, .y = til_CfVec2_self->y};
+    return (til_CfVec2){0};
 }
 
 int main(int argc, char** argv) {

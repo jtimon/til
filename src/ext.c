@@ -208,13 +208,16 @@ static inline til_Str til_i64_to_str(const til_I64* v)
 {
     char* buf = (char*)malloc(32);
     if (!buf) {
-        til_Str s = {{0, 0}, 0, 0};
+        til_Str s = {{0, 0, 0, 0, 0}, 0, 0};  // Ptr{data, is_borrowed, alloc_size, elem_type, elem_size}
         return s;
     }
     snprintf(buf, 32, "%lld", (long long)*v);
     til_Str s;
     s.c_string.data = (til_I64)buf;
     s.c_string.is_borrowed = 0;
+    s.c_string.alloc_size = 32;
+    s.c_string.elem_type = 0;
+    s.c_string.elem_size = 0;
     s._len = strlen(buf);
     s.cap = 32;
     return s;
@@ -569,14 +572,14 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     if (!found || last_slash == 0) {
-        return (til_Str){{0, 0}, 0, 0};  // No parent or root
+        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
     }
 
     // Allocate and copy parent path
     char* result = (char*)malloc(last_slash + 1);
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
-    return (til_Str){{(til_I64)result, 0}, last_slash, last_slash + 1};
+    return (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Windows)
@@ -718,14 +721,14 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     if (!found || last_slash == 0) {
-        return (til_Str){{0, 0}, 0, 0};  // No parent or root
+        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
     }
 
     // Allocate and copy parent path
     char* result = (char*)malloc(last_slash + 1);
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
-    return (til_Str){{(til_I64)result, 0}, last_slash, last_slash + 1};
+    return (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Unix)

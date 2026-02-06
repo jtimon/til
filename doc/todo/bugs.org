@@ -51,17 +51,21 @@ To fix properly, Ptr needs to know element type/size to enable deep cloning.
 - Removed redundant manual clones that are now auto-generated
 - Kept manual clones for containers (Vec, Map, etc.) and special cases
 
-**** Step 2: TODO - Move dynamic type info to Ptr
-Add fields to Ptr to enable deep cloning:
-- =size: I64= - total allocation size
-- =elem_type: Str= - element type name (for arrays/vecs)
-- =elem_size: I64= - size of each element
+**** Step 2: DONE - Move dynamic type info to Ptr
+Added fields to Ptr struct (ptr.til):
+- =alloc_size: I64= - total bytes allocated
+- =elem_type: I64= - Ptr to null-terminated type name C string
+- =elem_size: I64= - bytes per element (0 = single value, not array)
 
-This allows Ptr.clone to:
-- Allocate new memory of correct size
-- Call =ElemType.clone()= on each element for deep copy
-
-Vec/Map/etc can then delegate to Ptr, simplifying their implementations.
+Changes:
+- =Ptr.new_by_size=: sets alloc_size
+- =Ptr.new=: sets elem_size
+- =Ptr.new_array=: new method for array allocation
+- =Ptr.clone=: deep copy if alloc_size > 0, else borrowed shallow
+- =Ptr.offset=: copies type info, marks as borrowed
+- =Vec._alloc_ptr=: helper that sets elem_type and elem_size
+- Updated all Ptr compound literals in ccodegen.rs/til and ext.c (5-field format)
+- Updated size_of(Str) test: 32 -> 56 bytes (Ptr grew from 16 to 40)
 
 **** Step 3: DONE - mut declarations (commits ba5054fe, 045c0307, 2c2bd35e)
 
