@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, shared state between clones
-:STATUS: In Progress
+:STATUS: Partially Fixed (deep copy via clone works; nested Ptr cloning still TODO)
 :END:
 
 *** Description
@@ -51,9 +51,18 @@ This allows Ptr.clone to:
 
 Vec/Map/etc can then delegate to Ptr, simplifying their implementations.
 
-**** Step 3: TODO - Replace copy_fields with clone calls
-Change interpreter's =mut x := y= to call =Type.clone(y)= instead of =copy_fields=.
-Previous attempt caused stack overflows - should work after Step 2.
+**** Step 3: DONE - Move clone logic from interpreter to garbager
+Changed garbager phase to transform =mut x := y= (where y is a struct identifier)
+to =mut x := Type.clone(y)= at the AST level. This means:
+- Clone insertion happens at AST transformation time, not during interpretation
+- Removed =call_clone_method= function from interpreter (both Rust and TIL)
+- Simplified interpreter declaration handling to just bind offsets
+
+**Root cause of previous stack overflow**: Bool was incorrectly marked as "primitive"
+in garbager's exclusion list. When =mut val := false= was not transformed to
+=Bool.clone(false)=, the interpreter just shared offsets. Since =false= is a global
+constant, modifying =val= later would corrupt =false=, causing infinite loops in
+code that depended on =false= being correct. Fix: removed Bool from primitives list.
 
 *** Failed Attempt: branch failure159
 Branch =failure159= contains Steps 2-8 of the implementation, but caused massive

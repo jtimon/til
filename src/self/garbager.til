@@ -3,11 +3,154 @@ mode liba
 import("self.init")
 import("self.parser")
 
-// Garbager phase: (future) ASAP destruction - insert automatic delete() calls.
-// This phase runs after desugarer, before UFCS.
-// Currently a no-op - method generation moved to preinit phase.
+// Garbager phase: AST transformations for memory semantics.
+// This phase runs after type checking, before UFCS.
+// Issue #159: Insert clone() calls for deep copy semantics on struct assignments.
 
-/// Garbager phase entry point: Currently a no-op, reserved for future ASAP destruction.
-garbager_expr := proc(mut _context: Context, e: Expr) returns Expr {
-    return e.clone()
+/// Garbager phase entry point: Transform AST for proper memory semantics.
+garbager_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    return garbager_recursive(context, e)?
+}
+
+/// Recursively transform the AST.
+garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    switch e.node_type {
+    // Recurse into FuncDef bodies
+    case NodeType.FuncDef(func_def):
+        mut new_body := Vec.new(Expr)
+        for stmt: Expr in func_def.body {
+            new_body.push(garbager_recursive(context, stmt)?)
+        }
+        new_func_def := SFuncDef(
+            function_type=func_def.function_type,
+            args=func_def.args.clone(),
+            return_types=func_def.return_types.clone(),
+            throw_types=func_def.throw_types.clone(),
+            body=new_body,
+            source_path=func_def.source_path
+        )
+        // Also recurse into params (e.g., default argument values)
+        mut new_params := Vec.new(Expr)
+        for param: Expr in e.params {
+            new_params.push(garbager_recursive(context, param)?)
+        }
+        return Expr.new_explicit(NodeType.FuncDef(new_func_def), new_params, e.line, e.col)
+
+    // Recurse into StructDef default values
+    case NodeType.StructDef(struct_def):
+        mut new_default_values := Map.new(Str, Expr)
+        for name: Str in struct_def.default_values.keys {
+            mut value_expr := Expr()
+            struct_def.default_values.get(name, value_expr)?
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
+            }
+            new_default_values.set(name.clone(), garbager_recursive(context, value_expr)?)
+        }
+        new_struct_def := SStructDef(
+            members=struct_def.members.clone(),
+            default_values=new_default_values
+        )
+        mut new_params := Vec.new(Expr)
+        for param: Expr in e.params {
+            new_params.push(garbager_recursive(context, param)?)
+        }
+        return Expr.new_explicit(NodeType.StructDef(new_struct_def), new_params, e.line, e.col)
+
+    // Recurse into NamespaceDef default values
+    case NodeType.NamespaceDef(ns_def):
+        mut new_default_values := Map.new(Str, Expr)
+        for name: Str in ns_def.default_values.keys {
+            mut value_expr := Expr()
+            ns_def.default_values.get(name, value_expr)?
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
+            }
+            new_default_values.set(name.clone(), garbager_recursive(context, value_expr)?)
+        }
+        new_ns_def := SNamespaceDef(
+            type_name=ns_def.type_name,
+            members=ns_def.members.clone(),
+            default_values=new_default_values
+        )
+        mut new_params := Vec.new(Expr)
+        for param: Expr in e.params {
+            new_params.push(garbager_recursive(context, param)?)
+        }
+        return Expr.new_explicit(NodeType.NamespaceDef(new_ns_def), new_params, e.line, e.col)
+
+    // Issue #159: Transform mut declarations with struct type where RHS is an identifier
+    case NodeType.Declaration(decl):
+        // First, recursively transform children
+        mut new_params := Vec.new(Expr)
+        for param: Expr in e.params {
+            new_params.push(garbager_recursive(context, param)?)
+        }
+
+        // Check if this is a mut declaration with struct type and identifier RHS
+        // Identifier can have field access (x.y.z), we clone any identifier-based RHS
+        if decl.is_mut.and(new_params.len().gt(0)) {
+            mut first_param := Expr()
+            new_params.get(0, first_param)?
+            catch (err: IndexOutOfBoundsError) {
+                throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
+            }
+            switch first_param.node_type {
+            case NodeType.Identifier(_):
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    // Exclude true primitive types - they don't need deep cloning
+                    // Note: Bool is NOT excluded because true/false are global constants
+                    // that would be corrupted if we just share offsets
+                    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Str")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
+                    if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+                        // Build clone call: Type.clone(rhs_expr)
+                        rhs_expr := first_param.clone()
+                        clone_call := build_clone_call_expr(type_name, rhs_expr, e.line, e.col)
+                        mut transformed_params := Vec.new(Expr)
+                        transformed_params.push(clone_call)
+                        mut i := 1
+                        while i.lt(new_params.len()) {
+                            mut param := Expr()
+                            new_params.get(i, param)?
+                            catch (err: IndexOutOfBoundsError) {
+                                throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
+                            }
+                            transformed_params.push(param)
+                            i = i.add(1)
+                        }
+                        return Expr.new_explicit(e.node_type, transformed_params, e.line, e.col)
+                    }
+                case:
+                    // Not a TCustom type
+                }
+            case:
+                // Not an identifier
+            }
+        }
+        // No transformation needed
+        return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
+
+    // Default: recurse into children
+    case:
+        mut new_params := Vec.new(Expr)
+        for param: Expr in e.params {
+            new_params.push(garbager_recursive(context, param)?)
+        }
+        return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
+    }
+}
+
+/// Build AST for Type.clone(src_expr): FCall( Identifier("Type").Identifier("clone"), src_expr )
+build_clone_call_expr := func(type_name: Str, src_expr: Expr, line: I64, col: I64) returns Expr {
+    // Type.clone access: Identifier("Type") with child Identifier("clone")
+    clone_ident := Expr(node_type=NodeType.Identifier("clone"), line=line, col=col)
+    mut type_clone_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
+    type_clone_access.params.push(clone_ident)
+
+    // FCall node with the source expression as argument
+    mut clone_call := Expr(node_type=NodeType.FCall(false), line=line, col=col)
+    clone_call.params.push(type_clone_access)
+    clone_call.params.push(src_expr)
+    return clone_call
 }
