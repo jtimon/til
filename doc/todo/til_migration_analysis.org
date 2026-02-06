@@ -130,11 +130,22 @@ Areas to simplify:
 
 **** Specific Opportunities Identified
 
+**Bug #159 (in progress) - Clone/Copy Simplification:**
+Consolidating clone logic from interpreter and ccodegen into garbager (AST transformation).
+- Already removed: ~60 lines from ccodegen and interpreter
+- Remaining: copy_fields removal for assignments, function args, struct construction
+- See doc/todo/bugs.org Bug #159 for detailed progress table
+
 **ccodegen.rs (6,800 lines):**
 1. `emit_fcall` (626 lines) - Split builtins (type_as_str, enum_to_str,
    enum_get_payload, size_of, to_ptr) into separate functions
 2. Declaration hoisting duplicated 3x between emit_if (then/else) and emit_while
 3. `is_namespace_definition()` one-liner used 2x - could inline
+
+**garbager.rs (142 lines):**
+1. Repeated recursion pattern for FuncDef, StructDef, NamespaceDef could be unified
+   - Each has: recurse default_values/body, rebuild struct with new values, recurse params
+   - Could extract helper for the common pattern
 
 **interpreter.rs:**
 1. `eval_user_func_proc_call` has documented TODO REFACTOR (line 1659)
