@@ -5425,25 +5425,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(&c_var_name);
         if !expr.params.is_empty() {
             output.push_str(" = ");
-            // Issue #159: For struct types, when RHS is an existing variable (not a function call
-            // or literal), we need to call clone() to get a deep copy instead of shallow struct assignment.
-            // Function calls (rhs_string is Some) already return fresh instances, no clone needed.
-            // Literals don't need cloning - they create new values directly.
-            let rhs_is_identifier = matches!(&expr.params[0].node_type, NodeType::Identifier(_));
-            let needs_clone = rhs_string.is_none() && rhs_is_identifier && match &var_type {
-                ValueType::TCustom(type_name) => context.scope_stack.has_struct(type_name),
-                _ => false,
-            };
-            if needs_clone {
-                if let ValueType::TCustom(type_name) = &var_type {
-                    output.push_str(&til_name(type_name));
-                    output.push_str("_clone(&");
-                    emit_expr(&expr.params[0], output, 0, ctx, context)?;
-                    output.push_str(")");
-                } else {
-                    emit_expr(&expr.params[0], output, 0, ctx, context)?;
-                }
-            } else if let Some(ref call_str) = rhs_string {
+            // Issue #159: Clone logic moved to garbager phase - it transforms
+            // `mut x := y` to `mut x := Type.clone(y)` at AST level
+            if let Some(ref call_str) = rhs_string {
                 output.push_str(call_str);
             } else {
                 emit_expr(&expr.params[0], output, 0, ctx, context)?;

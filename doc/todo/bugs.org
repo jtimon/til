@@ -57,12 +57,28 @@ to =mut x := Type.clone(y)= at the AST level. This means:
 - Clone insertion happens at AST transformation time, not during interpretation
 - Removed =call_clone_method= function from interpreter (both Rust and TIL)
 - Simplified interpreter declaration handling to just bind offsets
+- Removed duplicate clone logic from ccodegen (both Rust and TIL)
 
 **Root cause of previous stack overflow**: Bool was incorrectly marked as "primitive"
 in garbager's exclusion list. When =mut val := false= was not transformed to
 =Bool.clone(false)=, the interpreter just shared offsets. Since =false= is a global
 constant, modifying =val= later would corrupt =false=, causing infinite loops in
 code that depended on =false= being correct. Fix: removed Bool from primitives list.
+
+**** Remaining copy_fields locations (progress tracking)
+| Location             | Purpose                    | Status                      |
+|----------------------+----------------------------+-----------------------------|
+| mut declarations     | =mut x := y=               | DONE (garbager inserts clone) |
+| Struct literal fields | interpreter.rs:603, .til:563 | TODO                        |
+| Nested member assign | interpreter.rs:968, .til:1090 | TODO                        |
+| Assignment statements | interpreter.rs:1139, .til:1202 | TODO                        |
+| Function copy params | interpreter.rs:2098,2128,2153 / .til:2261,2308,2340 | TODO |
+
+**** Step 4: TODO - Handle assignment statements
+Transform =x = y= (where y is a struct) to =x = Type.clone(y)= in garbager.
+
+**** Step 5: TODO - Handle copy function params
+Transform copy params at call sites to use clone in garbager.
 
 *** Failed Attempt: branch failure159
 Branch =failure159= contains Steps 2-8 of the implementation, but caused massive

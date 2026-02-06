@@ -2572,7 +2572,7 @@ til_I64 til_Str_hash(const til_Str* til_Str_self) {
     til_I64 _tmp_til_Str_hash_1 = 3750763034362895579;
     const til_I64 til_I64_FNV_OFFSET_BASIS = til_I64_sub(&_tmp_til_Str_hash_0, &_tmp_til_Str_hash_1);
     const til_I64 til_I64_FNV_PRIME = 1099511628211;
-    til_I64 til_I64_h = til_I64_clone(&til_I64_FNV_OFFSET_BASIS);
+    til_I64 til_I64_h = til_I64_FNV_OFFSET_BASIS;
     til_I64 til_I64_i = 0;
     til_U8 til_U8_byte_val;
     til_I64 _tmp_til_Str_hash_2 = 0;
