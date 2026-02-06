@@ -1843,10 +1843,10 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
             if sizeof_is_type_var {
                 // Bug #97: Use type-mangled name for Type variable reference
                 c_var_name := til_var_name_from_context(type_name, context)
-                sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", c_var_name, ", 1}), strlen(", c_var_name, "), 0})"))
+                sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", c_var_name, ", 1, 0, 0, 0}), strlen(", c_var_name, "), 0})"))
             } else {
                 // Literal type name
-                sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"", type_name, "\", 1}), ", type_name.len().to_str(), ", 0})"))
+                sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"", type_name, "\", 1, 0, 0, 0}), ", type_name.len().to_str(), ", 0})"))
             }
         case:
             throw arg.lang_error(context.path, "ccodegen", "size_of requires type name argument")
@@ -1918,13 +1918,13 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
                 // Type variable - already a const char*, wrap in Str struct literal
                 // Bug #97: Use type-mangled name for Type variable reference
                 tas_c_var_name := til_var_name_from_context(type_name, context)
-                return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", tas_c_var_name, ", 1}), strlen(", tas_c_var_name, "), 0})")
+                return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", tas_c_var_name, ", 1, 0, 0, 0}), strlen(", tas_c_var_name, "), 0})")
             } else {
                 // Literal type name - create Str compound literal
-                return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"", type_name, "\", 1}), ", type_name.len().to_str(), ", 0})")
+                return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"", type_name, "\", 1, 0, 0, 0}), ", type_name.len().to_str(), ", 0})")
             }
         case:
-            return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"unknown\", 1}), 7, 0})")
+            return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"unknown\", 1, 0, 0, 0}), 7, 0})")
         }
     }
 
@@ -2497,7 +2497,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             // Skip argv[0] (exe path) to match interpreter behavior
             output.push_str("    til_Array _main_args = til_Array_new(\"Str\", &(til_I64){argc - 1});\n")
             output.push_str("    for (int i = 1; i < argc; i++) {\n")
-            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1}), strlen(argv[i]), 0};\n")
+            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1, 0, 0, 0}), strlen(argv[i]), 0};\n")
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n")
             output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, (til_Dynamic*)&_arg);\n")
             output.push_str("    }\n")
@@ -3319,7 +3319,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
             output.push_str(TIL_PREFIX)
             output.push_str("I64)")
             output.push_str(inner_type_name_str)
-            output.push_str(", 1}, ._len = ")
+            output.push_str(", 1, 0, 0, 0}, ._len =")
             output.push_str(inner_type_name.len().to_str())
             output.push_str(", .cap = 0}, .type_size = ")
             output.push_str(type_size.to_str())
@@ -3329,7 +3329,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
             output.push_str(TIL_PREFIX)
             output.push_str("I64)")
             output.push_str(inner_data_name_str)
-            output.push_str(", 1}, ._len = ")
+            output.push_str(", 1, 0, 0, 0}, ._len =")
             output.push_str(len.to_str())
             output.push_str(", .cap = ")
             output.push_str(cap.to_str())
@@ -3449,7 +3449,7 @@ emit_precomputed_vec_str_static := proc(mut output: Str, mut _ctx: CodegenContex
         output.push_str(var_name)
         output.push_str("_str_")
         output.push_str(idx.to_str())
-        output.push_str(", 1}, ._len = ")  // is_borrowed = 1 (static string)
+        output.push_str(", 1, 0, 0, 0}, ._len =")  // is_borrowed = 1 (static string)
         output.push_str(len.to_str())
         output.push_str(", .cap = 0}")
         if idx.add(1).lt(elem_count) {
@@ -3531,7 +3531,7 @@ emit_precomputed_vec_assignment := proc(var_name: Str, is_mut: Bool, static_info
     output.push_str(TIL_PREFIX)
     output.push_str("I64)")
     output.push_str(static_info.type_name_array_name)
-    output.push_str(", 1}, ")  // is_borrowed = 1
+    output.push_str(", 1, 0, 0, 0}, ")  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0
     output.push_str(elem_type.len().to_str())
     output.push_str(", 0},\n")
 
@@ -3549,7 +3549,7 @@ emit_precomputed_vec_assignment := proc(var_name: Str, is_mut: Bool, static_info
     output.push_str(TIL_PREFIX)
     output.push_str("I64)")
     output.push_str(static_info.data_array_name)
-    output.push_str(", 1},\n")  // is_borrowed = 1 (static data, don't free)
+    output.push_str(", 1, 0, 0, 0},\n")  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0 (static data, don't free)
 
     // _len field
     output.push_str(indent_str)
@@ -3827,20 +3827,20 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, mut output
         output.push_str(enum_name)
         output.push_str("_")
         output.push_str(variant)
-        // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
+        // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
         output.push_str(": return ((til_Str){((til_Ptr){(til_I64)\"")
         output.push_str(full_name)
-        output.push_str("\", 1}), ")
+        output.push_str("\", 1, 0, 0, 0}), ")
         output.push_str(I64.to_str(full_name.len()))
         output.push_str(", 0});\n")
     }
 
     // Default case (shouldn't happen but good for safety)
     unknown_name := original_name.concat(".?")
-    // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
+    // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
     output.push_str("    }\n    return ((til_Str){((til_Ptr){(til_I64)\"")
     output.push_str(unknown_name)
-    output.push_str("\", 1}), ")
+    output.push_str("\", 1, 0, 0, 0}), ")
     output.push_str(I64.to_str(unknown_name.len()))
     output.push_str(", 0});\n}\n\n")
 
@@ -7946,7 +7946,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             if is_type_var {
                 // Type variable - already a const char*, wrap in Str struct literal
                 // Bug #97: Use type-mangled name for Type variable reference
-                // Use new Str format with Ptr { data, is_borrowed=1 }
+                // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }
                 type_c_var_name := til_var_name_from_context(type_name, context)
                 output.push_str("((")
                 output.push_str(TIL_PREFIX)
@@ -7956,7 +7956,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(TIL_PREFIX)
                 output.push_str("I64)")
                 output.push_str(type_c_var_name)
-                output.push_str(", 1}), strlen(")
+                output.push_str(", 1, 0, 0, 0}), strlen(")
                 output.push_str(type_c_var_name)
                 output.push_str("), 0})")
             } else {
@@ -8040,7 +8040,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             if payload_is_type_var {
                 // Type variable - wrap in Str struct literal
                 // Bug #97: Use type-mangled name for Type variable reference
-                // Use new Str format with Ptr { data, is_borrowed=1 }
+                // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }
                 payload_c_var_name := til_var_name_from_context(payload_type_name, context)
                 output.push_str("((")
                 output.push_str(TIL_PREFIX)
@@ -8050,7 +8050,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(TIL_PREFIX)
                 output.push_str("I64)")
                 output.push_str(payload_c_var_name)
-                output.push_str(", 1}), strlen(")
+                output.push_str(", 1, 0, 0, 0}), strlen(")
                 output.push_str(payload_c_var_name)
                 output.push_str("), 0})")
             } else {
@@ -8137,7 +8137,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             if size_is_type_var {
                 // Type variable - already a const char*, wrap in Str struct literal
                 // Bug #97: Use type-mangled name for Type variable reference
-                // Use new Str format with Ptr { data, is_borrowed=1 }
+                // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }
                 size_c_var_name := til_var_name_from_context(type_name, context)
                 output.push_str("((")
                 output.push_str(TIL_PREFIX)
@@ -8147,7 +8147,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(TIL_PREFIX)
                 output.push_str("I64)")
                 output.push_str(size_c_var_name)
-                output.push_str(", 1}), strlen(")
+                output.push_str(", 1, 0, 0, 0}), strlen(")
                 output.push_str(size_c_var_name)
                 output.push_str("), 0})")
             } else {
@@ -8156,7 +8156,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             }
         case:
             // Not an identifier - emit as expression
-            // Use new Str format with Ptr { data, is_borrowed=1 }
+            // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }
             output.push_str("((")
             output.push_str(TIL_PREFIX)
             output.push_str("Str){((")
@@ -8165,7 +8165,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             output.push_str(TIL_PREFIX)
             output.push_str("I64)")
             emit_expr(size_type_arg, output, 0, ctx, context)?
-            output.push_str(", 1}), strlen(")
+            output.push_str(", 1, 0, 0, 0}), strlen(")
             emit_expr(size_type_arg, output, 0, ctx, context)?
             output.push_str("), 0})")
         }
@@ -8605,8 +8605,8 @@ emit_str_literal := proc(s: Str, mut output: Str) {
             panic(loc(), "U8_Overflow: ASCII values are valid U8, should never happen: ", err.msg)
         }
     }
-    // Close Ptr (data, is_borrowed=1), then Str (c_string, _len, cap=0 for literals)
-    output.push_str("\", 1}), ")
+    // Close Ptr (data, is_borrowed=1, alloc_size=0, elem_type=0, elem_size=0), then Str (c_string, _len, cap=0 for literals)
+    output.push_str("\", 1, 0, 0, 0}), ")
     output.push_str(s.len().to_str())
     output.push_str(", 0})")
 }
