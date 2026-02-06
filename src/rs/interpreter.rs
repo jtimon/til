@@ -2075,8 +2075,23 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                                             // Track that this was passed by reference
                                             pass_by_ref_params.insert(arg.name.clone());
+                                        } else if arg.is_copy {
+                                            // Issue #159: garbager inserts Type.clone() for struct identifier copy params.
+                                            // The clone is now an FCall wrapping the identifier, so this branch
+                                            // won't be reached for struct copy params anymore (they go through
+                                            // the expression branch below). Keep this as a safety fallback
+                                            // that just binds the offset.
+                                            let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
+                                                offset
+                                            } else if id_.contains('.') {
+                                                context.get_field_offset(id_)
+                                                    .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-copy: {}", err)))?
+                                            } else {
+                                                return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
+                                            };
+                                            function_frame.arena_index.insert(arg.name.clone(), src_offset);
                                         } else {
-                                            // For copy parameters, allocate and copy
+                                            // For own/Type parameters, allocate and copy
                                             insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
 
                                             // Push frame temporarily for copy_fields (needs dest accessible)
@@ -2135,41 +2150,49 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                         }
                                     },
                                     _ => {
-                                        // For expression arguments (like Vec.new(Expr)), the struct is already
-                                        // allocated and evaluated in result_str. We need to copy it to the parameter.
-                                        insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
+                                        if arg.is_copy {
+                                            // Issue #159: garbager inserts Type.clone() for copy params.
+                                            // Clone result is already allocated, just bind offset.
+                                            let src_offset = context.scope_stack.lookup_var(&source_id)
+                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
+                                            function_frame.arena_index.insert(arg.name.clone(), src_offset);
+                                        } else {
+                                            // For expression arguments (like Vec.new(Expr)), the struct is already
+                                            // allocated and evaluated in result_str. We need to copy it to the parameter.
+                                            insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
 
-                                        // Push frame temporarily for copy_fields
-                                        context.scope_stack.frames.push(function_frame);
+                                            // Push frame temporarily for copy_fields
+                                            context.scope_stack.frames.push(function_frame);
 
-                                        // Temporarily register source for copy_fields
-                                        let src_offset = context.scope_stack.lookup_var(&source_id)
-                                            .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
-                                        let src_symbol = context.scope_stack.lookup_symbol(&source_id).cloned()
-                                            .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source symbol '{}' not found", source_id)))?;
+                                            // Temporarily register source for copy_fields
+                                            let src_offset = context.scope_stack.lookup_var(&source_id)
+                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
+                                            let src_symbol = context.scope_stack.lookup_symbol(&source_id).cloned()
+                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source symbol '{}' not found", source_id)))?;
 
-                                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(source_id.clone(), src_offset);
-                                        context.scope_stack.declare_symbol(source_id.clone(), src_symbol);
-                                        EvalArena::copy_fields(context, &resolved_type_name, &source_id, &arg.name, e)?;
-                                        context.scope_stack.remove_var(&source_id);
-                                        context.scope_stack.remove_symbol(&source_id);
-
-                                        // Pop frame back for remaining arg processing
-                                        function_frame = context.scope_stack.frames.pop().unwrap();
-
-                                        // For own parameters, remove the source from caller's context (ownership transferred)
-                                        if arg.is_own {
+                                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(source_id.clone(), src_offset);
+                                            context.scope_stack.declare_symbol(source_id.clone(), src_symbol);
+                                            EvalArena::copy_fields(context, &resolved_type_name, &source_id, &arg.name, e)?;
                                             context.scope_stack.remove_var(&source_id);
                                             context.scope_stack.remove_symbol(&source_id);
-                                            // Also remove field entries
-                                            let cleanup_prefix = format!("{}.", &source_id);
-                                            let cleanup_keys_to_remove: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
-                                                .filter(|cleanup_key| cleanup_key.starts_with(&cleanup_prefix))
-                                                .cloned()
-                                                .collect();
-                                            for cleanup_remove_key in cleanup_keys_to_remove {
-                                                context.scope_stack.remove_var(&cleanup_remove_key);
-                                                context.scope_stack.remove_symbol(&cleanup_remove_key);
+
+                                            // Pop frame back for remaining arg processing
+                                            function_frame = context.scope_stack.frames.pop().unwrap();
+
+                                            // For own parameters, remove the source from caller's context (ownership transferred)
+                                            if arg.is_own {
+                                                context.scope_stack.remove_var(&source_id);
+                                                context.scope_stack.remove_symbol(&source_id);
+                                                // Also remove field entries
+                                                let cleanup_prefix = format!("{}.", &source_id);
+                                                let cleanup_keys_to_remove: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
+                                                    .filter(|cleanup_key| cleanup_key.starts_with(&cleanup_prefix))
+                                                    .cloned()
+                                                    .collect();
+                                                for cleanup_remove_key in cleanup_keys_to_remove {
+                                                    context.scope_stack.remove_var(&cleanup_remove_key);
+                                                    context.scope_stack.remove_symbol(&cleanup_remove_key);
+                                                }
                                             }
                                         }
                                     },

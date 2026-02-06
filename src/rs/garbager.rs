@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 use crate::rs::init::Context;
-use crate::rs::parser::{Expr, NodeType, ValueType, SFuncDef, SStructDef, SNamespaceDef};
+use crate::rs::parser::{Expr, NodeType, ValueType, SFuncDef, SStructDef, SNamespaceDef, Declaration};
 
 /// Garbager phase entry point: Transform AST for proper memory semantics.
 pub fn garbager_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
@@ -104,6 +104,17 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             // No transformation needed
             Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
         }
+        // Issue #159: Transform FCall copy params with struct type where arg is an identifier
+        NodeType::FCall(_) => {
+            // First, recursively transform children
+            let mut new_params = Vec::new();
+            for param in &e.params {
+                new_params.push(garbager_recursive(context, param)?);
+            }
+            // Transform copy params: wrap struct identifier args in Type.clone()
+            transform_fcall_copy_params(context, e, &mut new_params);
+            Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
+        }
         // Default: recurse into children
         _ => {
             let mut new_params = Vec::new();
@@ -138,4 +149,79 @@ fn build_clone_call_expr(type_name: &str, src_expr: Expr, line: usize, col: usiz
         line,
         col,
     )
+}
+
+/// Extract function name from FCall's first param (the name expression).
+/// Returns "foo" for foo(x) or "Type.method" for Type.method(x).
+fn get_func_name(e: &Expr) -> Option<String> {
+    if e.params.is_empty() {
+        return None;
+    }
+    let name_expr = &e.params[0];
+    match &name_expr.node_type {
+        NodeType::Identifier(name) => {
+            // Check for Type.method pattern: Identifier("Type") with child Identifier("method")
+            if !name_expr.params.is_empty() {
+                if let NodeType::Identifier(method) = &name_expr.params[0].node_type {
+                    return Some(format!("{}.{}", name, method));
+                }
+            }
+            Some(name.clone())
+        }
+        _ => None,
+    }
+}
+
+/// Check if an expression is an Identifier node.
+fn is_identifier_expr(e: &Expr) -> bool {
+    matches!(&e.node_type, NodeType::Identifier(_))
+}
+
+/// Transform FCall copy params: for each arg that is_copy, struct-typed, and an identifier,
+/// wrap in Type.clone().
+fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec<Expr>) {
+    let func_name = match get_func_name(e) {
+        Some(name) => name,
+        None => return,
+    };
+
+    // Skip .clone and .delete calls to avoid infinite recursion / double-free
+    if func_name.ends_with(".clone") || func_name.ends_with(".delete") {
+        return;
+    }
+
+    // Early out: check if any args (params[1..]) are identifiers
+    let has_identifier_arg = new_params.iter().skip(1).any(|p| is_identifier_expr(p));
+    if !has_identifier_arg {
+        return;
+    }
+
+    // Look up function definition to get arg metadata
+    let func_def = match context.scope_stack.lookup_func(&func_name) {
+        Some(fd) => fd,
+        None => return,
+    };
+
+    // For each arg: if is_copy AND struct type AND identifier, wrap in Type.clone()
+    let arg_defs: &Vec<Declaration> = &func_def.args;
+    for (i, arg_def) in arg_defs.iter().enumerate() {
+        let param_idx = i + 1; // params[0] is the function name
+        if param_idx >= new_params.len() {
+            break;
+        }
+        if !arg_def.is_copy {
+            continue;
+        }
+        if !is_identifier_expr(&new_params[param_idx]) {
+            continue;
+        }
+        if let ValueType::TCustom(type_name) = &arg_def.value_type {
+            let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Str" | "Type" | "Dynamic");
+            if !is_primitive && context.scope_stack.has_struct(type_name) {
+                let arg_expr = new_params[param_idx].clone();
+                let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
+                new_params[param_idx] = clone_call;
+            }
+        }
+    }
 }
