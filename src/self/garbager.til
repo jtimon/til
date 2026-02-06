@@ -131,6 +131,17 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         // No transformation needed
         return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
 
+    // Issue #159: Transform FCall copy params with struct type where arg is an identifier
+    case NodeType.FCall(_):
+        // First, recursively transform children
+        mut new_params := Vec.new(Expr)
+        for param: Expr in e.params {
+            new_params.push(garbager_recursive(context, param)?)
+        }
+        // Transform copy params: wrap struct identifier args in Type.clone()
+        transform_fcall_copy_params(context, e, new_params)
+        return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
+
     // Default: recurse into children
     case:
         mut new_params := Vec.new(Expr)
@@ -153,4 +164,117 @@ build_clone_call_expr := func(type_name: Str, src_expr: Expr, line: I64, col: I6
     clone_call.params.push(type_clone_access)
     clone_call.params.push(src_expr)
     return clone_call
+}
+
+/// Extract function name from FCall's first param (the name expression).
+/// Returns "foo" for foo(x) or "Type.method" for Type.method(x).
+get_func_name := func(e: Expr) returns Str {
+    if e.params.len().eq(0) {
+        return ""
+    }
+    mut name_expr := Expr()
+    e.params.get(0, name_expr)?
+    catch (err: IndexOutOfBoundsError) {
+        return ""
+    }
+    switch name_expr.node_type {
+    case NodeType.Identifier(name):
+        // Check for Type.method pattern: Identifier("Type") with child Identifier("method")
+        if name_expr.params.len().gt(0) {
+            mut first_child := Expr()
+            name_expr.params.get(0, first_child)?
+            catch (err: IndexOutOfBoundsError) {
+                return name
+            }
+            switch first_child.node_type {
+            case NodeType.Identifier(method):
+                return format(name, ".", method)
+            case:
+            }
+        }
+        return name
+    case:
+        return ""
+    }
+}
+
+/// Check if an expression is an Identifier node.
+is_identifier_expr := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.Identifier(_):
+        return true
+    case:
+        return false
+    }
+}
+
+/// Transform FCall copy params: for each arg that is_copy, struct-typed, and an identifier,
+/// wrap in Type.clone().
+transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: Vec) {
+    func_name := get_func_name(e)
+    if func_name.eq("") {
+        return
+    }
+
+    // Skip .clone and .delete calls to avoid infinite recursion / double-free
+    if func_name.ends_with(".clone").or(func_name.ends_with(".delete")) {
+        return
+    }
+
+    // Early out: check if any args (params[1..]) are identifiers
+    mut has_identifier_arg := false
+    for check_i in 1..new_params.len() {
+        mut check_param := Expr()
+        new_params.get(check_i, check_param)?
+        catch (err: IndexOutOfBoundsError) { }
+        if is_identifier_expr(check_param) {
+            has_identifier_arg = true
+        }
+    }
+    if not(has_identifier_arg) {
+        return
+    }
+
+    // Look up function definition to get arg metadata
+    mut func_def := SFuncDef()
+    mut found_func := false
+    func_def = context.scope_stack.lookup_func(func_name)?
+    found_func = true
+    catch (err: KeyNotFoundError) { }
+    if not(found_func) {
+        return
+    }
+
+    // For each arg: if is_copy AND struct type AND identifier, wrap in Type.clone()
+    for i in 0..func_def.args.len() {
+        mut arg_def := Declaration()
+        func_def.args.get(i, arg_def)?
+        catch (err: IndexOutOfBoundsError) { }
+        param_idx := i.add(1) // params[0] is the function name
+        if param_idx.gteq(new_params.len()) {
+            return
+        }
+        if not(arg_def.is_copy) {
+            // skip
+        } else {
+            mut param_expr := Expr()
+            new_params.get(param_idx, param_expr)?
+            catch (err: IndexOutOfBoundsError) { }
+            if not(is_identifier_expr(param_expr)) {
+                // skip
+            } else {
+                switch arg_def.value_type {
+                case ValueType.TCustom(type_name):
+                    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Str")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
+                    if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+                        arg_expr := param_expr.clone()
+                        clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
+                        new_params.set(param_idx, clone_call)?
+                        catch (err: IndexOutOfBoundsError) { }
+                    }
+                case:
+                }
+            }
+        }
+    }
 }

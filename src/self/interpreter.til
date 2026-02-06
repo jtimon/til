@@ -2147,6 +2147,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 if pbr_skey.starts_with(pbr_prefix) {
                                                     mut pbr_svalue := SymbolInfo()
                                                     pbr_caller_frame.symbols.get(pbr_skey, pbr_svalue)?
+                                                    catch (err: KeyNotFoundError) { }
                                                     pbr_new_skey := pbr_skey.replacen(pbr_prefix, pbr_replacement_prefix, 1)
                                                     pbr_field_symbols_to_copy.push(SymbolEntry(name=pbr_new_skey, info=pbr_svalue.clone()))
                                                 }
@@ -2159,8 +2160,28 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Track that this was passed by reference
                                         pass_by_ref_params.push(arg.name.clone())
                                     }
-                                    if not(should_share_offset) {
-                                        // For copy parameters, allocate and copy
+                                    if not(should_share_offset).and(arg.is_copy) {
+                                        // Issue #159: garbager inserts Type.clone() for struct identifier copy params.
+                                        // The clone is now an FCall wrapping the identifier, so this branch
+                                        // won't be reached for struct copy params anymore (they go through
+                                        // the expression branch below). Keep this as a safety fallback
+                                        // that just binds the offset.
+                                        mut copy_src_offset := 0
+                                        mut copy_src_offset_found := false
+                                        copy_src_offset = context.scope_stack.lookup_var(id_)?
+                                        copy_src_offset_found = true
+                                        catch (err: KeyNotFoundError) { }
+                                        if not(copy_src_offset_found) {
+                                            if id_.contains(".") {
+                                                copy_src_offset = context.get_field_offset(id_)?
+                                            } else {
+                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context arena_index"))
+                                            }
+                                        }
+                                        function_frame.arena_index.set(arg.name.clone(), copy_src_offset)
+                                    }
+                                    if not(should_share_offset).and(not(arg.is_copy)) {
+                                        // For own/Type parameters, allocate and copy
                                         insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
 
                                         // Push frame temporarily for copy_fields (needs dest accessible)
@@ -2188,34 +2209,34 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         } else {
                                             // Temporarily register source struct's base offset and symbol
                                             // so that copy_fields() can calculate field offsets dynamically
-                                            mut copy_src_offset := 0
-                                            mut copy_src_offset_found := false
-                                            copy_src_offset = context.scope_stack.lookup_var(id_)?
-                                            copy_src_offset_found = true
+                                            mut own_src_offset := 0
+                                            mut own_src_offset_found := false
+                                            own_src_offset = context.scope_stack.lookup_var(id_)?
+                                            own_src_offset_found = true
                                             catch (err: KeyNotFoundError) { }
-                                            if not(copy_src_offset_found) {
+                                            if not(own_src_offset_found) {
                                                 if id_.contains(".") {
                                                     // Field path - calculate offset dynamically
-                                                    copy_src_offset = context.get_field_offset(id_)?
+                                                    own_src_offset = context.get_field_offset(id_)?
                                                 } else {
                                                     throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context arena_index"))
                                                 }
                                             }
-                                            mut copy_src_symbol := SymbolInfo()
-                                            mut copy_src_symbol_found := false
-                                            copy_src_symbol = context.scope_stack.lookup_symbol(id_)?
-                                            copy_src_symbol_found = true
+                                            mut own_src_symbol := SymbolInfo()
+                                            mut own_src_symbol_found := false
+                                            own_src_symbol = context.scope_stack.lookup_symbol(id_)?
+                                            own_src_symbol_found = true
                                             catch (err: KeyNotFoundError) { }
-                                            if not(copy_src_symbol_found) {
+                                            if not(own_src_symbol_found) {
                                                 throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context symbols"))
                                             }
 
                                             mut lf10_idx := context.scope_stack.frames.len().sub(1)
                                             mut lf10 := ScopeFrame()
                                             context.scope_stack.frames.get(lf10_idx, lf10)?
-                                            lf10.arena_index.set(id_.clone(), copy_src_offset)
+                                            lf10.arena_index.set(id_.clone(), own_src_offset)
                                             context.scope_stack.frames.set(lf10_idx, lf10)?
-                                            context.scope_stack.declare_symbol(id_.clone(), copy_src_symbol.clone())?
+                                            context.scope_stack.declare_symbol(id_.clone(), own_src_symbol.clone())?
                                             EvalArena.copy_fields(context, resolved_type_name, id_, arg.name, e)?
                                             _ := context.scope_stack.remove_var(id_)?
                                             _ := context.scope_stack.remove_symbol(id_)?
@@ -2225,40 +2246,50 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         function_frame = context.scope_stack.pop()?
                                     }
                                 } else {
-                                    // For expression arguments (like Vec.new(Expr)), the struct is already
-                                    // allocated and evaluated in result_str. We need to copy it to the parameter.
-                                    insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
+                                    if arg.is_copy {
+                                        // Issue #159: garbager inserts Type.clone() for copy params.
+                                        // Clone result is already allocated, just bind offset.
+                                        expr_copy_src_offset := context.scope_stack.lookup_var(source_id)?
+                                        catch (err: KeyNotFoundError) {
+                                            throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
+                                        }
+                                        function_frame.arena_index.set(arg.name.clone(), expr_copy_src_offset)
+                                    } else {
+                                        // For expression arguments (like Vec.new(Expr)), the struct is already
+                                        // allocated and evaluated in result_str. We need to copy it to the parameter.
+                                        insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
 
-                                    // Push frame temporarily for copy_fields
-                                    context.scope_stack.frames.push(function_frame)
+                                        // Push frame temporarily for copy_fields
+                                        context.scope_stack.frames.push(function_frame)
 
-                                    // Temporarily register source for copy_fields
-                                    expr_src_offset := context.scope_stack.lookup_var(source_id)?
-                                    catch (err: KeyNotFoundError) {
-                                        throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
-                                    }
-                                    expr_src_symbol := context.scope_stack.lookup_symbol(source_id)?
-                                    catch (err: KeyNotFoundError) {
-                                        throw e.lang_error(context.path, "eval", format("Source symbol '", source_id, "' not found"))
-                                    }
+                                        // Temporarily register source for copy_fields
+                                        expr_src_offset := context.scope_stack.lookup_var(source_id)?
+                                        catch (err: KeyNotFoundError) {
+                                            throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
+                                        }
+                                        expr_src_symbol := context.scope_stack.lookup_symbol(source_id)?
+                                        catch (err: KeyNotFoundError) {
+                                            throw e.lang_error(context.path, "eval", format("Source symbol '", source_id, "' not found"))
+                                        }
 
-                                    mut lf11_idx := context.scope_stack.frames.len().sub(1)
-                                    mut lf11 := ScopeFrame()
-                                    context.scope_stack.frames.get(lf11_idx, lf11)?
-                                    lf11.arena_index.set(source_id.clone(), expr_src_offset)
-                                    context.scope_stack.frames.set(lf11_idx, lf11)?
-                                    context.scope_stack.declare_symbol(source_id.clone(), expr_src_symbol.clone())?
-                                    EvalArena.copy_fields(context, resolved_type_name, source_id, arg.name, e)?
-                                    _ := context.scope_stack.remove_var(source_id)?
-                                    _ := context.scope_stack.remove_symbol(source_id)?
-
-                                    // Pop frame back for remaining arg processing
-                                    function_frame = context.scope_stack.pop()?
-
-                                    // For own parameters, remove the source from caller's context (ownership transferred)
-                                    if arg.is_own {
+                                        mut lf11_idx := context.scope_stack.frames.len().sub(1)
+                                        mut lf11 := ScopeFrame()
+                                        context.scope_stack.frames.get(lf11_idx, lf11)?
+                                        lf11.arena_index.set(source_id.clone(), expr_src_offset)
+                                        context.scope_stack.frames.set(lf11_idx, lf11)?
+                                        context.scope_stack.declare_symbol(source_id.clone(), expr_src_symbol.clone())?
+                                        EvalArena.copy_fields(context, resolved_type_name, source_id, arg.name, e)?
                                         _ := context.scope_stack.remove_var(source_id)?
                                         _ := context.scope_stack.remove_symbol(source_id)?
+
+                                        // Pop frame back for remaining arg processing
+                                        function_frame = context.scope_stack.pop()?
+
+                                        // For own parameters, remove the source from caller's context (ownership transferred)
+                                        if arg.is_own {
+                                            _ := context.scope_stack.remove_var(source_id)?
+                                            _ := context.scope_stack.remove_symbol(source_id)?
+                                        }
                                     }
                                 }
                             } else {
