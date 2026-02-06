@@ -13,8 +13,32 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, shared state between clones
-:STATUS: Partially Fixed (deep copy via clone works; nested Ptr cloning still TODO)
+:STATUS: In Progress - mut declarations done, user directing remaining work
 :END:
+
+*** CRITICAL: The Goal
+Remove =copy_fields= (shallow copy) from interpreter and codegen. Replace with:
+1. Garbager inserts =Type.clone()= calls for struct-typed identifier args
+2. Interpreter uses offset binding instead of copy_fields
+
+*** CRITICAL: The Rule
+- *MUST* remove the corresponding shallow copy for every deep copy added
+- *MUST NOT* commit with both shallow and deep copy for the same case
+
+*** CRITICAL: User Decides Order
+- *MUST* wait for user to specify which copy_fields case to tackle next
+- *MUST NOT* jump ahead or work on cases user hasn't assigned
+
+*** MUST: Port to TIL
+Any Rust changes *MUST* be ported to equivalent TIL files before testing.
+
+*** Known Blocker: Function Return Scope Problem
+When function returns struct literal with rebound fields:
+1. Field rebindings exist in function scope
+2. Function returns, scope pops
+3. Rebindings lost before caller can use them
+
+This may block struct literal fields. User aware. Wait for user direction.
 
 *** Description
 When doing =mut cloned := original=, the interpreter uses =copy_fields= which does
@@ -51,7 +75,7 @@ This allows Ptr.clone to:
 
 Vec/Map/etc can then delegate to Ptr, simplifying their implementations.
 
-**** Step 3: DONE - Move clone logic from interpreter to garbager
+**** Step 3: DONE - Move clone logic from interpreter to garbager (mut declarations)
 Changed garbager phase to transform =mut x := y= (where y is a struct identifier)
 to =mut x := Type.clone(y)= at the AST level. This means:
 - Clone insertion happens at AST transformation time, not during interpretation
