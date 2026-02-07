@@ -7,6 +7,49 @@
 
 * Fixed Bugs
 
+** Bug #160: Eliminate field paths from arena_index
+:PROPERTIES:
+:DISCOVERED: 2026-02-03
+:FIXED: 2026-02-07
+:IMPACT: Code quality, memory efficiency, cleaner architecture
+:STATUS: Fixed
+:END:
+
+*** Description
+Field paths like "var.field" or "var.field.subfield" were stored in arena_index
+as a legacy hack. get_field_offset() already computes all field offsets
+dynamically from struct layout + base offset, making stored field paths redundant.
+
+*** What was done (first pass, 2026-02-03)
+Eliminated map_instance_fields and switched to deterministic field offset
+calculation via get_field_offset(). Removed fallback patterns. Performance
+improved 34s (-4.1%).
+
+*** What was done (second pass, 2026-02-07)
+Fully eliminated all remaining field path storage from arena_index:
+
+1. copy_fields: Removed insert_var for src/dest field keys and declare_symbol
+   for dest. Added temp insert_var/remove_var for dest only around recursive
+   calls (needed when base type is Dynamic).
+
+2. insert_string_core: Changed is_field branch from lookup_var to
+   get_field_offset. Removed two arena_index sub-field inserts.
+
+3. insert_struct_core: Removed temp inserts for nested Str and struct fields.
+   Added temp base var+symbol registration at start of field init loop with
+   cleanup at end (needed for get_field_offset during field initialization).
+
+4. generate_struct_mappings: Removed nested arena_mappings extension (kept
+   symbol extension only).
+
+5. interpreter.rs: Removed all 7 prefix-based arena_index scan locations
+   (catch block, own param transfer/cleanup, saved offsets, PBR field copy,
+   throw propagation). Kept symbol prefix transfers.
+
+*** Files modified
+- src/rs/eval_arena.rs, src/self/eval_arena.til
+- src/rs/interpreter.rs, src/self/interpreter.til
+
 ** Bug #158: test_runner.til compiled mode timing may include compilation
 :PROPERTIES:
 :DISCOVERED: 2026-01-31

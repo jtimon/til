@@ -290,19 +290,6 @@ namespace EvalArena {
             throw e.lang_error(ctx.path, "context", format("copy_fields: definition for '", custom_type_name, "' not found"))
         }
 
-        // Bug #160: Get is_mut from base variable (first part of path) since field symbols may not be registered
-        mut base_var := dest
-        if dest.contains(".") {
-            mut parts := dest.split(".")?
-            parts.get(0, base_var)?
-            catch (err: IndexOutOfBoundsError) { }
-        }
-        mut dest_sym := ctx.scope_stack.lookup_symbol(base_var)?
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("copy_fields: destination base symbol '", base_var, "' not found"))
-        }
-        is_mut := dest_sym.is_mut
-
         // Bug #160: For destinations, try lookup_var first (parent call registered it via insert_var),
         // fall back to get_field_offset for non-Dynamic types
         mut dest_base_offset := 0
@@ -347,19 +334,20 @@ namespace EvalArena {
                 if have_src_offset {
                     dest_offset := add(dest_base_offset, current_offset)
 
-                    ctx.scope_stack.insert_var(dest_key, dest_offset)?
-                    ctx.scope_stack.declare_symbol(dest_key, SymbolInfo(value_type=decl.value_type, is_mut=is_mut))?
-
                     g_arena.set(dest_offset, g_arena.get(src_offset, field_size), field_size)
 
                     switch decl.value_type {
                     case ValueType.TCustom(type_name):
                         // Check if it's a struct (not enum)
                         if ctx.scope_stack.has_struct(type_name) {
+                            // Register dest offset so recursive copy_fields can find it
+                            // (get_field_offset may fail if base type is Dynamic)
+                            ctx.scope_stack.insert_var(dest_key, dest_offset)?
                             EvalArena.copy_fields(ctx, type_name, src_key, dest_key, e)?
                             catch (err: Str) {
                                 throw e.lang_error(ctx.path, "context", format("copy_fields: failed to recursively copy field '", dest_key, "'"))
                             }
+                            _ := ctx.scope_stack.remove_var(dest_key)?
                         }
                     case:
                     }
@@ -416,6 +404,10 @@ namespace EvalArena {
         base_mapping.name = id
         base_mapping.offset = offset
         result.arena_mappings.push(base_mapping)
+
+        // Temporarily register base var so get_field_offset works during field initialization
+        ctx.scope_stack.insert_var(id, offset)?
+        ctx.scope_stack.declare_symbol(id, SymbolInfo(value_type=ValueType.TCustom(custom_type_name), is_mut=true))?
 
         // Store each field's default value
         for decl: Declaration in struct_def.members {
@@ -500,8 +492,6 @@ namespace EvalArena {
                                     str_mapping.name = nested_combined_name
                                     str_mapping.offset = str_field_offset
                                     result.arena_mappings.push(str_mapping)
-                                    // Need to temporarily insert for insert_string to work
-                                    ctx.scope_stack.insert_var(nested_combined_name, str_field_offset)?
                                     EvalArena.insert_string(ctx, nested_combined_name, default_value, e)?
                                 } else {
                                     // Use existing offset for nested struct (inline allocation)
@@ -510,8 +500,6 @@ namespace EvalArena {
                                     nested_mapping.name = nested_combined_name
                                     nested_mapping.offset = nested_field_offset
                                     result.arena_mappings.push(nested_mapping)
-                                    // Need to temporarily insert for recursive call to work
-                                    ctx.scope_stack.insert_var(nested_combined_name, nested_field_offset)?
                                     // Extract nested defaults (field.subfield -> subfield)
                                     prefix := format(decl.name, ".")
                                     mut nested_defaults := Map.new(Str, Str)
@@ -560,6 +548,10 @@ namespace EvalArena {
         catch (err: U8_Overflow) {
             throw e.lang_error(ctx.path, "context", err.msg)
         }
+
+        // Remove temp registration (caller will apply the final mappings)
+        _ := ctx.scope_stack.remove_var(id)?
+        _ := ctx.scope_stack.remove_symbol(id)?
 
         return result
     }
@@ -629,7 +621,6 @@ namespace EvalArena {
                                 // Declare nested symbol first
                                 ctx.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true))?
                                 nested := EvalArena.generate_struct_mappings(ctx, combined_name, type_name, field_abs_offset, e)?
-                                result.arena_mappings.extend(nested.arena_mappings)
                                 result.symbols.extend(nested.symbols)
                             }
                         }
@@ -728,8 +719,8 @@ namespace EvalArena {
 
         if is_field {
             mut have_base_offset := true
-            mut base_offset := ctx.scope_stack.lookup_var(id)?
-            catch (err: KeyNotFoundError) {
+            mut base_offset := ctx.get_field_offset(id)?
+            catch (err: Str) {
                 have_base_offset = false
             }
 
@@ -753,7 +744,6 @@ namespace EvalArena {
                             }
                         }
 
-                        ctx.scope_stack.insert_var(format(id, ".", existing_decl.name), absolute_offset)?
                         existing_offset = add(existing_offset, existing_type_size)
                     }
                 }
@@ -787,7 +777,6 @@ namespace EvalArena {
                         }
                     }
 
-                    ctx.scope_stack.insert_var(format(id, ".", decl.name), field_offset)?
                     current_offset = add(current_offset, type_size)
                 }
             }

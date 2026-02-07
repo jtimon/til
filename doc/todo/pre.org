@@ -298,45 +298,6 @@ t.name = "changed"  // OK
 2. Port each .rs change to .til immediately
 3. Test both interpreter and compiler modes
 
-** Bug #160: Eliminate field paths from arena_index (NOT FULLY FIXED)
-:PROPERTIES:
-:DISCOVERED: 2026-02-03
-:IMPACT: Code quality, memory efficiency, cleaner architecture
-:STATUS: Partially fixed - field paths still stored in arena_index
-:END:
-
-*** What was done
-Eliminated map_instance_fields and switched to deterministic field offset
-calculation via get_field_offset() using struct definitions. Removed fallback
-patterns. Performance improved 34s (-4.1%).
-
-*** What's still broken
-copy_fields (eval_arena.rs ~lines 289-290, eval_arena.til ~line 350-351)
-still stores field paths in arena_index:
-#+BEGIN_SRC rust
-ctx.scope_stack.insert_var(src_key.clone(), src_offset);  // e.g. "__ri_5.start"
-ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
-#+END_SRC
-
-insert_struct_core (eval_arena.rs ~lines 420, 427) still stores nested field
-paths in arena_index temporarily for Str init and recursive nested struct init.
-
-copy_fields also declares symbols for dest fields (line 291-297), which may
-not be needed if the type checker already handles this.
-
-*** Impact on Issue #159 (deep copy semantics)
-When replacing copy_fields with clone + offset binding for struct literal
-fields, offset binding alone doesn't work because get_field_offset computes
-paths arithmetically from the base (base_offset + field_offset + sub_field_offset).
-Data must physically reside in the parent struct's contiguous memory, forcing
-a memcpy after clone -- resulting in two copies instead of one.
-
-*** What needs to happen
-- copy_fields must stop storing field paths in arena_index
-- The insert_struct_core temporary inserts for Str/nested init need review
-- Once field paths are fully out of arena_index, the architecture is clean
-  for #159's offset binding approach
-
 ** Issue #159: copy keyword does shallow copies (byte copy, not clone)
 :PROPERTIES:
 :DISCOVERED: 2026-01-31

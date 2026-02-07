@@ -250,12 +250,6 @@ impl EvalArena {
         let struct_def = ctx.scope_stack.lookup_struct(custom_type_name)
             .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
 
-        // Bug #160: Get is_mut from base variable (first part of path) since field symbols may not be registered
-        let base_var = dest.split('.').next().unwrap_or(dest);
-        let is_mut = ctx.scope_stack.lookup_symbol(base_var)
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination base symbol '{}' not found", base_var)))?
-            .is_mut;
-
         // Get base offsets for src and dest
         // Bug #160: Try lookup_var first (may be registered by caller), then get_field_offset for field paths
         let src_base_offset = ctx.scope_stack.lookup_var(src)
@@ -285,26 +279,19 @@ impl EvalArena {
                 let src_offset = src_base_offset + current_offset;
                 let dest_offset = dest_base_offset + current_offset;
 
-                // Register src and dest fields for recursive calls
-                ctx.scope_stack.insert_var(src_key.clone(), src_offset);
-                ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
-                ctx.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo {
-                    value_type: decl.value_type.clone(),
-                    is_mut,
-                    is_copy: false,
-                    is_own: false,
-                    is_comptime_const: false,
-                });
-
                 let data = EvalArena::g().get(src_offset, field_size).to_vec();
                 EvalArena::g().set(dest_offset, &data)?;
 
                 if let ValueType::TCustom(type_name) = &decl.value_type {
                     // Dynamic is a special opaque type - its contents are copied via memcpy above, not recursively
                     if type_name != "Dynamic" && ctx.scope_stack.has_struct(type_name) {
+                        // Register dest offset so recursive copy_fields can find it
+                        // (get_field_offset may fail if base type is Dynamic)
+                        ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
                         EvalArena::copy_fields(ctx, type_name, &src_key, &dest_key, e).map_err(|inner_err| {
                             e.lang_error(&ctx.path, "context", &format!("copy_fields: failed to recursively copy field '{}': {}", dest_key, inner_err))
                         })?;
+                        ctx.scope_stack.remove_var(&dest_key);
                     }
                 }
 
@@ -356,6 +343,16 @@ impl EvalArena {
             None => EvalArena::g().reserve(total_size)?,
         };
         result.arena_mappings.push(EvalArenaMapping { name: id.to_string(), offset });
+
+        // Temporarily register base var so get_field_offset works during field initialization
+        ctx.scope_stack.insert_var(id.to_string(), offset);
+        ctx.scope_stack.declare_symbol(id.to_string(), SymbolInfo {
+            value_type: ValueType::TCustom(custom_type_name.to_string()),
+            is_mut: true,
+            is_copy: false,
+            is_own: false,
+            is_comptime_const: false,
+        });
 
         // Store each field's default value
         for decl in struct_def.members.iter() {
@@ -416,15 +413,11 @@ impl EvalArena {
                                         // Register inline offset BEFORE insert_string so it writes to the inline space
                                         let str_field_offset = offset + field_offset;
                                         result.arena_mappings.push(EvalArenaMapping { name: nested_combined_name.clone(), offset: str_field_offset });
-                                        // Need to temporarily insert for insert_string to work
-                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(nested_combined_name.clone(), str_field_offset);
                                         EvalArena::insert_string(ctx, &nested_combined_name, &default_value, e)?;
                                     } else {
                                         // Use existing offset for nested struct (inline allocation)
                                         let nested_field_offset = offset + field_offset;
                                         result.arena_mappings.push(EvalArenaMapping { name: nested_combined_name.clone(), offset: nested_field_offset });
-                                        // Need to temporarily insert for recursive call to work
-                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(nested_combined_name.clone(), nested_field_offset);
                                         // Extract nested defaults (field.subfield -> subfield)
                                         let prefix = format!("{}.", decl.name);
                                         let nested_defaults: HashMap<String, String> = defaults.iter()
@@ -460,6 +453,10 @@ impl EvalArena {
             }});
             }
         }
+
+        // Remove temp registration (caller will apply the final mappings)
+        ctx.scope_stack.remove_var(id);
+        ctx.scope_stack.remove_symbol(id);
 
         Ok(result)
     }
@@ -528,7 +525,6 @@ impl EvalArena {
                                 is_comptime_const: false,
                             });
                             let nested = EvalArena::generate_struct_mappings(ctx, &combined_name, type_name, field_abs_offset, e)?;
-                            result.arena_mappings.extend(nested.arena_mappings);
                             result.symbols.extend(nested.symbols);
                         }
                     }
@@ -615,7 +611,7 @@ impl EvalArena {
         let len_bytes = (value_str.len() as i64).to_ne_bytes();
 
         if is_field {
-            if let Some(base_offset) = ctx.scope_stack.lookup_var(id) {
+            if let Ok(base_offset) = ctx.get_field_offset(id) {
                 if let Some(existing_str_def) = ctx.scope_stack.lookup_struct("Str") {
                     let members = existing_str_def.members.clone();
                     let mut existing_offset = 0;
@@ -630,7 +626,6 @@ impl EvalArena {
                                 EvalArena::g().set(absolute_offset, &len_bytes)?;
                             }
 
-                            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, existing_decl.name), absolute_offset);
                             existing_offset += existing_type_size;
                         }
                     }
@@ -659,7 +654,6 @@ impl EvalArena {
                             EvalArena::g().set(struct_offset + current_offset, &len_bytes)?;
                         }
 
-                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), struct_offset + current_offset);
                         current_offset += type_size;
                     }
                 }

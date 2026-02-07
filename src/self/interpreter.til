@@ -1673,32 +1673,10 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                             context.scope_stack.frames.set(lf4_idx, lf4)?
                                         }
 
+                                        // Copy symbol mappings for all fields
                                         for field_decl: Declaration in struct_def.members {
-                                            src_instance_field := format(source_name, ".", field_decl.name)
-                                            src_type_field := format(thrown_type, ".", field_decl.name)
                                             dst_field := format(var_name, ".", field_decl.name)
-
-                                            // Add symbol for the field
                                             context.scope_stack.declare_symbol(dst_field, SymbolInfo(value_type=field_decl.value_type))?
-
-                                            // Copy arena_index entry for the field
-                                            // Try instance field first, then fall back to type field
-                                            mut field_offset := 0
-                                            mut found_field := false
-                                            field_offset = context.scope_stack.lookup_var(src_instance_field)?
-                                            found_field = true
-                                            catch (err: KeyNotFoundError) {
-                                                field_offset = context.scope_stack.lookup_var(src_type_field)?
-                                                found_field = true
-                                                catch (err2: KeyNotFoundError) { }
-                                            }
-                                            if found_field {
-                                                mut lf5_idx := context.scope_stack.frames.len().sub(1)
-                                                mut lf5 := ScopeFrame()
-                                                context.scope_stack.frames.get(lf5_idx, lf5)?
-                                                lf5.arena_index.set(dst_field, field_offset)
-                                                context.scope_stack.frames.set(lf5_idx, lf5)?
-                                            }
                                         }
                                     }
                                 }
@@ -1711,7 +1689,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                             // Clean up the error variable binding after the catch block
                             _ := context.scope_stack.remove_symbol(var_name)?
                             _ := context.scope_stack.remove_var(var_name)?
-                            // Also remove the field mappings
+                            // Also remove the field symbol mappings
                             mut cleanup_struct_def := SStructDef()
                             mut has_cleanup_struct := false
                             cleanup_struct_def = context.scope_stack.lookup_struct(thrown_type)?
@@ -1721,7 +1699,6 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 for cleanup_field_decl: Declaration in cleanup_struct_def.members {
                                     combined_name := format(var_name, ".", cleanup_field_decl.name)
                                     _ := context.scope_stack.remove_symbol(combined_name)?
-                                    _ := context.scope_stack.remove_var(combined_name)?
                                 }
                             }
 
@@ -1960,40 +1937,27 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             offset = context.scope_stack.lookup_var(source_var)?
                             function_frame.arena_index.set(arg.name, offset)
 
-                            // Transfer all related entries (for structs with fields, strings with metadata, etc.)
+                            // Transfer symbol info for fields
                             own_prefix := format(source_var, ".")
-                            mut keys_to_transfer := Vec.new(Str)
-                            for own_key: Str in context.scope_stack.last_frame()?.arena_index.keys {
-                                if own_key.starts_with(own_prefix) {
-                                    keys_to_transfer.push(own_key.clone())
-                                }
-                            }
-
-                            for transfer_key: Str in keys_to_transfer {
-                                mut field_offset := 0
-                                field_offset = context.scope_stack.lookup_var(transfer_key)?
-                                own_new_key := transfer_key.replace(source_var, arg.name)
-                                function_frame.arena_index.set(own_new_key.clone(), field_offset)
-                                // Also transfer symbol info for fields
+                            symbol_keys_to_transfer := context.scope_stack.get_symbols_with_prefix(own_prefix)
+                            for transfer_key: Str in symbol_keys_to_transfer {
                                 mut field_sym := SymbolInfo()
                                 field_sym = context.scope_stack.lookup_symbol(transfer_key)?
-                                function_frame.symbols.set(own_new_key.clone(), field_sym.clone())
+                                own_new_key := transfer_key.replace(source_var, arg.name)
+                                function_frame.symbols.set(own_new_key, field_sym.clone())
                                 catch (err_sym: KeyNotFoundError) { }
                             }
-                            catch (err_var: KeyNotFoundError) { }
-
-                            // Note: register_struct_fields_for_typecheck done after frame is pushed
 
                             // Remove from caller's context (ownership transferred)
                             _ := context.scope_stack.remove_var(source_var)?
                             _ := context.scope_stack.remove_symbol(source_var)?
-                            for remove_key: Str in keys_to_transfer {
-                                _ := context.scope_stack.remove_var(remove_key)?
+                            for remove_key: Str in symbol_keys_to_transfer {
                                 _ := context.scope_stack.remove_symbol(remove_key)?
                             }
 
                             param_index.inc()
                             continue  // Skip normal allocation logic
+                            catch (err_var: KeyNotFoundError) { }
                         case:
                             // If not an identifier, fall through to copy like const/mut do
                         }
@@ -2022,23 +1986,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 function_frame.symbols.set(arg.name.clone(), param_symbol)
                                 function_frame.arena_index.set(arg.name.clone(), share_offset)
 
-                                // CRITICAL: Copy all nested field offsets AND symbols from ALL frames to callee
-                                // insert_struct registers nested field offsets (e.g., "l.start.x")
-                                // We need to copy these so field access works in the callee
-                                // Must search ALL frames because globals like `true` are in frame 0
+                                // Copy symbol entries for fields from ALL frames to callee
                                 ref_prefix := format(source_var, ".")
                                 ref_replacement_prefix := format(arg.name, ".")
-                                mut ref_field_offsets_to_copy := Vec.new(EvalArenaMapping)
                                 mut ref_field_symbols_to_copy := Vec.new(SymbolEntry)
                                 for ref_caller_frame: ScopeFrame in context.scope_stack.frames {
-                                    for ref_key: Str in ref_caller_frame.arena_index.keys {
-                                        if ref_key.starts_with(ref_prefix) {
-                                            mut ref_value := 0
-                                            ref_caller_frame.arena_index.get(ref_key, ref_value)?
-                                            ref_new_key := ref_key.replacen(ref_prefix, ref_replacement_prefix, 1)
-                                            ref_field_offsets_to_copy.push(EvalArenaMapping(name=ref_new_key, offset=ref_value))
-                                        }
-                                    }
                                     for ref_skey: Str in ref_caller_frame.symbols.keys {
                                         if ref_skey.starts_with(ref_prefix) {
                                             mut ref_svalue := SymbolInfo()
@@ -2047,9 +1999,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             ref_field_symbols_to_copy.push(SymbolEntry(name=ref_new_skey, info=ref_svalue.clone()))
                                         }
                                     }
-                                }
-                                for ref_mapping: EvalArenaMapping in ref_field_offsets_to_copy {
-                                    function_frame.arena_index.set(ref_mapping.name, ref_mapping.offset)
                                 }
                                 for ref_entry: SymbolEntry in ref_field_symbols_to_copy {
                                     function_frame.symbols.set(ref_entry.name, ref_entry.info)
@@ -2145,26 +2094,18 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 }
                                 if is_identifier {
                                     id_ := source_id // Use the full path we calculated
-                                    // If source and dest have the same name, we need to save the source offsets
-                                    // before insert_struct overwrites them
+                                    // Bug #160: Only save base offset (no field paths in arena_index)
                                     mut saved_offsets := SavedOffsets()
                                     mut has_saved_offsets := false
                                     if id_.eq(arg.name) {
+                                        mut base_offset := 0
+                                        base_offset = context.scope_stack.lookup_var(id_)?
                                         mut save_offsets := Vec.new(EvalArenaMapping)
-                                        // Save all arena_index entries that start with the struct name
-                                        // This includes the base offset and all nested field offsets
-                                        save_prefix := format(id_, ".")
-                                        save_last_frame := context.scope_stack.last_frame()?
-                                        for save_key: Str in save_last_frame.arena_index.keys {
-                                            if save_key.eq(id_).or(save_key.starts_with(save_prefix)) {
-                                                mut save_offset := 0
-                                                save_last_frame.arena_index.get(save_key, save_offset)?
-                                                save_offsets.push(EvalArenaMapping(name=save_key.clone(), offset=save_offset))
-                                            }
-                                        }
+                                        save_offsets.push(EvalArenaMapping(name=id_.clone(), offset=base_offset))
                                         saved_offsets.offsets = save_offsets
                                         saved_offsets.temp_src_key = format("__temp_src_", id_)
                                         has_saved_offsets = true
+                                        catch (err: KeyNotFoundError) { }
                                     }
 
                                     // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
@@ -2197,21 +2138,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Share the offset (pass-by-reference)
                                         function_frame.arena_index.set(arg.name.clone(), src_offset)
 
-                                        // Copy nested field offsets (e.g., "o1.inner_vec._len" -> "self._len")
-                                        // Must search ALL frames because globals like `true` are in frame 0
+                                        // Copy symbol entries for fields
                                         pbr_prefix := format(id_, ".")
                                         pbr_replacement_prefix := format(arg.name, ".")
-                                        mut pbr_field_offsets_to_copy := Vec.new(EvalArenaMapping)
                                         mut pbr_field_symbols_to_copy := Vec.new(SymbolEntry)
                                         for pbr_caller_frame: ScopeFrame in context.scope_stack.frames {
-                                            for pbr_key: Str in pbr_caller_frame.arena_index.keys {
-                                                if pbr_key.starts_with(pbr_prefix) {
-                                                    mut pbr_value := 0
-                                                    pbr_caller_frame.arena_index.get(pbr_key, pbr_value)?
-                                                    pbr_new_key := pbr_key.replacen(pbr_prefix, pbr_replacement_prefix, 1)
-                                                    pbr_field_offsets_to_copy.push(EvalArenaMapping(name=pbr_new_key, offset=pbr_value))
-                                                }
-                                            }
                                             for pbr_skey: Str in pbr_caller_frame.symbols.keys {
                                                 if pbr_skey.starts_with(pbr_prefix) {
                                                     mut pbr_svalue := SymbolInfo()
@@ -2220,9 +2151,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     pbr_field_symbols_to_copy.push(SymbolEntry(name=pbr_new_skey, info=pbr_svalue.clone()))
                                                 }
                                             }
-                                        }
-                                        for pbr_mapping: EvalArenaMapping in pbr_field_offsets_to_copy {
-                                            function_frame.arena_index.set(pbr_mapping.name, pbr_mapping.offset)
                                         }
                                         for pbr_entry: SymbolEntry in pbr_field_symbols_to_copy {
                                             function_frame.symbols.set(pbr_entry.name, pbr_entry.info)
@@ -2238,42 +2166,25 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Push frame temporarily for copy_fields (needs dest accessible)
                                         context.scope_stack.frames.push(function_frame)
 
-                                        // If we saved offsets, restore them with temp keys for copy_fields
+                                        // If we saved offsets, restore base with temp key for copy_fields
                                         if has_saved_offsets {
-                                            for restore_mi in 0..saved_offsets.offsets.len() {
-                                                mut restore_mapping := EvalArenaMapping()
-                                                saved_offsets.offsets.get(restore_mi, restore_mapping)?
-                                                mut restore_new_key := ""
-                                                if restore_mapping.name.eq(id_) {
-                                                    restore_new_key = saved_offsets.temp_src_key.clone()
-                                                } else if restore_mapping.name.starts_with(format(id_, ".")) {
-                                                    restore_new_key = format(saved_offsets.temp_src_key, restore_mapping.name.get_substr(id_.len(), restore_mapping.name.len())?)
-                                                } else {
-                                                    restore_new_key = restore_mapping.name.clone()
-                                                }
-                                                mut lf9_idx := context.scope_stack.frames.len().sub(1)
-                                                mut lf9 := ScopeFrame()
-                                                context.scope_stack.frames.get(lf9_idx, lf9)?
-                                                lf9.arena_index.set(restore_new_key, restore_mapping.offset)
-                                                context.scope_stack.frames.set(lf9_idx, lf9)?
-                                            }
+                                            // Bug #160: Only base offset needs temp rename
+                                            mut lf9_idx := context.scope_stack.frames.len().sub(1)
+                                            mut lf9 := ScopeFrame()
+                                            context.scope_stack.frames.get(lf9_idx, lf9)?
+                                            mut saved_base := EvalArenaMapping()
+                                            saved_offsets.offsets.get(0, saved_base)?
+                                            lf9.arena_index.set(saved_offsets.temp_src_key.clone(), saved_base.offset)
+                                            context.scope_stack.frames.set(lf9_idx, lf9)?
+                                            mut src_symbol := SymbolInfo()
+                                            src_symbol = context.scope_stack.lookup_symbol(id_)?
+                                            context.scope_stack.declare_symbol(saved_offsets.temp_src_key.clone(), src_symbol)?
 
                                             EvalArena.copy_fields(context, resolved_type_name, saved_offsets.temp_src_key, arg.name, e)?
 
-                                            // Clean up temp keys
-                                            for cleanup_ci in 0..saved_offsets.offsets.len() {
-                                                mut cleanup_mapping := EvalArenaMapping()
-                                                saved_offsets.offsets.get(cleanup_ci, cleanup_mapping)?
-                                                mut cleanup_new_key := ""
-                                                if cleanup_mapping.name.eq(id_) {
-                                                    cleanup_new_key = saved_offsets.temp_src_key.clone()
-                                                } else if cleanup_mapping.name.starts_with(format(id_, ".")) {
-                                                    cleanup_new_key = format(saved_offsets.temp_src_key, cleanup_mapping.name.get_substr(id_.len(), cleanup_mapping.name.len())?)
-                                                } else {
-                                                    cleanup_new_key = cleanup_mapping.name.clone()
-                                                }
-                                                _ := context.scope_stack.remove_var(cleanup_new_key)?
-                                            }
+                                            // Clean up temp key
+                                            _ := context.scope_stack.remove_var(saved_offsets.temp_src_key.clone())?
+                                            _ := context.scope_stack.remove_symbol(saved_offsets.temp_src_key.clone())?
                                         } else {
                                             // Temporarily register source struct's base offset and symbol
                                             // so that copy_fields() can calculate field offsets dynamically
@@ -2348,18 +2259,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     if arg.is_own {
                                         _ := context.scope_stack.remove_var(source_id)?
                                         _ := context.scope_stack.remove_symbol(source_id)?
-                                        // Also remove field entries
-                                        cleanup_prefix := format(source_id, ".")
-                                        mut cleanup_keys_to_remove := Vec.new(Str)
-                                        for cleanup_key: Str in context.scope_stack.last_frame()?.arena_index.keys {
-                                            if cleanup_key.starts_with(cleanup_prefix) {
-                                                cleanup_keys_to_remove.push(cleanup_key.clone())
-                                            }
-                                        }
-                                        for cleanup_remove_key: Str in cleanup_keys_to_remove {
-                                            _ := context.scope_stack.remove_var(cleanup_remove_key)?
-                                            _ := context.scope_stack.remove_symbol(cleanup_remove_key)?
-                                        }
                                     }
                                 }
                             } else {
@@ -2422,34 +2321,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         }
                     }
 
-                    // Copy arena_index and symbol entries for the thrown instance's fields
-                    throw_source_prefix := format(result.value, ".")
-
-                    // Copy arena_index entries (including nested fields like .msg.c_string)
-                    mut throw_keys_to_copy := Vec.new(Str)
-                    for throw_key: Str in context.scope_stack.last_frame()?.arena_index.keys {
-                        if throw_key.starts_with(throw_source_prefix) {
-                            throw_keys_to_copy.push(throw_key.clone())
-                        }
-                    }
-                    throw_frame_count := context.scope_stack.frames.len()
-                    for throw_src_key: Str in throw_keys_to_copy {
-                        mut throw_src_offset := 0
-                        mut throw_src_offset_found := false
-                        throw_src_offset = context.scope_stack.lookup_var(throw_src_key)?
-                        throw_src_offset_found = true
-                        catch (err: KeyNotFoundError) { }
-                        if throw_src_offset_found {
-                            if throw_frame_count.gteq(2) {
-                                mut throw_caller_frame := ScopeFrame()
-                                context.scope_stack.frames.get(throw_frame_count.sub(2), throw_caller_frame)?
-                                throw_caller_frame.arena_index.set(throw_src_key, throw_src_offset)
-                                context.scope_stack.frames.set(throw_frame_count.sub(2), throw_caller_frame)?
-                            }
-                        }
-                    }
-
                     // Copy symbol entries for fields to caller's frame (not current frame which is about to be popped)
+                    throw_source_prefix := format(result.value, ".")
+                    throw_frame_count := context.scope_stack.frames.len()
                     throw_symbol_keys_to_copy := context.scope_stack.get_symbols_with_prefix(throw_source_prefix)
                     for throw_sym_key: Str in throw_symbol_keys_to_copy {
                         mut throw_src_symbol := SymbolInfo()

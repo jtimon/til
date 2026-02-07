@@ -40,7 +40,7 @@ Vec.clone copies element bytes (memcpy), not calling .clone() on each element.
 To fix properly, Ptr needs to know element type/size to enable deep cloning.
 
 *** Dependencies
-- Bug #160: Eliminate lookup fallbacks, use deterministic field offset calculation
+- Bug #160: Eliminate field paths from arena_index (FIXED)
 
 *** Implementation Plan
 
