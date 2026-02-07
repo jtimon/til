@@ -214,10 +214,10 @@ til_U8 til_U8_clone(const til_U8* til_U8_self);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y);
 til_CfRect til_CfRect_sample(void);
-void til_CfVec2_delete(til_CfVec2* _self);
-til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self);
 void til_CfRect_delete(til_CfRect* til_CfRect_self);
 til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self);
+void til_CfVec2_delete(til_CfVec2* _self);
+til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self);
 
 #include <ext.c>
 
@@ -2971,14 +2971,6 @@ til_CfRect til_CfRect_sample(void) {
     return (til_CfRect){0};
 }
 
-void til_CfVec2_delete(til_CfVec2* _self) {
-}
-
-til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {
-    return (til_CfVec2){.x = til_CfVec2_self->x, .y = til_CfVec2_self->y};
-    return (til_CfVec2){0};
-}
-
 void til_CfRect_delete(til_CfRect* til_CfRect_self) {
     til_CfVec2_delete(&til_CfRect_self->bottom_right);
     til_CfVec2_delete(&til_CfRect_self->top_left);
@@ -2987,6 +2979,14 @@ void til_CfRect_delete(til_CfRect* til_CfRect_self) {
 til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self) {
     return (til_CfRect){.top_left = til_CfVec2_clone(&til_CfRect_self->top_left), .bottom_right = til_CfVec2_clone(&til_CfRect_self->bottom_right)};
     return (til_CfRect){0};
+}
+
+void til_CfVec2_delete(til_CfVec2* _self) {
+}
+
+til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {
+    return (til_CfVec2){.x = til_CfVec2_self->x, .y = til_CfVec2_self->y};
+    return (til_CfVec2){0};
 }
 
 int main(int argc, char** argv) {

@@ -84,7 +84,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         // Exclude true primitive types - they don't need deep cloning
                         // Note: Bool is NOT excluded because true/false are global constants
                         // that would be corrupted if we just share offsets
-                        let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Str" | "Type" | "Dynamic");
+                        let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
                         if !is_primitive && context.scope_stack.has_struct(type_name) {
                             // Build clone call: Type.clone(rhs_expr)
                             let rhs_expr = new_params[0].clone();
@@ -133,7 +133,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         // Look up identifier's symbol type
                         if let Some(sym) = context.scope_stack.lookup_symbol(rhs_name) {
                             if let ValueType::TCustom(type_name) = &sym.value_type {
-                                let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Str" | "Type" | "Dynamic");
+                                let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
                                 if !is_primitive && context.scope_stack.has_struct(type_name) {
                                     // Build clone call: Type.clone(rhs_expr)
                                     let rhs_expr = new_params[0].clone();
@@ -256,7 +256,7 @@ fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec
             continue;
         }
         if let ValueType::TCustom(type_name) = &arg_def.value_type {
-            let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Str" | "Type" | "Dynamic");
+            let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
             if !is_primitive && context.scope_stack.has_struct(type_name) {
                 let arg_expr = new_params[param_idx].clone();
                 let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
@@ -297,7 +297,7 @@ fn transform_struct_literal_fields(context: &Context, e: &Expr, new_params: &mut
             };
             // Check if field type is a non-primitive struct
             if let ValueType::TCustom(type_name) = &field_decl.value_type {
-                let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Str" | "Type" | "Dynamic");
+                let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
                 if is_primitive || !context.scope_stack.has_struct(type_name) {
                     continue;
                 }
