@@ -113,6 +113,8 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             // Transform copy params: wrap struct identifier args in Type.clone()
             transform_fcall_copy_params(context, e, &mut new_params);
+            // Issue #159 Step 5: Transform struct literal fields
+            transform_struct_literal_fields(context, e, &mut new_params);
             Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
         }
         // Default: recurse into children
@@ -221,6 +223,52 @@ fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec
                 let arg_expr = new_params[param_idx].clone();
                 let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
                 new_params[param_idx] = clone_call;
+            }
+        }
+    }
+}
+
+/// Issue #159 Step 5: Transform struct literal fields.
+/// For struct literal constructors like Point(inner=some_var), if a NamedArg value
+/// is an identifier pointing to a struct type, wrap it in Type.clone().
+fn transform_struct_literal_fields(context: &Context, e: &Expr, new_params: &mut Vec<Expr>) {
+    // Extract the struct name from the original FCall (before child transforms)
+    let struct_name = match get_func_name(e) {
+        Some(name) => name,
+        None => return,
+    };
+
+    // Must be a plain struct name (no dots - not a method call)
+    if struct_name.contains('.') {
+        return;
+    }
+
+    // Check if it's a struct
+    let struct_def = match context.scope_stack.lookup_struct(&struct_name) {
+        Some(sd) => sd.clone(),
+        None => return,
+    };
+
+    // For each child in new_params[1..] that is a NamedArg
+    for param_idx in 1..new_params.len() {
+        if let NodeType::NamedArg(field_name) = &new_params[param_idx].node_type {
+            // Find matching field in struct def members
+            let field_decl = match struct_def.get_member(field_name) {
+                Some(decl) => decl,
+                None => continue,
+            };
+            // Check if field type is a non-primitive struct
+            if let ValueType::TCustom(type_name) = &field_decl.value_type {
+                let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Str" | "Type" | "Dynamic");
+                if is_primitive || !context.scope_stack.has_struct(type_name) {
+                    continue;
+                }
+                // Check if the NamedArg's value (params[0]) is an identifier
+                if !new_params[param_idx].params.is_empty() && is_identifier_expr(&new_params[param_idx].params[0]) {
+                    let arg_expr = new_params[param_idx].params[0].clone();
+                    let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
+                    new_params[param_idx].params[0] = clone_call;
+                }
             }
         }
     }

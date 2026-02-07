@@ -560,7 +560,13 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 case ValueType.TType(TTypeDef.TEnumDef):
                                     _ := EvalArena.insert_enum(context, field_id.clone(), field_type_name.clone(), named_value_result.value.clone(), named_arg)?
                                 case ValueType.TType(TTypeDef.TStructDef):
-                                    EvalArena.copy_fields(context, field_type_name.clone(), named_value_result.value.clone(), field_id.clone(), named_arg)?
+                                    // Issue #159: deep copy via memcpy.
+                                    // Garbager inserts clone for identifier args; fresh constructors are already new.
+                                    // Copy bytes from source into parent struct's field slot.
+                                    src_offset := context.scope_stack.lookup_var(named_value_result.value)?
+                                    dest_offset := context.get_field_offset(field_id)?
+                                    type_size := context.get_type_size(field_type_name)?
+                                    g_arena.set(dest_offset, g_arena.get(src_offset, type_size), type_size)
                                 case:
                                     throw named_arg.error(context.path, "eval", format("Unsupported field type '", field_type_name, "' for field '", field_name, "'"))
                                 }

@@ -600,7 +600,20 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 EvalArena::insert_enum(context, &field_id, &field_type_name, &named_value_result.value, named_arg)?;
                                             },
                                             ValueType::TType(TTypeDef::TStructDef) => {
-                                                EvalArena::copy_fields(context, &field_type_name, &named_value_result.value, &field_id, named_arg)?;
+                                                // Issue #159: deep copy via memcpy.
+                                                // Garbager inserts clone for identifier args; fresh constructors are already new.
+                                                // Copy bytes from source into parent struct's field slot.
+                                                let src_offset = context.scope_stack.lookup_var(&named_value_result.value)
+                                                    .ok_or_else(|| named_arg.error(&context.path, "eval",
+                                                        &format!("Undefined variable '{}' for field '{}'", named_value_result.value, field_name)))?;
+                                                let dest_offset = context.get_field_offset(&field_id)
+                                                    .map_err(|err| named_arg.error(&context.path, "eval",
+                                                        &format!("get_field_offset for '{}': {}", field_id, err)))?;
+                                                let type_size = context.get_type_size(&field_type_name)
+                                                    .map_err(|err| named_arg.error(&context.path, "eval",
+                                                        &format!("get_type_size for '{}': {}", field_type_name, err)))?;
+                                                let data = EvalArena::g().get(src_offset, type_size).to_vec();
+                                                EvalArena::g().set(dest_offset, &data)?;
                                             },
                                             _ => {
                                                 return Err(named_arg.error(&context.path, "eval",
