@@ -298,190 +298,6 @@ t.name = "changed"  // OK
 2. Port each .rs change to .til immediately
 3. Test both interpreter and compiler modes
 
-** Issue #159: copy keyword does shallow copies (byte copy, not clone)
-:PROPERTIES:
-:DISCOVERED: 2026-01-31
-:IMPACT: Affects ASAP destruction safety, copy semantics clarity
-:STATUS: Open - implementation plan ready
-:RELATED: Issue #117 (ASAP destruction), Issue #115 (owned fields)
-:END:
-
-*** Analysis Summary
-
-The ~copy~ keyword and ~mut x := y~ declarations use ~EvalArena::copy_fields()~
-which performs a **shallow byte copy**, not a deep clone.
-
-*** What copy_fields Does (eval_arena.rs:239-307)
-
-1. Iterates through struct fields
-2. For each mutable field:
-   - Reads raw bytes from source offset
-   - Writes raw bytes to destination offset
-   - Recursively copies nested struct fields
-
-*** The Problem: Shared Heap Pointers
-
-For structs containing ~Ptr~ fields (Vec, Str, Map, etc.), copying creates two
-structs pointing to the **same heap allocation**:
-
-#+BEGIN_SRC til
-original := Vec.new(I64)
-original.push(42)
-mut copy := original  // shallow copy - copy.ptr = original.ptr
-
-copy.push(100)        // modifies shared heap data!
-println(original.len())  // Also shows 2 - they share the same buffer
-#+END_SRC
-
-*** Implications for ASAP Destruction (Issue #117)
-
-This is why Step 4 (liveness analysis) in the garbager was disabled:
-
-#+BEGIN_SRC til
-process := proc() {
-    data := Vec.new(I64)
-    mut backup := data    // shallow copy - both point to same heap
-    use(data)             // "last use" of data
-    // ASAP would insert: data.delete() here - WRONG!
-    // backup.ptr is now dangling
-    use(backup)           // CRASH or corruption
-}
-#+END_SRC
-
-*** Current Behavior vs Expected
-
-| Operation | Current | Expected | Notes |
-|-----------+---------+----------+-------|
-| ~x := y~ (const) | Reference (alias) | Reference | Safe - can't modify |
-| ~mut x := y~ | Shallow byte copy | Deep copy? | Problematic for Ptr |
-| ~copy param~ | Shallow byte copy | Deep copy? | Problematic for Ptr |
-
-*** Why This Hasn't Broken Tests
-
-1. **Const bindings are safe**: ~x := y~ creates an alias, no copy
-2. **Tests don't share then modify**: Most tests don't copy-then-mutate-both
-3. **No ASAP destruction yet**: We manually delete at scope end
-
-*** What Doesn't Need Changing
-
-1. **const bindings** (~x := y~): Already safe - just an alias
-2. **Function params** (default): Already pass-by-reference
-3. **Primitive copies** (I64, U8, Bool): No heap data, shallow = deep
-
-*** Solution: Auto-generate clone() and use it for copies
-
-Instead of shallow byte copies, we'll use ~clone()~ methods for all copies.
-This ensures deep copies that don't share heap allocations.
-
-*** Implementation Plan
-
-**** Step 1: Auto-generate clone() methods
-
-Add to garbager phase (which already auto-generates ~delete()~):
-
-1. For any struct without a ~clone()~ method, generate one
-2. Generated clone creates a new instance and clones each field:
-   #+BEGIN_SRC til
-   // Auto-generated for:
-   // MyStruct := struct { mut name: Str, mut data: Vec, mut count: I64 }
-
-   clone := func(self: MyStruct) returns MyStruct {
-       return MyStruct(
-           name = self.name.clone(),
-           data = self.data.clone(),
-           count = self.count.clone()  // I64.clone() returns self
-       )
-   }
-   #+END_SRC
-
-3. **Exception for borrowed Ptr fields**: If a field is a borrowed Ptr
-   (is_borrowed = true or marked as borrowed in Issue #115), just copy the
-   pointer value, don't clone the pointed-to data.
-
-4. **Primitives**: I64, U8, Bool get trivial ~clone()~ that returns self.
-   (May already exist or can be added.)
-
-5. **Validation**: Remove manually-written clone() methods that would be
-   identical to auto-generated ones. This tests that auto-generation works
-   correctly and reduces code duplication.
-
-Files: garbager.rs, garbager.til
-
-**** Step 2: Replace copy_fields() with clone()
-
-**copy_fields call sites (interpreter.rs) - DONE items use clone() now:**
-
-| Line | Context | Pattern | Status |
-|------|---------|---------|--------|
-| 641 | Struct literal field | ~MyStruct(field = nested_struct)~ | TODO |
-| 1006 | Struct member default | Nested struct in struct definition | TODO |
-| 1094 | mut declaration | ~mut x := struct_expr~ (Bug #25 fix) | DONE |
-| 1194 | Assignment | ~x = struct_expr~ | TODO |
-| 2153 | copy param (saved offsets) | Complex case with name collision | TODO |
-| 2183 | copy param (identifier) | ~func(copy p: T)~ with variable | TODO |
-| 2208 | copy param (expression) | ~func(copy p: T)~ with expr | TODO |
-
-**ccodegen call sites (ccodegen.rs) - generates C code:**
-
-| Context | Pattern | Status |
-|---------|---------|--------|
-| mut declaration | ~mut x := existing_var~ | DONE |
-
-Note: Compiler generates ~Type_clone(&var)~ for struct identifier assignments.
-
-**Current pattern (complex):**
-#+BEGIN_SRC rust
-// 1. Allocate destination space
-insert_struct_instance(context, &dest, type_name, e)?;
-// 2. [lots of temp key setup for arena lookups]
-// 3. Copy bytes from source to destination
-EvalArena::copy_fields(context, type_name, &src, &dest, e)?;
-// 4. [lots of temp key cleanup]
-#+END_SRC
-
-**New pattern (simpler):**
-#+BEGIN_SRC rust
-// 1. Call clone which allocates + returns new instance
-let result = call_clone_method(context, type_name, &src, e)?;
-// 2. Bind dest name to the cloned instance's offset
-context.scope_stack.insert_var(dest, result.offset);
-#+END_SRC
-
-**Implementation approach:**
-
-Add helper function in interpreter.rs:
-#+BEGIN_SRC rust
-/// Call Type.clone(source) and return the cloned instance
-fn call_clone_method(ctx: &mut Context, type_name: &str, src: &str, e: &Expr) -> Result<EvalResult, String> {
-    // Build AST: Type.clone(src)
-    let clone_call = make_ufcs_call(type_name, "clone", vec![make_id(src, e.line, e.col)], e.line, e.col);
-    eval_expr(ctx, &clone_call)
-}
-#+END_SRC
-
-This simplifies the function parameter binding code significantly - no more:
-- Temporary frame pushing/popping
-- Saved offset management for name collisions
-- Temporary key registration and cleanup
-
-When ~copy_fields()~ becomes dead code, Rust warnings will force removal.
-
-Files: interpreter.rs, interpreter.til, eval_arena.rs, eval_arena.til
-
-*** Interaction with Other Issues
-
-- **Issue #117 (ASAP destruction)**: With proper deep copies, Step 4 (liveness
-  analysis) becomes safe. No more shared heap pointers from copies.
-- **Issue #115 (owned fields)**: Borrowed fields need special handling in
-  clone() - copy pointer, don't clone pointed-to data.
-
-*** Testing
-
-1. Write test that copies a Vec, modifies copy, verifies original unchanged
-2. Write test that copies nested struct with Vec fields
-3. Remove manual clone() methods and verify auto-generated ones work
-4. Run ~make benchmark~ - all tests must pass
-
 ** Issue #151: Explicit pointer/reference syntax for the language
 :PROPERTIES:
 :DISCOVERED: 2026-01-29
@@ -705,30 +521,43 @@ delete := proc(mut self: MyStruct) {
 
 Files: garbager.rs, garbager.til (new)
 
-**** Step 4: Liveness Analysis and Delete Insertion
-Add liveness analysis to track when variables are last used, then insert ~var.delete()~ calls.
+**** Step 4: Auto-insert Type.delete() calls in garbager
 
-Data structure:
-#+BEGIN_SRC rust
-struct VarLifetime {
-    name: String,
-    value_type: ValueType,
-    last_use_stmt_idx: Option<usize>,
-    is_deleted: bool,
-}
-#+END_SRC
+**Prerequisites** (separate commits before Step 4):
+1. Add Str to garbager clone set (remove "Str" from primitives exclusion)
+2. Remove unnecessary Str copies in interpreter (Str through struct/offset path)
 
-Note: No need for ~has_delete~ field - after Step 3, every struct has ~delete()~.
+**What gets deleted per function:**
+- ~copy~ params with struct types (function owns the clone)
+- ~own~ params with struct types (function received ownership)
+- Local variable declarations with struct types (including Str)
 
-Algorithm:
-1. Analysis pass: Scan statements, track last use index per variable
-2. Transform pass: Insert ~var.delete()~ statement after last_use_stmt_idx
+Primitives excluded: I64, U8, Type, Dynamic (NOT Str - Str is now cloned/deleted)
 
-Handle control flow:
-- Early exits (return/throw): Insert deletes for all still-live variables before exit
-- Branches (if/else/switch): Conservative - only delete if ALL paths agree variable is dead, otherwise delete after branch
-- Loops: Most conservative - variables used in loop body deleted after loop ends
-- Scope exit: Safety net - insert deletes for any remaining live variables at function end
+**Safety: own-transfer tracking.** If a variable is passed as ~own~ to another
+function anywhere in the body, remove it from the delete set (callee deletes it).
+Conservative: if own-transfer is conditional (inside if), still exclude.
+
+**Where delete calls are inserted:**
+1. Before Return: delete all in-scope candidates (minus the returned variable)
+2. Before Throw: delete all in-scope candidates
+3. At function body end: delete function-level candidates (if no return/throw)
+4. At nested block end (if/while bodies): delete block-local candidates only
+5. Before struct var reassignment: ~x = expr~ -> insert ~Type.delete(x)~ before
+
+**Algorithm in garbager_recursive, FuncDef handler:**
+1. Run existing clone transforms on body -> new_body
+2. Collect param_candidates: copy/own params with deletable struct types
+3. Scan new_body recursively for own-transfers -> own_transferred set
+4. Remove own_transferred vars from param_candidates
+5. Call insert_deletes_in_body(new_body, param_candidates, own_transferred) -> final_body
+
+**New helper functions:**
+- ~build_delete_call_expr(type_name, var_name, line, col)~ - mirror of build_clone_call_expr
+- ~is_deletable_type(value_type, context)~ - TCustom + not primitive + has_struct
+- ~collect_own_transfers(stmts, context)~ - scan for own params in FCalls
+- ~insert_deletes_in_body(stmts, inherited, own_transferred, context)~ - core recursive
+- ~get_returned_var_name(return_expr)~ - extract simple identifier from return
 
 Files: garbager.rs, garbager.til
 
