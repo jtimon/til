@@ -105,12 +105,8 @@ fn to_ast_str(e: &Expr) -> String {
     }
 }
 
-use crate::rs::eval_arena::{EvalArena, EvalArenaMapping, SymbolEntry};
+use crate::rs::eval_arena::{EvalArena, SymbolEntry};
 
-/// Saved offsets for struct copy when source and dest have the same name
-struct SavedOffsets {
-    offsets: Vec<EvalArenaMapping>,
-}
 
 
 #[derive(Clone, Debug)]
@@ -393,15 +389,6 @@ pub fn insert_struct_instance(ctx: &mut Context, id: &str, type_name: &str, e: &
                 &format!("template for '{}' not found", type_name))
         })?;
     EvalArena::insert_struct(ctx, id, type_name, template_offset, e)
-}
-
-/// Insert a struct instance into a specific frame using cached template.
-/// Template is guaranteed to exist - created eagerly on eval_declaration.
-fn insert_struct_instance_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, type_name: &str, e: &Expr) -> Result<(), String> {
-    let template_offset = EvalArena::g().default_instances.get(type_name).copied()
-        .ok_or_else(|| e.lang_error(&ctx.path, "insert_struct_instance_into_frame",
-            &format!("template for '{}' not found", type_name)))?;
-    EvalArena::insert_struct_into_frame(ctx, frame, id, type_name, template_offset, e)
 }
 
 pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -2013,19 +2000,6 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 match &current_arg.node_type {
                                     NodeType::Identifier(_id_) => {
                                         let id_ = &source_id; // Use the full path we calculated
-                                        // If source and dest have the same name, we need to save the source offsets
-                                        // before insert_struct overwrites them
-                                        // Bug #160: Only save base offset (no field paths in arena_index)
-                                        let saved_offsets: Option<SavedOffsets> = if id_ == &arg.name {
-                                            if let Some(base_offset) = context.scope_stack.lookup_var(id_) {
-                                                let save_offsets = vec![EvalArenaMapping { name: id_.clone(), offset: base_offset }];
-                                                Some(SavedOffsets { offsets: save_offsets })
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            None
-                                        };
 
                                         // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
                                         if !arg.is_copy && !arg.is_own && resolved_type_name != "Type" {
@@ -2085,28 +2059,16 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             };
                                             function_frame.arena_index.insert(arg.name.clone(), src_offset);
                                         } else {
-                                            // Issue #159 Step 7: Replace copy_fields with memcpy
-                                            // for own/Type identifier parameters.
-                                            insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
-
-                                            // Get src offset
-                                            let src_offset = if let Some(saved) = saved_offsets {
-                                                saved.offsets[0].offset
-                                            } else if let Some(offset) = context.scope_stack.lookup_var(id_) {
+                                            // Own/Type identifier parameters: ownership transfer via offset binding.
+                                            // No allocation or copy needed - just bind the existing offset.
+                                            let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
                                                 offset
                                             } else if id_.contains('.') {
                                                 context.get_field_offset(id_)?
                                             } else {
                                                 return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
                                             };
-
-                                            // Get dest offset from function frame
-                                            let dest_offset = *function_frame.arena_index.get(&arg.name)
-                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Dest '{}' not found in function frame", arg.name)))?;
-
-                                            let type_size = context.get_type_size(&resolved_type_name)?;
-                                            let data = EvalArena::g().get(src_offset, type_size).to_vec();
-                                            EvalArena::g().set(dest_offset, &data)?;
+                                            function_frame.arena_index.insert(arg.name.clone(), src_offset);
                                         }
                                     },
                                     _ => {
@@ -2117,17 +2079,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
                                             function_frame.arena_index.insert(arg.name.clone(), src_offset);
                                         } else {
-                                            // Issue #159 Step 7: Replace copy_fields with memcpy
-                                            // for own/Type expression parameters (like Vec.new(Expr)).
-                                            insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
-
+                                            // Own/Type expression parameters: bind the expression result offset.
+                                            // The expression is already evaluated and allocated in the arena.
                                             let src_offset = context.scope_stack.lookup_var(&source_id)
                                                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
-                                            let dest_offset = *function_frame.arena_index.get(&arg.name)
-                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Dest '{}' not found in function frame", arg.name)))?;
-                                            let type_size = context.get_type_size(&resolved_type_name)?;
-                                            let data = EvalArena::g().get(src_offset, type_size).to_vec();
-                                            EvalArena::g().set(dest_offset, &data)?;
+                                            function_frame.arena_index.insert(arg.name.clone(), src_offset);
 
                                             // For own parameters, remove the source from caller's context (ownership transferred)
                                             if arg.is_own {

@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, shared state between clones
-:STATUS: In Progress - Steps 3-7 done, copy_fields fully removed from interpreter
+:STATUS: In Progress - Steps 3-8 done, copy_fields removed, own params simplified
 :END:
 
 *** CRITICAL: The Goal
@@ -251,10 +251,16 @@ calls (Steps 5-7). These functions already return meaningful error strings; the
 =.map_err()= was cosmetic noise, and in TIL the equivalent =catch (err: Str)= is wrong
 (you never catch =Str= — it's the final propagation type, not a specific error type).
 
-**TODO**: =own= params should be by-reference (just bind offset + remove from caller),
-like =default= and =mut=. The memcpy added here is correct but redundant — ownership
-transfer doesn't need copying. Only =copy= params need clone from garbager. This is
-a future optimization to simplify the own param path to pure offset rebinding.
+**** Step 8: DONE - Own params simplified to offset binding
+
+=own= params changed from allocate+memcpy to pure offset binding (same as =default=
+and =mut=). Ownership transfer doesn't need copying — just bind the existing offset
+and remove the source from the caller's scope.
+
+Removed dead code:
+- =SavedOffsets= struct (no longer needed without allocation overwriting caller offsets)
+- =insert_struct_instance_into_frame= function (no longer called)
+- =EvalArenaMapping= import from interpreter.rs
 
 *** Parameter passing semantics summary
 

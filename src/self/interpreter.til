@@ -42,10 +42,6 @@ arena_memory_slice := func(arena: EvalArena, offset: I64, size: I64) returns Vec
     return bytes
 }
 
-/// Saved offsets for struct copy when source and dest have the same name
-SavedOffsets := struct {
-    mut offsets: Vec = Vec.new(EvalArenaMapping)
-}
 
 EvalResult := struct {
     mut value: Str = ""
@@ -331,18 +327,6 @@ insert_struct_instance := proc(mut ctx: Context, id: Str, type_name: Str, e: Exp
     g_arena.default_instances.get(type_name, template_offset)?
     catch (err: KeyNotFoundError) { throw err.msg }
     EvalArena.insert_struct(ctx, id, type_name, template_offset, e)?
-}
-
-/// Insert a struct instance into a specific frame using cached template.
-/// Template is guaranteed to exist - created eagerly on eval_declaration.
-insert_struct_instance_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, id: Str, type_name: Str, e: Expr) throws Str {
-    if not(g_arena.default_instances.contains_key(type_name)) {
-        throw e.lang_error(ctx.path, "insert_struct_instance_into_frame", format("template for '", type_name, "' not found"))
-    }
-    mut template_offset := 0
-    g_arena.default_instances.get(type_name, template_offset)?
-    catch (err: KeyNotFoundError) { throw err.msg }
-    EvalArena.insert_struct_into_frame(ctx, frame, id, type_name, template_offset, e)?
 }
 
 eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
@@ -2151,18 +2135,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 }
                                 if is_identifier {
                                     id_ := source_id // Use the full path we calculated
-                                    // Bug #160: Only save base offset (no field paths in arena_index)
-                                    mut saved_offsets := SavedOffsets()
-                                    mut has_saved_offsets := false
-                                    if id_.eq(arg.name) {
-                                        mut base_offset := 0
-                                        base_offset = context.scope_stack.lookup_var(id_)?
-                                        mut save_offsets := Vec.new(EvalArenaMapping)
-                                        save_offsets.push(EvalArenaMapping(name=id_.clone(), offset=base_offset))
-                                        saved_offsets.offsets = save_offsets
-                                        has_saved_offsets = true
-                                        catch (err: KeyNotFoundError) { }
-                                    }
 
                                     // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
                                     mut should_share_offset := false
@@ -2237,41 +2209,23 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         function_frame.arena_index.set(arg.name.clone(), copy_src_offset)
                                     }
                                     if not(should_share_offset).and(not(arg.is_copy)) {
-                                        // Issue #159 Step 7: Replace copy_fields with memcpy
-                                        // for own/Type identifier parameters.
-                                        insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
-
-                                        // Get src offset
+                                        // Own/Type identifier parameters: ownership transfer via offset binding.
+                                        // No allocation or copy needed - just bind the existing offset.
                                         mut own_src_offset := 0
-                                        if has_saved_offsets {
-                                            mut saved_base := EvalArenaMapping()
-                                            saved_offsets.offsets.get(0, saved_base)?
-                                            own_src_offset = saved_base.offset
-                                        } else {
-                                            mut own_src_offset_found := false
-                                            own_src_offset = context.scope_stack.lookup_var(id_)?
-                                            own_src_offset_found = true
-                                            catch (err: KeyNotFoundError) {
-                                                // REM: not found in arena_index, try field path
-                                            }
-                                            if not(own_src_offset_found) {
-                                                if id_.contains(".") {
-                                                    own_src_offset = context.get_field_offset(id_)?
-                                                } else {
-                                                    throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context arena_index"))
-                                                }
-                                            }
-                                        }
-
-                                        // Get dest offset from function frame
-                                        mut own_dest_offset := 0
-                                        function_frame.arena_index.get(arg.name, own_dest_offset)?
+                                        mut own_src_offset_found := false
+                                        own_src_offset = context.scope_stack.lookup_var(id_)?
+                                        own_src_offset_found = true
                                         catch (err: KeyNotFoundError) {
-                                            throw e.lang_error(context.path, "eval", format("Dest '", arg.name, "' not found in function frame"))
+                                            // REM: not found in arena_index, try field path
                                         }
-
-                                        own_type_size := context.get_type_size(resolved_type_name)?
-                                        g_arena.set(own_dest_offset, g_arena.get(own_src_offset, own_type_size), own_type_size)
+                                        if not(own_src_offset_found) {
+                                            if id_.contains(".") {
+                                                own_src_offset = context.get_field_offset(id_)?
+                                            } else {
+                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context arena_index"))
+                                            }
+                                        }
+                                        function_frame.arena_index.set(arg.name.clone(), own_src_offset)
                                     }
                                 } else {
                                     if arg.is_copy {
@@ -2283,21 +2237,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         }
                                         function_frame.arena_index.set(arg.name.clone(), expr_copy_src_offset)
                                     } else {
-                                        // Issue #159 Step 7: Replace copy_fields with memcpy
-                                        // for own/Type expression parameters (like Vec.new(Expr)).
-                                        insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
-
+                                        // Own/Type expression parameters: bind the expression result offset.
+                                        // The expression is already evaluated and allocated in the arena.
                                         expr_src_offset := context.scope_stack.lookup_var(source_id)?
                                         catch (err: KeyNotFoundError) {
                                             throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
                                         }
-                                        mut expr_dest_offset := 0
-                                        function_frame.arena_index.get(arg.name, expr_dest_offset)?
-                                        catch (err: KeyNotFoundError) {
-                                            throw e.lang_error(context.path, "eval", format("Dest '", arg.name, "' not found in function frame"))
-                                        }
-                                        expr_type_size := context.get_type_size(resolved_type_name)?
-                                        g_arena.set(expr_dest_offset, g_arena.get(expr_src_offset, expr_type_size), expr_type_size)
+                                        function_frame.arena_index.set(arg.name.clone(), expr_src_offset)
 
                                         // For own parameters, remove the source from caller's context (ownership transferred)
                                         if arg.is_own {
