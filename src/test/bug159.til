@@ -1,6 +1,6 @@
-// Bug #159: Test shallow copy semantics in struct cloning
+// Bug #159: Test deep copy semantics in struct cloning
 // When doing `mut cloned := original`, the clone should be independent.
-// Currently, copy_fields does a shallow byte copy, so Ptr fields share data.
+// Fixed: garbager inserts Type.clone() calls, so Ptr fields are deep copied.
 
 mode test
 
@@ -27,9 +27,8 @@ test_shallow_copy_bug := proc() {
     mut clone_val := 0
     cloned.items.get(0, clone_val)?
 
-    // BUG: Both are 999 because they share the pointer
-    // CORRECT: original should be 10, cloned should be 999
-    assert_eq(loc(), 10, orig_val)    // Fails until bug is fixed
+    // Clone is independent: original should be 10, cloned should be 999
+    assert_eq(loc(), 10, orig_val)
     assert_eq(loc(), 999, clone_val)
 
     catch (err: IndexOutOfBoundsError) {

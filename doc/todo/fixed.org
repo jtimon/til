@@ -7,6 +7,47 @@
 
 * Fixed Bugs
 
+** Bug #159: Shallow copy semantics for structs with Ptr/Vec fields
+:PROPERTIES:
+:DISCOVERED: 2026-01-31
+:FIXED: 2026-02-07
+:IMPACT: Memory corruption, shared state between clones
+:STATUS: Fixed
+:END:
+
+*** Description
+When doing =mut cloned := original=, the interpreter used =copy_fields= which did
+a byte-level copy. For structs containing Ptr or Vec fields, both the original and
+clone shared the same underlying memory.
+
+*** What was done
+Removed =copy_fields= (shallow copy) entirely from the interpreter. Replaced with:
+1. Garbager inserts =Type.clone()= calls for struct-typed identifier args (4 sites)
+2. Interpreter uses offset binding or memcpy instead of copy_fields
+
+Steps completed:
+- Step 1: preinit generates clone/delete methods
+- Step 2: Dynamic type info added to Ptr
+- Step 3: mut declarations (clone + offset binding)
+- Step 4: Function copy params (clone + offset binding)
+- Step 5: Struct literal fields (memcpy)
+- Step 6: Assignment statements (memcpy)
+- Step 7: Nested member assign + own params (memcpy), copy_fields deleted
+- Step 8: Own params simplified to pure offset binding
+
+Dead code removed: =copy_fields=, =SavedOffsets=, =insert_struct_instance_into_frame=,
+=EvalArenaMapping= import.
+
+Test: src/test/bug159.til (passes all 4 modes)
+
+*** Parameter passing semantics (final)
+| Mode      | Semantics                                      |
+|-----------+------------------------------------------------|
+| (default) | By reference - share offset                    |
+| =mut=     | By reference - share offset                    |
+| =own=     | Ownership transfer - share offset, remove src  |
+| =copy=    | Deep copy - garbager inserts clone, bind result |
+
 ** Bug #160: Eliminate field paths from arena_index
 :PROPERTIES:
 :DISCOVERED: 2026-02-03
