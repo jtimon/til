@@ -1054,7 +1054,11 @@ main := proc(args: ..Str) {
     // Parse options first (before other args processing)
     // -jN: parallelism (e.g., -j8, -j32) - like make
     // --force-rebuild: force recompilation for compiled tests
-    mut parallelism := get_thread_count()
+    // Issue #117: use half the threads to reduce memory pressure
+    mut parallelism := get_thread_count().div(2)
+    if parallelism.lt(1) {
+        parallelism = 1
+    }
     mut remaining_args := Vec.new(Str)
     for arg: Str in args {
         if arg.starts_with("-j") {

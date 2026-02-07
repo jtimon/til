@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, shared state between clones
-:STATUS: In Progress - mut declarations done, user directing remaining work
+:STATUS: In Progress - Steps 3-6 done (mut decl, copy params, struct fields, assignments)
 :END:
 
 *** CRITICAL: The Goal
@@ -202,14 +202,38 @@ in garbager's exclusion list. When =mut val := false= was not transformed to
 constant, modifying =val= later would corrupt =false=, causing infinite loops in
 code that depended on =false= being correct. Fix: removed Bool from primitives list.
 
-**** Step 4: TODO - Remaining copy_fields locations (progress tracking)
-| Location              | Purpose                                             | Status                        |
-|-----------------------+-----------------------------------------------------+-------------------------------|
-| mut declarations      | =mut x := y=                                        | DONE (garbager inserts clone) |
-| Function copy params  | interpreter.rs:2098,2128,2153 / .til:2261,2308,2340 | TODO                          |
-| Struct literal fields | interpreter.rs:603, .til:563                        | TODO                          |
-| Assignment statements | interpreter.rs:1139, .til:1202                      | TODO                          |
-| Nested member assign  | interpreter.rs:968, .til:1090                       | TODO                          |
+**** Step 4: Remaining copy_fields locations (progress tracking)
+| Location              | Purpose                  | Status         |
+|-----------------------+--------------------------+----------------|
+| mut declarations      | =mut x := y=            | DONE (Step 3)  |
+| Function copy params  | =func(copy p: T)=       | DONE (Step 4)  |
+| Struct literal fields | =Point(field=y)=        | DONE (Step 5)  |
+| Assignment statements | =x = y=, =x.field = y=  | DONE (Step 6)  |
+| Nested member assign  | struct member defaults   | TODO           |
+| Own params (ident)    | =func(own p: T)= ident  | TODO           |
+| Own params (expr)     | =func(own p: T)= expr   | TODO           |
+
+**** Step 5: DONE - Struct literal fields (commit d697125c)
+
+Replace =insert_struct_instance= + =copy_fields= with memcpy for struct literal
+field initialization (=Point(field=y)=).
+
+Pattern: get src_offset from =lookup_var=, dest_offset from =get_field_offset=,
+type_size from =get_type_size=, then memcpy src to dest.
+
+No garbager change needed - clone is already inserted for identifier args by Step 4's
+garbager logic.
+
+**** Step 6: DONE - Assignment statements (commit 16cfd9bb)
+
+Replace =copy_fields= with memcpy for struct assignment (=x = y=, =x.field = y=).
+
+Two sub-cases:
+- Field path (=x.field = y=): memcpy into field slot via =get_field_offset=
+- Simple var (=x = y=): memcpy into existing slot via =lookup_var=
+
+Must use memcpy (not offset rebinding) for simple vars because the variable may live
+in an outer scope frame. Offset rebinding would only update the current frame.
 
 *** Failed Attempt: branch failure159
 Branch =failure159= contains Steps 2-8 of the implementation, but caused massive

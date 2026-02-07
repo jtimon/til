@@ -1205,7 +1205,60 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                     return assign_struct_result
                 }
                 assign_struct_expr_result_str := assign_struct_result.value
-                EvalArena.copy_fields(context, assign_custom_type_name, assign_struct_expr_result_str, var_name, inner_e)?
+                // Issue #159 Step 6: Replace copy_fields with clone + offset rebinding/memcpy
+                // Garbager inserts clone for identifiers; fresh constructors are already new.
+                if var_name.contains(".") {
+                    // Field path: memcpy into field slot
+                    mut assign_src_offset := 0
+                    mut assign_src_found := false
+                    assign_src_offset = context.scope_stack.lookup_var(assign_struct_expr_result_str)?
+                    assign_src_found = true
+                    catch (err: KeyNotFoundError) {
+                        if assign_struct_expr_result_str.contains(".") {
+                            assign_src_offset = context.get_field_offset(assign_struct_expr_result_str)?
+                            assign_src_found = true
+                        }
+                    }
+                    if not(assign_src_found) {
+                        throw inner_e.lang_error(context.path, "eval", format("Undefined variable '", assign_struct_expr_result_str, "' for assignment to '", var_name, "'"))
+                    }
+                    assign_dest_offset := context.get_field_offset(var_name)?
+                    catch (err: Str) {
+                        throw inner_e.lang_error(context.path, "eval", format("get_field_offset for '", var_name, "': ", err))
+                    }
+                    assign_type_size := context.get_type_size(assign_custom_type_name)?
+                    catch (err: Str) {
+                        throw inner_e.lang_error(context.path, "eval", format("get_type_size for '", assign_custom_type_name, "': ", err))
+                    }
+                    g_arena.set(assign_dest_offset, g_arena.get(assign_src_offset, assign_type_size), assign_type_size)
+                } else {
+                    // Simple var: memcpy into existing slot
+                    // Must use memcpy (not offset rebinding) because the variable
+                    // may live in an outer scope frame. Offset rebinding would only
+                    // update the current frame, leaving the outer frame stale.
+                    mut assign_src_offset := 0
+                    mut assign_src_found := false
+                    assign_src_offset = context.scope_stack.lookup_var(assign_struct_expr_result_str)?
+                    assign_src_found = true
+                    catch (err: KeyNotFoundError) {
+                        if assign_struct_expr_result_str.contains(".") {
+                            assign_src_offset = context.get_field_offset(assign_struct_expr_result_str)?
+                            assign_src_found = true
+                        }
+                    }
+                    if not(assign_src_found) {
+                        throw inner_e.lang_error(context.path, "eval", format("Could not find arena index for '", assign_struct_expr_result_str, "'"))
+                    }
+                    assign_dest_offset := context.scope_stack.lookup_var(var_name)?
+                    catch (err: KeyNotFoundError) {
+                        throw inner_e.lang_error(context.path, "eval", format("Could not find arena index for '", var_name, "'"))
+                    }
+                    assign_type_size := context.get_type_size(assign_custom_type_name)?
+                    catch (err: Str) {
+                        throw inner_e.lang_error(context.path, "eval", format("get_type_size for '", assign_custom_type_name, "': ", err))
+                    }
+                    g_arena.set(assign_dest_offset, g_arena.get(assign_src_offset, assign_type_size), assign_type_size)
+                }
             case:
                 throw inner_e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of custom type '", assign_custom_type_name, "' of value type '", value_type_to_str(assign_custom_symbol_info.value_type), "'."))
             }

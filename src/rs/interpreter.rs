@@ -1149,7 +1149,50 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                 return Ok(result); // Propagate throw
                             }
                             let expr_result_str = result.value;
-                            EvalArena::copy_fields(context, custom_type_name, &expr_result_str, var_name, inner_e)?;
+                            // Issue #159 Step 6: Replace copy_fields with clone + offset rebinding/memcpy
+                            // Garbager inserts clone for identifiers; fresh constructors are already new.
+                            if var_name.contains('.') {
+                                // Field path: memcpy into field slot
+                                let src_offset = if EvalArena::is_instance_field(context, &expr_result_str) {
+                                    context.get_field_offset(&expr_result_str)
+                                        .map_err(|err| inner_e.lang_error(&context.path, "eval",
+                                            &format!("Could not find arena index for '{}': {}", expr_result_str, err)))?
+                                } else {
+                                    context.scope_stack.lookup_var(&expr_result_str)
+                                        .ok_or_else(|| inner_e.lang_error(&context.path, "eval",
+                                            &format!("Undefined variable '{}' for assignment to '{}'", expr_result_str, var_name)))?
+                                };
+                                let dest_offset = context.get_field_offset(var_name)
+                                    .map_err(|err| inner_e.lang_error(&context.path, "eval",
+                                        &format!("get_field_offset for '{}': {}", var_name, err)))?;
+                                let type_size = context.get_type_size(custom_type_name)
+                                    .map_err(|err| inner_e.lang_error(&context.path, "eval",
+                                        &format!("get_type_size for '{}': {}", custom_type_name, err)))?;
+                                let data = EvalArena::g().get(src_offset, type_size).to_vec();
+                                EvalArena::g().set(dest_offset, &data)?;
+                            } else {
+                                // Simple var: memcpy into existing slot
+                                // Must use memcpy (not offset rebinding) because the variable
+                                // may live in an outer scope frame. Offset rebinding would only
+                                // update the current frame, leaving the outer frame stale.
+                                let src_offset = if EvalArena::is_instance_field(context, &expr_result_str) {
+                                    context.get_field_offset(&expr_result_str)
+                                        .map_err(|err| inner_e.lang_error(&context.path, "eval",
+                                            &format!("Could not find arena index for '{}': {}", expr_result_str, err)))?
+                                } else {
+                                    context.scope_stack.lookup_var(&expr_result_str)
+                                        .ok_or_else(|| inner_e.lang_error(&context.path, "eval",
+                                            &format!("Could not find arena index for '{}'", expr_result_str)))?
+                                };
+                                let dest_offset = context.scope_stack.lookup_var(var_name)
+                                    .ok_or_else(|| inner_e.lang_error(&context.path, "eval",
+                                        &format!("Could not find arena index for '{}'", var_name)))?;
+                                let type_size = context.get_type_size(custom_type_name)
+                                    .map_err(|err| inner_e.lang_error(&context.path, "eval",
+                                        &format!("get_type_size for '{}': {}", custom_type_name, err)))?;
+                                let data = EvalArena::g().get(src_offset, type_size).to_vec();
+                                EvalArena::g().set(dest_offset, &data)?;
+                            }
                         },
                         other_value_type => {
                             return Err(inner_e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' of custom type '{}' of value type '{}'.",

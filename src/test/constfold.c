@@ -214,10 +214,10 @@ til_U8 til_U8_clone(const til_U8* til_U8_self);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y);
 til_CfRect til_CfRect_sample(void);
-void til_CfRect_delete(til_CfRect* til_CfRect_self);
-til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self);
 void til_CfVec2_delete(til_CfVec2* _self);
 til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self);
+void til_CfRect_delete(til_CfRect* til_CfRect_self);
+til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self);
 
 #include <ext.c>
 
@@ -1772,7 +1772,7 @@ til_Bool til_Str_contains(const til_Str* til_Str_self, const til_Str* til_Str_ne
                     til_memcpy(&_tmp_til_Str_contains_18, &_tmp_til_Str_contains_19, &_tmp_til_Str_contains_20);
                     til_Bool _tmp_til_Str_contains_21 = til_U8_eq(&til_U8_self_byte, &til_U8_needle_byte);
                     if (til_not(&_tmp_til_Str_contains_21).data) {
-                        til_Bool_matches = false;
+                        til_Bool_matches = til_Bool_clone(&false);
                     }
                     til_I64_inc(&til_I64_needle_idx);
                 }
@@ -1793,7 +1793,7 @@ til_Bool til_Str_contains(const til_Str* til_Str_self, const til_Str* til_Str_ne
                     til_memcpy(&_tmp_til_Str_contains_27, &_tmp_til_Str_contains_28, &_tmp_til_Str_contains_29);
                     til_Bool _tmp_til_Str_contains_30 = til_U8_eq(&til_U8_self_byte, &til_U8_needle_byte);
                     if (til_not(&_tmp_til_Str_contains_30).data) {
-                        til_Bool_matches = false;
+                        til_Bool_matches = til_Bool_clone(&false);
                     }
                     til_I64_dec(&til_I64_needle_idx);
                 }
@@ -1829,7 +1829,7 @@ til_Bool til_Str_contains(const til_Str* til_Str_self, const til_Str* til_Str_ne
                     til_memcpy(&_tmp_til_Str_contains_40, &_tmp_til_Str_contains_41, &_tmp_til_Str_contains_42);
                     til_Bool _tmp_til_Str_contains_43 = til_U8_eq(&til_U8_self_byte, &til_U8_needle_byte);
                     if (til_not(&_tmp_til_Str_contains_43).data) {
-                        til_Bool_matches = false;
+                        til_Bool_matches = til_Bool_clone(&false);
                     }
                     til_I64_inc(&til_I64_needle_idx);
                 }
@@ -1850,7 +1850,7 @@ til_Bool til_Str_contains(const til_Str* til_Str_self, const til_Str* til_Str_ne
                     til_memcpy(&_tmp_til_Str_contains_49, &_tmp_til_Str_contains_50, &_tmp_til_Str_contains_51);
                     til_Bool _tmp_til_Str_contains_52 = til_U8_eq(&til_U8_self_byte, &til_U8_needle_byte);
                     if (til_not(&_tmp_til_Str_contains_52).data) {
-                        til_Bool_matches = false;
+                        til_Bool_matches = til_Bool_clone(&false);
                     }
                     til_I64_dec(&til_I64_needle_idx);
                 }
@@ -1910,7 +1910,7 @@ til_I64 til_Str_find(const til_Str* til_Str_self, const til_Str* til_Str_needle)
                 til_memcpy(&_tmp_til_Str_find_15, &_tmp_til_Str_find_16, &_tmp_til_Str_find_17);
                 til_Bool _tmp_til_Str_find_18 = til_U8_eq(&til_U8_self_byte, &til_U8_needle_byte);
                 if (til_not(&_tmp_til_Str_find_18).data) {
-                    til_Bool_matches = false;
+                    til_Bool_matches = til_Bool_clone(&false);
                 }
                 til_I64_inc(&til_I64_needle_idx);
             }
@@ -1981,7 +1981,7 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
                     til_memcpy(&_tmp_til_Str_rfind_24, &_tmp_til_Str_rfind_25, &_tmp_til_Str_rfind_26);
                     til_Bool _tmp_til_Str_rfind_27 = til_U8_eq(&til_U8_self_byte, &til_U8_needle_byte);
                     if (til_not(&_tmp_til_Str_rfind_27).data) {
-                        til_Bool_matches = false;
+                        til_Bool_matches = til_Bool_clone(&false);
                     }
                     til_I64_inc(&til_I64_needle_idx);
                 }
@@ -2002,7 +2002,7 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
                     til_memcpy(&_tmp_til_Str_rfind_33, &_tmp_til_Str_rfind_34, &_tmp_til_Str_rfind_35);
                     til_Bool _tmp_til_Str_rfind_36 = til_U8_eq(&til_U8_self_byte, &til_U8_needle_byte);
                     if (til_not(&_tmp_til_Str_rfind_36).data) {
-                        til_Bool_matches = false;
+                        til_Bool_matches = til_Bool_clone(&false);
                     }
                     til_I64_dec(&til_I64_needle_idx);
                 }
@@ -2038,7 +2038,7 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
                     til_memcpy(&_tmp_til_Str_rfind_46, &_tmp_til_Str_rfind_47, &_tmp_til_Str_rfind_48);
                     til_Bool _tmp_til_Str_rfind_49 = til_U8_eq(&til_U8_self_byte, &til_U8_needle_byte);
                     if (til_not(&_tmp_til_Str_rfind_49).data) {
-                        til_Bool_matches = false;
+                        til_Bool_matches = til_Bool_clone(&false);
                     }
                     til_I64_inc(&til_I64_needle_idx);
                 }
@@ -2059,7 +2059,7 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
                     til_memcpy(&_tmp_til_Str_rfind_55, &_tmp_til_Str_rfind_56, &_tmp_til_Str_rfind_57);
                     til_Bool _tmp_til_Str_rfind_58 = til_U8_eq(&til_U8_self_byte, &til_U8_needle_byte);
                     if (til_not(&_tmp_til_Str_rfind_58).data) {
-                        til_Bool_matches = false;
+                        til_Bool_matches = til_Bool_clone(&false);
                     }
                     til_I64_dec(&til_I64_needle_idx);
                 }
@@ -2112,7 +2112,7 @@ til_Str til_Str_replace(const til_Str* til_Str_self, const til_Str* til_Str_from
                 til_memcpy(&_tmp_til_Str_replace_12, &_tmp_til_Str_replace_13, &_tmp_til_Str_replace_14);
                 til_Bool _tmp_til_Str_replace_15 = til_U8_eq(&til_U8_self_byte, &til_U8_from_byte);
                 if (til_not(&_tmp_til_Str_replace_15).data) {
-                    til_Bool_matches = false;
+                    til_Bool_matches = til_Bool_clone(&false);
                 }
                 til_I64_inc(&til_I64_i);
             }
@@ -2133,7 +2133,7 @@ til_Str til_Str_replace(const til_Str* til_Str_self, const til_Str* til_Str_from
                 til_memcpy(&_tmp_til_Str_replace_21, &_tmp_til_Str_replace_22, &_tmp_til_Str_replace_23);
                 til_Bool _tmp_til_Str_replace_24 = til_U8_eq(&til_U8_self_byte, &til_U8_from_byte);
                 if (til_not(&_tmp_til_Str_replace_24).data) {
-                    til_Bool_matches = false;
+                    til_Bool_matches = til_Bool_clone(&false);
                 }
                 til_I64_dec(&til_I64_i);
             }
@@ -2198,7 +2198,7 @@ til_Str til_Str_replace(const til_Str* til_Str_self, const til_Str* til_Str_from
                     til_memcpy(&_tmp_til_Str_replace_46, &_tmp_til_Str_replace_47, &_tmp_til_Str_replace_48);
                     til_Bool _tmp_til_Str_replace_49 = til_U8_eq(&til_U8_src_byte, &til_U8_pattern_byte);
                     if (til_not(&_tmp_til_Str_replace_49).data) {
-                        til_Bool_found_match = false;
+                        til_Bool_found_match = til_Bool_clone(&false);
                     }
                     til_I64_inc(&til_I64_j);
                 }
@@ -2219,13 +2219,13 @@ til_Str til_Str_replace(const til_Str* til_Str_self, const til_Str* til_Str_from
                     til_memcpy(&_tmp_til_Str_replace_55, &_tmp_til_Str_replace_56, &_tmp_til_Str_replace_57);
                     til_Bool _tmp_til_Str_replace_58 = til_U8_eq(&til_U8_src_byte, &til_U8_pattern_byte);
                     if (til_not(&_tmp_til_Str_replace_58).data) {
-                        til_Bool_found_match = false;
+                        til_Bool_found_match = til_Bool_clone(&false);
                     }
                     til_I64_dec(&til_I64_j);
                 }
             }
         } else {
-            til_Bool_found_match = false;
+            til_Bool_found_match = til_Bool_clone(&false);
         }
         if (til_Bool_found_match.data) {
             til_I64 _tmp_til_Str_replace_59 = til_Ptr_offset(&til_Str_result.c_string, &til_I64_dst_idx).data;
@@ -2499,7 +2499,7 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
                 til_memcpy(&_tmp_til_Str_split_13, &_tmp_til_Str_split_14, &_tmp_til_Str_split_15);
                 til_Bool _tmp_til_Str_split_16 = til_U8_eq(&til_U8_self_byte, &til_U8_delim_byte);
                 if (til_not(&_tmp_til_Str_split_16).data) {
-                    til_Bool_matches = false;
+                    til_Bool_matches = til_Bool_clone(&false);
                 }
                 til_I64_inc(&til_I64_i);
             }
@@ -2520,7 +2520,7 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
                 til_memcpy(&_tmp_til_Str_split_22, &_tmp_til_Str_split_23, &_tmp_til_Str_split_24);
                 til_Bool _tmp_til_Str_split_25 = til_U8_eq(&til_U8_self_byte, &til_U8_delim_byte);
                 if (til_not(&_tmp_til_Str_split_25).data) {
-                    til_Bool_matches = false;
+                    til_Bool_matches = til_Bool_clone(&false);
                 }
                 til_I64_dec(&til_I64_i);
             }
@@ -2971,6 +2971,14 @@ til_CfRect til_CfRect_sample(void) {
     return (til_CfRect){0};
 }
 
+void til_CfVec2_delete(til_CfVec2* _self) {
+}
+
+til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {
+    return (til_CfVec2){.x = til_CfVec2_self->x, .y = til_CfVec2_self->y};
+    return (til_CfVec2){0};
+}
+
 void til_CfRect_delete(til_CfRect* til_CfRect_self) {
     til_CfVec2_delete(&til_CfRect_self->bottom_right);
     til_CfVec2_delete(&til_CfRect_self->top_left);
@@ -2979,14 +2987,6 @@ void til_CfRect_delete(til_CfRect* til_CfRect_self) {
 til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self) {
     return (til_CfRect){.top_left = til_CfVec2_clone(&til_CfRect_self->top_left), .bottom_right = til_CfVec2_clone(&til_CfRect_self->bottom_right)};
     return (til_CfRect){0};
-}
-
-void til_CfVec2_delete(til_CfVec2* _self) {
-}
-
-til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {
-    return (til_CfVec2){.x = til_CfVec2_self->x, .y = til_CfVec2_self->y};
-    return (til_CfVec2){0};
 }
 
 int main(int argc, char** argv) {

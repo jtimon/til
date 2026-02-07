@@ -117,6 +117,44 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             transform_struct_literal_fields(context, e, &mut new_params);
             Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
         }
+        // Issue #159 Step 6: Transform assignments with struct type where RHS is an identifier
+        NodeType::Assignment(_var_name) => {
+            // First, recursively transform children
+            let mut new_params = Vec::new();
+            for param in &e.params {
+                new_params.push(garbager_recursive(context, param)?);
+            }
+
+            // Check if RHS is a bare identifier (no field access children)
+            // Field access expressions (x.y.z) are skipped - they read from memory directly
+            if !new_params.is_empty() {
+                if let NodeType::Identifier(rhs_name) = &new_params[0].node_type {
+                    if new_params[0].params.is_empty() {
+                        // Look up identifier's symbol type
+                        if let Some(sym) = context.scope_stack.lookup_symbol(rhs_name) {
+                            if let ValueType::TCustom(type_name) = &sym.value_type {
+                                let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Str" | "Type" | "Dynamic");
+                                if !is_primitive && context.scope_stack.has_struct(type_name) {
+                                    // Build clone call: Type.clone(rhs_expr)
+                                    let rhs_expr = new_params[0].clone();
+                                    let clone_call = build_clone_call_expr(type_name, rhs_expr, e.line, e.col);
+                                    let mut transformed_params = vec![clone_call];
+                                    transformed_params.extend(new_params.into_iter().skip(1));
+                                    return Ok(Expr::new_explicit(
+                                        e.node_type.clone(),
+                                        transformed_params,
+                                        e.line,
+                                        e.col,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // No transformation needed
+            Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
+        }
         // Default: recurse into children
         _ => {
             let mut new_params = Vec::new();
