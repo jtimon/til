@@ -140,6 +140,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         }
         // Transform copy params: wrap struct identifier args in Type.clone()
         transform_fcall_copy_params(context, e, new_params)
+        // Issue #159 Step 5: Transform struct literal fields
+        transform_struct_literal_fields(context, e, new_params)
         return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
 
     // Default: recurse into children
@@ -275,6 +277,78 @@ transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: V
                 case:
                 }
             }
+        }
+    }
+}
+
+/// Issue #159 Step 5: Transform struct literal fields.
+/// For struct literal constructors like Point(inner=some_var), if a NamedArg value
+/// is an identifier pointing to a struct type, wrap it in Type.clone().
+transform_struct_literal_fields := proc(context: Context, e: Expr, mut new_params: Vec) {
+    // Extract the struct name from the original FCall (before child transforms)
+    struct_name := get_func_name(e)
+    if struct_name.eq("") {
+        return
+    }
+
+    // Must be a plain struct name (no dots - not a method call)
+    if struct_name.contains(".") {
+        return
+    }
+
+    // Check if it's a struct
+    mut struct_def := SStructDef()
+    mut found_struct := false
+    struct_def = context.scope_stack.lookup_struct(struct_name)?
+    found_struct = true
+    catch (err: KeyNotFoundError) { }
+    if not(found_struct) {
+        return
+    }
+
+    // For each child in new_params[1..] that is a NamedArg
+    for param_idx in 1..new_params.len() {
+        mut param := Expr()
+        new_params.get(param_idx, param)?
+        catch (err: IndexOutOfBoundsError) { }
+        switch param.node_type {
+        case NodeType.NamedArg(field_name):
+            // Find matching field in struct def members
+            mut field_decl := Declaration()
+            mut found_field := false
+            for member: Declaration in struct_def.members {
+                if member.name.eq(field_name) {
+                    field_decl = member
+                    found_field = true
+                }
+            }
+            if not(found_field) {
+                // skip
+            } else {
+                // Check if field type is a non-primitive struct
+                switch field_decl.value_type {
+                case ValueType.TCustom(type_name):
+                    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Str")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
+                    if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+                        // Check if the NamedArg's value (params[0]) is an identifier
+                        if param.params.len().gt(0) {
+                            mut value_expr := Expr()
+                            param.params.get(0, value_expr)?
+                            catch (err: IndexOutOfBoundsError) { }
+                            if is_identifier_expr(value_expr) {
+                                arg_expr := value_expr.clone()
+                                clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
+                                param.params.set(0, clone_call)?
+                                catch (err: IndexOutOfBoundsError) { }
+                                new_params.set(param_idx, param)?
+                                catch (err: IndexOutOfBoundsError) { }
+                            }
+                        }
+                    }
+                case:
+                }
+            }
+        case:
         }
     }
 }
