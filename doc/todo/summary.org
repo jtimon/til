@@ -36,11 +36,12 @@
 |  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (7 issues)
+* pre.org (8 issues)
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
 | 161 | Namespace constants, static mutables, immutables   | Language     |
+| 160 | Eliminate field paths from arena_index (NOT FIXED)  | Memory mgmt  |
 | 159 | copy keyword does shallow copies (not clone)       | Memory mgmt  |
 | 151 | Explicit pointer/reference syntax                  | Language     |
 | 117 | ASAP Destruction (auto-delete on last use)         | Memory mgmt  |

@@ -7,37 +7,6 @@
 
 * Fixed Bugs
 
-** Bug #160: Eliminate lookup fallbacks, use deterministic field offset calculation
-:PROPERTIES:
-:DISCOVERED: 2026-02-03
-:FIXED: 2026-02-04
-:IMPACT: Code quality, memory efficiency, cleaner architecture
-:STATUS: Fixed
-:END:
-
-*** Description
-Two related problems in field/variable lookup:
-1. Redundant arena_index entries for every struct field
-2. Harmful fallback patterns hiding bugs
-
-*** Fix
-Eliminated runtime symbol registration for struct fields. Field offsets are
-now calculated dynamically via get_field_offset() using struct definitions.
-
-Changes:
-- Removed map_instance_fields from both Rust and TIL interpreters
-- Fixed copy_fields to get is_mut from base variable instead of field symbol
-- Deterministic dispatch: "." in id -> get_field_offset(), no "." -> lookup_var()
-
-*** Results
-Performance: 34s faster (-4.1% total benchmark time)
-- Rust interpreted: -8.8s (4.0% faster)
-- TIL interpreted: -25.4s (4.5% faster)
-
-Simplicity: -209 lines removed
-- Source (rs + til): -75 lines
-- Generated C: -134 lines
-
 ** Bug #158: test_runner.til compiled mode timing may include compilation
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
