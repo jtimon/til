@@ -246,62 +246,6 @@ impl EvalArena {
     }
 
     // TODO all args should be passed as pointers/references and we wouldn't need this
-    pub fn copy_fields(ctx: &mut Context, custom_type_name: &str, src: &str, dest: &str, e: &Expr) -> Result<(), String> {
-        let struct_def = ctx.scope_stack.lookup_struct(custom_type_name)
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
-
-        // Get base offsets for src and dest
-        // Bug #160: Try lookup_var first (may be registered by caller), then get_field_offset for field paths
-        let src_base_offset = ctx.scope_stack.lookup_var(src)
-            .or_else(|| if src.contains('.') { ctx.get_field_offset(src).ok() } else { None })
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: source arena offset for '{}' not found", src)))?;
-
-        let dest_base_offset = ctx.scope_stack.lookup_var(dest)
-            .or_else(|| if dest.contains('.') { ctx.get_field_offset(dest).ok() } else { None })
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination arena offset for '{}' not found", dest)))?;
-
-        let members = struct_def.members.clone();
-
-        let mut current_offset = 0;
-        for decl in members {
-            if decl.is_mut {
-                let field_size = match &decl.value_type {
-                    ValueType::TCustom(name) => ctx.get_type_size(name)?,
-                    _ => return Err(e.lang_error(&ctx.path, "context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
-                };
-
-                let src_key = format!("{}.{}", src, decl.name);
-                let dest_key = format!("{}.{}", dest, decl.name);
-
-                // Bug #160: Calculate offsets directly from struct definition
-                // Don't use is_instance_field/get_field_offset for field paths - the base symbol
-                // might have a different declared type (e.g., Dynamic) than the actual type
-                let src_offset = src_base_offset + current_offset;
-                let dest_offset = dest_base_offset + current_offset;
-
-                let data = EvalArena::g().get(src_offset, field_size).to_vec();
-                EvalArena::g().set(dest_offset, &data)?;
-
-                if let ValueType::TCustom(type_name) = &decl.value_type {
-                    // Dynamic is a special opaque type - its contents are copied via memcpy above, not recursively
-                    if type_name != "Dynamic" && ctx.scope_stack.has_struct(type_name) {
-                        // Register dest offset so recursive copy_fields can find it
-                        // (get_field_offset may fail if base type is Dynamic)
-                        ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
-                        EvalArena::copy_fields(ctx, type_name, &src_key, &dest_key, e).map_err(|inner_err| {
-                            e.lang_error(&ctx.path, "context", &format!("copy_fields: failed to recursively copy field '{}': {}", dest_key, inner_err))
-                        })?;
-                        ctx.scope_stack.remove_var(&dest_key);
-                    }
-                }
-
-                current_offset += field_size;
-            }
-        }
-
-        Ok(())
-    }
-
     /// Core logic for insert_struct - does all the work but returns mappings instead of inserting them
     pub fn insert_struct_core(ctx: &mut Context, id: &str, custom_type_name: &str, existing_offset: Option<usize>, defaults: &HashMap<String, String>, e: &Expr) -> Result<StructInsertResult, String> {
         let mut result = StructInsertResult {

@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, shared state between clones
-:STATUS: In Progress - Steps 3-6 done (mut decl, copy params, struct fields, assignments)
+:STATUS: In Progress - Steps 3-7 done, copy_fields fully removed from interpreter
 :END:
 
 *** CRITICAL: The Goal
@@ -209,9 +209,9 @@ code that depended on =false= being correct. Fix: removed Bool from primitives l
 | Function copy params  | =func(copy p: T)=       | DONE (Step 4)  |
 | Struct literal fields | =Point(field=y)=        | DONE (Step 5)  |
 | Assignment statements | =x = y=, =x.field = y=  | DONE (Step 6)  |
-| Nested member assign  | struct member defaults   | TODO           |
-| Own params (ident)    | =func(own p: T)= ident  | TODO           |
-| Own params (expr)     | =func(own p: T)= expr   | TODO           |
+| Nested member assign  | struct member defaults   | DONE (Step 7)  |
+| Own params (ident)    | =func(own p: T)= ident  | DONE (Step 7)  |
+| Own params (expr)     | =func(own p: T)= expr   | DONE (Step 7)  |
 
 **** Step 5: DONE - Struct literal fields (commit d697125c)
 
@@ -234,6 +234,40 @@ Two sub-cases:
 
 Must use memcpy (not offset rebinding) for simple vars because the variable may live
 in an outer scope frame. Offset rebinding would only update the current frame.
+
+**** Step 7: DONE - Remaining copy_fields (nested member, own params, copy_fields deleted)
+
+Replaced all remaining =copy_fields= calls with memcpy, then deleted =copy_fields=
+from both =eval_arena.rs= and =eval_arena.til=. Also removed =temp_src_key= from
+=SavedOffsets= (no longer needed without copy_fields' symbol registration dance).
+
+Three locations replaced:
+- Nested member assignment: struct member default values during struct definition
+- Own params (identifier args): =func(own p: T)= with identifier argument
+- Own params (expression args): =func(own p: T)= with expression argument
+
+Also cleaned up unnecessary =.map_err()= wrappers on =get_field_offset= / =get_type_size=
+calls (Steps 5-7). These functions already return meaningful error strings; the
+=.map_err()= was cosmetic noise, and in TIL the equivalent =catch (err: Str)= is wrong
+(you never catch =Str= — it's the final propagation type, not a specific error type).
+
+**TODO**: =own= params should be by-reference (just bind offset + remove from caller),
+like =default= and =mut=. The memcpy added here is correct but redundant — ownership
+transfer doesn't need copying. Only =copy= params need clone from garbager. This is
+a future optimization to simplify the own param path to pure offset rebinding.
+
+*** Parameter passing semantics summary
+
+| Mode      | Semantics                                      |
+|-----------+------------------------------------------------|
+| (default) | By reference - share offset                    |
+| =mut=     | By reference - share offset                    |
+| =own=     | Ownership transfer - share offset, remove src  |
+| =copy=    | Deep copy - garbager inserts clone, bind result |
+
+Only =copy= params need the garbager to insert =Type.clone()= calls.
+=own= params should just rebind the offset and remove the source from
+the caller's scope (ownership transferred, no copy needed).
 
 *** Failed Attempt: branch failure159
 Branch =failure159= contains Steps 2-8 of the implementation, but caused massive
