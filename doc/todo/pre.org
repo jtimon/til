@@ -650,9 +650,8 @@ local aliases the container element's heap data. Auto-deleting the local
 corrupts the container (double-free).
 
 Agreed approach:
-1. Add ~get_by_ref~ to containers — returns borrowed Ptr (~offset~ already
-   sets ~is_borrowed=1~). Same signature pattern as ~get~ but returns Ptr
-   instead of copying bytes.
+1. DONE — ~get_by_ref~ added to Vec, Map, HashMap. Returns borrowed Ptr
+   (~offset~ sets ~is_borrowed=1~). Tests in vecs.til and maps.til.
 2. Add ~Ptr.create_alias~ ext_func — zero-copy alias, follows U8 ext_func
    wrapper pattern. Sets up local variable to point at same memory as the
    Ptr without copying.

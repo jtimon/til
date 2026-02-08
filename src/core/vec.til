@@ -127,6 +127,14 @@ namespace Vec {
         src.copy_to_dynamic(T, self.type_size)
     }
 
+    /** Get borrowed Ptr to element at index. No copy - points into vec memory. */
+    get_by_ref := proc(self: Vec, index: I64) returns Ptr throws IndexOutOfBoundsError {
+        if index.gteq(self._len) {
+            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.get_by_ref: index out of bounds"))
+        }
+        return self.ptr.offset(index.mul(self.type_size))
+    }
+
     /** Set element at index. */
     set := proc(mut self: Vec, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
         dont_delete(value)

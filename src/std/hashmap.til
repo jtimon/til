@@ -277,6 +277,15 @@ namespace HashMap {
         throw KeyNotFoundError(msg=format(loc(), "Key not found in HashMap"))
     }
 
+    /** Get borrowed Ptr to value for given key. No copy - points into HashMap memory. */
+    get_by_ref := proc(self: HashMap, key: Dynamic) returns Ptr throws KeyNotFoundError {
+        idx := self.find_key(key)
+        if idx.gteq(0) {
+            return self.values.ptr.offset(idx.mul(self.value_type_size))
+        }
+        throw KeyNotFoundError(msg=format(loc(), "Key not found in HashMap"))
+    }
+
     /** Check if key exists in map. */
     contains_key := proc(self: HashMap, key: Dynamic) returns Bool {
         idx := self.find_key(key)

@@ -889,3 +889,47 @@ test_hashmap_multiple_overwrites()
 test_hashmap_many_strings()
 test_hashmap_remove()
 
+test_map_get_by_ref := proc() {
+    mut m := Map.new(Str, I64)
+    m.set("a", 10)
+    m.set("b", 20)
+
+    ref_a := m.get_by_ref("a")?
+    mut val := 0
+    ref_a.dereference(I64, val)
+    assert_eq(loc(), 10, val)
+
+    // Missing key throws
+    mut threw := false
+    _bad := m.get_by_ref("missing")?
+    catch (err: KeyNotFoundError) {
+        threw = true
+    }
+    test(loc(), threw, "Map.get_by_ref missing key throws")
+
+    m.delete()
+}
+
+test_hashmap_get_by_ref := proc() {
+    mut m := HashMap.new(Str, I64)
+    m.set("x", 42)
+    m.set("y", 99)
+
+    ref_x := m.get_by_ref("x")?
+    mut val := 0
+    ref_x.dereference(I64, val)
+    assert_eq(loc(), 42, val)
+
+    // Missing key throws
+    mut threw := false
+    _bad := m.get_by_ref("missing")?
+    catch (err: KeyNotFoundError) {
+        threw = true
+    }
+    test(loc(), threw, "HashMap.get_by_ref missing key throws")
+
+    m.delete()
+}
+
+test_map_get_by_ref()
+test_hashmap_get_by_ref()

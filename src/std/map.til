@@ -191,6 +191,15 @@ namespace Map {
         throw KeyNotFoundError(msg=format(loc(), "Key not found in map"))
     }
 
+    /** Get borrowed Ptr to value for given key. No copy - points into map memory. */
+    get_by_ref := proc(self: Map, key: Dynamic) returns Ptr throws KeyNotFoundError {
+        search := self.binary_search(key)
+        if search.found {
+            return self.values.ptr.offset(search.index.mul(self.value_type_size))
+        }
+        throw KeyNotFoundError(msg=format(loc(), "Key not found in map"))
+    }
+
     /** Check if key exists in map. */
     contains_key := proc(self: Map, key: Dynamic) returns Bool {
         search := self.binary_search(key)

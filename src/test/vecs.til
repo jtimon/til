@@ -817,3 +817,34 @@ test_vec_split_off := proc() {
     }
 }
 test_vec_split_off()
+
+test_vec_get_by_ref := proc() {
+    mut v := Vec.new(I64)
+    v.push(10)
+    v.push(20)
+    v.push(30)
+
+    // Read via get_by_ref
+    ref0 := v.get_by_ref(0)?
+    mut val := 0
+    ref0.dereference(I64, val)
+    assert_eq(loc(), 10, val)
+
+    ref2 := v.get_by_ref(2)?
+    ref2.dereference(I64, val)
+    assert_eq(loc(), 30, val)
+
+    // Ptr is borrowed (won't free vec memory)
+    test(loc(), ref0.is_borrowed.eq(1), "get_by_ref returns borrowed Ptr")
+
+    // Out of bounds throws
+    mut threw := false
+    _bad := v.get_by_ref(5)?
+    catch (err: IndexOutOfBoundsError) {
+        threw = true
+    }
+    test(loc(), threw, "get_by_ref out of bounds throws")
+
+    v.delete()
+}
+test_vec_get_by_ref()
