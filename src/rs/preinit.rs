@@ -3,6 +3,7 @@
 // This keeps structs clean (only storage fields) while still providing auto-generated methods.
 
 use std::collections::{HashMap, HashSet};
+use crate::rs::ordered_map::OrderedMap;
 
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SEnumDef, SFuncDef, SNamespaceDef, FunctionType,
@@ -291,8 +292,8 @@ fn collect_namespace_methods(ast: &Expr) -> HashSet<(String, String)> {
 fn collect_structs_needing_methods(
     ast: &Expr,
     namespace_methods: &HashSet<(String, String)>,
-) -> HashMap<String, (SStructDef, usize, usize, bool, bool)> {
-    let mut structs = HashMap::new();
+) -> OrderedMap<String, (SStructDef, usize, usize, bool, bool)> {
+    let mut structs = OrderedMap::new();
 
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
@@ -481,14 +482,14 @@ pub fn preinit_expr(e: &Expr) -> Result<Expr, String> {
         }
 
         // Append generated namespace blocks for structs that need them
-        for (struct_name, (struct_def, line, col, needs_delete, needs_clone)) in structs_needing_methods {
+        for (struct_name, (struct_def, line, col, needs_delete, needs_clone)) in structs_needing_methods.iter() {
             let ns_block = generate_namespace_block(
-                &struct_name,
-                &struct_def,
-                line,
-                col,
-                needs_delete,
-                needs_clone,
+                struct_name,
+                struct_def,
+                *line,
+                *col,
+                *needs_delete,
+                *needs_clone,
             );
             new_params.push(ns_block);
         }
