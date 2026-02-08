@@ -524,8 +524,12 @@ Files: garbager.rs, garbager.til (new)
 **** Step 4: Auto-insert Type.delete() calls in garbager
 
 **Prerequisites** (separate commits before Step 4):
-1. Add Str to garbager clone set (remove "Str" from primitives exclusion)
-2. Remove unnecessary Str copies in interpreter (Str through struct/offset path)
+1. [X] Add Str to garbager clone set (remove "Str" from primitives exclusion) - e4788b62
+2. [X] Eliminate Str double-copy via arena_offset in EvalResult - 31a10477
+   EvalResult carries arena_offset (0 = None) through eval/return/call chains.
+   Consumer sites (declaration, assignment, param binding, struct fields) use
+   the offset directly instead of round-tripping through string_from_context
+   + insert_string.
 
 **What gets deleted per function:**
 - ~copy~ params with struct types (function owns the clone)
