@@ -54,6 +54,17 @@ namespace Array {
         memcpy(dest, src, self.type_size)
     }
 
+    /** Get borrowed Ptr to element at index. No copy - points into array memory. */
+    get_by_ref := proc(self: Array, index: I64) returns Ptr throws IndexOutOfBoundsError {
+        if index.gteq(self._len) {
+            throw IndexOutOfBoundsError(msg=format(loc(), "Array.get_by_ref: index out of bounds"))
+        }
+        mut p := Ptr()
+        p.data = add(self.ptr, mul(index, self.type_size))
+        p.is_borrowed = 1
+        return p
+    }
+
     /** Set element at index. */
     set := proc(mut self: Array, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
         dont_delete(value)

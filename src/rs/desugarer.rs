@@ -220,12 +220,9 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     };
     let var_decl_expr = make_decl(&var_name, ValueType::TCustom(var_type_name.to_string()), true, type_call, line, col);
 
-    // Build: get(collection, _for_i, VAR)
-    let get_call = make_call("get", vec![
-        collection_expr.clone(),
-        make_id(&index_var_name, line, col),
-        make_id(&var_name, line, col),
-    ], line, col);
+    // Bug #144: Check if element type is primitive - primitives use get() (copy),
+    // non-primitives use get_by_ref + create_alias + dont_delete (zero-copy alias)
+    let is_primitive = matches!(var_type_name, "I64" | "U8" | "Bool");
 
     // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
     // Bug #97: Use unique name to avoid shadowing loop variable if it's also named "err"
@@ -243,8 +240,41 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Build: _for_i = add(_for_i, 1)
     let inc_stmt = make_assign(&index_var_name, make_call("add", vec![make_id(&index_var_name, line, col), make_num("1", line, col)], line, col), line, col);
 
-    // Build while body: var_decl, get_call + catch, original body statements, inc
-    let mut while_body_params = vec![var_decl_expr, get_call, catch_expr];
+    // Build while body depending on primitive vs non-primitive element type
+    let mut while_body_params;
+    if is_primitive {
+        // Primitive: get() copy pattern (unchanged)
+        // Build: get(collection, _for_i, VAR)
+        let get_call = make_call("get", vec![
+            collection_expr.clone(),
+            make_id(&index_var_name, line, col),
+            make_id(&var_name, line, col),
+        ], line, col);
+        while_body_params = vec![var_decl_expr, get_call, catch_expr];
+    } else {
+        // Bug #144: Non-primitive: get_by_ref + create_alias + dont_delete pattern
+        // Build: _ref_forin_N := get_by_ref(collection, _for_i)
+        let ref_var_name = make_temp_name("_ref_forin", func_name, forin_id);
+        let get_by_ref_call = make_call("get_by_ref", vec![
+            collection_expr.clone(),
+            make_id(&index_var_name, line, col),
+        ], line, col);
+        let ref_decl = make_decl(&ref_var_name, ValueType::TCustom("Ptr".to_string()), false, get_by_ref_call, line, col);
+
+        // Build: create_alias(item, _ref_forin_N.data)
+        let alias_call = make_call("create_alias", vec![
+            make_id(&var_name, line, col),
+            make_field_access(&ref_var_name, vec!["data"], line, col),
+        ], line, col);
+
+        // Build: dont_delete(item)
+        let dont_delete_call = make_call("dont_delete", vec![
+            make_id(&var_name, line, col),
+        ], line, col);
+
+        while_body_params = vec![ref_decl, catch_expr, var_decl_expr, alias_call, dont_delete_call];
+    }
+
     // Bug #57 fix: Transform continue statements to include increment before continue
     let transformed_body = transform_continue_with_step(&body_expr, &inc_stmt);
     match &transformed_body.node_type {

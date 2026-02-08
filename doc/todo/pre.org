@@ -657,8 +657,10 @@ Agreed approach:
    Not a Ptr method (wrapper can't rebind caller's variable). Declared in mem.til,
    implemented in ext.rs/ext.til, inline codegen in ccodegen.rs/ccodegen.til.
    Test in pointers.til.
-3. Fix Bug #144 — desugarer rewrites ~for item: T in vec~ to use
-   ~get_by_ref~ + ~create_alias~ + ~dont_delete~:
+3. PARTIAL — Fix Bug #144 — desugarer rewrites ~for item: T in vec~ to use
+   ~get_by_ref~ + ~create_alias~ + ~dont_delete~ for non-primitive types.
+   Works but still constructs wasteful default. Next: redesign create_alias
+   as a directive (declares + aliases + skips auto-delete in one step):
 #+begin_src til
 for _i in 0..vec.len() {
     _ref := vec.get_by_ref(_i)

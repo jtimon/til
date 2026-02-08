@@ -7,6 +7,7 @@
 
 * Fixed Bugs
 
+
 ** Bug #162: Typer own-param requires mut variable + no control-flow awareness
 :PROPERTIES:
 :DISCOVERED: 2026-02-08
