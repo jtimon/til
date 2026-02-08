@@ -2707,127 +2707,128 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 // ---------- Core function/procedure dispatcher
 
 eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_proc: Bool) returns EvalResult throws Str {
-    if name.eq("loc") {
+    switch name {
+    case "loc":
         return func_loc(context, e)?
-    } else if name.eq("_file") {
+    case "_file":
         return func_file(context, e)?
-    } else if name.eq("_line") {
+    case "_line":
         return func_line(context, e)?
-    } else if name.eq("_col") {
+    case "_col":
         return func_col(context, e)?
-    } else if name.eq("size_of") {
+    case "size_of":
         return func_size_of(context, e)?
-    } else if name.eq("type_as_str") {
+    case "type_as_str":
         return func_type_as_str(context, e)?
-    } else if name.eq("to_ptr") {
+    case "to_ptr":
         return func_to_ptr(context, e)?
-    } else if name.eq("create_alias") {
+    case "create_alias":
         return func_create_alias(context, e)?
-    } else if name.eq("malloc") {
+    case "malloc":
         return func_malloc(context, e)?
-    } else if name.eq("free") {
+    case "free":
         return func_free(context, e)?
-    } else if name.eq("memset") {
+    case "memset":
         return func_memset(context, e)?
-    } else if name.eq("memcpy") {
+    case "memcpy":
         return func_memcpy(context, e)?
-    } else if name.eq("memcmp") {
+    case "memcmp":
         return func_memcmp(context, e)?
-    } else if name.eq("i64_lt") {
+    case "i64_lt":
         return func_lt(context, e)?
-    } else if name.eq("i64_gt") {
+    case "i64_gt":
         return func_gt(context, e)?
-    } else if name.eq("u8_lt") {
+    case "u8_lt":
         return func_u8_lt(context, e)?
-    } else if name.eq("u8_gt") {
+    case "u8_gt":
         return func_u8_gt(context, e)?
-    } else if name.eq("u8_xor") {
+    case "u8_xor":
         return func_u8_xor(context, e)?
-    } else if name.eq("u8_and") {
+    case "u8_and":
         return func_u8_and(context, e)?
-    } else if name.eq("u8_or") {
+    case "u8_or":
         return func_u8_or(context, e)?
-    } else if name.eq("i64_add") {
+    case "i64_add":
         return func_add(context, e)?
-    } else if name.eq("i64_sub") {
+    case "i64_sub":
         return func_sub(context, e)?
-    } else if name.eq("i64_mul") {
+    case "i64_mul":
         return func_mul(context, e)?
-    } else if name.eq("i64_div") {
+    case "i64_div":
         return func_div(context, e)?
-    } else if name.eq("i64_mod") {
+    case "i64_mod":
         return func_mod(context, e)?
-    } else if name.eq("i64_and") {
+    case "i64_and":
         return func_i64_and(context, e)?
-    } else if name.eq("i64_or") {
+    case "i64_or":
         return func_i64_or(context, e)?
-    } else if name.eq("i64_xor") {
+    case "i64_xor":
         return func_i64_xor(context, e)?
-    } else if name.eq("str_to_i64") {
+    case "str_to_i64":
         return func_str_to_i64(context, e)?
-    } else if name.eq("i64_to_str") {
+    case "i64_to_str":
         return func_i64_to_str(context, e)?
-    } else if name.eq("enum_to_str") {
+    case "enum_to_str":
         return func_enum_to_str(context, e)?
-    } else if name.eq("enum_get_payload") {
+    case "enum_get_payload":
         return func_enum_get_payload(context, e)?
-    } else if name.eq("enum_get_payload_type") {
+    case "enum_get_payload_type":
         return func_enum_get_payload_type(context, e)?
-    } else if name.eq("u8_to_i64") {
+    case "u8_to_i64":
         return func_u8_to_i64(context, e)?
-    } else if name.eq("i64_to_u8") {
+    case "i64_to_u8":
         return func_i64_to_u8(context, e)?
-    } else if name.eq("u8_add") {
+    case "u8_add":
         return func_u8_add(context, e)?
-    } else if name.eq("u8_div") {
+    case "u8_div":
         return func_u8_div(context, e)?
-    } else if name.eq("u8_mod") {
+    case "u8_mod":
         return func_u8_mod(context, e)?
-    } else if name.eq("u8_mul") {
+    case "u8_mul":
         return func_u8_mul(context, e)?
-    } else if name.eq("u8_sub") {
+    case "u8_sub":
         return func_u8_sub(context, e)?
-    } else if name.eq("eval_to_str") {
+    case "eval_to_str":
         return proc_eval_to_str(context, e)?
-    } else if name.eq("exit") {
+    case "exit":
         return func_exit(context, e)?
-    } else if name.eq("import") {
+    case "import":
         return proc_import(context, e)?
-    } else if name.eq("input_read_line") {
+    case "input_read_line":
         return proc_input_read_line(context, e)?
-    } else if name.eq("single_print") {
+    case "single_print":
         return proc_single_print(context, e)?
-    } else if name.eq("print_flush") {
+    case "print_flush":
         return proc_print_flush(context, e)?
-    } else if name.eq("readfile") {
+    case "readfile":
         return proc_readfile(context, e)?
-    } else if name.eq("writefile") {
+    case "writefile":
         return proc_writefile(context, e)?
-    } else if name.eq("run_cmd") {
+    case "run_cmd":
         return proc_run_cmd(context, e)?
-    } else if name.eq("spawn_cmd") {
+    case "spawn_cmd":
         return proc_spawn_cmd(context, e)?
-    } else if name.eq("check_cmd_status") {
+    case "check_cmd_status":
         return proc_check_cmd_status(context, e)?
-    } else if name.eq("sleep") {
+    case "sleep":
         return proc_sleep(context, e)?
-    } else if name.eq("get_thread_count") {
+    case "get_thread_count":
         return proc_get_thread_count(context, e)?
-    } else if name.eq("file_mtime") {
+    case "file_mtime":
         return func_file_mtime(context, e)?
-    } else if name.eq("list_dir_raw") {
+    case "list_dir_raw":
         return func_list_dir_raw(context, e)?
-    } else if name.eq("fs_parent_dir") {
+    case "fs_parent_dir":
         return func_fs_parent_dir(context, e)?
-    } else if name.eq("fs_mkdir_p") {
+    case "fs_mkdir_p":
         return proc_fs_mkdir_p(context, e)?
-    } else if name.eq("eval_file") {
+    case "eval_file":
         return proc_eval_file(context, e)?
-    } else if name.eq("has_const") {
+    case "has_const":
         return func_has_const(context, e)?
-    } else if name.eq("has_field") {
+    case "has_field":
         return func_has_field(context, e)?
-    } else {
+    case:
         if is_proc {
             throw e.lang_error(context.path, "eval", format("Core procedure '", name, "' not implemented."))
         } else {

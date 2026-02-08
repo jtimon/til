@@ -59,9 +59,14 @@ The pipeline processes source code through these phases in order:
 - Desugars syntactic sugar constructs:
   - range for: for i in 0..10 -> while loop (type from AST annotation)
   - forin: for x: T in collection -> while loop with len/get calls
-  - switch: (TODO Issue #110) switch/case on enums -> if/else chains
+  - switch: switch/case -> nested if/else (if a {} else { if b {} else { ... } })
 - Runs after typer because AST is annotated with resolved types
 - Entry: desugar_expr()
+- Performance note: switch desugars into nested if/else, NOT a flat if/else-if
+  chain. The nested structure may enable better gcc optimization. When the TIL
+  interpreter's ext func dispatch was converted from if/else-if to switch, the
+  til_interpreted benchmark improved by ~2.8% (621s -> 604s). Prefer switch over
+  long if/else-if chains for string dispatch in hot paths.
 
 *** UFCS (src/rs/ufcs.rs, src/self/ufcs.til)
 - Desugars uniform function call syntax:
