@@ -110,6 +110,7 @@ build_rstil_til := proc() {
         exit(1)
     }
     _ := run_stream_cmd("cp gen/rs/c/til.c bootstrap/til.c")
+    println("rstil_til binary: bin/rs/til")
 }
 
 // WARNING: This target currently hangs!
@@ -117,13 +118,12 @@ build_rstil_til := proc() {
 // Bug #141: til outputs to bin/til/ and gen/til/c/
 build_til_til := proc() {
     mut status := 0
-    status = run_stream_cmd("mkdir -p tmp")
     status = run_stream_cmd("./bin/rs/til build src/til.til")
-    status = run_stream_cmd("cp gen/til/c/til.c tmp/til_by_til.c")
-    status = run_stream_cmd("cp bin/til/til bin/til_til")
     if status.eq(0).not() {
         exit(1)
     }
+    println("til_til binary: bin/til/til")
+    println("til_til C output: gen/til/c/til.c")
 }
 
 build_test_runner := proc() {
