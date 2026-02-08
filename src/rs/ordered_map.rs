@@ -6,9 +6,10 @@
 
 #![allow(dead_code)]
 
+use std::borrow::Borrow;
 use std::hash::Hash;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OrderedMap<K, V> {
     entries: Vec<(K, V)>,
 }
@@ -32,32 +33,40 @@ impl<K: Eq + Hash + Clone, V: Clone> OrderedMap<K, V> {
         None
     }
 
-    pub fn get(&self, key: &K) -> Option<&V> {
+    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+    where K: Borrow<Q>, Q: Eq + Hash
+    {
         for (existing_key, value) in &self.entries {
-            if existing_key == key {
+            if existing_key.borrow() == key {
                 return Some(value);
             }
         }
         None
     }
 
-    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+    pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
+    where K: Borrow<Q>, Q: Eq + Hash
+    {
         for (existing_key, value) in &mut self.entries {
-            if existing_key == key {
+            if <K as Borrow<Q>>::borrow(existing_key) == key {
                 return Some(value);
             }
         }
         None
     }
 
-    pub fn contains_key(&self, key: &K) -> bool {
+    pub fn contains_key<Q: ?Sized>(&self, key: &Q) -> bool
+    where K: Borrow<Q>, Q: Eq + Hash
+    {
         self.get(key).is_some()
     }
 
-    pub fn remove(&mut self, key: &K) -> Option<V> {
+    pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
+    where K: Borrow<Q>, Q: Eq + Hash
+    {
         let mut index = None;
         for (i, (existing_key, _)) in self.entries.iter().enumerate() {
-            if existing_key == key {
+            if existing_key.borrow() == key {
                 index = Some(i);
                 break;
             }
@@ -106,5 +115,14 @@ impl<K: Eq + Hash + Clone, V: Clone> OrderedMap<K, V> {
 impl<K: Eq + Hash + Clone, V: Clone> Default for OrderedMap<K, V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<'a, K: Eq + Hash + Clone, V: Clone> IntoIterator for &'a OrderedMap<K, V> {
+    type Item = (&'a K, &'a V);
+    type IntoIter = std::iter::Map<std::slice::Iter<'a, (K, V)>, fn(&'a (K, V)) -> (&'a K, &'a V)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.entries.iter().map(|(k, v)| (k, v))
     }
 }

@@ -38,7 +38,7 @@ pub struct EnumVariant {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SEnumDef {
     pub variants: Vec<EnumVariant>,
-    pub methods: std::collections::HashMap<String, Expr>,  // Auto-generated methods (delete, clone)
+    pub methods: crate::rs::ordered_map::OrderedMap<String, Expr>,  // Auto-generated methods (delete, clone)
 }
 
 impl SEnumDef {
@@ -796,7 +796,7 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
         return Err(t.error(&lexer.path, "Expected '}}' to end enum."));
     }
     let params : Vec<Expr> = Vec::new();
-    return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{variants, methods: std::collections::HashMap::new()}), lexer.get_token(initial_current)?.clone(), params));
+    return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{variants, methods: crate::rs::ordered_map::OrderedMap::new()}), lexer.get_token(initial_current)?.clone(), params));
 }
 
 fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
