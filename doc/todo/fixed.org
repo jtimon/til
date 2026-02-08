@@ -57,6 +57,15 @@ Other:
 - 1 clone fix in ccodegen.til (~value_type.clone()~)
 - Test: ~src/test/bug162.til~
 
+*** Known remaining issue: UFCS + own params
+The fix doesn't handle UFCS resolution correctly when the variable is
+consumed by an ~own~ param later in the same function. Two symptoms:
+1. ~name.eq("_")~ fails even though ~name: Str~ hasn't been consumed yet
+   (UFCS resolution can't find the method on the consumed-to-be variable)
+2. ~name.clone()~ inline as argument to ~set(own key)~ fails, but
+   extracting to ~name_copy := name.clone()~ first works
+Workarounds in init.til with TODO comments. See Issue #117 Step 7.
+
 ** Bug #159: Shallow copy semantics for structs with Ptr/Vec fields
 :PROPERTIES:
 :DISCOVERED: 2026-01-31

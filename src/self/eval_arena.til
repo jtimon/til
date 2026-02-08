@@ -608,7 +608,7 @@ namespace EvalArena {
         free(tmp_buf)
 
         // Temporarily push frame for generate_struct_mappings
-        ctx.scope_stack.frames.push(frame)
+        ctx.scope_stack.frames.push(frame.clone())
 
         result := EvalArena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?
 
@@ -1196,7 +1196,7 @@ namespace EvalArena {
 
     insert_enum_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str {
         // Temporarily push frame so symbol lookups work in core function
-        ctx.scope_stack.frames.push(frame)
+        ctx.scope_stack.frames.push(frame.clone())
 
         result := EvalArena.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?
 
@@ -1250,7 +1250,7 @@ namespace EvalArena {
                 // For Str elements, create temp Str and copy bytes to array slot
                 temp_id := format(name, "_", I64.to_str(i))
                 temp_symbol := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
-                frame.symbols.set(temp_id, temp_symbol)
+                frame.symbols.set(temp_id.clone(), temp_symbol)
 
                 EvalArena.insert_string_into_frame(ctx, frame, temp_id, val, e)?
 
@@ -1328,7 +1328,7 @@ namespace EvalArena {
         // Set type_name field (it's a Str)
         temp_type_name_id := format(name, "_type_name_temp")
         temp_symbol2 := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
-        frame.symbols.set(temp_type_name_id, temp_symbol2)
+        frame.symbols.set(temp_type_name_id.clone(), temp_symbol2)
 
         EvalArena.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)?
 

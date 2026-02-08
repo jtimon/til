@@ -482,8 +482,8 @@ print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) 
 
     mut k := 0
     while k.lt(7) {
-        scale_chromatic.push(chromatic_pos)
-        scale_diatonic.push(diatonic_pos)
+        scale_chromatic.push(chromatic_pos.clone())
+        scale_diatonic.push(diatonic_pos.clone())
         mut step := 0
         steps.get(k, step)?
         chromatic_pos = chromatic_pos.add(step).mod(12)

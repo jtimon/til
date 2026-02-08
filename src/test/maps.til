@@ -98,8 +98,7 @@ test_map_str_to_vec_str := proc() {
     retrieved.get(0, item)?
     test(loc(), item.eq("red"), "colors[0] should be red")
 
-    fruits.delete()
-    colors.delete()
+    // fruits and colors were transferred to lists via insert(own), so lists owns them
     lists.delete()
     catch (err: DuplicatedKeyError) {
         println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
@@ -252,7 +251,7 @@ test_map_growth := proc() {
     // Array.INIT_DYN_CAP is 16, so insert 20 elements to trigger reallocation
     mut i := 0
     while lt(i, 20) {
-        ages.insert(i, mul(i, 100))?
+        ages.insert(i.clone(), mul(i, 100))?
         i = add(i, 1)
     }
 
@@ -367,7 +366,7 @@ test_map_order_after_growth := proc() {
     // Insert 20 keys to trigger reallocation
     mut i := 0
     while lt(i, 20) {
-        m.insert(i, format("val", I64.to_str(i)))?
+        m.insert(i.clone(), format("val", I64.to_str(i)))?
         i = add(i, 1)
     }
 
@@ -642,7 +641,7 @@ test_hashmap_growth := proc() {
     // Insert 20 elements to trigger at least one resize
     mut i := 0
     while i.lt(20) {
-        ages.insert(i, i.mul(100))?
+        ages.insert(i.clone(), i.mul(100))?
         i = i.add(1)
     }
 
@@ -769,7 +768,7 @@ test_hashmap_many_strings := proc() {
     mut i := 0
     while i.lt(50) {
         key := format("key_", I64.to_str(i))
-        m.insert(key, i)?
+        m.insert(key, i.clone())?
         i = i.add(1)
     }
 

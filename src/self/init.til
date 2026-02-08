@@ -255,11 +255,14 @@ namespace ScopeStack {
 
         // Check for redeclaration in current scope only
         // Bug #35: Skip check for "_" - it's special for discarding return values
-        if not(name.eq("_")).and(current_frame.arena_index.contains_key(name)) {
+        // TODO: should be name.eq("_") but UFCS breaks with own params - typer Bug #162 not fully fixed
+        if not(Str.eq(name, "_")).and(current_frame.arena_index.contains_key(name)) {
             throw format("Variable '", name, "' already declared in this scope")
         }
 
-        current_frame.arena_index.set(name.clone(), offset)
+        // TODO: name.clone() can't be inlined into set() - UFCS + own params bug (Bug #162 not fully fixed)
+        name_copy := name.clone()
+        current_frame.arena_index.set(name_copy, offset)
         current_frame.symbols.set(name, symbol)
         self.frames.set(last_idx, current_frame)?
 

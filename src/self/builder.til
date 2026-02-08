@@ -265,7 +265,7 @@ collect_all_deps := proc(path: Str) returns Vec throws Str {
     // Add core.til and its imports (unless main file IS core.til)?
     core_path := "src/core/core.til"
     if not(path.eq(core_path)) {
-        _ := deps.insert(core_path)
+        _ := deps.insert(core_path.clone())
         core_result := parse_file(core_path)?
         collect_import_paths(core_result.ast, deps)
     }
@@ -341,7 +341,7 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
             }
             throw concat("Compiler errors: ", errors.len().to_str()).concat(" type errors in core.til")
         }
-        _ := context.imports_init_done.insert(core_path)
+        _ := context.imports_init_done.insert(core_path.clone())
         _ := context.imports_typer_done.insert(core_path)
     }
 
@@ -427,7 +427,7 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
     // Collect core.til and its imports
     if not(path.eq(core_path)) {
         codegen_core_result := parse_file(core_path)?
-        _ := imported.insert(core_path)
+        _ := imported.insert(core_path.clone())
         collect_imports(codegen_core_result.ast, imported, dep_asts, context)?
         // Resolve types + Desugar + UFCS + Precomp core.til with its own path
         core_saved_path := context.path.clone()

@@ -166,7 +166,7 @@ namespace HashMap {
 
             // Insert at head of chain
             self.nexts.set(i, head)?
-            self.buckets.set(bucket_idx, i)?
+            self.buckets.set(bucket_idx, i.clone())?
 
             i = i.add(1)
         }
@@ -179,7 +179,7 @@ namespace HashMap {
     /** Insert new key-value pair.
      *  Throws DuplicatedKeyError if key already exists.
      *  Use set() instead if you want to overwrite existing keys. */
-    insert := proc(mut self: HashMap, key: Dynamic, value: Dynamic) throws DuplicatedKeyError {
+    insert := proc(mut self: HashMap, own key: Dynamic, own value: Dynamic) throws DuplicatedKeyError {
         // Check if key already exists
         existing_idx := self.find_key(key)
         if existing_idx.gteq(0) {
@@ -192,13 +192,15 @@ namespace HashMap {
             self.resize()
         }
 
+        // Compute bucket BEFORE push moves key
+        bucket_idx := self.hash_key(to_ptr(key))
+
         // Add key and value to dense arrays
         self.keys.push(key)
         self.values.push(value)
         new_idx := self._size
 
-        // Add to bucket chain
-        bucket_idx := self.hash_key(to_ptr(key))
+        // Add to bucket chain (use pre-computed bucket_idx)
         mut head := 0
         self.buckets.get(bucket_idx, head)?
 
@@ -217,7 +219,7 @@ namespace HashMap {
     /** Set key-value pair.
      *  Overwrites value if key already exists.
      *  Creates new entry if key doesn't exist. */
-    set := proc(mut self: HashMap, key: Dynamic, value: Dynamic) {
+    set := proc(mut self: HashMap, own key: Dynamic, own value: Dynamic) {
         existing_idx := self.find_key(key)
 
         if existing_idx.gteq(0) {
@@ -231,13 +233,15 @@ namespace HashMap {
                 self.resize()
             }
 
+            // Compute bucket BEFORE push moves key
+            bucket_idx := self.hash_key(to_ptr(key))
+
             // Add key and value to dense arrays
             self.keys.push(key)
             self.values.push(value)
             new_idx := self._size
 
-            // Add to bucket chain
-            bucket_idx := self.hash_key(to_ptr(key))
+            // Add to bucket chain (use pre-computed bucket_idx)
             mut head := 0
             self.buckets.get(bucket_idx, head)?
 
@@ -362,7 +366,7 @@ namespace HashMap {
             self.buckets.get(bucket_idx, head)?
 
             self.nexts.set(i, head)?
-            self.buckets.set(bucket_idx, i)?
+            self.buckets.set(bucket_idx, i.clone())?
 
             i = i.add(1)
         }

@@ -567,33 +567,56 @@ File: ccodegen.rs, ccodegen.til (7 locations):
 7. General const declaration: skip ~const~ for non-primitive TCustom types:
    ~matches!(&decl.value_type, ValueType::TCustom(s) if s != "I64" && ...)~
 
-**** Step 7: Container ~own~ params + zeroing + clone fixes
+**** Step 7: Container ~own~ params + clone fixes (DONE)
 
 (Depends on Step 5: typer must accept const vars for ~own~ params.)
 
 ~push~, ~set~, ~insert~, ~insert_at~ take ~own value: Dynamic~.
-After copy, ~memset(to_ptr(value), zero, size)~ zeroes the caller's variable
-so the caller's auto-delete becomes a no-op (all pointers zeroed).
+The type checker removes the variable from scope after consumption,
+forcing call sites to use ~.clone()~ when they need the value afterwards.
 
 Container files: vec.til, array.til, set.til, list.til, map.til, hashmap.til
-Details (from latest117):
 - Vec: push, set, insert_at, extend_with (inlined - can't call push with own)
 - Array: set
 - Set: insert
 - List: push, set (both cases: same-size and different-size)
-- Map: insert, set (zero value on overwrite too)
+- Map: insert, set
 - HashMap: insert, set (compute bucket BEFORE push moves key)
-- list.til fix: ~memset(to_ptr(value), 0, size)~ -> ~zero : U8 = 0; memset(...)~
 
 Clone fixes (~own~ params consume variables, call sites need ~.clone()~):
-- builder.til: ~insert(core_path.clone())~ x4
-- eval_arena.til: ~push(frame.clone())~ x2, ~set(temp_id.clone(), ...)~ x2,
-  ~insert_string_into_frame(ctx, frame, temp_id.clone(), ...)~ x2
-- ccodegen.til: ~set(decl.name.clone(), value_type.clone())~
-- interpreter.til: ~set(var_name.clone(), offset)~
-- parser.til: ~push(e.clone())~, ~push(result.clone())~ x2
-- typer.til: ~insert(path.clone())~, ~push(return_val_e.clone())~,
-  ~push(switch_case_expr.clone())~
+- builder.til: ~insert(core_path.clone())~ x3
+- eval_arena.til: ~push(frame.clone())~ x2, ~set(temp_id.clone(), ...)~ x2
+- ccodegen.til: ~set(name, idx.clone())~, ~push(pop_idx.clone())~,
+  ~set(next, next_degree.clone())~
+- interpreter.til: ~set(struct_type, template_offset.clone())~,
+  ~set(var_name.clone(), offset)~
+- parser.til: ~push(result.clone())~ x2
+- init.til: ~name_copy := name.clone()~ (inline form fails, see below)
+- tests.til: ~push(time_ms.clone())~
+- hashmap.til: ~set(bucket_idx, i.clone())~ in resize/remove
+- Test/example files: bug57.til, vecs.til, lists.til, maps.til,
+  cross_file_forward.til, music.til - loop vars consumed by push/insert
+
+***** Zeroing deferred to Step 9
+Zeroing (~memset(to_ptr(value), zero, size)~ after copy) was attempted
+but removed. TIL's shared-offset reference chain causes zeroing to
+cascade: e.g. ~declare_struct(name: Str)~ calls ~Map.set(own key=name)~
+which calls ~Vec.insert_at(own value=key)~. Zeroing ~value~ zeroes ~key~
+zeroes ~name~ zeroes ~decl.name~ in the original caller. This broke the
+entire self-hosted compiler (87/98 test failures).
+
+Zeroing will be handled by the garbager in Step 9 instead, which inserts
+~Type.delete()~ calls at the right scope boundaries rather than zeroing
+inside container methods.
+
+***** Bug #162 not fully fixed (UFCS + own params)
+Two workarounds needed in init.til:
+1. ~name.eq("_")~ fails even though ~name: Str~ hasn't been consumed yet.
+   Workaround: ~Str.eq(name, "_")~ (non-UFCS form).
+2. ~name.clone()~ inline as argument to ~set()~ fails.
+   Workaround: ~name_copy := name.clone()~ then ~set(name_copy, ...)~.
+The typer's own-param control-flow awareness (Bug #162) doesn't handle
+UFCS resolution correctly when the variable is consumed later.
 
 **** Step 8: Change container ~get~ to return borrowed Ptr
 
@@ -664,7 +687,7 @@ Files: garbager.rs, garbager.til (Rust first, then port to TIL)
 - Borrowed vs owned: Ptr.is_borrowed distinguishes static memory (literals) from heap allocations
 
 *** Ownership Model for Containers
-- ~push~/~set~/~insert~ use ~own~ params: ownership transfers IN, source zeroed
+- ~push~/~set~/~insert~ use ~own~ params: ownership transfers IN (zeroing deferred to Step 9)
 - ~get~ returns borrowed Ptr: no copy, no ownership transfer OUT
 - Caller reads through Ptr; to get owned copy, explicitly clone
 - This makes the ownership flow clean: containers own their data, ~get~ borrows,

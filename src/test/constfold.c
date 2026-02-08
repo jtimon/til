@@ -101,7 +101,7 @@ til_I64 til_Array_len(const til_Array* til_Array_self);
 til_I64 til_Array_size(const til_Array* til_Array_self);
 til_Array til_Array_new(til_Type til_Type_T, const til_I64* til_I64_capacity);
 int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array* til_Array_self, const til_I64* til_I64_index, til_Dynamic* til_Dynamic_T);
-int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_Array_self, const til_I64* til_I64_index, const til_Dynamic* til_Dynamic_value);
+int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_Array_self, const til_I64* til_I64_index, til_Dynamic* til_Dynamic_value);
 void til_Array_delete(til_Array* til_Array_self);
 til_Array til_Array_clone(const til_Array* til_Array_self);
 til_Bool til_Array_contains(const til_Array* til_Array_self, const til_Str* til_Str_value);
@@ -156,7 +156,7 @@ til_I64 til_Ptr_size_of(void);
 til_Bool til_Ptr_is_null(const til_Ptr* til_Ptr_self);
 til_Vec til_Vec_new(til_Type til_Type_T);
 til_Ptr til_Vec__alloc_ptr(til_Vec* til_Vec_self, const til_I64* til_I64_capacity);
-void til_Vec_push(til_Vec* til_Vec_self, const til_Dynamic* til_Dynamic_value);
+void til_Vec_push(til_Vec* til_Vec_self, til_Dynamic* til_Dynamic_value);
 til_I64 til_Str_len(const til_Str* til_Str_self);
 til_Bool til_Str_is_empty(const til_Str* til_Str_self);
 til_Bool til_Str_eq(const til_Str* til_Str_self, const til_Str* til_Str_other);
@@ -819,7 +819,7 @@ int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array* til_Array_s
     return 0;
 }
 
-int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_Array_self, const til_I64* til_I64_index, const til_Dynamic* til_Dynamic_value) {
+int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_Array_self, const til_I64* til_I64_index, til_Dynamic* til_Dynamic_value) {
     if (til_I64_gteq(til_I64_index, &til_Array_self->_len).data) {
         til_Str _tmp_til_Array_set_0;
         til_Array _tmp_til_Array_set_1;
@@ -1431,7 +1431,7 @@ til_Ptr til_Vec__alloc_ptr(til_Vec* til_Vec_self, const til_I64* til_I64_capacit
     return (til_Ptr){0};
 }
 
-void til_Vec_push(til_Vec* til_Vec_self, const til_Dynamic* til_Dynamic_value) {
+void til_Vec_push(til_Vec* til_Vec_self, til_Dynamic* til_Dynamic_value) {
     til_I64 til_I64_new_cap;
     til_Ptr til_Ptr_new_ptr;
     if (til_I64_eq(&til_Vec_self->_len, &til_Vec_self->cap).data) {

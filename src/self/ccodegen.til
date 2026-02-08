@@ -466,7 +466,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         mut expr := Expr()
         types.get(idx, expr)?
         name := get_type_name(expr)?
-        name_to_idx.set(name, idx)
+        name_to_idx.set(name, idx.clone())
         catch (err: KeyNotFoundError) {
             // REM: Not a type declaration, skip
         }
@@ -551,14 +551,14 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     while not(queue.is_empty()) {
         mut pop_idx := 0
         queue.pop(pop_idx)?
-        result.push(pop_idx)
+        result.push(pop_idx.clone())
         mut rev_dep_list := Vec.new(I64)
         reverse_deps.get(pop_idx, rev_dep_list)?
         for next: I64 in rev_dep_list {
             mut next_degree := 0
             in_degree.get(next, next_degree)?
             next_degree = next_degree.sub(1)
-            in_degree.set(next, next_degree)?
+            in_degree.set(next, next_degree.clone())?
             if next_degree.eq(0) {
                 queue.push(next)
             }

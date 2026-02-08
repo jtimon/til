@@ -81,7 +81,7 @@ namespace Vec {
     }
 
     /** Push element to end of vec. */
-    push := proc(mut self: Vec, value: Dynamic) {
+    push := proc(mut self: Vec, own value: Dynamic) {
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
         //     throw format(loc(), "Vec.push: value type mismatch")
         // }
@@ -127,7 +127,7 @@ namespace Vec {
     }
 
     /** Set element at index. */
-    set := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
+    set := proc(mut self: Vec, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.set: index out of bounds"))
         }
@@ -218,10 +218,34 @@ namespace Vec {
         }
     }
 
-    /** Extend vec with `count` copies of `value`. */
-    extend_with := proc(mut self: Vec, value: Dynamic, count: I64) {
+    /** Extend vec with `count` copies of `value` (byte-level copy). */
+    extend_with := proc(mut self: Vec, own value: Dynamic, count: I64) {
+        // Inline push logic: can't call self.push(value) in loop since push takes own.
         for _ in 0..count {
-            self.push(value)
+            // Grow if needed (same logic as push)
+            if self._len.eq(self.cap) {
+                mut new_cap := self.cap.mul(2)
+                if new_cap.lt(1) {
+                    new_cap = 1
+                }
+                if new_cap.gt(Vec.MAX_CAP) {
+                    panic(loc(), "Vec.extend_with: capacity exceeded Vec.MAX_CAP")
+                }
+
+                mut new_ptr := self._alloc_ptr(new_cap)
+                if self._len.gt(0) {
+                    new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
+                }
+                if not(self.ptr.is_null()) {
+                    self.ptr.delete()
+                }
+                self.ptr = new_ptr
+                self.cap = new_cap
+            }
+
+            mut dest := self.ptr.offset(self._len.mul(self.type_size))
+            dest.copy_from_dynamic(value, self.type_size)
+            self._len = self._len.add(1)
         }
     }
 
@@ -270,7 +294,7 @@ namespace Vec {
 
     /** Insert element at index, shifting remaining elements right.
      *  Index must be in range [0, len] (can insert at end). */
-    insert_at := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
+    insert_at := proc(mut self: Vec, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
         if index.gt(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.insert_at: index out of bounds"))
         }

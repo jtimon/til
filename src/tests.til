@@ -480,7 +480,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                 passed := parse_test_result(current.actual_file, status, time_ms, error_output)?
 
                 // Record time for this phase
-                current.phase_times.push(time_ms)
+                current.phase_times.push(time_ms.clone())
 
                 // Accumulate to phase total
                 mut old_total := 0

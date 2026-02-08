@@ -600,7 +600,7 @@ test_vec_with_capacity := proc() {
     // Push elements without triggering reallocation
     mut i := 0
     while i.lt(10) {
-        vec.push(i)
+        vec.push(i.clone())
         i = i.add(1)
     }
 

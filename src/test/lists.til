@@ -249,7 +249,7 @@ test_list_multiple_pushes := proc() {
 
     // Push several elements
     for i in 0..10 {
-        list.push(I64, i)?
+        list.push(I64, i.clone())?
     }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
@@ -329,7 +329,7 @@ test_nested_lists := proc() {
     //
     // The interpreter doesn't actually free on .delete() which masks this issue.
     // retrieved_inner.delete()  // Would cause double-free in compiled code
-    inner.delete()
+    // inner was transferred to outer via push(own), so outer owns it now
     outer.delete()
 }
 test_nested_lists()
