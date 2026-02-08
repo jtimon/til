@@ -8,6 +8,7 @@ mode test
 //    makes the variable undefined in the other branch)
 
 import("core.vec")
+import("std.map")
 
 OwnTestStruct := struct {
     mut x: I64 = 0
@@ -86,10 +87,65 @@ test_own_vec_push := proc() {
     }
 }
 
+// Test 6: UFCS on variable consumed by own param later in function
+// Reproduces init.til workaround: name.eq("_") fails when name is consumed
+// by TWO set() calls (one with clone, one direct)
+test_ufcs_before_own_consumption := proc() {
+    mut m1 := Map.new(Str, I64)
+    mut m2 := Map.new(Str, I64)
+    name := "hello"
+
+    // UFCS call on name BEFORE it's consumed by set()
+    if name.eq("_") {
+        // skip
+    }
+
+    m1.set(name.clone(), 42)
+    m2.set(name, 99)
+
+    mut val := 0
+    m1.get("hello", val)?
+    assert_eq(loc(), 42, val)
+    m2.get("hello", val)?
+    assert_eq(loc(), 99, val)
+    println("PASS: UFCS before own consumption")
+
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), err.msg)
+        exit(1)
+    }
+}
+
+// Test 7: Inline .clone() as argument to function taking own param
+// Reproduces init.til workaround: name.clone() can't be inlined into set()
+test_inline_clone_to_own := proc() {
+    mut m1 := Map.new(Str, I64)
+    mut m2 := Map.new(Str, I64)
+    name := "world"
+
+    // This should work: clone inline as argument to own param
+    m1.set(name.clone(), 100)
+    m2.set(name, 200)
+
+    mut val := 0
+    m1.get("world", val)?
+    assert_eq(loc(), 100, val)
+    m2.get("world", val)?
+    assert_eq(loc(), 200, val)
+    println("PASS: inline clone to own param")
+
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), err.msg)
+        exit(1)
+    }
+}
+
 test_own_const()
 test_own_if_else()
 test_own_both_branches()
 test_own_after_if()
 test_own_vec_push()
+test_ufcs_before_own_consumption()
+test_inline_clone_to_own()
 
 println("All Bug #162 tests passed")

@@ -933,9 +933,19 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
         }
     }
     // Function body statements discard return values at the top level
+    // Bug #162: Track own-consumed symbols so we can restore them before check_body_returns_throws.
+    // The type-check pass removes symbols consumed by own params, but check_body_returns_throws
+    // re-walks the AST doing UFCS resolution (get_func_def_for_fcall) which needs those symbols.
+    // Local variables are re-declared by check_body_returns_throws's Declaration handler,
+    // but function parameters are not, so UFCS on consumed parameters fails without this restore.
+    context.scope_stack.begin_removal_tracking();
+    let body_mark = context.scope_stack.removal_mark();
     for p in &func_def.body {
         errors.extend(check_types_with_context(context, &p, ExprContext::ValueDiscarded));
     }
+    let body_removed = context.scope_stack.drain_removals_since(body_mark);
+    context.scope_stack.restore_removed(&body_removed);
+    context.scope_stack.end_removal_tracking();
 
     let mut return_found = false;
     let mut thrown_types: Vec<ThrownType> = Vec::new();

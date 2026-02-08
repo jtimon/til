@@ -591,7 +591,7 @@ Clone fixes (~own~ params consume variables, call sites need ~.clone()~):
 - interpreter.til: ~set(struct_type, template_offset.clone())~,
   ~set(var_name.clone(), offset)~
 - parser.til: ~push(result.clone())~ x2
-- init.til: ~name_copy := name.clone()~ (inline form fails, see below)
+- init.til: ~name.clone()~ inline (Bug #162 UFCS fix enabled this)
 - tests.til: ~push(time_ms.clone())~
 - hashmap.til: ~set(bucket_idx, i.clone())~ in resize/remove
 - Test/example files: bug57.til, vecs.til, lists.til, maps.til,
@@ -609,14 +609,12 @@ Zeroing will be handled by the garbager in Step 9 instead, which inserts
 ~Type.delete()~ calls at the right scope boundaries rather than zeroing
 inside container methods.
 
-***** Bug #162 not fully fixed (UFCS + own params)
-Two workarounds needed in init.til:
-1. ~name.eq("_")~ fails even though ~name: Str~ hasn't been consumed yet.
-   Workaround: ~Str.eq(name, "_")~ (non-UFCS form).
-2. ~name.clone()~ inline as argument to ~set()~ fails.
-   Workaround: ~name_copy := name.clone()~ then ~set(name_copy, ...)~.
-The typer's own-param control-flow awareness (Bug #162) doesn't handle
-UFCS resolution correctly when the variable is consumed later.
+***** Bug #162 UFCS + own params (FIXED)
+Root cause: ~check_body_returns_throws~ re-walked the AST doing UFCS
+resolution after the type-check pass removed own-consumed symbols.
+Parameters were not re-declared (unlike locals). Fix: restore removed
+symbols before ~check_body_returns_throws~ via removal tracking.
+Workarounds in init.til removed.
 
 **** Step 8: Change container ~get~ to return borrowed Ptr
 

@@ -57,14 +57,18 @@ Other:
 - 1 clone fix in ccodegen.til (~value_type.clone()~)
 - Test: ~src/test/bug162.til~
 
-*** Known remaining issue: UFCS + own params
-The fix doesn't handle UFCS resolution correctly when the variable is
-consumed by an ~own~ param later in the same function. Two symptoms:
-1. ~name.eq("_")~ fails even though ~name: Str~ hasn't been consumed yet
-   (UFCS resolution can't find the method on the consumed-to-be variable)
-2. ~name.clone()~ inline as argument to ~set(own key)~ fails, but
-   extracting to ~name_copy := name.clone()~ first works
-Workarounds in init.til with TODO comments. See Issue #117 Step 7.
+*** UFCS + own params issue (FIXED)
+Root cause: ~check_body_returns_throws~ re-walks the AST doing UFCS
+resolution via ~get_func_def_for_fcall~ AFTER the type-check pass has
+removed own-consumed symbols. Local variables were re-declared by the
+Declaration handler in ~check_body_returns_throws~, but function
+parameters were not, so UFCS on consumed parameters failed.
+
+Fix: wrap the function body type-check loop in removal tracking
+(~begin_removal_tracking~ / ~drain_removals_since~ / ~restore_removed~
+/ ~end_removal_tracking~), restoring all own-consumed symbols before
+~check_body_returns_throws~ runs. File: typer.rs only (TIL typer
+doesn't have own-consumption tracking).
 
 ** Bug #159: Shallow copy semantics for structs with Ptr/Vec fields
 :PROPERTIES:
