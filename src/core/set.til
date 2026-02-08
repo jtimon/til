@@ -28,7 +28,7 @@ namespace Set {
      * Returns true if element was inserted (not already present)
      * Returns false if element already exists
      */
-    insert := proc(mut self: Set, elem: Dynamic) returns Bool {
+    insert := proc(mut self: Set, own elem: Dynamic) returns Bool {
         // Check if element already exists
         mut i := 0
         mut elems_arr := self.elements

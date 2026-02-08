@@ -1,0 +1,55 @@
+mode lib
+
+// Test with deep call stack to simulate bug47/typer.til scenario
+
+DummyStruct := struct {
+    mut data: I64 = 0
+}
+
+should_throw := true
+
+// Level 5 - deepest, throws
+level5 := proc() returns DummyStruct throws Str {
+    if should_throw {
+        throw "simulated error at level 5"
+    }
+    return DummyStruct()
+}
+
+// Level 4
+level4 := proc() returns DummyStruct throws Str {
+    return level5()?
+}
+
+// Level 3
+level3 := proc() returns DummyStruct throws Str {
+    return level4()?
+}
+
+// Level 2
+level2 := proc() returns DummyStruct throws Str {
+    return level3()?
+}
+
+// Level 1 - top of the call chain (like get_func_def_for_fcall_with_expr)
+test_many_decls_before_catch := proc() returns Bool {
+    // Simulate many declarations
+    decl1 := 1
+    decl2 := 2
+    decl3 := 3
+
+    // Simulate desugared switch (if body)
+    dummy := 1
+    if dummy.eq(1) {
+        inner1 := 10
+
+        // The failing pattern - call deep into the stack
+        mut is_field := true
+        field_value := level2()?
+        catch (err: Str) {
+            is_field = false
+        }
+        return is_field
+    }
+    return true
+}

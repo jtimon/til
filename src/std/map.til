@@ -133,7 +133,7 @@ namespace Map {
     /** Insert new key-value pair.
      *  Throws DuplicatedKeyError if key already exists.
      *  Use set() instead if you want to overwrite existing keys. */
-    insert := proc(mut self: Map, key: Dynamic, value: Dynamic) throws DuplicatedKeyError {
+    insert := proc(mut self: Map, own key: Dynamic, own value: Dynamic) throws DuplicatedKeyError {
         search := self.binary_search(key)
 
         if search.found {
@@ -153,13 +153,15 @@ namespace Map {
     /** Set key-value pair.
      *  Overwrites value if key already exists.
      *  Creates new entry if key doesn't exist. */
-    set := proc(mut self: Map, key: Dynamic, value: Dynamic) {
+    set := proc(mut self: Map, own key: Dynamic, own value: Dynamic) {
         search := self.binary_search(key)
 
         if search.found {
             // Key found - update value in place
             mut value_ptr := self.values.ptr.offset(search.index.mul(self.value_type_size))
             value_ptr.copy_from_dynamic(value, self.value_type_size)
+            zero : U8 = 0
+            memset(to_ptr(value), zero, self.value_type_size)
         } else {
             // Key not found - insert at sorted position
             self.keys.insert_at(search.index, key)?

@@ -45,7 +45,7 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
     }
 
     // Mark as done immediately - before processing - to handle circular imports
-    _ := context.imports_typer_done.insert(path)
+    _ := context.imports_typer_done.insert(path.clone())
 
     // Get stored AST from init phase
     mut ast := Expr()
@@ -875,11 +875,11 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
 
         // Note: check_types_with_context called earlier in loop (before found_type calculation)
 
-        // Check mut/own parameter requirements (Bug #48, Bug #63)
-        // Both mut and own parameters require mutable variables
-        if arg.is_mut.or(arg.is_own) {
-            mut param_kind := "own"
-            if arg.is_mut { param_kind = "mut" }
+        // Check mut parameter requirements (Bug #48, Bug #63)
+        // Only mut parameters require mutable variables.
+        // own parameters accept const variables (ownership transfer, not mutation).
+        if arg.is_mut {
+            mut param_kind := "mut"
             switch arg_expr.node_type {
             case NodeType.Identifier(var_name):
                 // Simple variable - check if it's mut
@@ -1320,7 +1320,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         if have_expected.and(have_return_val) {
                             // Recursively check this return expression for throws
                             mut single_expr := Vec.new(Expr)
-                            single_expr.push(return_val_e)
+                            single_expr.push(return_val_e.clone())
                             errors.extend(check_body_returns_throws(context, return_val_e, func_def, single_expr, thrown_types, return_found)?)
 
                             mut actual_value_type := get_value_type(context, return_val_e)?
@@ -1668,7 +1668,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                     // Check case expression
                     mut single_case := Vec.new(Expr)
-                    single_case.push(switch_case_expr)
+                    single_case.push(switch_case_expr.clone())
                     errors.extend(check_body_returns_throws(context, e, func_def, single_case, switch_thrown_types, return_found)?)
 
                     // For pattern matching, add the binding variable to scope before checking body

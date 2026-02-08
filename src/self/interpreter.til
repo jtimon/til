@@ -1674,7 +1674,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 mut lf_idx := context.scope_stack.frames.len().sub(1)
                                 mut lf := ScopeFrame()
                                 context.scope_stack.frames.get(lf_idx, lf)?
-                                lf.arena_index.set(var_name, offset)
+                                lf.arena_index.set(var_name.clone(), offset)
                                 context.scope_stack.frames.set(lf_idx, lf)?
 
                                 // Copy ALL field mappings (including nested) from thrown instance to catch variable

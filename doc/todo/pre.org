@@ -521,49 +521,361 @@ delete := proc(mut self: MyStruct) {
 
 Files: garbager.rs, garbager.til (new)
 
-**** Step 4: Auto-insert Type.delete() calls in garbager
+**** Step 4: Auto-insert Type.delete() + Move Semantics
 
 **Prerequisites** (separate commits before Step 4):
 1. [X] Add Str to garbager clone set (remove "Str" from primitives exclusion) - e4788b62
 2. [X] Eliminate Str double-copy via arena_offset in EvalResult - 31a10477
-   EvalResult carries arena_offset (0 = None) through eval/return/call chains.
-   Consumer sites (declaration, assignment, param binding, struct fields) use
-   the offset directly instead of round-tripping through string_from_context
-   + insert_string.
+3. [X] Use OrderedMap for enum methods (codegen non-determinism) - fe3110df
+4. [X] Use OrderedMap in preinit (codegen non-determinism) - faf0d591
 
-**What gets deleted per function:**
-- ~copy~ params with struct types (function owns the clone)
-- ~own~ params with struct types (function received ownership)
-- Local variable declarations with struct types (including Str)
+**Prerequisites** completed in working tree:
+- [X] Container methods: ~own~ + zeroing (vec.til, array.til, set.til, list.til, map.til, hashmap.til)
+- [X] Rust garbager delete insertion (garbager.rs)
+- [X] Rust ccodegen const removal (ccodegen.rs - 7 locations)
+- [X] Rust+TIL typer fix: ~own~ params no longer require ~mut~ variables
 
-Primitives excluded: I64, U8, Type, Dynamic (NOT Str - Str is now cloned/deleted)
+**Step 1: Build + fix callsites**
 
-**Safety: own-transfer tracking.** If a variable is passed as ~own~ to another
-function anywhere in the body, remove it from the delete set (callee deletes it).
-Conservative: if own-transfer is conditional (inside if), still exclude.
+~make rstil~, look for "Undefined symbol" errors caused by ~own~ params consuming
+variables. Add ~.clone()~ where a variable is used after being passed to an ~own~ param.
+Iterate until ~make rstil~ succeeds.
 
-**Where delete calls are inserted:**
-1. Before Return: delete all in-scope candidates (minus the returned variable)
-2. Before Throw: delete all in-scope candidates
-3. At function body end: delete function-level candidates (if no return/throw)
-4. At nested block end (if/while bodies): delete block-local candidates only
-5. Before struct var reassignment: ~x = expr~ -> insert ~Type.delete(x)~ before
+**Step 2: Run ~make benchmark~ -- Rust tests pass**
 
-**Algorithm in garbager_recursive, FuncDef handler:**
-1. Run existing clone transforms on body -> new_body
-2. Collect param_candidates: copy/own params with deletable struct types
-3. Scan new_body recursively for own-transfers -> own_transferred set
-4. Remove own_transferred vars from param_candidates
-5. Call insert_deletes_in_body(new_body, param_candidates, own_transferred) -> final_body
+**Step 3: Commit (container + callsite + typer changes)**
 
-**New helper functions:**
-- ~build_delete_call_expr(type_name, var_name, line, col)~ - mirror of build_clone_call_expr
-- ~is_deletable_type(value_type, context)~ - TCustom + not primitive + has_struct
-- ~collect_own_transfers(stmts, context)~ - scan for own params in FCalls
-- ~insert_deletes_in_body(stmts, inherited, own_transferred, context)~ - core recursive
-- ~get_returned_var_name(return_expr)~ - extract simple identifier from return
+**Step 4: Rust garbager -- synthetic catch-and-rethrow**
 
-Files: garbager.rs, garbager.til
+***Problem***
+~?~ propagation bypasses explicit ~return~/~throw~ where deletes are inserted.
+Delete candidates leak when errors propagate out of throwing functions.
+
+***Solution***
+After ~insert_deletes_in_stmts~, for each type in ~func_def.throw_types~,
+append a synthetic catch block that deletes all candidates and rethrows.
+
+***Changes to src/rs/garbager.rs***
+
+**4a. Change ~insert_deletes_in_stmts~ return type**
+
+Current: ~-> Vec<Expr>~ (just transformed stmts)
+New: ~-> (Vec<Expr>, Vec<(String, String)>)~ (stmts + local_candidates)
+
+Return ~(result, local_candidates)~ at end. Update the single callsite in FuncDef handler.
+
+**4b. Add ~build_cleanup_catch~ helper**
+
+Builds AST for:
+#+BEGIN_SRC til
+catch (_cleanup_err: ErrorType) {
+    Type1.delete(var1)
+    Type2.delete(var2)
+    throw _cleanup_err
+}
+#+END_SRC
+
+AST structure (from parser.til:1754-1762):
+- Catch node params:
+  - [0] Identifier("_cleanup_err")
+  - [1] Identifier("ErrorType")
+  - [2] Body node containing: delete calls (reverse order) + Throw(Identifier("_cleanup_err"))
+
+#+BEGIN_SRC rust
+fn build_cleanup_catch(
+    error_type_name: &str,
+    catch_var_name: &str,
+    candidates: &[(String, String)],
+    line: usize,
+    col: usize,
+) -> Expr {
+    // Build body: delete calls + throw
+    let mut body_stmts: Vec<Expr> = Vec::new();
+    for (var_name, type_name) in candidates.iter().rev() {
+        body_stmts.push(build_delete_call_expr(type_name, var_name, line, col));
+    }
+    // throw _cleanup_err
+    let throw_var = Expr::new_explicit(
+        NodeType::Identifier(catch_var_name.to_string()), vec![], line, col);
+    body_stmts.push(Expr::new_explicit(NodeType::Throw, vec![throw_var], line, col));
+
+    let body = Expr::new_explicit(NodeType::Body, body_stmts, line, col);
+    let name_expr = Expr::new_explicit(
+        NodeType::Identifier(catch_var_name.to_string()), vec![], line, col);
+    let type_expr = Expr::new_explicit(
+        NodeType::Identifier(error_type_name.to_string()), vec![], line, col);
+
+    Expr::new_explicit(NodeType::Catch, vec![name_expr, type_expr, body], line, col)
+}
+#+END_SRC
+
+**4c. FuncDef handler: append synthetic catches**
+
+After ~insert_deletes_in_stmts~ call (line ~53):
+
+#+BEGIN_SRC rust
+let (new_stmts, local_candidates) = insert_deletes_in_stmts(
+    &new_body, &param_candidates, &own_transferred, context);
+new_body = new_stmts;
+
+// Issue #117: Synthetic catch-and-rethrow for error propagation cleanup
+if !func_def.throw_types.is_empty() {
+    let mut all_candidates: Vec<(String, String)> = param_candidates.clone();
+    all_candidates.extend(local_candidates.iter().cloned());
+    if !all_candidates.is_empty() {
+        let line = func_def.body.last().map_or(0, |s| s.line);
+        let col = func_def.body.last().map_or(0, |s| s.col);
+        for throw_type in &func_def.throw_types {
+            if let ValueType::TCustom(type_name) = throw_type {
+                new_body.push(build_cleanup_catch(
+                    type_name, "_cleanup_err", &all_candidates, line, col));
+            }
+        }
+    }
+}
+#+END_SRC
+
+**Step 5: Run ~make benchmark~ -- verify synthetic catch works**
+
+**Step 6: Commit (synthetic catch-and-rethrow)**
+
+**Step 7: Port ccodegen const removal to TIL (~src/self/ccodegen.til~)**
+
+7 locations, matching the Rust changes already applied:
+
+**7a. ~emit_precomputed_vec_assignment~ (line 3497)**
+- Remove ~is_mut: Bool~ parameter
+- Remove lines 3512-3514 (~if not(is_mut) { output.push_str("const ") }~)
+- Add comment: ~// Issue #117: No const for struct locals - garbager inserts Type.delete() calls~
+- Update callsite at line 6443: remove ~decl.is_mut~ arg
+
+**7b. Struct empty init (line 6555-6556)**
+- Remove ~if not(is_mut) { output.push_str("const ") }~
+- Add comment
+
+**7c. Struct zero init (line 6568-6569)**
+- Same removal + comment
+
+**7d. Struct designated init (line 6634-6635)**
+- Same removal + comment
+
+**7e. Struct fallback (line 6684-6685)**
+- Same removal + comment
+
+**7f. Enum declaration (line 6698-6699)**
+- Same removal + comment
+
+**7g. General const declaration (line 6762)**
+- Add check: skip ~const~ for non-primitive TCustom types
+#+BEGIN_SRC til
+// Issue #117: No const for struct/enum locals - garbager inserts Type.delete() calls
+switch decl.value_type {
+case ValueType.TCustom(s):
+    is_struct_local := not(s.eq("I64")).and(not(s.eq("U8"))).and(not(s.eq("Type"))).and(not(s.eq("Dynamic")))
+    if not(is_struct_local) {
+        output.push_str("const ")
+    }
+case:
+    output.push_str("const ")
+}
+#+END_SRC
+
+**Step 8: Port garbager delete insertion to TIL (~src/self/garbager.til~)**
+
+**8a. Add ~is_deletable_type~ helper**
+
+Replace inline ~is_primitive~ checks in Declaration (line 105-106),
+Assignment (line 174-175), transform_fcall_copy_params (line 327-328),
+and transform_struct_literal_fields (line 388-389).
+
+#+BEGIN_SRC til
+is_deletable_type := func(value_type: ValueType, context: Context) returns Bool {
+    switch value_type {
+    case ValueType.TCustom(type_name):
+        is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
+        return not(is_primitive).and(context.scope_stack.has_struct(type_name))
+    case:
+        return false
+    }
+}
+#+END_SRC
+
+**8b. Add ~build_delete_call_expr~ helper**
+
+Mirror of ~build_clone_call_expr~ (line 215-226):
+#+BEGIN_SRC til
+build_delete_call_expr := func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr {
+    delete_ident := Expr(node_type=NodeType.Identifier("delete"), line=line, col=col)
+    mut type_delete_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
+    type_delete_access.params.push(delete_ident)
+    var_ident := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
+    mut delete_call := Expr(node_type=NodeType.FCall(false), line=line, col=col)
+    delete_call.params.push(type_delete_access)
+    delete_call.params.push(var_ident)
+    return delete_call
+}
+#+END_SRC
+
+**8c. Add ~get_returned_var_name~ helper**
+
+#+BEGIN_SRC til
+get_returned_var_name := func(return_expr: Expr) returns Str {
+    if return_expr.params.is_empty() { return "" }
+    mut first_param := Expr()
+    return_expr.params.get(0, first_param)?
+    catch (err: IndexOutOfBoundsError) { return "" }
+    switch first_param.node_type {
+    case NodeType.Identifier(name):
+        if first_param.params.is_empty() { return name }
+        return ""
+    case:
+        return ""
+    }
+}
+#+END_SRC
+
+**8d. Add ~collect_own_transfers~ + ~collect_own_transfers_recursive~**
+
+#+BEGIN_SRC til
+collect_own_transfers := proc(stmts: Vec, context: Context) returns Set {
+    mut result := Set.new(Str)
+    for stmt: Expr in stmts {
+        collect_own_transfers_recursive(stmt, context, result)
+    }
+    return result
+}
+
+collect_own_transfers_recursive := proc(e: Expr, context: Context, mut result: Set) {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        func_name := get_func_name(e)
+        if not(func_name.eq("")) {
+            mut func_def := SFuncDef()
+            mut found := false
+            func_def = context.scope_stack.lookup_func(func_name)?
+            found = true
+            catch (err: KeyNotFoundError) { }
+            if found {
+                for i in 0..func_def.args.len() {
+                    mut arg_def := Declaration()
+                    func_def.args.get(i, arg_def)?
+                    catch (err: IndexOutOfBoundsError) { }
+                    param_idx := i.add(1)
+                    if param_idx.gteq(e.params.len()) { return }
+                    if arg_def.is_own {
+                        mut arg_expr := Expr()
+                        e.params.get(param_idx, arg_expr)?
+                        catch (err: IndexOutOfBoundsError) { }
+                        switch arg_expr.node_type {
+                        case NodeType.Identifier(var_name):
+                            if arg_expr.params.is_empty() {
+                                _ := result.insert(var_name)
+                            }
+                        case:
+                        }
+                    }
+                }
+            }
+        }
+    case:
+    }
+    // Recurse into all children
+    for param: Expr in e.params {
+        collect_own_transfers_recursive(param, context, result)
+    }
+    // Recurse into FuncDef body if present
+    switch e.node_type {
+    case NodeType.FuncDef(func_def):
+        for stmt: Expr in func_def.body {
+            collect_own_transfers_recursive(stmt, context, result)
+        }
+    case:
+    }
+}
+#+END_SRC
+
+**8e. Add ~insert_deletes_in_stmts~**
+
+Core function. Returns transformed stmts. Uses two parallel Vecs
+(~mut local_names: Vec = Vec.new(Str)~ and ~mut local_types: Vec = Vec.new(Str)~)
+for tracking candidates. Uses out-param ~mut out_local_candidates_names: Vec~ and
+~mut out_local_candidates_types: Vec~ to return local candidates for the synthetic catch.
+
+This is a large function (~200 lines in Rust). Port all cases:
+- Declaration: add to local_candidates if deletable, not wildcard, not catch-shadowed
+- Return: delete all candidates (reverse), skip returned var, then return
+- Throw: delete all candidates (reverse), then throw
+- Assignment: delete old value if reassigning tracked var
+- If: recurse into then/else bodies with combined candidates
+- While: recurse into body with combined candidates
+- Catch: recurse into body, exclude catch var from candidates
+- Default: pass through
+
+End of body: delete LOCAL candidates only if last stmt is not Return/Throw.
+
+**8f. Add ~build_cleanup_catch~ helper**
+
+#+BEGIN_SRC til
+build_cleanup_catch := func(error_type_name: Str, catch_var_name: Str,
+    candidate_names: Vec, candidate_types: Vec, line: I64, col: I64) returns Expr {
+    mut body_stmts := Vec.new(Expr)
+    // Delete in reverse order
+    mut i := candidate_names.len().sub(1)
+    while i.gteq(0) {
+        mut var_name := ""
+        mut type_name := ""
+        candidate_names.get(i, var_name)?
+        candidate_types.get(i, type_name)?
+        body_stmts.push(build_delete_call_expr(type_name, var_name, line, col))
+        i = i.sub(1)
+        catch (err: IndexOutOfBoundsError) { }
+    }
+    // throw _cleanup_err
+    throw_var := Expr(node_type=NodeType.Identifier(catch_var_name), line=line, col=col)
+    mut throw_expr := Expr(node_type=NodeType.Throw, line=line, col=col)
+    throw_expr.params.push(throw_var)
+    body_stmts.push(throw_expr)
+
+    mut body := Expr(node_type=NodeType.Body, line=line, col=col)
+    body.params = body_stmts
+    name_expr := Expr(node_type=NodeType.Identifier(catch_var_name), line=line, col=col)
+    type_expr := Expr(node_type=NodeType.Identifier(error_type_name), line=line, col=col)
+    mut catch_expr := Expr(node_type=NodeType.Catch, line=line, col=col)
+    catch_expr.params.push(name_expr)
+    catch_expr.params.push(type_expr)
+    catch_expr.params.push(body)
+    return catch_expr
+}
+#+END_SRC
+
+**8g. FuncDef handler changes**
+
+In ~garbager_recursive~, case ~NodeType.FuncDef~:
+1. After recursing body, collect param_candidates (copy/own args with deletable types)
+2. Collect own_transferred via ~collect_own_transfers~
+3. Filter param_candidates
+4. Call ~insert_deletes_in_stmts~ -> get new body + local candidates
+5. For each throw_type, append synthetic catch with all candidates
+
+**8h. Refactor existing TIL to use ~is_deletable_type~**
+
+Replace inline ~is_primitive~ checks at:
+- Declaration handler (line 105-106)
+- Assignment handler (line 174-175)
+- ~transform_fcall_copy_params~ (line 327-328)
+- ~transform_struct_literal_fields~ (line 388-389)
+
+**Step 9: Run ~make benchmark~ -- all tests must pass**
+
+**Step 10: Commit (TIL port)**
+
+**Step 11: Update doc/todo/pre.org with final status**
+
+*** Verification
+1. Run under valgrind - no leaks
+2. Double-free tests - delete() is idempotent
+3. Control flow tests - returns, throws, branches, loops
+4. ~make benchmark~ must pass
 
 *** Design Decisions
 - Method name: Use existing ~delete()~
@@ -573,11 +885,8 @@ Files: garbager.rs, garbager.til
 - Cascading deletes: Only track top-level variables; nested Ptr fields handled by type's delete()
 - Borrowed vs owned: Ptr.is_borrowed distinguishes static memory (literals) from heap allocations
 
-*** Verification
-1. Run under valgrind - no leaks
-2. Double-free tests - delete() is idempotent
-3. Control flow tests - returns, throws, branches, loops
-4. ~make benchmark~ must pass
+Files: garbager.rs, garbager.til, ccodegen.rs, ccodegen.til,
+       vec.til, array.til, set.til, list.til, map.til, hashmap.til
 
 ** Issue #115: Owned struct fields and auto-generated methods
 :PROPERTIES:

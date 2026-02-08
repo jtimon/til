@@ -55,7 +55,7 @@ namespace Array {
     }
 
     /** Set element at index. */
-    set := proc(mut self: Array, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
+    set := proc(mut self: Array, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Array.set: index out of bounds"))
         }
@@ -66,6 +66,8 @@ namespace Array {
 
         mut dest := add(self.ptr, mul(index, self.type_size))
         memcpy(dest, to_ptr(value), self.type_size)
+        zero : U8 = 0
+        memset(to_ptr(value), zero, self.type_size)
     }
 
     /** Free array memory. */

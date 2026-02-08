@@ -7691,7 +7691,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         }
         value_type := decl.value_type
         // Track this declaration for future lookups (both in collected and scope_stack)
-        collected.set(decl.name.clone(), value_type)
+        collected.set(decl.name.clone(), value_type.clone())
         // Also add to scope_stack so get_value_type can find it for subsequent declarations
         mut symbol_info := SymbolInfo()
         symbol_info.value_type = value_type

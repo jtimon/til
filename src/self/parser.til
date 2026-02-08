@@ -1345,7 +1345,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
     case TokenType.LeftParen:
         arg_list := parse_args(lexer)?
         mut fcall_params := Vec.new(Expr)
-        fcall_params.push(e)
+        fcall_params.push(e.clone())
         for i in 0..arg_list.params.len() {
             mut arg := Expr()
             arg_list.params.get(i, arg)?
@@ -1395,7 +1395,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                         method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t.clone(), Vec.new(Expr))
                         mut new_params := Vec.new(Expr)
                         new_params.push(method_id)
-                        new_params.push(result)  // Previous call result becomes first argument
+                        new_params.push(result.clone())  // Previous call result becomes first argument
                         for j in 0..method_args.params.len() {
                             mut method_arg := Expr()
                             method_args.params.get(j, method_arg)?
@@ -1417,7 +1417,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                         // Bug #32 fix: Field access on expression result (no parentheses)
                         // Collect all field names in the chain until we hit something else
                         mut field_params := Vec.new(Expr)
-                        field_params.push(result)  // First param is the FCall/expression result
+                        field_params.push(result.clone())  // First param is the FCall/expression result
                         // TODO Bug #56: inline clone should work here
                         field_params.push(Expr.new_parse(
                             node_type_clone(NodeType.Identifier(method_name)),
