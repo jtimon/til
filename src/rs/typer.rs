@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::rs::init::{Context, SymbolInfo, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
+use crate::rs::init::{Context, SymbolInfo, RemovedSymbol, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
     Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, SNamespaceDef, Declaration, PatternInfo, FunctionType, TTypeDef,
@@ -325,26 +325,10 @@ fn validate_func_arg_count(path: &str, e: &Expr, f_name: &str, func_def: &SFuncD
     None
 }
 
-/// Issue #117: Snapshot current frame's symbols for own-consumption restore.
-fn snapshot_symbols(context: &Context) -> HashMap<String, SymbolInfo> {
-    if let Some(frame) = context.scope_stack.frames.last() {
-        frame.symbols.clone()
-    } else {
-        HashMap::new()
-    }
-}
-
-/// Issue #117: Restore symbols that were removed during a branch that exits.
-/// Only re-adds symbols that existed before the branch but were removed during it.
-fn restore_removed_symbols(context: &mut Context, before: &HashMap<String, SymbolInfo>) {
-    if let Some(frame) = context.scope_stack.frames.last_mut() {
-        for (name, info) in before {
-            if !frame.symbols.contains_key(name) {
-                frame.symbols.insert(name.clone(), info.clone());
-            }
-        }
-    }
-}
+// Issue #117: snapshot_symbols and restore_removed_symbols removed.
+// Replaced by lazy removal tracking via ScopeStack methods:
+// begin_removal_tracking, end_removal_tracking, removal_mark,
+// drain_removals_since, restore_removed.
 
 fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
@@ -375,36 +359,26 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     errors.extend(check_types_with_context(context, &e.params[0], ExprContext::ValueUsed));
 
     // Issue #117: Type check then/else bodies with own-consumption isolation.
-    // Each branch is checked independently - own consumption in one branch
-    // should not affect other branches (they're mutually exclusive paths).
-    // After all branches, variables consumed in ALL branches are removed,
-    // and variables consumed only in exiting branches (return/throw) are restored.
-    let before_branches = snapshot_symbols(context);
-    let mut consumed_per_branch: Vec<Vec<String>> = Vec::new();
+    // Uses lazy removal tracking instead of full symbol map cloning.
+    context.scope_stack.begin_removal_tracking();
+    let mut consumed_per_branch: Vec<Vec<RemovedSymbol>> = Vec::new();
     let branch_count = e.params.len() - 1;
     for i in 1..e.params.len() {
-        restore_removed_symbols(context, &before_branches);
+        let mark = context.scope_stack.removal_mark();
         errors.extend(check_types_with_context(context, &e.params[i], ExprContext::ValueDiscarded));
-        // Record which symbols were consumed in this branch
-        let mut consumed = Vec::new();
-        for (name, _) in &before_branches {
-            if context.scope_stack.frames.last()
-                .map_or(false, |f| !f.symbols.contains_key(name)) {
-                consumed.push(name.clone());
-            }
-        }
-        consumed_per_branch.push(consumed);
+        let removed = context.scope_stack.drain_removals_since(mark);
+        context.scope_stack.restore_removed(&removed);
+        consumed_per_branch.push(removed);
     }
-    // Restore all symbols first
-    restore_removed_symbols(context, &before_branches);
-    // Then remove symbols consumed in ALL branches (if there's both then and else)
-    // For if-without-else, no variable can be considered definitely consumed
+    context.scope_stack.end_removal_tracking();
+    // Remove symbols consumed in ALL branches (if there's both then and else)
     if branch_count >= 2 {
         if let Some(first) = consumed_per_branch.first() {
-            for name in first {
-                let consumed_in_all = consumed_per_branch.iter().all(|c| c.contains(name));
+            for entry in first {
+                let consumed_in_all = consumed_per_branch.iter()
+                    .all(|c| c.iter().any(|e| e.name == entry.name));
                 if consumed_in_all {
-                    context.scope_stack.remove_symbol(name);
+                    context.scope_stack.remove_symbol(&entry.name);
                 }
             }
         }
@@ -1849,8 +1823,8 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut case_found = false;
     let mut default_found = false;
 
-    // Issue #117: Snapshot symbols before processing cases
-    let before_switch = snapshot_symbols(context);
+    // Issue #117: Begin removal tracking for switch cases
+    context.scope_stack.begin_removal_tracking();
 
     let mut i = 1;
     while i < e.params.len() {
@@ -1899,9 +1873,8 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 
         let body_expr = &e.params[i];
 
-        // Issue #117: Restore symbols before each case body so own consumption
-        // in one case doesn't leak into other cases (mutually exclusive paths)
-        restore_removed_symbols(context, &before_switch);
+        // Issue #117: Mark before each case body so removals can be restored
+        let case_mark = context.scope_stack.removal_mark();
 
         // For pattern matching, add the binding variable to the context before type checking the body
         if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case_expr.node_type {
@@ -1956,8 +1929,14 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
         }
 
+        // Issue #117: Restore removals from this case body
+        let case_removed = context.scope_stack.drain_removals_since(case_mark);
+        context.scope_stack.restore_removed(&case_removed);
+
         i += 1;
     }
+
+    context.scope_stack.end_removal_tracking();
 
     if !case_found {
         errors.push(e.error(&context.path, "type", "Switch must have at least one case"));

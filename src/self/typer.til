@@ -374,44 +374,10 @@ validate_func_arg_count := func(path: Str, e: Expr, f_name: Str, func_def: SFunc
     return ""
 }
 
-/// Issue #117: Snapshot current frame's symbols for own-consumption restore.
-snapshot_symbols := func(context: Context) returns Map throws Str {
-    if context.scope_stack.frames.len().gt(0) {
-        last_idx := context.scope_stack.frames.len().sub(1)
-        mut frame := ScopeFrame()
-        context.scope_stack.frames.get(last_idx, frame)?
-        return frame.symbols.clone()
-    }
-    return Map.new(Str, SymbolInfo)
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-}
-
-/// Issue #117: Restore symbols that were removed during a branch.
-restore_removed_symbols := proc(mut context: Context, before: Map) throws Str {
-    if context.scope_stack.frames.len().gt(0) {
-        last_idx := context.scope_stack.frames.len().sub(1)
-        mut frame := ScopeFrame()
-        context.scope_stack.frames.get(last_idx, frame)?
-        for key: Str in before.keys {
-            if not(frame.symbols.contains_key(key)) {
-                mut info := SymbolInfo()
-                before.get(key, info)?
-                frame.symbols.set(key, info)
-            }
-        }
-        context.scope_stack.frames.set(last_idx, frame)?
-    }
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: KeyNotFoundError) {
-        throw err.msg
-    }
-}
+// Issue #117: snapshot_symbols and restore_removed_symbols removed.
+// Replaced by lazy removal tracking via ScopeStack methods:
+// begin_removal_tracking, end_removal_tracking, removal_mark,
+// drain_removals_since, restore_removed.
 
 check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
@@ -444,44 +410,44 @@ check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str
     e.params.get(0, cond_expr)?
     errors.extend(check_types_with_context(context, cond_expr, ExprContext.ValueUsed)?)
 
-    // Issue #117: Type check then/else bodies with own-consumption isolation
-    before_branches := snapshot_symbols(context)?
+    // Issue #117: Type check then/else bodies with own-consumption isolation.
+    // Uses lazy removal tracking instead of full symbol map cloning.
+    context.scope_stack.begin_removal_tracking()
     mut consumed_per_branch := Vec.new(Vec)
     branch_count := e.params.len().sub(1)
     for i in 1..e.params.len() {
-        restore_removed_symbols(context, before_branches)?
+        mark := context.scope_stack.removal_mark()
         mut branch_expr := Expr()
         e.params.get(i, branch_expr)?
         errors.extend(check_types_with_context(context, branch_expr, ExprContext.ValueDiscarded)?)
-        // Record which symbols were consumed in this branch
-        mut consumed := Vec.new(Str)
-        for name: Str in before_branches.keys {
-            mut frame := ScopeFrame()
-            context.scope_stack.frames.get(context.scope_stack.frames.len().sub(1), frame)?
-            if not(frame.symbols.contains_key(name)) {
-                consumed.push(name)
-            }
-        }
-        consumed_per_branch.push(consumed)
+        mut removed := context.scope_stack.drain_removals_since(mark)?
+        context.scope_stack.restore_removed(removed)?
+        consumed_per_branch.push(removed)
     }
-    // Restore all symbols first
-    restore_removed_symbols(context, before_branches)?
-    // Then remove symbols consumed in ALL branches (if there's both then and else)
+    context.scope_stack.end_removal_tracking()
+    // Remove symbols consumed in ALL branches (if there's both then and else)
     if branch_count.gteq(2) {
         if consumed_per_branch.len().gt(0) {
-            mut first := Vec.new(Str)
+            mut first := Vec.new(RemovedSymbol)
             consumed_per_branch.get(0, first)?
-            for name: Str in first {
+            for entry: RemovedSymbol in first {
                 mut consumed_in_all := true
                 for bi in 0..consumed_per_branch.len() {
-                    mut branch_consumed := Vec.new(Str)
+                    mut branch_consumed := Vec.new(RemovedSymbol)
                     consumed_per_branch.get(bi, branch_consumed)?
-                    if not(branch_consumed.contains(name)) {
+                    mut found := false
+                    for other_entry: RemovedSymbol in branch_consumed {
+                        if other_entry.name.eq(entry.name) {
+                            found = true
+                            break
+                        }
+                    }
+                    if not(found) {
                         consumed_in_all = false
                     }
                 }
                 if consumed_in_all {
-                    _ := context.scope_stack.remove_symbol(name)?
+                    _ := context.scope_stack.remove_symbol(entry.name)?
                 }
             }
         }
@@ -2281,8 +2247,8 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     mut case_found := false
     mut default_found := false
 
-    // Issue #117: Snapshot symbols before processing cases
-    before_switch := snapshot_symbols(context)?
+    // Issue #117: Begin removal tracking for switch cases
+    context.scope_stack.begin_removal_tracking()
 
     mut i := 1
     while i.lt(e.params.len()) {
@@ -2326,8 +2292,8 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
         mut body_expr := Expr()
         e.params.get(i, body_expr)?
 
-        // Issue #117: Restore symbols before each case body
-        restore_removed_symbols(context, before_switch)?
+        // Issue #117: Mark before each case body so removals can be restored
+        case_mark := context.scope_stack.removal_mark()
 
         // For pattern matching, add the binding variable to the context before type checking the body
         switch case_expr.node_type {
@@ -2383,8 +2349,14 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
             errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded)?)
         }
 
+        // Issue #117: Restore removals from this case body
+        mut case_removed := context.scope_stack.drain_removals_since(case_mark)?
+        context.scope_stack.restore_removed(case_removed)?
+
         i.inc()
     }
+
+    context.scope_stack.end_removal_tracking()
 
     if not(case_found) {
         errors.push(e.error(context.path, "type", "Switch must have at least one case"))

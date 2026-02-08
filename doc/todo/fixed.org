@@ -30,12 +30,16 @@ Two issues with ~own~ parameter handling in the typer:
 Typer changes (typer.rs + typer.til):
 - Mut check: changed ~if arg.is_mut || arg.is_own~ to ~if arg.is_mut~ -- only
   ~mut~ params require mutable variables, ~own~ accepts const
-- Added ~snapshot_symbols~ / ~restore_removed_symbols~ helpers for control-flow
-  aware own-consumption tracking
-- ~check_if_statement~: snapshot before branches, restore between branches.
+- Control-flow-aware own-consumption tracking via lazy removal logging
+  (originally used ~snapshot_symbols~ / ~restore_removed_symbols~ which cloned
+  the entire symbol map; replaced by ~begin_removal_tracking~ /
+  ~end_removal_tracking~ / ~removal_mark~ / ~drain_removals_since~ /
+  ~restore_removed~ in ScopeStack -- cost proportional to actual removals
+  instead of total symbol count, ~30% improvement in til interpreted benchmark)
+- ~check_if_statement~: begin tracking, mark/drain/restore per branch.
   After all branches, remove symbols consumed in ALL branches (intersection).
   If-without-else: no definite consumption.
-- ~check_switch_statement~: snapshot before cases, restore before each case body
+- ~check_switch_statement~: begin tracking, mark/drain/restore per case body
 - ~check_func_proc_types~: snapshot before body, restore before throw analysis
   (needs UFCS resolution which needs all symbols)
 

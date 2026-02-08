@@ -25,6 +25,13 @@ pub struct FunctionLocal {
     pub col: usize,
 }
 
+/// Issue #117: A symbol that was removed during own-consumption tracking.
+#[derive(Clone)]
+pub struct RemovedSymbol {
+    pub name: String,
+    pub info: SymbolInfo,
+}
+
 #[derive(Clone)]
 pub struct SymbolInfo {
     pub value_type: ValueType,
@@ -92,6 +99,10 @@ pub struct ScopeStack {
     pub function_locals: Vec<FunctionLocal>,
     /// Bug #101: Track which symbols have been used in the current function.
     pub used_symbols: HashSet<String>,
+    /// Issue #117: Log of symbols removed during own-consumption tracking.
+    pub removed_log: Vec<RemovedSymbol>,
+    /// Issue #117: Nesting depth for removal tracking (0 = not tracking).
+    pub removal_tracking_depth: usize,
 }
 
 #[allow(dead_code)]
@@ -101,6 +112,8 @@ impl ScopeStack {
             frames: Vec::new(),
             function_locals: Vec::new(),
             used_symbols: HashSet::new(),
+            removed_log: Vec::new(),
+            removal_tracking_depth: 0,
         }
     }
 
@@ -161,6 +174,40 @@ impl ScopeStack {
             }
         }
         unused
+    }
+
+    /// Issue #117: Begin tracking symbol removals (supports nesting via depth counter).
+    pub fn begin_removal_tracking(&mut self) {
+        self.removal_tracking_depth += 1;
+    }
+
+    /// Issue #117: End tracking symbol removals. Clears log when outermost level exits.
+    pub fn end_removal_tracking(&mut self) {
+        self.removal_tracking_depth -= 1;
+        if self.removal_tracking_depth == 0 {
+            self.removed_log.clear();
+        }
+    }
+
+    /// Issue #117: Get current position in the removal log (used as a mark for drain_removals_since).
+    pub fn removal_mark(&self) -> usize {
+        self.removed_log.len()
+    }
+
+    /// Issue #117: Drain removals logged since the given mark, returning them.
+    pub fn drain_removals_since(&mut self, mark: usize) -> Vec<RemovedSymbol> {
+        self.removed_log.split_off(mark)
+    }
+
+    /// Issue #117: Re-insert removed symbols into the current frame (if not already present).
+    pub fn restore_removed(&mut self, removed: &[RemovedSymbol]) {
+        if let Some(frame) = self.frames.last_mut() {
+            for entry in removed {
+                if !frame.symbols.contains_key(&entry.name) {
+                    frame.symbols.insert(entry.name.clone(), entry.info.clone());
+                }
+            }
+        }
     }
 
     /// Bug #97: Check if we're currently inside a function (not at global scope).
@@ -288,7 +335,13 @@ impl ScopeStack {
 
     pub fn remove_symbol(&mut self, name: &str) -> Option<SymbolInfo> {
         if let Some(current_frame) = self.frames.last_mut() {
-            current_frame.symbols.remove(name)
+            let removed = current_frame.symbols.remove(name);
+            if self.removal_tracking_depth > 0 {
+                if let Some(ref info) = removed {
+                    self.removed_log.push(RemovedSymbol { name: name.to_string(), info: info.clone() });
+                }
+            }
+            removed
         } else {
             None
         }

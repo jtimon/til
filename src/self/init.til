@@ -17,6 +17,12 @@ MAIN_SEPARATOR_STR := "/"
 //
 // Translated from src/rs/init.rs
 
+/// Issue #117: A symbol that was removed during own-consumption tracking.
+RemovedSymbol := struct {
+    mut name: Str = ""
+    mut info: SymbolInfo = SymbolInfo()
+}
+
 SymbolInfo := struct {
     mut value_type: ValueType = ValueType.TFunction(FunctionType.FTFunc)
     mut is_mut: Bool = false
@@ -97,6 +103,10 @@ ScopeStack := struct {
     mut function_locals: Vec = Vec.new(FunctionLocal)
     // Bug #101: Track which symbols have been used in the current function.
     mut used_symbols: Set = Set.new(Str)
+    /// Issue #117: Log of symbols removed during own-consumption tracking.
+    mut removed_log: Vec = Vec.new(RemovedSymbol)
+    /// Issue #117: Nesting depth for removal tracking (0 = not tracking).
+    mut removal_tracking_depth: I64 = 0
 }
 
 namespace ScopeStack {
@@ -105,6 +115,8 @@ namespace ScopeStack {
         stack.frames = Vec.new(ScopeFrame)
         stack.function_locals = Vec.new(FunctionLocal)
         stack.used_symbols = Set.new(Str)
+        stack.removed_log = Vec.new(RemovedSymbol)
+        stack.removal_tracking_depth = 0
         return stack
     }
 
@@ -275,6 +287,14 @@ namespace ScopeStack {
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)?
             if current_frame.symbols.contains_key(name) {
+                if self.removal_tracking_depth.gt(0) {
+                    mut info := SymbolInfo()
+                    current_frame.symbols.get(name, info)?
+                    self.removed_log.push(RemovedSymbol(name=name.clone(), info=info))
+                    catch (err: KeyNotFoundError) {
+                        throw err.msg
+                    }
+                }
                 current_frame.symbols.remove(name)
                 self.frames.set(last_idx, current_frame)?
                 mut ptr := Ptr()
@@ -700,6 +720,53 @@ namespace ScopeStack {
     // Bug #101: Mark a symbol as used in the current function.
     mark_symbol_used := proc(mut self: ScopeStack, name: Str) {
         _ := self.used_symbols.insert(name)
+    }
+
+    /// Issue #117: Begin tracking symbol removals (supports nesting via depth counter).
+    begin_removal_tracking := proc(mut self: ScopeStack) {
+        self.removal_tracking_depth = self.removal_tracking_depth.add(1)
+    }
+
+    /// Issue #117: End tracking symbol removals. Clears log when outermost level exits.
+    end_removal_tracking := proc(mut self: ScopeStack) {
+        self.removal_tracking_depth = self.removal_tracking_depth.sub(1)
+        if self.removal_tracking_depth.eq(0) {
+            self.removed_log.clear()
+        }
+    }
+
+    /// Issue #117: Get current position in the removal log (used as a mark for drain_removals_since).
+    removal_mark := func(self: ScopeStack) returns I64 {
+        return self.removed_log.len()
+    }
+
+    /// Issue #117: Drain removals logged since the given mark, returning them.
+    drain_removals_since := proc(mut self: ScopeStack, mark: I64) returns Vec throws Str {
+        mut result := self.removed_log.split_off(mark)?
+        return result
+
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+    }
+
+    /// Issue #117: Re-insert removed symbols into the current frame (if not already present).
+    restore_removed := proc(mut self: ScopeStack, removed: Vec) throws Str {
+        if self.frames.len().gt(0) {
+            mut last_idx := self.frames.len().sub(1)
+            mut frame := ScopeFrame()
+            self.frames.get(last_idx, frame)?
+            for entry: RemovedSymbol in removed {
+                if not(frame.symbols.contains_key(entry.name)) {
+                    frame.symbols.set(entry.name.clone(), entry.info.clone())
+                }
+            }
+            self.frames.set(last_idx, frame)?
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
     }
 
     // Bug #101: Get all declared symbols in function_locals that are not in used_symbols

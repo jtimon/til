@@ -536,13 +536,21 @@ Control-flow-aware tracking of variables consumed by ~own~ params.
 
 File: typer.rs, typer.til:
 - Mut check: only ~mut~ params require mut variables, NOT ~own~ params
-- Add ~snapshot_symbols~ / ~restore_removed_symbols~ helpers
-- ~check_if_statement~: snapshot before branches, check each independently,
-  restore between branches. After all branches, remove symbols consumed in
-  ALL branches (intersection). If-without-else: no definite consumption.
-- ~check_switch_statement~: snapshot before cases, restore before each case body
+- Lazy removal tracking via ~RemovedSymbol~ struct + ScopeStack methods:
+  ~begin_removal_tracking~, ~end_removal_tracking~, ~removal_mark~,
+  ~drain_removals_since~, ~restore_removed~ (replaces full map snapshot/restore,
+  cost proportional to actual removals instead of total symbol count)
+- ~check_if_statement~: begin tracking, mark/drain/restore per branch.
+  After all branches, remove symbols consumed in ALL branches (intersection).
+  If-without-else: no definite consumption.
+- ~check_switch_statement~: begin tracking, mark/drain/restore per case body
 - ~check_func_proc_types~: snapshot before body type-check, restore before
   ~check_body_returns_throws~ (needs UFCS resolution, which needs all symbols)
+
+File: init.rs, init.til:
+- Added ~RemovedSymbol~ struct, tracking fields (~removed_log~, ~removal_tracking_depth~)
+- Modified ~remove_symbol~ to log when tracking is active
+- Added ~Vec.split_off~ to core/vec.til (used by ~drain_removals_since~)
 
 **** Step 6: Ccodegen - remove ~const~ for struct/enum locals (DONE - Bug #162)
 
