@@ -1,0 +1,95 @@
+mode test
+
+// Bug #162: Typer own-param requires mut variable + no control-flow awareness
+//
+// Two issues:
+// 1. own params incorrectly require mut variables (compiled mode rejects const)
+// 2. own consumption has no control-flow awareness (consuming in one branch
+//    makes the variable undefined in the other branch)
+
+import("core.vec")
+
+OwnTestStruct := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+
+consume_struct := proc(own v: OwnTestStruct) returns I64 {
+    return add(v.x, v.y)
+}
+
+consume_i64 := proc(own n: I64) returns I64 {
+    return mul(n, 2)
+}
+
+// Test 1: own should accept const variables (not just mut)
+test_own_const := proc() {
+    original := OwnTestStruct(x=1, y=2)
+    result := consume_struct(original)
+    assert_eq(loc(), 3, result)
+    println("PASS: own accepts const struct")
+}
+
+// Test 2: own consumption in if-branch should not affect else-branch
+test_own_if_else := proc() {
+    mut x := 42
+    mut result := 0
+    if true {
+        result = consume_i64(x)
+    } else {
+        // x should still be valid here - it was NOT consumed in this branch
+        result = x
+    }
+    assert_eq(loc(), 84, result)
+    println("PASS: own in if-branch does not affect else-branch")
+}
+
+// Test 3: own consumption in both branches - variable should be consumed after
+test_own_both_branches := proc() {
+    mut x := 10
+    mut result := 0
+    if true {
+        result = consume_i64(x)
+    } else {
+        result = consume_i64(x)
+    }
+    // x is consumed in BOTH branches, so it should be invalid here
+    // (we don't test this case - just that the code above compiles)
+    assert_eq(loc(), 20, result)
+    println("PASS: own in both branches works")
+}
+
+// Test 4: own consumption after if (not inside) - should work normally
+test_own_after_if := proc() {
+    mut x := 5
+    if true {
+        // don't consume x here
+    }
+    result := consume_i64(x)  // x should still be valid
+    assert_eq(loc(), 10, result)
+    println("PASS: own after if works")
+}
+
+// Test 5: own with Vec.push (real-world usage from #117)
+test_own_vec_push := proc() {
+    mut v := Vec.new(I64)
+    x := 42
+    v.push(x)  // push takes Dynamic, but once it takes own, const should work
+    mut result := 0
+    v.get(0, result)?
+    assert_eq(loc(), 42, result)
+    println("PASS: own vec push works")
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR: ", err.msg)
+        exit(1)
+    }
+}
+
+test_own_const()
+test_own_if_else()
+test_own_both_branches()
+test_own_after_if()
+test_own_vec_push()
+
+println("All Bug #162 tests passed")

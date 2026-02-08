@@ -521,49 +521,134 @@ delete := proc(mut self: MyStruct) {
 
 Files: garbager.rs, garbager.til (new)
 
-**** Step 4: Auto-insert Type.delete() calls in garbager
+**** Step 4: Garbager clone prerequisites (DONE)
 
-**Prerequisites** (separate commits before Step 4):
-1. [X] Add Str to garbager clone set (remove "Str" from primitives exclusion) - e4788b62
-2. [X] Eliminate Str double-copy via arena_offset in EvalResult - 31a10477
-   EvalResult carries arena_offset (0 = None) through eval/return/call chains.
-   Consumer sites (declaration, assignment, param binding, struct fields) use
-   the offset directly instead of round-tripping through string_from_context
-   + insert_string.
+**[X] Add Str to garbager clone set** - e4788b62
+Remove "Str" from primitives exclusion in garbager clone logic.
 
-**What gets deleted per function:**
+**[X] Eliminate Str double-copy via arena_offset** - 31a10477
+EvalResult carries arena_offset (0 = None) through eval/return/call chains.
+
+**** Step 5: Typer own-consumption analysis (Bug #162)
+
+Control-flow-aware tracking of variables consumed by ~own~ params.
+(Dependency: needed before Step 7 container own params can work.)
+
+WIP on branch ~latest117~.
+
+File: typer.rs, typer.til:
+- Mut check: only ~mut~ params require mut variables, NOT ~own~ params
+- Own consumption: skip primitives (I64, U8, Type, Dynamic, Ptr)
+- Add ~snapshot_symbols~ / ~restore_removed_symbols~ helpers
+- ~check_if_statement~: snapshot before branches, check each independently,
+  restore between branches. After all branches, remove symbols consumed in
+  ALL branches (intersection). If-without-else: no definite consumption.
+- ~check_switch_statement~: snapshot before cases, restore before each case body
+- ~check_func_proc_types~: snapshot before body type-check, restore before
+  ~check_body_returns_throws~ (needs UFCS resolution, which needs all symbols)
+
+**** Step 6: Ccodegen - remove ~const~ for struct/enum locals
+
+Garbager inserts ~Type.delete()~ calls on local variables. C ~const~ prevents
+calling ~delete()~ (takes ~mut self~). Remove ~const~ for struct/enum locals.
+
+File: ccodegen.rs, ccodegen.til (7 locations, from latest117):
+1. ~emit_precomputed_vec_assignment~: remove ~is_mut~ param, remove const logic
+2. Struct empty init: remove ~if !is_mut { "const " }~
+3. Struct zero init: same
+4. Struct designated init: same
+5. Struct fallback: same
+6. Enum declaration: same
+7. General const declaration: skip ~const~ for non-primitive TCustom types:
+   ~matches!(&decl.value_type, ValueType::TCustom(s) if s != "I64" && ...)~
+
+**** Step 7: Container ~own~ params + zeroing + clone fixes
+
+(Depends on Step 5: typer must accept const vars for ~own~ params.)
+
+~push~, ~set~, ~insert~, ~insert_at~ take ~own value: Dynamic~.
+After copy, ~memset(to_ptr(value), zero, size)~ zeroes the caller's variable
+so the caller's auto-delete becomes a no-op (all pointers zeroed).
+
+Container files: vec.til, array.til, set.til, list.til, map.til, hashmap.til
+Details (from latest117):
+- Vec: push, set, insert_at, extend_with (inlined - can't call push with own)
+- Array: set
+- Set: insert
+- List: push, set (both cases: same-size and different-size)
+- Map: insert, set (zero value on overwrite too)
+- HashMap: insert, set (compute bucket BEFORE push moves key)
+- list.til fix: ~memset(to_ptr(value), 0, size)~ -> ~zero : U8 = 0; memset(...)~
+
+Clone fixes (~own~ params consume variables, call sites need ~.clone()~):
+- builder.til: ~insert(core_path.clone())~ x4
+- eval_arena.til: ~push(frame.clone())~ x2, ~set(temp_id.clone(), ...)~ x2,
+  ~insert_string_into_frame(ctx, frame, temp_id.clone(), ...)~ x2
+- ccodegen.til: ~set(decl.name.clone(), value_type.clone())~
+- interpreter.til: ~set(var_name.clone(), offset)~
+- parser.til: ~push(e.clone())~, ~push(result.clone())~ x2
+- typer.til: ~insert(path.clone())~, ~push(return_val_e.clone())~,
+  ~push(switch_case_expr.clone())~
+
+**** Step 8: Change container ~get~ to return borrowed Ptr
+
+Current ~get(self, index, mut dest)~ does memcpy (shallow copy). The caller's
+local aliases the container element's heap data. Auto-deleting the local
+corrupts the container (double-free).
+
+Solution: ~get~ returns a borrowed Ptr to the element in place. No copy, no
+aliasing, no ownership confusion. Caller reads through Ptr. To get an owned
+copy, caller explicitly clones.
+
+Files: vec.til, array.til, map.til, hashmap.til, list.til + ALL call sites.
+This is a large refactor touching most of the codebase.
+
+**** Step 9: Garbager - auto-insert Type.delete() calls
+
+Core implementation, after all prerequisites are done.
+
+Refactor: extract inline ~is_primitive~ checks into ~is_deletable_type~ helper.
+Replace inline checks in: Declaration handler, Assignment handler,
+~transform_fcall_copy_params~, ~transform_struct_literal_fields~.
+
+What gets deleted per function:
 - ~copy~ params with struct types (function owns the clone)
 - ~own~ params with struct types (function received ownership)
 - Local variable declarations with struct types (including Str)
 
-Primitives excluded: I64, U8, Type, Dynamic (NOT Str - Str is now cloned/deleted)
+Primitives excluded: I64, U8, Type, Dynamic, Ptr (NOT Str)
 
-**Safety: own-transfer tracking.** If a variable is passed as ~own~ to another
-function anywhere in the body, remove it from the delete set (callee deletes it).
-Conservative: if own-transfer is conditional (inside if), still exclude.
+Safety: own-transfer tracking. If a variable is passed as ~own~ to another
+function anywhere in the body, remove from delete set. Conservative: if
+own-transfer is conditional (inside if), still exclude.
 
-**Where delete calls are inserted:**
-1. Before Return: delete all in-scope candidates (minus the returned variable)
+Where delete calls are inserted:
+1. Before Return: delete all in-scope candidates (minus returned variable)
 2. Before Throw: delete all in-scope candidates
 3. At function body end: delete function-level candidates (if no return/throw)
 4. At nested block end (if/while bodies): delete block-local candidates only
 5. Before struct var reassignment: ~x = expr~ -> insert ~Type.delete(x)~ before
+6. Field assignment (~l.field = var~): remove var from candidates (ownership transfer)
 
-**Algorithm in garbager_recursive, FuncDef handler:**
+Synthetic catch-and-rethrow: ~?~ propagation bypasses explicit ~return~/~throw~
+where deletes are inserted. For each throw type, append a synthetic catch that
+deletes all candidates and rethrows.
+
+Algorithm in garbager_recursive, FuncDef handler:
 1. Run existing clone transforms on body -> new_body
 2. Collect param_candidates: copy/own params with deletable struct types
 3. Scan new_body recursively for own-transfers -> own_transferred set
 4. Remove own_transferred vars from param_candidates
-5. Call insert_deletes_in_body(new_body, param_candidates, own_transferred) -> final_body
+5. Call ~insert_deletes_in_stmts(new_body, param_candidates, own_transferred)~ -> final_body
 
-**New helper functions:**
-- ~build_delete_call_expr(type_name, var_name, line, col)~ - mirror of build_clone_call_expr
-- ~is_deletable_type(value_type, context)~ - TCustom + not primitive + has_struct
+New helper functions:
+- ~is_deletable_type(value_type, context)~
+- ~build_delete_call_expr(type_name, var_name, line, col)~
 - ~collect_own_transfers(stmts, context)~ - scan for own params in FCalls
-- ~insert_deletes_in_body(stmts, inherited, own_transferred, context)~ - core recursive
-- ~get_returned_var_name(return_expr)~ - extract simple identifier from return
+- ~collect_referenced_vars(expr, result)~ - avoid deleting vars still referenced
+- ~insert_deletes_in_stmts(stmts, inherited, own_transferred, context)~ - core
 
-Files: garbager.rs, garbager.til
+Files: garbager.rs, garbager.til (Rust first, then port to TIL)
 
 *** Design Decisions
 - Method name: Use existing ~delete()~
@@ -572,6 +657,13 @@ Files: garbager.rs, garbager.til
 - AST transformation: Insert delete() calls in garbage phase, so both compiler and interpreter benefit
 - Cascading deletes: Only track top-level variables; nested Ptr fields handled by type's delete()
 - Borrowed vs owned: Ptr.is_borrowed distinguishes static memory (literals) from heap allocations
+
+*** Ownership Model for Containers
+- ~push~/~set~/~insert~ use ~own~ params: ownership transfers IN, source zeroed
+- ~get~ returns borrowed Ptr: no copy, no ownership transfer OUT
+- Caller reads through Ptr; to get owned copy, explicitly clone
+- This makes the ownership flow clean: containers own their data, ~get~ borrows,
+  ~push~/~own~ transfers in. No hidden aliasing from shallow copies.
 
 *** Verification
 1. Run under valgrind - no leaks
