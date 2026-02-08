@@ -126,13 +126,29 @@ Problem: still constructs wasteful default ~MyStruct()~ which ~create_alias~
 immediately abandons. No net performance improvement over the old copy pattern.
 
 *** Next: Redesign create_alias as a directive
-Make ~create_alias~ a compound directive handled by compiler phases:
-- **init/typer**: sees ~create_alias(item: MyStruct, addr)~, declares ~item~ in scope
-- **garbager**: expands to low-level ops (declaration + rebind), does NOT insert
-  auto-delete for the variable (replaces separate ~dont_delete~)
-- **interpreter/ccodegen**: see expanded ops, no wasted default construction
 
-Desugared for-in becomes:
+**** The problem with current approach
+The desugared non-primitive for-in currently emits:
+#+BEGIN_SRC til
+_ref_forin_N := get_by_ref(vec, _for_i_func_N)
+catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
+mut item := MyStruct()                             // WASTEFUL: full default construction
+create_alias(item, _ref_forin_N.data)              // rebinds, abandoning the default
+dont_delete(item)                                  // redundant if create_alias implies it
+#+END_SRC
+
+~mut item := MyStruct()~ constructs a full default instance (allocates arena space,
+initializes all fields) only for ~create_alias~ to immediately rebind the variable
+to point at the vec's memory. The default is pure waste. Net result: MORE work per
+iteration than the old ~get()~ copy pattern, not less.
+
+**** Design: create_alias as compound directive
+~create_alias~ becomes a directive (like ~dont_delete~) that semantically includes:
+1. **Variable declaration** with the right type (replaces ~mut item := MyStruct()~)
+2. **Arena rebind** to point at the reference address (the actual aliasing)
+3. **Skip auto-delete** for this variable (replaces separate ~dont_delete(item)~)
+
+Desugared for-in becomes just:
 #+BEGIN_SRC til
 _ref_forin_N := get_by_ref(vec, _for_i_func_N)
 catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
@@ -140,6 +156,63 @@ create_alias(item: MyStruct, _ref_forin_N.data)
 #+END_SRC
 
 No separate declaration, no separate ~dont_delete~. One directive does all three.
+
+**** How each compiler phase handles create_alias
+
+**Desugarer** (~desugarer.rs~ / ~desugarer.til~):
+- Emits ~create_alias(item: MyStruct, _ref_forin_N.data)~ as an FCall node
+- The first arg carries the variable name + type info (like a Declaration)
+- The second arg is the address expression to alias to
+- No ~var_decl_expr~, no ~dont_delete_call~ emitted
+
+**Init / Typer** (~init.rs~ / ~typer.rs~ + TIL equivalents):
+- Recognizes ~create_alias~ calls specially
+- Declares the variable (~item~) in scope with the specified type (~MyStruct~)
+- Type-checks the address expression
+- This is analogous to how ~dont_delete~ is declared as ext_func in mem.til
+  but handled specially by the garbager
+
+**Garbager** (~garbager.rs~ / ~garbager.til~):
+- Does NOT strip create_alias (interpreter/ccodegen still need it)
+- Expands it to whatever low-level representation interpreter/ccodegen need
+  (e.g., a cheap declaration + rebind operation, or keeps it as-is)
+- When Step 10 inserts ~Type.delete()~ calls for local variables at end of scope,
+  it skips variables created via ~create_alias~ — just doesn't insert delete,
+  no separate ~dont_delete~ directive needed
+- The ~dont_delete~ stripping from Body nodes (added in this commit) can be
+  removed once create_alias subsumes its role
+
+**Interpreter** (~interpreter.rs~ / ~interpreter.til~):
+- Handles ~create_alias~ as a special ext_func (already does)
+- Declares the variable in the arena with the right type + size
+- Immediately rebinds its arena_index offset to the source address
+- No default construction, no wasted allocation
+
+**CCodegen** (~ccodegen.rs~ / ~ccodegen.til~):
+- Emits a C variable declaration
+- Emits memcpy from source address into the variable
+  (C doesn't have arena rebinding, so it's a copy at the C level —
+  but a cheap one since there's no default construction overhead)
+
+**** TIL's design principle at play
+TIL defaults to by-const-ref for function args — no ~&~, no annotations, most
+efficient is the default with least syntax. For-in follows the same principle:
+~for item: T in vec~ is by const ref, zero-copy. Rust needs ~for item in &vec~
+or ~for item in vec.iter()~ — TIL drops that ceremony.
+
+If copy semantics are later needed in for-in, add ~copy~ explicitly (like args).
+
+**** Implementation order
+1. Modify desugarer to emit ~create_alias(item: MyStruct, addr)~ without
+   separate var_decl and dont_delete (need to decide AST representation —
+   could be a Declaration-like node, or FCall with type info in first arg)
+2. Modify init/typer to recognize create_alias and declare variable in scope
+3. Modify garbager to NOT insert delete for create_alias variables
+4. Verify interpreter handles create_alias without prior declaration
+5. Verify ccodegen emits correct C for create_alias without prior declaration
+6. Port all changes to TIL (~src/self/~)
+7. Remove dont_delete stripping from Body nodes in garbager (no longer needed)
+8. Run ~make benchmark~ — should see performance improvement for non-primitive for-in
 
 *** Files modified so far
 - ~src/rs/desugarer.rs~ + ~src/self/desugarer.til~ - new for-in desugaring
