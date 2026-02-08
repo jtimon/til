@@ -117,27 +117,28 @@ pub struct EvalResult {
     pub is_break: bool,
     pub is_continue: bool,
     pub thrown_type: String,  // Empty string means no thrown type
+    pub arena_offset: usize,  // 0 means None (arena offset 0 is reserved for null)
 }
 
 impl EvalResult {
     pub fn new(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new()}
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new(), arena_offset: 0}
     }
 
     pub fn new_return(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new()}
+        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new(), arena_offset: 0}
     }
 
     pub fn new_throw(value: &str, thrown_type: ValueType) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, is_break: false, is_continue: false, thrown_type: value_type_to_str(&thrown_type)}
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, is_break: false, is_continue: false, thrown_type: value_type_to_str(&thrown_type), arena_offset: 0}
     }
 
     pub fn new_break() -> EvalResult {
-        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: true, is_continue: false, thrown_type: String::new()}
+        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: true, is_continue: false, thrown_type: String::new(), arena_offset: 0}
     }
 
     pub fn new_continue() -> EvalResult {
-        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: false, is_continue: true, thrown_type: String::new()}
+        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: false, is_continue: true, thrown_type: String::new(), arena_offset: 0}
     }
 }
 
@@ -460,7 +461,9 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 if return_result.is_throw {
                     return Ok(return_result)
                 }
-                return Ok(EvalResult::new_return(&return_result.value))
+                let mut ret = EvalResult::new_return(&return_result.value);
+                ret.arena_offset = return_result.arena_offset;
+                return Ok(ret)
             }
         },
         NodeType::Throw => {
@@ -573,6 +576,14 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                             ValueType::TCustom(field_type_name) => {
                                 match field_type_name.as_str() {
                                     "I64" | "U8" | "Str" => {
+                                        if field_type_name == "Str" && named_value_result.arena_offset > 0 {
+                                            let src_offset = named_value_result.arena_offset;
+                                            let dest_offset = context.get_field_offset(&field_id)?;
+                                            let type_size = context.get_type_size("Str")?;
+                                            let data = EvalArena::g().get(src_offset, type_size).to_vec();
+                                            EvalArena::g().set(dest_offset, &data)?;
+                                            continue;
+                                        }
                                         EvalArena::insert_primitive(context, &field_id, &field_type, &named_value_result.value, named_arg)?;
                                     },
                                     _ => {
@@ -1013,7 +1024,13 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
+                    let expr_arena_offset = result.arena_offset;
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                    if custom_type_name == "Str" && expr_arena_offset > 0 {
+                        context.scope_stack.frames.last_mut().unwrap()
+                            .arena_index.insert(declaration.name.to_string(), expr_arena_offset);
+                        return Ok(EvalResult::new(""))
+                    }
                     EvalArena::insert_primitive(context, &declaration.name, &value_type, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
@@ -1117,6 +1134,20 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
+                    let expr_arena_offset = result.arena_offset;
+                    if custom_type_name == "Str" && expr_arena_offset > 0 {
+                        let dest_offset = if var_name.contains('.') {
+                            context.get_field_offset(var_name)?
+                        } else {
+                            context.scope_stack.lookup_var(var_name)
+                                .ok_or_else(|| e.lang_error(&context.path, "eval",
+                                    &format!("Could not find arena index for '{}'", var_name)))?
+                        };
+                        let type_size = context.get_type_size("Str")?;
+                        let data = EvalArena::g().get(expr_arena_offset, type_size).to_vec();
+                        EvalArena::g().set(dest_offset, &data)?;
+                        return Ok(EvalResult::new(""));
+                    }
                     EvalArena::insert_primitive(context, var_name, &value_type, &expr_result_str, e)?;
                 },
                 _ => {
@@ -1494,7 +1525,9 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                     "Str" => {
                         if e.params.len() == 0 {
                             let val = string_from_context(context, name, e)?;
-                            return Ok(EvalResult::new(&val.to_string()));
+                            let mut result = EvalResult::new(&val);
+                            result.arena_offset = context.scope_stack.lookup_var(name).unwrap_or(0);
+                            return Ok(result);
                         }
                         return eval_custom_expr(e, context, name, &custom_type_name_clone);
                     },
@@ -1805,6 +1838,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 if result.is_throw {
                     return Ok(result); // CLEANUP SITE 2: Propagate throw from argument evaluation
                 }
+                let result_arena_offset = result.arena_offset;
                 let result_str = result.value;
 
                 // Restore enum payload if we saved it
@@ -1949,7 +1983,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         EvalArena::insert_u8_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                     },
                     "Str" => {
-                        EvalArena::insert_string_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
+                        if result_arena_offset > 0 {
+                            function_frame.arena_index.insert(arg.name.clone(), result_arena_offset);
+                        } else {
+                            EvalArena::insert_string_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
+                        }
                     },
                     _ => {
                         let custom_symbol = context.scope_stack.lookup_symbol(&resolved_type_name).ok_or_else(|| {
@@ -2159,6 +2197,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         context.path = saved_path;
         return Ok(result); // CLEANUP SITE 3: Propagate throw from function body
     }
+    let result_arena_offset = result.arena_offset;
     let result_str = result.value;
 
     // Save struct/enum return value info BEFORE popping (needed for return handling)
@@ -2410,7 +2449,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     }
 
     // Frame already popped above
-    return Ok(EvalResult::new(&result_str)) // CLEANUP SITE 7: Return normal value (final return)
+    let mut final_result = EvalResult::new(&result_str);
+    final_result.arena_offset = result_arena_offset;
+    return Ok(final_result) // CLEANUP SITE 7: Return normal value (final return)
 }
 
 // ---------- Core function/procedure dispatcher

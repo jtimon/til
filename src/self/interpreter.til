@@ -50,6 +50,7 @@ EvalResult := struct {
     mut is_break: Bool = false
     mut is_continue: Bool = false
     mut thrown_type: Str = ""  // Empty string = None
+    mut arena_offset: I64 = 0  // 0 means None (arena offset 0 is reserved for null)
 }
 
 namespace EvalResult {
@@ -404,7 +405,9 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
             if return_result.is_throw {
                 return return_result
             }
-            return EvalResult.new_return(return_result.value)
+            mut ret := EvalResult.new_return(return_result.value)
+            ret.arena_offset = return_result.arena_offset
+            return ret
         }
     case NodeType.Throw:
         if not(e.params.len().eq(1)) {
@@ -535,7 +538,13 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                             } else if field_type_name.eq("U8") {
                                 EvalArena.insert_u8(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
                             } else if field_type_name.eq("Str") {
-                                EvalArena.insert_string(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
+                                if named_value_result.arena_offset.gt(0) {
+                                    str_field_dest_offset := context.get_field_offset(field_id)?
+                                    str_field_type_size := context.get_type_size("Str")?
+                                    g_arena.set(str_field_dest_offset, g_arena.get(named_value_result.arena_offset, str_field_type_size), str_field_type_size)
+                                } else {
+                                    EvalArena.insert_string(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
+                                }
                             } else {
                                 // Could be enum or nested struct
                                 field_custom_symbol := context.scope_stack.lookup_symbol(field_type_name.clone())?
@@ -930,7 +939,16 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 return str_result
             }
             str_expr_result_str := str_result.value
+            str_expr_arena_offset := str_result.arena_offset
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            if str_expr_arena_offset.gt(0) {
+                mut str_decl_last_idx := context.scope_stack.frames.len().sub(1)
+                mut str_decl_last_frame := ScopeFrame()
+                context.scope_stack.frames.get(str_decl_last_idx, str_decl_last_frame)?
+                str_decl_last_frame.arena_index.set(declaration.name, str_expr_arena_offset)
+                context.scope_stack.frames.set(str_decl_last_idx, str_decl_last_frame)?
+                return EvalResult.new("")
+            }
             EvalArena.insert_primitive(context, declaration.name, value_type, str_expr_result_str, e)?
             return EvalResult.new("")
         } else {
@@ -1173,7 +1191,22 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                 return assign_str_result
             }
             assign_str_expr_result_str := assign_str_result.value
-            EvalArena.insert_primitive(context, var_name, value_type, assign_str_expr_result_str, e)?
+            assign_str_arena_offset := assign_str_result.arena_offset
+            if assign_str_arena_offset.gt(0) {
+                mut assign_str_dest_offset := 0
+                if var_name.contains(".") {
+                    assign_str_dest_offset = context.get_field_offset(var_name)?
+                } else {
+                    assign_str_dest_offset = context.scope_stack.lookup_var(var_name)?
+                    catch (err: KeyNotFoundError) {
+                        throw e.lang_error(context.path, "eval", format("Could not find arena index for '", var_name, "'"))
+                    }
+                }
+                assign_str_type_size := context.get_type_size("Str")?
+                g_arena.set(assign_str_dest_offset, g_arena.get(assign_str_arena_offset, assign_str_type_size), assign_str_type_size)
+            } else {
+                EvalArena.insert_primitive(context, var_name, value_type, assign_str_expr_result_str, e)?
+            }
         } else {
             // Custom type
             assign_custom_type_name := s
@@ -1565,7 +1598,12 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
         } else if ident_s.eq("Str") {
             if e.params.len().eq(0) {
                 ident_val := string_from_context(context, name, e)?
-                return EvalResult.new(ident_val)
+                mut ident_str_result := EvalResult.new(ident_val)
+                ident_str_result.arena_offset = context.scope_stack.lookup_var(name)?
+                catch (err: KeyNotFoundError) {
+                    // Variable not in arena (shouldn't happen but safe fallback)
+                }
+                return ident_str_result
             }
             return eval_custom_expr(e, context, name, ident_s)?
         } else {
@@ -1921,6 +1959,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     if eval_result.is_throw {
                         return eval_result
                     }
+                    arg_result_arena_offset := eval_result.arena_offset
                     arg_result_str := eval_result.value
 
                     // Restore enum payload if we saved it
@@ -2065,7 +2104,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         case "U8":
                             EvalArena.insert_u8_into_frame(context, function_frame, arg.name, arg_result_str, e)?
                         case "Str":
-                            EvalArena.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                            if arg_result_arena_offset.gt(0) {
+                                function_frame.arena_index.set(arg.name, arg_result_arena_offset)
+                            } else {
+                                EvalArena.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                            }
                         case:
                             // Custom type (enum or struct)
                             mut custom_symbol := SymbolInfo()
@@ -2339,6 +2382,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         context.path = saved_path
         return result // CLEANUP SITE 3: Propagate throw from function body
     }
+    result_arena_offset := result.arena_offset
     result_str := result.value
 
     // Save struct/enum return value info BEFORE popping (needed for return handling)
@@ -2655,7 +2699,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
     // Frame already popped above
     catch (err: BadAlloc) { panic(loc(), "eval_user_func_proc_call: buy more ram") }
-    return EvalResult.new(result_str) // CLEANUP SITE 7: Return normal value (final return)
+    mut final_result := EvalResult.new(result_str)
+    final_result.arena_offset = result_arena_offset
+    return final_result // CLEANUP SITE 7: Return normal value (final return)
 }
 
 // ---------- Core function/procedure dispatcher
