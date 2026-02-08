@@ -597,7 +597,7 @@ Clone fixes (~own~ params consume variables, call sites need ~.clone()~):
 - Test/example files: bug57.til, vecs.til, lists.til, maps.til,
   cross_file_forward.til, music.til - loop vars consumed by push/insert
 
-***** Zeroing deferred to Step 9
+***** Zeroing deferred — replaced by ~dont_delete~ in Step 9
 Zeroing (~memset(to_ptr(value), zero, size)~ after copy) was attempted
 but removed. TIL's shared-offset reference chain causes zeroing to
 cascade: e.g. ~declare_struct(name: Str)~ calls ~Map.set(own key=name)~
@@ -605,9 +605,12 @@ which calls ~Vec.insert_at(own value=key)~. Zeroing ~value~ zeroes ~key~
 zeroes ~name~ zeroes ~decl.name~ in the original caller. This broke the
 entire self-hosted compiler (87/98 test failures).
 
-Zeroing will be handled by the garbager in Step 9 instead, which inserts
-~Type.delete()~ calls at the right scope boundaries rather than zeroing
-inside container methods.
+Replaced by ~dont_delete(value)~ in Step 9: a garbager-phase directive
+that tells the garbager to skip inserting ~Type.delete()~ for that
+variable and removes the ~dont_delete~ call from the AST. Combined with
+~own~ (caller's variable removed from scope), nobody deletes the value.
+Heap data lives on in the container, freed when container is deleted.
+Same memory behavior as zeroing but no cascading corruption.
 
 ***** Bug #162 UFCS + own params (FIXED)
 Root cause: ~check_body_returns_throws~ re-walked the AST doing UFCS
@@ -616,22 +619,55 @@ Parameters were not re-declared (unlike locals). Fix: restore removed
 symbols before ~check_body_returns_throws~ via removal tracking.
 Workarounds in init.til removed.
 
-**** Step 8: Change container ~get~ to return borrowed Ptr
+**** Step 8: ~dont_delete~ directive (replaces zeroing)
+
+Garbager-phase directive. When the garbager sees ~dont_delete(var)~ in
+the AST: (1) add ~var~ to skip set, (2) don't insert ~Type.delete(var)~,
+(3) remove the ~dont_delete~ call from AST. No runtime cost — purely
+garbager-phase. Used inside container methods with ~own~ params:
+#+begin_src til
+push := proc(mut self: Vec, own value: Dynamic) {
+    // ... copy bytes into vec ...
+    dont_delete(value)  // garbager skips delete for value
+}
+#+end_src
+Files: garbager.rs, garbager.til + container files (vec, array, map, etc.)
+
+Prerequisite for Step 9 (Bug #144 fix) and Step 10 (auto-delete).
+
+**** Step 9: Fix ~get~ shallow copy + ~get_by_ref~ + ~create_alias~ (Bug #144)
 
 Current ~get(self, index, mut dest)~ does memcpy (shallow copy). The caller's
 local aliases the container element's heap data. Auto-deleting the local
 corrupts the container (double-free).
 
-Solution: ~get~ returns a borrowed Ptr to the element in place. No copy, no
-aliasing, no ownership confusion. Caller reads through Ptr. To get an owned
-copy, caller explicitly clones.
+Agreed approach:
+1. Add ~get_by_ref~ to containers — returns borrowed Ptr (~offset~ already
+   sets ~is_borrowed=1~). Same signature pattern as ~get~ but returns Ptr
+   instead of copying bytes.
+2. Add ~Ptr.create_alias~ ext_func — zero-copy alias, follows U8 ext_func
+   wrapper pattern. Sets up local variable to point at same memory as the
+   Ptr without copying.
+3. Fix Bug #144 — desugarer rewrites ~for item: T in vec~ to use
+   ~get_by_ref~ + ~create_alias~ + ~dont_delete~:
+#+begin_src til
+for _i in 0..vec.len() {
+    _ref := vec.get_by_ref(_i)
+    mut item := MyStruct()
+    _ref.create_alias(MyStruct, item)  // zero-copy alias
+    dont_delete(item)                   // garbager skips delete
+    // user's body
+}
+#+end_src
+4. Decide on ~get~ API — break it (make ~get~ return ref by default) or
+   keep both ~get~ (copy) / ~get_by_ref~ (reference).
 
-Files: vec.til, array.til, map.til, hashmap.til, list.til + ALL call sites.
-This is a large refactor touching most of the codebase.
+Dependencies: Step 8 (~dont_delete~), ~get_by_ref~, ~create_alias~ ext_func.
+Files: desugarer.rs, desugarer.til, container files, ptr ext_funcs.
 
-**** Step 9: Garbager - auto-insert Type.delete() calls
+**** Step 10: Garbager auto-insert Type.delete() calls
 
-Core implementation, after all prerequisites are done.
+Core implementation, depends on Step 8 (~dont_delete~) and Step 9 (~get_by_ref~ / ~create_alias~).
 
 Refactor: extract inline ~is_primitive~ checks into ~is_deletable_type~ helper.
 Replace inline checks in: Declaration handler, Assignment handler,

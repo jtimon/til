@@ -134,22 +134,26 @@ the actual elements in the Vec.
 3. **Mutation**: Cannot mutate elements in-place (must use index-based access)
 
 *** Proposed Solution
-Default to iteration by reference, or provide syntax for both:
+Desugarer rewrites ~for item: T in vec~ to use ~get_by_ref~ + ~create_alias~
++ ~dont_delete~. User syntax unchanged.
 
+Generated code for ~for item: MyStruct in vec { body }~:
 #+BEGIN_SRC til
-// Option A: Default to reference
-for expr: Expr in exprs {
-    // expr is a reference to exprs[i]
+for _i in 0..vec.len() {
+    _ref := vec.get_by_ref(_i)
+    mut item := MyStruct()
+    _ref.create_alias(MyStruct, item)  // zero-copy alias
+    dont_delete(item)                   // garbager skips delete
+    // body
 }
-
-// Option B: Explicit syntax
-for expr: Expr in exprs {        // by reference (default)
-for copy expr: Expr in exprs {   // by copy (explicit)
-
-// Option C: Different keywords
-for ref expr: Expr in exprs {    // by reference
-for expr: Expr in exprs {        // by copy (current behavior)
 #+END_SRC
+
+Key pieces:
+- ~get_by_ref~: like ~get~ but returns borrowed Ptr (~is_borrowed=1~)
+- ~Ptr.create_alias~: ext_func, zero-copy alias (U8 ext_func wrapper pattern)
+- ~dont_delete~: garbager directive, skips ~Type.delete()~ for aliased local
+
+Dependencies: #117 Step 8 (~dont_delete~), ~get_by_ref~, ~create_alias~ ext_func.
 
 *** Impact on Bug #143
 If for-in iterated by reference, ~to_ptr(expr)~ would give the same address
