@@ -768,3 +768,52 @@ test_vec_insert_at_out_of_bounds := proc() {
 
 }
 test_vec_insert_at_out_of_bounds()
+
+test_vec_split_off := proc() {
+    mut vec := Vec.new(I64)
+    vec.push(10)
+    vec.push(20)
+    vec.push(30)
+    vec.push(40)
+    vec.push(50)
+
+    // Split at index 3
+    mut tail := vec.split_off(3)?
+    assert_eq(loc(), 3, vec.len())
+    assert_eq(loc(), 2, tail.len())
+
+    mut val := 0
+    vec.get(0, val)?
+    assert_eq(loc(), 10, val)
+    vec.get(1, val)?
+    assert_eq(loc(), 20, val)
+    vec.get(2, val)?
+    assert_eq(loc(), 30, val)
+
+    tail.get(0, val)?
+    assert_eq(loc(), 40, val)
+    tail.get(1, val)?
+    assert_eq(loc(), 50, val)
+
+    // Split at 0 (move everything)
+    mut all := vec.split_off(0)?
+    assert_eq(loc(), 0, vec.len())
+    assert_eq(loc(), 3, all.len())
+
+    // Split at len (empty tail)
+    mut empty := all.split_off(3)?
+    assert_eq(loc(), 3, all.len())
+    assert_eq(loc(), 0, empty.len())
+
+    all.delete()
+    tail.delete()
+    empty.delete()
+    vec.delete()
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_split_off()

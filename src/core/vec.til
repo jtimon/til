@@ -336,6 +336,31 @@ namespace Vec {
         return self._len.eq(0)
     }
 
+    /** Split off elements from index `at` to end, returning them as a new Vec.
+     *  After this call, self contains elements [0, at) and the returned Vec
+     *  contains elements [at, len). Like Rust's Vec::split_off. */
+    split_off := proc(mut self: Vec, at: I64) returns Vec throws IndexOutOfBoundsError {
+        if at.gt(self._len) {
+            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.split_off: index out of bounds"))
+        }
+        tail_len := self._len.sub(at)
+        mut result := Vec()
+        result.type_name = self.type_name.clone()
+        result.type_size = self.type_size
+        result._len = tail_len
+        if tail_len.gt(0) {
+            result.cap = tail_len
+            result.ptr = result._alloc_ptr(tail_len)
+            src := self.ptr.offset(at.mul(self.type_size))
+            result.ptr.copy_from(src, tail_len.mul(self.type_size))
+        } else {
+            result.cap = 0
+            result.ptr = Ptr()
+        }
+        self._len = at
+        return result
+    }
+
     /** Clear all elements from vec (keeps capacity). */
     clear := proc(mut self: Vec) {
         self._len = 0
