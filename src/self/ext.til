@@ -255,6 +255,24 @@ func_to_ptr := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     return EvalResult.new(addr.to_str())
 }
 
+func_create_alias := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "create_alias", 2, false)?
+
+    // Param 1: NOT evaluated - get identifier from AST (like to_ptr)
+    identifier_expr := e.get(1)?
+    combined_name := get_combined_name(context.path, identifier_expr)?
+
+    // Param 2: evaluated - source address (I64)
+    addr_result := eval_expr(context, e.get(2)?)?
+    if addr_result.is_throw { return addr_result }
+    addr := I64.from_str(addr_result.value)
+
+    // Rebind the variable's arena offset to the source address
+    context.scope_stack.insert_var(combined_name, addr)?
+
+    return EvalResult.new("")
+}
+
 func_size_of := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "size_of", 1, false)?
 

@@ -38,3 +38,34 @@ test_pointers := proc() {
     // No need to free 'r', it shares memory with 'p'
 }
 test_pointers()
+
+test_create_alias := proc() {
+    mut vec := Vec.new(I64)
+    vec.push(42)
+    vec.push(99)
+
+    // Get a reference to element 0
+    ref := vec.get_by_ref(0)?
+
+    // Create a local variable and alias it to the vec's memory
+    mut item := 0
+    create_alias(item, ref.data)
+    dont_delete(item)
+
+    // item should now read the value from vec memory
+    assert_eq(loc(), 42, item)
+
+    // Get a reference to element 1
+    ref2 := vec.get_by_ref(1)?
+    mut item2 := 0
+    create_alias(item2, ref2.data)
+    dont_delete(item2)
+
+    assert_eq(loc(), 99, item2)
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), err.msg)
+        exit(1)
+    }
+}
+test_create_alias()

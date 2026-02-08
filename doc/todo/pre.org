@@ -652,16 +652,18 @@ corrupts the container (double-free).
 Agreed approach:
 1. DONE — ~get_by_ref~ added to Vec, Map, HashMap. Returns borrowed Ptr
    (~offset~ sets ~is_borrowed=1~). Tests in vecs.til and maps.til.
-2. Add ~Ptr.create_alias~ ext_func — zero-copy alias, follows U8 ext_func
-   wrapper pattern. Sets up local variable to point at same memory as the
-   Ptr without copying.
+2. DONE — ~create_alias~ standalone ext_func added. Rebinds a local variable's
+   arena offset to a Ptr's data address (interpreter) or emits memcpy (compiler).
+   Not a Ptr method (wrapper can't rebind caller's variable). Declared in mem.til,
+   implemented in ext.rs/ext.til, inline codegen in ccodegen.rs/ccodegen.til.
+   Test in pointers.til.
 3. Fix Bug #144 — desugarer rewrites ~for item: T in vec~ to use
    ~get_by_ref~ + ~create_alias~ + ~dont_delete~:
 #+begin_src til
 for _i in 0..vec.len() {
     _ref := vec.get_by_ref(_i)
     mut item := MyStruct()
-    _ref.create_alias(MyStruct, item)  // zero-copy alias
+    create_alias(item, _ref.data)       // zero-copy alias
     dont_delete(item)                   // garbager skips delete
     // user's body
 }

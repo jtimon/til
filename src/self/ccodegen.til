@@ -1815,6 +1815,30 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         return format("(", TIL_PREFIX, "I64)&", inner_str)
     }
 
+    // create_alias(var, addr) - shallow copy from addr into var
+    // Emits: memcpy(&var, (void*)addr, sizeof(var_type))
+    if orig_func_name.eq("create_alias") {
+        if arg.params.len().lt(3) {
+            throw arg.lang_error(context.path, "ccodegen", "create_alias requires 2 arguments")
+        }
+        mut ca_var_arg := Expr()
+        arg.params.get(1, ca_var_arg)?
+        mut ca_addr_arg := Expr()
+        arg.params.get(2, ca_addr_arg)?
+        mut ca_var_name := ""
+        switch ca_var_arg.node_type {
+        case NodeType.Identifier(name):
+            ca_var_name = name
+        case:
+            throw arg.lang_error(context.path, "ccodegen", "create_alias: first argument must be an identifier")
+        }
+        ca_c_var_name := til_var_name_from_context(ca_var_name, context)
+        ca_var_type := get_value_type(context, ca_var_arg)?
+        ca_c_type_name := value_type_to_c_name(ca_var_type)?
+        ca_addr_str := emit_arg_string(ca_addr_arg, Ptr(), false, hoist_output, indent, ctx, context)?
+        return format("memcpy(&", ca_c_var_name, ", (void*)", ca_addr_str, ", sizeof(", ca_c_type_name, "))")
+    }
+
     if orig_func_name.eq("size_of") {
         // size_of: generates til_size_of(&Str), with special Str handling
         if arg.params.len().lt(2) {
@@ -8213,6 +8237,36 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             output.push_str("&")
             emit_expr(ptr_arg, output, 0, ctx, context)?
         }
+        return
+    } else if orig_func_name.eq("create_alias") {
+        // create_alias(var, addr) - shallow copy from addr into var
+        // Emits: memcpy(&var, (void*)addr, sizeof(var_type));\n
+        if expr.params.len().lt(3) {
+            throw "ccodegen: create_alias requires 2 arguments"
+        }
+        mut ca_var_arg2 := Expr()
+        expr.params.get(1, ca_var_arg2)?
+        mut ca_addr_arg2 := Expr()
+        expr.params.get(2, ca_addr_arg2)?
+        mut ca_var_name2 := ""
+        switch ca_var_arg2.node_type {
+        case NodeType.Identifier(name):
+            ca_var_name2 = name
+        case:
+            throw "ccodegen: create_alias: first argument must be an identifier"
+        }
+        ca_c_var_name2 := til_var_name_from_context(ca_var_name2, context)
+        ca_var_type2 := get_value_type(context, ca_var_arg2)?
+        ca_c_type_name2 := value_type_to_c_name(ca_var_type2)?
+        output.push_str(indent_str)
+        output.push_str("memcpy(&")
+        output.push_str(ca_c_var_name2)
+        output.push_str(", (void*)")
+        emit_expr(ca_addr_arg2, output, 0, ctx, context)?
+        output.push_str(", sizeof(")
+        output.push_str(ca_c_type_name2)
+        output.push_str("))")
+        output.push_str(";\n")
         return
     }
 

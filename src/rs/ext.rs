@@ -231,6 +231,25 @@ pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     }
 }
 
+pub fn func_create_alias(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "create_alias", 2, false)?;
+
+    // Param 1: NOT evaluated - get identifier from AST (like to_ptr)
+    let identifier_expr = e.get(1)?;
+    let combined_name = get_combined_name(&context.path, identifier_expr)?;
+
+    // Param 2: evaluated - source address (I64)
+    let addr_str = eval_or_throw!(context, e.get(2)?);
+    let addr = addr_str.parse::<usize>().map_err(|err| {
+        e.lang_error(&context.path, "eval", &format!("create_alias: Invalid address (I64): '{}': {}", addr_str, err))
+    })?;
+
+    // Rebind the variable's arena offset to the source address
+    context.scope_stack.insert_var(combined_name, addr);
+
+    Ok(EvalResult::new(""))
+}
+
 pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "size_of", 1, false)?;
 

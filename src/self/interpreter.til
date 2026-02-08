@@ -2721,6 +2721,8 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_type_as_str(context, e)?
     } else if name.eq("to_ptr") {
         return func_to_ptr(context, e)?
+    } else if name.eq("create_alias") {
+        return func_create_alias(context, e)?
     } else if name.eq("malloc") {
         return func_malloc(context, e)?
     } else if name.eq("free") {

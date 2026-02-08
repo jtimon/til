@@ -1419,6 +1419,26 @@ fn emit_fcall_arg_string(
             return Ok(format!("({}I64)&{}", TIL_PREFIX, inner_str));
         },
 
+        // create_alias(var, addr) - shallow copy from addr into var
+        // Emits: memcpy(&var, (void*)addr, sizeof(var_type))
+        "create_alias" => {
+            if arg.params.len() < 3 {
+                return Err(arg.lang_error(&context.path, "ccodegen", "create_alias requires 2 arguments"));
+            }
+            let var_arg = &arg.params[1];
+            let addr_arg = &arg.params[2];
+            let var_name = if let NodeType::Identifier(name) = &var_arg.node_type {
+                name.clone()
+            } else {
+                return Err(arg.lang_error(&context.path, "ccodegen", "create_alias: first argument must be an identifier"));
+            };
+            let c_var_name = til_var_name_from_context(&var_name, context);
+            let var_type = get_value_type(context, var_arg)?;
+            let c_type_name = value_type_to_c_name(&var_type)?;
+            let addr_str = emit_arg_string(addr_arg, None, false, hoist_output, indent, ctx, context)?;
+            return Ok(format!("memcpy(&{}, (void*){}, sizeof({}))", c_var_name, addr_str, c_type_name));
+        },
+
         // size_of: generates til_size_of(&Str), with special Str handling
         "size_of" => {
             if arg.params.len() < 2 {
@@ -6542,6 +6562,33 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 output.push_str("&");
                 emit_expr(arg, output, 0, ctx, context)?;
             }
+            Ok(())
+        },
+        // create_alias(var, addr) - shallow copy from addr into var
+        // Emits: memcpy(&var, (void*)addr, sizeof(var_type))
+        "create_alias" => {
+            if expr.params.len() < 3 {
+                return Err("ccodegen: create_alias requires 2 arguments".to_string());
+            }
+            let var_arg = &expr.params[1];
+            let addr_arg = &expr.params[2];
+            let var_name = if let NodeType::Identifier(name) = &var_arg.node_type {
+                name.clone()
+            } else {
+                return Err("ccodegen: create_alias: first argument must be an identifier".to_string());
+            };
+            let c_var_name = til_var_name_from_context(&var_name, context);
+            let var_type = get_value_type(context, var_arg)?;
+            let c_type_name = value_type_to_c_name(&var_type)?;
+            output.push_str(&indent_str);
+            output.push_str("memcpy(&");
+            output.push_str(&c_var_name);
+            output.push_str(", (void*)");
+            // Emit addr expression directly - don't use arg_strings which may add & prefix
+            emit_expr(addr_arg, output, 0, ctx, context)?;
+            output.push_str(", sizeof(");
+            output.push_str(&c_type_name);
+            output.push_str("));\n");
             Ok(())
         },
         // User-defined function call
