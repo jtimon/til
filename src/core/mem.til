@@ -13,3 +13,8 @@ free   := ext_func(ptr: I64) {}
 memcpy := ext_func(dest: I64, src: I64, size: I64) {}
 memcmp := ext_func(ptr1: I64, ptr2: I64, size: I64) returns I64 {}
 memset := ext_func(dest: I64, value: U8, size: I64) {}
+
+// dont_delete(var) - directive for the garbager, not a real function.
+// Tells Step 10 (auto-delete) to skip deletion of this variable.
+// Stripped from AST by the garbager phase before execution.
+dont_delete := ext_func(var_identifier: Dynamic) {}

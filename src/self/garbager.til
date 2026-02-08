@@ -19,7 +19,11 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
     case NodeType.FuncDef(func_def):
         mut new_body := Vec.new(Expr)
         for stmt: Expr in func_def.body {
-            new_body.push(garbager_recursive(context, stmt)?)
+            if is_dont_delete_call(stmt) {
+                // Strip dont_delete calls from body (collected for future Step 10)
+            } else {
+                new_body.push(garbager_recursive(context, stmt)?)
+            }
         }
         new_func_def := SFuncDef(
             function_type=func_def.function_type,
@@ -335,6 +339,17 @@ transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: V
                 }
             }
         }
+    }
+}
+
+/// Check if an expression is an FCall to `dont_delete`.
+is_dont_delete_call := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        func_name := get_func_name(e)
+        return func_name.eq("dont_delete")
+    case:
+        return false
     }
 }
 

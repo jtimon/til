@@ -82,6 +82,7 @@ namespace Vec {
 
     /** Push element to end of vec. */
     push := proc(mut self: Vec, own value: Dynamic) {
+        dont_delete(value)
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
         //     throw format(loc(), "Vec.push: value type mismatch")
         // }
@@ -128,6 +129,7 @@ namespace Vec {
 
     /** Set element at index. */
     set := proc(mut self: Vec, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
+        dont_delete(value)
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.set: index out of bounds"))
         }
@@ -220,6 +222,7 @@ namespace Vec {
 
     /** Extend vec with `count` copies of `value` (byte-level copy). */
     extend_with := proc(mut self: Vec, own value: Dynamic, count: I64) {
+        dont_delete(value)
         // Inline push logic: can't call self.push(value) in loop since push takes own.
         for _ in 0..count {
             // Grow if needed (same logic as push)
@@ -295,6 +298,7 @@ namespace Vec {
     /** Insert element at index, shifting remaining elements right.
      *  Index must be in range [0, len] (can insert at end). */
     insert_at := proc(mut self: Vec, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
+        dont_delete(value)
         if index.gt(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.insert_at: index out of bounds"))
         }

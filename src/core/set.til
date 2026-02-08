@@ -29,6 +29,7 @@ namespace Set {
      * Returns false if element already exists
      */
     insert := proc(mut self: Set, own elem: Dynamic) returns Bool {
+        dont_delete(elem)
         // Check if element already exists
         mut i := 0
         mut elems_arr := self.elements

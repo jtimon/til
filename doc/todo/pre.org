@@ -619,7 +619,7 @@ Parameters were not re-declared (unlike locals). Fix: restore removed
 symbols before ~check_body_returns_throws~ via removal tracking.
 Workarounds in init.til removed.
 
-**** Step 8: ~dont_delete~ directive (replaces zeroing)
+**** Step 8: ~dont_delete~ directive (replaces zeroing) — DONE
 
 Garbager-phase directive. When the garbager sees ~dont_delete(var)~ in
 the AST: (1) add ~var~ to skip set, (2) don't insert ~Type.delete(var)~,
@@ -627,11 +627,19 @@ the AST: (1) add ~var~ to skip set, (2) don't insert ~Type.delete(var)~,
 garbager-phase. Used inside container methods with ~own~ params:
 #+begin_src til
 push := proc(mut self: Vec, own value: Dynamic) {
+    dont_delete(value)  // garbager strips this, skips delete for value
     // ... copy bytes into vec ...
-    dont_delete(value)  // garbager skips delete for value
 }
 #+end_src
-Files: garbager.rs, garbager.til + container files (vec, array, map, etc.)
+Files: garbager.rs, garbager.til, mem.til + container files (vec, array, map, etc.)
+
+Implementation: declared as ~ext_func~ in ~mem.til~ so the type checker
+accepts it. Garbager strips the calls from FuncDef bodies. ~dont_delete~
+placed at top of function body (before any ownership-consuming calls).
+
+Container methods with ~dont_delete~: Vec.push, Vec.set, Vec.extend_with,
+Vec.insert_at, Array.set, Set.insert, Map.insert, Map.set,
+HashMap.insert, HashMap.set, List.push, List.set.
 
 Prerequisite for Step 9 (Bug #144 fix) and Step 10 (auto-delete).
 

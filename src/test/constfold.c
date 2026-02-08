@@ -831,7 +831,7 @@ int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_Array_self, c
         int __attribute__((unused)) _arr_status__tmp_til_Array_set_2;
         til_I64 _tmp_til_Array_set_6 = 0;
         _arr_status__tmp_til_Array_set_2 = til_Array_set(&_err_idx__tmp_til_Array_set_2, &_tmp_til_Array_set_1, &_tmp_til_Array_set_6, (til_Dynamic*)&_tmp_til_Array_set_3);
-        _tmp_til_Array_set_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:60:52:", 1, 0, 0, 0}), 25, 0}), &_tmp_til_Array_set_1);
+        _tmp_til_Array_set_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:61:52:", 1, 0, 0, 0}), 25, 0}), &_tmp_til_Array_set_1);
         til_Array_delete(&_tmp_til_Array_set_1);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Array_set_0};
         return 1;
@@ -868,7 +868,7 @@ til_Array til_Array_clone(const til_Array* til_Array_self) {
         til_I64 _tmp_til_Array_clone_5 = 0;
         _tmp_til_Array_clone_2 = til_Array_new(_tmp_til_Array_clone_4, &_tmp_til_Array_clone_5);
         int __attribute__((unused)) _arr_status__tmp_til_Array_clone_3;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:86:39:", 1, 0, 0, 0}), 25, 0}), &((til_Str){((til_Ptr){(til_I64)"Array.clone: malloc failed", 1, 0, 0, 0}), 26, 0}), &_tmp_til_Array_clone_2);
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:87:39:", 1, 0, 0, 0}), 25, 0}), &((til_Str){((til_Ptr){(til_I64)"Array.clone: malloc failed", 1, 0, 0, 0}), 26, 0}), &_tmp_til_Array_clone_2);
         til_Array_delete(&_tmp_til_Array_clone_2);
     }
     til_memcpy(&til_Array_cloned.ptr, &til_Array_self->ptr, &til_I64_total_bytes);
@@ -896,7 +896,7 @@ til_Bool til_Array_contains(const til_Array* til_Array_self, const til_Str* til_
             til_I64 _tmp_til_Array_contains_7 = 0;
             _tmp_til_Array_contains_4 = til_Array_new(_tmp_til_Array_contains_6, &_tmp_til_Array_contains_7);
             int __attribute__((unused)) _arr_status__tmp_til_Array_contains_5;
-            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:93:9:", 1, 0, 0, 0}), 24, 0}), &_err_forin_0.msg, &_tmp_til_Array_contains_4);
+            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:94:9:", 1, 0, 0, 0}), 24, 0}), &_err_forin_0.msg, &_tmp_til_Array_contains_4);
             til_Array_delete(&_tmp_til_Array_contains_4);
         }
         if (til_Str_eq(&til_Str_elem, til_Str_value).data) {
@@ -1449,7 +1449,7 @@ void til_Vec_push(til_Vec* til_Vec_self, til_Dynamic* til_Dynamic_value) {
             til_I64 _tmp_til_Vec_push_6 = 0;
             _tmp_til_Vec_push_3 = til_Array_new(_tmp_til_Vec_push_5, &_tmp_til_Vec_push_6);
             int __attribute__((unused)) _arr_status__tmp_til_Vec_push_4;
-            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:96:23:", 1, 0, 0, 0}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.push: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 39, 0}), &_tmp_til_Vec_push_3);
+            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:97:23:", 1, 0, 0, 0}), 23, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.push: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 39, 0}), &_tmp_til_Vec_push_3);
             til_Array_delete(&_tmp_til_Vec_push_3);
         }
         til_Ptr_new_ptr = til_Vec__alloc_ptr(til_Vec_self, &til_I64_new_cap);

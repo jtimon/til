@@ -180,6 +180,8 @@ namespace HashMap {
      *  Throws DuplicatedKeyError if key already exists.
      *  Use set() instead if you want to overwrite existing keys. */
     insert := proc(mut self: HashMap, own key: Dynamic, own value: Dynamic) throws DuplicatedKeyError {
+        dont_delete(key)
+        dont_delete(value)
         // Check if key already exists
         existing_idx := self.find_key(key)
         if existing_idx.gteq(0) {
@@ -220,6 +222,8 @@ namespace HashMap {
      *  Overwrites value if key already exists.
      *  Creates new entry if key doesn't exist. */
     set := proc(mut self: HashMap, own key: Dynamic, own value: Dynamic) {
+        dont_delete(key)
+        dont_delete(value)
         existing_idx := self.find_key(key)
 
         if existing_idx.gteq(0) {

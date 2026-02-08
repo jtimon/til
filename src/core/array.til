@@ -56,6 +56,7 @@ namespace Array {
 
     /** Set element at index. */
     set := proc(mut self: Array, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
+        dont_delete(value)
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Array.set: index out of bounds"))
         }

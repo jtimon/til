@@ -134,6 +134,8 @@ namespace Map {
      *  Throws DuplicatedKeyError if key already exists.
      *  Use set() instead if you want to overwrite existing keys. */
     insert := proc(mut self: Map, own key: Dynamic, own value: Dynamic) throws DuplicatedKeyError {
+        dont_delete(key)
+        dont_delete(value)
         search := self.binary_search(key)
 
         if search.found {
@@ -154,6 +156,8 @@ namespace Map {
      *  Overwrites value if key already exists.
      *  Creates new entry if key doesn't exist. */
     set := proc(mut self: Map, own key: Dynamic, own value: Dynamic) {
+        dont_delete(key)
+        dont_delete(value)
         search := self.binary_search(key)
 
         if search.found {

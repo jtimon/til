@@ -3,6 +3,7 @@
 // Issue #159: Insert clone() calls for deep copy semantics on struct assignments.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use crate::rs::init::Context;
 use crate::rs::parser::{Expr, NodeType, ValueType, SFuncDef, SStructDef, SNamespaceDef, Declaration};
 
@@ -17,7 +18,14 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         // Recurse into FuncDef bodies
         NodeType::FuncDef(func_def) => {
             let mut new_body = Vec::new();
+            let mut _dont_delete_vars: HashSet<String> = HashSet::new();
             for stmt in &func_def.body {
+                if is_dont_delete_call(stmt) {
+                    if let Some(var_name) = get_dont_delete_var(stmt) {
+                        _dont_delete_vars.insert(var_name);
+                    }
+                    continue; // Strip dont_delete calls from body
+                }
                 new_body.push(garbager_recursive(context, stmt)?);
             }
             let new_func_def = SFuncDef {
@@ -264,6 +272,28 @@ fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec
             }
         }
     }
+}
+
+/// Check if an expression is an FCall to `dont_delete`.
+fn is_dont_delete_call(e: &Expr) -> bool {
+    if let NodeType::FCall(_) = &e.node_type {
+        if let Some(name) = get_func_name(e) {
+            return name == "dont_delete";
+        }
+    }
+    false
+}
+
+/// Extract variable name from dont_delete(var) call.
+/// The variable is params[1] (params[0] is the function name).
+fn get_dont_delete_var(e: &Expr) -> Option<String> {
+    if e.params.len() < 2 {
+        return None;
+    }
+    if let NodeType::Identifier(var_name) = &e.params[1].node_type {
+        return Some(var_name.clone());
+    }
+    None
 }
 
 /// Issue #159 Step 5: Transform struct literal fields.
