@@ -3494,7 +3494,7 @@ hex_byte := func(b: U8) returns Str {
 }
 
 // Bug #133 fix: Emit assignment for a precomputed Vec with patched Ptr fields
-emit_precomputed_vec_assignment := proc(var_name: Str, is_mut: Bool, static_info: PrecomputedStaticInfo, mut output: Str, indent: I64, mut ctx: CodegenContext, context: Context) throws Str {
+emit_precomputed_vec_assignment := proc(var_name: Str, static_info: PrecomputedStaticInfo, mut output: Str, indent: I64, mut ctx: CodegenContext, context: Context) throws Str {
     indent_str := repeat("    ", indent)
     // Bug #133: Use type-mangled name (til_Vec_data, not til_data)
     c_var_name := til_var_name(var_name, "Vec")
@@ -3509,9 +3509,7 @@ emit_precomputed_vec_assignment := proc(var_name: Str, is_mut: Bool, static_info
 
     output.push_str(indent_str)
     if not(already_declared) {
-        if not(is_mut) {
-            output.push_str("const ")
-        }
+        // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
         output.push_str(TIL_PREFIX)
         output.push_str("Vec ")
         _ := ctx.declared_vars.insert(c_var_name.clone())
@@ -6440,7 +6438,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         have_static_info = false
     }
     if have_static_info {
-        emit_precomputed_vec_assignment(decl.name, decl.is_mut, static_info, output, indent, ctx, context)?
+        emit_precomputed_vec_assignment(decl.name, static_info, output, indent, ctx, context)?
         return
     }
 
@@ -6552,9 +6550,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             // Empty struct - use empty initializer
             output.push_str(indent_str)
             if not(already_declared) {
-                if not(is_mut) {
-                    output.push_str("const ")
-                }
+                // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
                 _ := ctx.declared_vars.insert(c_var_name.clone())
@@ -6565,9 +6561,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             // No defaults and no named args - zero initialize
             output.push_str(indent_str)
             if not(already_declared) {
-                if not(is_mut) {
-                    output.push_str("const ")
-                }
+                // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
                 _ := ctx.declared_vars.insert(c_var_name.clone())
@@ -6631,9 +6625,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
             output.push_str(indent_str)
             if not(already_declared) {
-                if not(is_mut) {
-                    output.push_str("const ")
-                }
+                // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
                 _ := ctx.declared_vars.insert(c_var_name.clone())
@@ -6681,9 +6673,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             // Struct not found - fall back to zero init
             output.push_str(indent_str)
             if not(already_declared) {
-                if not(is_mut) {
-                    output.push_str("const ")
-                }
+                // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
                 _ := ctx.declared_vars.insert(c_var_name.clone())
@@ -6695,9 +6685,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         // Enum variable declaration
         output.push_str(indent_str)
         if not(already_declared) {
-            if not(is_mut) {
-                output.push_str("const ")
-            }
+            // Issue #117: No const for enum locals - garbager inserts Type.delete() calls
             output.push_str(til_name(enum_type))
             output.push_str(" ")
             _ := ctx.declared_vars.insert(c_var_name.clone())
@@ -6759,7 +6747,16 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 catch (err: Str) {
                     throw expr.lang_error(context.path, "ccodegen", err)
                 }
-                output.push_str("const ")
+                // Issue #117: No const for struct/enum locals - garbager inserts Type.delete() calls
+                mut is_struct_local := false
+                switch decl.value_type {
+                case ValueType.TCustom(s):
+                    is_struct_local = not(s.eq("I64").or(s.eq("U8")).or(s.eq("Type")).or(s.eq("Dynamic")))
+                case:
+                }
+                if not(is_struct_local) {
+                    output.push_str("const ")
+                }
                 output.push_str(const_c_type)
                 output.push_str(" ")
                 _ := ctx.declared_vars.insert(c_var_name.clone())
@@ -7691,7 +7688,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         }
         value_type := decl.value_type
         // Track this declaration for future lookups (both in collected and scope_stack)
-        collected.set(decl.name.clone(), value_type)
+        collected.set(decl.name.clone(), value_type.clone())
         // Also add to scope_stack so get_value_type can find it for subsequent declarations
         mut symbol_info := SymbolInfo()
         symbol_info.value_type = value_type

@@ -529,16 +529,13 @@ Remove "Str" from primitives exclusion in garbager clone logic.
 **[X] Eliminate Str double-copy via arena_offset** - 31a10477
 EvalResult carries arena_offset (0 = None) through eval/return/call chains.
 
-**** Step 5: Typer own-consumption analysis (Bug #162)
+**** Step 5: Typer own-consumption analysis (DONE - Bug #162)
 
 Control-flow-aware tracking of variables consumed by ~own~ params.
 (Dependency: needed before Step 7 container own params can work.)
 
-WIP on branch ~latest117~.
-
 File: typer.rs, typer.til:
 - Mut check: only ~mut~ params require mut variables, NOT ~own~ params
-- Own consumption: skip primitives (I64, U8, Type, Dynamic, Ptr)
 - Add ~snapshot_symbols~ / ~restore_removed_symbols~ helpers
 - ~check_if_statement~: snapshot before branches, check each independently,
   restore between branches. After all branches, remove symbols consumed in
@@ -547,12 +544,12 @@ File: typer.rs, typer.til:
 - ~check_func_proc_types~: snapshot before body type-check, restore before
   ~check_body_returns_throws~ (needs UFCS resolution, which needs all symbols)
 
-**** Step 6: Ccodegen - remove ~const~ for struct/enum locals
+**** Step 6: Ccodegen - remove ~const~ for struct/enum locals (DONE - Bug #162)
 
 Garbager inserts ~Type.delete()~ calls on local variables. C ~const~ prevents
 calling ~delete()~ (takes ~mut self~). Remove ~const~ for struct/enum locals.
 
-File: ccodegen.rs, ccodegen.til (7 locations, from latest117):
+File: ccodegen.rs, ccodegen.til (7 locations):
 1. ~emit_precomputed_vec_assignment~: remove ~is_mut~ param, remove const logic
 2. Struct empty init: remove ~if !is_mut { "const " }~
 3. Struct zero init: same

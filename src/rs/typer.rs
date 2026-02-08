@@ -325,6 +325,27 @@ fn validate_func_arg_count(path: &str, e: &Expr, f_name: &str, func_def: &SFuncD
     None
 }
 
+/// Issue #117: Snapshot current frame's symbols for own-consumption restore.
+fn snapshot_symbols(context: &Context) -> HashMap<String, SymbolInfo> {
+    if let Some(frame) = context.scope_stack.frames.last() {
+        frame.symbols.clone()
+    } else {
+        HashMap::new()
+    }
+}
+
+/// Issue #117: Restore symbols that were removed during a branch that exits.
+/// Only re-adds symbols that existed before the branch but were removed during it.
+fn restore_removed_symbols(context: &mut Context, before: &HashMap<String, SymbolInfo>) {
+    if let Some(frame) = context.scope_stack.frames.last_mut() {
+        for (name, info) in before {
+            if !frame.symbols.contains_key(name) {
+                frame.symbols.insert(name.clone(), info.clone());
+            }
+        }
+    }
+}
+
 fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if let Some(err) = validate_conditional_params(&context.path, e, "if", 2, 3) {
@@ -350,10 +371,43 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             return errors;
         },
     };
-    // First param (condition) is used, remaining params (then/else bodies) discard values
-    for (i, p) in e.params.iter().enumerate() {
-        let ctx = if i == 0 { ExprContext::ValueUsed } else { ExprContext::ValueDiscarded };
-        errors.extend(check_types_with_context(context, &p, ctx));
+    // Type check condition
+    errors.extend(check_types_with_context(context, &e.params[0], ExprContext::ValueUsed));
+
+    // Issue #117: Type check then/else bodies with own-consumption isolation.
+    // Each branch is checked independently - own consumption in one branch
+    // should not affect other branches (they're mutually exclusive paths).
+    // After all branches, variables consumed in ALL branches are removed,
+    // and variables consumed only in exiting branches (return/throw) are restored.
+    let before_branches = snapshot_symbols(context);
+    let mut consumed_per_branch: Vec<Vec<String>> = Vec::new();
+    let branch_count = e.params.len() - 1;
+    for i in 1..e.params.len() {
+        restore_removed_symbols(context, &before_branches);
+        errors.extend(check_types_with_context(context, &e.params[i], ExprContext::ValueDiscarded));
+        // Record which symbols were consumed in this branch
+        let mut consumed = Vec::new();
+        for (name, _) in &before_branches {
+            if context.scope_stack.frames.last()
+                .map_or(false, |f| !f.symbols.contains_key(name)) {
+                consumed.push(name.clone());
+            }
+        }
+        consumed_per_branch.push(consumed);
+    }
+    // Restore all symbols first
+    restore_removed_symbols(context, &before_branches);
+    // Then remove symbols consumed in ALL branches (if there's both then and else)
+    // For if-without-else, no variable can be considered definitely consumed
+    if branch_count >= 2 {
+        if let Some(first) = consumed_per_branch.first() {
+            for name in first {
+                let consumed_in_all = consumed_per_branch.iter().all(|c| c.contains(name));
+                if consumed_in_all {
+                    context.scope_stack.remove_symbol(name);
+                }
+            }
+        }
     }
     return errors;
 }
@@ -664,10 +718,11 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Vec<String>
         };
         // Note: check_types_with_context called earlier in loop (before found_type calculation)
 
-        // Check mut/own parameter requirements (Bug #48, Bug #63)
-        // Both mut and own parameters require mutable variables
-        if arg.is_mut || arg.is_own {
-            let param_kind = if arg.is_mut { "mut" } else { "own" };
+        // Check mut parameter requirements (Bug #48, Bug #63)
+        // Only mut parameters require mutable variables.
+        // own parameters accept const variables (ownership transfer, not mutation).
+        if arg.is_mut {
+            let param_kind = "mut";
             match &arg_expr.node_type {
                 NodeType::Identifier(var_name) => {
                     // Simple variable - check if it's mut
@@ -1794,6 +1849,9 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut case_found = false;
     let mut default_found = false;
 
+    // Issue #117: Snapshot symbols before processing cases
+    let before_switch = snapshot_symbols(context);
+
     let mut i = 1;
     while i < e.params.len() {
         let case_expr = &e.params[i];
@@ -1840,6 +1898,10 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         }
 
         let body_expr = &e.params[i];
+
+        // Issue #117: Restore symbols before each case body so own consumption
+        // in one case doesn't leak into other cases (mutually exclusive paths)
+        restore_removed_symbols(context, &before_switch);
 
         // For pattern matching, add the binding variable to the context before type checking the body
         if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case_expr.node_type {

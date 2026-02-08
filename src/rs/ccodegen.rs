@@ -2746,7 +2746,6 @@ fn emit_precomputed_vec_str_static(
 // Bug #133 fix: Emit assignment for a precomputed Vec with patched Ptr fields
 fn emit_precomputed_vec_assignment(
     var_name: &str,
-    is_mut: bool,
     static_info: &PrecomputedStaticInfo,
     output: &mut String,
     indent: usize,
@@ -2768,9 +2767,7 @@ fn emit_precomputed_vec_assignment(
 
     output.push_str(&indent_str);
     if !already_declared {
-        if !is_mut {
-            output.push_str("const ");
-        }
+        // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
         output.push_str(TIL_PREFIX);
         output.push_str("Vec ");
         ctx.declared_vars.insert(c_var_name.clone());
@@ -5138,7 +5135,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     // Bug #133 fix: Check if this is a precomputed heap value that needs patching
     if let Some(static_info) = ctx.precomputed_static_arrays.get(&decl.name).cloned() {
-        return emit_precomputed_vec_assignment(&decl.name, decl.is_mut, &static_info, output, indent, ctx, context);
+        return emit_precomputed_vec_assignment(&decl.name, &static_info, output, indent, ctx, context);
     }
 
     let indent_str = "    ".repeat(indent);
@@ -5278,9 +5275,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 // Empty struct - use empty initializer
                 output.push_str(&indent_str);
                 if !already_declared {
-                    if !is_mut {
-                        output.push_str("const ");
-                    }
+                    // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                     output.push_str(&til_name(&type_name));
                     output.push_str(" ");
                     ctx.declared_vars.insert(c_var_name.clone());
@@ -5291,9 +5286,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 // No defaults and no named args - zero initialize
                 output.push_str(&indent_str);
                 if !already_declared {
-                    if !is_mut {
-                        output.push_str("const ");
-                    }
+                    // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                     output.push_str(&til_name(&type_name));
                     output.push_str(" ");
                     ctx.declared_vars.insert(c_var_name.clone());
@@ -5338,9 +5331,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
                 output.push_str(&indent_str);
                 if !already_declared {
-                    if !is_mut {
-                        output.push_str("const ");
-                    }
+                    // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                     output.push_str(&til_name(&type_name));
                     output.push_str(" ");
                     ctx.declared_vars.insert(c_var_name.clone());
@@ -5380,9 +5371,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             // Struct not found - fall back to zero init
             output.push_str(&indent_str);
             if !already_declared {
-                if !is_mut {
-                    output.push_str("const ");
-                }
+                // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                 output.push_str(&til_name(&type_name));
                 output.push_str(" ");
                 ctx.declared_vars.insert(c_var_name.clone());
@@ -5394,9 +5383,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // Enum variable declaration - Bug #143: Use rhs_string if available
         output.push_str(&indent_str);
         if !already_declared {
-            if !is_mut {
-                output.push_str("const ");
-            }
+            // Issue #117: No const for enum locals - garbager inserts Type.delete() calls
             output.push_str(&til_name(&type_name));
             output.push_str(" ");
             ctx.declared_vars.insert(c_var_name.clone());
@@ -5443,7 +5430,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 return Err(expr.lang_error(&context.path, "ccodegen", &format!("Declaration '{}' has INFER_TYPE - should have been resolved by typer", decl.name)));
             }
             let c_type = til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
-            output.push_str("const ");
+            // Issue #117: No const for struct/enum locals - garbager inserts Type.delete() calls
+            let is_struct_local = matches!(&decl.value_type, ValueType::TCustom(s) if s != "I64" && s != "U8" && s != "Type" && s != "Dynamic");
+            if !is_struct_local {
+                output.push_str("const ");
+            }
             output.push_str(&c_type);
             output.push_str(" ");
             ctx.declared_vars.insert(c_var_name.clone());

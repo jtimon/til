@@ -45,7 +45,7 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
     }
 
     // Mark as done immediately - before processing - to handle circular imports
-    _ := context.imports_typer_done.insert(path)
+    _ := context.imports_typer_done.insert(path.clone())
 
     // Get stored AST from init phase
     mut ast := Expr()
@@ -374,6 +374,45 @@ validate_func_arg_count := func(path: Str, e: Expr, f_name: Str, func_def: SFunc
     return ""
 }
 
+/// Issue #117: Snapshot current frame's symbols for own-consumption restore.
+snapshot_symbols := func(context: Context) returns Map throws Str {
+    if context.scope_stack.frames.len().gt(0) {
+        last_idx := context.scope_stack.frames.len().sub(1)
+        mut frame := ScopeFrame()
+        context.scope_stack.frames.get(last_idx, frame)?
+        return frame.symbols.clone()
+    }
+    return Map.new(Str, SymbolInfo)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+}
+
+/// Issue #117: Restore symbols that were removed during a branch.
+restore_removed_symbols := proc(mut context: Context, before: Map) throws Str {
+    if context.scope_stack.frames.len().gt(0) {
+        last_idx := context.scope_stack.frames.len().sub(1)
+        mut frame := ScopeFrame()
+        context.scope_stack.frames.get(last_idx, frame)?
+        for key: Str in before.keys {
+            if not(frame.symbols.contains_key(key)) {
+                mut info := SymbolInfo()
+                before.get(key, info)?
+                frame.symbols.set(key, info)
+            }
+        }
+        context.scope_stack.frames.set(last_idx, frame)?
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: KeyNotFoundError) {
+        throw err.msg
+    }
+}
+
 check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
     err := validate_conditional_params(context.path, e, "if", 2, 3)
@@ -400,16 +439,54 @@ check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str
         return errors
     }
 
-    // First param (condition) is used, remaining params (then/else bodies) discard values
-    for i in 0..e.params.len() {
-        mut p := Expr()
-        e.params.get(i, p)?
-        mut ctx := ExprContext.ValueDiscarded
-        if i.eq(0) {
-            ctx = ExprContext.ValueUsed
+    // Type check condition
+    mut cond_expr := Expr()
+    e.params.get(0, cond_expr)?
+    errors.extend(check_types_with_context(context, cond_expr, ExprContext.ValueUsed)?)
+
+    // Issue #117: Type check then/else bodies with own-consumption isolation
+    before_branches := snapshot_symbols(context)?
+    mut consumed_per_branch := Vec.new(Vec)
+    branch_count := e.params.len().sub(1)
+    for i in 1..e.params.len() {
+        restore_removed_symbols(context, before_branches)?
+        mut branch_expr := Expr()
+        e.params.get(i, branch_expr)?
+        errors.extend(check_types_with_context(context, branch_expr, ExprContext.ValueDiscarded)?)
+        // Record which symbols were consumed in this branch
+        mut consumed := Vec.new(Str)
+        for name: Str in before_branches.keys {
+            mut frame := ScopeFrame()
+            context.scope_stack.frames.get(context.scope_stack.frames.len().sub(1), frame)?
+            if not(frame.symbols.contains_key(name)) {
+                consumed.push(name)
+            }
         }
-        errors.extend(check_types_with_context(context, p, ctx)?)
+        consumed_per_branch.push(consumed)
     }
+    // Restore all symbols first
+    restore_removed_symbols(context, before_branches)?
+    // Then remove symbols consumed in ALL branches (if there's both then and else)
+    if branch_count.gteq(2) {
+        if consumed_per_branch.len().gt(0) {
+            mut first := Vec.new(Str)
+            consumed_per_branch.get(0, first)?
+            for name: Str in first {
+                mut consumed_in_all := true
+                for bi in 0..consumed_per_branch.len() {
+                    mut branch_consumed := Vec.new(Str)
+                    consumed_per_branch.get(bi, branch_consumed)?
+                    if not(branch_consumed.contains(name)) {
+                        consumed_in_all = false
+                    }
+                }
+                if consumed_in_all {
+                    _ := context.scope_stack.remove_symbol(name)?
+                }
+            }
+        }
+    }
+
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
@@ -875,11 +952,11 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
 
         // Note: check_types_with_context called earlier in loop (before found_type calculation)
 
-        // Check mut/own parameter requirements (Bug #48, Bug #63)
-        // Both mut and own parameters require mutable variables
-        if arg.is_mut.or(arg.is_own) {
-            mut param_kind := "own"
-            if arg.is_mut { param_kind = "mut" }
+        // Check mut parameter requirements (Bug #48, Bug #63)
+        // Only mut parameters require mutable variables.
+        // own parameters accept const variables (ownership transfer, not mutation).
+        if arg.is_mut {
+            mut param_kind := "mut"
             switch arg_expr.node_type {
             case NodeType.Identifier(var_name):
                 // Simple variable - check if it's mut
@@ -1320,7 +1397,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         if have_expected.and(have_return_val) {
                             // Recursively check this return expression for throws
                             mut single_expr := Vec.new(Expr)
-                            single_expr.push(return_val_e)
+                            single_expr.push(return_val_e.clone())
                             errors.extend(check_body_returns_throws(context, return_val_e, func_def, single_expr, thrown_types, return_found)?)
 
                             mut actual_value_type := get_value_type(context, return_val_e)?
@@ -1668,7 +1745,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                     // Check case expression
                     mut single_case := Vec.new(Expr)
-                    single_case.push(switch_case_expr)
+                    single_case.push(switch_case_expr.clone())
                     errors.extend(check_body_returns_throws(context, e, func_def, single_case, switch_thrown_types, return_found)?)
 
                     // For pattern matching, add the binding variable to scope before checking body
@@ -2204,6 +2281,9 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     mut case_found := false
     mut default_found := false
 
+    // Issue #117: Snapshot symbols before processing cases
+    before_switch := snapshot_symbols(context)?
+
     mut i := 1
     while i.lt(e.params.len()) {
         mut case_expr := Expr()
@@ -2245,6 +2325,9 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
 
         mut body_expr := Expr()
         e.params.get(i, body_expr)?
+
+        // Issue #117: Restore symbols before each case body
+        restore_removed_symbols(context, before_switch)?
 
         // For pattern matching, add the binding variable to the context before type checking the body
         switch case_expr.node_type {

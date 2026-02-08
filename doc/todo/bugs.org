@@ -9,37 +9,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #162: Typer own-param requires mut variable + no control-flow awareness
-:PROPERTIES:
-:DISCOVERED: 2026-02-08
-:IMPACT: Blocks Issue #117 Step 4 (auto-insert Type.delete())
-:STATUS: Open
-:END:
-
-*** Description
-Two issues with ~own~ parameter handling in the typer:
-
-1. ~own~ params incorrectly require ~mut~ variables. Line 669 in typer.rs checks
-   ~if arg.is_mut || arg.is_own~ and rejects const variables. But ~own~ just
-   transfers ownership -- it should accept const variables (the source becomes
-   invalid after the call, whether it was mut or not).
-
-2. ~own~ consumption has no control-flow awareness. Line 764-770 in typer.rs
-   unconditionally calls ~remove_symbol~ when a variable is passed to an ~own~
-   param. If this happens inside an if-branch, the variable becomes undefined
-   in the else-branch and after the if, even though it was never consumed there.
-
-*** Reproducer
-~src/test/own_typer.til~ -- tests for both issues.
-
-*** Fix
-- Remove ~is_own~ from the mut-check (~if arg.is_mut~, not ~if arg.is_mut || arg.is_own~)
-- Add ~snapshot_symbols~ / ~restore_removed_symbols~ helpers
-- Snapshot before if-branches, restore between branches
-- After all branches: remove symbols consumed in ALL branches (intersection)
-- If-without-else: no definite consumption
-- Same for switch-statement cases
-- Skip primitives (I64, U8, Type, Dynamic, Ptr) for own consumption
 
 ** Issue #152: Migrate doc/todo files to numbered issue system
 :PROPERTIES:

@@ -7,6 +7,52 @@
 
 * Fixed Bugs
 
+** Bug #162: Typer own-param requires mut variable + no control-flow awareness
+:PROPERTIES:
+:DISCOVERED: 2026-02-08
+:FIXED: 2026-02-08
+:IMPACT: Blocks Issue #117 Step 5 (typer own-consumption analysis)
+:STATUS: Fixed
+:END:
+
+*** Description
+Two issues with ~own~ parameter handling in the typer:
+
+1. ~own~ params incorrectly require ~mut~ variables. The typer checked
+   ~if arg.is_mut || arg.is_own~ and rejected const variables. But ~own~ just
+   transfers ownership -- it should accept const variables.
+
+2. ~own~ consumption has no control-flow awareness. ~remove_symbol~ was called
+   unconditionally when a variable was passed to an ~own~ param. If this happened
+   inside an if-branch, the variable became undefined in the else-branch.
+
+*** What was done
+Typer changes (typer.rs + typer.til):
+- Mut check: changed ~if arg.is_mut || arg.is_own~ to ~if arg.is_mut~ -- only
+  ~mut~ params require mutable variables, ~own~ accepts const
+- Added ~snapshot_symbols~ / ~restore_removed_symbols~ helpers for control-flow
+  aware own-consumption tracking
+- ~check_if_statement~: snapshot before branches, restore between branches.
+  After all branches, remove symbols consumed in ALL branches (intersection).
+  If-without-else: no definite consumption.
+- ~check_switch_statement~: snapshot before cases, restore before each case body
+- ~check_func_proc_types~: snapshot before body, restore before throw analysis
+  (needs UFCS resolution which needs all symbols)
+
+Ccodegen changes (ccodegen.rs + ccodegen.til):
+- Removed ~const~ qualifier for struct/enum local variables (7 locations).
+  Garbager inserts ~Type.delete()~ calls which take ~mut self~, so locals
+  cannot be ~const~.
+- ~emit_precomputed_vec_assignment~: removed ~is_mut~ parameter
+- General const declaration: only emit ~const~ for primitive types
+  (I64, U8, Type, Dynamic)
+
+Other:
+- 3 clone fixes in typer.til from latest117 branch (~path.clone()~,
+  ~return_val_e.clone()~, ~switch_case_expr.clone()~)
+- 1 clone fix in ccodegen.til (~value_type.clone()~)
+- Test: ~src/test/bug162.til~
+
 ** Bug #159: Shallow copy semantics for structs with Ptr/Vec fields
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
