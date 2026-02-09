@@ -1,6 +1,5 @@
 mode liba
 
-import("std.arena")
 import("self.init")
 import("self.parser")
 
@@ -58,59 +57,32 @@ StrContents := struct {
 }
 
 EvalArena := struct {
-    mut _arena: Arena = Arena()
     mut temp_id_counter: I64 = 0
-    mut default_instances: Map = Map.new(Str, I64)  // type name -> arena offset of default template
-    mut _heap_bases: Vec = Vec.new(I64)  // Issue #163: heap block base ptrs
-    mut _heap_sizes: Vec = Vec.new(I64)  // Issue #163: heap block sizes
+    mut default_instances: Map = Map.new(Str, I64)  // type name -> heap pointer of default template
+    mut _heap_bases: Vec = Vec.new(I64)  // heap block base ptrs
+    mut _heap_sizes: Vec = Vec.new(I64)  // heap block sizes
+    mut total_heap_bytes: I64 = 0  // running total of heap bytes allocated
 }
 
 namespace EvalArena {
     new := proc() returns EvalArena {
         mut a := EvalArena()
-        a._arena = Arena.new()
         return a
     }
 
-    /// Get current used length of arena memory
+    /// Total heap bytes allocated
     len := func(self: EvalArena) returns I64 {
-        return self._arena.len()
+        return self.total_heap_bytes
     }
 
-    /// Get size of arena memory (same as len for EvalArena)
-    size := func(self: EvalArena) returns I64 {
-        return self._arena.len()
+    /// Read bytes at offset (raw pointer access, returns pointer to data)
+    get := func(_self: EvalArena, offset: I64, _num_bytes: I64) returns I64 {
+        return offset  // raw pointer IS the address
     }
 
-    /// Append bytes to arena, return offset where they were placed
-    put := proc(mut self: EvalArena, src_ptr: I64, num_bytes: I64) returns I64 {
-        offset := self._arena.put(src_ptr, num_bytes)
-        return offset
-    }
-
-    /// Read bytes from arena or heap at offset (returns pointer to data)
-    get := func(self: EvalArena, offset: I64, num_bytes: I64) returns I64 {
-        // Issue #163: Dispatch to heap for heap-allocated memory
-        if self.is_in_heap(offset) {
-            return offset  // heap pointer IS the raw address
-        }
-        return self._arena.get(offset, num_bytes)
-    }
-
-    /// Write bytes to arena or heap at offset
-    set := proc(mut self: EvalArena, offset: I64, src_ptr: I64, num_bytes: I64) {
-        // Issue #163: Dispatch to heap for heap-allocated memory
-        if self.is_in_heap(offset) {
-            memcpy(offset, src_ptr, num_bytes)
-            return
-        }
-        self._arena.set(offset, src_ptr, num_bytes)
-    }
-
-    /// Reserve space in arena, return offset where space was allocated
-    reserve := proc(mut self: EvalArena, size: I64) returns I64 {
-        offset := self._arena.reserve(size)
-        return offset
+    /// Write bytes at offset (raw memcpy)
+    set := proc(mut _self: EvalArena, offset: I64, src_ptr: I64, num_bytes: I64) {
+        memcpy(offset, src_ptr, num_bytes)
     }
 
     /// Issue #163: Allocate zeroed memory on the heap, return raw pointer as offset
@@ -123,6 +95,7 @@ namespace EvalArena {
         alloc_ptr := malloc(alloc_size)?
         result_ptr := alloc_ptr
         loop_size := alloc_size
+        self.total_heap_bytes = self.total_heap_bytes.add(alloc_size)
         self._heap_bases.push(alloc_ptr)
         self._heap_sizes.push(alloc_size)
         // Zero-initialize (arena's reserve zeroes, so we must too for compatibility)
@@ -150,14 +123,6 @@ namespace EvalArena {
             }
         }
         catch (err: IndexOutOfBoundsError) { }
-    }
-
-    /// Issue #163: Check if an offset is a heap pointer (not an arena offset).
-    /// Uses a simple heuristic: any address > arena length is outside the arena
-    /// and must be a heap pointer. This matches the arena's original behavior of
-    /// not enforcing per-allocation bounds.
-    is_in_heap := func(self: EvalArena, offset: I64) returns Bool {
-        return offset.gt(self.len())
     }
 
     // === EVAL-PHASE MEMORY OPERATIONS ===
@@ -273,20 +238,13 @@ namespace EvalArena {
                 throw e.lang_error(ctx.path, "context", format("insert_i64: ", err))
             }
 
-            // Issue #163: Only grow arena for non-heap offsets
-            if g_arena.is_in_heap(field_offset).not() {
-                required_len := add(field_offset, 8)
-                if g_arena.len().lt(required_len) {
-                    _ := g_arena.reserve(sub(required_len, g_arena.len()))
-                }
-            }
-
             g_arena.set(field_offset, to_ptr(v), 8)
             throw KeyNotFoundError(msg="already handled")
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
-        offset := g_arena.put(to_ptr(v), 8)
+        offset := g_arena.heap_alloc(8)?
+        g_arena.set(offset, to_ptr(v), 8)
         return offset
     }
 
@@ -323,7 +281,8 @@ namespace EvalArena {
             throw KeyNotFoundError(msg="already handled")
         }
 
-        offset := g_arena.put(to_ptr(v), 1)
+        offset := g_arena.heap_alloc(1)?
+        g_arena.set(offset, to_ptr(v), 1)
         return offset
     }
 
@@ -696,10 +655,9 @@ namespace EvalArena {
     insert_string_core := proc(mut ctx: Context, id: Str, value_str: Str, e: Expr) returns StringInsertInfo throws Str, KeyNotFoundError {
         is_field := EvalArena.is_instance_field(ctx, id)
 
-        // Allocate string data
-        string_offset := g_arena.put(value_str.c_string.data, value_str.len())
-        mut null_byte : U8 = 0
-        _ := g_arena.put(to_ptr(null_byte), 1)  // null terminator
+        // Allocate string data (heap_alloc returns zeroed memory, so null terminator is free)
+        string_offset := g_arena.heap_alloc(add(value_str.len(), 1))?
+        g_arena.set(string_offset, value_str.c_string.data, value_str.len())
         str_len := value_str.len()
 
         if is_field {
@@ -741,17 +699,20 @@ namespace EvalArena {
                 throw e.lang_error(ctx.path, "context", "'Str' struct definition not found")
             }
 
-            struct_offset := g_arena.len()
+            // Calculate total Str struct size
+            mut str_size := 0
+            for decl: Declaration in str_def.members {
+                if decl.is_mut {
+                    str_size = add(str_size, ctx.get_type_size(value_type_to_str(decl.value_type))?)
+                }
+            }
+
+            struct_offset := g_arena.heap_alloc(str_size)?
             mut current_offset := 0
 
             for decl: Declaration in str_def.members {
                 if decl.is_mut {
                     type_size := ctx.get_type_size(value_type_to_str(decl.value_type))?
-                    // Ensure space
-                    required_len := add(add(struct_offset, current_offset), type_size)
-                    if g_arena.len().lt(required_len) {
-                        _ := g_arena.reserve(sub(required_len, g_arena.len()))
-                    }
 
                     field_offset := add(struct_offset, current_offset)
                     if decl.name.eq("c_string") {
@@ -912,26 +873,22 @@ namespace EvalArena {
                 payload_size := EvalArena.get_payload_size_for_type(ctx, payload_type, add(offset, 8), e)?
                 if payload_size.gt(0) {
                     payload_offset := add(offset, 8)
-                    payload_end := add(payload_offset, payload_size)
-                    // Issue #163: Skip arena bounds check for heap pointers
-                    if g_arena.is_in_heap(payload_offset).or(payload_end.lteq(g_arena.len())) {
-                        // Copy payload bytes
-                        mut payload_bytes := Vec.new(U8)
-                        mut pi := 0
-                        while pi.lt(payload_size) {
-                            mut byte_val : U8 = 0
-                            memcpy(to_ptr(byte_val), g_arena.get(add(payload_offset, pi), 1), 1)
-                            payload_bytes.push(byte_val)
-                            pi = add(pi, 1)
-                        }
-                        // Bug #72 fix: Heap-allocate Vec and ValueType structs so they survive function return
-                        heap_vec_ptr := malloc(size_of(Vec))?
-                        memcpy(heap_vec_ptr, to_ptr(payload_bytes), size_of(Vec))
-                        result.payload.data = heap_vec_ptr
-                        heap_type_ptr := malloc(size_of(ValueType))?
-                        memcpy(heap_type_ptr, to_ptr(payload_type), size_of(ValueType))
-                        result.payload_type.data = heap_type_ptr
+                    // Copy payload bytes
+                    mut payload_bytes := Vec.new(U8)
+                    mut pi := 0
+                    while pi.lt(payload_size) {
+                        mut byte_val : U8 = 0
+                        memcpy(to_ptr(byte_val), g_arena.get(add(payload_offset, pi), 1), 1)
+                        payload_bytes.push(byte_val)
+                        pi = add(pi, 1)
                     }
+                    // Bug #72 fix: Heap-allocate Vec and ValueType structs so they survive function return
+                    heap_vec_ptr := malloc(size_of(Vec))?
+                    memcpy(heap_vec_ptr, to_ptr(payload_bytes), size_of(Vec))
+                    result.payload.data = heap_vec_ptr
+                    heap_type_ptr := malloc(size_of(ValueType))?
+                    memcpy(heap_type_ptr, to_ptr(payload_type), size_of(ValueType))
+                    result.payload_type.data = heap_type_ptr
                 }
             case:
             }
@@ -1097,26 +1054,22 @@ namespace EvalArena {
 
                 if payload_size.gt(0) {
                     payload_offset := add(offset, 8)
-                    payload_end := add(payload_offset, payload_size)
-                    // Issue #163: Skip arena bounds check for heap pointers
-                    if g_arena.is_in_heap(payload_offset).or(payload_end.lteq(g_arena.len())) {
-                        mut payload_bytes := Vec.new(U8)
-                        mut pi := 0
-                        while pi.lt(payload_size) {
-                            mut byte_val : U8 = 0
-                            memcpy(to_ptr(byte_val), g_arena.get(add(payload_offset, pi), 1), 1)
-                            payload_bytes.push(byte_val)
-                            pi = add(pi, 1)
-                        }
-                        // Bug #72 fix: Heap-allocate Vec and ValueType structs so they survive function return
-                        // (payload_bytes and variant_payload_type are stack-local, their pointers become stale)
-                        heap_vec_ptr := malloc(size_of(Vec))?
-                        memcpy(heap_vec_ptr, to_ptr(payload_bytes), size_of(Vec))
-                        result.payload.data = heap_vec_ptr
-                        heap_type_ptr := malloc(size_of(ValueType))?
-                        memcpy(heap_type_ptr, to_ptr(variant_payload_type), size_of(ValueType))
-                        result.payload_type.data = heap_type_ptr
+                    mut payload_bytes := Vec.new(U8)
+                    mut pi := 0
+                    while pi.lt(payload_size) {
+                        mut byte_val : U8 = 0
+                        memcpy(to_ptr(byte_val), g_arena.get(add(payload_offset, pi), 1), 1)
+                        payload_bytes.push(byte_val)
+                        pi = add(pi, 1)
                     }
+                    // Bug #72 fix: Heap-allocate Vec and ValueType structs so they survive function return
+                    // (payload_bytes and variant_payload_type are stack-local, their pointers become stale)
+                    heap_vec_ptr := malloc(size_of(Vec))?
+                    memcpy(heap_vec_ptr, to_ptr(payload_bytes), size_of(Vec))
+                    result.payload.data = heap_vec_ptr
+                    heap_type_ptr := malloc(size_of(ValueType))?
+                    memcpy(heap_type_ptr, to_ptr(variant_payload_type), size_of(ValueType))
+                    result.payload_type.data = heap_type_ptr
                 }
             case:
             }
@@ -1182,13 +1135,8 @@ namespace EvalArena {
             if have_offset {
                 // Update existing enum value (no new mapping needed)
                 g_arena.set(offset, to_ptr(enum_value), 8)
-                if payload_data.len().gt(0) {
+                if payload_data.len().gt(0).and(add(payload_data.len(), 8).lteq(max_enum_size)) {
                     payload_offset := add(offset, 8)
-                    payload_end := add(payload_offset, payload_data.len())
-                    // Issue #163: Only grow arena for non-heap offsets
-                    if not(g_arena.is_in_heap(payload_offset)).and(g_arena.len().lt(payload_end)) {
-                        _ := g_arena.reserve(sub(payload_end, g_arena.len()))
-                    }
                     mut pi := 0
                     while pi.lt(payload_data.len()) {
                         mut byte_val : U8 = 0
@@ -1199,29 +1147,25 @@ namespace EvalArena {
                 }
                 result.has_mapping = false
             } else {
-                // Allocate max enum size, write tag and payload, then zero-pad remaining
-                offset = g_arena.put(to_ptr(enum_value), 8)
-                if payload_data.len().gt(0) {
-                    _ := g_arena.put(payload_data.ptr.data, payload_data.len())
+                // Allocate max enum size (zeroed), write tag and payload
+                offset = g_arena.heap_alloc(max_enum_size)?
+                g_arena.set(offset, to_ptr(enum_value), 8)
+                if payload_data.len().gt(0).and(add(payload_data.len(), 8).lteq(max_enum_size)) {
+                    g_arena.set(add(offset, 8), payload_data.ptr.data, payload_data.len())
                 }
-                // Bug #38 fix: Pad with zeros to reach max_enum_size
-                if actual_size.lt(max_enum_size) {
-                    _ := g_arena.reserve(max_enum_size.sub(actual_size))
-                }
+                // padding: heap_alloc returns zeroed memory
                 result.has_mapping = true
                 result.mapping_name = id
                 result.mapping_offset = offset
             }
         } else {
-            // Allocate max enum size, write tag and payload, then zero-pad remaining
-            new_enum_offset := g_arena.put(to_ptr(enum_value), 8)
-            if payload_data.len().gt(0) {
-                _ := g_arena.put(payload_data.ptr.data, payload_data.len())
+            // Allocate max enum size (zeroed), write tag and payload
+            new_enum_offset := g_arena.heap_alloc(max_enum_size)?
+            g_arena.set(new_enum_offset, to_ptr(enum_value), 8)
+            if payload_data.len().gt(0).and(add(payload_data.len(), 8).lteq(max_enum_size)) {
+                g_arena.set(add(new_enum_offset, 8), payload_data.ptr.data, payload_data.len())
             }
-            // Bug #38 fix: Pad with zeros to reach max_enum_size
-            if actual_size.lt(max_enum_size) {
-                _ := g_arena.reserve(max_enum_size.sub(actual_size))
-            }
+            // padding: heap_alloc returns zeroed memory
             result.has_mapping = true
             result.mapping_name = id
             result.mapping_offset = new_enum_offset
@@ -1294,7 +1238,7 @@ namespace EvalArena {
         total_size := mul(len, elem_size)
 
         // Allocate memory for elements
-        ptr := g_arena.reserve(total_size)
+        ptr := g_arena.heap_alloc(total_size)?
 
         // Write values into allocated buffer
         mut i := 0

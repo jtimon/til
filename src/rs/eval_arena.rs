@@ -2,15 +2,13 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use crate::rs::init::{Context, SymbolInfo, EnumVal, ScopeFrame, ScopeType};
 use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str, NodeType, Literal};
-use crate::rs::arena::Arena;
-
 // EvalArena: Memory management for the TIL interpreter
 
 pub struct EvalArena {
-    _arena: Arena,
     pub temp_id_counter: usize,
-    pub default_instances: HashMap<String, usize>,  // type name -> arena offset of default template
-    heap_blocks: HashMap<usize, usize>,  // Issue #163: ptr -> size for heap-allocated blocks
+    pub default_instances: HashMap<String, usize>,  // type name -> heap pointer of default template
+    heap_blocks: HashMap<usize, usize>,  // ptr -> size for heap-allocated blocks
+    total_heap_bytes: usize,  // running total of heap bytes allocated
 }
 
 pub struct EvalArenaMapping {
@@ -66,50 +64,33 @@ impl EvalArena {
 
             // Lazy initialization of the singleton instance
             INSTANCE.get_or_insert_with(|| EvalArena {
-                _arena: Arena::new(),
                 temp_id_counter: 0, // A temporary ugly hack for return values
                 default_instances: HashMap::new(),
                 heap_blocks: HashMap::new(),
+                total_heap_bytes: 0,
             })
         }
     }
 
-    /// Get current used length of arena memory
+    /// Total heap bytes allocated
     pub fn len(&self) -> usize {
-        return self._arena.len();
+        self.total_heap_bytes
     }
 
-    /// Append bytes to arena, return offset where they were placed
-    pub fn put(&mut self, bytes: &[u8]) -> Result<usize, String> {
-        return self._arena.put(bytes);
-    }
-
-    /// Read bytes from arena or heap at offset
+    /// Read bytes at offset (raw pointer access)
     pub fn get(&self, offset: usize, len: usize) -> &[u8] {
-        // Issue #163: Dispatch to heap for heap-allocated memory
-        if self.is_in_heap(offset) {
-            unsafe { std::slice::from_raw_parts(offset as *const u8, len) }
-        } else {
-            self._arena.get(offset, len)
+        if offset == 0 || len == 0 {
+            return &[];
         }
+        unsafe { std::slice::from_raw_parts(offset as *const u8, len) }
     }
 
-    /// Write bytes to arena or heap at offset
+    /// Write bytes at offset (raw memcpy)
     pub fn set(&mut self, offset: usize, bytes: &[u8]) -> Result<(), String> {
-        // Issue #163: Dispatch to heap for heap-allocated memory
-        if self.is_in_heap(offset) {
-            unsafe {
-                std::ptr::copy_nonoverlapping(bytes.as_ptr(), offset as *mut u8, bytes.len());
-            }
-            Ok(())
-        } else {
-            self._arena.set(offset, bytes)
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), offset as *mut u8, bytes.len());
         }
-    }
-
-    /// Reserve space in arena, return offset where space was allocated
-    pub fn reserve(&mut self, size: usize) -> Result<usize, String> {
-        return self._arena.reserve(size);
+        Ok(())
     }
 
     /// Issue #163: Allocate zeroed memory on the heap, return raw pointer as offset
@@ -123,6 +104,7 @@ impl EvalArena {
             return Err("heap_alloc: allocation failed".to_string());
         }
         self.heap_blocks.insert(ptr, alloc_size);
+        self.total_heap_bytes += alloc_size;
         Ok(ptr)
     }
 
@@ -132,14 +114,6 @@ impl EvalArena {
             let layout = std::alloc::Layout::from_size_align(size, 8).unwrap();
             unsafe { std::alloc::dealloc(ptr as *mut u8, layout); }
         }
-    }
-
-    /// Issue #163: Check if an offset is a heap pointer (not an arena offset).
-    /// Uses a simple heuristic: any address > arena length is outside the arena
-    /// and must be a heap pointer. This matches the arena's original behavior of
-    /// not enforcing per-allocation bounds.
-    pub fn is_in_heap(&self, offset: usize) -> bool {
-        offset > self.len()
     }
 
     // === EVAL-PHASE MEMORY OPERATIONS ===
@@ -229,20 +203,13 @@ impl EvalArena {
                 e.lang_error(&ctx.path, "context", &format!("insert_i64: {}", err))
             })?;
 
-            // Issue #163: Only grow arena for non-heap offsets
-            if !EvalArena::g().is_in_heap(field_offset) {
-                let required_len = field_offset + 8;
-                if EvalArena::g().len() < required_len {
-                    EvalArena::g().reserve(required_len - EvalArena::g().len())?;
-                }
-            }
-
             EvalArena::g().set(field_offset, &bytes)?;
             return Ok(None)
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
-        let offset = EvalArena::g().put(&bytes)?;
+        let offset = EvalArena::g().heap_alloc(8)?;
+        EvalArena::g().set(offset, &bytes)?;
         Ok(Some(offset))
     }
 
@@ -274,7 +241,8 @@ impl EvalArena {
             return Ok(None)
         }
 
-        let offset = EvalArena::g().put(&[v])?;
+        let offset = EvalArena::g().heap_alloc(1)?;
+        EvalArena::g().set(offset, &[v])?;
         Ok(Some(offset))
     }
 
@@ -595,9 +563,9 @@ impl EvalArena {
     fn insert_string_core(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<Option<StringInsertInfo>, String> {
         let is_field = Self::is_instance_field(ctx, id);
 
-        // Allocate string data
-        let string_offset = EvalArena::g().put(value_str.as_bytes())?;
-        EvalArena::g().put(&[0])?; // null terminator
+        // Allocate string data (heap_alloc returns zeroed memory, so null terminator is free)
+        let string_offset = EvalArena::g().heap_alloc(value_str.len() + 1)?;
+        EvalArena::g().set(string_offset, value_str.as_bytes())?;
         let string_offset_bytes = (string_offset as i64).to_ne_bytes();
         let len_bytes = (value_str.len() as i64).to_ne_bytes();
 
@@ -628,16 +596,21 @@ impl EvalArena {
             // Not yet inserted - insert fresh inlined Str
             if let Some(str_def) = ctx.scope_stack.lookup_struct("Str") {
                 let members = str_def.members.clone();
-                let struct_offset = EvalArena::g().len();
+
+                // Calculate total Str struct size
+                let mut str_size = 0;
+                for decl in members.iter() {
+                    if decl.is_mut {
+                        str_size += ctx.get_type_size(&value_type_to_str(&decl.value_type))?;
+                    }
+                }
+
+                let struct_offset = EvalArena::g().heap_alloc(str_size)?;
                 let mut current_offset = 0;
 
                 for decl in members.iter() {
                     if decl.is_mut {
-                        let type_size = ctx.get_type_size( &value_type_to_str(&decl.value_type))?;
-                        let required_len = struct_offset + current_offset + type_size;
-                        if EvalArena::g().len() < required_len {
-                            EvalArena::g().reserve(required_len - EvalArena::g().len())?;
-                        }
+                        let type_size = ctx.get_type_size(&value_type_to_str(&decl.value_type))?;
 
                         if decl.name == "c_string" {
                             EvalArena::g().set(struct_offset + current_offset, &string_offset_bytes)?;
@@ -759,14 +732,8 @@ impl EvalArena {
                 let payload_size = EvalArena::get_payload_size_for_type(ctx, vtype, offset + 8, e)?;
                 if payload_size > 0 {
                     let payload_offset = offset + 8;
-                    let payload_end = payload_offset + payload_size;
-                    // Issue #163: Skip arena bounds check for heap pointers
-                    if EvalArena::g().is_in_heap(payload_offset) || payload_end <= EvalArena::g().len() {
-                        let payload_bytes = EvalArena::g().get(payload_offset, payload_size).to_vec();
-                        (Some(payload_bytes), Some(vtype.clone()))
-                    } else {
-                        (None, None)
-                    }
+                    let payload_bytes = EvalArena::g().get(payload_offset, payload_size).to_vec();
+                    (Some(payload_bytes), Some(vtype.clone()))
                 } else {
                     (None, None)
                 }
@@ -889,14 +856,8 @@ impl EvalArena {
                 };
                 if payload_size > 0 {
                     let payload_offset = offset + 8;
-                    let payload_end = payload_offset + payload_size;
-                    // Issue #163: Skip arena bounds check for heap pointers
-                    if EvalArena::g().is_in_heap(payload_offset) || payload_end <= EvalArena::g().len() {
-                        let payload_bytes = EvalArena::g().get(payload_offset, payload_size).to_vec();
-                        (Some(payload_bytes), Some(vtype.clone()))
-                    } else {
-                        (None, None)
-                    }
+                    let payload_bytes = EvalArena::g().get(payload_offset, payload_size).to_vec();
+                    (Some(payload_bytes), Some(vtype.clone()))
                 } else {
                     (None, None)
                 }
@@ -933,9 +894,6 @@ impl EvalArena {
         // payload space is available even if the current variant has no payload.
         let max_enum_size = ctx.get_type_size(enum_type)
             .map_err(|err| e.lang_error(&ctx.path, "context", &format!("insert_enum: {}", err)))?;
-        let payload_size = if let Some(ref bytes) = payload_data { bytes.len() } else { 0 };
-        let actual_size = 8 + payload_size; // tag + current payload
-
         let mapping = {
             // Bug #160: Deterministic dispatch - instance fields use get_field_offset for in-place update
             if Self::is_instance_field(ctx, id) {
@@ -943,25 +901,21 @@ impl EvalArena {
                 // Update existing enum value in-place (no new mapping needed)
                 EvalArena::g().set(offset, &enum_value.to_le_bytes())?;
                 if let Some(payload_bytes) = &payload_data {
-                    let payload_offset = offset + 8;
-                    let payload_end = payload_offset + payload_bytes.len();
-                    // Issue #163: Only grow arena for non-heap offsets
-                    if !EvalArena::g().is_in_heap(payload_offset) && EvalArena::g().len() < payload_end {
-                        EvalArena::g().reserve(payload_end - EvalArena::g().len())?;
+                    if payload_bytes.len() + 8 <= max_enum_size {
+                        EvalArena::g().set(offset + 8, &payload_bytes)?;
                     }
-                    EvalArena::g().set(payload_offset, &payload_bytes)?;
                 }
                 None
             } else {
-                // Allocate max enum size, write tag and payload, then zero-pad remaining
-                let new_enum_offset = EvalArena::g().put(&enum_value.to_le_bytes())?;
+                // Allocate max enum size (zeroed), write tag and payload
+                let new_enum_offset = EvalArena::g().heap_alloc(max_enum_size)?;
+                EvalArena::g().set(new_enum_offset, &enum_value.to_le_bytes())?;
                 if let Some(payload_bytes) = &payload_data {
-                    EvalArena::g().put(&payload_bytes)?;
+                    if payload_bytes.len() + 8 <= max_enum_size {
+                        EvalArena::g().set(new_enum_offset + 8, &payload_bytes)?;
+                    }
                 }
-                // Pad with zeros to reach max_enum_size
-                if actual_size < max_enum_size {
-                    EvalArena::g().reserve(max_enum_size - actual_size)?;
-                }
+                // padding: heap_alloc returns zeroed memory
                 Some(EvalArenaMapping { name: id.to_string(), offset: new_enum_offset })
             }
         };
@@ -1028,7 +982,7 @@ impl EvalArena {
         let total_size = (len as usize) * elem_size;
 
         // Allocate memory for elements
-        let ptr = EvalArena::g().reserve(total_size)?;
+        let ptr = EvalArena::g().heap_alloc(total_size)?;
 
         // Write values into allocated buffer
         for (i, val) in values.iter().enumerate() {

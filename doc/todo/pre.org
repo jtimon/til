@@ -19,59 +19,36 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 :PROPERTIES:
 :DISCOVERED: 2026-02-09
 :IMPACT: Enables actual memory reclamation when Type.delete() is called
-:STATUS: Step 2 done
+:STATUS: Steps 1-3 done, EvalArena cleanup remaining
 :RELATED: Issue #117 (ASAP destruction), Issue #115 (owned struct fields)
 :END:
 
 *** Description
-Now that we have a working destruction mechanism (Type.delete() from Issue #117),
-the arena allocator is the bottleneck for memory management. The arena is a bump
-allocator — it can only grow, never free individual objects. When Type.delete() is
-called, it walks the struct's fields and deletes owned sub-objects, but the struct's
-own memory block in the arena is never reclaimed.
+The arena allocator (bump allocator) was the bottleneck for memory management.
+It could only grow, never free individual objects. With Type.delete() from Issue
+#117, we needed heap allocation so free() actually reclaims memory.
 
-The goal: introduce heap allocation (malloc/free) alongside the arena, then
-gradually migrate structs to it. Keep the same interface — code that creates,
-accesses, and deletes structs should not change.
+*** Done
 
-*** Approach: Incremental
-Don't replace the arena all at once. Instead:
+1. *Step 1* (DONE): Added heap_alloc/heap_free alongside arena. Dual dispatch.
+2. *Step 2* (DONE): Moved struct allocations from arena to heap.
+3. *Step 3* (DONE): Removed arena from EvalArena. All allocations via heap.
+   Deleted arena.rs. Kept arena.til as standalone std library.
 
-1. *Step 1* (DONE): Add heap allocation for malloc/free alongside the arena
-   - Added heap_alloc/heap_free/is_in_heap to EvalArena (both .rs and .til)
-   - malloc() now returns real heap pointers; free() actually frees them
-   - EvalArena.get/set transparently dispatch: heap pointers go to raw memory,
-     arena offsets go to the bump allocator as before
-   - is_in_heap uses heuristic: offset > arena_len means heap pointer
-   - Fixed bounds checks throughout: string_from_context, memset/memcpy/memcmp,
-     enum payload read/write (interpreter.rs, ext.rs, eval_arena.rs + TIL ports)
-   - Uncovered Bug #164 (List had no capacity tracking - heap overrun on cloned push)
-   - 98/98 tests pass, no padding hacks
+*** Remaining: Remove or rename EvalArena
 
-2. *Step 2* (DONE): Move struct allocations from arena to heap
-   - Changed insert_struct_core, insert_struct, insert_struct_into_frame
-     to use heap_alloc() instead of reserve() (both .rs and .til)
-   - heap_alloc handles zero-size structs by allocating 1 byte (unique address)
-   - Added is_in_heap guard to insert_i64_core's "ensure arena has enough space"
-     block — heap field offsets are large addresses, not arena offsets
-   - Arena remains for primitives (I64, U8, Bool), string data, enum payloads
-   - 98/98 tests pass
+eval_arena.rs and eval_arena.til still exist as the memory management layer.
+The "arena" name is now misleading — it's purely a heap allocator wrapper.
 
-3. *Step 3*: Evaluate whether arena is still needed
-   - If everything is on the heap, arena can be removed
-   - Or keep arena for temporaries/literals if it's still useful
+Options:
+- Rename EvalArena to EvalHeap or EvalMem (and g_arena to g_heap/g_mem)
+- Inline heap_alloc/heap_free into ext functions and remove EvalArena entirely
+- Move remaining eval logic (insert_i64, insert_string, insert_struct, etc.)
+  closer to the interpreter, since EvalArena is really an interpreter helper
 
-*** Current State (Arena)
-- eval_arena.rs / eval_arena.til implement a bump allocator
-- Structs are allocated as contiguous byte ranges in the arena
-- Arena grows but never shrinks — no individual object deallocation
-- Type.delete() cleans up owned sub-objects but can't free the struct's own memory
-
-*** Key Considerations
-- Offsets currently index into arena memory — heap offsets need a separate namespace
-  or a tag bit to distinguish arena vs heap
-- Performance: malloc/free per struct vs bump allocation (likely acceptable tradeoff)
-- The Ptr type (Issue #134) may interact with this — borrowed vs owned pointers
+Also: arena_index (HashMap in ScopeFrame) still uses the old name. All the
+"arena_offset" fields in EvalResult, and comments throughout the codebase
+still reference "arena". A rename pass would clean this up.
 
 ** Issue #161: Namespace constants, static mutables, and per-instance immutables
 :PROPERTIES:
