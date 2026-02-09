@@ -15,6 +15,55 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #163: Replace arena allocator with heap allocation (malloc/free)
+:PROPERTIES:
+:DISCOVERED: 2026-02-09
+:IMPACT: Enables actual memory reclamation when Type.delete() is called
+:STATUS: Open
+:RELATED: Issue #117 (ASAP destruction), Issue #115 (owned struct fields)
+:END:
+
+*** Description
+Now that we have a working destruction mechanism (Type.delete() from Issue #117),
+the arena allocator is the bottleneck for memory management. The arena is a bump
+allocator — it can only grow, never free individual objects. When Type.delete() is
+called, it walks the struct's fields and deletes owned sub-objects, but the struct's
+own memory block in the arena is never reclaimed.
+
+The goal: introduce heap allocation (malloc/free) alongside the arena, then
+gradually migrate structs to it. Keep the same interface — code that creates,
+accesses, and deletes structs should not change.
+
+*** Approach: Incremental
+Don't replace the arena all at once. Instead:
+
+1. *Step 1*: Add a global heap allocator alongside the arena
+   - New module (eval_heap.rs / eval_heap.til) that wraps malloc/free
+   - Same interface as arena (alloc returns an offset, read/write by offset)
+   - Arena stays, heap is an alternative allocation target
+   - Move one simple struct type onto the heap to prove it works
+   - Run tests, verify delete() actually frees memory
+
+2. *Step 2*: Migrate more types to heap allocation
+   - Gradually move struct allocations from arena to heap
+   - Arena remains for things that don't need individual deallocation
+
+3. *Step 3*: Evaluate whether arena is still needed
+   - If everything is on the heap, arena can be removed
+   - Or keep arena for temporaries/literals if it's still useful
+
+*** Current State (Arena)
+- eval_arena.rs / eval_arena.til implement a bump allocator
+- Structs are allocated as contiguous byte ranges in the arena
+- Arena grows but never shrinks — no individual object deallocation
+- Type.delete() cleans up owned sub-objects but can't free the struct's own memory
+
+*** Key Considerations
+- Offsets currently index into arena memory — heap offsets need a separate namespace
+  or a tag bit to distinguish arena vs heap
+- Performance: malloc/free per struct vs bump allocation (likely acceptable tradeoff)
+- The Ptr type (Issue #134) may interact with this — borrowed vs owned pointers
+
 ** Issue #161: Namespace constants, static mutables, and per-instance immutables
 :PROPERTIES:
 :DISCOVERED: 2026-02-04
