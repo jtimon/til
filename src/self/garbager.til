@@ -17,14 +17,155 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
     switch e.node_type {
     // Recurse into FuncDef bodies
     case NodeType.FuncDef(func_def):
+        // Step 1: Strip dont_delete calls, collect protected var names
         mut new_body := Vec.new(Expr)
+        mut dont_delete_vars := Vec.new(Str)
         for stmt: Expr in func_def.body {
             if is_dont_delete_call(stmt) {
-                // Strip dont_delete calls from body (collected for future Step 10)
+                dd_var := get_dont_delete_var(stmt)
+                if dd_var.len().gt(0) {
+                    dont_delete_vars.push(dd_var)
+                }
             } else {
+                // Step 2: Collect create_alias var names
+                alias_var := get_create_alias_var(stmt)
+                if alias_var.len().gt(0) {
+                    dont_delete_vars.push(alias_var)
+                }
                 new_body.push(garbager_recursive(context, stmt)?)
             }
         }
+
+        // Step 2.5: Collect catch error variable names (they shadow locals in ccodegen)
+        for catch_stmt: Expr in new_body {
+            switch catch_stmt.node_type {
+            case NodeType.Catch:
+                if catch_stmt.params.len().gt(0) {
+                    mut catch_name_expr := Expr()
+                    catch_stmt.params.get(0, catch_name_expr)?
+                    switch catch_name_expr.node_type {
+                    case NodeType.Identifier(err_var_name):
+                        dont_delete_vars.push(err_var_name)
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+
+        // Step 3: Collect delete candidates (parallel vecs: var names + type names)
+        mut cand_vars := Vec.new(Str)
+        mut cand_types := Vec.new(Str)
+
+        // 3a: copy/own params with deletable types
+        for arg_def: Declaration in func_def.args {
+            if arg_def.is_copy.or(arg_def.is_own) {
+                switch arg_def.value_type {
+                case ValueType.TCustom(type_name):
+                    if is_deletable_type(type_name, context) {
+                        cand_vars.push(arg_def.name)
+                        cand_types.push(type_name)
+                    }
+                case:
+                }
+            }
+        }
+
+        // 3b: Scan new_body for Declaration nodes with deletable types.
+        // Skip if function has any catch blocks: throws can skip declarations,
+        // making unconditional deletes at function end unsafe.
+        mut has_any_catch := false
+        for catch_idx in 0..new_body.len() {
+            mut catch_check_stmt := Expr()
+            new_body.get(catch_idx, catch_check_stmt)?
+            switch catch_check_stmt.node_type {
+            case NodeType.Catch:
+                has_any_catch = true
+            case:
+            }
+        }
+        if not(has_any_catch) {
+            for stmt: Expr in new_body {
+                switch stmt.node_type {
+                case NodeType.Declaration(decl):
+                    switch decl.value_type {
+                    case ValueType.TCustom(type_name):
+                        if is_deletable_type(type_name, context) {
+                            cand_vars.push(decl.name)
+                            cand_types.push(type_name)
+                        }
+                    case:
+                    }
+                case:
+                }
+            }
+        }
+
+        // Step 4: Remove dont_delete_vars and own-transferred vars
+        // Build local name->type map for UFCS resolution in collect_own_transfers
+        mut local_types := Map.new(Str, Str)
+        for arg_def: Declaration in func_def.args {
+            switch arg_def.value_type {
+            case ValueType.TCustom(type_name):
+                local_types.set(arg_def.name, type_name)
+            case:
+            }
+        }
+        for lt_stmt: Expr in new_body {
+            switch lt_stmt.node_type {
+            case NodeType.Declaration(decl):
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    local_types.set(decl.name, type_name)
+                case:
+                }
+            case:
+            }
+        }
+        own_transfers := collect_own_transfers(new_body, context, local_types)?
+        mut filtered_vars := Vec.new(Str)
+        mut filtered_types := Vec.new(Str)
+        for i in 0..cand_vars.len() {
+            mut var_name := ""
+            cand_vars.get(i, var_name)?
+            mut type_name := ""
+            cand_types.get(i, type_name)?
+            mut excluded := var_name.eq("_")
+            for dd: Str in dont_delete_vars {
+                if dd.eq(var_name) { excluded = true }
+            }
+            for ot: Str in own_transfers {
+                if ot.eq(var_name) { excluded = true }
+            }
+            if not(excluded) {
+                filtered_vars.push(var_name)
+                filtered_types.push(type_name)
+            }
+        }
+
+        // Step 5: Append Type.delete(var) calls in reverse declaration order
+        mut last_line := e.line
+        mut last_col := e.col
+        if new_body.len().gt(0) {
+            mut last_stmt := Expr()
+            new_body.get(new_body.len().sub(1), last_stmt)?
+            last_line = last_stmt.line
+            last_col = last_stmt.col
+        }
+        mut ri := filtered_vars.len()
+        while ri.gt(0) {
+            ri = ri.sub(1)
+            mut del_var := ""
+            filtered_vars.get(ri, del_var)?
+            mut del_type := ""
+            filtered_types.get(ri, del_type)?
+            new_body.push(build_delete_call_expr(del_type, del_var, last_line, last_col))
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
+        }
+
         new_func_def := SFuncDef(
             function_type=func_def.function_type,
             args=func_def.args.clone(),
@@ -106,8 +247,7 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
                     // Exclude true primitive types - they don't need deep cloning
                     // Note: Bool is NOT excluded because true/false are global constants
                     // that would be corrupted if we just share offsets
-                    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
-                    if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+                    if is_deletable_type(type_name, context) {
                         // Build clone call: Type.clone(rhs_expr)
                         rhs_expr := first_param.clone()
                         clone_call := build_clone_call_expr(type_name, rhs_expr, e.line, e.col)
@@ -175,8 +315,7 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
                 }
                 switch assign_sym.value_type {
                 case ValueType.TCustom(type_name):
-                    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
-                    if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+                    if is_deletable_type(type_name, context) {
                         // Build clone call: Type.clone(rhs_expr)
                         rhs_expr := assign_first_param.clone()
                         clone_call := build_clone_call_expr(type_name, rhs_expr, e.line, e.col)
@@ -235,6 +374,45 @@ build_clone_call_expr := func(type_name: Str, src_expr: Expr, line: I64, col: I6
     clone_call.params.push(type_clone_access)
     clone_call.params.push(src_expr)
     return clone_call
+}
+
+/// Check if a type should have delete() calls inserted.
+/// Excludes primitives: I64, U8, Type, Dynamic, Ptr. NOT Str (has heap data).
+/// Also excludes structs with no mutable fields (no heap data to free).
+is_deletable_type := func(type_name: Str, context: Context) returns Bool {
+    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic")).or(type_name.eq("Ptr"))
+    if is_primitive {
+        return false
+    }
+    mut struct_def := context.scope_stack.lookup_struct(type_name)?
+    mut has_mut_fields := false
+    for mi in 0..struct_def.members.len() {
+        mut m := Declaration()
+        struct_def.members.get(mi, m)?
+        if m.is_mut {
+            has_mut_fields = true
+        }
+    }
+    return has_mut_fields
+
+    catch (err: KeyNotFoundError) {
+        return false
+    }
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), "IndexOutOfBoundsError in is_deletable_type: ", err.msg)
+    }
+}
+
+/// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier("var") )
+build_delete_call_expr := func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr {
+    delete_ident := Expr(node_type=NodeType.Identifier("delete"), line=line, col=col)
+    mut type_delete_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
+    type_delete_access.params.push(delete_ident)
+    var_expr := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
+    mut delete_call := Expr(node_type=NodeType.FCall(false), line=line, col=col)
+    delete_call.params.push(type_delete_access)
+    delete_call.params.push(var_expr)
+    return delete_call
 }
 
 /// Extract function name from FCall's first param (the name expression).
@@ -336,8 +514,7 @@ transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: V
             } else {
                 switch arg_def.value_type {
                 case ValueType.TCustom(type_name):
-                    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
-                    if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+                    if is_deletable_type(type_name, context) {
                         arg_expr := param_expr.clone()
                         clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
                         new_params.set(param_idx, clone_call)?
@@ -358,6 +535,239 @@ is_dont_delete_call := func(e: Expr) returns Bool {
         return func_name.eq("dont_delete")
     case:
         return false
+    }
+}
+
+/// Extract variable name from dont_delete(var) call.
+/// The variable is params[1] (params[0] is the function name).
+get_dont_delete_var := func(e: Expr) returns Str {
+    if e.params.len().lt(2) {
+        return ""
+    }
+    mut param1 := Expr()
+    e.params.get(1, param1)?
+    catch (err: IndexOutOfBoundsError) {
+        return ""
+    }
+    switch param1.node_type {
+    case NodeType.Identifier(var_name):
+        return var_name
+    case:
+        return ""
+    }
+}
+
+/// Extract variable name from create_alias(var, type, addr) call.
+get_create_alias_var := func(e: Expr) returns Str {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        func_name := get_func_name(e)
+        if func_name.eq("create_alias").and(e.params.len().gteq(3)) {
+            mut param1 := Expr()
+            e.params.get(1, param1)?
+            catch (err: IndexOutOfBoundsError) {
+                return ""
+            }
+            switch param1.node_type {
+            case NodeType.Identifier(var_name):
+                return var_name
+            case:
+            }
+        }
+    case:
+    }
+    return ""
+}
+
+/// Result of resolving a function call, including UFCS detection.
+ResolvedFCall := struct {
+    mut func_def: SFuncDef = SFuncDef()
+    mut is_ufcs: Bool = false
+}
+
+/// Walk an FCall's name expression to extract the full identifier chain.
+/// e.g., for `self.frames.push(frame)`, returns ["self", "frames", "push"]
+get_fcall_identifier_chain := proc(e: Expr, mut chain: Vec) {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        if e.params.len().gt(0) {
+            mut first := Expr()
+            e.params.get(0, first)?
+            collect_identifier_chain(first, chain)
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        // REM: empty params, no chain to extract
+    }
+}
+
+collect_identifier_chain := proc(e: Expr, mut chain: Vec) {
+    switch e.node_type {
+    case NodeType.Identifier(name):
+        chain.push(name)
+        for child: Expr in e.params {
+            collect_identifier_chain(child, chain)
+        }
+    case:
+    }
+}
+
+/// Resolve a function call from its identifier chain, handling UFCS and chained field access.
+/// For UFCS calls, self is implicit so arg-to-param mapping differs.
+resolve_fcall_from_chain := proc(chain: Vec, local_types: Map, context: Context) returns ResolvedFCall throws Str, KeyNotFoundError {
+    if chain.len().eq(0) {
+        throw KeyNotFoundError(msg="resolve_fcall_from_chain: empty chain")
+    }
+
+    mut first := ""
+    chain.get(0, first)?
+
+    // Plain function call (no dots)
+    if chain.len().eq(1) {
+        mut result := ResolvedFCall()
+        result.func_def = context.scope_stack.lookup_func(first)?
+        return result
+    }
+
+    // Try direct lookup of the joined name (works for Type.method)
+    mut full_name := ""
+    for ji in 0..chain.len() {
+        mut part := ""
+        chain.get(ji, part)?
+        if ji.gt(0) {
+            full_name = format(full_name, ".")
+        }
+        full_name = format(full_name, part)
+    }
+    mut direct_result := ResolvedFCall()
+    direct_result.func_def = context.scope_stack.lookup_func(full_name)?
+    return direct_result
+
+    catch (err: KeyNotFoundError) {
+        // REM: Direct lookup failed, try UFCS resolution
+    }
+
+    // UFCS resolution: resolve type through the chain, last part is the method
+    mut method_name := ""
+    chain.get(chain.len().sub(1), method_name)?
+
+    // Get initial type from struct name or local_types
+    mut current_type := ""
+    if context.scope_stack.has_struct(first) {
+        current_type = first
+    } else {
+        local_types.get(first, current_type)?
+        catch (err: KeyNotFoundError) {
+            throw KeyNotFoundError(msg=format("resolve_fcall_from_chain: unknown first '", first, "'"))
+        }
+    }
+
+    // Walk intermediate parts (chain[1..n-1]) via struct field type lookups
+    for wi in 1..chain.len().sub(1) {
+        mut field_name := ""
+        chain.get(wi, field_name)?
+        mut struct_def := SStructDef()
+        struct_def = context.scope_stack.lookup_struct(current_type)?
+        catch (err: KeyNotFoundError) {
+            throw KeyNotFoundError(msg=format("resolve_fcall_from_chain: struct not found '", current_type, "'"))
+        }
+        mut member := Declaration()
+        member = struct_def.get_member(field_name)?
+        switch member.value_type {
+        case ValueType.TCustom(next_type):
+            current_type = next_type
+        case:
+            throw KeyNotFoundError(msg=format("resolve_fcall_from_chain: member '", field_name, "' is primitive"))
+        }
+    }
+
+    resolved := format(current_type, ".", method_name)
+    mut ufcs_result := ResolvedFCall(is_ufcs=true)
+    ufcs_result.func_def = context.scope_stack.lookup_func(resolved)?
+    return ufcs_result
+
+    catch (err: IndexOutOfBoundsError) {
+        throw KeyNotFoundError(msg=format("resolve_fcall_from_chain: ", err.msg))
+    }
+}
+
+collect_own_transfers := proc(stmts: Vec, context: Context, local_types: Map) returns Vec throws Str {
+    mut result := Vec.new(Str)
+    for stmt: Expr in stmts {
+        collect_own_transfers_recursive(stmt, context, local_types, result)?
+    }
+    return result
+}
+
+collect_own_transfers_recursive := proc(e: Expr, context: Context, local_types: Map, mut result: Vec) throws Str {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        mut chain := Vec.new(Str)
+        get_fcall_identifier_chain(e, chain)
+        if chain.len().gt(0) {
+            mut last := ""
+            chain.get(chain.len().sub(1), last)?
+            if not(last.eq("clone")).and(not(last.eq("delete"))) {
+                mut resolved := ResolvedFCall()
+                mut found := false
+                resolved = resolve_fcall_from_chain(chain, local_types, context)?
+                found = true
+                catch (err: KeyNotFoundError) {
+                    // REM: Function not found in scope - skip, not all calls are to known functions
+                }
+                if found {
+                    // For UFCS calls (tokens.push(t)), self is implicit in the name,
+                    // so skip args[0] (self) and map args[k] -> params[k] for k >= 1.
+                    // For direct calls (Vec.push(tokens, t)), map args[i] -> params[i+1].
+                    mut arg_start := 0
+                    if resolved.is_ufcs {
+                        arg_start = 1
+                    }
+                    for i in 0..resolved.func_def.args.len() {
+                        if i.gteq(arg_start) {
+                            mut arg_def := Declaration()
+                            resolved.func_def.args.get(i, arg_def)?
+                            mut param_idx := 0
+                            if resolved.is_ufcs {
+                                param_idx = i
+                            } else {
+                                param_idx = i.add(1)
+                            }
+                            if param_idx.lt(e.params.len()).and(arg_def.is_own) {
+                                mut param_expr := Expr()
+                                e.params.get(param_idx, param_expr)?
+                                switch param_expr.node_type {
+                                case NodeType.Identifier(var_name):
+                                    if param_expr.params.len().eq(0) {
+                                        result.push(var_name)
+                                    }
+                                case:
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    case:
+    }
+    // Recurse into children
+    for param: Expr in e.params {
+        collect_own_transfers_recursive(param, context, local_types, result)?
+    }
+    // Recurse into FuncDef body if present
+    switch e.node_type {
+    case NodeType.FuncDef(inner_func_def):
+        for stmt: Expr in inner_func_def.body {
+            collect_own_transfers_recursive(stmt, context, local_types, result)?
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
     }
 }
 
@@ -408,8 +818,7 @@ transform_struct_literal_fields := proc(context: Context, e: Expr, mut new_param
                 // Check if field type is a non-primitive struct
                 switch field_decl.value_type {
                 case ValueType.TCustom(type_name):
-                    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
-                    if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+                    if is_deletable_type(type_name, context) {
                         // Check if the NamedArg's value (params[0]) is an identifier
                         if param.params.len().gt(0) {
                             mut value_expr := Expr()

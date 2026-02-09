@@ -418,7 +418,7 @@ This issue is about the general language feature; Bug #144 is a specific applica
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Open - Steps 1-9 done, Step 10 (auto-insert delete) is next
+:STATUS: Open - Steps 1-9 done, Step 10A done (98/98 pass). Step 10B (ASAP last-use) is next
 :DEPENDS: Bug #101 (unused warnings - shared infrastructure)
 :RELATED: Bug #114 (memory leak documentation), Bug #144 (for-in by-ref)
 :END:
@@ -681,9 +681,15 @@ Files: desugarer.rs, desugarer.til, container files, ptr ext_funcs,
   typer.rs, typer.til, ccodegen.rs, ccodegen.til, ext.rs, ext.til,
   garbager.rs, garbager.til, mem.til, pointers.til.
 
-**** Step 10A: Auto-insert Type.delete() at function body end
+**** Step 10A: Auto-insert Type.delete() at function body end — DONE
 
 Files: ~src/rs/garbager.rs~ and ~src/self/garbager.til~
+
+Implementation complete. 98/98 tests pass. Two fixes needed after initial implementation:
+- ~is_deletable_type~: check struct has mutable fields (not just is-a-struct).
+  Empty structs (EmptyStruct, BadAlloc, DivideByZero) have no heap data.
+- Catch guard: any catch block (not just non-final) means throws can skip
+  declarations, making unconditional deletes at function end unsafe.
 
 ***** Edits (Rust)
 

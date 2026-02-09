@@ -7,6 +7,12 @@ use std::collections::HashSet;
 use crate::rs::init::Context;
 use crate::rs::parser::{Expr, NodeType, ValueType, SFuncDef, SStructDef, SNamespaceDef, Declaration};
 
+/// Result of resolving a function call, including UFCS detection.
+struct ResolvedFCall {
+    func_def: SFuncDef,
+    is_ufcs: bool,
+}
+
 /// Garbager phase entry point: Transform AST for proper memory semantics.
 pub fn garbager_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     garbager_recursive(context, e)
@@ -17,17 +23,96 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     match &e.node_type {
         // Recurse into FuncDef bodies
         NodeType::FuncDef(func_def) => {
+            // Step 1: Strip dont_delete calls, collect protected var names
             let mut new_body = Vec::new();
-            let mut _dont_delete_vars: HashSet<String> = HashSet::new();
+            let mut dont_delete_vars: HashSet<String> = HashSet::new();
             for stmt in &func_def.body {
                 if is_dont_delete_call(stmt) {
                     if let Some(var_name) = get_dont_delete_var(stmt) {
-                        _dont_delete_vars.insert(var_name);
+                        dont_delete_vars.insert(var_name);
                     }
-                    continue; // Strip dont_delete calls from body
+                    continue;
+                }
+                // Step 2: Collect create_alias var names
+                if let Some(alias_var) = get_create_alias_var(stmt) {
+                    dont_delete_vars.insert(alias_var);
                 }
                 new_body.push(garbager_recursive(context, stmt)?);
             }
+
+            // Step 2.5: Collect catch error variable names (they shadow locals in ccodegen)
+            for stmt in &new_body {
+                if let NodeType::Catch = &stmt.node_type {
+                    if !stmt.params.is_empty() {
+                        if let NodeType::Identifier(err_var_name) = &stmt.params[0].node_type {
+                            dont_delete_vars.insert(err_var_name.clone());
+                        }
+                    }
+                }
+            }
+
+            // Step 3: Collect delete candidates
+            let mut candidates: Vec<(String, String)> = Vec::new();
+
+            // 3a: copy/own params with deletable types
+            for arg_def in &func_def.args {
+                if arg_def.is_copy || arg_def.is_own {
+                    if let ValueType::TCustom(type_name) = &arg_def.value_type {
+                        if is_deletable_type(type_name, context) {
+                            candidates.push((arg_def.name.clone(), type_name.clone()));
+                        }
+                    }
+                }
+            }
+
+            // 3b: Scan new_body for Declaration nodes with deletable types.
+            // Skip if function has any catch blocks: throws can skip declarations,
+            // making unconditional deletes at function end unsafe.
+            let has_any_catch = new_body.iter().any(|stmt| {
+                matches!(&stmt.node_type, NodeType::Catch)
+            });
+            if !has_any_catch {
+                for stmt in &new_body {
+                    if let NodeType::Declaration(decl) = &stmt.node_type {
+                        if let ValueType::TCustom(type_name) = &decl.value_type {
+                            if is_deletable_type(type_name, context) {
+                                candidates.push((decl.name.clone(), type_name.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Step 4: Remove dont_delete_vars, own-transferred vars, and wildcards
+            // Build local name->type map for UFCS resolution in collect_own_transfers
+            let mut local_types: HashMap<String, String> = HashMap::new();
+            for arg_def in &func_def.args {
+                if let ValueType::TCustom(type_name) = &arg_def.value_type {
+                    local_types.insert(arg_def.name.clone(), type_name.clone());
+                }
+            }
+            for stmt in &new_body {
+                if let NodeType::Declaration(decl) = &stmt.node_type {
+                    if let ValueType::TCustom(type_name) = &decl.value_type {
+                        local_types.insert(decl.name.clone(), type_name.clone());
+                    }
+                }
+            }
+            let own_transfers = collect_own_transfers(&new_body, context, &local_types);
+            candidates.retain(|(var_name, _)| {
+                var_name != "_"
+                    && !dont_delete_vars.contains(var_name)
+                    && !own_transfers.contains(var_name)
+            });
+
+            // Step 5: Append Type.delete(var) calls in reverse declaration order
+            let last_line = new_body.last().map_or(e.line, |s| s.line);
+            let last_col = new_body.last().map_or(e.col, |s| s.col);
+            candidates.reverse();
+            for (var_name, type_name) in &candidates {
+                new_body.push(build_delete_call_expr(type_name, var_name, last_line, last_col));
+            }
+
             let new_func_def = SFuncDef {
                 function_type: func_def.function_type.clone(),
                 args: func_def.args.clone(),
@@ -36,7 +121,6 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 body: new_body,
                 source_path: func_def.source_path.clone(),
             };
-            // Also recurse into params (e.g., default argument values)
             let mut new_params = Vec::new();
             for param in &e.params {
                 new_params.push(garbager_recursive(context, param)?);
@@ -92,8 +176,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         // Exclude true primitive types - they don't need deep cloning
                         // Note: Bool is NOT excluded because true/false are global constants
                         // that would be corrupted if we just share offsets
-                        let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
-                        if !is_primitive && context.scope_stack.has_struct(type_name) {
+                        if is_deletable_type(type_name, context) {
                             // Build clone call: Type.clone(rhs_expr)
                             let rhs_expr = new_params[0].clone();
                             let clone_call = build_clone_call_expr(type_name, rhs_expr, e.line, e.col);
@@ -141,8 +224,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         // Look up identifier's symbol type
                         if let Some(sym) = context.scope_stack.lookup_symbol(rhs_name) {
                             if let ValueType::TCustom(type_name) = &sym.value_type {
-                                let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
-                                if !is_primitive && context.scope_stack.has_struct(type_name) {
+                                if is_deletable_type(type_name, context) {
                                     // Build clone call: Type.clone(rhs_expr)
                                     let rhs_expr = new_params[0].clone();
                                     let clone_call = build_clone_call_expr(type_name, rhs_expr, e.line, e.col);
@@ -205,6 +287,30 @@ fn build_clone_call_expr(type_name: &str, src_expr: Expr, line: usize, col: usiz
         line,
         col,
     )
+}
+
+/// Check if a type should have delete() calls inserted.
+/// Excludes primitives: I64, U8, Type, Dynamic, Ptr. NOT Str (has heap data).
+/// Also excludes structs with no mutable fields (no heap data to free).
+fn is_deletable_type(type_name: &str, context: &Context) -> bool {
+    let is_primitive = matches!(type_name, "I64" | "U8" | "Type" | "Dynamic" | "Ptr");
+    if is_primitive { return false; }
+    if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
+        struct_def.members.iter().any(|m| m.is_mut)
+    } else {
+        false
+    }
+}
+
+/// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier("var") )
+fn build_delete_call_expr(type_name: &str, var_name: &str, line: usize, col: usize) -> Expr {
+    let delete_ident = Expr::new_explicit(
+        NodeType::Identifier("delete".to_string()), vec![], line, col);
+    let type_delete_access = Expr::new_explicit(
+        NodeType::Identifier(type_name.to_string()), vec![delete_ident], line, col);
+    let var_expr = Expr::new_explicit(
+        NodeType::Identifier(var_name.to_string()), vec![], line, col);
+    Expr::new_explicit(NodeType::FCall(false), vec![type_delete_access, var_expr], line, col)
 }
 
 /// Extract function name from FCall's first param (the name expression).
@@ -272,8 +378,7 @@ fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec
             continue;
         }
         if let ValueType::TCustom(type_name) = &arg_def.value_type {
-            let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
-            if !is_primitive && context.scope_stack.has_struct(type_name) {
+            if is_deletable_type(type_name, context) {
                 let arg_expr = new_params[param_idx].clone();
                 let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
                 new_params[param_idx] = clone_call;
@@ -302,6 +407,135 @@ fn get_dont_delete_var(e: &Expr) -> Option<String> {
         return Some(var_name.clone());
     }
     None
+}
+
+/// Extract variable name from create_alias(var, type, addr) call.
+fn get_create_alias_var(e: &Expr) -> Option<String> {
+    if let NodeType::FCall(_) = &e.node_type {
+        if let Some(name) = get_func_name(e) {
+            if name == "create_alias" && e.params.len() >= 3 {
+                if let NodeType::Identifier(var_name) = &e.params[1].node_type {
+                    return Some(var_name.clone());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Walk an FCall's name expression to extract the full identifier chain.
+/// e.g., for `self.frames.push(frame)`, returns ["self", "frames", "push"]
+fn get_fcall_identifier_chain(e: &Expr) -> Vec<String> {
+    let mut chain = Vec::new();
+    if let NodeType::FCall(_) = &e.node_type {
+        if let Some(first) = e.params.first() {
+            collect_identifier_chain(first, &mut chain);
+        }
+    }
+    chain
+}
+
+fn collect_identifier_chain(e: &Expr, chain: &mut Vec<String>) {
+    if let NodeType::Identifier(name) = &e.node_type {
+        chain.push(name.clone());
+        for child in &e.params {
+            collect_identifier_chain(child, chain);
+        }
+    }
+}
+
+/// Resolve a function call from its identifier chain, handling UFCS and chained field access.
+/// For UFCS calls, self is implicit so arg-to-param mapping differs.
+fn resolve_fcall_from_chain(chain: &[String], local_types: &HashMap<String, String>, context: &Context) -> Option<ResolvedFCall> {
+    if chain.is_empty() { return None; }
+
+    // Plain function call (no dots)
+    if chain.len() == 1 {
+        return context.scope_stack.lookup_func(&chain[0]).cloned()
+            .map(|fd| ResolvedFCall { func_def: fd, is_ufcs: false });
+    }
+
+    // Try direct lookup of the joined name (works for Type.method)
+    let full_name = chain.join(".");
+    if let Some(fd) = context.scope_stack.lookup_func(&full_name) {
+        return Some(ResolvedFCall { func_def: fd.clone(), is_ufcs: false });
+    }
+
+    // UFCS resolution: resolve type through the chain, last part is the method
+    let method_name = &chain[chain.len() - 1];
+    let first = &chain[0];
+
+    // Get initial type from struct name or local_types
+    let mut current_type = if context.scope_stack.has_struct(first) {
+        first.clone()
+    } else if let Some(t) = local_types.get(first) {
+        t.clone()
+    } else {
+        return None;
+    };
+
+    // Walk intermediate parts (chain[1..n-1]) via struct field type lookups
+    for i in 1..chain.len()-1 {
+        let field_name = &chain[i];
+        let struct_def = context.scope_stack.lookup_struct(&current_type)?;
+        let member = struct_def.get_member(field_name)?;
+        if let ValueType::TCustom(next_type) = &member.value_type {
+            current_type = next_type.clone();
+        } else {
+            return None;
+        }
+    }
+
+    let resolved = format!("{}.{}", current_type, method_name);
+    context.scope_stack.lookup_func(&resolved).cloned()
+        .map(|fd| ResolvedFCall { func_def: fd, is_ufcs: true })
+}
+
+/// Scan statements for variables passed as `own` args to function calls.
+fn collect_own_transfers(stmts: &[Expr], context: &Context, local_types: &HashMap<String, String>) -> HashSet<String> {
+    let mut result = HashSet::new();
+    for stmt in stmts {
+        collect_own_transfers_recursive(stmt, context, local_types, &mut result);
+    }
+    result
+}
+
+fn collect_own_transfers_recursive(e: &Expr, context: &Context, local_types: &HashMap<String, String>, result: &mut HashSet<String>) {
+    if let NodeType::FCall(_) = &e.node_type {
+        let chain = get_fcall_identifier_chain(e);
+        if !chain.is_empty() {
+            let last = &chain[chain.len() - 1];
+            if last != "clone" && last != "delete" {
+                if let Some(resolved) = resolve_fcall_from_chain(&chain, local_types, context) {
+                    let func_def = &resolved.func_def;
+                    let is_ufcs = resolved.is_ufcs;
+                    // For UFCS calls (tokens.push(t)), self is implicit in the name,
+                    // so skip args[0] (self) and map args[k] -> params[k] for k >= 1.
+                    // For direct calls (Vec.push(tokens, t)), map args[i] -> params[i+1].
+                    let arg_start: usize = if is_ufcs { 1 } else { 0 };
+                    for (i, arg_def) in func_def.args.iter().enumerate() {
+                        if i < arg_start { continue; }
+                        let param_idx = if is_ufcs { i } else { i + 1 };
+                        if param_idx < e.params.len() && arg_def.is_own {
+                            if let NodeType::Identifier(var_name) = &e.params[param_idx].node_type {
+                                if e.params[param_idx].params.is_empty() {
+                                    result.insert(var_name.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for param in &e.params {
+        collect_own_transfers_recursive(param, context, local_types, result);
+    }
+    if let NodeType::FuncDef(func_def) = &e.node_type {
+        for stmt in &func_def.body {
+            collect_own_transfers_recursive(stmt, context, local_types, result);
+        }
+    }
 }
 
 /// Issue #159 Step 5: Transform struct literal fields.
@@ -335,8 +569,7 @@ fn transform_struct_literal_fields(context: &Context, e: &Expr, new_params: &mut
             };
             // Check if field type is a non-primitive struct
             if let ValueType::TCustom(type_name) = &field_decl.value_type {
-                let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
-                if is_primitive || !context.scope_stack.has_struct(type_name) {
+                if !is_deletable_type(type_name, context) {
                     continue;
                 }
                 // Check if the NamedArg's value (params[0]) is an identifier
