@@ -9,14 +9,14 @@ import("self.garbager")
 import("self.ufcs")
 import("self.precomp")
 import("self.ext")
-import("self.eval_arena")
+import("self.eval_heap")
 import("self.mode")         // parse_mode, can_be_imported
 import("self.lexer")        // lexer_from_source, parse_tokens
 import("std.io")            // readfile
 
 // Interpreter/Eval phase: Runtime evaluation and execution
 // This module handles the eval phase that runs after type checking.
-// Manages arena, memory allocation, and actual program execution.
+// Manages heap memory allocation and actual program execution.
 
 RETURN_INSTANCE_NAME := "___temp_return_val_"
 
@@ -32,13 +32,13 @@ i64_to_le_bytes := func(val: I64) returns Vec {
     return bytes
 }
 
-/// Copy bytes from arena memory into a Vec<U8>
-arena_memory_slice := func(arena: EvalArena, offset: I64, size: I64) returns Vec {
+/// Copy bytes from heap memory into a Vec<U8>
+heap_memory_slice := func(heap: EvalHeap, offset: I64, size: I64) returns Vec {
     mut bytes := Vec.new(U8)
     for _ in 0..size {
         bytes.push(0)
     }
-    memcpy(bytes.ptr.data, arena.get(offset, size), size)
+    memcpy(bytes.ptr.data, heap.get(offset, size), size)
     return bytes
 }
 
@@ -50,7 +50,7 @@ EvalResult := struct {
     mut is_break: Bool = false
     mut is_continue: Bool = false
     mut thrown_type: Str = ""  // Empty string = None
-    mut arena_offset: I64 = 0  // 0 means None (arena offset 0 is reserved for null)
+    mut heap_offset: I64 = 0  // 0 means None (heap offset 0 is reserved for null)
 }
 
 namespace EvalResult {
@@ -91,7 +91,7 @@ eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr)
     // Otherwise it's a Bool struct identifier - read its .data field
     bool_id := result.value
     data_field_id := format(bool_id, ".data")
-    u8_val := EvalArena.get_u8(context, data_field_id, expr)?
+    u8_val := EvalHeap.get_u8(context, data_field_id, expr)?
     u8_zero := U8.from_i64(0)?
     catch (err: U8_Overflow) { throw err.msg }
     return not(u8_val.eq(u8_zero))
@@ -100,7 +100,7 @@ eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr)
 // validate_func_arg_count is in typer.til
 
 /// Read PRIMITIVE field values from an already-evaluated struct instance.
-/// This reads ACTUAL primitive values (I64, U8, Str) from the arena.
+/// This reads ACTUAL primitive values (I64, U8, Str) from the heap.
 /// For nested struct fields (Str, Vec, etc.), recursively reads primitive values
 /// but skips ptr fields to avoid copying pointers to temp instance memory.
 /// Bug #43 fix: Recursively read primitive fields from nested structs to get
@@ -139,12 +139,12 @@ read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type
                         // Skip - let these use static default (0)
                     } else {
                         // Read actual I64 value from evaluated instance
-                        val := EvalArena.get_i64(ctx, field_id, e)?
+                        val := EvalHeap.get_i64(ctx, field_id, e)?
                         values.set(key, val.to_str())
                     }
                 } else if type_name.eq("U8") {
                     // Read actual U8 value from evaluated instance
-                    u8_val := EvalArena.get_u8(ctx, field_id, e)?
+                    u8_val := EvalHeap.get_u8(ctx, field_id, e)?
                     values.set(key, u8_val.to_str())
                 } else if type_name.eq("Str") {
                     // Bug #43 fix: Read actual string VALUE, not pointer
@@ -284,9 +284,9 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
 /// Called eagerly when struct declarations are evaluated.
 create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) returns I64 throws Str {
     // Check if template already exists (e.g., from a previous import)
-    if g_arena.default_instances.contains_key(struct_type) {
+    if g_heap.default_instances.contains_key(struct_type) {
         mut offset := 0
-        g_arena.default_instances.get(struct_type, offset)?
+        g_heap.default_instances.get(struct_type, offset)?
         catch (err: KeyNotFoundError) { throw err.msg }
         return offset
     }
@@ -301,19 +301,19 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
     // Evaluate defaults and create template
     defaults := eval_struct_defaults(ctx, struct_type, e)?
     // Pass negative value to indicate "allocate new memory" (since offset 0 is reserved/invalid)
-    result := EvalArena.insert_struct_core(ctx, template_id, struct_type, sub(0, 1), defaults, e)?
+    result := EvalHeap.insert_struct_core(ctx, template_id, struct_type, sub(0, 1), defaults, e)?
 
-    // Get the template's arena offset (first mapping is the base struct)
-    if result.arena_mappings.len().eq(0) {
-        throw e.lang_error(ctx.path, "create_default_instance", "No arena mapping for template")
+    // Get the template's heap offset (first mapping is the base struct)
+    if result.heap_mappings.len().eq(0) {
+        throw e.lang_error(ctx.path, "create_default_instance", "No heap mapping for template")
     }
-    mut first_mapping := EvalArenaMapping()
-    result.arena_mappings.get(0, first_mapping)?
+    mut first_mapping := EvalHeapMapping()
+    result.heap_mappings.get(0, first_mapping)?
     template_offset := first_mapping.offset
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Cache the template offset
-    g_arena.default_instances.set(struct_type, template_offset.clone())
+    g_heap.default_instances.set(struct_type, template_offset.clone())
 
     return template_offset
 }
@@ -321,13 +321,13 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
 /// Insert a struct instance using cached template.
 /// Template is guaranteed to exist - created eagerly on eval_declaration.
 insert_struct_instance := proc(mut ctx: Context, id: Str, type_name: Str, e: Expr) throws Str {
-    if not(g_arena.default_instances.contains_key(type_name)) {
+    if not(g_heap.default_instances.contains_key(type_name)) {
         throw e.lang_error(ctx.path, "insert_struct_instance", format("template for '", type_name, "' not found"))
     }
     mut template_offset := 0
-    g_arena.default_instances.get(type_name, template_offset)?
+    g_heap.default_instances.get(type_name, template_offset)?
     catch (err: KeyNotFoundError) { throw err.msg }
-    EvalArena.insert_struct(ctx, id, type_name, template_offset, e)?
+    EvalHeap.insert_struct(ctx, id, type_name, template_offset, e)?
 }
 
 eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
@@ -406,7 +406,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                 return return_result
             }
             mut ret := EvalResult.new_return(return_result.value)
-            ret.arena_offset = return_result.arena_offset
+            ret.heap_offset = return_result.heap_offset
             return ret
         }
     case NodeType.Throw:
@@ -482,8 +482,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
             if has_named_args {
                 // Struct literal: Vec2(x=10, y=20)
                 // Create a temp instance, set field values, return temp name
-                temp_id := g_arena.temp_id_counter
-                g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
+                temp_id := g_heap.temp_id_counter
+                g_heap.temp_id_counter = g_heap.temp_id_counter.add(1)
                 temp_name := format(RETURN_INSTANCE_NAME, I64.to_str(temp_id))
 
                 // Declare the temp symbol
@@ -534,23 +534,23 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                         switch field_type {
                         case ValueType.TCustom(field_type_name):
                             if field_type_name.eq("I64") {
-                                EvalArena.insert_i64(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
+                                EvalHeap.insert_i64(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
                             } else if field_type_name.eq("U8") {
-                                EvalArena.insert_u8(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
+                                EvalHeap.insert_u8(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
                             } else if field_type_name.eq("Str") {
-                                if named_value_result.arena_offset.gt(0) {
+                                if named_value_result.heap_offset.gt(0) {
                                     str_field_dest_offset := context.get_field_offset(field_id)?
                                     str_field_type_size := context.get_type_size("Str")?
-                                    g_arena.set(str_field_dest_offset, g_arena.get(named_value_result.arena_offset, str_field_type_size), str_field_type_size)
+                                    g_heap.set(str_field_dest_offset, g_heap.get(named_value_result.heap_offset, str_field_type_size), str_field_type_size)
                                 } else {
-                                    EvalArena.insert_string(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
+                                    EvalHeap.insert_string(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
                                 }
                             } else {
                                 // Could be enum or nested struct
                                 field_custom_symbol := context.scope_stack.lookup_symbol(field_type_name.clone())?
                                 switch field_custom_symbol.value_type {
                                 case ValueType.TType(TTypeDef.TEnumDef):
-                                    _ := EvalArena.insert_enum(context, field_id.clone(), field_type_name.clone(), named_value_result.value.clone(), named_arg)?
+                                    _ := EvalHeap.insert_enum(context, field_id.clone(), field_type_name.clone(), named_value_result.value.clone(), named_arg)?
                                 case ValueType.TType(TTypeDef.TStructDef):
                                     // Issue #159: deep copy via memcpy.
                                     // Garbager inserts clone for identifier args; fresh constructors are already new.
@@ -558,7 +558,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                     src_offset := context.scope_stack.lookup_var(named_value_result.value)?
                                     dest_offset := context.get_field_offset(field_id)?
                                     type_size := context.get_type_size(field_type_name)?
-                                    g_arena.set(dest_offset, g_arena.get(src_offset, type_size), type_size)
+                                    g_heap.set(dest_offset, g_heap.get(src_offset, type_size), type_size)
                                 case:
                                     throw named_arg.error(context.path, "eval", format("Unsupported field type '", field_type_name, "' for field '", field_name, "'"))
                                 }
@@ -574,8 +574,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                 // Default constructor: Vec2()
                 // Bug #160 fix: Create temp instance instead of using type name
                 // This ensures field access via get_field_offset works correctly
-                temp_id := g_arena.temp_id_counter
-                g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
+                temp_id := g_heap.temp_id_counter
+                g_heap.temp_id_counter = g_heap.temp_id_counter.add(1)
                 temp_name := format(RETURN_INSTANCE_NAME, I64.to_str(temp_id))
 
                 // Declare temp symbol
@@ -669,13 +669,13 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                     // For Str payloads with identifier expressions (like t.token_str),
                                     // create a temporary Str from the evaluated result value
                                     last_frame := context.scope_stack.last_frame()?
-                                    temp_var_name := format("__temp_str_", I64.to_str(last_frame.arena_index.len()))
+                                    temp_var_name := format("__temp_str_", I64.to_str(last_frame.heap_index.len()))
                                     string_value := payload_result.value
 
                                     // Add symbol entry before calling insert_string
                                     context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))?
 
-                                    EvalArena.insert_string(context, temp_var_name, string_value, e)?
+                                    EvalHeap.insert_string(context, temp_var_name, string_value, e)?
                                     struct_var_name = temp_var_name
                                     struct_var_set = true
                                 } else {
@@ -688,13 +688,13 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                     if struct_type_name.eq("Str") {
                                         // For string literals, create a temporary Str struct
                                         str_lit_last_frame := context.scope_stack.last_frame()?
-                                        str_lit_temp_var_name := format("__temp_str_", I64.to_str(str_lit_last_frame.arena_index.len()))
+                                        str_lit_temp_var_name := format("__temp_str_", I64.to_str(str_lit_last_frame.heap_index.len()))
                                         str_lit_string_value := payload_result.value
 
                                         // Add symbol entry before calling insert_string
                                         context.scope_stack.declare_symbol(str_lit_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))?
 
-                                        EvalArena.insert_string(context, str_lit_temp_var_name, str_lit_string_value, e)?
+                                        EvalHeap.insert_string(context, str_lit_temp_var_name, str_lit_string_value, e)?
                                         struct_var_name = str_lit_temp_var_name
                                         struct_var_set = true
                                     }
@@ -702,13 +702,13 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                     if struct_type_name.eq("I64") {
                                         // For I64 literals, create a temporary I64 struct
                                         i64_lit_last_frame := context.scope_stack.last_frame()?
-                                        i64_lit_temp_var_name := format("__temp_i64_", I64.to_str(i64_lit_last_frame.arena_index.len()))
+                                        i64_lit_temp_var_name := format("__temp_i64_", I64.to_str(i64_lit_last_frame.heap_index.len()))
                                         i64_lit_value := payload_result.value
 
                                         // Add symbol entry before calling insert_i64
                                         context.scope_stack.declare_symbol(i64_lit_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("I64")))?
 
-                                        EvalArena.insert_i64(context, i64_lit_temp_var_name, i64_lit_value, e)?
+                                        EvalHeap.insert_i64(context, i64_lit_temp_var_name, i64_lit_value, e)?
                                         struct_var_name = i64_lit_temp_var_name
                                         struct_var_set = true
                                     }
@@ -718,12 +718,12 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                             case NodeType.FCall(_):
                                 if struct_type_name.eq("Str") {
                                     str_fcall_last_frame := context.scope_stack.last_frame()?
-                                    str_fcall_temp_var_name := format("__temp_str_", I64.to_str(str_fcall_last_frame.arena_index.len()))
+                                    str_fcall_temp_var_name := format("__temp_str_", I64.to_str(str_fcall_last_frame.heap_index.len()))
                                     str_fcall_string_value := payload_result.value
 
                                     context.scope_stack.declare_symbol(str_fcall_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))?
 
-                                    EvalArena.insert_string(context, str_fcall_temp_var_name, str_fcall_string_value, e)?
+                                    EvalHeap.insert_string(context, str_fcall_temp_var_name, str_fcall_string_value, e)?
                                     struct_var_name = str_fcall_temp_var_name
                                     struct_var_set = true
                                 }
@@ -734,15 +734,15 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 throw e.error(context.path, "eval", format("Enum variant payload must be a variable, literal, or function call, got ", enum_to_str(payload_expr.node_type)))
                             }
 
-                            // Get struct offset from arena
+                            // Get struct offset from heap
                             mut struct_offset := 0
                             struct_offset = context.scope_stack.lookup_var(struct_var_name)?
                             catch (err: KeyNotFoundError) {
-                                throw e.error(context.path, "eval", format("Struct '", struct_var_name, "' not found in arena"))
+                                throw e.error(context.path, "eval", format("Struct '", struct_var_name, "' not found in heap"))
                             }
 
-                            // Copy struct bytes from arena
-                            payload_bytes = arena_memory_slice(g_arena, struct_offset, struct_size)
+                            // Copy struct bytes from heap
+                            payload_bytes = heap_memory_slice(g_heap, struct_offset, struct_size)
                             handled_payload = true
 
                         case ValueType.TType(TTypeDef.TEnumDef):
@@ -758,7 +758,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 } else {
                                     // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
                                     enum_ctor_last_frame := context.scope_stack.last_frame()?
-                                    enum_ctor_temp_var_name := format("__temp_enum_", I64.to_str(enum_ctor_last_frame.arena_index.len()))
+                                    enum_ctor_temp_var_name := format("__temp_enum_", I64.to_str(enum_ctor_last_frame.heap_index.len()))
 
                                     enum_ctor_nested_result := eval_expr(context, payload_expr)?
                                     if enum_ctor_nested_result.is_throw {
@@ -767,14 +767,14 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
                                     context.scope_stack.declare_symbol(enum_ctor_temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))?
 
-                                    _ := EvalArena.insert_enum(context, enum_ctor_temp_var_name, struct_type_name, enum_ctor_nested_result.value, e)?
+                                    _ := EvalHeap.insert_enum(context, enum_ctor_temp_var_name, struct_type_name, enum_ctor_nested_result.value, e)?
                                     enum_var_name = enum_ctor_temp_var_name
                                     enum_var_set = true
                                 }
                             case NodeType.FCall(_):
                                 // This is a nested enum constructor call
                                 enum_fcall_last_frame := context.scope_stack.last_frame()?
-                                enum_fcall_temp_var_name := format("__temp_enum_", I64.to_str(enum_fcall_last_frame.arena_index.len()))
+                                enum_fcall_temp_var_name := format("__temp_enum_", I64.to_str(enum_fcall_last_frame.heap_index.len()))
 
                                 enum_fcall_nested_result := eval_expr(context, payload_expr)?
                                 if enum_fcall_nested_result.is_throw {
@@ -783,7 +783,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
                                 context.scope_stack.declare_symbol(enum_fcall_temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))?
 
-                                _ := EvalArena.insert_enum(context, enum_fcall_temp_var_name, struct_type_name, enum_fcall_nested_result.value, e)?
+                                _ := EvalHeap.insert_enum(context, enum_fcall_temp_var_name, struct_type_name, enum_fcall_nested_result.value, e)?
                                 enum_var_name = enum_fcall_temp_var_name
                                 enum_var_set = true
                             case:
@@ -794,7 +794,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                             }
 
                             // Get the full enum value including its payload
-                            enum_val := EvalArena.get_enum(context, enum_var_name, e)?
+                            enum_val := EvalHeap.get_enum(context, enum_var_name, e)?
 
                             // Calculate total enum size: 8 bytes tag + payload bytes
                             mut enum_bytes := Vec.new(U8)
@@ -922,7 +922,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             }
             i64_expr_result_str := i64_result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
-            EvalArena.insert_primitive(context, declaration.name, value_type, i64_expr_result_str, e)?
+            EvalHeap.insert_primitive(context, declaration.name, value_type, i64_expr_result_str, e)?
             return EvalResult.new("")
         } else if s.eq("U8") {
             u8_result := eval_expr(context, inner_e)?
@@ -931,7 +931,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             }
             u8_expr_result_str := u8_result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
-            EvalArena.insert_primitive(context, declaration.name, value_type, u8_expr_result_str, e)?
+            EvalHeap.insert_primitive(context, declaration.name, value_type, u8_expr_result_str, e)?
             return EvalResult.new("")
         } else if s.eq("Str") {
             str_result := eval_expr(context, inner_e)?
@@ -939,17 +939,17 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 return str_result
             }
             str_expr_result_str := str_result.value
-            str_expr_arena_offset := str_result.arena_offset
+            str_expr_heap_offset := str_result.heap_offset
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
-            if str_expr_arena_offset.gt(0) {
+            if str_expr_heap_offset.gt(0) {
                 mut str_decl_last_idx := context.scope_stack.frames.len().sub(1)
                 mut str_decl_last_frame := ScopeFrame()
                 context.scope_stack.frames.get(str_decl_last_idx, str_decl_last_frame)?
-                str_decl_last_frame.arena_index.set(declaration.name, str_expr_arena_offset)
+                str_decl_last_frame.heap_index.set(declaration.name, str_expr_heap_offset)
                 context.scope_stack.frames.set(str_decl_last_idx, str_decl_last_frame)?
                 return EvalResult.new("")
             }
-            EvalArena.insert_primitive(context, declaration.name, value_type, str_expr_result_str, e)?
+            EvalHeap.insert_primitive(context, declaration.name, value_type, str_expr_result_str, e)?
             return EvalResult.new("")
         } else {
             // Custom type (not I64/U8/Str)
@@ -977,7 +977,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     return enum_def_result
                 }
                 enum_expr_result_str := enum_def_result.value
-                _ := EvalArena.insert_enum(context, declaration.name, custom_type_name, enum_expr_result_str, e)?
+                _ := EvalHeap.insert_enum(context, declaration.name, custom_type_name, enum_expr_result_str, e)?
             } else if is_struct_def {
                 // Special case for instantiation
                 mut is_fcall := false
@@ -1029,12 +1029,12 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     }
                 }
                 if not(struct_found_offset) {
-                    throw e.lang_error(context.path, "eval", format("Could not find arena index for '", struct_expr_result_str, "'"))
+                    throw e.lang_error(context.path, "eval", format("Could not find heap index for '", struct_expr_result_str, "'"))
                 }
                 mut struct_last_idx := context.scope_stack.frames.len().sub(1)
                 mut struct_last_frame := ScopeFrame()
                 context.scope_stack.frames.get(struct_last_idx, struct_last_frame)?
-                struct_last_frame.arena_index.set(declaration.name, struct_offset)
+                struct_last_frame.heap_index.set(declaration.name, struct_offset)
                 context.scope_stack.frames.set(struct_last_idx, struct_last_frame)?
             } else {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(custom_symbol.value_type), "'. Only 'enum' and 'struct' custom types allowed."))
@@ -1087,11 +1087,11 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         }
                         member_expr_result_str := member_result.value
                         if member_type_name.eq("I64") {
-                            EvalArena.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
+                            EvalHeap.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
                         } else if member_type_name.eq("U8") {
-                            EvalArena.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
+                            EvalHeap.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
                         } else if member_type_name.eq("Str") {
-                            EvalArena.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
+                            EvalHeap.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
                         } else {
                             // Issue #159 Step 7: Replace copy_fields with memcpy
                             // for struct member default values during struct definition.
@@ -1102,7 +1102,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                             }
                             nested_dest_offset := context.get_field_offset(combined_name)?
                             nested_type_size := context.get_type_size(member_type_name)?
-                            g_arena.set(nested_dest_offset, g_arena.get(nested_src_offset, nested_type_size), nested_type_size)
+                            g_heap.set(nested_dest_offset, g_heap.get(nested_src_offset, nested_type_size), nested_type_size)
                         }
                     case:
                         throw e.todo_error(context.path, "eval", format("Cannot declare '", declaration.name, ".", member_decl.name, "' of type '", value_type_to_str(member_decl.value_type), "'"))
@@ -1177,35 +1177,35 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                 return assign_i64_result
             }
             assign_i64_expr_result_str := assign_i64_result.value
-            EvalArena.insert_primitive(context, var_name, value_type, assign_i64_expr_result_str, e)?
+            EvalHeap.insert_primitive(context, var_name, value_type, assign_i64_expr_result_str, e)?
         } else if s.eq("U8") {
             assign_u8_result := eval_expr(context, inner_e)?
             if assign_u8_result.is_throw {
                 return assign_u8_result
             }
             assign_u8_expr_result_str := assign_u8_result.value
-            EvalArena.insert_primitive(context, var_name, value_type, assign_u8_expr_result_str, e)?
+            EvalHeap.insert_primitive(context, var_name, value_type, assign_u8_expr_result_str, e)?
         } else if s.eq("Str") {
             assign_str_result := eval_expr(context, inner_e)?
             if assign_str_result.is_throw {
                 return assign_str_result
             }
             assign_str_expr_result_str := assign_str_result.value
-            assign_str_arena_offset := assign_str_result.arena_offset
-            if assign_str_arena_offset.gt(0) {
+            assign_str_heap_offset := assign_str_result.heap_offset
+            if assign_str_heap_offset.gt(0) {
                 mut assign_str_dest_offset := 0
                 if var_name.contains(".") {
                     assign_str_dest_offset = context.get_field_offset(var_name)?
                 } else {
                     assign_str_dest_offset = context.scope_stack.lookup_var(var_name)?
                     catch (err: KeyNotFoundError) {
-                        throw e.lang_error(context.path, "eval", format("Could not find arena index for '", var_name, "'"))
+                        throw e.lang_error(context.path, "eval", format("Could not find heap index for '", var_name, "'"))
                     }
                 }
                 assign_str_type_size := context.get_type_size("Str")?
-                g_arena.set(assign_str_dest_offset, g_arena.get(assign_str_arena_offset, assign_str_type_size), assign_str_type_size)
+                g_heap.set(assign_str_dest_offset, g_heap.get(assign_str_heap_offset, assign_str_type_size), assign_str_type_size)
             } else {
-                EvalArena.insert_primitive(context, var_name, value_type, assign_str_expr_result_str, e)?
+                EvalHeap.insert_primitive(context, var_name, value_type, assign_str_expr_result_str, e)?
             }
         } else {
             // Custom type
@@ -1222,7 +1222,7 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                     return assign_enum_result
                 }
                 assign_enum_expr_result_str := assign_enum_result.value
-                _ := EvalArena.insert_enum(context, var_name, assign_custom_type_name, assign_enum_expr_result_str, e)?
+                _ := EvalHeap.insert_enum(context, var_name, assign_custom_type_name, assign_enum_expr_result_str, e)?
             case ValueType.TType(TTypeDef.TStructDef):
                 assign_struct_result := eval_expr(context, inner_e)?
                 if assign_struct_result.is_throw {
@@ -1248,7 +1248,7 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                     }
                     assign_dest_offset := context.get_field_offset(var_name)?
                     assign_type_size := context.get_type_size(assign_custom_type_name)?
-                    g_arena.set(assign_dest_offset, g_arena.get(assign_src_offset, assign_type_size), assign_type_size)
+                    g_heap.set(assign_dest_offset, g_heap.get(assign_src_offset, assign_type_size), assign_type_size)
                 } else {
                     // Simple var: memcpy into existing slot
                     // Must use memcpy (not offset rebinding) because the variable
@@ -1265,14 +1265,14 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                         }
                     }
                     if not(assign_src_found) {
-                        throw inner_e.lang_error(context.path, "eval", format("Could not find arena index for '", assign_struct_expr_result_str, "'"))
+                        throw inner_e.lang_error(context.path, "eval", format("Could not find heap index for '", assign_struct_expr_result_str, "'"))
                     }
                     assign_dest_offset := context.scope_stack.lookup_var(var_name)?
                     catch (err: KeyNotFoundError) {
-                        throw inner_e.lang_error(context.path, "eval", format("Could not find arena index for '", var_name, "'"))
+                        throw inner_e.lang_error(context.path, "eval", format("Could not find heap index for '", var_name, "'"))
                     }
                     assign_type_size := context.get_type_size(assign_custom_type_name)?
-                    g_arena.set(assign_dest_offset, g_arena.get(assign_src_offset, assign_type_size), assign_type_size)
+                    g_heap.set(assign_dest_offset, g_heap.get(assign_src_offset, assign_type_size), assign_type_size)
                 }
             case:
                 throw inner_e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of custom type '", assign_custom_type_name, "' of value type '", value_type_to_str(assign_custom_symbol_info.value_type), "'."))
@@ -1305,10 +1305,10 @@ eval_identifier_expr_struct_member := proc(name: Str, inner_name: Str, mut conte
     case ValueType.TCustom(custom_type_name):
         combined := format(name, ".", inner_name)
         if custom_type_name.eq("I64") {
-            i64_result := EvalArena.get_i64(context, combined, inner_e)?
+            i64_result := EvalHeap.get_i64(context, combined, inner_e)?
             return EvalResult.new(I64.to_str(i64_result))
         } else if custom_type_name.eq("U8") {
-            u8_result : U8 = EvalArena.get_u8(context, combined, inner_e)?
+            u8_result : U8 = EvalHeap.get_u8(context, combined, inner_e)?
             return EvalResult.new(U8.to_str(u8_result))
         } else if custom_type_name.eq("Str") {
             result := string_from_context(context, combined, inner_e)?
@@ -1350,7 +1350,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         if name.eq(custom_type_name) {
             throw e.lang_error(context.path, "eval", format("Cannot use enum type '", name, "' as a value"))
         }
-        enum_val := EvalArena.get_enum(context, name, e)?
+        enum_val := EvalHeap.get_enum(context, name, e)?
         // Set temp_enum_payload so that if this enum is assigned to another variable,
         // the payload will be preserved
         if not(NULL.eq(enum_val.payload.data)) {
@@ -1422,10 +1422,10 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         switch current_type {
         case ValueType.TCustom(curr_type_name):
             if curr_type_name.eq("I64") {
-                i64_result := EvalArena.get_i64(context, current_name, e)?
+                i64_result := EvalHeap.get_i64(context, current_name, e)?
                 return EvalResult.new(I64.to_str(i64_result))
             } else if curr_type_name.eq("U8") {
-                u8_result : U8 = EvalArena.get_u8(context, current_name, e)?
+                u8_result : U8 = EvalHeap.get_u8(context, current_name, e)?
                 return EvalResult.new(U8.to_str(u8_result))
             } else if curr_type_name.eq("Str") {
                 result := string_from_context(context, current_name, e)?
@@ -1438,7 +1438,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                 }
                 switch custom_symbol_info.value_type {
                 case ValueType.TType(TTypeDef.TEnumDef):
-                    field_enum_val := EvalArena.get_enum(context, current_name, last_inner_e)?
+                    field_enum_val := EvalHeap.get_enum(context, current_name, last_inner_e)?
                     // Set temp_enum_payload if this enum has a payload
                     if not(NULL.eq(field_enum_val.payload.data)) {
                         // Read payload vec from Ptr
@@ -1490,7 +1490,7 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
             // Get the type of the result
             base_type := get_value_type(context, base_expr)?
 
-            // Now we have the result stored in arena - access the fields
+            // Now we have the result stored in heap - access the fields
             // The result.value contains the identifier for the result
             result_name := base_result.value
 
@@ -1539,18 +1539,18 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
 
                 // Now get the value based on the final type
                 if current_type.eq("I64") {
-                    i64_val := EvalArena.get_i64(context, current_name, e)?
+                    i64_val := EvalHeap.get_i64(context, current_name, e)?
                     return EvalResult.new(I64.to_str(i64_val))
                 } else if current_type.eq("U8") {
-                    u8_val : U8 = EvalArena.get_u8(context, current_name, e)?
+                    u8_val : U8 = EvalHeap.get_u8(context, current_name, e)?
                     return EvalResult.new(U8.to_str(u8_val))
                 } else if current_type.eq("Str") {
                     val := string_from_context(context, current_name, e)?
                     return EvalResult.new(val)
                 } else {
-                    // Bug #157: Check if this is an enum type - need to read actual value from arena
+                    // Bug #157: Check if this is an enum type - need to read actual value from heap
                     if context.scope_stack.has_enum(current_type) {
-                        enum_val := EvalArena.get_enum(context, current_name, e)?
+                        enum_val := EvalHeap.get_enum(context, current_name, e)?
                         return EvalResult.new(format(enum_val.enum_type, ".", enum_val.enum_name))
                     }
                     // Return the field path for struct fields
@@ -1590,18 +1590,18 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
         if ident_s.eq(INFER_TYPE) {
             throw e.lang_error(context.path, "eval", format("Can't infer the type of identifier '", name, "'."))
         } else if ident_s.eq("I64") {
-            ident_i64_val := EvalArena.get_i64(context, name, e)?
+            ident_i64_val := EvalHeap.get_i64(context, name, e)?
             return EvalResult.new(I64.to_str(ident_i64_val))
         } else if ident_s.eq("U8") {
-            ident_u8_val : U8 = EvalArena.get_u8(context, name, e)?
+            ident_u8_val : U8 = EvalHeap.get_u8(context, name, e)?
             return EvalResult.new(U8.to_str(ident_u8_val))
         } else if ident_s.eq("Str") {
             if e.params.len().eq(0) {
                 ident_val := string_from_context(context, name, e)?
                 mut ident_str_result := EvalResult.new(ident_val)
-                ident_str_result.arena_offset = context.scope_stack.lookup_var(name)?
+                ident_str_result.heap_offset = context.scope_stack.lookup_var(name)?
                 catch (err: KeyNotFoundError) {
-                    // Variable not in arena (shouldn't happen but safe fallback)
+                    // Variable not in heap (shouldn't happen but safe fallback)
                 }
                 return ident_str_result
             }
@@ -1662,7 +1662,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                             context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(thrown_type)))?
 
                             // Map instance fields for the error variable
-                            // First try to find the arena index for proper field mapping
+                            // First try to find the heap index for proper field mapping
                             mut found_offset := false
                             offset := context.scope_stack.lookup_var(throw_result.value)?
                             found_offset = true
@@ -1674,7 +1674,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 mut lf_idx := context.scope_stack.frames.len().sub(1)
                                 mut lf := ScopeFrame()
                                 context.scope_stack.frames.get(lf_idx, lf)?
-                                lf.arena_index.set(var_name.clone(), offset)
+                                lf.heap_index.set(var_name.clone(), offset)
                                 context.scope_stack.frames.set(lf_idx, lf)?
 
                                 // Copy ALL field mappings (including nested) from thrown instance to catch variable
@@ -1684,7 +1684,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
 
                                 lf2 := context.scope_stack.last_frame()?
                                 mut keys_to_copy := Vec.new(Str)
-                                for akey: Str in lf2.arena_index.keys {
+                                for akey: Str in lf2.heap_index.keys {
                                     if akey.starts_with(source_prefix) {
                                         keys_to_copy.push(akey.clone())
                                     }
@@ -1702,7 +1702,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         mut lf3_idx := context.scope_stack.frames.len().sub(1)
                                         mut lf3 := ScopeFrame()
                                         context.scope_stack.frames.get(lf3_idx, lf3)?
-                                        lf3.arena_index.set(dest_key, src_offset)
+                                        lf3.heap_index.set(dest_key, src_offset)
                                         context.scope_stack.frames.set(lf3_idx, lf3)?
                                     }
                                 }
@@ -1728,7 +1728,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 if thrown_type.eq("Str") {
                                     // The thrown value is the actual string content, not a struct instance name
                                     // Create a proper Str struct for the catch variable
-                                    EvalArena.insert_string(context, var_name, throw_result.value, stmt)?
+                                    EvalHeap.insert_string(context, var_name, throw_result.value, stmt)?
                                 } else {
                                     mut struct_def := SStructDef()
                                     mut has_struct := false
@@ -1748,7 +1748,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                             mut lf4_idx := context.scope_stack.frames.len().sub(1)
                                             mut lf4 := ScopeFrame()
                                             context.scope_stack.frames.get(lf4_idx, lf4)?
-                                            lf4.arena_index.set(var_name, base_offset)
+                                            lf4.heap_index.set(var_name, base_offset)
                                             context.scope_stack.frames.set(lf4_idx, lf4)?
                                         }
 
@@ -1886,7 +1886,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 array_type_name := "Array"
                 // Use set() to overwrite the TMulti entry with TCustom("Array")
                 function_frame.symbols.set(arg.name, SymbolInfo(value_type=ValueType.TCustom(array_type_name), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
-                EvalArena.insert_array_into_frame(context, function_frame, arg.name, multi_value_type, values, e)?
+                EvalHeap.insert_array_into_frame(context, function_frame, arg.name, multi_value_type, values, e)?
                 params_consumed = true
 
             case ValueType.TCustom(custom_type_name):
@@ -1908,7 +1908,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             case ValueType.TType(tdef):
                                 // This is a type identifier - store the type name as a string
                                 function_frame.symbols.set(arg.name, SymbolInfo(value_type=ValueType.TCustom("Str")))
-                                EvalArena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)?
+                                EvalHeap.insert_string_into_frame(context, function_frame, arg.name, id_name, e)?
                                 param_index.inc()
                                 continue  // Skip eval_expr for this parameter
                             case:
@@ -1934,7 +1934,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             enum_type_sym = context.scope_stack.lookup_symbol(enum_arg_type_name)?
                             switch enum_type_sym.value_type {
                             case ValueType.TType(TTypeDef.TEnumDef):
-                                enum_val := EvalArena.get_enum(context, id_name, e)?
+                                enum_val := EvalHeap.get_enum(context, id_name, e)?
                                 if not(NULL.eq(enum_val.payload.data)) {
                                     mut payload_vec := Vec.new(U8)
                                     memcpy(to_ptr(payload_vec), enum_val.payload.data, size_of(Vec))
@@ -1959,7 +1959,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     if eval_result.is_throw {
                         return eval_result
                     }
-                    arg_result_arena_offset := eval_result.arena_offset
+                    arg_result_heap_offset := eval_result.heap_offset
                     arg_result_str := eval_result.value
 
                     // Restore enum payload if we saved it
@@ -2012,10 +2012,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     if arg.is_own {
                         switch current_arg.node_type {
                         case NodeType.Identifier(source_var):
-                            // Transfer arena offset from caller to function frame
+                            // Transfer heap offset from caller to function frame
                             mut offset := 0
                             offset = context.scope_stack.lookup_var(source_var)?
-                            function_frame.arena_index.set(arg.name, offset)
+                            function_frame.heap_index.set(arg.name, offset)
 
                             // Transfer symbol info for fields
                             own_prefix := format(source_var, ".")
@@ -2044,12 +2044,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     }
 
                     // Phase 3: Pass-by-reference for non-copy, non-own, non-Type parameters
-                    // If argument is a variable (identifier), share arena offset instead of copying
+                    // If argument is a variable (identifier), share heap offset instead of copying
                     // Note: Type parameters need copy semantics for type name storage, so skip them
                     // Note: Dynamic parameters NOW use pass-by-reference (including mut Dynamic)
                     // Note: own parameters are handled separately above and should not fall through here
                     // Works for ALL types thanks to field offset refactoring (commit 2b9d08d):
-                    // - Only base offset stored in arena_index
+                    // - Only base offset stored in heap_index
                     // - Field offsets calculated dynamically from struct definitions
                     // - Inline memory layout means sharing base offset shares all fields
                     if not(arg.is_copy).and(not(arg.is_own)).and(not(resolved_type_name.eq("Type"))) {
@@ -2058,13 +2058,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             // Only share offset for SIMPLE identifiers (no field access, no params)
                             // Field access like s.cap is also an Identifier node but has params
                             if current_arg.params.len().eq(0) {
-                                // Share arena offset from caller context (zero-copy pass-by-reference)
+                                // Share heap offset from caller context (zero-copy pass-by-reference)
                                 mut share_offset := 0
                                 share_offset = context.scope_stack.lookup_var(source_var)?
                                 // Create symbol info for parameter using the resolved type
                                 param_symbol := SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
                                 function_frame.symbols.set(arg.name.clone(), param_symbol)
-                                function_frame.arena_index.set(arg.name.clone(), share_offset)
+                                function_frame.heap_index.set(arg.name.clone(), share_offset)
 
                                 // Copy symbol entries for fields from ALL frames to callee
                                 ref_prefix := format(source_var, ".")
@@ -2100,14 +2100,14 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     {
                         switch resolved_type_name {
                         case "I64":
-                            EvalArena.insert_i64_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                            EvalHeap.insert_i64_into_frame(context, function_frame, arg.name, arg_result_str, e)?
                         case "U8":
-                            EvalArena.insert_u8_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                            EvalHeap.insert_u8_into_frame(context, function_frame, arg.name, arg_result_str, e)?
                         case "Str":
-                            if arg_result_arena_offset.gt(0) {
-                                function_frame.arena_index.set(arg.name, arg_result_arena_offset)
+                            if arg_result_heap_offset.gt(0) {
+                                function_frame.heap_index.set(arg.name, arg_result_heap_offset)
                             } else {
-                                EvalArena.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                                EvalHeap.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
                             }
                         case:
                             // Custom type (enum or struct)
@@ -2133,7 +2133,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
                             if is_enum_def {
                                 // Transfer payload from outer context if present (temp_enum_payload already on context)
-                                _ := EvalArena.insert_enum_into_frame(context, function_frame, arg.name, resolved_type_name, arg_result_str, e)?
+                                _ := EvalHeap.insert_enum_into_frame(context, function_frame, arg.name, resolved_type_name, arg_result_str, e)?
                             } else if is_struct_def {
                                 // Bug #10 fix: Handle field access chains like s.items
                                 mut source_id := ""
@@ -2199,7 +2199,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 // Field path - calculate offset dynamically
                                                 src_offset = context.get_field_offset(id_)?
                                             } else {
-                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context arena_index"))
+                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context heap_index"))
                                             }
                                         }
 
@@ -2207,7 +2207,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         function_frame.symbols.set(arg.name.clone(), SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
 
                                         // Share the offset (pass-by-reference)
-                                        function_frame.arena_index.set(arg.name.clone(), src_offset)
+                                        function_frame.heap_index.set(arg.name.clone(), src_offset)
 
                                         // Copy symbol entries for fields
                                         pbr_prefix := format(id_, ".")
@@ -2246,10 +2246,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             if id_.contains(".") {
                                                 copy_src_offset = context.get_field_offset(id_)?
                                             } else {
-                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context arena_index"))
+                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context heap_index"))
                                             }
                                         }
-                                        function_frame.arena_index.set(arg.name.clone(), copy_src_offset)
+                                        function_frame.heap_index.set(arg.name.clone(), copy_src_offset)
                                     }
                                     if not(should_share_offset).and(not(arg.is_copy)) {
                                         // Own/Type identifier parameters: ownership transfer via offset binding.
@@ -2259,16 +2259,16 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         own_src_offset = context.scope_stack.lookup_var(id_)?
                                         own_src_offset_found = true
                                         catch (err: KeyNotFoundError) {
-                                            // REM: not found in arena_index, try field path
+                                            // REM: not found in heap_index, try field path
                                         }
                                         if not(own_src_offset_found) {
                                             if id_.contains(".") {
                                                 own_src_offset = context.get_field_offset(id_)?
                                             } else {
-                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context arena_index"))
+                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context heap_index"))
                                             }
                                         }
-                                        function_frame.arena_index.set(arg.name.clone(), own_src_offset)
+                                        function_frame.heap_index.set(arg.name.clone(), own_src_offset)
                                     }
                                 } else {
                                     if arg.is_copy {
@@ -2278,15 +2278,15 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         catch (err: KeyNotFoundError) {
                                             throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
                                         }
-                                        function_frame.arena_index.set(arg.name.clone(), expr_copy_src_offset)
+                                        function_frame.heap_index.set(arg.name.clone(), expr_copy_src_offset)
                                     } else {
                                         // Own/Type expression parameters: bind the expression result offset.
-                                        // The expression is already evaluated and allocated in the arena.
+                                        // The expression is already evaluated and allocated in the heap.
                                         expr_src_offset := context.scope_stack.lookup_var(source_id)?
                                         catch (err: KeyNotFoundError) {
                                             throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
                                         }
-                                        function_frame.arena_index.set(arg.name.clone(), expr_src_offset)
+                                        function_frame.heap_index.set(arg.name.clone(), expr_src_offset)
 
                                         // For own parameters, remove the source from caller's context (ownership transferred)
                                         if arg.is_own {
@@ -2316,7 +2316,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
     result := eval_body(context, func_def.body)?
     if result.is_throw {
-        // When throwing from a method, we need to copy the thrown struct's arena_index entries
+        // When throwing from a method, we need to copy the thrown struct's heap_index entries
         // from the function frame to the caller frame so that catch blocks can access fields
         if not(result.thrown_type.eq("")) {
             thrown_type_name := result.thrown_type
@@ -2350,7 +2350,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         if thrown_frame_count.gteq(2) {
                             mut thrown_caller_frame := ScopeFrame()
                             context.scope_stack.frames.get(thrown_frame_count.sub(2), thrown_caller_frame)?
-                            thrown_caller_frame.arena_index.set(result.value.clone(), base_offset)
+                            thrown_caller_frame.heap_index.set(result.value.clone(), base_offset)
                             context.scope_stack.frames.set(thrown_frame_count.sub(2), thrown_caller_frame)?
                         }
                     }
@@ -2382,7 +2382,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         context.path = saved_path
         return result // CLEANUP SITE 3: Propagate throw from function body
     }
-    result_arena_offset := result.arena_offset
+    result_heap_offset := result.heap_offset
     result_str := result.value
 
     // Save struct/enum return value info BEFORE popping (needed for return handling)
@@ -2456,7 +2456,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 if ret_is_enum_def {
                     if not(result_str.contains(".")) {
                         // This is a variable, not a constructor - save the enum value
-                        saved_enum_value = EvalArena.get_enum(context, result_str, e)?
+                        saved_enum_value = EvalHeap.get_enum(context, result_str, e)?
                         has_saved_enum_value = true
                         // May fail if not actually an enum - that's okay, has_saved_enum_value stays false
                         catch (err: Str) { }
@@ -2496,10 +2496,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         if mut_arg_is_tcustom {
             switch mut_arg_type_name {
             case "I64":
-                mut_arg_i64_val := EvalArena.get_i64(context, m.arg_name, e)?
+                mut_arg_i64_val := EvalHeap.get_i64(context, m.arg_name, e)?
                 collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.I64(mut_arg_i64_val)))
             case "U8":
-                mut_arg_u8_val : U8 = EvalArena.get_u8(context, m.arg_name, e)?
+                mut_arg_u8_val : U8 = EvalHeap.get_u8(context, m.arg_name, e)?
                 collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.U8(mut_arg_u8_val)))
             case "Str":
                 mut_arg_val := string_from_context(context, m.arg_name, e)?
@@ -2529,7 +2529,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 case:
                 }
                 if mut_arg_is_enum_def {
-                    mut_arg_enum_val := EvalArena.get_enum(context, m.arg_name, e)?
+                    mut_arg_enum_val := EvalHeap.get_enum(context, m.arg_name, e)?
                     collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Enum(mut_arg_enum_val)))
                 } else if mut_arg_is_struct_def {
                     mut mut_arg_offset := 0
@@ -2542,7 +2542,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     } else {
                         _ := context.scope_stack.pop()?
                         context.path = saved_path
-                        throw e.lang_error(context.path, "eval", format("Missing struct arena index for argument '", m.arg_name, "'"))
+                        throw e.lang_error(context.path, "eval", format("Missing struct heap index for argument '", m.arg_name, "'"))
                     }
                 } else {
                     _ := context.scope_stack.pop()?
@@ -2567,11 +2567,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         collected_mut_args.get(ci, c)?
         switch c.value {
         case MutArgValue.I64(val):
-            EvalArena.insert_i64(context, c.source_name, I64.to_str(val), e)?
+            EvalHeap.insert_i64(context, c.source_name, I64.to_str(val), e)?
         case MutArgValue.U8(val):
-            EvalArena.insert_u8(context, c.source_name, U8.to_str(val), e)?
+            EvalHeap.insert_u8(context, c.source_name, U8.to_str(val), e)?
         case MutArgValue.Str(val):
-            EvalArena.insert_string(context, c.source_name, val, e)?
+            EvalHeap.insert_string(context, c.source_name, val, e)?
         case MutArgValue.Enum(writeback_enum_val):
             // Bug #38 fix: Set temp_enum_payload so insert_enum preserves the payload
             if not(NULL.eq(writeback_enum_val.payload.data)).and(not(NULL.eq(writeback_enum_val.payload_type.data))) {
@@ -2586,12 +2586,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 memcpy(writeback_heap_payload_ptr, to_ptr(writeback_temp_payload), size_of(EnumPayload))
                 context.temp_enum_payload.data = writeback_heap_payload_ptr
             }
-            _ := EvalArena.insert_enum(context, c.source_name, writeback_enum_val.enum_type, format(writeback_enum_val.enum_type, ".", writeback_enum_val.enum_name), e)?
+            _ := EvalHeap.insert_enum(context, c.source_name, writeback_enum_val.enum_type, format(writeback_enum_val.enum_type, ".", writeback_enum_val.enum_name), e)?
         case MutArgValue.Struct(struct_data):
             mut lf12_idx := context.scope_stack.frames.len().sub(1)
             mut lf12 := ScopeFrame()
             context.scope_stack.frames.get(lf12_idx, lf12)?
-            lf12.arena_index.set(c.source_name.clone(), struct_data.offset)
+            lf12.heap_index.set(c.source_name.clone(), struct_data.offset)
             context.scope_stack.frames.set(lf12_idx, lf12)?
             // Bug #160: map_instance_fields removed - type checker handles symbol registration
         }
@@ -2637,12 +2637,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     case:
                     }
                     if copy_ret_is_struct_def {
-                        return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(g_arena.temp_id_counter))
-                        g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
+                        return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(g_heap.temp_id_counter))
+                        g_heap.temp_id_counter = g_heap.temp_id_counter.add(1)
 
                         // Use saved offset (saved before popping)
                         if not(has_saved_return_offset) {
-                            throw e.lang_error(context.path, "eval", format("Missing arena index for return value '", result_str, "'"))
+                            throw e.lang_error(context.path, "eval", format("Missing heap index for return value '", result_str, "'"))
                         }
                         copy_ret_offset := saved_return_offset
 
@@ -2653,7 +2653,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         mut lf13_idx := context.scope_stack.frames.len().sub(1)
                         mut lf13 := ScopeFrame()
                         context.scope_stack.frames.get(lf13_idx, lf13)?
-                        lf13.arena_index.set(return_instance.clone(), copy_ret_offset)
+                        lf13.heap_index.set(return_instance.clone(), copy_ret_offset)
                         context.scope_stack.frames.set(lf13_idx, lf13)?
 
                         return EvalResult.new_return(return_instance) // CLEANUP SITE 4: Return struct instance
@@ -2669,8 +2669,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             throw e.lang_error(context.path, "eval", format("Missing enum value for return value '", result_str, "'"))
                         }
 
-                        enum_return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(g_arena.temp_id_counter))
-                        g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
+                        enum_return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(g_heap.temp_id_counter))
+                        g_heap.temp_id_counter = g_heap.temp_id_counter.add(1)
 
                         // Set temp_enum_payload if the enum has a payload
                         if not(NULL.eq(saved_enum_value.payload.data)) {
@@ -2687,7 +2687,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
                         }
 
-                        _ := EvalArena.insert_enum(context, enum_return_instance, saved_enum_value.enum_type, format(saved_enum_value.enum_type, ".", saved_enum_value.enum_name), e)?
+                        _ := EvalHeap.insert_enum(context, enum_return_instance, saved_enum_value.enum_type, format(saved_enum_value.enum_type, ".", saved_enum_value.enum_name), e)?
                         return EvalResult.new_return(enum_return_instance) // CLEANUP SITE 6: Return enum variable
                     }
                 }
@@ -2700,7 +2700,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     // Frame already popped above
     catch (err: BadAlloc) { panic(loc(), "eval_user_func_proc_call: buy more ram") }
     mut final_result := EvalResult.new(result_str)
-    final_result.arena_offset = result_arena_offset
+    final_result.heap_offset = result_heap_offset
     return final_result // CLEANUP SITE 7: Return normal value (final return)
 }
 

@@ -340,7 +340,7 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
             return e.clone()
         }
         // Try to convert struct back to literal, fall back to original expr if unsupported
-        mut struct_literal := EvalArena.to_struct_literal(context, result.value, type_name, e)?
+        mut struct_literal := EvalHeap.to_struct_literal(context, result.value, type_name, e)?
         catch (err: Str) {
             return e.clone()
         }
@@ -593,7 +593,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case:
     }
 
-    // Store I64/U8/Str declarations in arena when their initializer is comptime-evaluable.
+    // Store I64/U8/Str declarations in heap when their initializer is comptime-evaluable.
     // Unlike the is_comptime_const flag (which also requires !is_mut for folding identifiers),
     // we store ALL comptime-evaluable values including mut ones, just like interpreter does.
     // This is needed for eval_expr to work during constant folding (e.g., mut loop variables).
@@ -607,7 +607,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
                 if is_comptime_evaluable(context, first_param) {
                     result := eval_expr(context, first_param)?
                     if not(result.is_throw) {
-                        EvalArena.insert_primitive(context, decl.name, value_type, result.value, e)?
+                        EvalHeap.insert_primitive(context, decl.name, value_type, result.value, e)?
                     }
                 }
             }
@@ -616,7 +616,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     }
 
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
-    // run eval_declaration to store the instance in EvalArena so ccodegen can find it.
+    // run eval_declaration to store the instance in EvalHeap so ccodegen can find it.
     // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
     if at_global_scope.and(not(decl.is_mut)).and(not(decl.is_copy)).and(not(decl.is_own)).and(is_comptime_evaluable(context, first_param)) {
         switch value_type {
@@ -635,7 +635,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
                     context.path = instance_saved_path
 
                     // Bug #133 fix: Track precomputed heap values for static array serialization
-                    needs_heap := EvalArena.type_needs_heap_serialization(context, custom_type_name)
+                    needs_heap := EvalHeap.type_needs_heap_serialization(context, custom_type_name)
                     if needs_heap {
                         context.precomputed_heap_values.push(PrecomputedHeapValue(
                             var_name=decl.name.clone(),

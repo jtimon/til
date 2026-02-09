@@ -20,6 +20,6 @@ memset := ext_func(dest: I64, value: U8, size: I64) {}
 dont_delete := ext_func(var_identifier: Dynamic) {}
 
 // Bug #144: create_alias(var, type, addr) - compound directive.
-// Declares var of given type and rebinds its arena offset to addr.
+// Declares var of given type and rebinds its heap offset to addr.
 // Zero-copy aliasing: var reads directly from addr. Skips auto-delete.
 create_alias := ext_func(var_identifier: Dynamic, type_name: Type, source_addr: I64) {}

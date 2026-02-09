@@ -10,7 +10,7 @@ use crate::rs::parser::{
     value_type_to_str, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
-use crate::rs::eval_arena::EvalArena;
+use crate::rs::eval_heap::EvalHeap;
 use crate::rs::precomp_ext::try_replace_comptime_intrinsic;
 
 // ---------- Main entry point
@@ -227,7 +227,7 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             // Check if it's a struct type - result.value is the instance name
             if context.scope_stack.has_struct(type_name) {
                 // Try to convert struct back to literal, fall back to original expr if unsupported
-                return EvalArena::to_struct_literal(context, &result.value, type_name, e)
+                return EvalHeap::to_struct_literal(context, &result.value, type_name, e)
                     .or_else(|_| Ok(e.clone()));
             }
             // For enums and other types: eval_expr was called (catching any errors),
@@ -454,7 +454,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         }
     }
 
-    // Store I64/U8/Str declarations in arena when their initializer is comptime-evaluable.
+    // Store I64/U8/Str declarations in heap when their initializer is comptime-evaluable.
     // Unlike the is_comptime_const flag (which also requires !is_mut for folding identifiers),
     // we store ALL comptime-evaluable values including mut ones, just like interpreter does.
     // This is needed for eval_expr to work during constant folding (e.g., mut loop variables).
@@ -469,7 +469,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
                         let inner_e = &new_params[0];
                         let result = eval_expr(context, inner_e)?;
                         if !result.is_throw {
-                            EvalArena::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
+                            EvalHeap::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
                         }
                     }
                 },
@@ -479,7 +479,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     }
 
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
-    // run eval_declaration to store the instance in EvalArena so ccodegen can find it.
+    // run eval_declaration to store the instance in EvalHeap so ccodegen can find it.
     // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
     if at_global_scope && !decl.is_mut && !decl.is_copy && !decl.is_own && !new_params.is_empty() && is_comptime_evaluable(context, &new_params[0]) {
         if let ValueType::TCustom(ref custom_type_name) = &value_type {
@@ -493,7 +493,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
                         context.path = saved_path;
 
                         // Bug #133 fix: Track precomputed heap values for static array serialization
-                        let needs_heap = EvalArena::type_needs_heap_serialization(context, custom_type_name);
+                        let needs_heap = EvalHeap::type_needs_heap_serialization(context, custom_type_name);
                         if needs_heap {
                             context.precomputed_heap_values.push(PrecomputedHeapValue {
                                 var_name: decl.name.clone(),

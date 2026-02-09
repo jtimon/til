@@ -16,7 +16,7 @@ mod rs {
     pub mod precomp;
     pub mod precomp_ext;
     pub mod scavenger;
-    pub mod eval_arena;
+    pub mod eval_heap;
     pub mod interpreter;
     pub mod ext;
     pub mod ccodegen;
@@ -26,7 +26,7 @@ mod rs {
 use rs::lexer::LANG_NAME;
 use rs::interpreter::interpret_file;
 use rs::builder;
-use rs::eval_arena::EvalArena;
+use rs::eval_heap::EvalHeap;
 use rs::target::{Target, Lang, target_from_str, lang_from_str, detect_current_target, default_lang_for_target, executable_extension};
 
 const REPL_PATH            : &str = "src/modes/repl.til";
@@ -151,7 +151,7 @@ fn interpret_file_or_exit(path: &String, args: Vec<String>) {
         },
     };
     if path.ends_with("tests.til") {
-        println!("Total memory used by interpreted program: {} bytes", EvalArena::g().len());
+        println!("Total memory used by interpreted program: {} bytes", EvalHeap::g().len());
     }
 }
 

@@ -14,7 +14,7 @@ use crate::rs::preinit::preinit_expr;
 
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
-// No eval, no arena access - declarations only.
+// No eval, no heap access - declarations only.
 
 // Bug #97: Track variable declarations by (name, line, col).
 // Using a struct instead of tuple for TIL compatibility (TIL doesn't have tuples).
@@ -64,8 +64,8 @@ pub enum ScopeType {
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct ScopeFrame {
-    // maps variable names to their offsets in the arena
-    pub arena_index: HashMap<String, usize>, // stores offsets
+    // maps variable names to their offsets in the heap
+    pub heap_index: HashMap<String, usize>, // stores offsets
 
     // All declared symbols (types, constants, variables, and function names)
     // This is necessary for so called "context priming" or "declaration indexing"
@@ -119,7 +119,7 @@ impl ScopeStack {
 
     pub fn push(&mut self, scope_type: ScopeType) {
         self.frames.push(ScopeFrame {
-            arena_index: HashMap::new(),
+            heap_index: HashMap::new(),
             symbols: HashMap::new(),
             funcs: HashMap::new(),
             enums: HashMap::new(),
@@ -140,7 +140,7 @@ impl ScopeStack {
     pub fn lookup_var(&self, name: &str) -> Option<usize> {
         // Walk up the stack from innermost to outermost
         for frame in self.frames.iter().rev() {
-            if let Some(offset) = frame.arena_index.get(name) {
+            if let Some(offset) = frame.heap_index.get(name) {
                 return Some(*offset);
             }
         }
@@ -318,11 +318,11 @@ impl ScopeStack {
 
         // Check for redeclaration in current scope only
         // Bug #35: Skip check for "_" - it's special for discarding return values
-        if name != "_" && current_frame.arena_index.contains_key(&name) {
+        if name != "_" && current_frame.heap_index.contains_key(&name) {
             return Err(format!("Variable '{}' already declared in this scope", name));
         }
 
-        current_frame.arena_index.insert(name.clone(), offset);
+        current_frame.heap_index.insert(name.clone(), offset);
         current_frame.symbols.insert(name, symbol);
         Ok(())
     }
@@ -349,7 +349,7 @@ impl ScopeStack {
 
     pub fn remove_var(&mut self, name: &str) -> Option<usize> {
         if let Some(current_frame) = self.frames.last_mut() {
-            current_frame.arena_index.remove(name)
+            current_frame.heap_index.remove(name)
         } else {
             None
         }
@@ -358,7 +358,7 @@ impl ScopeStack {
     /// Insert a variable without a corresponding symbol (simpler than declare_var)
     pub fn insert_var(&mut self, name: String, offset: usize) {
         if let Some(current_frame) = self.frames.last_mut() {
-            current_frame.arena_index.insert(name, offset);
+            current_frame.heap_index.insert(name, offset);
         }
     }
 
@@ -1467,7 +1467,7 @@ pub struct EnumPayload {
 #[derive(Clone, Debug)]
 pub struct PrecomputedHeapValue {
     pub var_name: String,      // The TIL variable name (e.g., "chromatic")
-    pub instance_name: String, // The arena instance name (e.g., "chromatic" or temp name)
+    pub instance_name: String, // The heap instance name (e.g., "chromatic" or temp name)
     pub type_name: String,     // The type (e.g., "Vec")
 }
 
@@ -1727,7 +1727,7 @@ impl Context {
         Err(format!("calculate_field_offset: field '{}' not found in struct '{}'", field_name, struct_type))
     }
 
-    /// Get the absolute arena offset for a field path (e.g., "my_vec._len")
+    /// Get the absolute heap offset for a field path (e.g., "my_vec._len")
     pub fn get_field_offset(&self, field_path: &str) -> Result<usize, String> {
         let parts: Vec<&str> = field_path.split('.').collect();
         if parts.is_empty() {
@@ -1744,7 +1744,7 @@ impl Context {
         let (base_end_idx, current_offset) = if first_part_is_instance {
             // Instance variable: only look up the first part
             let offset = self.scope_stack.lookup_var(base_var)
-                .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
+                .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in heap_index", base_var))?;
             (0, offset)
         } else {
             // Type constant: find the longest prefix that exists
@@ -1760,7 +1760,7 @@ impl Context {
                 }
             }
             if !found {
-                return Err(format!("get_field_offset: no base found in arena_index for path '{}'", field_path));
+                return Err(format!("get_field_offset: no base found in heap_index for path '{}'", field_path));
             }
             (end_idx, found_offset)
         };

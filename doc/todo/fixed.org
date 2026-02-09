@@ -4712,6 +4712,34 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #163: Replace arena allocator with heap allocation (malloc/free)
+:PROPERTIES:
+:DISCOVERED: 2026-02-09
+:IMPLEMENTED: 2026-02-09
+:IMPACT: Enables actual memory reclamation when Type.delete() is called
+:STATUS: Implemented
+:RELATED: Issue #117 (ASAP destruction), Issue #115 (owned struct fields)
+:END:
+
+*** Description
+The arena allocator (bump allocator) was the bottleneck for memory management.
+It could only grow, never free individual objects. With Type.delete() from Issue
+#117, we needed heap allocation so free() actually reclaims memory.
+
+*** What was done
+1. *Step 1*: Added heap_alloc/heap_free alongside arena. Dual dispatch.
+2. *Step 2*: Moved struct allocations from arena to heap.
+3. *Step 3*: Removed arena from EvalArena. All allocations via heap.
+   Deleted arena.rs. Kept arena.til as standalone std library.
+4. *Step 4 (cleanup)*: Renamed EvalArena to EvalHeap everywhere.
+   - git mv eval_arena.rs -> eval_heap.rs, eval_arena.til -> eval_heap.til
+   - Renamed: EvalArena->EvalHeap, g_arena->g_heap, arena_index->heap_index,
+     arena_offset->heap_offset, arena_mappings->heap_mappings,
+     arena_memory_slice->heap_memory_slice, EvalArenaMapping->EvalHeapMapping
+   - Updated all imports, comments, and error strings across 15+ files
+   - Removed dead code: extract_vec_contents_at_offset (Rust), StrContents
+     struct + extract_str_contents (both Rust and TIL)
+
 ** Issue #108: Namespace blocks for associated functions
 :PROPERTIES:
 :DISCOVERED: 2026-01-12

@@ -6,7 +6,7 @@ mode liba
 import("self.parser")       // Expr, NodeType, Literal, ValueType, get_combined_name
 import("self.init")         // Context
 import("self.interpreter")  // EvalResult, eval_expr, string_from_context
-import("self.eval_arena")   // g_arena (global)
+import("self.eval_heap")   // g_heap (global)
 import("std.sys")            // run_cmd
 import("std.io")            // readfile, input_read_line
 
@@ -70,20 +70,20 @@ validate_arg_count := proc(path: Str, e: Expr, func_name: Str, expected: I64, is
     }
 }
 
-// Read a Str value from context (reads c_string and _len from arena)
+// Read a Str value from context (reads c_string and _len from heap)
 string_from_context := proc(context: Context, id: Str, e: Expr) returns Str throws Str {
-    // Read the c_string.data field (I64 pointer to string data in EvalArena)
+    // Read the c_string.data field (I64 pointer to string data in EvalHeap)
     // Note: c_string is a Ptr struct { data: I64, is_borrowed: I64 }, so we read .data
-    c_string_ptr := EvalArena.get_i64(context, format(id, ".c_string.data"), e)?
+    c_string_ptr := EvalHeap.get_i64(context, format(id, ".c_string.data"), e)?
 
     // Read the _len field (I64 length)
-    length := EvalArena.get_i64(context, format(id, "._len"), e)?
+    length := EvalHeap.get_i64(context, format(id, "._len"), e)?
 
-    // Read string bytes from EvalArena and convert to String
+    // Read string bytes from EvalHeap and convert to String
     mut result := ""
     for i in 0..length {
         mut byte := U8.from_i64(0)?
-        memcpy(to_ptr(byte), g_arena.get(c_string_ptr.add(i), 1), 1)
+        memcpy(to_ptr(byte), g_heap.get(c_string_ptr.add(i), 1), 1)
         result = format(result, byte_to_str(byte))
     }
     catch (err: U8_Overflow) { throw err.msg }
@@ -123,7 +123,7 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     size_result := eval_expr(context, e.get(1)?)?
     if size_result.is_throw { return size_result }
     size := I64.from_str(size_result.value)
-    offset := g_arena.heap_alloc(size)?
+    offset := g_heap.heap_alloc(size)?
 
     if offset.eq(0) {  // TODO: REM: throw AllocError instead of return NULL pointer
         throw e.lang_error(context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer")
@@ -138,7 +138,7 @@ func_free := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     if ptr_result.is_throw { return ptr_result }
     // Issue #163: Actually free heap-allocated memory
     ptr := I64.from_str(ptr_result.value)
-    g_arena.heap_free(ptr)
+    g_heap.heap_free(ptr)
 
     return EvalResult.new("")
 }
@@ -158,7 +158,7 @@ func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     size := I64.from_str(size_result.value)
 
     for i in 0..size {
-        g_arena.set(dest.add(i), to_ptr(value), 1)
+        g_heap.set(dest.add(i), to_ptr(value), 1)
     }
 
     return EvalResult.new("")
@@ -180,8 +180,8 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 
     for i in 0..size {
         mut src_byte := U8.from_i64(0)?
-        memcpy(to_ptr(src_byte), g_arena.get(src.add(i), 1), 1)
-        g_arena.set(dest.add(i), to_ptr(src_byte), 1)
+        memcpy(to_ptr(src_byte), g_heap.get(src.add(i), 1), 1)
+        g_heap.set(dest.add(i), to_ptr(src_byte), 1)
     }
 
     catch (err: U8_Overflow) { throw err.msg }
@@ -206,8 +206,8 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     for i in 0..size {
         mut byte1 := U8.from_i64(0)?
         mut byte2 := U8.from_i64(0)?
-        memcpy(to_ptr(byte1), g_arena.get(ptr1.add(i), 1), 1)
-        memcpy(to_ptr(byte2), g_arena.get(ptr2.add(i), 1), 1)
+        memcpy(to_ptr(byte1), g_heap.get(ptr1.add(i), 1), 1)
+        memcpy(to_ptr(byte2), g_heap.get(ptr2.add(i), 1), 1)
         if U8.to_i64(byte1).lt(U8.to_i64(byte2)) {
             return EvalResult.new("-1")
         } else if U8.to_i64(byte1).gt(U8.to_i64(byte2)) {
@@ -635,7 +635,7 @@ func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult 
                 throw e.lang_error(context.path, "eval", format("Variable '", out_name, "' not found"))
             }
             // Copy payload bytes to out variable
-            g_arena.set(offset, payload_bytes.ptr.data, bytes_to_copy)
+            g_heap.set(offset, payload_bytes.ptr.data, bytes_to_copy)
             return EvalResult.new("")
         case:
             // Not an identifier
@@ -931,7 +931,7 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
     case:
         throw e.error(context.path, "eval", "run_cmd first argument must be an identifier")
     }
-    EvalArena.insert_primitive(context, var_name, ValueType.TCustom("Str"), output, e)?
+    EvalHeap.insert_primitive(context, var_name, ValueType.TCustom("Str"), output, e)?
 
     return EvalResult.new(exit_code.to_str())
 }

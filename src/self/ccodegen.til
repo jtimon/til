@@ -6,7 +6,7 @@ mode liba
 import("self.parser")
 import("self.init")
 import("self.typer")
-import("self.eval_arena")  // For EvalArena.extract_vec_contents, g_arena
+import("self.eval_heap")  // For EvalHeap.extract_vec_contents, g_heap
 
 // Prefix for all TIL-generated names in C code (structs, functions, types)
 TIL_PREFIX := "til_"
@@ -2792,7 +2792,7 @@ is_global_declaration := func(expr: Expr) returns Bool {
                     return false
                 }
                 return true
-                // Everything else (function calls like EvalArena.new(), etc.) is a global
+                // Everything else (function calls like EvalHeap.new(), etc.) is a global
             case:
                 return true
             }
@@ -3158,8 +3158,8 @@ emit_precomputed_static_arrays := proc(mut output: Str, mut ctx: CodegenContext,
 
 // Emit static arrays for a single precomputed Vec
 emit_precomputed_vec_static := proc(mut output: Str, mut ctx: CodegenContext, context: Context, phv: PrecomputedHeapValue) throws Str {
-    // Extract Vec contents from EvalArena
-    contents := EvalArena.extract_vec_contents(context, phv.instance_name)?
+    // Extract Vec contents from EvalHeap
+    contents := EvalHeap.extract_vec_contents(context, phv.instance_name)?
 
     var_name := phv.var_name
 
@@ -3228,7 +3228,7 @@ emit_precomputed_vec_recursive := proc(mut output: Str, mut ctx: CodegenContext,
             output.push_str(byte_val.to_str())
         }
         output.push_str("};\n")
-    } else if EvalArena.type_needs_heap_serialization(context, elem_type) {
+    } else if EvalHeap.type_needs_heap_serialization(context, elem_type) {
         // Nested type that needs heap serialization (Vec, List, etc.)
         // Recursively emit inner elements first, then emit outer array
         emit_precomputed_nested_vec_static(output, ctx, context, var_name, contents)?
@@ -3291,7 +3291,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
             inner_data_ptr := bytes_to_i64_from_offset(elem_bytes, ptr_offset)
 
             // Extract inner Vec contents from its memory location
-            inner_type_name := EvalArena.extract_str_from_bytes(context, elem_bytes)?
+            inner_type_name := EvalHeap.extract_str_from_bytes(context, elem_bytes)?
             inner_type_size := bytes_to_i64_from_offset(elem_bytes, str_size)
 
             ptr_size := context.get_type_size("Ptr")?
@@ -3304,7 +3304,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
                 elem_offset := inner_data_ptr.add(i.mul(inner_type_size))
                 mut bytes := Vec.new(U8)
                 for j in 0..inner_type_size {
-                    byte_ptr := g_arena.get(elem_offset.add(j), 1)
+                    byte_ptr := g_heap.get(elem_offset.add(j), 1)
                     mut byte_val : U8 = 0
                     Ptr(data=byte_ptr).dereference(U8, byte_val)
                     bytes.push(byte_val)
@@ -3360,7 +3360,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
             cap := bytes_to_i64_from_offset(elem_bytes, cap_offset)
 
             // Get inner type name length
-            inner_type_name := EvalArena.extract_str_from_bytes(context, elem_bytes)?
+            inner_type_name := EvalHeap.extract_str_from_bytes(context, elem_bytes)?
 
             mut inner_type_name_str := ""
             inner_type_names.get(idx, inner_type_name_str)?
@@ -3439,11 +3439,11 @@ emit_precomputed_vec_str_static := proc(mut output: Str, mut _ctx: CodegenContex
         c_string_ptr := bytes_to_i64_from_offset(bytes, 0)
         len := bytes_to_i64_from_offset(bytes, ptr_size)
 
-        // Read the actual string bytes from arena
+        // Read the actual string bytes from heap
         mut string_data := ""
         if c_string_ptr.gt(0).and(len.gt(0)) {
             for si in 0..len {
-                byte_ptr := g_arena.get(c_string_ptr.add(si), 1)
+                byte_ptr := g_heap.get(c_string_ptr.add(si), 1)
                 mut byte_val : U8 = 0
                 Ptr(data=byte_ptr).dereference(U8, byte_val)
                 string_data = concat(string_data, Str.from_byte(byte_val))
@@ -3557,7 +3557,7 @@ emit_precomputed_vec_assignment := proc(var_name: Str, static_info: PrecomputedS
     already_declared := ctx.declared_vars.contains(c_var_name)
 
     // Extract Vec contents to get element count and type info
-    contents := EvalArena.extract_vec_contents(context, var_name)?
+    contents := EvalHeap.extract_vec_contents(context, var_name)?
 
     elem_count := contents.element_bytes.len()
     type_size := contents.type_size

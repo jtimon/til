@@ -3,11 +3,11 @@ mode liba
 import("self.init")
 import("self.parser")
 
-// EvalArena: Memory management for the TIL interpreter
+// EvalHeap: Memory management for the TIL interpreter
 // Extracted from interpreter.rs to enable incremental translation to TIL.
 
 
-EvalArenaMapping := struct {
+EvalHeapMapping := struct {
     mut name: Str = ""
     mut offset: I64 = 0
 }
@@ -19,7 +19,7 @@ SymbolEntry := struct {
 
 // Result from insert_struct_core containing mappings to be stored
 StructInsertResult := struct {
-    mut arena_mappings: Vec = Vec.new(EvalArenaMapping)
+    mut heap_mappings: Vec = Vec.new(EvalHeapMapping)
     mut symbols: Vec = Vec.new(SymbolEntry)
 }
 
@@ -51,12 +51,7 @@ namespace VecContents {
     }
 }
 
-/// Contents of a Str for serialization
-StrContents := struct {
-    mut string_data: Str = ""
-}
-
-EvalArena := struct {
+EvalHeap := struct {
     mut temp_id_counter: I64 = 0
     mut default_instances: Map = Map.new(Str, I64)  // type name -> heap pointer of default template
     mut _heap_bases: Vec = Vec.new(I64)  // heap block base ptrs
@@ -64,29 +59,29 @@ EvalArena := struct {
     mut total_heap_bytes: I64 = 0  // running total of heap bytes allocated
 }
 
-namespace EvalArena {
-    new := proc() returns EvalArena {
-        mut a := EvalArena()
+namespace EvalHeap {
+    new := proc() returns EvalHeap {
+        mut a := EvalHeap()
         return a
     }
 
     /// Total heap bytes allocated
-    len := func(self: EvalArena) returns I64 {
+    len := func(self: EvalHeap) returns I64 {
         return self.total_heap_bytes
     }
 
     /// Read bytes at offset (raw pointer access, returns pointer to data)
-    get := func(_self: EvalArena, offset: I64, _num_bytes: I64) returns I64 {
+    get := func(_self: EvalHeap, offset: I64, _num_bytes: I64) returns I64 {
         return offset  // raw pointer IS the address
     }
 
     /// Write bytes at offset (raw memcpy)
-    set := proc(mut _self: EvalArena, offset: I64, src_ptr: I64, num_bytes: I64) {
+    set := proc(mut _self: EvalHeap, offset: I64, src_ptr: I64, num_bytes: I64) {
         memcpy(offset, src_ptr, num_bytes)
     }
 
     /// Issue #163: Allocate zeroed memory on the heap, return raw pointer as offset
-    heap_alloc := proc(mut self: EvalArena, size: I64) returns I64 throws Str {
+    heap_alloc := proc(mut self: EvalHeap, size: I64) returns I64 throws Str {
         // Zero-size structs get 1 byte so we have a unique address
         mut alloc_size := size
         if size.eq(0) {
@@ -98,7 +93,7 @@ namespace EvalArena {
         self.total_heap_bytes = self.total_heap_bytes.add(alloc_size)
         self._heap_bases.push(alloc_ptr)
         self._heap_sizes.push(alloc_size)
-        // Zero-initialize (arena's reserve zeroes, so we must too for compatibility)
+        // Zero-initialize (reserve zeroes memory, so we must too for compatibility)
         mut zero : U8 = 0
         for i in 0..loop_size {
             memcpy(add(result_ptr, i), to_ptr(zero), 1)
@@ -111,7 +106,7 @@ namespace EvalArena {
     }
 
     /// Issue #163: Free a heap-allocated block
-    heap_free := proc(mut self: EvalArena, ptr: I64) {
+    heap_free := proc(mut self: EvalHeap, ptr: I64) {
         for i in 0..self._heap_bases.len() {
             mut base := 0
             self._heap_bases.get(i, base)?
@@ -127,10 +122,10 @@ namespace EvalArena {
 
     // === EVAL-PHASE MEMORY OPERATIONS ===
     // These methods manage runtime memory allocation and access
-    // They take Context as parameter to access type info and arena_index
+    // They take Context as parameter to access type info and heap_index
 
     // Check if id refers to an instance field (e.g., "myStruct.field") vs a type constant
-    // Bug #160: Now checks if ANY prefix of the path exists in arena_index
+    // Bug #160: Now checks if ANY prefix of the path exists in heap_index
     // This handles type constants like "MyNamespace.field_static_str.c_string.data"
     // where the base is "MyNamespace.field_static_str", not "MyNamespace"
     /// Check if id refers to an instance field (e.g., "myStruct.field") vs a type constant
@@ -160,7 +155,7 @@ namespace EvalArena {
         // Bug #160: Deterministic dispatch based on identifier structure
         // Use is_instance_field to distinguish field paths from type constants (e.g., Ptr.NULL)
         mut offset := 0
-        if EvalArena.is_instance_field(ctx, id) {
+        if EvalHeap.is_instance_field(ctx, id) {
             // Instance field path - ALWAYS calculate offset dynamically
             offset = ctx.get_field_offset(id)?
             catch (err: Str) {
@@ -187,7 +182,7 @@ namespace EvalArena {
         }
 
         mut val : U8 = 0
-        memcpy(to_ptr(val), g_arena.get(offset, 1), 1)
+        memcpy(to_ptr(val), g_heap.get(offset, 1), 1)
         return val
     }
 
@@ -195,7 +190,7 @@ namespace EvalArena {
         // Bug #160: Deterministic dispatch based on identifier structure
         // Use is_instance_field to distinguish field paths from type constants (e.g., Ptr.NULL)
         mut offset := 0
-        if EvalArena.is_instance_field(ctx, id) {
+        if EvalHeap.is_instance_field(ctx, id) {
             // Instance field path - ALWAYS calculate offset dynamically
             offset = ctx.get_field_offset(id)?
             catch (err: Str) {
@@ -222,7 +217,7 @@ namespace EvalArena {
         }
 
         mut val : I64 = 0
-        memcpy(to_ptr(val), g_arena.get(offset, 8), 8)
+        memcpy(to_ptr(val), g_heap.get(offset, 8), 8)
         return val
     }
 
@@ -231,25 +226,25 @@ namespace EvalArena {
         v := I64.from_str(i64_str)
         // Note: I64.from_str currently panics on invalid input, doesn't throw
 
-        if EvalArena.is_instance_field(ctx, id) {
+        if EvalHeap.is_instance_field(ctx, id) {
             // Bug #160: Deterministic dispatch - field paths ALWAYS use get_field_offset
             field_offset := ctx.get_field_offset(id)?
             catch (err: Str) {
                 throw e.lang_error(ctx.path, "context", format("insert_i64: ", err))
             }
 
-            g_arena.set(field_offset, to_ptr(v), 8)
+            g_heap.set(field_offset, to_ptr(v), 8)
             throw KeyNotFoundError(msg="already handled")
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
-        offset := g_arena.heap_alloc(8)?
-        g_arena.set(offset, to_ptr(v), 8)
+        offset := g_heap.heap_alloc(8)?
+        g_heap.set(offset, to_ptr(v), 8)
         return offset
     }
 
     insert_i64 := proc(mut ctx: Context, id: Str, i64_str: Str, e: Expr) throws Str {
-        offset := EvalArena.insert_i64_core(ctx, id, i64_str, e)?
+        offset := EvalHeap.insert_i64_core(ctx, id, i64_str, e)?
         ctx.scope_stack.insert_var(id, offset)?
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
@@ -257,8 +252,8 @@ namespace EvalArena {
     }
 
     insert_i64_into_frame := proc(ctx: Context, mut frame: ScopeFrame, id: Str, i64_str: Str, e: Expr) throws Str {
-        offset := EvalArena.insert_i64_core(ctx, id, i64_str, e)?
-        frame.arena_index.set(id, offset)
+        offset := EvalHeap.insert_i64_core(ctx, id, i64_str, e)?
+        frame.heap_index.set(id, offset)
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
@@ -271,23 +266,23 @@ namespace EvalArena {
             throw e.lang_error(ctx.path, "context", err.msg)
         }
 
-        if EvalArena.is_instance_field(ctx, id) {
+        if EvalHeap.is_instance_field(ctx, id) {
             // Bug #160: Deterministic dispatch - field paths ALWAYS use get_field_offset
             field_offset := ctx.get_field_offset(id)?
             catch (err: Str) {
                 throw e.lang_error(ctx.path, "context", format("insert_u8: ", err))
             }
-            g_arena.set(field_offset, to_ptr(v), 1)
+            g_heap.set(field_offset, to_ptr(v), 1)
             throw KeyNotFoundError(msg="already handled")
         }
 
-        offset := g_arena.heap_alloc(1)?
-        g_arena.set(offset, to_ptr(v), 1)
+        offset := g_heap.heap_alloc(1)?
+        g_heap.set(offset, to_ptr(v), 1)
         return offset
     }
 
     insert_u8 := proc(mut ctx: Context, id: Str, u8_str: Str, e: Expr) throws Str {
-        offset := EvalArena.insert_u8_core(ctx, id, u8_str, e)?
+        offset := EvalHeap.insert_u8_core(ctx, id, u8_str, e)?
         ctx.scope_stack.insert_var(id, offset)?
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
@@ -295,8 +290,8 @@ namespace EvalArena {
     }
 
     insert_u8_into_frame := proc(ctx: Context, mut frame: ScopeFrame, id: Str, u8_str: Str, e: Expr) throws Str {
-        offset := EvalArena.insert_u8_core(ctx, id, u8_str, e)?
-        frame.arena_index.set(id, offset)
+        offset := EvalHeap.insert_u8_core(ctx, id, u8_str, e)?
+        frame.heap_index.set(id, offset)
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
@@ -342,12 +337,12 @@ namespace EvalArena {
         // Either use existing offset (for nested structs) or allocate new memory
         mut offset := existing_offset
         if existing_offset.lt(0) {
-            offset = g_arena.heap_alloc(total_size)?
+            offset = g_heap.heap_alloc(total_size)?
         }
-        mut base_mapping := EvalArenaMapping()
+        mut base_mapping := EvalHeapMapping()
         base_mapping.name = id
         base_mapping.offset = offset
-        result.arena_mappings.push(base_mapping)
+        result.heap_mappings.push(base_mapping)
 
         // Temporarily register base var so get_field_offset works during field initialization
         ctx.scope_stack.insert_var(id, offset)?
@@ -405,18 +400,18 @@ namespace EvalArena {
                         if not(found_variant) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Unknown enum variant '", variant, "' for field '", decl.name, "'"))
                         }
-                        g_arena.set(add(offset, field_offset), to_ptr(index), 8)
+                        g_heap.set(add(offset, field_offset), to_ptr(index), 8)
                     } else {
                         if type_name.eq("U8") {
                             u8_val := U8.from_str(default_value)?
                             // Note: U8.from_str panics on invalid input, doesn't throw
                             mut dest_u8 : U8 = u8_val
-                            g_arena.set(add(offset, field_offset), to_ptr(dest_u8), 1)
+                            g_heap.set(add(offset, field_offset), to_ptr(dest_u8), 1)
                         } else {
                             if type_name.eq("I64") {
                                 i64_val := I64.from_str(default_value)
                                 // Note: I64.from_str panics on invalid input, doesn't throw
-                                g_arena.set(add(offset, field_offset), to_ptr(i64_val), 8)
+                                g_heap.set(add(offset, field_offset), to_ptr(i64_val), 8)
                             } else if ctx.scope_stack.has_struct(type_name) {
                                 // It's a struct
                                 nested_combined_name := format(id, ".", decl.name)
@@ -432,18 +427,18 @@ namespace EvalArena {
                                 if type_name.eq("Str") {
                                     // Register inline offset BEFORE insert_string so it writes to the inline space
                                     str_field_offset := add(offset, field_offset)
-                                    mut str_mapping := EvalArenaMapping()
+                                    mut str_mapping := EvalHeapMapping()
                                     str_mapping.name = nested_combined_name
                                     str_mapping.offset = str_field_offset
-                                    result.arena_mappings.push(str_mapping)
-                                    EvalArena.insert_string(ctx, nested_combined_name, default_value, e)?
+                                    result.heap_mappings.push(str_mapping)
+                                    EvalHeap.insert_string(ctx, nested_combined_name, default_value, e)?
                                 } else {
                                     // Use existing offset for nested struct (inline allocation)
                                     nested_field_offset := add(offset, field_offset)
-                                    mut nested_mapping := EvalArenaMapping()
+                                    mut nested_mapping := EvalHeapMapping()
                                     nested_mapping.name = nested_combined_name
                                     nested_mapping.offset = nested_field_offset
-                                    result.arena_mappings.push(nested_mapping)
+                                    result.heap_mappings.push(nested_mapping)
                                     // Extract nested defaults (field.subfield -> subfield)
                                     prefix := format(decl.name, ".")
                                     mut nested_defaults := Map.new(Str, Str)
@@ -459,12 +454,12 @@ namespace EvalArena {
                                             nested_defaults.set(rest, dv)
                                         }
                                     }
-                                    nested_result := EvalArena.insert_struct_core(ctx, nested_combined_name, type_name, nested_field_offset, nested_defaults, e)?
+                                    nested_result := EvalHeap.insert_struct_core(ctx, nested_combined_name, type_name, nested_field_offset, nested_defaults, e)?
                                     catch (err: Str) {
                                         throw e.lang_error(ctx.path, "context", format("insert_struct: Failed to initialize nested struct '", id, ".", decl.name, "'"))
                                     }
                                     // Collect nested mappings
-                                    result.arena_mappings.extend(nested_result.arena_mappings)
+                                    result.heap_mappings.extend(nested_result.heap_mappings)
                                     result.symbols.extend(nested_result.symbols)
                                 }
                             } else {
@@ -476,7 +471,7 @@ namespace EvalArena {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Unsupported field value type '", value_type_to_str(decl.value_type), "'"))
                 }
 
-                // Bug #160: Removed field arena_mappings.push - offsets are now calculated dynamically
+                // Bug #160: Removed field heap_mappings.push - offsets are now calculated dynamically
                 // Symbol still needed for type checking
                 combined_name := format(id, ".", decl.name)
                 mut field_sym := SymbolEntry()
@@ -500,7 +495,7 @@ namespace EvalArena {
         return result
     }
 
-    // Generate arena mappings and symbols for a struct without writing bytes.
+    // Generate heap mappings and symbols for a struct without writing bytes.
     // Used for template-based insertion where bytes are already memcpy'd.
     generate_struct_mappings := proc(mut ctx: Context, id: Str, custom_type_name: Str, base_offset: I64, e: Expr) returns StructInsertResult throws Str {
         mut result := StructInsertResult()
@@ -534,12 +529,12 @@ namespace EvalArena {
         }
 
         // Add base struct mapping
-        mut base_mapping := EvalArenaMapping()
+        mut base_mapping := EvalHeapMapping()
         base_mapping.name = id
         base_mapping.offset = base_offset
-        result.arena_mappings.push(base_mapping)
+        result.heap_mappings.push(base_mapping)
 
-        // Generate symbols for each field (Bug #160: no longer generate field arena mappings)
+        // Generate symbols for each field (Bug #160: no longer generate field heap mappings)
         for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_rel_offset := 0
@@ -550,7 +545,7 @@ namespace EvalArena {
                 field_abs_offset := add(base_offset, field_rel_offset)
                 combined_name := format(id, ".", decl.name)
 
-                // Bug #160: Removed arena_mappings.push - offsets are now calculated dynamically
+                // Bug #160: Removed heap_mappings.push - offsets are now calculated dynamically
                 mut field_sym := SymbolEntry()
                 field_sym.name = combined_name
                 field_sym.info = SymbolInfo(value_type=decl.value_type, is_mut=is_mut)
@@ -564,7 +559,7 @@ namespace EvalArena {
                             if ctx.scope_stack.has_struct(type_name) {
                                 // Declare nested symbol first
                                 ctx.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true))?
-                                nested := EvalArena.generate_struct_mappings(ctx, combined_name, type_name, field_abs_offset, e)?
+                                nested := EvalHeap.generate_struct_mappings(ctx, combined_name, type_name, field_abs_offset, e)?
                                 result.symbols.extend(nested.symbols)
                             }
                         }
@@ -584,20 +579,20 @@ namespace EvalArena {
         struct_size := ctx.get_type_size(custom_type_name)?
 
         // CRITICAL: Copy template data BEFORE reserve() - reserve may reallocate
-        // the arena's backing Vec, invalidating any pointers from get()
+        // the heap's backing Vec, invalidating any pointers from get()
         tmp_buf := malloc(struct_size)?
-        memcpy(tmp_buf, g_arena.get(template_offset, struct_size), struct_size)
+        memcpy(tmp_buf, g_heap.get(template_offset, struct_size), struct_size)
 
         // Allocate new memory on heap
-        new_offset := g_arena.heap_alloc(struct_size)?
+        new_offset := g_heap.heap_alloc(struct_size)?
 
         // Copy from temporary buffer to new location
-        g_arena.set(new_offset, tmp_buf, struct_size)
+        g_heap.set(new_offset, tmp_buf, struct_size)
         free(tmp_buf)
 
         // Generate and apply mappings
-        result := EvalArena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?
-        for m: EvalArenaMapping in result.arena_mappings {
+        result := EvalHeap.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?
+        for m: EvalHeapMapping in result.heap_mappings {
             ctx.scope_stack.insert_var(m.name, m.offset)?
         }
         for s: SymbolEntry in result.symbols {
@@ -615,29 +610,29 @@ namespace EvalArena {
         struct_size := ctx.get_type_size(custom_type_name)?
 
         // CRITICAL: Copy template data BEFORE reserve() - reserve may reallocate
-        // the arena's backing Vec, invalidating any pointers from get()
+        // the heap's backing Vec, invalidating any pointers from get()
         tmp_buf := malloc(struct_size)?
-        memcpy(tmp_buf, g_arena.get(template_offset, struct_size), struct_size)
+        memcpy(tmp_buf, g_heap.get(template_offset, struct_size), struct_size)
 
         // Allocate new memory on heap
-        new_offset := g_arena.heap_alloc(struct_size)?
+        new_offset := g_heap.heap_alloc(struct_size)?
 
         // Copy from temporary buffer to new location
-        g_arena.set(new_offset, tmp_buf, struct_size)
+        g_heap.set(new_offset, tmp_buf, struct_size)
         free(tmp_buf)
 
         // Temporarily push frame for generate_struct_mappings
         ctx.scope_stack.frames.push(frame.clone())
 
-        result := EvalArena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?
+        result := EvalHeap.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?
 
         // Pop frame back
         mut popped_frame := ScopeFrame()
         ctx.scope_stack.frames.pop(popped_frame)?
         frame = popped_frame
 
-        for m: EvalArenaMapping in result.arena_mappings {
-            frame.arena_index.set(m.name, m.offset)
+        for m: EvalHeapMapping in result.heap_mappings {
+            frame.heap_index.set(m.name, m.offset)
         }
         for s: SymbolEntry in result.symbols {
             frame.symbols.set(s.name, s.info)
@@ -653,11 +648,11 @@ namespace EvalArena {
 
     // Core logic for insert_string - returns StringInsertInfo if caller needs to create struct, throws KeyNotFoundError if already handled
     insert_string_core := proc(mut ctx: Context, id: Str, value_str: Str, e: Expr) returns StringInsertInfo throws Str, KeyNotFoundError {
-        is_field := EvalArena.is_instance_field(ctx, id)
+        is_field := EvalHeap.is_instance_field(ctx, id)
 
         // Allocate string data (heap_alloc returns zeroed memory, so null terminator is free)
-        string_offset := g_arena.heap_alloc(add(value_str.len(), 1))?
-        g_arena.set(string_offset, value_str.c_string.data, value_str.len())
+        string_offset := g_heap.heap_alloc(add(value_str.len(), 1))?
+        g_heap.set(string_offset, value_str.c_string.data, value_str.len())
         str_len := value_str.len()
 
         if is_field {
@@ -680,10 +675,10 @@ namespace EvalArena {
                         absolute_offset := add(base_offset, existing_offset)
 
                         if existing_decl.name.eq("c_string") {
-                            g_arena.set(absolute_offset, to_ptr(string_offset), 8)
+                            g_heap.set(absolute_offset, to_ptr(string_offset), 8)
                         } else {
                             if existing_decl.name.eq("_len") {
-                                g_arena.set(absolute_offset, to_ptr(str_len), 8)
+                                g_heap.set(absolute_offset, to_ptr(str_len), 8)
                             }
                         }
 
@@ -707,7 +702,7 @@ namespace EvalArena {
                 }
             }
 
-            struct_offset := g_arena.heap_alloc(str_size)?
+            struct_offset := g_heap.heap_alloc(str_size)?
             mut current_offset := 0
 
             for decl: Declaration in str_def.members {
@@ -716,10 +711,10 @@ namespace EvalArena {
 
                     field_offset := add(struct_offset, current_offset)
                     if decl.name.eq("c_string") {
-                        g_arena.set(field_offset, to_ptr(string_offset), 8)
+                        g_heap.set(field_offset, to_ptr(string_offset), 8)
                     } else {
                         if decl.name.eq("_len") {
-                            g_arena.set(field_offset, to_ptr(str_len), 8)
+                            g_heap.set(field_offset, to_ptr(str_len), 8)
                         }
                     }
 
@@ -739,17 +734,17 @@ namespace EvalArena {
     }
 
     insert_string := proc(mut ctx: Context, id: Str, value_str: Str, e: Expr) throws Str {
-        info := EvalArena.insert_string_core(ctx, id, value_str, e)?
+        info := EvalHeap.insert_string_core(ctx, id, value_str, e)?
         catch (err: KeyNotFoundError) {
             return
         }
         // Create Str struct from template
         mut template_offset := 0
-        g_arena.default_instances.get("Str", template_offset)?
+        g_heap.default_instances.get("Str", template_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string", "Str template not found - ensure str.til is imported")
         }
-        EvalArena.insert_struct(ctx, id, "Str", template_offset, e)?
+        EvalHeap.insert_struct(ctx, id, "Str", template_offset, e)?
         // Bug #160: Use get_field_offset instead of lookup_var for field paths
         c_string_offset := ctx.get_field_offset(format(id, ".c_string"))?
         catch (err: Str) {
@@ -759,27 +754,27 @@ namespace EvalArena {
         catch (err: Str) {
             throw e.lang_error(ctx.path, "insert_string", format("missing '", id, "._len': ", err))
         }
-        g_arena.set(c_string_offset, to_ptr(info.string_offset), 8)
-        g_arena.set(len_offset, to_ptr(info.str_len), 8)
+        g_heap.set(c_string_offset, to_ptr(info.string_offset), 8)
+        g_heap.set(len_offset, to_ptr(info.str_len), 8)
 
     }
 
     insert_string_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, id: Str, value_str: Str, e: Expr) throws Str {
-        info := EvalArena.insert_string_core(ctx, id, value_str, e)?
+        info := EvalHeap.insert_string_core(ctx, id, value_str, e)?
         catch (err: KeyNotFoundError) {
             return
         }
         // Create Str struct from template
         mut template_offset := 0
-        g_arena.default_instances.get("Str", template_offset)?
+        g_heap.default_instances.get("Str", template_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string_into_frame", "Str template not found - ensure str.til is imported")
         }
-        EvalArena.insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?
+        EvalHeap.insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?
         // Bug #160: Calculate field offsets from base offset in frame
-        // The base struct was just inserted into frame.arena_index
+        // The base struct was just inserted into frame.heap_index
         mut base_offset := 0
-        frame.arena_index.get(id, base_offset)?
+        frame.heap_index.get(id, base_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string_into_frame", format("missing '", id, "' in frame"))
         }
@@ -811,8 +806,8 @@ namespace EvalArena {
         }
         c_string_offset := add(base_offset, c_string_rel_offset)
         len_offset := add(base_offset, len_rel_offset)
-        g_arena.set(c_string_offset, to_ptr(info.string_offset), 8)
-        g_arena.set(len_offset, to_ptr(info.str_len), 8)
+        g_heap.set(c_string_offset, to_ptr(info.string_offset), 8)
+        g_heap.set(len_offset, to_ptr(info.str_len), 8)
     }
 
     // Helper function to insert primitive types (I64, U8, Str) based on value_type
@@ -820,13 +815,13 @@ namespace EvalArena {
         switch value_type {
         case ValueType.TCustom(type_name):
             if type_name.eq("I64") {
-                EvalArena.insert_i64(ctx, var_name, value, e)?
+                EvalHeap.insert_i64(ctx, var_name, value, e)?
             } else {
                 if type_name.eq("U8") {
-                    EvalArena.insert_u8(ctx, var_name, value, e)?
+                    EvalHeap.insert_u8(ctx, var_name, value, e)?
                 } else {
                     if type_name.eq("Str") {
-                        EvalArena.insert_string(ctx, var_name, value, e)?
+                        EvalHeap.insert_string(ctx, var_name, value, e)?
                     } else {
                         throw e.lang_error(ctx.path, "eval", format("insert_primitive: Unsupported type ", value_type_to_str(value_type)))
                     }
@@ -840,7 +835,7 @@ namespace EvalArena {
     get_enum_at_offset := func(ctx: Context, enum_type: Str, offset: I64, e: Expr) returns EnumVal throws Str {
         // Read enum from a specific offset (used for nested enum payloads)
         mut enum_value : I64 = 0
-        memcpy(to_ptr(enum_value), g_arena.get(offset, 8), 8)
+        memcpy(to_ptr(enum_value), g_heap.get(offset, 8), 8)
 
         mut enum_def := ctx.scope_stack.lookup_enum(enum_type)?
         catch (err: KeyNotFoundError) {
@@ -870,7 +865,7 @@ namespace EvalArena {
             switch payload_type {
             case ValueType.TCustom(inner_type):
                 // This variant has a payload - recursively determine size
-                payload_size := EvalArena.get_payload_size_for_type(ctx, payload_type, add(offset, 8), e)?
+                payload_size := EvalHeap.get_payload_size_for_type(ctx, payload_type, add(offset, 8), e)?
                 if payload_size.gt(0) {
                     payload_offset := add(offset, 8)
                     // Copy payload bytes
@@ -878,7 +873,7 @@ namespace EvalArena {
                     mut pi := 0
                     while pi.lt(payload_size) {
                         mut byte_val : U8 = 0
-                        memcpy(to_ptr(byte_val), g_arena.get(add(payload_offset, pi), 1), 1)
+                        memcpy(to_ptr(byte_val), g_heap.get(add(payload_offset, pi), 1), 1)
                         payload_bytes.push(byte_val)
                         pi = add(pi, 1)
                     }
@@ -918,7 +913,7 @@ namespace EvalArena {
                     return ctx.get_type_size(type_name)?
                 case TTypeDef.TEnumDef:
                     // Recursively get the inner enum's size
-                    inner_enum := EvalArena.get_enum_at_offset(ctx, type_name, offset, e)?
+                    inner_enum := EvalHeap.get_enum_at_offset(ctx, type_name, offset, e)?
                     mut total_size := 8  // variant tag
                     if not(NULL.eq(inner_enum.payload.data)) {
                         mut payload_vec := Vec.new(U8)
@@ -969,7 +964,7 @@ namespace EvalArena {
         // Bug #160: Deterministic dispatch based on identifier structure
         // Use is_instance_field to distinguish field paths from type constants
         mut offset := 0
-        if EvalArena.is_instance_field(ctx, id) {
+        if EvalHeap.is_instance_field(ctx, id) {
             // Instance field path - ALWAYS calculate offset dynamically
             offset = ctx.get_field_offset(id)?
             catch (err: Str) {
@@ -979,12 +974,12 @@ namespace EvalArena {
             // Variable or type constant - ALWAYS direct lookup
             offset = ctx.scope_stack.lookup_var(id)?
             catch (err: KeyNotFoundError) {
-                throw e.lang_error(ctx.path, "context", format("get_enum: EvalArena index for '", id, "' not found"))
+                throw e.lang_error(ctx.path, "context", format("get_enum: EvalHeap index for '", id, "' not found"))
             }
         }
 
         mut enum_value : I64 = 0
-        memcpy(to_ptr(enum_value), g_arena.get(offset, 8), 8)
+        memcpy(to_ptr(enum_value), g_heap.get(offset, 8), 8)
 
         mut enum_def := ctx.scope_stack.lookup_enum(enum_type)?
         catch (err: KeyNotFoundError) {
@@ -1013,7 +1008,7 @@ namespace EvalArena {
             memcpy(to_ptr(variant_payload_type), payload_ptr.data, size_of(ValueType))
             switch variant_payload_type {
             case ValueType.TCustom(vtype_name):
-                // This variant has a payload, read it from arena
+                // This variant has a payload, read it from heap
                 mut payload_size := 0
                 if vtype_name.eq("I64") {
                     payload_size = 8
@@ -1036,7 +1031,7 @@ namespace EvalArena {
                                 }
                             case TTypeDef.TEnumDef:
                                 // For enum payloads, recursively get the enum to determine size
-                                inner_enum := EvalArena.get_enum_at_offset(ctx, vtype_name, add(offset, 8), e)?
+                                inner_enum := EvalHeap.get_enum_at_offset(ctx, vtype_name, add(offset, 8), e)?
                                 payload_size = 8  // variant tag
                                 if not(NULL.eq(inner_enum.payload.data)) {
                                     mut inner_payload_vec := Vec.new(U8)
@@ -1058,7 +1053,7 @@ namespace EvalArena {
                     mut pi := 0
                     while pi.lt(payload_size) {
                         mut byte_val : U8 = 0
-                        memcpy(to_ptr(byte_val), g_arena.get(add(payload_offset, pi), 1), 1)
+                        memcpy(to_ptr(byte_val), g_heap.get(add(payload_offset, pi), 1), 1)
                         payload_bytes.push(byte_val)
                         pi = add(pi, 1)
                     }
@@ -1125,7 +1120,7 @@ namespace EvalArena {
             mut have_offset := true
             mut offset := ctx.scope_stack.lookup_var(id)?
             catch (err: KeyNotFoundError) {
-                // Field path not in arena_index - calculate from struct definition
+                // Field path not in heap_index - calculate from struct definition
                 offset = ctx.get_field_offset(id)?
                 catch (err2: Str) {
                     have_offset = false
@@ -1134,24 +1129,24 @@ namespace EvalArena {
 
             if have_offset {
                 // Update existing enum value (no new mapping needed)
-                g_arena.set(offset, to_ptr(enum_value), 8)
+                g_heap.set(offset, to_ptr(enum_value), 8)
                 if payload_data.len().gt(0).and(add(payload_data.len(), 8).lteq(max_enum_size)) {
                     payload_offset := add(offset, 8)
                     mut pi := 0
                     while pi.lt(payload_data.len()) {
                         mut byte_val : U8 = 0
                         payload_data.get(pi, byte_val)?
-                        g_arena.set(add(payload_offset, pi), to_ptr(byte_val), 1)
+                        g_heap.set(add(payload_offset, pi), to_ptr(byte_val), 1)
                         pi = add(pi, 1)
                     }
                 }
                 result.has_mapping = false
             } else {
                 // Allocate max enum size (zeroed), write tag and payload
-                offset = g_arena.heap_alloc(max_enum_size)?
-                g_arena.set(offset, to_ptr(enum_value), 8)
+                offset = g_heap.heap_alloc(max_enum_size)?
+                g_heap.set(offset, to_ptr(enum_value), 8)
                 if payload_data.len().gt(0).and(add(payload_data.len(), 8).lteq(max_enum_size)) {
-                    g_arena.set(add(offset, 8), payload_data.ptr.data, payload_data.len())
+                    g_heap.set(add(offset, 8), payload_data.ptr.data, payload_data.len())
                 }
                 // padding: heap_alloc returns zeroed memory
                 result.has_mapping = true
@@ -1160,10 +1155,10 @@ namespace EvalArena {
             }
         } else {
             // Allocate max enum size (zeroed), write tag and payload
-            new_enum_offset := g_arena.heap_alloc(max_enum_size)?
-            g_arena.set(new_enum_offset, to_ptr(enum_value), 8)
+            new_enum_offset := g_heap.heap_alloc(max_enum_size)?
+            g_heap.set(new_enum_offset, to_ptr(enum_value), 8)
             if payload_data.len().gt(0).and(add(payload_data.len(), 8).lteq(max_enum_size)) {
-                g_arena.set(add(new_enum_offset, 8), payload_data.ptr.data, payload_data.len())
+                g_heap.set(add(new_enum_offset, 8), payload_data.ptr.data, payload_data.len())
             }
             // padding: heap_alloc returns zeroed memory
             result.has_mapping = true
@@ -1193,7 +1188,7 @@ namespace EvalArena {
 
     // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
     insert_enum := proc(mut ctx: Context, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str {
-        result := EvalArena.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?
+        result := EvalHeap.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?
         if result.has_mapping {
             ctx.scope_stack.insert_var(result.mapping_name, result.mapping_offset)?
         }
@@ -1205,14 +1200,14 @@ namespace EvalArena {
         // Temporarily push frame so symbol lookups work in core function
         ctx.scope_stack.frames.push(frame.clone())
 
-        result := EvalArena.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?
+        result := EvalHeap.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?
 
         // Pop frame back
         ctx.scope_stack.frames.pop(frame)?
 
         // Now apply result to the frame
         if result.has_mapping {
-            frame.arena_index.set(result.mapping_name, result.mapping_offset)
+            frame.heap_index.set(result.mapping_name, result.mapping_offset)
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -1227,18 +1222,18 @@ namespace EvalArena {
     insert_array_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, name: Str, elem_type: Str, values: Vec, e: Expr) throws Str {
         // Create Array struct using template
         mut template_offset := 0
-        g_arena.default_instances.get("Array", template_offset)?
+        g_heap.default_instances.get("Array", template_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "Array template not found - ensure array.til is imported")
         }
-        EvalArena.insert_struct_into_frame(ctx, frame, name, "Array", template_offset, e)?
+        EvalHeap.insert_struct_into_frame(ctx, frame, name, "Array", template_offset, e)?
 
         len := values.len()
         elem_size := ctx.get_type_size(elem_type)?
         total_size := mul(len, elem_size)
 
         // Allocate memory for elements
-        ptr := g_arena.heap_alloc(total_size)?
+        ptr := g_heap.heap_alloc(total_size)?
 
         // Write values into allocated buffer
         mut i := 0
@@ -1249,24 +1244,24 @@ namespace EvalArena {
 
             if Str.eq(elem_type, "U8") {
                 byte := U8.from_str(val)?
-                g_arena.set(offset, to_ptr(byte), 1)
+                g_heap.set(offset, to_ptr(byte), 1)
             } else if Str.eq(elem_type, "I64") {
                 n := I64.from_str(val)
-                g_arena.set(offset, to_ptr(n), 8)
+                g_heap.set(offset, to_ptr(n), 8)
             } else if Str.eq(elem_type, "Str") {
                 // For Str elements, create temp Str and copy bytes to array slot
                 temp_id := format(name, "_", I64.to_str(i))
                 temp_symbol := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
                 frame.symbols.set(temp_id.clone(), temp_symbol)
 
-                EvalArena.insert_string_into_frame(ctx, frame, temp_id, val, e)?
+                EvalHeap.insert_string_into_frame(ctx, frame, temp_id, val, e)?
 
                 mut str_offset := 0
-                frame.arena_index.get(temp_id, str_offset)?
+                frame.heap_index.get(temp_id, str_offset)?
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("missing Str offset for '", temp_id, "'"))
                 }
-                g_arena.set(offset, g_arena.get(str_offset, elem_size), elem_size)
+                g_heap.set(offset, g_heap.get(str_offset, elem_size), elem_size)
             } else {
                 // Struct element - val is identifier, copy from source
                 mut src_offset := 0
@@ -1274,7 +1269,7 @@ namespace EvalArena {
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("struct source '", val, "' not found"))
                 }
-                g_arena.set(offset, g_arena.get(src_offset, elem_size), elem_size)
+                g_heap.set(offset, g_heap.get(src_offset, elem_size), elem_size)
             }
 
             i = add(i, 1)
@@ -1282,7 +1277,7 @@ namespace EvalArena {
 
         // Bug #160: Calculate field offsets from base offset in frame
         mut base_offset := 0
-        frame.arena_index.get(name, base_offset)?
+        frame.heap_index.get(name, base_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", format("missing base offset for '", name, "'"))
         }
@@ -1322,32 +1317,32 @@ namespace EvalArena {
         // Update Array fields using calculated offsets
         ptr_offset := add(base_offset, ptr_rel_offset)
         mut ptr_val := ptr
-        g_arena.set(ptr_offset, to_ptr(ptr_val), 8)
+        g_heap.set(ptr_offset, to_ptr(ptr_val), 8)
 
         len_offset := add(base_offset, len_rel_offset)
         mut len_val := len
-        g_arena.set(len_offset, to_ptr(len_val), 8)
+        g_heap.set(len_offset, to_ptr(len_val), 8)
 
         type_size_offset := add(base_offset, type_size_rel_offset)
         mut elem_size_val := elem_size
-        g_arena.set(type_size_offset, to_ptr(elem_size_val), 8)
+        g_heap.set(type_size_offset, to_ptr(elem_size_val), 8)
 
         // Set type_name field (it's a Str)
         temp_type_name_id := format(name, "_type_name_temp")
         temp_symbol2 := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
         frame.symbols.set(temp_type_name_id.clone(), temp_symbol2)
 
-        EvalArena.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)?
+        EvalHeap.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)?
 
         mut temp_str_offset := 0
-        frame.arena_index.get(temp_type_name_id, temp_str_offset)?
+        frame.heap_index.get(temp_type_name_id, temp_str_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", "missing type_name temp Str offset")
         }
 
         type_name_offset := add(base_offset, type_name_rel_offset)
         str_size := ctx.get_type_size("Str")?
-        g_arena.set(type_name_offset, g_arena.get(temp_str_offset, str_size), str_size)
+        g_heap.set(type_name_offset, g_heap.get(temp_str_offset, str_size), str_size)
 
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "IndexOutOfBoundsError")
@@ -1357,14 +1352,14 @@ namespace EvalArena {
         }
     }
 
-    /// Convert a struct instance stored in EvalArena to a struct literal Expr.
+    /// Convert a struct instance stored in EvalHeap to a struct literal Expr.
     /// Given instance "___temp_return_val_0" of type "Bool", produces:
     ///   Bool(data=1)
     /// The `e` parameter is only used for error reporting.
     to_struct_literal := func(ctx: Context, instance_name: Str, type_name: Str, e: Expr) returns Expr throws Str {
         mut struct_def := ctx.scope_stack.lookup_struct(type_name)?
         catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "arena", format("to_struct_literal: struct '", type_name, "' not found"))
+            throw e.lang_error(ctx.path, "heap", format("to_struct_literal: struct '", type_name, "' not found"))
         }
 
         // First param is the type identifier
@@ -1378,7 +1373,7 @@ namespace EvalArena {
                 continue  // Skip static fields
             }
             field_id := format(instance_name, ".", member.name)
-            field_value := EvalArena.field_to_literal(ctx, field_id, member.value_type, e)?
+            field_value := EvalHeap.field_to_literal(ctx, field_id, member.value_type, e)?
 
             mut named_arg_params := Vec.new(Expr)
             named_arg_params.push(field_value)
@@ -1392,16 +1387,16 @@ namespace EvalArena {
         return result
     }
 
-    /// Helper: read a field value from EvalArena and convert to literal Expr
+    /// Helper: read a field value from EvalHeap and convert to literal Expr
     field_to_literal := func(ctx: Context, field_id: Str, value_type: ValueType, e: Expr) returns Expr throws Str {
         mut result := Expr()
         switch value_type {
         case ValueType.TCustom(custom_type):
             if custom_type.eq("I64") {
-                i64_val := EvalArena.get_i64(ctx, field_id, e)?
+                i64_val := EvalHeap.get_i64(ctx, field_id, e)?
                 result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(i64_val.to_str())), Vec.new(Expr), 0, 0)
             } else if custom_type.eq("U8") {
-                u8_val := EvalArena.get_u8(ctx, field_id, e)?
+                u8_val := EvalHeap.get_u8(ctx, field_id, e)?
                 result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(u8_val.to_str())), Vec.new(Expr), 0, 0)
             } else {
                 // Check if nested struct
@@ -1412,19 +1407,19 @@ namespace EvalArena {
                     // Not a struct
                 }
                 if is_struct {
-                    result = EvalArena.to_struct_literal(ctx, field_id, custom_type, e)?
+                    result = EvalHeap.to_struct_literal(ctx, field_id, custom_type, e)?
                 } else {
-                    throw e.lang_error(ctx.path, "arena", format("field_to_literal: unsupported nested type '", custom_type, "'"))
+                    throw e.lang_error(ctx.path, "heap", format("field_to_literal: unsupported nested type '", custom_type, "'"))
                 }
             }
         case:
-            throw e.lang_error(ctx.path, "arena", format("field_to_literal: unsupported field type '", value_type_to_str(value_type), "'"))
+            throw e.lang_error(ctx.path, "heap", format("field_to_literal: unsupported field type '", value_type_to_str(value_type), "'"))
         }
 
         return result
     }
 
-    /// Extract the contents of a Vec instance from arena memory.
+    /// Extract the contents of a Vec instance from heap memory.
     /// Returns the element type name, size, and raw bytes for each element.
     extract_vec_contents := func(ctx: Context, instance_name: Str) returns VecContents throws Str {
         // Get Vec base offset
@@ -1441,23 +1436,23 @@ namespace EvalArena {
 
         // Read type_name (Str) - need to extract the string value
         type_name_offset := vec_offset
-        type_name_str := EvalArena.extract_str_at_offset(ctx, type_name_offset)?
+        type_name_str := EvalHeap.extract_str_at_offset(ctx, type_name_offset)?
 
         // Read type_size (I64) - after Str
         type_size_offset := vec_offset.add(str_size)
-        type_size_ptr := g_arena.get(type_size_offset, 8)
+        type_size_ptr := g_heap.get(type_size_offset, 8)
         mut type_size := 0
         Ptr(data=type_size_ptr).dereference(I64, type_size)
 
         // Read ptr.data (I64) - after type_size
         ptr_offset := type_size_offset.add(8)
-        ptr_data_ptr := g_arena.get(ptr_offset, 8)
+        ptr_data_ptr := g_heap.get(ptr_offset, 8)
         mut data_ptr := 0
         Ptr(data=ptr_data_ptr).dereference(I64, data_ptr)
 
         // Read _len (I64) - after ptr (Ptr is 16 bytes: data + is_borrowed)
         len_offset := ptr_offset.add(ptr_size)
-        len_ptr := g_arena.get(len_offset, 8)
+        len_ptr := g_heap.get(len_offset, 8)
         mut len := 0
         Ptr(data=len_ptr).dereference(I64, len)
 
@@ -1465,10 +1460,10 @@ namespace EvalArena {
         mut element_bytes := Vec.new(Vec)
         for i in 0..len {
             elem_offset := data_ptr.add(i.mul(type_size))
-            // Read bytes from arena
+            // Read bytes from heap
             mut bytes := Vec.new(U8)
             for j in 0..type_size {
-                byte_ptr := g_arena.get(elem_offset.add(j), 1)
+                byte_ptr := g_heap.get(elem_offset.add(j), 1)
                 mut byte_val : U8 = 0
                 Ptr(data=byte_ptr).dereference(U8, byte_val)
                 bytes.push(byte_val)
@@ -1486,13 +1481,13 @@ namespace EvalArena {
         ptr_size := ctx.get_type_size("Ptr")?
 
         // Read c_string.data (first field of Ptr)
-        c_string_ptr_ptr := g_arena.get(str_offset, 8)
+        c_string_ptr_ptr := g_heap.get(str_offset, 8)
         mut c_string_ptr := 0
         Ptr(data=c_string_ptr_ptr).dereference(I64, c_string_ptr)
 
         // Read _len (I64) - after c_string Ptr
         len_offset := str_offset.add(ptr_size)
-        len_ptr := g_arena.get(len_offset, 8)
+        len_ptr := g_heap.get(len_offset, 8)
         mut len := 0
         Ptr(data=len_ptr).dereference(I64, len)
 
@@ -1503,7 +1498,7 @@ namespace EvalArena {
         // Create string from bytes
         mut result := ""
         for i in 0..len {
-            byte_ptr := g_arena.get(c_string_ptr.add(i), 1)
+            byte_ptr := g_heap.get(c_string_ptr.add(i), 1)
             mut byte_val : U8 = 0
             Ptr(data=byte_ptr).dereference(U8, byte_val)
             result = concat(result, Str.from_byte(byte_val))
@@ -1543,29 +1538,18 @@ namespace EvalArena {
             catch (err: IndexOutOfBoundsError) { }
         }
 
-        // Read the actual string bytes from arena
+        // Read the actual string bytes from heap
         if c_string_ptr.eq(0).or(len.eq(0)) {
             return ""
         }
         mut result := ""
         for i in 0..len {
-            byte_ptr := g_arena.get(c_string_ptr.add(i), 1)
+            byte_ptr := g_heap.get(c_string_ptr.add(i), 1)
             mut byte_val : U8 = 0
             Ptr(data=byte_ptr).dereference(U8, byte_val)
             result = concat(result, Str.from_byte(byte_val))
         }
         return result
-    }
-
-    /// Extract a Str value from an instance by name.
-    extract_str_contents := func(ctx: Context, instance_name: Str) returns StrContents throws Str {
-        mut str_offset := 0
-        str_offset = ctx.scope_stack.lookup_var(instance_name)?
-        catch (err: KeyNotFoundError) {
-            throw format("extract_str_contents: instance '", instance_name, "' not found")
-        }
-        string_data := EvalArena.extract_str_at_offset(ctx, str_offset)?
-        return StrContents(string_data=string_data)
     }
 
     /// Check if a type requires heap serialization (contains Ptr fields that point to heap data)
@@ -1591,7 +1575,7 @@ namespace EvalArena {
             if member.is_mut {
                 switch member.value_type {
                 case ValueType.TCustom(field_type):
-                    if EvalArena.type_needs_heap_serialization(ctx, field_type) {
+                    if EvalHeap.type_needs_heap_serialization(ctx, field_type) {
                         return true
                     }
                 case:
@@ -1602,5 +1586,5 @@ namespace EvalArena {
     }
 }
 
-// Global arena instance
-mut g_arena := EvalArena.new()
+// Global heap instance
+mut g_heap := EvalHeap.new()

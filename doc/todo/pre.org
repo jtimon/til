@@ -15,41 +15,6 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
-** Issue #163: Replace arena allocator with heap allocation (malloc/free)
-:PROPERTIES:
-:DISCOVERED: 2026-02-09
-:IMPACT: Enables actual memory reclamation when Type.delete() is called
-:STATUS: Steps 1-3 done, EvalArena cleanup remaining
-:RELATED: Issue #117 (ASAP destruction), Issue #115 (owned struct fields)
-:END:
-
-*** Description
-The arena allocator (bump allocator) was the bottleneck for memory management.
-It could only grow, never free individual objects. With Type.delete() from Issue
-#117, we needed heap allocation so free() actually reclaims memory.
-
-*** Done
-
-1. *Step 1* (DONE): Added heap_alloc/heap_free alongside arena. Dual dispatch.
-2. *Step 2* (DONE): Moved struct allocations from arena to heap.
-3. *Step 3* (DONE): Removed arena from EvalArena. All allocations via heap.
-   Deleted arena.rs. Kept arena.til as standalone std library.
-
-*** Remaining: Remove or rename EvalArena
-
-eval_arena.rs and eval_arena.til still exist as the memory management layer.
-The "arena" name is now misleading — it's purely a heap allocator wrapper.
-
-Options:
-- Rename EvalArena to EvalHeap or EvalMem (and g_arena to g_heap/g_mem)
-- Inline heap_alloc/heap_free into ext functions and remove EvalArena entirely
-- Move remaining eval logic (insert_i64, insert_string, insert_struct, etc.)
-  closer to the interpreter, since EvalArena is really an interpreter helper
-
-Also: arena_index (HashMap in ScopeFrame) still uses the old name. All the
-"arena_offset" fields in EvalResult, and comments throughout the codebase
-still reference "arena". A rename pass would clean this up.
-
 ** Issue #161: Namespace constants, static mutables, and per-instance immutables
 :PROPERTIES:
 :DISCOVERED: 2026-02-04

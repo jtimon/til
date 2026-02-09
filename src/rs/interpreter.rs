@@ -19,7 +19,7 @@ use crate::rs::ext;
 
 // Interpreter/Eval phase: Runtime evaluation and execution
 // This module handles the eval phase that runs after type checking.
-// Manages arena, memory allocation, and actual program execution.
+// Manages heap memory allocation and actual program execution.
 
 const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
 const SKIP_AST             : bool = true;
@@ -105,7 +105,7 @@ fn to_ast_str(e: &Expr) -> String {
     }
 }
 
-use crate::rs::eval_arena::{EvalArena, SymbolEntry};
+use crate::rs::eval_heap::{EvalHeap, SymbolEntry};
 
 
 
@@ -117,28 +117,28 @@ pub struct EvalResult {
     pub is_break: bool,
     pub is_continue: bool,
     pub thrown_type: String,  // Empty string means no thrown type
-    pub arena_offset: usize,  // 0 means None (arena offset 0 is reserved for null)
+    pub heap_offset: usize,  // 0 means None (heap offset 0 is reserved for null)
 }
 
 impl EvalResult {
     pub fn new(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new(), arena_offset: 0}
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new(), heap_offset: 0}
     }
 
     pub fn new_return(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new(), arena_offset: 0}
+        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new(), heap_offset: 0}
     }
 
     pub fn new_throw(value: &str, thrown_type: ValueType) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, is_break: false, is_continue: false, thrown_type: value_type_to_str(&thrown_type), arena_offset: 0}
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, is_break: false, is_continue: false, thrown_type: value_type_to_str(&thrown_type), heap_offset: 0}
     }
 
     pub fn new_break() -> EvalResult {
-        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: true, is_continue: false, thrown_type: String::new(), arena_offset: 0}
+        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: true, is_continue: false, thrown_type: String::new(), heap_offset: 0}
     }
 
     pub fn new_continue() -> EvalResult {
-        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: false, is_continue: true, thrown_type: String::new(), arena_offset: 0}
+        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: false, is_continue: true, thrown_type: String::new(), heap_offset: 0}
     }
 }
 
@@ -147,15 +147,15 @@ pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<Stri
     // Validate the Str struct exists
     context.get_struct(id, e)?;
 
-    // Read the c_string.data field (I64 pointer to string data in EvalArena)
+    // Read the c_string.data field (I64 pointer to string data in EvalHeap)
     // Note: c_string is a Ptr struct { data: I64, is_borrowed: I64 }, so we read .data
-    let c_string_ptr = EvalArena::get_i64(context, &format!("{}.c_string.data", id), e)? as usize;
+    let c_string_ptr = EvalHeap::get_i64(context, &format!("{}.c_string.data", id), e)? as usize;
 
     // Read the _len field (I64 length)
-    let length = EvalArena::get_i64(context, &format!("{}._len", id), e)? as usize;
+    let length = EvalHeap::get_i64(context, &format!("{}._len", id), e)? as usize;
 
-    // Read string bytes from EvalArena and convert to String
-    let bytes = EvalArena::g().get(c_string_ptr, length);
+    // Read string bytes from EvalHeap and convert to String
+    let bytes = EvalHeap::g().get(c_string_ptr, length);
     let result = String::from_utf8_lossy(bytes).to_string();
     Ok(result)
 }
@@ -184,7 +184,7 @@ fn eval_condition_to_bool(context: &Context, result: &EvalResult, expr: &Expr) -
     // Otherwise it's a Bool struct identifier - read its .data field
     let bool_id = &result.value;
     let data_field_id = format!("{}.data", bool_id);
-    let u8_val = EvalArena::get_u8(context, &data_field_id, expr)?;
+    let u8_val = EvalHeap::get_u8(context, &data_field_id, expr)?;
     Ok(u8_val != 0)
 }
 
@@ -209,7 +209,7 @@ fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &SFuncDef
 }
 
 /// Read PRIMITIVE field values from an already-evaluated struct instance.
-/// This reads ACTUAL primitive values (I64, U8) from the arena.
+/// This reads ACTUAL primitive values (I64, U8) from the heap.
 /// For nested struct fields (Str, Vec, etc.), recursively reads primitive values
 /// but skips ptr fields to avoid copying pointers to temp instance memory.
 /// Bug #43 fix: Recursively read primitive fields from nested structs to get
@@ -239,12 +239,12 @@ fn read_struct_primitive_fields(ctx: &Context, instance_id: &str, struct_type: &
                             continue;
                         }
                         // Read actual I64 value from evaluated instance
-                        let val = EvalArena::get_i64(ctx, &field_id, e)?;
+                        let val = EvalHeap::get_i64(ctx, &field_id, e)?;
                         values.insert(key, val.to_string());
                     },
                     "U8" => {
                         // Read actual U8 value from evaluated instance
-                        let val = EvalArena::get_u8(ctx, &field_id, e)?;
+                        let val = EvalHeap::get_u8(ctx, &field_id, e)?;
                         values.insert(key, val.to_string());
                     },
                     "Str" => {
@@ -345,7 +345,7 @@ fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Resul
 /// Called eagerly when struct declarations are evaluated.
 pub fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -> Result<usize, String> {
     // Check if template already exists (e.g., from a previous import)
-    if let Some(&offset) = EvalArena::g().default_instances.get(struct_type) {
+    if let Some(&offset) = EvalHeap::g().default_instances.get(struct_type) {
         return Ok(offset);
     }
 
@@ -363,15 +363,15 @@ pub fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -
 
     // Evaluate defaults and create template
     let defaults = eval_struct_defaults(ctx, struct_type, e)?;
-    let result = EvalArena::insert_struct_core(ctx, &template_id, struct_type, None, &defaults, e)?;
+    let result = EvalHeap::insert_struct_core(ctx, &template_id, struct_type, None, &defaults, e)?;
 
-    // Get the template's arena offset (first mapping is the base struct)
-    let template_offset = result.arena_mappings.first()
+    // Get the template's heap offset (first mapping is the base struct)
+    let template_offset = result.heap_mappings.first()
         .map(|m| m.offset)
-        .ok_or_else(|| e.lang_error(&ctx.path, "create_default_instance", "No arena mapping for template"))?;
+        .ok_or_else(|| e.lang_error(&ctx.path, "create_default_instance", "No heap mapping for template"))?;
 
     // Cache the template offset
-    EvalArena::g().default_instances.insert(struct_type.to_string(), template_offset);
+    EvalHeap::g().default_instances.insert(struct_type.to_string(), template_offset);
 
     Ok(template_offset)
 }
@@ -379,12 +379,12 @@ pub fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -
 /// Insert a struct instance using cached template.
 /// Template is guaranteed to exist - created eagerly on eval_declaration.
 pub fn insert_struct_instance(ctx: &mut Context, id: &str, type_name: &str, e: &Expr) -> Result<(), String> {
-    let template_offset = EvalArena::g().default_instances.get(type_name).copied()
+    let template_offset = EvalHeap::g().default_instances.get(type_name).copied()
         .ok_or_else(|| {
             e.lang_error(&ctx.path, "insert_struct_instance",
                 &format!("template for '{}' not found", type_name))
         })?;
-    EvalArena::insert_struct(ctx, id, type_name, template_offset, e)
+    EvalHeap::insert_struct(ctx, id, type_name, template_offset, e)
 }
 
 pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -457,7 +457,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                     return Ok(return_result)
                 }
                 let mut ret = EvalResult::new_return(&return_result.value);
-                ret.arena_offset = return_result.arena_offset;
+                ret.heap_offset = return_result.heap_offset;
                 return Ok(ret)
             }
         },
@@ -532,8 +532,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
             if has_named_args {
                 // Struct literal: Vec2(x=10, y=20)
                 // Create a temp instance, set field values, return temp name
-                let temp_id = EvalArena::g().temp_id_counter;
-                EvalArena::g().temp_id_counter += 1;
+                let temp_id = EvalHeap::g().temp_id_counter;
+                EvalHeap::g().temp_id_counter += 1;
                 let temp_name = format!("{}{}", RETURN_INSTANCE_NAME, temp_id);
 
                 // Declare the temp symbol
@@ -571,15 +571,15 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                             ValueType::TCustom(field_type_name) => {
                                 match field_type_name.as_str() {
                                     "I64" | "U8" | "Str" => {
-                                        if field_type_name == "Str" && named_value_result.arena_offset > 0 {
-                                            let src_offset = named_value_result.arena_offset;
+                                        if field_type_name == "Str" && named_value_result.heap_offset > 0 {
+                                            let src_offset = named_value_result.heap_offset;
                                             let dest_offset = context.get_field_offset(&field_id)?;
                                             let type_size = context.get_type_size("Str")?;
-                                            let data = EvalArena::g().get(src_offset, type_size).to_vec();
-                                            EvalArena::g().set(dest_offset, &data)?;
+                                            let data = EvalHeap::g().get(src_offset, type_size).to_vec();
+                                            EvalHeap::g().set(dest_offset, &data)?;
                                             continue;
                                         }
-                                        EvalArena::insert_primitive(context, &field_id, &field_type, &named_value_result.value, named_arg)?;
+                                        EvalHeap::insert_primitive(context, &field_id, &field_type, &named_value_result.value, named_arg)?;
                                     },
                                     _ => {
                                         // Could be enum or nested struct
@@ -589,7 +589,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         let field_custom_value_type = field_custom_symbol.value_type.clone();
                                         match &field_custom_value_type {
                                             ValueType::TType(TTypeDef::TEnumDef) => {
-                                                EvalArena::insert_enum(context, &field_id, &field_type_name, &named_value_result.value, named_arg)?;
+                                                EvalHeap::insert_enum(context, &field_id, &field_type_name, &named_value_result.value, named_arg)?;
                                             },
                                             ValueType::TType(TTypeDef::TStructDef) => {
                                                 // Issue #159: deep copy via memcpy.
@@ -600,8 +600,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                         &format!("Undefined variable '{}' for field '{}'", named_value_result.value, field_name)))?;
                                                 let dest_offset = context.get_field_offset(&field_id)?;
                                                 let type_size = context.get_type_size(&field_type_name)?;
-                                                let data = EvalArena::g().get(src_offset, type_size).to_vec();
-                                                EvalArena::g().set(dest_offset, &data)?;
+                                                let data = EvalHeap::g().get(src_offset, type_size).to_vec();
+                                                EvalHeap::g().set(dest_offset, &data)?;
                                             },
                                             _ => {
                                                 return Err(named_arg.error(&context.path, "eval",
@@ -624,8 +624,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 // Default constructor: Vec2()
                 // Bug #160 fix: Create temp instance instead of using type name
                 // This ensures field access via get_field_offset works correctly
-                let temp_id = EvalArena::g().temp_id_counter;
-                EvalArena::g().temp_id_counter += 1;
+                let temp_id = EvalHeap::g().temp_id_counter;
+                EvalHeap::g().temp_id_counter += 1;
                 let temp_name = format!("{}{}", RETURN_INSTANCE_NAME, temp_id);
 
                 // Declare temp symbol
@@ -699,7 +699,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         NodeType::Identifier(_name) if struct_type_name == "Str" => {
                                             // For Str payloads with identifier expressions (like t.token_str),
                                             // create a temporary Str from the evaluated result value
-                                            let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().heap_index.len());
                                             let string_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_string
@@ -711,13 +711,13 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 is_comptime_const: false,
                                             });
 
-                                            EvalArena::insert_string(context, &temp_var_name, &string_value.to_string(), e)?;
+                                            EvalHeap::insert_string(context, &temp_var_name, &string_value.to_string(), e)?;
                                             temp_var_name
                                         },
                                         NodeType::Identifier(name) => name.clone(),
                                         NodeType::LLiteral(Literal::Str(_)) if struct_type_name == "Str" => {
                                             // For string literals, create a temporary Str struct
-                                            let str_lit_temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let str_lit_temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().heap_index.len());
                                             let str_lit_string_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_string
@@ -729,12 +729,12 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 is_comptime_const: false,
                                             });
 
-                                            EvalArena::insert_string(context, &str_lit_temp_var_name, &str_lit_string_value.to_string(), e)?;
+                                            EvalHeap::insert_string(context, &str_lit_temp_var_name, &str_lit_string_value.to_string(), e)?;
                                             str_lit_temp_var_name
                                         },
                                         NodeType::LLiteral(Literal::Number(_)) if struct_type_name == "I64" => {
                                             // For I64 literals, create a temporary I64 struct
-                                            let i64_lit_temp_var_name = format!("__temp_i64_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let i64_lit_temp_var_name = format!("__temp_i64_{}", context.scope_stack.frames.last().unwrap().heap_index.len());
                                             let i64_lit_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_i64
@@ -746,12 +746,12 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 is_comptime_const: false,
                                             });
 
-                                            EvalArena::insert_i64(context, &i64_lit_temp_var_name, &i64_lit_value.to_string(), e)?;
+                                            EvalHeap::insert_i64(context, &i64_lit_temp_var_name, &i64_lit_value.to_string(), e)?;
                                             i64_lit_temp_var_name
                                         },
                                         // Bug #56 fix: Handle FCall (e.g., x.clone()) for Str payloads
                                         NodeType::FCall(_) if struct_type_name == "Str" => {
-                                            let str_fcall_temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let str_fcall_temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().heap_index.len());
                                             let str_fcall_string_value = &payload_result.value;
 
                                             context.scope_stack.declare_symbol(str_fcall_temp_var_name.clone(), SymbolInfo {
@@ -762,19 +762,19 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 is_comptime_const: false,
                                             });
 
-                                            EvalArena::insert_string(context, &str_fcall_temp_var_name, &str_fcall_string_value.to_string(), e)?;
+                                            EvalHeap::insert_string(context, &str_fcall_temp_var_name, &str_fcall_string_value.to_string(), e)?;
                                             str_fcall_temp_var_name
                                         },
                                         _ => return Err(e.error(&context.path, "eval", &format!("Enum variant payload must be a variable, literal, or function call, got {:?}", payload_expr.node_type))),
                                     };
 
-                                    // Get struct offset from arena
+                                    // Get struct offset from heap
                                     let offset = context.scope_stack.lookup_var(&struct_var_name).ok_or_else(|| {
-                                        e.error(&context.path, "eval", &format!("Struct '{}' not found in arena", struct_var_name))
+                                        e.error(&context.path, "eval", &format!("Struct '{}' not found in heap", struct_var_name))
                                     })?;
 
-                                    // Copy struct bytes from arena
-                                    let struct_bytes = EvalArena::g().get(offset, struct_size).to_vec();
+                                    // Copy struct bytes from heap
+                                    let struct_bytes = EvalHeap::g().get(offset, struct_size).to_vec();
                                     struct_bytes
                                 },
                                 ValueType::TType(TTypeDef::TEnumDef) => {
@@ -786,7 +786,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         NodeType::Identifier(_) | NodeType::FCall(_) => {
                                             // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
                                             // Create a temporary variable to hold the result
-                                            let enum_ctor_temp_var_name = format!("__temp_enum_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let enum_ctor_temp_var_name = format!("__temp_enum_{}", context.scope_stack.frames.last().unwrap().heap_index.len());
 
                                             // Recursively evaluate the enum constructor
                                             // This could be either an FCall or an Identifier with params (like Inner.A)
@@ -806,14 +806,14 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
                                             // The result is the enum variant name (e.g., "InnerEnum.ValueA")
                                             // insert_enum will use context.temp_enum_payload for the payload bytes
-                                            EvalArena::insert_enum(context, &enum_ctor_temp_var_name, struct_type_name, &enum_ctor_nested_result.value, e)?;
+                                            EvalHeap::insert_enum(context, &enum_ctor_temp_var_name, struct_type_name, &enum_ctor_nested_result.value, e)?;
                                             enum_ctor_temp_var_name
                                         },
                                         _ => return Err(e.error(&context.path, "eval", &format!("Enum payload must be a variable identifier or enum constructor, got {:?}", payload_expr.node_type))),
                                     };
 
                                     // Get the full enum value including its payload
-                                    let enum_val = EvalArena::get_enum(context, &enum_var_name, e)?;
+                                    let enum_val = EvalHeap::get_enum(context, &enum_var_name, e)?;
 
                                     // Calculate total enum size: 8 bytes tag + payload bytes
                                     let mut enum_bytes = Vec::new();
@@ -962,7 +962,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                                     let expr_result_str = result.value;
                                     match type_name.as_str() {
                                         "I64" | "U8" | "Str" => {
-                                            EvalArena::insert_primitive(context, &combined_name, &member_value_type, &expr_result_str, e)?;
+                                            EvalHeap::insert_primitive(context, &combined_name, &member_value_type, &expr_result_str, e)?;
                                         },
                                         _ => {
                                             // Issue #159 Step 7: Replace copy_fields with memcpy
@@ -973,8 +973,8 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                                                     &format!("Undefined variable '{}' for member '{}'", expr_result_str, combined_name)))?;
                                             let dest_offset = context.get_field_offset(&combined_name)?;
                                             let type_size = context.get_type_size(type_name)?;
-                                            let data = EvalArena::g().get(src_offset, type_size).to_vec();
-                                            EvalArena::g().set(dest_offset, &data)?;
+                                            let data = EvalHeap::g().get(src_offset, type_size).to_vec();
+                                            EvalHeap::g().set(dest_offset, &data)?;
                                         },
                                     }
                                 },
@@ -1019,14 +1019,14 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    let expr_arena_offset = result.arena_offset;
+                    let expr_heap_offset = result.heap_offset;
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
-                    if custom_type_name == "Str" && expr_arena_offset > 0 {
+                    if custom_type_name == "Str" && expr_heap_offset > 0 {
                         context.scope_stack.frames.last_mut().unwrap()
-                            .arena_index.insert(declaration.name.to_string(), expr_arena_offset);
+                            .heap_index.insert(declaration.name.to_string(), expr_heap_offset);
                         return Ok(EvalResult::new(""))
                     }
-                    EvalArena::insert_primitive(context, &declaration.name, &value_type, &expr_result_str, e)?;
+                    EvalHeap::insert_primitive(context, &declaration.name, &value_type, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 _ => {
@@ -1041,7 +1041,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                             return Ok(result); // Propagate throw
                         }
                         let enum_expr_result_str = &result.value;
-                        EvalArena::insert_enum(context, &declaration.name, custom_type_name, enum_expr_result_str, e)?;
+                        EvalHeap::insert_enum(context, &declaration.name, custom_type_name, enum_expr_result_str, e)?;
 
                     } else if custom_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                         // Special case for instantiation
@@ -1065,14 +1065,14 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                         // Issue #159: Garbager handles clone() insertion for deep copy semantics
                         // Interpreter just binds offsets - both for temp return values and existing variables
                         // Bug #160: Deterministic dispatch - instance fields use get_field_offset
-                        let offset = if EvalArena::is_instance_field(context, &expr_result_str) {
+                        let offset = if EvalHeap::is_instance_field(context, &expr_result_str) {
                             context.get_field_offset(&expr_result_str)
-                                .map_err(|err| e.lang_error(&context.path, "eval", &format!("Could not find arena index for '{}': {}", expr_result_str, err)))?
+                                .map_err(|err| e.lang_error(&context.path, "eval", &format!("Could not find heap index for '{}': {}", expr_result_str, err)))?
                         } else {
                             context.scope_stack.lookup_var(&expr_result_str)
-                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Could not find arena index for '{}'", expr_result_str)))?
+                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Could not find heap index for '{}'", expr_result_str)))?
                         };
-                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(declaration.name.to_string(), offset);
+                        context.scope_stack.frames.last_mut().unwrap().heap_index.insert(declaration.name.to_string(), offset);
                     } else {
                         return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
                                                             &declaration.name, value_type_to_str(&custom_symbol.value_type))))
@@ -1129,21 +1129,21 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    let expr_arena_offset = result.arena_offset;
-                    if custom_type_name == "Str" && expr_arena_offset > 0 {
+                    let expr_heap_offset = result.heap_offset;
+                    if custom_type_name == "Str" && expr_heap_offset > 0 {
                         let dest_offset = if var_name.contains('.') {
                             context.get_field_offset(var_name)?
                         } else {
                             context.scope_stack.lookup_var(var_name)
                                 .ok_or_else(|| e.lang_error(&context.path, "eval",
-                                    &format!("Could not find arena index for '{}'", var_name)))?
+                                    &format!("Could not find heap index for '{}'", var_name)))?
                         };
                         let type_size = context.get_type_size("Str")?;
-                        let data = EvalArena::g().get(expr_arena_offset, type_size).to_vec();
-                        EvalArena::g().set(dest_offset, &data)?;
+                        let data = EvalHeap::g().get(expr_heap_offset, type_size).to_vec();
+                        EvalHeap::g().set(dest_offset, &data)?;
                         return Ok(EvalResult::new(""));
                     }
-                    EvalArena::insert_primitive(context, var_name, &value_type, &expr_result_str, e)?;
+                    EvalHeap::insert_primitive(context, var_name, &value_type, &expr_result_str, e)?;
                 },
                 _ => {
                     let custom_symbol_info = match context.scope_stack.lookup_symbol(custom_type_name) {
@@ -1157,7 +1157,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                 return Ok(result); // Propagate throw
                             }
                             let expr_result_str = result.value;
-                            EvalArena::insert_enum(context, var_name, &custom_type_name, &expr_result_str, e)?;
+                            EvalHeap::insert_enum(context, var_name, &custom_type_name, &expr_result_str, e)?;
                         },
                         ValueType::TType(TTypeDef::TStructDef) => {
                             let result = eval_expr(context, inner_e)?;
@@ -1169,7 +1169,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                             // Garbager inserts clone for identifiers; fresh constructors are already new.
                             if var_name.contains('.') {
                                 // Field path: memcpy into field slot
-                                let src_offset = if EvalArena::is_instance_field(context, &expr_result_str) {
+                                let src_offset = if EvalHeap::is_instance_field(context, &expr_result_str) {
                                     context.get_field_offset(&expr_result_str)?
                                 } else {
                                     context.scope_stack.lookup_var(&expr_result_str)
@@ -1178,26 +1178,26 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                 };
                                 let dest_offset = context.get_field_offset(var_name)?;
                                 let type_size = context.get_type_size(custom_type_name)?;
-                                let data = EvalArena::g().get(src_offset, type_size).to_vec();
-                                EvalArena::g().set(dest_offset, &data)?;
+                                let data = EvalHeap::g().get(src_offset, type_size).to_vec();
+                                EvalHeap::g().set(dest_offset, &data)?;
                             } else {
                                 // Simple var: memcpy into existing slot
                                 // Must use memcpy (not offset rebinding) because the variable
                                 // may live in an outer scope frame. Offset rebinding would only
                                 // update the current frame, leaving the outer frame stale.
-                                let src_offset = if EvalArena::is_instance_field(context, &expr_result_str) {
+                                let src_offset = if EvalHeap::is_instance_field(context, &expr_result_str) {
                                     context.get_field_offset(&expr_result_str)?
                                 } else {
                                     context.scope_stack.lookup_var(&expr_result_str)
                                         .ok_or_else(|| inner_e.lang_error(&context.path, "eval",
-                                            &format!("Could not find arena index for '{}'", expr_result_str)))?
+                                            &format!("Could not find heap index for '{}'", expr_result_str)))?
                                 };
                                 let dest_offset = context.scope_stack.lookup_var(var_name)
                                     .ok_or_else(|| inner_e.lang_error(&context.path, "eval",
-                                        &format!("Could not find arena index for '{}'", var_name)))?;
+                                        &format!("Could not find heap index for '{}'", var_name)))?;
                                 let type_size = context.get_type_size(custom_type_name)?;
-                                let data = EvalArena::g().get(src_offset, type_size).to_vec();
-                                EvalArena::g().set(dest_offset, &data)?;
+                                let data = EvalHeap::g().get(src_offset, type_size).to_vec();
+                                EvalHeap::g().set(dest_offset, &data)?;
                             }
                         },
                         other_value_type => {
@@ -1234,11 +1234,11 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mu
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
                 "I64" => {
-                    let result = EvalArena::get_i64(context, &format!("{}.{}", name, inner_name), inner_e)?;
+                    let result = EvalHeap::get_i64(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "U8" => {
-                    let result = EvalArena::get_u8(context, &format!("{}.{}", name, inner_name), inner_e)?;
+                    let result = EvalHeap::get_u8(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "Str" => {
@@ -1282,7 +1282,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
             if name == custom_type_name {
                 return Err(e.lang_error(&context.path, "eval", &format!("Cannot use enum type '{}' as a value", name)));
             }
-            let enum_val = EvalArena::get_enum(context, name, e)?;
+            let enum_val = EvalHeap::get_enum(context, name, e)?;
             // Set temp_enum_payload so that if this enum is assigned to another variable,
             // the payload will be preserved
             if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
@@ -1343,10 +1343,10 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
             match current_type {
                 ValueType::TCustom(ref custom_type_name) => {
                     match custom_type_name.as_str() {
-                        "I64" => match EvalArena::get_i64(context, &current_name, e)? {
+                        "I64" => match EvalHeap::get_i64(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
-                        "U8" => match EvalArena::get_u8(context, &current_name, e)? {
+                        "U8" => match EvalHeap::get_u8(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
                         "Str" => match string_from_context(context, &current_name, e)? {
@@ -1360,7 +1360,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                             };
                             match &custom_symbol_info.value_type {
                                 ValueType::TType(TTypeDef::TEnumDef) => {
-                                    let enum_val = EvalArena::get_enum(context, &current_name, inner_e)?;
+                                    let enum_val = EvalHeap::get_enum(context, &current_name, inner_e)?;
                                     // Set temp_enum_payload so that if this enum is assigned to another variable,
                                     // the payload will be preserved
                                     if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
@@ -1398,7 +1398,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
         // Get the type of the result
         let base_type = get_value_type(context, base_expr)?;
 
-        // Now we have the result stored in arena - access the fields
+        // Now we have the result stored in heap - access the fields
         // The result.value contains the identifier for the result
         let result_name = base_result.value.clone();
 
@@ -1449,11 +1449,11 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                 // Now get the value based on the final type
                 match current_type.as_str() {
                     "I64" => {
-                        let val = EvalArena::get_i64(context, &current_name, e)?;
+                        let val = EvalHeap::get_i64(context, &current_name, e)?;
                         return Ok(EvalResult::new(&val.to_string()));
                     },
                     "U8" => {
-                        let val = EvalArena::get_u8(context, &current_name, e)?;
+                        let val = EvalHeap::get_u8(context, &current_name, e)?;
                         return Ok(EvalResult::new(&val.to_string()));
                     },
                     "Str" => {
@@ -1461,9 +1461,9 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                         return Ok(EvalResult::new(&val));
                     },
                     _ => {
-                        // Bug #157: Check if this is an enum type - need to read actual value from arena
+                        // Bug #157: Check if this is an enum type - need to read actual value from heap
                         if context.scope_stack.has_enum(&current_type) {
-                            let enum_val = EvalArena::get_enum(context, &current_name, e)?;
+                            let enum_val = EvalHeap::get_enum(context, &current_name, e)?;
                             return Ok(EvalResult::new(&format!("{}.{}", enum_val.enum_type, enum_val.enum_name)));
                         }
                         // Return the field path for struct fields
@@ -1510,18 +1510,18 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                 let custom_type_name_clone = custom_type_name.clone();
                 match custom_type_name_clone.as_str() {
                     "I64" => {
-                        let val = EvalArena::get_i64(context, name, e)?;
+                        let val = EvalHeap::get_i64(context, name, e)?;
                         return Ok(EvalResult::new(&val.to_string()))
                     },
                     "U8" => {
-                        let val = EvalArena::get_u8(context, name, e)?;
+                        let val = EvalHeap::get_u8(context, name, e)?;
                         return Ok(EvalResult::new(&val.to_string()));
                     },
                     "Str" => {
                         if e.params.len() == 0 {
                             let val = string_from_context(context, name, e)?;
                             let mut result = EvalResult::new(&val);
-                            result.arena_offset = context.scope_stack.lookup_var(name).unwrap_or(0);
+                            result.heap_offset = context.scope_stack.lookup_var(name).unwrap_or(0);
                             return Ok(result);
                         }
                         return eval_custom_expr(e, context, name, &custom_type_name_clone);
@@ -1577,9 +1577,9 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                             });
 
                             // Map instance fields for the error variable
-                            // First try to find the arena index for proper field mapping
+                            // First try to find the heap index for proper field mapping
                             if let Some(offset) = context.scope_stack.lookup_var(&throw_result.value) {
-                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(var_name.to_string(), offset);
+                                context.scope_stack.frames.last_mut().unwrap().heap_index.insert(var_name.to_string(), offset);
 
                                 // Copy symbol mappings for all fields
                                 let source_prefix = format!("{}.", &throw_result.value);
@@ -1593,13 +1593,13 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 }
                             } else {
                                 // Fallback: try to map fields from the thrown value or type
-                                // This happens when throwing inline struct constructors or when arena_index lookup fails
+                                // This happens when throwing inline struct constructors or when heap_index lookup fails
 
                                 // Special handling for Str: when throwing a string literal, we need to create a proper Str struct
                                 if thrown_type == "Str" {
                                     // The thrown value is the actual string content, not a struct instance name
                                     // Create a proper Str struct for the catch variable
-                                    EvalArena::insert_string(context, var_name, &throw_result.value, stmt)?;
+                                    EvalHeap::insert_string(context, var_name, &throw_result.value, stmt)?;
                                 } else if let Some(struct_def) = context.scope_stack.lookup_struct(thrown_type) {
                                     let source_name = &throw_result.value;
                                     // Clone the members to avoid borrow conflict
@@ -1607,7 +1607,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 
                                     // Register the base variable first
                                     if let Some(base_offset) = context.scope_stack.lookup_var(source_name) {
-                                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(
+                                        context.scope_stack.frames.last_mut().unwrap().heap_index.insert(
                                             var_name.to_string(),
                                             base_offset
                                         );
@@ -1630,12 +1630,12 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                             },
                                         );
 
-                                        // Copy arena_index entry for the field
+                                        // Copy heap_index entry for the field
                                         // Try instance field first, then fall back to type field
                                         if let Some(offset) = context.scope_stack.lookup_var(&src_instance_field) {
-                                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(dst_field.clone(), offset);
+                                            context.scope_stack.frames.last_mut().unwrap().heap_index.insert(dst_field.clone(), offset);
                                         } else if let Some(offset) = context.scope_stack.lookup_var(&src_type_field) {
-                                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(dst_field.clone(), offset);
+                                            context.scope_stack.frames.last_mut().unwrap().heap_index.insert(dst_field.clone(), offset);
                                         }
                                     }
                                 }
@@ -1713,7 +1713,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     // Plus ~15 error returns that also need cleanup
 
     let mut function_frame = ScopeFrame {
-        arena_index: std::collections::HashMap::new(),
+        heap_index: std::collections::HashMap::new(),
         symbols: std::collections::HashMap::new(),
         funcs: std::collections::HashMap::new(),
         enums: std::collections::HashMap::new(),
@@ -1759,7 +1759,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     is_own: arg.is_own,
                     is_comptime_const: false,
                 });
-                EvalArena::insert_array_into_frame(context, &mut function_frame, &arg.name, &multi_value_type, &values, e)?;
+                EvalHeap::insert_array_into_frame(context, &mut function_frame, &arg.name, &multi_value_type, &values, e)?;
 
                 // We've consumed all remaining parameters, break out of loop
                 params_consumed = true;
@@ -1786,7 +1786,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                         is_own: false,
                                         is_comptime_const: false,
                                     });
-                                    EvalArena::insert_string_into_frame(context, &mut function_frame, &arg.name, id_name, e)?;
+                                    EvalHeap::insert_string_into_frame(context, &mut function_frame, &arg.name, id_name, e)?;
                                     param_index += 1;
                                     continue; // Skip eval_expr for this parameter
                                 }
@@ -1803,7 +1803,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             if let Some(type_sym) = context.scope_stack.lookup_symbol(arg_type_name) {
                                 if type_sym.value_type == ValueType::TType(TTypeDef::TEnumDef) {
                                     // This is an enum variable, get its value to preserve payload
-                                    match EvalArena::get_enum(context, id_name, e) {
+                                    match EvalHeap::get_enum(context, id_name, e) {
                                         Ok(enum_val) => {
                                             if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
                                                 Some(EnumPayload { data: enum_val.payload.clone().unwrap(), value_type: enum_val.payload_type.clone().unwrap() })
@@ -1833,7 +1833,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 if result.is_throw {
                     return Ok(result); // CLEANUP SITE 2: Propagate throw from argument evaluation
                 }
-                let result_arena_offset = result.arena_offset;
+                let result_heap_offset = result.heap_offset;
                 let result_str = result.value;
 
                 // Restore enum payload if we saved it
@@ -1887,9 +1887,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     // Only handle identifiers here (variables and field access)
                     // Expressions will fall through and be copied
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
-                        // Transfer arena offset from caller to function frame
+                        // Transfer heap offset from caller to function frame
                         if let Some(offset) = context.scope_stack.lookup_var(source_var) {
-                            function_frame.arena_index.insert(arg.name.clone(), offset);
+                            function_frame.heap_index.insert(arg.name.clone(), offset);
 
                             // Transfer symbol info for fields
                             let own_prefix = format!("{}.", source_var);
@@ -1916,12 +1916,12 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 }
 
                 // Phase 3: Pass-by-reference for non-copy, non-own, non-Type parameters
-                // If argument is a variable (identifier), share arena offset instead of copying
+                // If argument is a variable (identifier), share heap offset instead of copying
                 // Note: Type parameters need copy semantics for type name storage, so skip them
                 // Note: Dynamic parameters NOW use pass-by-reference (including mut Dynamic)
                 // Note: own parameters are handled separately above and should not fall through here
                 // Works for ALL types thanks to field offset refactoring (commit 2b9d08d):
-                // - Only base offset stored in arena_index
+                // - Only base offset stored in heap_index
                 // - Field offsets calculated dynamically from struct definitions
                 // - Inline memory layout means sharing base offset shares all fields
                 if !arg.is_copy && !arg.is_own && resolved_type_name != "Type" {
@@ -1929,7 +1929,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         // Only share offset for SIMPLE identifiers (no field access, no params)
                         // Field access like s.cap is also an Identifier node but has params
                         if current_arg.params.is_empty() {
-                            // Share arena offset from caller context (zero-copy pass-by-reference)
+                            // Share heap offset from caller context (zero-copy pass-by-reference)
                             if let Some(offset) = context.scope_stack.lookup_var(source_var) {
                             // Create symbol info for parameter using the resolved type
                             let param_symbol = SymbolInfo {
@@ -1940,7 +1940,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 is_comptime_const: false,
                             };
                             function_frame.symbols.insert(arg.name.clone(), param_symbol);
-                            function_frame.arena_index.insert(arg.name.clone(), offset);
+                            function_frame.heap_index.insert(arg.name.clone(), offset);
 
                             // Copy symbol entries for fields from ALL frames to callee
                             let ref_prefix = format!("{}.", source_var);
@@ -1972,16 +1972,16 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                 match resolved_type_name.as_str() {
                     "I64" => {
-                        EvalArena::insert_i64_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
+                        EvalHeap::insert_i64_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                     },
                     "U8" => {
-                        EvalArena::insert_u8_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
+                        EvalHeap::insert_u8_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                     },
                     "Str" => {
-                        if result_arena_offset > 0 {
-                            function_frame.arena_index.insert(arg.name.clone(), result_arena_offset);
+                        if result_heap_offset > 0 {
+                            function_frame.heap_index.insert(arg.name.clone(), result_heap_offset);
                         } else {
-                            EvalArena::insert_string_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
+                            EvalHeap::insert_string_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                         }
                     },
                     _ => {
@@ -1991,7 +1991,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         match custom_symbol.value_type {
                             ValueType::TType(TTypeDef::TEnumDef) => {
                                 // Transfer payload from outer context if present (temp_enum_payload already on context)
-                                EvalArena::insert_enum_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, &result_str, e)?;
+                                EvalHeap::insert_enum_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, &result_str, e)?;
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
                                 // Bug #10 fix: Handle field access chains like s.items
@@ -2043,7 +2043,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 context.get_field_offset( id_)
                                                     .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-reference: {}", err)))?
                                             } else {
-                                                return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
+                                                return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context heap_index", id_)))
                                             };
 
                                             // Create symbol for parameter
@@ -2056,7 +2056,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             });
 
                                             // Share the offset (pass-by-reference)
-                                            function_frame.arena_index.insert(arg.name.clone(), src_offset);
+                                            function_frame.heap_index.insert(arg.name.clone(), src_offset);
 
                                             // Copy symbol entries for fields
                                             let pbr_prefix = format!("{}.", id_);
@@ -2088,9 +2088,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 context.get_field_offset(id_)
                                                     .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-copy: {}", err)))?
                                             } else {
-                                                return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
+                                                return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context heap_index", id_)))
                                             };
-                                            function_frame.arena_index.insert(arg.name.clone(), src_offset);
+                                            function_frame.heap_index.insert(arg.name.clone(), src_offset);
                                         } else {
                                             // Own/Type identifier parameters: ownership transfer via offset binding.
                                             // No allocation or copy needed - just bind the existing offset.
@@ -2099,9 +2099,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             } else if id_.contains('.') {
                                                 context.get_field_offset(id_)?
                                             } else {
-                                                return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
+                                                return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context heap_index", id_)))
                                             };
-                                            function_frame.arena_index.insert(arg.name.clone(), src_offset);
+                                            function_frame.heap_index.insert(arg.name.clone(), src_offset);
                                         }
                                     },
                                     _ => {
@@ -2110,13 +2110,13 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             // Clone result is already allocated, just bind offset.
                                             let src_offset = context.scope_stack.lookup_var(&source_id)
                                                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
-                                            function_frame.arena_index.insert(arg.name.clone(), src_offset);
+                                            function_frame.heap_index.insert(arg.name.clone(), src_offset);
                                         } else {
                                             // Own/Type expression parameters: bind the expression result offset.
-                                            // The expression is already evaluated and allocated in the arena.
+                                            // The expression is already evaluated and allocated in the heap.
                                             let src_offset = context.scope_stack.lookup_var(&source_id)
                                                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
-                                            function_frame.arena_index.insert(arg.name.clone(), src_offset);
+                                            function_frame.heap_index.insert(arg.name.clone(), src_offset);
 
                                             // For own parameters, remove the source from caller's context (ownership transferred)
                                             if arg.is_own {
@@ -2153,7 +2153,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
     let result = eval_body(context, &func_def.body)?;
     if result.is_throw {
-        // When throwing from a method, we need to copy the thrown struct's arena_index entries
+        // When throwing from a method, we need to copy the thrown struct's heap_index entries
         // from the function frame to the caller frame so that catch blocks can access fields
         let thrown_type_name = &result.thrown_type;
         if !thrown_type_name.is_empty() {
@@ -2165,7 +2165,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         // Get the second-to-last frame (caller's frame)
                         let frame_count = context.scope_stack.frames.len();
                         if frame_count >= 2 {
-                            context.scope_stack.frames[frame_count - 2].arena_index.insert(
+                            context.scope_stack.frames[frame_count - 2].heap_index.insert(
                                 result.value.clone(),
                                 base_offset
                             );
@@ -2192,7 +2192,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         context.path = saved_path;
         return Ok(result); // CLEANUP SITE 3: Propagate throw from function body
     }
-    let result_arena_offset = result.arena_offset;
+    let result_heap_offset = result.heap_offset;
     let result_str = result.value;
 
     // Save struct/enum return value info BEFORE popping (needed for return handling)
@@ -2202,7 +2202,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             match custom_type_name.as_str() {
                 "I64" | "U8" | "Str" => None,
                 _ => {
-                    if EvalArena::is_instance_field(context, &result_str) {
+                    if EvalHeap::is_instance_field(context, &result_str) {
                         context.get_field_offset(&result_str).ok()
                     } else {
                         context.scope_stack.lookup_var(&result_str)
@@ -2224,7 +2224,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     if !result_str.contains('.') {
                         // This is a variable, not a constructor - save the enum value
                         // May fail if not actually an enum - that's okay, .ok() returns None
-                        EvalArena::get_enum(context, &result_str, e).ok()
+                        EvalHeap::get_enum(context, &result_str, e).ok()
                     } else {
                         None
                     }
@@ -2265,11 +2265,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         let was_passed_by_ref = pass_by_ref_params.contains(&m.arg_name);
         match &m.value_type {
             ValueType::TCustom(ref type_name) if type_name == "I64" => {
-                let val = EvalArena::get_i64(context, &m.arg_name, e)?;
+                let val = EvalHeap::get_i64(context, &m.arg_name, e)?;
                 collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::I64(val) });
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
-                let val = EvalArena::get_u8(context, &m.arg_name, e)?;
+                let val = EvalHeap::get_u8(context, &m.arg_name, e)?;
                 collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::U8(val) });
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
@@ -2287,7 +2287,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 };
                 match &symbol_info.value_type {
                     ValueType::TType(TTypeDef::TEnumDef) => {
-                        let val = EvalArena::get_enum(context, &m.arg_name, e)?;
+                        let val = EvalHeap::get_enum(context, &m.arg_name, e)?;
                         collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::Enum(val) });
                     },
                     ValueType::TType(TTypeDef::TStructDef) => {
@@ -2300,7 +2300,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         } else {
                             context.scope_stack.frames.pop();
                             context.path = saved_path;
-                            return Err(e.lang_error(&context.path, "eval", &format!("Missing struct arena index for argument '{}'", m.arg_name)));
+                            return Err(e.lang_error(&context.path, "eval", &format!("Missing struct heap index for argument '{}'", m.arg_name)));
                         }
                     },
                     _ => {
@@ -2329,13 +2329,13 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     for c in collected_mut_args {
         match c.value {
             MutArgValue::I64(val) => {
-                EvalArena::insert_i64(context, &c.source_name, &val.to_string(), e)?;
+                EvalHeap::insert_i64(context, &c.source_name, &val.to_string(), e)?;
             },
             MutArgValue::U8(val) => {
-                EvalArena::insert_u8(context, &c.source_name, &val.to_string(), e)?;
+                EvalHeap::insert_u8(context, &c.source_name, &val.to_string(), e)?;
             },
             MutArgValue::Str(val) => {
-                EvalArena::insert_string(context, &c.source_name, &val, e)?;
+                EvalHeap::insert_string(context, &c.source_name, &val, e)?;
             },
             MutArgValue::Enum(val) => {
                 // Bug #38 fix: Set temp_enum_payload so insert_enum preserves the payload
@@ -2344,16 +2344,16 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         context.temp_enum_payload = Some(EnumPayload { data: payload_data.clone(), value_type: payload_type.clone() });
                     }
                 }
-                EvalArena::insert_enum(context, &c.source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
+                EvalHeap::insert_enum(context, &c.source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
             },
             MutArgValue::Struct(MutArgStructData { offset, type_name, was_passed_by_ref }) => {
                 if was_passed_by_ref {
-                    // Pass-by-ref: just update arena_index (data already modified in-place)
-                    context.scope_stack.frames.last_mut().unwrap().arena_index.insert(c.source_name.to_string(), offset);
+                    // Pass-by-ref: just update heap_index (data already modified in-place)
+                    context.scope_stack.frames.last_mut().unwrap().heap_index.insert(c.source_name.to_string(), offset);
                 } else {
                     // Bug #43 fix: For non-pass-by-ref (struct was copied), we need to copy
                     // the modified data back to the original location, especially for field
-                    // access chains like "frame.funcs" where just updating arena_index won't
+                    // access chains like "frame.funcs" where just updating heap_index won't
                     // update the actual bytes in the parent struct.
                     if c.source_name.contains('.') {
                         // Field access: copy data back to original location
@@ -2362,13 +2362,13 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         let struct_size = context.get_type_size(&type_name)?;
                         // Copy from callee's offset to original location
                         for i in 0..struct_size {
-                            let byte = EvalArena::g().get(offset + i, 1)[0];
-                            EvalArena::g().set(dest_offset + i, &[byte])?;
+                            let byte = EvalHeap::g().get(offset + i, 1)[0];
+                            EvalHeap::g().set(dest_offset + i, &[byte])?;
                         }
                     } else {
-                        // Simple identifier: update arena_index
+                        // Simple identifier: update heap_index
                         // Bug #160: map_instance_fields removed - type checker handles symbol registration
-                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(c.source_name.to_string(), offset);
+                        context.scope_stack.frames.last_mut().unwrap().heap_index.insert(c.source_name.to_string(), offset);
                     }
                 }
             },
@@ -2387,12 +2387,12 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     if let Some(custom_symbol) = context.scope_stack.lookup_symbol(custom_type_name) {
                         match custom_symbol.value_type {
                             ValueType::TType(TTypeDef::TStructDef) => {
-                                let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, EvalArena::g().temp_id_counter);
-                                EvalArena::g().temp_id_counter += 1;
+                                let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, EvalHeap::g().temp_id_counter);
+                                EvalHeap::g().temp_id_counter += 1;
 
                                 // Use saved offset (saved before popping)
                                 let offset = saved_return_offset.ok_or_else(|| {
-                                    e.lang_error(&context.path, "eval", &format!("Missing arena index for return value '{}'", result_str))
+                                    e.lang_error(&context.path, "eval", &format!("Missing heap index for return value '{}'", result_str))
                                 })?;
 
                                 // Insert the temporary return variable into the caller's frame
@@ -2405,7 +2405,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 });
 
                                 // Share the base offset in caller's frame
-                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(return_instance.to_string(), offset);
+                                context.scope_stack.frames.last_mut().unwrap().heap_index.insert(return_instance.to_string(), offset);
 
                                 return Ok(EvalResult::new_return(&return_instance)) // CLEANUP SITE 4: Return struct instance
                             },
@@ -2421,15 +2421,15 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     e.lang_error(&context.path, "eval", &format!("Missing enum value for return value '{}'", result_str))
                                 })?;
 
-                                let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, EvalArena::g().temp_id_counter);
-                                EvalArena::g().temp_id_counter += 1;
+                                let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, EvalHeap::g().temp_id_counter);
+                                EvalHeap::g().temp_id_counter += 1;
 
                                 // Set temp_enum_payload if the enum has a payload
                                 if let (Some(payload_data), Some(payload_type)) = (val.payload, val.payload_type) {
                                     context.temp_enum_payload = Some(EnumPayload { data: payload_data, value_type: payload_type });
                                 }
 
-                                EvalArena::insert_enum(context, &return_instance, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
+                                EvalHeap::insert_enum(context, &return_instance, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
                                 return Ok(EvalResult::new_return(&return_instance)) // CLEANUP SITE 6: Return enum variable
                             },
                             _ => {
@@ -2445,7 +2445,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
     // Frame already popped above
     let mut final_result = EvalResult::new(&result_str);
-    final_result.arena_offset = result_arena_offset;
+    final_result.heap_offset = result_heap_offset;
     return Ok(final_result) // CLEANUP SITE 7: Return normal value (final return)
 }
 

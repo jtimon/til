@@ -13,7 +13,7 @@ MAIN_SEPARATOR_STR := "/"
 
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
-// No eval, no arena access - declarations only.
+// No eval, no heap access - declarations only.
 //
 // Translated from src/rs/init.rs
 
@@ -70,8 +70,8 @@ ScopeType := enum {
 }
 
 ScopeFrame := struct {
-    // maps variable names to their offsets in the arena
-    mut arena_index: Map = Map.new(Str, I64)  // HashMap<String, usize> in Rust (stores offsets)
+    // maps variable names to their offsets in the heap
+    mut heap_index: Map = Map.new(Str, I64)  // HashMap<String, usize> in Rust (stores offsets)
 
     // All declared symbols (types, constants, variables, and function names)
     // This is necessary for so called "context priming" or "declaration indexing"
@@ -122,7 +122,7 @@ namespace ScopeStack {
 
     push := proc(mut self: ScopeStack, scope_type: ScopeType) {
         mut frame := ScopeFrame()
-        frame.arena_index = Map.new(Str, I64)
+        frame.heap_index = Map.new(Str, I64)
         frame.symbols = Map.new(Str, SymbolInfo)
         frame.funcs = Map.new(Str, SFuncDef)
         frame.enums = Map.new(Str, SEnumDef)
@@ -162,9 +162,9 @@ namespace ScopeStack {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)?
 
-            if frame.arena_index.contains_key(name) {
+            if frame.heap_index.contains_key(name) {
                 mut offset := 0
-                frame.arena_index.get(name, offset)?
+                frame.heap_index.get(name, offset)?
                 catch (err: KeyNotFoundError) {
                     // Var not found, continue searching
                 }
@@ -255,11 +255,11 @@ namespace ScopeStack {
 
         // Check for redeclaration in current scope only
         // Bug #35: Skip check for "_" - it's special for discarding return values
-        if not(name.eq("_")).and(current_frame.arena_index.contains_key(name)) {
+        if not(name.eq("_")).and(current_frame.heap_index.contains_key(name)) {
             throw format("Variable '", name, "' already declared in this scope")
         }
 
-        current_frame.arena_index.set(name.clone(), offset)
+        current_frame.heap_index.set(name.clone(), offset)
         current_frame.symbols.set(name, symbol)
         self.frames.set(last_idx, current_frame)?
 
@@ -313,10 +313,10 @@ namespace ScopeStack {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)?
-            if current_frame.arena_index.contains_key(name) {
+            if current_frame.heap_index.contains_key(name) {
                 mut offset := 0
-                current_frame.arena_index.get(name, offset)?
-                current_frame.arena_index.remove(name)
+                current_frame.heap_index.get(name, offset)?
+                current_frame.heap_index.remove(name)
                 self.frames.set(last_idx, current_frame)?
                 mut ptr := Ptr()
                 ptr.data = offset
@@ -338,7 +338,7 @@ namespace ScopeStack {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)?
-            current_frame.arena_index.set(name, offset)
+            current_frame.heap_index.set(name, offset)
             self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
@@ -464,7 +464,7 @@ namespace ScopeStack {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)?
-            if frame.arena_index.contains_key(name) {
+            if frame.heap_index.contains_key(name) {
                 return true
             }
         }
@@ -2025,7 +2025,7 @@ EnumPayload := struct {
 /// Used by ccodegen to emit static arrays instead of invalid pointers.
 PrecomputedHeapValue := struct {
     mut var_name: Str = ""       // The TIL variable name (e.g., "chromatic")
-    mut instance_name: Str = ""  // The arena instance name (e.g., "chromatic" or temp name)
+    mut instance_name: Str = ""  // The heap instance name (e.g., "chromatic" or temp name)
     mut type_name: Str = ""      // The type (e.g., "Vec")
 }
 
@@ -2057,7 +2057,7 @@ Context := struct {
 }
 
 namespace Context {
-    # Context methods (insert/get/copy methods moved to EvalArena in interpreter.til)
+    # Context methods (insert/get/copy methods moved to EvalHeap in interpreter.til)
     new := func(path: Str, mode_name: Str) returns Context throws Str {
         mut scope_stack := ScopeStack.new()
         scope_stack.push(ScopeType.Global) # Initialize global scope
@@ -2283,7 +2283,7 @@ namespace Context {
         throw format("calculate_field_offset: field '", field_name, "' not found in struct '", struct_type, "'")
     }
 
-    // Get the absolute arena offset for a field path (e.g., "my_vec._len")
+    // Get the absolute heap offset for a field path (e.g., "my_vec._len")
     get_field_offset := func(self: Context, field_path: Str) returns I64 throws Str {
         mut parts := field_path.split(".")?
         if parts.len().eq(0) {
@@ -2317,10 +2317,10 @@ namespace Context {
             base_end_idx = 0
             found_base = true
             catch (err: KeyNotFoundError) {
-                throw format("get_field_offset: base variable '", first_part, "' not found in arena_index")
+                throw format("get_field_offset: base variable '", first_part, "' not found in heap_index")
             }
         } else {
-            // Type constant: find the longest prefix that exists in arena_index
+            // Type constant: find the longest prefix that exists in heap_index
             for i in 0..parts.len() {
                 // Build candidate by joining parts[0..=i] with "."
                 mut candidate := ""
@@ -2340,7 +2340,7 @@ namespace Context {
                 }
             }
             if not(found_base) {
-                throw format("get_field_offset: no base found in arena_index for path '", field_path, "'")
+                throw format("get_field_offset: no base found in heap_index for path '", field_path, "'")
             }
         }
 

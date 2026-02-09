@@ -4,7 +4,7 @@
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType, PrecomputedHeapValue};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
-use crate::rs::eval_arena::{EvalArena, VecContents};
+use crate::rs::eval_heap::{EvalHeap, VecContents};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
@@ -2194,7 +2194,7 @@ fn is_global_declaration(expr: &Expr) -> bool {
                 // Skip true/false RHS - they're handled by is_constant_declaration
                 // (only non-mut booleans are constants)
                 NodeType::Identifier(name) if (name == "true" || name == "false") && !decl.is_mut => return false,
-                // Everything else (function calls like EvalArena.new(), etc.) is a global
+                // Everything else (function calls like EvalHeap.new(), etc.) is a global
                 _ => return true,
             }
         }
@@ -2457,8 +2457,8 @@ fn emit_precomputed_vec_static(
     context: &Context,
     phv: &PrecomputedHeapValue,
 ) -> Result<(), String> {
-    // Extract Vec contents from EvalArena
-    let contents = EvalArena::extract_vec_contents(context, &phv.instance_name)
+    // Extract Vec contents from EvalHeap
+    let contents = EvalHeap::extract_vec_contents(context, &phv.instance_name)
         .map_err(|e| format!("emit_precomputed_vec_static: {}", e))?;
 
     let var_name = &phv.var_name;
@@ -2530,7 +2530,7 @@ fn emit_precomputed_vec_recursive(
             output.push_str(&val.to_string());
         }
         output.push_str("};\n");
-    } else if EvalArena::type_needs_heap_serialization(context, elem_type) {
+    } else if EvalHeap::type_needs_heap_serialization(context, elem_type) {
         // Nested type that needs heap serialization (Vec, List, etc.)
         // Recursively emit inner elements first, then emit outer array
         emit_precomputed_nested_vec_static(output, ctx, context, var_name, contents)?;
@@ -2594,7 +2594,7 @@ fn emit_precomputed_nested_vec_static(
 
             // Extract inner Vec contents from its memory location
             // We need to reconstruct VecContents from the raw bytes
-            let inner_type_name = EvalArena::extract_str_from_bytes(context, elem_bytes)?;
+            let inner_type_name = EvalHeap::extract_str_from_bytes(context, elem_bytes)?;
             let inner_type_size_bytes: [u8; 8] = elem_bytes[str_size..str_size+8].try_into()
                 .map_err(|_| "emit_precomputed_nested_vec_static: failed to read inner type_size")?;
             let inner_type_size = i64::from_ne_bytes(inner_type_size_bytes) as usize;
@@ -2609,7 +2609,7 @@ fn emit_precomputed_nested_vec_static(
             let mut inner_element_bytes = Vec::new();
             for i in 0..inner_len {
                 let elem_offset = inner_data_ptr + (i * inner_type_size);
-                let bytes = EvalArena::g().get(elem_offset, inner_type_size).to_vec();
+                let bytes = EvalHeap::g().get(elem_offset, inner_type_size).to_vec();
                 inner_element_bytes.push(bytes);
             }
 
@@ -2673,7 +2673,7 @@ fn emit_precomputed_nested_vec_static(
             output.push_str(&inner_type_names[idx]);
             output.push_str(", 1, 0, 0, 0}, ._len =");
             // Get inner type name length
-            let inner_type_name = EvalArena::extract_str_from_bytes(context, elem_bytes)?;
+            let inner_type_name = EvalHeap::extract_str_from_bytes(context, elem_bytes)?;
             output.push_str(&inner_type_name.len().to_string());
             output.push_str(", .cap = 0}, .type_size = ");
             output.push_str(&type_size.to_string());
@@ -2721,9 +2721,9 @@ fn emit_precomputed_vec_str_static(
         let c_string_ptr = i64::from_ne_bytes(bytes[..8].try_into().unwrap_or([0; 8])) as usize;
         let len = i64::from_ne_bytes(bytes[ptr_size..ptr_size+8].try_into().unwrap_or([0; 8])) as usize;
 
-        // Read the actual string bytes from arena
+        // Read the actual string bytes from heap
         let string_bytes = if c_string_ptr > 0 && len > 0 {
-            EvalArena::g().get(c_string_ptr, len)
+            EvalHeap::g().get(c_string_ptr, len)
         } else {
             &[]
         };
@@ -2802,7 +2802,7 @@ fn emit_precomputed_vec_assignment(
     let already_declared = ctx.declared_vars.contains(&c_var_name);
 
     // Extract Vec contents to get element count and type info
-    let contents = EvalArena::extract_vec_contents(context, var_name)
+    let contents = EvalHeap::extract_vec_contents(context, var_name)
         .map_err(|e| format!("emit_precomputed_vec_assignment: {}", e))?;
 
     let elem_count = contents.element_bytes.len() as i64;
@@ -3233,7 +3233,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
 
     // Push a new scope frame for this function (like interpreter does)
     let mut function_frame = ScopeFrame {
-        arena_index: HashMap::new(),
+        heap_index: HashMap::new(),
         symbols: HashMap::new(),
         funcs: HashMap::new(),
         enums: HashMap::new(),
@@ -3540,7 +3540,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
 
                 // Push a new scope frame for this function (like interpreter does)
                 let mut function_frame = ScopeFrame {
-                    arena_index: HashMap::new(),
+                    heap_index: HashMap::new(),
                     symbols: HashMap::new(),
                     funcs: HashMap::new(),
                     enums: HashMap::new(),
@@ -5121,7 +5121,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
                 // Push scope frame for function
                 let mut function_frame = ScopeFrame {
-                    arena_index: HashMap::new(),
+                    heap_index: HashMap::new(),
                     symbols: HashMap::new(),
                     funcs: HashMap::new(),
                     enums: HashMap::new(),

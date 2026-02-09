@@ -8,7 +8,7 @@ use crate::rs::parser::{
 
 // Type checking phase: Validates types, return/throw statements, mode constraints
 // This module handles the type checking phase that runs after init.
-// No eval, no arena access - pure type analysis.
+// No eval, no heap access - pure type analysis.
 
 // Context tracking for return value usage enforcement (Bug #8 fix)
 #[derive(Clone, Copy, PartialEq)]

@@ -140,7 +140,7 @@ interpret_file_or_exit := proc(path: Str, args: Vec) {
         exit(1)
     }
     if path.ends_with("tests.til") {
-        println("Total memory used by interpreted program: ", g_arena.len().to_str(), " bytes")
+        println("Total memory used by interpreted program: ", g_heap.len().to_str(), " bytes")
     }
 }
 

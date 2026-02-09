@@ -7,7 +7,7 @@ use crate::rs::parser::{
     Expr, NodeType, Literal, ValueType,
     get_combined_name,
 };
-use crate::rs::eval_arena::EvalArena;
+use crate::rs::eval_heap::EvalHeap;
 use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context};
 use std::io;
 use std::io::{ErrorKind, Write};
@@ -64,7 +64,7 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     let size = size_str.parse::<usize>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("Invalid size for 'malloc': {}", err))
     })?;
-    let offset = EvalArena::g().heap_alloc(size)?;
+    let offset = EvalHeap::g().heap_alloc(size)?;
 
     if offset == 0 { // TODO: REM: throw AllocError instead of return NULL pointer
         return Err(e.lang_error(&context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer"))
@@ -78,7 +78,7 @@ pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
     let ptr_str = eval_or_throw!(context, e.get(1)?);
     // Issue #163: Actually free heap-allocated memory
     if let Ok(ptr) = ptr_str.parse::<usize>() {
-        EvalArena::g().heap_free(ptr);
+        EvalHeap::g().heap_free(ptr);
     }
 
     return Ok(EvalResult::new(""))
@@ -107,7 +107,7 @@ pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     };
 
     for i in 0..size {
-        EvalArena::g().set(dest + i, &[value])?;
+        EvalHeap::g().set(dest + i, &[value])?;
     }
 
     Ok(EvalResult::new(""))
@@ -149,8 +149,8 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     };
 
     for i in 0..size {
-        let byte = EvalArena::g().get(src + i, 1)[0];
-        EvalArena::g().set(dest + i, &[byte])?;
+        let byte = EvalHeap::g().get(src + i, 1)[0];
+        EvalHeap::g().set(dest + i, &[byte])?;
     }
 
     Ok(EvalResult::new(""))
@@ -193,8 +193,8 @@ pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
     // Compare bytes
     for i in 0..size {
-        let byte1 = EvalArena::g().get(ptr1 + i, 1)[0];
-        let byte2 = EvalArena::g().get(ptr2 + i, 1)[0];
+        let byte1 = EvalHeap::g().get(ptr1 + i, 1)[0];
+        let byte2 = EvalHeap::g().get(ptr2 + i, 1)[0];
         if byte1 < byte2 {
             return Ok(EvalResult::new("-1"));
         } else if byte1 > byte2 {
@@ -660,7 +660,7 @@ pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResu
             let offset = context.scope_stack.lookup_var(out_name)
                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Variable '{}' not found", out_name)))?;
             // Copy payload bytes to out variable
-            EvalArena::g().set(offset, &payload_bytes[0..bytes_to_copy])?;
+            EvalHeap::g().set(offset, &payload_bytes[0..bytes_to_copy])?;
             return Ok(EvalResult::new(""));
         }
     }
@@ -976,7 +976,7 @@ pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
                 NodeType::Identifier(name) => name.clone(),
                 _ => return Err(e.error(&context.path, "eval", "run_cmd first argument must be an identifier")),
             };
-            EvalArena::insert_primitive(context, &var_name, &ValueType::TCustom("Str".to_string()), &stdout, e)?;
+            EvalHeap::insert_primitive(context, &var_name, &ValueType::TCustom("Str".to_string()), &stdout, e)?;
 
             Ok(EvalResult::new(&code.to_string()))
         },
