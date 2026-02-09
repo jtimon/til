@@ -35,10 +35,11 @@
 |  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (6 issues)
+* pre.org (7 issues)
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
+| 165 | Compiled TIL binary leaks massive memory (200-800x)| Memory mgmt  |
 | 161 | Namespace constants, static mutables, immutables   | Language     |
 | 151 | Explicit pointer/reference syntax                  | Language     |
 | 135 | True cross-compilation via precompiled ext.o       | Build system |

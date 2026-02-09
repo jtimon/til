@@ -15,6 +15,55 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Bug #165: Compiled TIL binary leaks massive memory (200-800x vs Rust)
+:PROPERTIES:
+:DISCOVERED: 2026-02-09
+:IMPACT: Compiled self-hosted compiler cannot translate medium/large files (OOM at 50GB)
+:STATUS: Open - root cause identified
+:RELATED: Bug #114 (ScopeStack copy leak), Issue #117 (ASAP destruction)
+:END:
+
+*** Description
+The compiled TIL binary (bin/rs/til) uses 200-800x more memory than the
+Rust-hosted binary (bin/rstil) for the same operations. Even hello_script.til
+uses 3.3 GB. Larger files like test_parser.til or til.til OOM past 50 GB.
+
+*** Memory measurements (translate mode)
+| File              | rstil (Rust) | rs/til (compiled) | Ratio |
+|-------------------+--------------+-------------------+-------|
+| hello_script.til  | 17 MB        | 3,374 MB          | 200x  |
+| arrays.til        |              | 4,461 MB          |       |
+| structs.til       |              | 4,343 MB          |       |
+| loops.til         |              | 5,178 MB          |       |
+| enums.til         | 23 MB        | 8,919 MB          | 388x  |
+| maps.til          | 25 MB        | 19,873 MB         | 805x  |
+| test_parser.til   |              | >50 GB (OOM)      |       |
+| til.til           |              | >50 GB (OOM)      |       |
+
+*** Root cause: clone/delete imbalance in generated C code
+Analysis of gen/rs/c/til.c shows 2488 clone calls vs 1946 delete calls.
+The garbager does not emit deletes for many temporaries.
+
+Worst offenders:
+| Type  | Clones | Deletes | Leaked calls |
+|-------+--------+---------+--------------|
+| Str   | 530    | 136     | 394          |
+| Expr  | 198    | 30      | 168          |
+| Bool  | 1537   | 60      | 1477 (cheap) |
+| Token | 47     | 36      | 11           |
+
+Every leaked Str holds a heap-allocated C string. Every leaked Expr is a tree
+of Vecs of Exprs containing Strs - exponential memory growth.
+
+In Rust, Drop handles these automatically. In compiled C, if the garbager
+didn't emit a _delete(), nobody frees it.
+
+*** Key leak categories (to investigate)
+1. Function return values used in expressions (intermediate Str/Expr results)
+2. String concatenation temporaries (format(), concat())
+3. Struct field access returning cloned Str values
+4. ScopeStack/ScopeFrame copies (Bug #114)
+
 ** Issue #161: Namespace constants, static mutables, and per-instance immutables
 :PROPERTIES:
 :DISCOVERED: 2026-02-04
