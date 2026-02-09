@@ -1,12 +1,11 @@
 #+TITLE: Open Bugs and Issues Summary
 #+AUTHOR: TIL Development
-#+DATE: 2026-01-31
+#+DATE: 2026-02-09
 
-* bugs.org (10 bugs/issues)
+* bugs.org (9 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                      |
 |-----+------------------------------------------------------------------+-----------------------------|
-| 159 | Shallow copy semantics for structs with Ptr/Vec fields           | Memory corruption           |
 | 152 | Migrate doc/todo files to numbered issue system                  | Documentation cleanup       |
 | 144 | for-in loops iterate by copy instead of by reference             | Performance, semantics      |
 | 133 | Precomputed heap values have invalid pointers at runtime         | Partial fix (nested broken) |
@@ -36,17 +35,15 @@
 |  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (8 issues)
+* pre.org (6 issues)
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
 | 161 | Namespace constants, static mutables, immutables   | Language     |
-| 160 | Eliminate field paths from arena_index (NOT FIXED)  | Memory mgmt  |
-| 159 | copy keyword does shallow copies (not clone)       | Memory mgmt  |
 | 151 | Explicit pointer/reference syntax                  | Language     |
+| 135 | True cross-compilation via precompiled ext.o       | Build system |
 | 117 | ASAP Destruction (auto-delete on last use)         | Memory mgmt  |
 | 115 | Owned struct fields and auto-generated methods     | Memory mgmt  |
-| 135 | True cross-compilation via precompiled ext.o       | Build system |
 |  82 | make.til - Replace Makefile with TIL               | Build system |
 
 * post.org (11 issues)
