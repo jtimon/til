@@ -681,52 +681,491 @@ Files: desugarer.rs, desugarer.til, container files, ptr ext_funcs,
   typer.rs, typer.til, ccodegen.rs, ccodegen.til, ext.rs, ext.til,
   garbager.rs, garbager.til, mem.til, pointers.til.
 
-**** Step 10: Garbager auto-insert Type.delete() calls
+**** Step 10A: Auto-insert Type.delete() at function body end
 
-Core implementation, depends on Step 8 (~dont_delete~) and Step 9 (~get_by_ref~ / ~create_alias~).
+Files: ~src/rs/garbager.rs~ and ~src/self/garbager.til~
 
-Refactor: extract inline ~is_primitive~ checks into ~is_deletable_type~ helper.
-Replace inline checks in: Declaration handler, Assignment handler,
-~transform_fcall_copy_params~, ~transform_struct_literal_fields~.
+***** Edits (Rust)
 
-What gets deleted per function:
-- ~copy~ params with struct types (function owns the clone)
-- ~own~ params with struct types (function received ownership)
-- Local variable declarations with struct types (including Str)
+****** 1. Add ~is_deletable_type~ helper (after ~build_clone_call_expr~)
 
-Primitives excluded: I64, U8, Type, Dynamic, Ptr (NOT Str)
+#+BEGIN_SRC rust
+/// Check if a type should have delete() calls inserted.
+/// Excludes primitives: I64, U8, Type, Dynamic, Ptr. NOT Str (has heap data).
+fn is_deletable_type(type_name: &str, context: &Context) -> bool {
+    let is_primitive = matches!(type_name, "I64" | "U8" | "Type" | "Dynamic" | "Ptr");
+    !is_primitive && context.scope_stack.has_struct(type_name)
+}
+#+END_SRC
 
-Safety: own-transfer tracking. If a variable is passed as ~own~ to another
-function anywhere in the body, remove from delete set. Conservative: if
-own-transfer is conditional (inside if), still exclude.
+****** 2. Replace 4 inline is_primitive checks with ~is_deletable_type~
 
-Where delete calls are inserted:
-1. Before Return: delete all in-scope candidates (minus returned variable)
-2. Before Throw: delete all in-scope candidates
-3. At function body end: delete function-level candidates (if no return/throw)
-4. At nested block end (if/while bodies): delete block-local candidates only
-5. Before struct var reassignment: ~x = expr~ -> insert ~Type.delete(x)~ before
-6. Field assignment (~l.field = var~): remove var from candidates (ownership transfer)
+*Location A* (in ~garbager_recursive~, ~NodeType::Declaration~ arm):
+: OLD: let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
+:      if !is_primitive && context.scope_stack.has_struct(type_name) {
+: NEW: if is_deletable_type(type_name, context) {
 
-Synthetic catch-and-rethrow: ~?~ propagation bypasses explicit ~return~/~throw~
-where deletes are inserted. For each throw type, append a synthetic catch that
-deletes all candidates and rethrows.
+*Location B* (in ~garbager_recursive~, ~NodeType::Assignment~ arm):
+: OLD: let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
+:      if !is_primitive && context.scope_stack.has_struct(type_name) {
+: NEW: if is_deletable_type(type_name, context) {
 
-Algorithm in garbager_recursive, FuncDef handler:
-1. Run existing clone transforms on body -> new_body
-2. Collect param_candidates: copy/own params with deletable struct types
-3. Scan new_body recursively for own-transfers -> own_transferred set
-4. Remove own_transferred vars from param_candidates
-5. Call ~insert_deletes_in_stmts(new_body, param_candidates, own_transferred)~ -> final_body
+*Location C* (in ~transform_fcall_copy_params~):
+: OLD: let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
+:      if !is_primitive && context.scope_stack.has_struct(type_name) {
+: NEW: if is_deletable_type(type_name, context) {
 
-New helper functions:
-- ~is_deletable_type(value_type, context)~
-- ~build_delete_call_expr(type_name, var_name, line, col)~
-- ~collect_own_transfers(stmts, context)~ - scan for own params in FCalls
-- ~collect_referenced_vars(expr, result)~ - avoid deleting vars still referenced
-- ~insert_deletes_in_stmts(stmts, inherited, own_transferred, context)~ - core
+*Location D* (in ~transform_struct_literal_fields~):
+: OLD: let is_primitive = matches!(type_name.as_str(), "I64" | "U8" | "Type" | "Dynamic");
+:      if is_primitive || !context.scope_stack.has_struct(type_name) {
+:          continue;
+:      }
+: NEW: if !is_deletable_type(type_name, context) {
+:          continue;
+:      }
 
-Files: garbager.rs, garbager.til (Rust first, then port to TIL)
+NOTE: Location D uses inverted logic (continue if NOT deletable).
+NOTE: The new helper adds "Ptr" to the exclusion list. This is intentional
+(per Step 10 design in pre.org Issue #117). Doesn't change existing behavior
+since Ptr was never in has_struct().
+
+****** 3. Add ~build_delete_call_expr~ helper (after ~is_deletable_type~)
+
+#+BEGIN_SRC rust
+/// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier("var") )
+fn build_delete_call_expr(type_name: &str, var_name: &str, line: usize, col: usize) -> Expr {
+    let delete_ident = Expr::new_explicit(
+        NodeType::Identifier("delete".to_string()), vec![], line, col);
+    let type_delete_access = Expr::new_explicit(
+        NodeType::Identifier(type_name.to_string()), vec![delete_ident], line, col);
+    let var_expr = Expr::new_explicit(
+        NodeType::Identifier(var_name.to_string()), vec![], line, col);
+    Expr::new_explicit(NodeType::FCall(false), vec![type_delete_access, var_expr], line, col)
+}
+#+END_SRC
+
+****** 4. Add ~get_create_alias_var~ helper (after ~get_dont_delete_var~)
+
+#+BEGIN_SRC rust
+/// Extract variable name from create_alias(var, type, addr) call.
+fn get_create_alias_var(e: &Expr) -> Option<String> {
+    if let NodeType::FCall(_) = &e.node_type {
+        if let Some(name) = get_func_name(e) {
+            if name == "create_alias" && e.params.len() >= 3 {
+                if let NodeType::Identifier(var_name) = &e.params[1].node_type {
+                    return Some(var_name.clone());
+                }
+            }
+        }
+    }
+    None
+}
+#+END_SRC
+
+****** 5. Add ~collect_own_transfers~ helpers (after ~get_create_alias_var~)
+
+#+BEGIN_SRC rust
+/// Scan statements for variables passed as `own` args to function calls.
+fn collect_own_transfers(stmts: &[Expr], context: &Context) -> HashSet<String> {
+    let mut result = HashSet::new();
+    for stmt in stmts {
+        collect_own_transfers_recursive(stmt, context, &mut result);
+    }
+    result
+}
+
+fn collect_own_transfers_recursive(e: &Expr, context: &Context, result: &mut HashSet<String>) {
+    if let NodeType::FCall(_) = &e.node_type {
+        if let Some(func_name) = get_func_name(e) {
+            if !func_name.ends_with(".clone") && !func_name.ends_with(".delete") {
+                if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
+                    for (i, arg_def) in func_def.args.iter().enumerate() {
+                        let param_idx = i + 1;
+                        if param_idx < e.params.len() && arg_def.is_own {
+                            if let NodeType::Identifier(var_name) = &e.params[param_idx].node_type {
+                                if e.params[param_idx].params.is_empty() {
+                                    result.insert(var_name.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for param in &e.params {
+        collect_own_transfers_recursive(param, context, result);
+    }
+    if let NodeType::FuncDef(func_def) = &e.node_type {
+        for stmt in &func_def.body {
+            collect_own_transfers_recursive(stmt, context, result);
+        }
+    }
+}
+#+END_SRC
+
+****** 6. Replace FuncDef handler (the ~NodeType::FuncDef~ arm in ~garbager_recursive~)
+
+Replace the entire ~NodeType::FuncDef(func_def) => { ... }~ arm:
+
+#+BEGIN_SRC rust
+        NodeType::FuncDef(func_def) => {
+            // Step 1: Strip dont_delete calls, collect protected var names
+            let mut new_body = Vec::new();
+            let mut dont_delete_vars: HashSet<String> = HashSet::new();
+            for stmt in &func_def.body {
+                if is_dont_delete_call(stmt) {
+                    if let Some(var_name) = get_dont_delete_var(stmt) {
+                        dont_delete_vars.insert(var_name);
+                    }
+                    continue;
+                }
+                // Step 2: Collect create_alias var names
+                if let Some(alias_var) = get_create_alias_var(stmt) {
+                    dont_delete_vars.insert(alias_var);
+                }
+                new_body.push(garbager_recursive(context, stmt)?);
+            }
+
+            // Step 3: Collect delete candidates
+            let mut candidates: Vec<(String, String)> = Vec::new();
+
+            // 3a: copy/own params with deletable types
+            for arg_def in &func_def.args {
+                if arg_def.is_copy || arg_def.is_own {
+                    if let ValueType::TCustom(type_name) = &arg_def.value_type {
+                        if is_deletable_type(type_name, context) {
+                            candidates.push((arg_def.name.clone(), type_name.clone()));
+                        }
+                    }
+                }
+            }
+
+            // 3b: Scan new_body for Declaration nodes with deletable types
+            for stmt in &new_body {
+                if let NodeType::Declaration(decl) = &stmt.node_type {
+                    if let ValueType::TCustom(type_name) = &decl.value_type {
+                        if is_deletable_type(type_name, context) {
+                            candidates.push((decl.name.clone(), type_name.clone()));
+                        }
+                    }
+                }
+            }
+
+            // Step 4: Remove dont_delete_vars and own-transferred vars
+            let own_transfers = collect_own_transfers(&new_body, context);
+            candidates.retain(|(var_name, _)| {
+                !dont_delete_vars.contains(var_name) && !own_transfers.contains(var_name)
+            });
+
+            // Step 5: Append Type.delete(var) calls in reverse declaration order
+            let last_line = new_body.last().map_or(e.line, |s| s.line);
+            let last_col = new_body.last().map_or(e.col, |s| s.col);
+            candidates.reverse();
+            for (var_name, type_name) in &candidates {
+                new_body.push(build_delete_call_expr(type_name, var_name, last_line, last_col));
+            }
+
+            let new_func_def = SFuncDef {
+                function_type: func_def.function_type.clone(),
+                args: func_def.args.clone(),
+                return_types: func_def.return_types.clone(),
+                throw_types: func_def.throw_types.clone(),
+                body: new_body,
+                source_path: func_def.source_path.clone(),
+            };
+            let mut new_params = Vec::new();
+            for param in &e.params {
+                new_params.push(garbager_recursive(context, param)?);
+            }
+            Ok(Expr::new_explicit(NodeType::FuncDef(new_func_def), new_params, e.line, e.col))
+        }
+#+END_SRC
+
+***** Edits (TIL)
+
+****** 7. Add ~is_deletable_type~ helper (after ~build_clone_call_expr~)
+
+#+BEGIN_SRC til
+/// Check if a type should have delete() calls inserted.
+/// Excludes primitives: I64, U8, Type, Dynamic, Ptr. NOT Str (has heap data).
+is_deletable_type := func(type_name: Str, context: Context) returns Bool {
+    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic")).or(type_name.eq("Ptr"))
+    return not(is_primitive).and(context.scope_stack.has_struct(type_name))
+}
+#+END_SRC
+
+****** 8. Replace 4 inline is_primitive checks in TIL with ~is_deletable_type~
+
+*Location A* (in ~garbager_recursive~, ~NodeType.Declaration~ case):
+: OLD: is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
+:      if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+: NEW: if is_deletable_type(type_name, context) {
+
+*Location B* (in ~garbager_recursive~, ~NodeType.Assignment~ case):
+: OLD: is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
+:      if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+: NEW: if is_deletable_type(type_name, context) {
+
+*Location C* (in ~transform_fcall_copy_params~):
+: OLD: is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
+:      if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+: NEW: if is_deletable_type(type_name, context) {
+
+*Location D* (in ~transform_struct_literal_fields~):
+: OLD: is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic"))
+:      if not(is_primitive).and(context.scope_stack.has_struct(type_name)) {
+: NEW: if is_deletable_type(type_name, context) {
+
+****** 9. Add ~build_delete_call_expr~ helper (after ~is_deletable_type~)
+
+#+BEGIN_SRC til
+/// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier("var") )
+build_delete_call_expr := func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr {
+    delete_ident := Expr(node_type=NodeType.Identifier("delete"), line=line, col=col)
+    mut type_delete_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
+    type_delete_access.params.push(delete_ident)
+    var_expr := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
+    mut delete_call := Expr(node_type=NodeType.FCall(false), line=line, col=col)
+    delete_call.params.push(type_delete_access)
+    delete_call.params.push(var_expr)
+    return delete_call
+}
+#+END_SRC
+
+****** 10. Add ~get_dont_delete_var~ to TIL (after ~is_dont_delete_call~)
+
+Currently missing from TIL. Rust version is ~get_dont_delete_var~ in garbager.rs.
+
+#+BEGIN_SRC til
+/// Extract variable name from dont_delete(var) call.
+/// The variable is params[1] (params[0] is the function name).
+get_dont_delete_var := func(e: Expr) returns Str {
+    if e.params.len().lt(2) {
+        return ""
+    }
+    mut param1 := Expr()
+    e.params.get(1, param1)?
+    catch (err: IndexOutOfBoundsError) {
+        return ""
+    }
+    switch param1.node_type {
+    case NodeType.Identifier(var_name):
+        return var_name
+    case:
+        return ""
+    }
+}
+#+END_SRC
+
+****** 11. Add ~get_create_alias_var~ to TIL (after ~get_dont_delete_var~)
+
+#+BEGIN_SRC til
+/// Extract variable name from create_alias(var, type, addr) call.
+get_create_alias_var := func(e: Expr) returns Str {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        func_name := get_func_name(e)
+        if func_name.eq("create_alias").and(e.params.len().gteq(3)) {
+            mut param1 := Expr()
+            e.params.get(1, param1)?
+            catch (err: IndexOutOfBoundsError) {
+                return ""
+            }
+            switch param1.node_type {
+            case NodeType.Identifier(var_name):
+                return var_name
+            case:
+            }
+        }
+    case:
+    }
+    return ""
+}
+#+END_SRC
+
+****** 12. Add ~collect_own_transfers~ to TIL (after ~get_create_alias_var~)
+
+Uses Vec<Str> instead of HashSet. Returns the Vec directly.
+
+#+BEGIN_SRC til
+/// Scan statements for variables passed as `own` args to function calls.
+collect_own_transfers := proc(stmts: Vec, context: Context) returns Vec {
+    mut result := Vec.new(Str)
+    for stmt: Expr in stmts {
+        collect_own_transfers_recursive(stmt, context, result)
+    }
+    return result
+}
+
+collect_own_transfers_recursive := proc(e: Expr, context: Context, mut result: Vec) {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        func_name := get_func_name(e)
+        if func_name.len().gt(0).and(not(func_name.ends_with(".clone"))).and(not(func_name.ends_with(".delete"))) {
+            mut func_def := SFuncDef()
+            mut found := false
+            func_def = context.scope_stack.lookup_func(func_name)?
+            found = true
+            catch (err: KeyNotFoundError) { }
+            if found {
+                for i in 0..func_def.args.len() {
+                    mut arg_def := Declaration()
+                    func_def.args.get(i, arg_def)?
+                    catch (err: IndexOutOfBoundsError) { }
+                    param_idx := i.add(1)
+                    if param_idx.lt(e.params.len()).and(arg_def.is_own) {
+                        mut param_expr := Expr()
+                        e.params.get(param_idx, param_expr)?
+                        catch (err: IndexOutOfBoundsError) { }
+                        switch param_expr.node_type {
+                        case NodeType.Identifier(var_name):
+                            if param_expr.params.len().eq(0) {
+                                result.push(var_name)
+                            }
+                        case:
+                        }
+                    }
+                }
+            }
+        }
+    case:
+    }
+    // Recurse into children
+    for param: Expr in e.params {
+        collect_own_transfers_recursive(param, context, result)
+    }
+    // Recurse into FuncDef body if present
+    switch e.node_type {
+    case NodeType.FuncDef(inner_func_def):
+        for stmt: Expr in inner_func_def.body {
+            collect_own_transfers_recursive(stmt, context, result)
+        }
+    case:
+    }
+}
+#+END_SRC
+
+****** 13. Replace FuncDef handler in TIL (the ~NodeType.FuncDef~ case in ~garbager_recursive~)
+
+Replace from ~case NodeType.FuncDef(func_def):~ through ~return Expr.new_explicit(...)~:
+
+#+BEGIN_SRC til
+    case NodeType.FuncDef(func_def):
+        // Step 1: Strip dont_delete calls, collect protected var names
+        mut new_body := Vec.new(Expr)
+        mut dont_delete_vars := Vec.new(Str)
+        for stmt: Expr in func_def.body {
+            if is_dont_delete_call(stmt) {
+                dd_var := get_dont_delete_var(stmt)
+                if dd_var.len().gt(0) {
+                    dont_delete_vars.push(dd_var)
+                }
+            } else {
+                // Step 2: Collect create_alias var names
+                alias_var := get_create_alias_var(stmt)
+                if alias_var.len().gt(0) {
+                    dont_delete_vars.push(alias_var)
+                }
+                new_body.push(garbager_recursive(context, stmt)?)
+            }
+        }
+
+        // Step 3: Collect delete candidates (parallel vecs: var names + type names)
+        mut cand_vars := Vec.new(Str)
+        mut cand_types := Vec.new(Str)
+
+        // 3a: copy/own params with deletable types
+        for arg_def: Declaration in func_def.args {
+            if arg_def.is_copy.or(arg_def.is_own) {
+                switch arg_def.value_type {
+                case ValueType.TCustom(type_name):
+                    if is_deletable_type(type_name, context) {
+                        cand_vars.push(arg_def.name)
+                        cand_types.push(type_name)
+                    }
+                case:
+                }
+            }
+        }
+
+        // 3b: Scan new_body for Declaration nodes with deletable types
+        for stmt: Expr in new_body {
+            switch stmt.node_type {
+            case NodeType.Declaration(decl):
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    if is_deletable_type(type_name, context) {
+                        cand_vars.push(decl.name)
+                        cand_types.push(type_name)
+                    }
+                case:
+                }
+            case:
+            }
+        }
+
+        // Step 4: Remove dont_delete_vars and own-transferred vars
+        own_transfers := collect_own_transfers(new_body, context)
+        mut filtered_vars := Vec.new(Str)
+        mut filtered_types := Vec.new(Str)
+        for i in 0..cand_vars.len() {
+            mut var_name := ""
+            cand_vars.get(i, var_name)?
+            catch (err: IndexOutOfBoundsError) { }
+            mut type_name := ""
+            cand_types.get(i, type_name)?
+            catch (err: IndexOutOfBoundsError) { }
+            mut excluded := false
+            for dd: Str in dont_delete_vars {
+                if dd.eq(var_name) { excluded = true }
+            }
+            for ot: Str in own_transfers {
+                if ot.eq(var_name) { excluded = true }
+            }
+            if not(excluded) {
+                filtered_vars.push(var_name)
+                filtered_types.push(type_name)
+            }
+        }
+
+        // Step 5: Append Type.delete(var) calls in reverse declaration order
+        mut last_line := e.line
+        mut last_col := e.col
+        if new_body.len().gt(0) {
+            mut last_stmt := Expr()
+            new_body.get(new_body.len().sub(1), last_stmt)?
+            catch (err: IndexOutOfBoundsError) { }
+            last_line = last_stmt.line
+            last_col = last_stmt.col
+        }
+        mut ri := filtered_vars.len()
+        while ri.gt(0) {
+            ri = ri.sub(1)
+            mut del_var := ""
+            filtered_vars.get(ri, del_var)?
+            catch (err: IndexOutOfBoundsError) { }
+            mut del_type := ""
+            filtered_types.get(ri, del_type)?
+            catch (err: IndexOutOfBoundsError) { }
+            new_body.push(build_delete_call_expr(del_type, del_var, last_line, last_col))
+        }
+
+        new_func_def := SFuncDef(
+            function_type=func_def.function_type,
+            args=func_def.args.clone(),
+            return_types=func_def.return_types.clone(),
+            throw_types=func_def.throw_types.clone(),
+            body=new_body,
+            source_path=func_def.source_path
+        )
+        // Also recurse into params (e.g., default argument values)
+        mut new_params := Vec.new(Expr)
+        for param: Expr in e.params {
+            new_params.push(garbager_recursive(context, param)?)
+        }
+        return Expr.new_explicit(NodeType.FuncDef(new_func_def), new_params, e.line, e.col)
+#+END_SRC
 
 *** Design Decisions
 - Method name: Use existing ~delete()~
