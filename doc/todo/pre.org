@@ -19,7 +19,7 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 :PROPERTIES:
 :DISCOVERED: 2026-02-09
 :IMPACT: Enables actual memory reclamation when Type.delete() is called
-:STATUS: Step 1 done
+:STATUS: Step 2 done
 :RELATED: Issue #117 (ASAP destruction), Issue #115 (owned struct fields)
 :END:
 
@@ -43,14 +43,19 @@ Don't replace the arena all at once. Instead:
    - EvalArena.get/set transparently dispatch: heap pointers go to raw memory,
      arena offsets go to the bump allocator as before
    - is_in_heap uses heuristic: offset > arena_len means heap pointer
-   - heap_alloc adds 64-byte padding to tolerate arena-era off-by-one writes
    - Fixed bounds checks throughout: string_from_context, memset/memcpy/memcmp,
      enum payload read/write (interpreter.rs, ext.rs, eval_arena.rs + TIL ports)
-   - 98/98 tests pass
+   - Uncovered Bug #164 (List had no capacity tracking - heap overrun on cloned push)
+   - 98/98 tests pass, no padding hacks
 
-2. *Step 2*: Migrate more types to heap allocation
-   - Gradually move struct allocations from arena to heap
-   - Arena remains for things that don't need individual deallocation
+2. *Step 2* (DONE): Move struct allocations from arena to heap
+   - Changed insert_struct_core, insert_struct, insert_struct_into_frame
+     to use heap_alloc() instead of reserve() (both .rs and .til)
+   - heap_alloc handles zero-size structs by allocating 1 byte (unique address)
+   - Added is_in_heap guard to insert_i64_core's "ensure arena has enough space"
+     block — heap field offsets are large addresses, not arena offsets
+   - Arena remains for primitives (I64, U8, Bool), string data, enum payloads
+   - 98/98 tests pass
 
 3. *Step 3*: Evaluate whether arena is still needed
    - If everything is on the heap, arena can be removed

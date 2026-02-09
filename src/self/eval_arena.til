@@ -115,7 +115,11 @@ namespace EvalArena {
 
     /// Issue #163: Allocate zeroed memory on the heap, return raw pointer as offset
     heap_alloc := proc(mut self: EvalArena, size: I64) returns I64 throws Str {
-        alloc_size := add(size, 0)
+        // Zero-size structs get 1 byte so we have a unique address
+        mut alloc_size := size
+        if size.eq(0) {
+            alloc_size = 1
+        }
         alloc_ptr := malloc(alloc_size)?
         result_ptr := alloc_ptr
         loop_size := alloc_size
@@ -269,10 +273,12 @@ namespace EvalArena {
                 throw e.lang_error(ctx.path, "context", format("insert_i64: ", err))
             }
 
-            // Ensure arena has enough space
-            required_len := add(field_offset, 8)
-            if g_arena.len().lt(required_len) {
-                _ := g_arena.reserve(sub(required_len, g_arena.len()))
+            // Issue #163: Only grow arena for non-heap offsets
+            if g_arena.is_in_heap(field_offset).not() {
+                required_len := add(field_offset, 8)
+                if g_arena.len().lt(required_len) {
+                    _ := g_arena.reserve(sub(required_len, g_arena.len()))
+                }
             }
 
             g_arena.set(field_offset, to_ptr(v), 8)
@@ -377,7 +383,7 @@ namespace EvalArena {
         // Either use existing offset (for nested structs) or allocate new memory
         mut offset := existing_offset
         if existing_offset.lt(0) {
-            offset = g_arena.reserve(total_size)
+            offset = g_arena.heap_alloc(total_size)?
         }
         mut base_mapping := EvalArenaMapping()
         base_mapping.name = id
@@ -623,8 +629,8 @@ namespace EvalArena {
         tmp_buf := malloc(struct_size)?
         memcpy(tmp_buf, g_arena.get(template_offset, struct_size), struct_size)
 
-        // Allocate new memory (may reallocate arena)
-        new_offset := g_arena.reserve(struct_size)
+        // Allocate new memory on heap
+        new_offset := g_arena.heap_alloc(struct_size)?
 
         // Copy from temporary buffer to new location
         g_arena.set(new_offset, tmp_buf, struct_size)
@@ -654,8 +660,8 @@ namespace EvalArena {
         tmp_buf := malloc(struct_size)?
         memcpy(tmp_buf, g_arena.get(template_offset, struct_size), struct_size)
 
-        // Allocate new memory (may reallocate arena)
-        new_offset := g_arena.reserve(struct_size)
+        // Allocate new memory on heap
+        new_offset := g_arena.heap_alloc(struct_size)?
 
         // Copy from temporary buffer to new location
         g_arena.set(new_offset, tmp_buf, struct_size)

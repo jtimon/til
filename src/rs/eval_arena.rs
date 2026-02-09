@@ -114,16 +114,15 @@ impl EvalArena {
 
     /// Issue #163: Allocate zeroed memory on the heap, return raw pointer as offset
     pub fn heap_alloc(&mut self, size: usize) -> Result<usize, String> {
-        if size == 0 {
-            return Err("heap_alloc: zero size".to_string());
-        }
-        let layout = std::alloc::Layout::from_size_align(size, 8)
+        // Zero-size structs get 1 byte so we have a unique address
+        let alloc_size = if size == 0 { 1 } else { size };
+        let layout = std::alloc::Layout::from_size_align(alloc_size, 8)
             .map_err(|_| "heap_alloc: bad layout".to_string())?;
         let ptr = unsafe { std::alloc::alloc_zeroed(layout) } as usize;
         if ptr == 0 {
             return Err("heap_alloc: allocation failed".to_string());
         }
-        self.heap_blocks.insert(ptr, size);
+        self.heap_blocks.insert(ptr, alloc_size);
         Ok(ptr)
     }
 
@@ -230,10 +229,12 @@ impl EvalArena {
                 e.lang_error(&ctx.path, "context", &format!("insert_i64: {}", err))
             })?;
 
-            // Ensure arena has enough space
-            let required_len = field_offset + 8;
-            if EvalArena::g().len() < required_len {
-                EvalArena::g().reserve(required_len - EvalArena::g().len())?;
+            // Issue #163: Only grow arena for non-heap offsets
+            if !EvalArena::g().is_in_heap(field_offset) {
+                let required_len = field_offset + 8;
+                if EvalArena::g().len() < required_len {
+                    EvalArena::g().reserve(required_len - EvalArena::g().len())?;
+                }
             }
 
             EvalArena::g().set(field_offset, &bytes)?;
@@ -330,7 +331,7 @@ impl EvalArena {
         // Either use existing offset (for nested structs) or allocate new memory
         let offset = match existing_offset {
             Some(off) => off,
-            None => EvalArena::g().reserve(total_size)?,
+            None => EvalArena::g().heap_alloc(total_size)?,
         };
         result.arena_mappings.push(EvalArenaMapping { name: id.to_string(), offset });
 
@@ -532,7 +533,7 @@ impl EvalArena {
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
         // Allocate new memory
-        let new_offset = EvalArena::g().reserve(struct_size)?;
+        let new_offset = EvalArena::g().heap_alloc(struct_size)?;
 
         // memcpy from template
         let data = EvalArena::g().get(template_offset, struct_size).to_vec();
@@ -556,7 +557,7 @@ impl EvalArena {
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
         // Allocate new memory
-        let new_offset = EvalArena::g().reserve(struct_size)?;
+        let new_offset = EvalArena::g().heap_alloc(struct_size)?;
 
         // memcpy from template
         let data = EvalArena::g().get(template_offset, struct_size).to_vec();
