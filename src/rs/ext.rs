@@ -2,7 +2,7 @@
 // This module contains all built-in core functions and procedures.
 
 use std::convert::TryInto;
-use crate::rs::init::Context;
+use crate::rs::init::{Context, SymbolInfo};
 use crate::rs::parser::{
     Expr, NodeType, Literal, ValueType,
     get_combined_name,
@@ -232,19 +232,33 @@ pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 }
 
 pub fn func_create_alias(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "create_alias", 2, false)?;
+    validate_arg_count(&context.path, e, "create_alias", 3, false)?;
 
-    // Param 1: NOT evaluated - get identifier from AST (like to_ptr)
+    // Param 1: NOT evaluated - variable name from AST
     let identifier_expr = e.get(1)?;
     let combined_name = get_combined_name(&context.path, identifier_expr)?;
 
-    // Param 2: evaluated - source address (I64)
-    let addr_str = eval_or_throw!(context, e.get(2)?);
+    // Param 2: NOT evaluated - type name
+    let type_expr = e.get(2)?;
+    let type_name = match &type_expr.node_type {
+        NodeType::Identifier(name) => name.clone(),
+        _ => return Err(e.lang_error(&context.path, "eval", "create_alias: second argument must be a type name identifier")),
+    };
+
+    // Param 3: evaluated - source address (I64)
+    let addr_str = eval_or_throw!(context, e.get(3)?);
     let addr = addr_str.parse::<usize>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("create_alias: Invalid address (I64): '{}': {}", addr_str, err))
     })?;
 
-    // Rebind the variable's arena offset to the source address
+    // Declare variable with type and bind to source address
+    context.scope_stack.declare_symbol(combined_name.clone(), SymbolInfo {
+        value_type: ValueType::TCustom(type_name),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        is_comptime_const: false,
+    });
     context.scope_stack.insert_var(combined_name, addr);
 
     Ok(EvalResult::new(""))

@@ -163,14 +163,10 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             // No transformation needed
             Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
         }
-        // Body: recurse into children, stripping dont_delete calls
-        // Bug #144: dont_delete calls can appear inside while bodies (from desugared for-in)
+        // Body: recurse into children
         NodeType::Body => {
             let mut new_params = Vec::new();
             for param in &e.params {
-                if is_dont_delete_call(param) {
-                    continue; // Strip dont_delete calls
-                }
                 new_params.push(garbager_recursive(context, param)?);
             }
             Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))

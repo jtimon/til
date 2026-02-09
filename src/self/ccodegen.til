@@ -1815,16 +1815,18 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         return format("(", TIL_PREFIX, "I64)&", inner_str)
     }
 
-    // create_alias(var, addr) - shallow copy from addr into var
-    // Emits: memcpy(&var, (void*)addr, sizeof(var_type))
+    // Bug #144: create_alias(var, type, addr) - compound directive
+    // Declares variable, then emits: memcpy(&var, (void*)addr, sizeof(type))
     if orig_func_name.eq("create_alias") {
-        if arg.params.len().lt(3) {
-            throw arg.lang_error(context.path, "ccodegen", "create_alias requires 2 arguments")
+        if arg.params.len().lt(4) {
+            throw arg.lang_error(context.path, "ccodegen", "create_alias requires 3 arguments")
         }
         mut ca_var_arg := Expr()
         arg.params.get(1, ca_var_arg)?
+        mut ca_type_arg := Expr()
+        arg.params.get(2, ca_type_arg)?
         mut ca_addr_arg := Expr()
-        arg.params.get(2, ca_addr_arg)?
+        arg.params.get(3, ca_addr_arg)?
         mut ca_var_name := ""
         switch ca_var_arg.node_type {
         case NodeType.Identifier(name):
@@ -1832,9 +1834,39 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         case:
             throw arg.lang_error(context.path, "ccodegen", "create_alias: first argument must be an identifier")
         }
+        mut ca_type_name := ""
+        switch ca_type_arg.node_type {
+        case NodeType.Identifier(name):
+            ca_type_name = name
+        case:
+            throw arg.lang_error(context.path, "ccodegen", "create_alias: second argument must be an identifier")
+        }
+        ca_var_type := ValueType.TCustom(ca_type_name)
+        // Declare variable in ccodegen's scope_stack
+        context.scope_stack.declare_symbol(
+            ca_var_name,
+            SymbolInfo(
+                value_type=ca_var_type,
+                is_mut=true,
+                is_copy=false,
+                is_own=false,
+                is_comptime_const=false
+            )
+        )?
         ca_c_var_name := til_var_name_from_context(ca_var_name, context)
-        ca_var_type := get_value_type(context, ca_var_arg)?
         ca_c_type_name := value_type_to_c_name(ca_var_type)?
+        // Emit C variable declaration if not already declared
+        if not(ctx.declared_vars.contains(ca_c_var_name)) {
+            ca_c_type := til_type_to_c(ca_var_type)?
+            hoist_output.push_str(ca_c_type)
+            hoist_output.push_str(" ")
+            hoist_output.push_str(ca_c_var_name)
+            hoist_output.push_str(";\n")
+            _ := ctx.declared_vars.insert(ca_c_var_name)
+            catch (err: Str) {
+                // til_type_to_c failed - skip declaration
+            }
+        }
         ca_addr_str := emit_arg_string(ca_addr_arg, Ptr(), false, hoist_output, indent, ctx, context)?
         return format("memcpy(&", ca_c_var_name, ", (void*)", ca_addr_str, ", sizeof(", ca_c_type_name, "))")
     }
@@ -7756,6 +7788,54 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
             expr.params.get(2, catch_body)?
             collect_declarations_recursive(catch_body, decls, collected, context)?
         }
+    // Bug #144: create_alias(var, type, addr) is a compound directive that declares a variable
+    case NodeType.FCall(_):
+        if expr.params.len().gteq(4) {
+            mut ca_name_expr := Expr()
+            expr.params.get(0, ca_name_expr)?
+            mut ca_f_name := ""
+            switch ca_name_expr.node_type {
+            case NodeType.Identifier(name):
+                ca_f_name = name
+            case:
+            }
+            if ca_f_name.eq("create_alias") {
+                mut ca_var_expr := Expr()
+                expr.params.get(1, ca_var_expr)?
+                mut ca_type_expr := Expr()
+                expr.params.get(2, ca_type_expr)?
+                mut ca_var_name := ""
+                switch ca_var_expr.node_type {
+                case NodeType.Identifier(name):
+                    ca_var_name = name
+                case:
+                }
+                mut ca_type_name := ""
+                switch ca_type_expr.node_type {
+                case NodeType.Identifier(name):
+                    ca_type_name = name
+                case:
+                }
+                if ca_var_name.len().gt(0).and(ca_type_name.len().gt(0)) {
+                    ca_value_type := ValueType.TCustom(ca_type_name)
+                    collected.set(ca_var_name.clone(), ca_value_type.clone())
+                    context.scope_stack.declare_symbol(
+                        ca_var_name.clone(),
+                        SymbolInfo(
+                            value_type=ca_value_type,
+                            is_mut=true,
+                            is_copy=false,
+                            is_own=false,
+                            is_comptime_const=false
+                        )
+                    )?
+                    mut ca_collected_decl := CollectedDeclaration()
+                    ca_collected_decl.name = ca_var_name
+                    ca_collected_decl.value_type = ca_value_type
+                    decls.push(ca_collected_decl)
+                }
+            }
+        }
     case:
         // REM: other node types don't contain declarations
     }
@@ -8239,15 +8319,17 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         }
         return
     } else if orig_func_name.eq("create_alias") {
-        // create_alias(var, addr) - shallow copy from addr into var
-        // Emits: memcpy(&var, (void*)addr, sizeof(var_type));\n
-        if expr.params.len().lt(3) {
-            throw "ccodegen: create_alias requires 2 arguments"
+        // Bug #144: create_alias(var, type, addr) - compound directive
+        // Declares variable, then emits: type var; memcpy(&var, (void*)addr, sizeof(type));\n
+        if expr.params.len().lt(4) {
+            throw "ccodegen: create_alias requires 3 arguments"
         }
         mut ca_var_arg2 := Expr()
         expr.params.get(1, ca_var_arg2)?
+        mut ca_type_arg2 := Expr()
+        expr.params.get(2, ca_type_arg2)?
         mut ca_addr_arg2 := Expr()
-        expr.params.get(2, ca_addr_arg2)?
+        expr.params.get(3, ca_addr_arg2)?
         mut ca_var_name2 := ""
         switch ca_var_arg2.node_type {
         case NodeType.Identifier(name):
@@ -8255,9 +8337,40 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         case:
             throw "ccodegen: create_alias: first argument must be an identifier"
         }
+        mut ca_type_name2 := ""
+        switch ca_type_arg2.node_type {
+        case NodeType.Identifier(name):
+            ca_type_name2 = name
+        case:
+            throw "ccodegen: create_alias: second argument must be an identifier"
+        }
+        ca_var_type2 := ValueType.TCustom(ca_type_name2)
+        // Declare variable in ccodegen's scope_stack
+        context.scope_stack.declare_symbol(
+            ca_var_name2,
+            SymbolInfo(
+                value_type=ca_var_type2,
+                is_mut=true,
+                is_copy=false,
+                is_own=false,
+                is_comptime_const=false
+            )
+        )?
         ca_c_var_name2 := til_var_name_from_context(ca_var_name2, context)
-        ca_var_type2 := get_value_type(context, ca_var_arg2)?
         ca_c_type_name2 := value_type_to_c_name(ca_var_type2)?
+        // Emit C variable declaration if not already declared
+        if not(ctx.declared_vars.contains(ca_c_var_name2)) {
+            ca_c_type2 := til_type_to_c(ca_var_type2)?
+            output.push_str(indent_str)
+            output.push_str(ca_c_type2)
+            output.push_str(" ")
+            output.push_str(ca_c_var_name2)
+            output.push_str(";\n")
+            _ := ctx.declared_vars.insert(ca_c_var_name2)
+            catch (err: Str) {
+                // til_type_to_c failed - skip declaration
+            }
+        }
         output.push_str(indent_str)
         output.push_str("memcpy(&")
         output.push_str(ca_c_var_name2)

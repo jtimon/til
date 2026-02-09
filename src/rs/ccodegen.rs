@@ -1419,22 +1419,46 @@ fn emit_fcall_arg_string(
             return Ok(format!("({}I64)&{}", TIL_PREFIX, inner_str));
         },
 
-        // create_alias(var, addr) - shallow copy from addr into var
-        // Emits: memcpy(&var, (void*)addr, sizeof(var_type))
+        // Bug #144: create_alias(var, type, addr) - compound directive
+        // Declares variable, then emits: memcpy(&var, (void*)addr, sizeof(type))
         "create_alias" => {
-            if arg.params.len() < 3 {
-                return Err(arg.lang_error(&context.path, "ccodegen", "create_alias requires 2 arguments"));
+            if arg.params.len() < 4 {
+                return Err(arg.lang_error(&context.path, "ccodegen", "create_alias requires 3 arguments"));
             }
             let var_arg = &arg.params[1];
-            let addr_arg = &arg.params[2];
+            let type_arg = &arg.params[2];
+            let addr_arg = &arg.params[3];
             let var_name = if let NodeType::Identifier(name) = &var_arg.node_type {
                 name.clone()
             } else {
                 return Err(arg.lang_error(&context.path, "ccodegen", "create_alias: first argument must be an identifier"));
             };
+            let type_name = if let NodeType::Identifier(name) = &type_arg.node_type {
+                name.clone()
+            } else {
+                return Err(arg.lang_error(&context.path, "ccodegen", "create_alias: second argument must be an identifier"));
+            };
+            let var_type = ValueType::TCustom(type_name.clone());
+            // Declare variable in ccodegen's scope_stack
+            context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                value_type: var_type.clone(),
+                is_mut: true,
+                is_copy: false,
+                is_own: false,
+                is_comptime_const: false,
+            });
             let c_var_name = til_var_name_from_context(&var_name, context);
-            let var_type = get_value_type(context, var_arg)?;
             let c_type_name = value_type_to_c_name(&var_type)?;
+            // Emit C variable declaration if not already declared
+            if !ctx.declared_vars.contains(&c_var_name) {
+                if let Ok(c_type) = til_type_to_c(&var_type) {
+                    hoist_output.push_str(&c_type);
+                    hoist_output.push_str(" ");
+                    hoist_output.push_str(&c_var_name);
+                    hoist_output.push_str(";\n");
+                    ctx.declared_vars.insert(c_var_name.clone());
+                }
+            }
             let addr_str = emit_arg_string(addr_arg, None, false, hoist_output, indent, ctx, context)?;
             return Ok(format!("memcpy(&{}, (void*){}, sizeof({}))", c_var_name, addr_str, c_type_name));
         },
@@ -6177,6 +6201,29 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclarat
             });
             decls.push(CollectedDeclaration { name: decl.name.clone(), value_type });
         }
+        // Bug #144: create_alias(var, type, addr) is a compound directive that declares a variable
+        NodeType::FCall(_) => {
+            if let Some(name_expr) = expr.params.first() {
+                if let NodeType::Identifier(f_name) = &name_expr.node_type {
+                    if f_name == "create_alias" && expr.params.len() >= 4 {
+                        if let NodeType::Identifier(var_name) = &expr.params[1].node_type {
+                            if let NodeType::Identifier(type_name) = &expr.params[2].node_type {
+                                let value_type = ValueType::TCustom(type_name.clone());
+                                collected.insert(var_name.clone(), value_type.clone());
+                                context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                                    value_type: value_type.clone(),
+                                    is_mut: true,
+                                    is_copy: false,
+                                    is_own: false,
+                                    is_comptime_const: false,
+                                });
+                                decls.push(CollectedDeclaration { name: var_name.clone(), value_type });
+                            }
+                        }
+                    }
+                }
+            }
+        }
         NodeType::Body => {
             for stmt in &expr.params {
                 collect_declarations_recursive(stmt, decls, collected, context);
@@ -6564,22 +6611,47 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             Ok(())
         },
-        // create_alias(var, addr) - shallow copy from addr into var
-        // Emits: memcpy(&var, (void*)addr, sizeof(var_type))
+        // Bug #144: create_alias(var, type, addr) - compound directive
+        // Declares variable, then emits: type var; memcpy(&var, (void*)addr, sizeof(type))
         "create_alias" => {
-            if expr.params.len() < 3 {
-                return Err("ccodegen: create_alias requires 2 arguments".to_string());
+            if expr.params.len() < 4 {
+                return Err("ccodegen: create_alias requires 3 arguments".to_string());
             }
             let var_arg = &expr.params[1];
-            let addr_arg = &expr.params[2];
+            let type_arg = &expr.params[2];
+            let addr_arg = &expr.params[3];
             let var_name = if let NodeType::Identifier(name) = &var_arg.node_type {
                 name.clone()
             } else {
                 return Err("ccodegen: create_alias: first argument must be an identifier".to_string());
             };
+            let type_name = if let NodeType::Identifier(name) = &type_arg.node_type {
+                name.clone()
+            } else {
+                return Err("ccodegen: create_alias: second argument must be an identifier".to_string());
+            };
+            let var_type = ValueType::TCustom(type_name.clone());
+            // Declare variable in ccodegen's scope_stack
+            context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                value_type: var_type.clone(),
+                is_mut: true,
+                is_copy: false,
+                is_own: false,
+                is_comptime_const: false,
+            });
             let c_var_name = til_var_name_from_context(&var_name, context);
-            let var_type = get_value_type(context, var_arg)?;
             let c_type_name = value_type_to_c_name(&var_type)?;
+            // Emit C variable declaration if not already declared
+            if !ctx.declared_vars.contains(&c_var_name) {
+                if let Ok(c_type) = til_type_to_c(&var_type) {
+                    output.push_str(&indent_str);
+                    output.push_str(&c_type);
+                    output.push_str(" ");
+                    output.push_str(&c_var_name);
+                    output.push_str(";\n");
+                    ctx.declared_vars.insert(c_var_name.clone());
+                }
+            }
             output.push_str(&indent_str);
             output.push_str("memcpy(&");
             output.push_str(&c_var_name);

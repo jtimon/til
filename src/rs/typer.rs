@@ -211,9 +211,40 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                     }
                 }
             }
-            errors.extend(check_fcall(context, &e, *does_throw));
-            // Check if return value usage is correct for this context
-            errors.extend(check_fcall_return_usage(context, &e, expr_context));
+            // Bug #144: create_alias is a compound directive - declare var, validate type,
+            // type-check addr expression, then skip check_fcall/check_fcall_return_usage
+            if f_name == "create_alias" {
+                if e.params.len() >= 4 {
+                    if let NodeType::Identifier(var_name) = &e.params[1].node_type {
+                        if let NodeType::Identifier(type_name) = &e.params[2].node_type {
+                            // Validate type exists
+                            let type_valid = matches!(type_name.as_str(), "I64" | "U8" | "Bool" | "Str")
+                                || context.scope_stack.lookup_struct(type_name).is_some()
+                                || context.scope_stack.lookup_enum(type_name).is_some();
+                            if !type_valid {
+                                errors.push(e.error(&context.path, "type", &format!("create_alias: unknown type '{}'", type_name)));
+                            }
+                            // Declare variable with type
+                            context.scope_stack.declare_symbol(
+                                var_name.clone(),
+                                SymbolInfo {
+                                    value_type: ValueType::TCustom(type_name.clone()),
+                                    is_mut: true,
+                                    is_copy: false,
+                                    is_own: false,
+                                    is_comptime_const: false,
+                                },
+                            );
+                        }
+                    }
+                    // Type-check the address expression (params[3])
+                    errors.extend(check_types_with_context(context, &e.params[3], ExprContext::ValueUsed));
+                }
+            } else {
+                errors.extend(check_fcall(context, &e, *does_throw));
+                // Check if return value usage is correct for this context
+                errors.extend(check_fcall_return_usage(context, &e, expr_context));
+            }
         },
         NodeType::FuncDef(func_def) => {
             context.scope_stack.push(ScopeType::Function);

@@ -1463,69 +1463,8 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     cond_args.push(len_call_expr)
     cond_expr := make_call("lt", cond_args, e.line, e.col)
 
-    // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
-    var_decl := Declaration(name=var_name, value_type=ValueType.TCustom(var_type_name), is_mut=true, is_copy=false, is_own=false, default_value=Ptr())
-
-    // Check if this is an enum type - enums need special handling since they don't have
-    // a parameterless constructor. We need to use the first variant as a placeholder.
-    // Bug #33: for-in loops don't work with enum collections
-    mut type_call := Expr()
-    mut is_enum := false
-    mut enum_def := context.scope_stack.lookup_enum(var_type_name)?
-    is_enum = true
-    catch (err: KeyNotFoundError) {
-        // Not an enum
-    }
-
-    if is_enum {
-        // Get the first variant from the enum (arbitrary choice - value will be overwritten by get())
-        // Bug #38 fix: use variants Vec
-        if enum_def.variants.len().gt(0) {
-            mut first_v := EnumVariant()
-            enum_def.variants.get(0, first_v)?
-            first_variant := first_v.name
-            payload_type_ptr := first_v.payload_type
-            catch (err: IndexOutOfBoundsError) {
-                // Shouldn't happen since we checked len > 0
-            }
-
-            // Build the enum constructor:
-            // - For variants WITHOUT payload: EnumType.Variant (just identifier chain)
-            // - For variants WITH payload: EnumType.Variant(default_payload) (FCall)
-            mut variant_id_params := Vec.new(Expr)
-            variant_id_params.push(make_id(first_variant, e.line, e.col))
-            enum_id := Expr.new_explicit(NodeType.Identifier(var_type_name), variant_id_params, e.line, e.col)
-
-            if not(NULL.eq(payload_type_ptr.data)) {
-                // Variant has a payload - need FCall with default value
-                mut payload_vt := ValueType.TCustom("")
-                memcpy(to_ptr(payload_vt), payload_type_ptr.data, size_of(ValueType))
-                default_arg := build_default_value(context, payload_vt, e.line, e.col)
-                mut enum_fcall_args := Vec.new(Expr)
-                enum_fcall_args.push(enum_id)
-                enum_fcall_args.push(default_arg)
-                type_call = Expr.new_explicit(NodeType.FCall(false), enum_fcall_args, e.line, e.col)
-            } else {
-                // Variant has no payload - just the identifier chain (NOT an FCall)
-                type_call = enum_id
-            }
-        } else {
-            // Empty enum - shouldn't happen, fall back to struct-like constructor
-            mut empty_args := Vec.new(Expr)
-            empty_args.push(make_id(var_type_name, e.line, e.col))
-            type_call = Expr.new_explicit(NodeType.FCall(false), empty_args, e.line, e.col)
-        }
-    } else {
-        // Not an enum - use struct-like constructor: TYPE()
-        mut struct_args := Vec.new(Expr)
-        struct_args.push(make_id(var_type_name, e.line, e.col))
-        type_call = Expr.new_explicit(NodeType.FCall(false), struct_args, e.line, e.col)
-    }
-
-    var_decl_expr := make_decl(var_name, ValueType.TCustom(var_type_name), true, type_call, e.line, e.col)
-
     // Bug #144: Check if element type is primitive - primitives use get() (copy),
-    // non-primitives use get_by_ref + create_alias + dont_delete (zero-copy alias)
+    // non-primitives use get_by_ref + create_alias (zero-copy alias via compound directive)
     is_primitive := var_type_name.eq("I64").or(var_type_name.eq("U8")).or(var_type_name.eq("Bool"))
 
     // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
@@ -1570,7 +1509,52 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     // Build while body depending on primitive vs non-primitive element type
     mut while_body_params := Vec.new(Expr)
     if is_primitive {
-        // Primitive: get() copy pattern (unchanged)
+        // Primitive: get() copy pattern - needs var_decl + get() + catch
+        // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
+        // Bug #33: for-in loops don't work with enum collections
+        mut type_call := Expr()
+        mut is_enum := false
+        mut enum_def := context.scope_stack.lookup_enum(var_type_name)?
+        is_enum = true
+        catch (err: KeyNotFoundError) {
+            // Not an enum
+        }
+
+        if is_enum {
+            if enum_def.variants.len().gt(0) {
+                mut first_v := EnumVariant()
+                enum_def.variants.get(0, first_v)?
+                first_variant := first_v.name
+                payload_type_ptr := first_v.payload_type
+                catch (err: IndexOutOfBoundsError) {
+                    // Shouldn't happen since we checked len > 0
+                }
+                mut variant_id_params := Vec.new(Expr)
+                variant_id_params.push(make_id(first_variant, e.line, e.col))
+                enum_id := Expr.new_explicit(NodeType.Identifier(var_type_name), variant_id_params, e.line, e.col)
+                if not(NULL.eq(payload_type_ptr.data)) {
+                    mut payload_vt := ValueType.TCustom("")
+                    memcpy(to_ptr(payload_vt), payload_type_ptr.data, size_of(ValueType))
+                    default_arg := build_default_value(context, payload_vt, e.line, e.col)
+                    mut enum_fcall_args := Vec.new(Expr)
+                    enum_fcall_args.push(enum_id)
+                    enum_fcall_args.push(default_arg)
+                    type_call = Expr.new_explicit(NodeType.FCall(false), enum_fcall_args, e.line, e.col)
+                } else {
+                    type_call = enum_id
+                }
+            } else {
+                mut empty_args := Vec.new(Expr)
+                empty_args.push(make_id(var_type_name, e.line, e.col))
+                type_call = Expr.new_explicit(NodeType.FCall(false), empty_args, e.line, e.col)
+            }
+        } else {
+            mut struct_args := Vec.new(Expr)
+            struct_args.push(make_id(var_type_name, e.line, e.col))
+            type_call = Expr.new_explicit(NodeType.FCall(false), struct_args, e.line, e.col)
+        }
+        var_decl_expr := make_decl(var_name, ValueType.TCustom(var_type_name), true, type_call, e.line, e.col)
+
         // Build: get(collection, _for_i, VAR)
         mut get_args := Vec.new(Expr)
         get_args.push(collection_expr.clone())
@@ -1581,7 +1565,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
         while_body_params.push(get_call)
         while_body_params.push(catch_expr)
     } else {
-        // Bug #144: Non-primitive: get_by_ref + create_alias + dont_delete pattern
+        // Bug #144: Non-primitive: get_by_ref + 3-arg create_alias (compound directive)
         // Build: _ref_forin_N := get_by_ref(collection, _for_i)
         ref_var_name := make_temp_name("_ref_forin", context.current_precomp_func, forin_id)
         mut get_by_ref_args := Vec.new(Expr)
@@ -1590,25 +1574,20 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
         get_by_ref_call := make_call("get_by_ref", get_by_ref_args, e.line, e.col)
         ref_decl := make_decl(ref_var_name, ValueType.TCustom("Ptr"), false, get_by_ref_call, e.line, e.col)
 
-        // Build: create_alias(item, _ref_forin_N.data)
+        // Build: create_alias(item, MyStruct, _ref_forin_N.data)
+        // 3-arg compound directive: declares var + aliases + skips auto-delete
         mut data_fields := Vec.new(Str)
         data_fields.push("data")
         ref_data_expr := make_field_access(ref_var_name, data_fields, e.line, e.col)
         mut alias_args := Vec.new(Expr)
         alias_args.push(make_id(var_name, e.line, e.col))
+        alias_args.push(make_id(var_type_name, e.line, e.col))
         alias_args.push(ref_data_expr)
         alias_call := make_call("create_alias", alias_args, e.line, e.col)
 
-        // Build: dont_delete(item)
-        mut dont_delete_args := Vec.new(Expr)
-        dont_delete_args.push(make_id(var_name, e.line, e.col))
-        dont_delete_call := make_call("dont_delete", dont_delete_args, e.line, e.col)
-
         while_body_params.push(ref_decl)
         while_body_params.push(catch_expr)
-        while_body_params.push(var_decl_expr)
         while_body_params.push(alias_call)
-        while_body_params.push(dont_delete_call)
     }
 
     // Bug #57 fix: Transform continue statements to include increment before continue

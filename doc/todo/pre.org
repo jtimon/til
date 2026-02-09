@@ -418,9 +418,9 @@ This issue is about the general language feature; Bug #144 is a specific applica
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Open
+:STATUS: Open - Steps 1-9 done, Step 10 (auto-insert delete) is next
 :DEPENDS: Bug #101 (unused warnings - shared infrastructure)
-:RELATED: Bug #114 (memory leak documentation)
+:RELATED: Bug #114 (memory leak documentation), Bug #144 (for-in by-ref)
 :END:
 
 *** Description
@@ -643,7 +643,7 @@ HashMap.insert, HashMap.set, List.push, List.set.
 
 Prerequisite for Step 9 (Bug #144 fix) and Step 10 (auto-delete).
 
-**** Step 9: Fix ~get~ shallow copy + ~get_by_ref~ + ~create_alias~ (Bug #144)
+**** Step 9: Fix ~get~ shallow copy + ~get_by_ref~ + ~create_alias~ (Bug #144) — DONE
 
 Current ~get(self, index, mut dest)~ does memcpy (shallow copy). The caller's
 local aliases the container element's heap data. Auto-deleting the local
@@ -657,24 +657,29 @@ Agreed approach:
    Not a Ptr method (wrapper can't rebind caller's variable). Declared in mem.til,
    implemented in ext.rs/ext.til, inline codegen in ccodegen.rs/ccodegen.til.
    Test in pointers.til.
-3. PARTIAL — Fix Bug #144 — desugarer rewrites ~for item: T in vec~ to use
-   ~get_by_ref~ + ~create_alias~ + ~dont_delete~ for non-primitive types.
-   Works but still constructs wasteful default. Next: redesign create_alias
-   as a directive (declares + aliases + skips auto-delete in one step):
+3. DONE — Fix Bug #144 — 3-arg compound directive ~create_alias(item, MyStruct, addr)~.
+   Declares variable + aliases to address + skips auto-delete, all in one FCall.
+   No wasteful default construction, no separate ~dont_delete~. Every phase with
+   scope tracking recognizes it: init, typer, ufcs, precomp, ccodegen, interpreter.
+   Desugared for-in for non-primitives is now:
 #+begin_src til
-for _i in 0..vec.len() {
-    _ref := vec.get_by_ref(_i)
-    mut item := MyStruct()
-    create_alias(item, _ref.data)       // zero-copy alias
-    dont_delete(item)                   // garbager skips delete
-    // user's body
-}
+_ref := get_by_ref(vec, _for_i_func_N)
+catch (...) { panic(...) }
+create_alias(item, MyStruct, _ref.data)   // declares + aliases + skips delete
+// user's body
 #+end_src
+   Performance gain modest (~0.6%), see Bug #144 for details. But the real
+   value is correctness: create_alias variables are properly excluded from
+   auto-delete, which is what Step 10 needs. Without this, Step 10 would
+   double-free for-in loop variables over containers.
 4. Decide on ~get~ API — break it (make ~get~ return ref by default) or
    keep both ~get~ (copy) / ~get_by_ref~ (reference).
 
 Dependencies: Step 8 (~dont_delete~), ~get_by_ref~, ~create_alias~ ext_func.
-Files: desugarer.rs, desugarer.til, container files, ptr ext_funcs.
+Files: desugarer.rs, desugarer.til, container files, ptr ext_funcs,
+  ufcs.rs, ufcs.til, precomp.rs, precomp.til, init.rs, init.til,
+  typer.rs, typer.til, ccodegen.rs, ccodegen.til, ext.rs, ext.til,
+  garbager.rs, garbager.til, mem.til, pointers.til.
 
 **** Step 10: Garbager auto-insert Type.delete() calls
 

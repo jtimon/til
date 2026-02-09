@@ -305,17 +305,15 @@ void til_panic(const til_Str* til_Str_loc_str, const til_Str* til_Str_msg, til_A
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/exit.til:13:5:", 1, 0, 0, 0}), 23, 0}), &_err_forin_0.msg, &_tmp_panic_3);
             til_Array_delete(&_tmp_panic_3);
         }
-        til_Ptr _tmp_panic_7 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
-        til_Str_extra_msg = (til_Str){.c_string = _tmp_panic_7, ._len = 0, .cap = 0};
         memcpy(&til_Str_extra_msg, (void*)_ref_forin_panic_0.data, sizeof(til_Str));
         til_single_print(&til_Str_extra_msg);
-        til_I64 _tmp_panic_8 = 1;
-        _for_i_panic_0 = til_I64_add(&_for_i_panic_0, &_tmp_panic_8);
+        til_I64 _tmp_panic_7 = 1;
+        _for_i_panic_0 = til_I64_add(&_for_i_panic_0, &_tmp_panic_7);
     }
     til_single_print(&((til_Str){((til_Ptr){(til_I64)"\n", 1, 0, 0, 0}), 1, 0}));
     til_print_flush();
-    til_I64 _tmp_panic_9 = 1;
-    til_exit(&_tmp_panic_9);
+    til_I64 _tmp_panic_8 = 1;
+    til_exit(&_tmp_panic_8);
 }
 
 void til_assertm(const til_Str* til_Str_loc_str, const til_Bool* til_Bool_cond, const til_Str* til_Str_msg) {
@@ -368,12 +366,10 @@ void til_println(til_Array* til_Array_args) {
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/print.til:16:5:", 1, 0, 0, 0}), 24, 0}), &_err_forin_0.msg, &_tmp_println_3);
             til_Array_delete(&_tmp_println_3);
         }
-        til_Ptr _tmp_println_7 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
-        til_Str_print_arg = (til_Str){.c_string = _tmp_println_7, ._len = 0, .cap = 0};
         memcpy(&til_Str_print_arg, (void*)_ref_forin_println_0.data, sizeof(til_Str));
         til_single_print(&til_Str_print_arg);
-        til_I64 _tmp_println_8 = 1;
-        _for_i_println_0 = til_I64_add(&_for_i_println_0, &_tmp_println_8);
+        til_I64 _tmp_println_7 = 1;
+        _for_i_println_0 = til_I64_add(&_for_i_println_0, &_tmp_println_7);
     }
     til_single_print(&((til_Str){((til_Ptr){(til_I64)"\n", 1, 0, 0, 0}), 1, 0}));
     til_print_flush();
@@ -610,29 +606,27 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:704:5:", 1, 0, 0, 0}), 23, 0}), &_err_forin_0.msg, &_tmp_format_20);
             til_Array_delete(&_tmp_format_20);
         }
-        til_Ptr _tmp_format_24 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
-        til_Str_s = (til_Str){.c_string = _tmp_format_24, ._len = 0, .cap = 0};
         memcpy(&til_Str_s, (void*)_ref_forin_format_0.data, sizeof(til_Str));
-        til_I64 _tmp_format_25 = til_Ptr_offset(&til_Str_result.c_string, &til_I64_fmt_offset).data;
-        til_memcpy(&_tmp_format_25, &til_Str_s.c_string.data, &til_Str_s._len);
+        til_I64 _tmp_format_24 = til_Ptr_offset(&til_Str_result.c_string, &til_I64_fmt_offset).data;
+        til_memcpy(&_tmp_format_24, &til_Str_s.c_string.data, &til_Str_s._len);
         til_I64_fmt_offset = til_I64_add(&til_I64_fmt_offset, &til_Str_s._len);
-        til_I64 _tmp_format_26 = 1;
-        _for_i_format_0 = til_I64_add(&_for_i_format_0, &_tmp_format_26);
+        til_I64 _tmp_format_25 = 1;
+        _for_i_format_0 = til_I64_add(&_for_i_format_0, &_tmp_format_25);
     }
     const til_U8 til_U8_zero = 0;
-    til_I64 _tmp_format_27 = til_Ptr_offset(&til_Str_result.c_string, &til_Str_result._len).data;
-    til_I64 _tmp_format_28 = 1;
-    til_memset(&_tmp_format_27, &til_U8_zero, &_tmp_format_28);
+    til_I64 _tmp_format_26 = til_Ptr_offset(&til_Str_result.c_string, &til_Str_result._len).data;
+    til_I64 _tmp_format_27 = 1;
+    til_memset(&_tmp_format_26, &til_U8_zero, &_tmp_format_27);
     if (0) { _catch_IndexOutOfBoundsError__tmp_format_0:;
         til_IndexOutOfBoundsError til_IndexOutOfBoundsError_err = _thrown_IndexOutOfBoundsError__tmp_format_0;
-        til_Array _tmp_format_29;
-        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_format_30;
-        til_Type _tmp_format_31 = "Str";
-        til_I64 _tmp_format_32 = 0;
-        _tmp_format_29 = til_Array_new(_tmp_format_31, &_tmp_format_32);
-        int __attribute__((unused)) _arr_status__tmp_format_30;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:714:15:", 1, 0, 0, 0}), 24, 0}), &til_IndexOutOfBoundsError_err.msg, &_tmp_format_29);
-        til_Array_delete(&_tmp_format_29);
+        til_Array _tmp_format_28;
+        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_format_29;
+        til_Type _tmp_format_30 = "Str";
+        til_I64 _tmp_format_31 = 0;
+        _tmp_format_28 = til_Array_new(_tmp_format_30, &_tmp_format_31);
+        int __attribute__((unused)) _arr_status__tmp_format_29;
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:714:15:", 1, 0, 0, 0}), 24, 0}), &til_IndexOutOfBoundsError_err.msg, &_tmp_format_28);
+        til_Array_delete(&_tmp_format_28);
     }
     return til_Str_result;
     return (til_Str){0};
@@ -943,14 +937,12 @@ til_Bool til_Array_contains(const til_Array* til_Array_self, const til_Str* til_
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:105:9:", 1, 0, 0, 0}), 25, 0}), &_err_forin_0.msg, &_tmp_til_Array_contains_3);
             til_Array_delete(&_tmp_til_Array_contains_3);
         }
-        til_Ptr _tmp_til_Array_contains_7 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
-        til_Str_elem = (til_Str){.c_string = _tmp_til_Array_contains_7, ._len = 0, .cap = 0};
         memcpy(&til_Str_elem, (void*)_ref_forin_0.data, sizeof(til_Str));
         if (til_Str_eq(&til_Str_elem, til_Str_value).data) {
             return true;
         }
-        til_I64 _tmp_til_Array_contains_8 = 1;
-        _for_i_0 = til_I64_add(&_for_i_0, &_tmp_til_Array_contains_8);
+        til_I64 _tmp_til_Array_contains_7 = 1;
+        _for_i_0 = til_I64_add(&_for_i_0, &_tmp_til_Array_contains_7);
     }
     return false;
     return (til_Bool){0};

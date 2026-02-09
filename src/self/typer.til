@@ -230,9 +230,73 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
                 }
             }
         }
-        errors.extend(check_fcall(context, e, does_throw)?)
-        // Check if return value usage is correct for this context
-        errors.extend(check_fcall_return_usage(context, e, expr_context)?)
+        // Bug #144: create_alias is a compound directive - declare var, validate type,
+        // type-check addr expression, then skip check_fcall/check_fcall_return_usage
+        if f_name.eq("create_alias") {
+            if e.params.len().gteq(4) {
+                mut ca_var_expr := Expr()
+                e.params.get(1, ca_var_expr)?
+                mut ca_type_expr := Expr()
+                e.params.get(2, ca_type_expr)?
+                mut ca_addr_expr := Expr()
+                e.params.get(3, ca_addr_expr)?
+                catch (err: IndexOutOfBoundsError) {
+                    // Shouldn't happen - we checked len >= 4
+                }
+                mut ca_var_name := ""
+                switch ca_var_expr.node_type {
+                case NodeType.Identifier(name):
+                    ca_var_name = name
+                case:
+                }
+                mut ca_type_name := ""
+                switch ca_type_expr.node_type {
+                case NodeType.Identifier(name):
+                    ca_type_name = name
+                case:
+                }
+                if ca_var_name.len().gt(0).and(ca_type_name.len().gt(0)) {
+                    // Validate type exists
+                    mut type_valid := ca_type_name.eq("I64").or(ca_type_name.eq("U8")).or(ca_type_name.eq("Bool")).or(ca_type_name.eq("Str"))
+                    if not(type_valid) {
+                        mut found_struct := false
+                        mut _struct_def := context.scope_stack.lookup_struct(ca_type_name)?
+                        found_struct = true
+                        catch (err: KeyNotFoundError) {
+                            // Not a struct
+                        }
+                        if not(found_struct) {
+                            mut _enum_def := context.scope_stack.lookup_enum(ca_type_name)?
+                            found_struct = true
+                            catch (err: KeyNotFoundError) {
+                                // Not an enum either
+                            }
+                        }
+                        type_valid = found_struct
+                    }
+                    if not(type_valid) {
+                        errors.push(e.error(context.path, "type", format("create_alias: unknown type '", ca_type_name, "'")))
+                    }
+                    // Declare variable with type
+                    context.scope_stack.declare_symbol(
+                        ca_var_name,
+                        SymbolInfo(
+                            value_type=ValueType.TCustom(ca_type_name),
+                            is_mut=true,
+                            is_copy=false,
+                            is_own=false,
+                            is_comptime_const=false
+                        )
+                    )?
+                }
+                // Type-check the address expression (params[3])
+                errors.extend(check_types_with_context(context, ca_addr_expr, ExprContext.ValueUsed)?)
+            }
+        } else {
+            errors.extend(check_fcall(context, e, does_throw)?)
+            // Check if return value usage is correct for this context
+            errors.extend(check_fcall_return_usage(context, e, expr_context)?)
+        }
     case NodeType.FuncDef(func_def):
         context.scope_stack.push(ScopeType.Function)
         errors.extend(check_func_proc_types(func_def, context, e)?)
