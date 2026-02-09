@@ -10,6 +10,52 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 * Active Bugs
 
 
+** Bug #164: List has no capacity tracking - heap overrun on cloned List push
+:PROPERTIES:
+:DISCOVERED: 2026-02-09
+:IMPACT: Heap corruption crash on push to cloned List; silent data corruption in arena mode
+:STATUS: Open
+:END:
+
+*** Description
+List allocates a fixed 1024-byte data buffer in List.new() but has NO capacity
+field, no growth logic, and no bounds checking in push(). This causes two problems:
+
+1. List.clone() allocates exactly calc_used() bytes (the minimum needed for
+   existing data). Any subsequent push() writes past the buffer.
+
+2. Even the original List would overrun if >1024 bytes of data were pushed
+   (about 128 I64s or 18 Strs).
+
+*** Reproduction
+The bug crashes clone.til in rs_interpreted mode when heap allocation is enabled
+(Issue #163 Step 1). The test_list_clone test pushes I64(8) + Str(56) + Bool(1)
+= 65 bytes, clones, then pushes I64(8) to the clone. The clone's data buffer is
+exactly 65 bytes, so the push writes 8 bytes at offset 65 -> heap overrun.
+
+In arena mode, the overrun silently corrupts adjacent memory (hidden by
+contiguous allocation). In heap mode, it corrupts glibc metadata and crashes
+with "corrupted size vs. prev_size".
+
+*** Root Cause
+src/std/list.til:
+- List struct has no capacity field for its data Ptr
+- List.new() hardcodes Ptr.new_by_size(1024) with no tracking
+- List.clone() allocates Ptr.new_by_size(calc_used()) - exactly used bytes
+- List.push() writes at calc_used() offset without checking buffer capacity
+
+*** Fix Plan
+Step 1: Add cap field to List struct (default 0)
+Step 2: Set cap = 1024 in List.new()
+Step 3: Set cap = total_bytes in List.clone()
+Step 4: Add growth logic in List.push() - when offset + type_size > cap,
+        reallocate with max(cap * 2, offset + type_size), copy old data, free old Ptr
+Step 5: Also fix List.set() Case 2 (different-size element replacement) which
+        could also need more space after shifting
+
+No Rust port needed - List is a TIL-only data structure (src/std/list.til).
+
+
 ** Issue #152: Migrate doc/todo files to numbered issue system
 :PROPERTIES:
 :DISCOVERED: 2026-01-29
