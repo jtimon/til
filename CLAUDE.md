@@ -37,6 +37,19 @@ time timeout 300 make benchmark
 
 Why: When something fails, you need to see the FULL output. Filtering hides critical error messages and forces re-running the entire command.
 
+## Debugging Failed Builds
+When `make benchmark` fails (segfault, wrong output, etc.) and you need to examine the output:
+
+```bash
+# Step 1: Capture full output to a file
+make clean && make benchmark > tmp/build_output.txt 2>&1
+
+# Step 2: Read/grep/tail the captured file to find the error
+# Now you CAN use grep/tail/head on the CAPTURED file
+```
+
+This avoids re-running the build just to see the output differently. Capture once, analyze as many times as needed.
+
 ## CRITICAL: Obey User Instructions
 When the user gives you instructions, OBEY THEM. Do exactly what they say. If they give steps in order, follow that order. If they tell you to do something first, do it first. Do not reinterpret, do not decide you know better, do not skip ahead. Just obey. This should be obvious but apparently needs to be stated explicitly.
 
