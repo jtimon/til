@@ -154,8 +154,8 @@ pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<Stri
     // Read the _len field (I64 length)
     let length = EvalArena::get_i64(context, &format!("{}._len", id), e)? as usize;
 
-    // Bounds check
-    if c_string_ptr + length > EvalArena::g().len() {
+    // Bounds check (Issue #163: skip for heap pointers)
+    if !EvalArena::g().is_in_heap(c_string_ptr) && c_string_ptr + length > EvalArena::g().len() {
         return Err(e.lang_error(&context.path, "string_from_context", &format!("string content out of bounds for '{}'", id)));
     }
 

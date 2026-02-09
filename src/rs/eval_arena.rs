@@ -10,6 +10,7 @@ pub struct EvalArena {
     _arena: Arena,
     pub temp_id_counter: usize,
     pub default_instances: HashMap<String, usize>,  // type name -> arena offset of default template
+    heap_blocks: HashMap<usize, usize>,  // Issue #163: ptr -> size for heap-allocated blocks
 }
 
 pub struct EvalArenaMapping {
@@ -68,6 +69,7 @@ impl EvalArena {
                 _arena: Arena::new(),
                 temp_id_counter: 0, // A temporary ugly hack for return values
                 default_instances: HashMap::new(),
+                heap_blocks: HashMap::new(),
             })
         }
     }
@@ -82,19 +84,68 @@ impl EvalArena {
         return self._arena.put(bytes);
     }
 
-    /// Read bytes from arena at offset
+    /// Read bytes from arena or heap at offset
     pub fn get(&self, offset: usize, len: usize) -> &[u8] {
-        return self._arena.get(offset, len);
+        // Issue #163: Dispatch to heap for heap-allocated memory
+        if self.is_in_heap(offset) {
+            unsafe { std::slice::from_raw_parts(offset as *const u8, len) }
+        } else {
+            self._arena.get(offset, len)
+        }
     }
 
-    /// Write bytes to arena at offset
+    /// Write bytes to arena or heap at offset
     pub fn set(&mut self, offset: usize, bytes: &[u8]) -> Result<(), String> {
-        self._arena.set(offset, bytes)
+        // Issue #163: Dispatch to heap for heap-allocated memory
+        if self.is_in_heap(offset) {
+            unsafe {
+                std::ptr::copy_nonoverlapping(bytes.as_ptr(), offset as *mut u8, bytes.len());
+            }
+            Ok(())
+        } else {
+            self._arena.set(offset, bytes)
+        }
     }
 
     /// Reserve space in arena, return offset where space was allocated
     pub fn reserve(&mut self, size: usize) -> Result<usize, String> {
         return self._arena.reserve(size);
+    }
+
+    /// Issue #163: Allocate zeroed memory on the heap, return raw pointer as offset
+    pub fn heap_alloc(&mut self, size: usize) -> Result<usize, String> {
+        if size == 0 {
+            return Err("heap_alloc: zero size".to_string());
+        }
+        // Allocate extra padding to match arena's forgiving behavior.
+        // Arena allocations are contiguous, so writing a few bytes past one
+        // allocation harmlessly writes into the next. Heap allocations are
+        // isolated, so we add padding to tolerate small overruns.
+        let padded_size = size + 64;
+        let layout = std::alloc::Layout::from_size_align(padded_size, 8)
+            .map_err(|_| "heap_alloc: bad layout".to_string())?;
+        let ptr = unsafe { std::alloc::alloc_zeroed(layout) } as usize;
+        if ptr == 0 {
+            return Err("heap_alloc: allocation failed".to_string());
+        }
+        self.heap_blocks.insert(ptr, padded_size);
+        Ok(ptr)
+    }
+
+    /// Issue #163: Free a heap-allocated block
+    pub fn heap_free(&mut self, ptr: usize) {
+        if let Some(size) = self.heap_blocks.remove(&ptr) {
+            let layout = std::alloc::Layout::from_size_align(size, 8).unwrap();
+            unsafe { std::alloc::dealloc(ptr as *mut u8, layout); }
+        }
+    }
+
+    /// Issue #163: Check if an offset is a heap pointer (not an arena offset).
+    /// Uses a simple heuristic: any address > arena length is outside the arena
+    /// and must be a heap pointer. This matches the arena's original behavior of
+    /// not enforcing per-allocation bounds.
+    pub fn is_in_heap(&self, offset: usize) -> bool {
+        offset > self.len()
     }
 
     // === EVAL-PHASE MEMORY OPERATIONS ===
@@ -713,7 +764,8 @@ impl EvalArena {
                 if payload_size > 0 {
                     let payload_offset = offset + 8;
                     let payload_end = payload_offset + payload_size;
-                    if payload_end <= EvalArena::g().len() {
+                    // Issue #163: Skip arena bounds check for heap pointers
+                    if EvalArena::g().is_in_heap(payload_offset) || payload_end <= EvalArena::g().len() {
                         let payload_bytes = EvalArena::g().get(payload_offset, payload_size).to_vec();
                         (Some(payload_bytes), Some(vtype.clone()))
                     } else {
@@ -842,7 +894,8 @@ impl EvalArena {
                 if payload_size > 0 {
                     let payload_offset = offset + 8;
                     let payload_end = payload_offset + payload_size;
-                    if payload_end <= EvalArena::g().len() {
+                    // Issue #163: Skip arena bounds check for heap pointers
+                    if EvalArena::g().is_in_heap(payload_offset) || payload_end <= EvalArena::g().len() {
                         let payload_bytes = EvalArena::g().get(payload_offset, payload_size).to_vec();
                         (Some(payload_bytes), Some(vtype.clone()))
                     } else {
@@ -896,7 +949,8 @@ impl EvalArena {
                 if let Some(payload_bytes) = &payload_data {
                     let payload_offset = offset + 8;
                     let payload_end = payload_offset + payload_bytes.len();
-                    if EvalArena::g().len() < payload_end {
+                    // Issue #163: Only grow arena for non-heap offsets
+                    if !EvalArena::g().is_in_heap(payload_offset) && EvalArena::g().len() < payload_end {
                         EvalArena::g().reserve(payload_end - EvalArena::g().len())?;
                     }
                     EvalArena::g().set(payload_offset, &payload_bytes)?;

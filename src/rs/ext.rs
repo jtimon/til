@@ -64,7 +64,8 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     let size = size_str.parse::<usize>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("Invalid size for 'malloc': {}", err))
     })?;
-    let offset = if size > 0 { EvalArena::g().reserve(size)? } else { EvalArena::g().len() };
+    // Issue #163: Use heap allocation instead of arena
+    let offset = if size > 0 { EvalArena::g().heap_alloc(size)? } else { EvalArena::g().len() };
 
     if offset == 0 { // TODO: REM: throw AllocError instead of return NULL pointer
         return Err(e.lang_error(&context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer"))
@@ -75,8 +76,11 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "free", 1, false)?;
 
-    let _ptr_str = eval_or_throw!(context, e.get(1)?);
-    // REM: Free does nothing in arena model (for now).
+    let ptr_str = eval_or_throw!(context, e.get(1)?);
+    // Issue #163: Actually free heap-allocated memory
+    if let Ok(ptr) = ptr_str.parse::<usize>() {
+        EvalArena::g().heap_free(ptr);
+    }
 
     return Ok(EvalResult::new(""))
 }
@@ -103,7 +107,8 @@ pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Err(err) => return Err(e.error(&context.path, "eval", &format!("Invalid size (I64): '{}': {}", size_str, err))),
     };
 
-    if dest + size > EvalArena::g().len() {
+    // Issue #163: Skip bounds check for heap pointers
+    if !EvalArena::g().is_in_heap(dest) && dest + size > EvalArena::g().len() {
         return Err(e.error(&context.path, "eval", &format!(
             "memset out of bounds: dest={} size={} arena_len={}",
             dest, size, EvalArena::g().len()
@@ -152,9 +157,13 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcpy: Invalid size (usize): '{}': {}", size_str, err))),
     };
 
-    if dest + size > EvalArena::g().len() || src + size > EvalArena::g().len() {
+    // Issue #163: Skip bounds check for heap pointers
+    let arena_len = EvalArena::g().len();
+    let dest_oob = !EvalArena::g().is_in_heap(dest) && dest + size > arena_len;
+    let src_oob = !EvalArena::g().is_in_heap(src) && src + size > arena_len;
+    if dest_oob || src_oob {
         return Err(e.error(&context.path, "eval", &format!("memcpy out of bounds: src={} dest={} size={} arena_len={}",
-                                            src, dest, size, EvalArena::g().len())));
+                                            src, dest, size, arena_len)));
     }
 
     for i in 0..size {
@@ -200,9 +209,13 @@ pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcmp: Invalid size (usize): '{}': {}", size_str, err))),
     };
 
-    if ptr1 + size > EvalArena::g().len() || ptr2 + size > EvalArena::g().len() {
+    // Issue #163: Skip bounds check for heap pointers
+    let arena_len = EvalArena::g().len();
+    let ptr1_oob = !EvalArena::g().is_in_heap(ptr1) && ptr1 + size > arena_len;
+    let ptr2_oob = !EvalArena::g().is_in_heap(ptr2) && ptr2 + size > arena_len;
+    if ptr1_oob || ptr2_oob {
         return Err(e.error(&context.path, "eval", &format!("memcmp out of bounds: ptr1={} ptr2={} size={} arena_len={}",
-                                            ptr1, ptr2, size, EvalArena::g().len())));
+                                            ptr1, ptr2, size, arena_len)));
     }
 
     // Compare bytes

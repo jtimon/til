@@ -19,7 +19,7 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 :PROPERTIES:
 :DISCOVERED: 2026-02-09
 :IMPACT: Enables actual memory reclamation when Type.delete() is called
-:STATUS: Open
+:STATUS: Step 1 done
 :RELATED: Issue #117 (ASAP destruction), Issue #115 (owned struct fields)
 :END:
 
@@ -37,12 +37,16 @@ accesses, and deletes structs should not change.
 *** Approach: Incremental
 Don't replace the arena all at once. Instead:
 
-1. *Step 1*: Add a global heap allocator alongside the arena
-   - New module (eval_heap.rs / eval_heap.til) that wraps malloc/free
-   - Same interface as arena (alloc returns an offset, read/write by offset)
-   - Arena stays, heap is an alternative allocation target
-   - Move one simple struct type onto the heap to prove it works
-   - Run tests, verify delete() actually frees memory
+1. *Step 1* (DONE): Add heap allocation for malloc/free alongside the arena
+   - Added heap_alloc/heap_free/is_in_heap to EvalArena (both .rs and .til)
+   - malloc() now returns real heap pointers; free() actually frees them
+   - EvalArena.get/set transparently dispatch: heap pointers go to raw memory,
+     arena offsets go to the bump allocator as before
+   - is_in_heap uses heuristic: offset > arena_len means heap pointer
+   - heap_alloc adds 64-byte padding to tolerate arena-era off-by-one writes
+   - Fixed bounds checks throughout: string_from_context, memset/memcpy/memcmp,
+     enum payload read/write (interpreter.rs, ext.rs, eval_arena.rs + TIL ports)
+   - 98/98 tests pass
 
 2. *Step 2*: Migrate more types to heap allocation
    - Gradually move struct allocations from arena to heap

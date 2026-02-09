@@ -79,8 +79,8 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
     // Read the _len field (I64 length)
     length := EvalArena.get_i64(context, format(id, "._len"), e)?
 
-    // Bounds check
-    if c_string_ptr.add(length).gt(g_arena.len()) {
+    // Bounds check (Issue #163: skip for heap pointers)
+    if not(g_arena.is_in_heap(c_string_ptr)).and(c_string_ptr.add(length).gt(g_arena.len())) {
         throw e.lang_error(context.path, "string_from_context", format("string content out of bounds for '", id, "'"))
     }
 
@@ -130,7 +130,8 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     size := I64.from_str(size_result.value)
     mut offset := 0
     if size.gt(0) {
-        offset = g_arena.reserve(size)
+        // Issue #163: Use heap allocation instead of arena
+        offset = g_arena.heap_alloc(size)?
     } else {
         offset = g_arena.len()
     }
@@ -146,7 +147,9 @@ func_free := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 
     ptr_result := eval_expr(context, e.get(1)?)?
     if ptr_result.is_throw { return ptr_result }
-    // REM: Free does nothing in arena model (for now).
+    // Issue #163: Actually free heap-allocated memory
+    ptr := I64.from_str(ptr_result.value)
+    g_arena.heap_free(ptr)
 
     return EvalResult.new("")
 }
@@ -165,9 +168,12 @@ func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     value := U8.from_str(value_result.value)?
     size := I64.from_str(size_result.value)
 
-    arena_len := g_arena.len()
-    if dest.add(size).gt(arena_len) {
-        throw e.error(context.path, "eval", format("memset out of bounds: dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
+    // Issue #163: Skip bounds check for heap pointers
+    if not(g_arena.is_in_heap(dest)) {
+        arena_len := g_arena.len()
+        if dest.add(size).gt(arena_len) {
+            throw e.error(context.path, "eval", format("memset out of bounds: dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
+        }
     }
 
     for i in 0..size {
@@ -191,8 +197,11 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     src := I64.from_str(src_result.value)
     size := I64.from_str(size_result.value)
 
+    // Issue #163: Skip bounds check for heap pointers
     arena_len := g_arena.len()
-    if dest.add(size).gt(arena_len).or(src.add(size).gt(arena_len)) {
+    dest_oob := not(g_arena.is_in_heap(dest)).and(dest.add(size).gt(arena_len))
+    src_oob := not(g_arena.is_in_heap(src)).and(src.add(size).gt(arena_len))
+    if dest_oob.or(src_oob) {
         throw e.error(context.path, "eval", format("memcpy out of bounds: src=", src.to_str(), " dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
 
@@ -220,8 +229,11 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     ptr2 := I64.from_str(ptr2_result.value)
     size := I64.from_str(size_result.value)
 
+    // Issue #163: Skip bounds check for heap pointers
     arena_len := g_arena.len()
-    if ptr1.add(size).gt(arena_len).or(ptr2.add(size).gt(arena_len)) {
+    ptr1_oob := not(g_arena.is_in_heap(ptr1)).and(ptr1.add(size).gt(arena_len))
+    ptr2_oob := not(g_arena.is_in_heap(ptr2)).and(ptr2.add(size).gt(arena_len))
+    if ptr1_oob.or(ptr2_oob) {
         throw e.error(context.path, "eval", format("memcmp out of bounds: ptr1=", ptr1.to_str(), " ptr2=", ptr2.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
 

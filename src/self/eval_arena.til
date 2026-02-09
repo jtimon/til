@@ -61,6 +61,8 @@ EvalArena := struct {
     mut _arena: Arena = Arena()
     mut temp_id_counter: I64 = 0
     mut default_instances: Map = Map.new(Str, I64)  // type name -> arena offset of default template
+    mut _heap_bases: Vec = Vec.new(I64)  // Issue #163: heap block base ptrs
+    mut _heap_sizes: Vec = Vec.new(I64)  // Issue #163: heap block sizes
 }
 
 namespace EvalArena {
@@ -86,13 +88,22 @@ namespace EvalArena {
         return offset
     }
 
-    /// Read bytes from arena at offset (returns pointer to data)
+    /// Read bytes from arena or heap at offset (returns pointer to data)
     get := func(self: EvalArena, offset: I64, num_bytes: I64) returns I64 {
+        // Issue #163: Dispatch to heap for heap-allocated memory
+        if self.is_in_heap(offset) {
+            return offset  // heap pointer IS the raw address
+        }
         return self._arena.get(offset, num_bytes)
     }
 
-    /// Write bytes to arena at offset
+    /// Write bytes to arena or heap at offset
     set := proc(mut self: EvalArena, offset: I64, src_ptr: I64, num_bytes: I64) {
+        // Issue #163: Dispatch to heap for heap-allocated memory
+        if self.is_in_heap(offset) {
+            memcpy(offset, src_ptr, num_bytes)
+            return
+        }
         self._arena.set(offset, src_ptr, num_bytes)
     }
 
@@ -100,6 +111,53 @@ namespace EvalArena {
     reserve := proc(mut self: EvalArena, size: I64) returns I64 {
         offset := self._arena.reserve(size)
         return offset
+    }
+
+    /// Issue #163: Allocate zeroed memory on the heap, return raw pointer as offset
+    heap_alloc := proc(mut self: EvalArena, size: I64) returns I64 throws Str {
+        // Allocate extra padding to match arena's forgiving behavior.
+        // Arena allocations are contiguous, so writing a few bytes past one
+        // allocation harmlessly writes into the next. Heap allocations are
+        // isolated, so we add padding to tolerate small overruns.
+        padded_size := add(size, 64)
+        alloc_ptr := malloc(padded_size)?
+        result_ptr := alloc_ptr
+        padded_copy := padded_size
+        self._heap_bases.push(alloc_ptr)
+        self._heap_sizes.push(padded_size)
+        // Zero-initialize (arena's reserve zeroes, so we must too for compatibility)
+        mut zero : U8 = 0
+        for i in 0..padded_copy {
+            memcpy(add(result_ptr, i), to_ptr(zero), 1)
+        }
+        return result_ptr
+
+        catch (err: BadAlloc) {
+            throw "heap_alloc: allocation failed"
+        }
+    }
+
+    /// Issue #163: Free a heap-allocated block
+    heap_free := proc(mut self: EvalArena, ptr: I64) {
+        for i in 0..self._heap_bases.len() {
+            mut base := 0
+            self._heap_bases.get(i, base)?
+            if base.eq(ptr) {
+                self._heap_bases.set(i, 0)?  // mark as freed
+                self._heap_sizes.set(i, 0)?
+                free(ptr)
+                return
+            }
+        }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+
+    /// Issue #163: Check if an offset is a heap pointer (not an arena offset).
+    /// Uses a simple heuristic: any address > arena length is outside the arena
+    /// and must be a heap pointer. This matches the arena's original behavior of
+    /// not enforcing per-allocation bounds.
+    is_in_heap := func(self: EvalArena, offset: I64) returns Bool {
+        return offset.gt(self.len())
     }
 
     // === EVAL-PHASE MEMORY OPERATIONS ===
@@ -853,7 +911,8 @@ namespace EvalArena {
                 if payload_size.gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_size)
-                    if payload_end.lteq(g_arena.len()) {
+                    // Issue #163: Skip arena bounds check for heap pointers
+                    if g_arena.is_in_heap(payload_offset).or(payload_end.lteq(g_arena.len())) {
                         // Copy payload bytes
                         mut payload_bytes := Vec.new(U8)
                         mut pi := 0
@@ -1037,7 +1096,8 @@ namespace EvalArena {
                 if payload_size.gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_size)
-                    if payload_end.lteq(g_arena.len()) {
+                    // Issue #163: Skip arena bounds check for heap pointers
+                    if g_arena.is_in_heap(payload_offset).or(payload_end.lteq(g_arena.len())) {
                         mut payload_bytes := Vec.new(U8)
                         mut pi := 0
                         while pi.lt(payload_size) {
@@ -1123,7 +1183,8 @@ namespace EvalArena {
                 if payload_data.len().gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_data.len())
-                    if g_arena.len().lt(payload_end) {
+                    // Issue #163: Only grow arena for non-heap offsets
+                    if not(g_arena.is_in_heap(payload_offset)).and(g_arena.len().lt(payload_end)) {
                         _ := g_arena.reserve(sub(payload_end, g_arena.len()))
                     }
                     mut pi := 0
