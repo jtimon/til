@@ -3562,6 +3562,7 @@ emit_precomputed_vec_assignment := proc(var_name: Str, static_info: PrecomputedS
     elem_count := contents.element_bytes.len()
     type_size := contents.type_size
     elem_type := contents.element_type_name
+    dont_delete(elem_type) // alias of contents.element_type_name
 
     output.push_str(indent_str)
     if not(already_declared) {

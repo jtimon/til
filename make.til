@@ -222,16 +222,6 @@ build_til_debug := proc() {
     _ := run_stream_cmd("gdb ./bin/til_debug")
 }
 
-// WARNING: This target depends on til_til which hangs
-diff_til := proc() {
-    // Compare C output from rstil vs til
-    mut status := 0
-    status = run_stream_cmd("diff bootstrap/til.c tmp/til_by_til.c")
-    if status.eq(0).not() {
-        exit(1)
-    }
-}
-
 // Compare C output from rstil vs til for a given file
 run_diff := proc(file_path: Str) {
     build_rstil_til()
@@ -245,7 +235,7 @@ run_diff := proc(file_path: Str) {
 main := proc(args: ..Str) {
     if args.len().eq(0) {
         println("Usage: make.til <target> [options]")
-        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff <file>, diff_til")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff <file>")
         println("Options: --cc=COMPILER (e.g., --cc=clang)")
         exit(1)
     }
@@ -296,11 +286,9 @@ main := proc(args: ..Str) {
         args.get(1, file_path)?
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         run_diff(file_path)
-    case "diff_til":
-        diff_til()
     case:
         println("Unknown target: ", target)
-        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff <file>, diff_til")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff <file>")
         exit(1)
     }
 }

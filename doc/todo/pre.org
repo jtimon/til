@@ -418,7 +418,7 @@ This issue is about the general language feature; Bug #144 is a specific applica
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Open - Steps 1-9 done, Step 10A done (98/98 pass). Step 10B (ASAP last-use) is next
+:STATUS: Open - Steps 1-9 done, Step 10A done, Step 10B done (98/98 pass)
 :DEPENDS: Bug #101 (unused warnings - shared infrastructure)
 :RELATED: Bug #114 (memory leak documentation), Bug #144 (for-in by-ref)
 :END:
@@ -1172,6 +1172,44 @@ Replace from ~case NodeType.FuncDef(func_def):~ through ~return Expr.new_explici
         }
         return Expr.new_explicit(NodeType.FuncDef(new_func_def), new_params, e.line, e.col)
 #+END_SRC
+
+**** Step 10B: ASAP last-use deletion for copy/own params — DONE
+
+Files: ~src/rs/garbager.rs~, ~src/self/garbager.til~, ~src/self/ccodegen.til~
+
+Moves ~Type.delete(var)~ calls from function body END to right after the
+variable's last use — but only for ~copy~/~own~ params (deep copies, no aliasing).
+Locals stay at function end (shared offsets mean locals can alias through
+field assignment).
+
+***** New helpers (both Rust + TIL)
+
+- ~expr_references_var(e, var_name) -> bool~: Recursively checks if any
+  Identifier node in the expression tree matches var_name. Recurses into
+  e.params but NOT into nested FuncDef bodies (separate scope).
+
+- ~find_last_use_index(body, var_name) -> Option<usize>~ (Rust) /
+  ~-> I64~ (TIL, -1 = not found): Scans body from end to start, returns
+  index of last statement referencing the variable.
+
+***** Modified Step 5 logic
+
+Step 5 now separates candidates into two groups:
+- ~asap_candidates~ (copy/own params): insert delete after last use via
+  HashMap (Rust) / parallel Vecs (TIL) for insertion positions
+- ~end_candidates~ (locals): append at function end in reverse declaration order
+
+When multiple deletes land at the same position, they appear in reverse
+declaration order (last declared -> first deleted).
+
+***** Bug fix: dont_delete for field aliases in ccodegen.til
+
+ASAN revealed a pre-existing double-free from Step 10A in
+~emit_precomputed_vec_assignment~: ~elem_type := contents.element_type_name~
+creates a shared-pointer alias. Both ~Str.delete(elem_type)~ and
+~VecContents.delete(contents)~ freed the same Str. Fixed with
+~dont_delete(elem_type)~. Rust version uses ~&contents.element_type_name~
+(a reference), so no issue there.
 
 *** Design Decisions
 - Method name: Use existing ~delete()~

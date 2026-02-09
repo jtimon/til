@@ -143,24 +143,110 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             }
         }
 
-        // Step 5: Append Type.delete(var) calls in reverse declaration order
-        mut last_line := e.line
-        mut last_col := e.col
-        if new_body.len().gt(0) {
-            mut last_stmt := Expr()
-            new_body.get(new_body.len().sub(1), last_stmt)?
-            last_line = last_stmt.line
-            last_col = last_stmt.col
+        // Step 5: Insert Type.delete(var) calls.
+        // copy/own params: ASAP after last use (deep copies, no aliasing).
+        // locals: at function end (shared offsets mean locals can alias).
+        mut param_names := Vec.new(Str)
+        for parg: Declaration in func_def.args {
+            if parg.is_copy.or(parg.is_own) {
+                param_names.push(parg.name)
+            }
         }
-        mut ri := filtered_vars.len()
+
+        // Separate params (ASAP) from locals (end-of-function)
+        mut asap_vars := Vec.new(Str)
+        mut asap_types := Vec.new(Str)
+        mut end_vars := Vec.new(Str)
+        mut end_types := Vec.new(Str)
+        for ci in 0..filtered_vars.len() {
+            mut cv := ""
+            filtered_vars.get(ci, cv)?
+            mut ct := ""
+            filtered_types.get(ci, ct)?
+            mut is_param := false
+            for pn: Str in param_names {
+                if pn.eq(cv) { is_param = true }
+            }
+            if is_param {
+                asap_vars.push(cv)
+                asap_types.push(ct)
+            } else {
+                end_vars.push(cv)
+                end_types.push(ct)
+            }
+        }
+
+        // ASAP: insert after last use for copy/own params
+        body_len := new_body.len()
+        mut insert_positions := Vec.new(I64)
+        mut insert_del_calls := Vec.new(Expr)
+        mut ri := asap_vars.len()
         while ri.gt(0) {
             ri = ri.sub(1)
             mut del_var := ""
-            filtered_vars.get(ri, del_var)?
+            asap_vars.get(ri, del_var)?
             mut del_type := ""
-            filtered_types.get(ri, del_type)?
-            new_body.push(build_delete_call_expr(del_type, del_var, last_line, last_col))
+            asap_types.get(ri, del_type)?
+            last_use := find_last_use_index(new_body, del_var)
+            mut insert_pos := body_len
+            if last_use.gteq(0) {
+                insert_pos = last_use.add(1)
+            }
+            mut del_line := e.line
+            mut del_col := e.col
+            if insert_pos.gt(0).and(insert_pos.lteq(body_len)) {
+                mut prev_stmt := Expr()
+                new_body.get(insert_pos.sub(1), prev_stmt)?
+                del_line = prev_stmt.line
+                del_col = prev_stmt.col
+            } else {
+                if new_body.len().gt(0) {
+                    mut last_s := Expr()
+                    new_body.get(new_body.len().sub(1), last_s)?
+                    del_line = last_s.line
+                    del_col = last_s.col
+                }
+            }
+            insert_positions.push(insert_pos)
+            insert_del_calls.push(build_delete_call_expr(del_type, del_var, del_line, del_col))
         }
+
+        // Build final_body: original statements with ASAP deletes interleaved
+        mut final_body := Vec.new(Expr)
+        for i in 0..body_len {
+            mut body_stmt := Expr()
+            new_body.get(i, body_stmt)?
+            final_body.push(body_stmt)
+            for di in 0..insert_positions.len() {
+                mut dpos := 0
+                insert_positions.get(di, dpos)?
+                if dpos.eq(i.add(1)) {
+                    mut dc := Expr()
+                    insert_del_calls.get(di, dc)?
+                    final_body.push(dc)
+                }
+            }
+        }
+
+        // End-of-function: append locals in reverse declaration order
+        mut last_line := e.line
+        mut last_col := e.col
+        if final_body.len().gt(0) {
+            mut last_s := Expr()
+            final_body.get(final_body.len().sub(1), last_s)?
+            last_line = last_s.line
+            last_col = last_s.col
+        }
+        mut eri := end_vars.len()
+        while eri.gt(0) {
+            eri = eri.sub(1)
+            mut ev := ""
+            end_vars.get(eri, ev)?
+            mut et := ""
+            end_types.get(eri, et)?
+            final_body.push(build_delete_call_expr(et, ev, last_line, last_col))
+        }
+        new_body = final_body
 
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
@@ -400,6 +486,47 @@ is_deletable_type := func(type_name: Str, context: Context) returns Bool {
     }
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), "IndexOutOfBoundsError in is_deletable_type: ", err.msg)
+    }
+}
+
+/// Recursively check if any Identifier node in the expression tree matches var_name.
+/// Recurses into e.params (covers if/while/for/switch bodies stored as params).
+/// Does NOT recurse into nested FuncDef bodies (separate scope).
+expr_references_var := func(e: Expr, var_name: Str) returns Bool {
+    switch e.node_type {
+    case NodeType.Identifier(name):
+        if name.eq(var_name) {
+            return true
+        }
+    case:
+    }
+    // Recurse into params (but not into nested FuncDef bodies)
+    for param: Expr in e.params {
+        if expr_references_var(param, var_name) {
+            return true
+        }
+    }
+    // For FuncDef nodes, do NOT recurse into body (separate scope).
+    // e.params on a FuncDef are only default arg values, already checked above.
+    return false
+}
+
+/// Scan body from end to start, return index of last statement referencing the variable.
+/// Returns -1 if not found.
+find_last_use_index := func(body: Vec, var_name: Str) returns I64 {
+    mut i := body.len().sub(1)
+    while i.gteq(0) {
+        mut stmt := Expr()
+        body.get(i, stmt)?
+        if expr_references_var(stmt, var_name) {
+            return i
+        }
+        i = i.sub(1)
+    }
+    return I64.sub(0, 1)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), "IndexOutOfBoundsError in find_last_use_index: ", err.msg)
     }
 }
 

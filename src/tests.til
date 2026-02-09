@@ -1054,8 +1054,8 @@ main := proc(args: ..Str) {
     // Parse options first (before other args processing)
     // -jN: parallelism (e.g., -j8, -j32) - like make
     // --force-rebuild: force recompilation for compiled tests
-    // Issue #117: use half the threads to reduce memory pressure
-    mut parallelism := get_thread_count().div(2)
+    // Issue #117: use quarter the threads to reduce memory pressure
+    mut parallelism := get_thread_count().div(4)
     if parallelism.lt(1) {
         parallelism = 1
     }

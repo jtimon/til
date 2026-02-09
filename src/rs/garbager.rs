@@ -105,13 +105,69 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     && !own_transfers.contains(var_name)
             });
 
-            // Step 5: Append Type.delete(var) calls in reverse declaration order
-            let last_line = new_body.last().map_or(e.line, |s| s.line);
-            let last_col = new_body.last().map_or(e.col, |s| s.col);
-            candidates.reverse();
-            for (var_name, type_name) in &candidates {
-                new_body.push(build_delete_call_expr(type_name, var_name, last_line, last_col));
+            // Step 5: Insert Type.delete(var) calls.
+            // copy/own params: ASAP after last use (deep copies, no aliasing).
+            // locals: at function end (shared offsets mean locals can alias).
+            let mut param_names: HashSet<String> = HashSet::new();
+            for arg_def in &func_def.args {
+                if arg_def.is_copy || arg_def.is_own {
+                    param_names.insert(arg_def.name.clone());
+                }
             }
+
+            // Separate params (ASAP) from locals (end-of-function)
+            let mut asap_candidates: Vec<(String, String)> = Vec::new();
+            let mut end_candidates: Vec<(String, String)> = Vec::new();
+            for (var_name, type_name) in &candidates {
+                if param_names.contains(var_name) {
+                    asap_candidates.push((var_name.clone(), type_name.clone()));
+                } else {
+                    end_candidates.push((var_name.clone(), type_name.clone()));
+                }
+            }
+
+            // ASAP: insert after last use for copy/own params
+            let body_len = new_body.len();
+            let mut inserts: HashMap<usize, Vec<Expr>> = HashMap::new();
+            asap_candidates.reverse();
+            for (var_name, type_name) in &asap_candidates {
+                let insert_pos = match find_last_use_index(&new_body, var_name) {
+                    Some(idx) => idx + 1,
+                    None => body_len,
+                };
+                let line = if insert_pos > 0 && insert_pos <= body_len {
+                    new_body[insert_pos - 1].line
+                } else {
+                    new_body.last().map_or(e.line, |s| s.line)
+                };
+                let col = if insert_pos > 0 && insert_pos <= body_len {
+                    new_body[insert_pos - 1].col
+                } else {
+                    new_body.last().map_or(e.col, |s| s.col)
+                };
+                inserts.entry(insert_pos).or_insert_with(Vec::new)
+                    .push(build_delete_call_expr(type_name, var_name, line, col));
+            }
+
+            // Build final_body: original statements with ASAP deletes interleaved
+            let mut final_body: Vec<Expr> = Vec::new();
+            for i in 0..body_len {
+                final_body.push(new_body[i].clone());
+                if let Some(delete_calls) = inserts.get(&(i + 1)) {
+                    for dc in delete_calls {
+                        final_body.push(dc.clone());
+                    }
+                }
+            }
+
+            // End-of-function: append locals in reverse declaration order
+            let last_line = final_body.last().map_or(e.line, |s| s.line);
+            let last_col = final_body.last().map_or(e.col, |s| s.col);
+            end_candidates.reverse();
+            for (var_name, type_name) in &end_candidates {
+                final_body.push(build_delete_call_expr(type_name, var_name, last_line, last_col));
+            }
+            let new_body = final_body;
 
             let new_func_def = SFuncDef {
                 function_type: func_def.function_type.clone(),
@@ -300,6 +356,36 @@ fn is_deletable_type(type_name: &str, context: &Context) -> bool {
     } else {
         false
     }
+}
+
+/// Recursively check if any Identifier node in the expression tree matches var_name.
+/// Recurses into e.params (covers if/while/for/switch bodies stored as params).
+/// Does NOT recurse into nested FuncDef bodies (separate scope).
+fn expr_references_var(e: &Expr, var_name: &str) -> bool {
+    if let NodeType::Identifier(name) = &e.node_type {
+        if name == var_name {
+            return true;
+        }
+    }
+    // Recurse into params (but not into nested FuncDef bodies)
+    for param in &e.params {
+        if expr_references_var(param, var_name) {
+            return true;
+        }
+    }
+    // For FuncDef nodes, do NOT recurse into body (separate scope).
+    // e.params on a FuncDef are only default arg values, already checked above.
+    false
+}
+
+/// Scan body from end to start, return index of last statement referencing the variable.
+fn find_last_use_index(body: &[Expr], var_name: &str) -> Option<usize> {
+    for i in (0..body.len()).rev() {
+        if expr_references_var(&body[i], var_name) {
+            return Some(i);
+        }
+    }
+    None
 }
 
 /// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier("var") )
