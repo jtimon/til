@@ -115,19 +115,15 @@ namespace EvalArena {
 
     /// Issue #163: Allocate zeroed memory on the heap, return raw pointer as offset
     heap_alloc := proc(mut self: EvalArena, size: I64) returns I64 throws Str {
-        // Allocate extra padding to match arena's forgiving behavior.
-        // Arena allocations are contiguous, so writing a few bytes past one
-        // allocation harmlessly writes into the next. Heap allocations are
-        // isolated, so we add padding to tolerate small overruns.
-        padded_size := add(size, 64)
-        alloc_ptr := malloc(padded_size)?
+        alloc_size := add(size, 0)
+        alloc_ptr := malloc(alloc_size)?
         result_ptr := alloc_ptr
-        padded_copy := padded_size
+        loop_size := alloc_size
         self._heap_bases.push(alloc_ptr)
-        self._heap_sizes.push(padded_size)
+        self._heap_sizes.push(alloc_size)
         // Zero-initialize (arena's reserve zeroes, so we must too for compatibility)
         mut zero : U8 = 0
-        for i in 0..padded_copy {
+        for i in 0..loop_size {
             memcpy(add(result_ptr, i), to_ptr(zero), 1)
         }
         return result_ptr

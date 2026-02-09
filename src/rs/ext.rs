@@ -159,8 +159,10 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
     // Issue #163: Skip bounds check for heap pointers
     let arena_len = EvalArena::g().len();
-    let dest_oob = !EvalArena::g().is_in_heap(dest) && dest + size > arena_len;
-    let src_oob = !EvalArena::g().is_in_heap(src) && src + size > arena_len;
+    let dest_in_heap = EvalArena::g().is_in_heap(dest);
+    let src_in_heap = EvalArena::g().is_in_heap(src);
+    let dest_oob = !dest_in_heap && dest + size > arena_len;
+    let src_oob = !src_in_heap && src + size > arena_len;
     if dest_oob || src_oob {
         return Err(e.error(&context.path, "eval", &format!("memcpy out of bounds: src={} dest={} size={} arena_len={}",
                                             src, dest, size, arena_len)));

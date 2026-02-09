@@ -8,6 +8,29 @@
 * Fixed Bugs
 
 
+** Bug #164: List has no capacity tracking - heap overrun on cloned List push
+:PROPERTIES:
+:DISCOVERED: 2026-02-09
+:FIXED: 2026-02-09
+:IMPACT: Heap corruption crash on push to cloned List; silent data corruption in arena mode
+:STATUS: Fixed
+:END:
+
+*** Description
+List allocated a fixed 1024-byte data buffer in List.new() but had NO capacity
+field, no growth logic, and no bounds checking in push(). List.clone() allocated
+exactly calc_used() bytes, so any push to a cloned List wrote past the buffer.
+
+Discovered via Issue #163 heap allocation - the heap isolates allocations,
+exposing overruns that were silently hidden by the arena's contiguous memory.
+
+*** What was done
+- Added cap field to List struct
+- Set cap = 1024 in List.new(), cap = self.cap in List.clone()
+- Added growth logic in List.push() and List.set() (Case 2: different-size replacement)
+- Removed 64-byte padding hack from TIL heap_alloc and debug tracing from Rust
+
+
 ** Bug #162: Typer own-param requires mut variable + no control-flow awareness
 :PROPERTIES:
 :DISCOVERED: 2026-02-08

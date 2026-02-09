@@ -11,6 +11,7 @@ import("core.vec")
 List := struct {
     mut data : Ptr  = Ptr()  // Pointer to raw memory blob
     mut _len : I64 = 0      // Number of elements stored
+    mut cap  : I64 = 0      // Allocated capacity in bytes for data buffer
     mut type_names : Vec = Vec()  // Vec<Str> - type name per element
     mut type_sizes : Vec = Vec()  // Vec<I64> - size per element
 }
@@ -29,8 +30,8 @@ namespace List {
     /** Create new empty list. */
     new := proc() returns List {
         mut list := List()
-        // Allocate enough for reasonable number of elements
-        list.data = Ptr.new_by_size(1024)
+        list.cap = 1024
+        list.data = Ptr.new_by_size(list.cap)
         list._len = 0
         list.type_names = Vec.new(Str)
         list.type_sizes = Vec.new(I64)
@@ -66,6 +67,25 @@ namespace List {
 
         // Copy value to data blob at current end
         mut offset := self.calc_used()?
+        mut needed := offset.add(type_size)
+
+        // Grow if needed
+        if needed.gt(self.cap) {
+            mut new_cap := self.cap.mul(2)
+            if new_cap.lt(needed) {
+                new_cap = needed
+            }
+            mut new_data := Ptr.new_by_size(new_cap)
+            if offset.gt(0) {
+                new_data.copy_from(self.data, offset)
+            }
+            if not(self.data.is_null()) {
+                self.data.delete()
+            }
+            self.data = new_data
+            self.cap = new_cap
+        }
+
         mut dest := self.data.offset(offset)
         dest.copy_from_dynamic(value, type_size)
 
@@ -148,6 +168,24 @@ namespace List {
         mut after_offset := old_offset.add(old_size)
         mut used := self.calc_used()?
         mut bytes_after := used.sub(after_offset)
+        mut new_total := used.sub(old_size).add(new_size)
+
+        // Grow if needed
+        if new_total.gt(self.cap) {
+            mut new_cap := self.cap.mul(2)
+            if new_cap.lt(new_total) {
+                new_cap = new_total
+            }
+            mut new_data := Ptr.new_by_size(new_cap)
+            if used.gt(0) {
+                new_data.copy_from(self.data, used)
+            }
+            if not(self.data.is_null()) {
+                self.data.delete()
+            }
+            self.data = new_data
+            self.cap = new_cap
+        }
 
         // Shift elements after index
         if bytes_after.gt(0) {
@@ -214,9 +252,13 @@ namespace List {
         cloned.type_names = self.type_names.clone()
         cloned.type_sizes = self.type_sizes.clone()
 
-        // Calculate total bytes used and allocate data buffer
+        // Allocate same capacity as original (not just used bytes)
         mut total_bytes := self.calc_used()?
-        cloned.data = Ptr.new_by_size(total_bytes)
+        cloned.cap = self.cap
+        if cloned.cap.lt(total_bytes) {
+            cloned.cap = total_bytes
+        }
+        cloned.data = Ptr.new_by_size(cloned.cap)
         cloned.data.copy_from(self.data, total_bytes)
         return cloned
     }

@@ -117,18 +117,13 @@ impl EvalArena {
         if size == 0 {
             return Err("heap_alloc: zero size".to_string());
         }
-        // Allocate extra padding to match arena's forgiving behavior.
-        // Arena allocations are contiguous, so writing a few bytes past one
-        // allocation harmlessly writes into the next. Heap allocations are
-        // isolated, so we add padding to tolerate small overruns.
-        let padded_size = size + 64;
-        let layout = std::alloc::Layout::from_size_align(padded_size, 8)
+        let layout = std::alloc::Layout::from_size_align(size, 8)
             .map_err(|_| "heap_alloc: bad layout".to_string())?;
         let ptr = unsafe { std::alloc::alloc_zeroed(layout) } as usize;
         if ptr == 0 {
             return Err("heap_alloc: allocation failed".to_string());
         }
-        self.heap_blocks.insert(ptr, padded_size);
+        self.heap_blocks.insert(ptr, size);
         Ok(ptr)
     }
 
