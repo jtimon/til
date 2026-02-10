@@ -121,7 +121,7 @@ exists (see future.org) or Map/HashMap use Ptr directly.
   clones elsewhere for the ~self.elements~ parameter passing, replacing the
   explicit copy with implicit ones. Needs further investigation (Bug #165
   territory -- shallow copy overhead).
-- Step 5: HashMap (same pattern as Map -- remove 4 fields, use type_size)
+- Step 5: HashMap (same pattern as Map -- remove 4 fields, use type_size). DONE.
 - Step 6: Remove Vec.new_from_type_info (all callers removed by steps 1-5)
 
 Part 2 (future, blocked on __init__ or Map-uses-Ptr-directly):

@@ -24,10 +24,6 @@ HASHMAP_LOAD_FACTOR_DEN : I64 = 4   // Denominator
  * Use Map if you need sorted order or insertion order.
  */
 HashMap := struct {
-    mut key_type_name: Str = ""
-    mut key_type_size: I64 = 0
-    mut value_type_name: Str = ""
-    mut value_type_size: I64 = 0
     mut keys: Vec = Vec()           // All keys (dense array)
     mut values: Vec = Vec()         // All values (parallel to keys)
     mut buckets: Vec = Vec()        // bucket[hash % num_buckets] = first entry index, -1 if empty
@@ -41,12 +37,8 @@ namespace HashMap {
      *  Example: HashMap.new(Str, I64) */
     new := proc(KeyType: Type, ValueType: Type) returns HashMap {
         mut m := HashMap()
-        m.key_type_name = type_as_str(KeyType)
-        m.key_type_size = size_of(KeyType)
-        m.value_type_name = type_as_str(ValueType)
-        m.value_type_size = size_of(ValueType)
-        m.keys = Vec.new_from_type_info(m.key_type_name, m.key_type_size)
-        m.values = Vec.new_from_type_info(m.value_type_name, m.value_type_size)
+        m.keys = Vec.new_from_type_info(type_as_str(KeyType), size_of(KeyType))
+        m.values = Vec.new_from_type_info(type_as_str(ValueType), size_of(ValueType))
         m.buckets = Vec.new(I64)
         m.nexts = Vec.new(I64)
         m._size = 0
@@ -65,17 +57,17 @@ namespace HashMap {
     hash_key := func(self: HashMap, key_ptr: I64) returns I64 {
         mut h : I64 = 0
 
-        if self.key_type_name.eq("Str") {
+        if self.keys.type_name.eq("Str") {
             // For Str keys, use the built-in Str.hash()
             mut s := ""
-            memcpy(to_ptr(s), key_ptr, self.key_type_size)
+            memcpy(to_ptr(s), key_ptr, self.keys.type_size)
             h = s.hash()
         } else {
             // For other types, use FNV-1a on raw bytes
             FNV_OFFSET_BASIS : I64 = sub(0, 3750763034362895579)
             FNV_PRIME : I64 = 1099511628211
             h = FNV_OFFSET_BASIS
-            for i in 0..self.key_type_size {
+            for i in 0..self.keys.type_size {
                 mut byte_val : U8 = 0
                 mut key_byte_ptr := Ptr()
                 key_byte_ptr.data = key_ptr.add(i)
@@ -97,14 +89,14 @@ namespace HashMap {
     /** Compare two keys for equality.
      *  For Str keys, uses Str.eq(). For others, uses memcmp. */
     keys_equal := func(self: HashMap, key_a_ptr: I64, key_b_ptr: I64) returns Bool {
-        if self.key_type_name.eq("Str") {
+        if self.keys.type_name.eq("Str") {
             mut a := ""
             mut b := ""
-            memcpy(to_ptr(a), key_a_ptr, self.key_type_size)
-            memcpy(to_ptr(b), key_b_ptr, self.key_type_size)
+            memcpy(to_ptr(a), key_a_ptr, self.keys.type_size)
+            memcpy(to_ptr(b), key_b_ptr, self.keys.type_size)
             return a.eq(b)
         } else {
-            result := memcmp(key_a_ptr, key_b_ptr, self.key_type_size)
+            result := memcmp(key_a_ptr, key_b_ptr, self.keys.type_size)
             return result.eq(0)
         }
     }
@@ -122,7 +114,7 @@ namespace HashMap {
         // Walk the chain
         while entry_idx.gteq(0) {
             // Get key at entry_idx
-            key_ptr := self.keys.ptr.offset(entry_idx.mul(self.key_type_size))
+            key_ptr := self.keys.ptr.offset(entry_idx.mul(self.keys.type_size))
             if self.keys_equal(to_ptr(key), key_ptr.data) {
                 return entry_idx
             }
@@ -157,7 +149,7 @@ namespace HashMap {
         // Re-insert all entries into new buckets
         i = 0
         while i.lt(self._size) {
-            key_ptr := self.keys.ptr.offset(i.mul(self.key_type_size))
+            key_ptr := self.keys.ptr.offset(i.mul(self.keys.type_size))
             bucket_idx := self.hash_key(key_ptr.data)
 
             // Get current head of bucket
@@ -228,8 +220,8 @@ namespace HashMap {
 
         if existing_idx.gteq(0) {
             // Key found - update value in place
-            mut value_ptr := self.values.ptr.offset(existing_idx.mul(self.value_type_size))
-            value_ptr.copy_from_dynamic(value, self.value_type_size)
+            mut value_ptr := self.values.ptr.offset(existing_idx.mul(self.values.type_size))
+            value_ptr.copy_from_dynamic(value, self.values.type_size)
         } else {
             // Key not found - insert new entry
             // Check load factor and resize if needed
@@ -269,8 +261,8 @@ namespace HashMap {
         idx := self.find_key(key)
 
         if idx.gteq(0) {
-            value_ptr := self.values.ptr.offset(idx.mul(self.value_type_size))
-            value_ptr.copy_to_dynamic(dest, self.value_type_size)
+            value_ptr := self.values.ptr.offset(idx.mul(self.values.type_size))
+            value_ptr.copy_to_dynamic(dest, self.values.type_size)
             return
         }
 
@@ -281,7 +273,7 @@ namespace HashMap {
     get_by_ref := proc(self: HashMap, key: Dynamic) returns Ptr throws KeyNotFoundError {
         idx := self.find_key(key)
         if idx.gteq(0) {
-            return self.values.ptr.offset(idx.mul(self.value_type_size))
+            return self.values.ptr.offset(idx.mul(self.values.type_size))
         }
         throw KeyNotFoundError(msg=format(loc(), "Key not found in HashMap"))
     }
@@ -323,8 +315,8 @@ namespace HashMap {
 
     /** Get total size in bytes (keys + values). */
     size := func(self: HashMap) returns I64 {
-        keys_size := self._size.mul(self.key_type_size)
-        values_size := self._size.mul(self.value_type_size)
+        keys_size := self._size.mul(self.keys.type_size)
+        values_size := self._size.mul(self.values.type_size)
         return keys_size.add(values_size)
     }
 
@@ -372,7 +364,7 @@ namespace HashMap {
         // Re-insert all entries into chains
         mut i := 0
         while i.lt(self._size) {
-            key_ptr := self.keys.ptr.offset(i.mul(self.key_type_size))
+            key_ptr := self.keys.ptr.offset(i.mul(self.keys.type_size))
             bucket_idx := self.hash_key(key_ptr.data)
 
             mut head := 0
@@ -392,10 +384,6 @@ namespace HashMap {
     /** Clone the HashMap. */
     clone := func(self: HashMap) returns HashMap {
         return HashMap(
-            key_type_name=self.key_type_name,
-            key_type_size=self.key_type_size,
-            value_type_name=self.value_type_name,
-            value_type_size=self.value_type_size,
             keys=self.keys.clone(),
             values=self.values.clone(),
             buckets=self.buckets.clone(),
