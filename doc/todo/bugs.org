@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Wasted memory, inconsistency, blocks clean ownership model
-:STATUS: In progress
+:STATUS: Part 1 done, Part 2 deferred
 :RELATED: Bug #159 (shallow copies), Issue #151 (pointer syntax)
 :END:
 
@@ -122,7 +122,11 @@ exists (see future.org) or Map/HashMap use Ptr directly.
   explicit copy with implicit ones. Needs further investigation (Bug #165
   territory -- shallow copy overhead).
 - Step 5: HashMap (same pattern as Map -- remove 4 fields, use type_size). DONE.
-- Step 6: Remove Vec.new_from_type_info (all callers removed by steps 1-5)
+- Step 6: Remove Vec.new_from_type_info -- SKIPPED. Callers (Set, Map, HashMap)
+  still need it because they receive Type params and call type_as_str/size_of.
+  Can't use Vec.new(Type) through nested calls. Leave for Part 2.
+
+Part 1 DONE. Container-level duplication removed from Set, Map, HashMap.
 
 Part 2 (future, blocked on __init__ or Map-uses-Ptr-directly):
 - Vec -- remove type_size, use ptr.elem_size everywhere.

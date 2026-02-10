@@ -6,7 +6,7 @@
 
 | #   | Bug/Issue                                                        | Impact                      |
 |-----+------------------------------------------------------------------+-----------------------------|
-| 166 | Containers duplicate type info already in Ptr                    | Wasted memory, inconsistency|
+| 166 | Containers duplicate type info already in Ptr (Part 1 done)      | Wasted memory, inconsistency|
 | 165 | Compiled TIL binary leaks 200-800x memory vs Rust               | Memory leak                 |
 | 159 | Shallow copy semantics not fully eliminated                      | Memory corruption           |
 | 152 | Migrate doc/todo files to numbered issue system                  | Documentation cleanup       |
@@ -19,13 +19,14 @@
 |  94 | gcc warnings cause bug47.til compilation failure                 | Build issue                 |
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence                  |
 
-* future.org (14 issues)
+* future.org (15 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
 | 153 | Enable field/method access on Dynamic parameters | Language feature   |
 | 142 | Code Simplification - Context Error Helpers      | Cleanup            |
 | 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design     |
+| 167 | Benchmark HashMap vs Map/OrderedMap              | Benchmarking       |
 | 112 | HashMap type slower than Map in TIL              | Blocked            |
 | 111 | Support returns Dynamic                          | Feature            |
 | 107 | First-Class Namespaces                           | Language feature   |
