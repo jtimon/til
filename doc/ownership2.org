@@ -1,0 +1,255 @@
+#+TITLE: TIL Ownership Model v2
+#+DATE: 2026-02-10
+#+AUTHOR: TIL Development
+
+* Overview
+
+Redesign of the garbager's deletion logic based on TIL's ownership model.
+Goal: fix memory leaks (Bug #165) and shallow copy aliasing (Bug #159)
+without a heavy borrow checker. Mojo-style: simple, compiler-enforced.
+
+* Agreed: Per-Function Garbager Analysis
+
+The garbager analyzes each function independently.
+
+** Function Parameters
+
+| Mode    | Semantics                  | Garbager action    |
+|---------+----------------------------+--------------------|
+| default | Immutable reference        | Don't delete       |
+| mut     | Mutable reference          | Don't delete       |
+| copy    | Implicit clone (garbager)  | Delete on last use |
+| own     | Ownership transferred in   | Delete on last use |
+
+- *default/mut*: Caller owns the data. We have a reference. Not ours to delete.
+- *copy*: Garbager inserts ~Type.clone()~ before the call. We own the clone. Must delete.
+- *own*: Caller gave up ownership. We now own it. Must delete.
+
+** Return Values (callee's perspective)
+
+Returned values are passed by reference. The callee does NOT delete what it
+returns -- it's passing ownership out to the caller.
+
+** Local Variables: Const (non-mut)
+
+Const locals are write-once. The garbager only analyzes the RHS of the
+declaration (assignments are not allowed since they're const).
+
+*** Aliasing rule
+
+Only const-to-const is a safe alias. Referencing a mut variable from a
+const would expose surprising mutations, so it clones instead.
+
+| ~x := rhs~     | RHS is const | RHS is mut       |
+|-----------------+--------------+------------------|
+| *const* ~x~    | Reference    | Clone            |
+| *mut* ~x~      | Clone (#159) | Clone (#159)     |
+
+*** Const local ownership table
+
+| RHS pattern                | Ownership     | Garbager action    |
+|----------------------------+---------------+--------------------|
+| Constructor (~Str.new()~)  | Owned         | Delete on last use |
+| Literal (~42~, ~"hello"~)  | Owned         | Delete on last use |
+| Const identifier           | Alias         | Don't delete       |
+| Mut identifier             | Owned (clone) | Delete on last use |
+| Field on const ref         | Alias         | Don't delete       |
+| Field on mut ref           | Owned (clone) | Delete on last use |
+| Function return            | Runtime flag  | Delete (checks ~Ptr.is_borrowed~) |
+
+The garbager can determine const vs mut from the symbol table.
+
+** Local Variables: Mut
+
+Mut locals can be reassigned, so both declarations and assignments matter.
+
+*** Current garbager behavior (Issue #159)
+
+*Mut declarations* (garbager.rs:229-250): clones when RHS is ANY identifier
+(including field access like ~x.y.z~) with a deletable struct type.
+
+#+BEGIN_SRC til
+mut x := y           // transformed to: mut x := Type.clone(y)
+mut x := y.field     // transformed to: mut x := Type.clone(y.field)
+mut x := Str.new()   // NOT transformed (RHS is FCall, not identifier)
+mut x := func()      // NOT transformed (RHS is FCall, not identifier)
+#+END_SRC
+
+*Assignments* (garbager.rs:268-302): clones only when RHS is a BARE
+identifier (no field access) with a deletable struct type.
+
+#+BEGIN_SRC til
+x = y                // transformed to: x = Type.clone(y)
+x = y.field          // NOT transformed (has field access)
+x = func()           // NOT transformed (RHS is FCall, not identifier)
+x = Str.new()        // NOT transformed (RHS is FCall, not identifier)
+#+END_SRC
+
+*** Analysis
+
+The clone serves two purposes:
+1. *Memory safety*: prevent double-free on aliased data
+2. *Mut semantics*: ~mut x := y~ means independent copy (mutating x
+   shouldn't affect y)
+
+With pointer-based structs and ~Ptr.is_borrowed~, purpose 1 could be
+handled by the runtime flag instead of cloning. Purpose 2 is about
+language semantics.
+
+*** Open questions
+
+- Are all these clones necessary, or could some be replaced by
+  borrowed pointer assignment + ~Ptr.is_borrowed = 1~?
+- For assignments, field access RHS (~x = y.field~) is NOT cloned.
+  Is that correct or a gap?
+
+* Open Questions
+
+** 1. Local variable ownership
+
+For locals declared inside a function:
+
+#+BEGIN_SRC til
+a := Str.new()              // constructor -> owned
+b := some_param.field       // field access on ref param -> borrowed?
+mut c := Str()
+vec.get(0, c)               // out-param from Vec.get -> borrowed? aliased copy?
+d := some_function()        // return value -> owned? borrowed? depends on function
+#+END_SRC
+
+How does the garbager know which locals are owned vs borrowed?
+
+Clear cases:
+- *Constructors* (~Str.new()~, ~Expr()~, ~Vec.new(T)~): owned, delete
+- *Literals* (~42~, ~"hello"~): owned (for Str), delete
+
+Unclear cases:
+- *Field access* on a ref param: is this a reference or a copy?
+- *Function return*: depends on the function (see question 2)
+
+*** Vec.get vs Vec.get_by_ref
+
+~Vec.get~ (vec.til:117) does NOT return a value. It copies bytes into a
+caller-provided ~mut T: Dynamic~ out-param via ~copy_to_dynamic~ (memcpy).
+No ~Ptr.is_borrowed~ is involved -- the caller gets a raw byte copy of the
+element, including any Ptr fields. Those Ptrs are ALIASED with the ones
+still inside the Vec's buffer.
+
+~Vec.get_by_ref~ (vec.til:131) returns a ~Ptr~ via ~self.ptr.offset(...)~.
+~Ptr.offset~ sets ~is_borrowed = 1~. So get_by_ref correctly returns a
+borrowed pointer -- no copy, no aliasing.
+
+For the ownership model, ~get~ (memcpy out-param) doesn't play nicely
+because it creates aliased Ptrs outside the container with no borrowed
+flag. Either callers should use ~get_by_ref~ instead, or ~get~ needs
+redesign.
+
+** 2. Return value ownership from CALLER's perspective
+
+The callee passes something out. The caller receives it. Who owns it?
+
+#+BEGIN_SRC til
+a := Str.concat(x, y)        // new allocation -> caller owns
+b := Expr.get(e, 0)          // reference into e.params -> caller borrows
+c := lookup_func("foo")      // reference into scope_stack -> caller borrows
+d := I64.to_str(42)          // new allocation -> caller owns
+#+END_SRC
+
+*** Existing infrastructure: Ptr.is_borrowed
+
+~Ptr~ already has runtime owned/borrowed tracking (ptr.til:8):
+#+BEGIN_SRC til
+mut is_borrowed: I64 = 0  // 0 = owned, 1 = borrowed (don't free)
+#+END_SRC
+
+~Ptr.delete~ (ptr.til:49) already checks ~is_borrowed~ before freeing.
+~Ptr.offset~ (ptr.til:80) sets ~is_borrowed = 1~ on offset pointers.
+
+With pointer-based struct variables, the pointer itself carries the flag.
+Functions returning borrowed data return a Ptr with ~is_borrowed = 1~.
+Functions returning owned data return a Ptr with ~is_borrowed = 0~.
+
+The garbager can insert ~delete()~ for ALL locals at last use, and
+~Ptr.delete~ does the right thing at runtime based on the flag.
+
+No compile-time ~&T~ type needed for deletion correctness. The runtime
+flag handles owned vs borrowed.
+
+*** Open: syntax token for return borrow/own?
+
+May still want a syntax annotation (~returns borrow T~?) so the programmer
+and compiler can see at a glance whether a function returns owned or
+borrowed data. But this is a readability/documentation concern, not a
+correctness requirement -- ~Ptr.is_borrowed~ handles correctness at runtime.
+
+** 3. Container element ownership
+
+Vec/Array/Set/List own their elements. When ~container.delete()~ is called,
+it should delete each element before freeing the buffer.
+
+Currently: ~Vec.delete()~ only frees the buffer (~Ptr.delete()~). Element
+heap data leaks.
+
+Fix: Container ~.delete()~ methods need to iterate elements and delete
+them before freeing the buffer. Applies to Vec, Array, Map, Set, List,
+and any other container that owns elements. The element type is available
+via ~Ptr.elem_type~ (ptr.til:11) -- a pointer to the type name C string.
+Implementation detail: needs a dispatch mechanism to call the right
+~Type.delete()~ based on ~elem_type~.
+
+** 4. Aliasing / exclusivity -- RESOLVED
+
+Const-to-const aliasing is safe (nobody can mutate, so aliasing is invisible).
+Const-to-mut would expose surprising mutations, so the garbager inserts a
+clone. This avoids the need for Rust/Mojo-style exclusivity checking.
+
+#+BEGIN_SRC til
+x := const_var           // alias (safe, no one can mutate)
+x := mut_var             // clone (mut_var could change, aliasing surprises)
+modify(mut my_str)        // only my_str is affected, no aliases exist
+#+END_SRC
+
+** 5. Dangling pointers and the need for pointer syntax -- RESOLVED
+
+*** The problem
+
+~Ptr.is_borrowed~ is a runtime flag. The garbager works at compile time.
+It can't always know whether a local is borrowed or owned at runtime, so
+it can't safely do ASAP deletion for borrowed values (the owner might be
+deleted first, leaving a dangling pointer).
+
+#+BEGIN_SRC til
+e := vec.get_by_ref(0)    // borrowed -- but garbager can't always tell
+// ASAP deletes vec here (frees buffer)
+println(e.line)            // dangling! buffer already freed
+#+END_SRC
+
+End-of-function deletion avoids this (all uses before all deletes), but
+ASAP for locals needs compile-time knowledge of borrowing.
+
+*** Solution: pointer/reference syntax (Issue #151)
+
+We need ~&T~ (or equivalent) in the type system. This gives the garbager
+compile-time borrowing information. Internally maps to ~Ptr~ with
+~is_borrowed=1~, but the type system knows about it.
+
+Covers three use cases:
+- *Return types*: ~returns &T~ (borrowed) vs ~returns T~ (owned).
+  Garbager knows the source must outlive the returned reference.
+- *Struct fields*: ~field: &T~ (borrowed, don't cascade delete) vs
+  ~field: T~ (owned, cascade delete). This is Issue #115.
+- *Local variables*: Type inferred from RHS. If RHS is a function
+  returning ~&T~, the local is typed ~&T~ and garbager treats it
+  as borrowed.
+
+*** Interaction with ASAP destruction
+
+With ~&T~ in the type system, the garbager can:
+- ASAP delete owned locals (~T~) on last use
+- NOT ASAP delete the source of a ~&T~ local until after the ~&T~
+  local's last use (lightweight lifetime extension, like Mojo's origins)
+- Delete ~&T~ locals at function end (no-op via ~Ptr.is_borrowed~)
+
+This is simpler than Rust's full lifetime system: no lifetime annotations,
+no lifetime parameters on functions. Just ~&T~ as a type and the garbager
+tracks one level of borrowing dependency within each function.
