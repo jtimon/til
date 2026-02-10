@@ -114,6 +114,13 @@ exists (see future.org) or Map/HashMap use Ptr directly.
 
 - Step 4: Fix Set to use type_size instead of ptr.elem_size, remove expensive
   copy-local-copy-back pattern. Make Set work like Map (direct chained calls).
+  DONE. The generated C confirms ~til_Vec_clone~ calls are gone from
+  Set.insert/remove/contains (previously ~mut elems_arr := self.elements~
+  compiled to a full Vec clone on every call). However, benchmarks show no
+  improvement (slightly worse within noise). Likely the garbager is inserting
+  clones elsewhere for the ~self.elements~ parameter passing, replacing the
+  explicit copy with implicit ones. Needs further investigation (Bug #165
+  territory -- shallow copy overhead).
 - Step 5: HashMap (same pattern as Map -- remove 4 fields, use type_size)
 - Step 6: Remove Vec.new_from_type_info (all callers removed by steps 1-5)
 
