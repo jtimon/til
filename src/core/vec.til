@@ -321,7 +321,7 @@ namespace Vec {
                 panic(loc(), "Vec.insert_at: capacity exceeded Vec.MAX_CAP")
             }
 
-            mut new_ptr := Ptr.new_by_size(new_cap.mul(self.type_size))
+            mut new_ptr := self._alloc_ptr(new_cap)
             if self._len.gt(0) {
                 new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
             }

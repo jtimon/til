@@ -94,12 +94,35 @@ Options: (a) adopt the copy-local-copy-back pattern like Set, (b) fix the
 interpreter's chained field propagation, or (c) set ptr.elem_size in Vec.new
 itself (not just in _alloc_ptr).
 
-**** Remaining steps
-- Step 3: HashMap (same pattern as Map)
-- Step 4: Remove Vec.new_from_type_info
-- Step 5: Vec -- remove type_size, use ptr.elem_size everywhere
-- Step 6: Array -- remove type_name/type_size, migrate ptr from I64 to Ptr
-- Step 7: List (needs investigation, heterogeneous)
+**** Step 3: Vec.insert_at _alloc_ptr fix (DONE)
+Vec.insert_at used ~Ptr.new_by_size()~ directly instead of ~self._alloc_ptr()~
+when growing, so the new Ptr never got elem_type/elem_size set. This is the
+root cause of Map failing with ptr.elem_size (insert_at is Map's growth path).
+Fixed + regression test added.
+
+**** Remaining steps (Part 1: container-level dedup, relying on Vec.type_size)
+
+Attempted to set ptr.elem_size in all Vec constructors (INIT_CAP=1) so
+containers could use ptr.elem_size everywhere. Failed: bare ~Vec()~ struct
+literals (used as default field values in Map, HashMap, etc.) have type_size=0,
+and cloning such Vecs caused OOM in til_interpreted (compounding with Bug #165
+memory leak). Abandoned INIT_CAP=1 approach.
+
+Plan: Part 1 removes container-level duplication while relying on Vec.type_size.
+Part 2 (future) removes Vec's own type_size once a proper __init__ mechanism
+exists (see future.org) or Map/HashMap use Ptr directly.
+
+- Step 4: Fix Set to use type_size instead of ptr.elem_size, remove expensive
+  copy-local-copy-back pattern. Make Set work like Map (direct chained calls).
+- Step 5: HashMap (same pattern as Map -- remove 4 fields, use type_size)
+- Step 6: Remove Vec.new_from_type_info (all callers removed by steps 1-5)
+
+Part 2 (future, blocked on __init__ or Map-uses-Ptr-directly):
+- Vec -- remove type_size, use ptr.elem_size everywhere.
+  Update eval_heap.rs + eval_heap.til for new Vec layout.
+- Array -- remove type_name/type_size, migrate ptr from I64 to Ptr.
+  Update eval_heap.rs + eval_heap.til for new Array layout.
+- List (needs investigation, heterogeneous)
 
 ** Bug #165: Compiled TIL binary leaks 200-800x memory vs Rust
 :PROPERTIES:

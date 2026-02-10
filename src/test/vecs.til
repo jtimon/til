@@ -752,6 +752,44 @@ test_vec_insert_at := proc() {
 }
 test_vec_insert_at()
 
+// Bug #166 regression: insert_at growth must preserve Ptr metadata (elem_type, elem_size).
+// Previously insert_at used Ptr.new_by_size() directly instead of _alloc_ptr(), so the
+// grown Ptr lost elem_size/elem_type. This caused Map (which uses insert_at) to read
+// ptr.elem_size as 0.
+test_vec_insert_at_growth_preserves_ptr_metadata := proc() {
+    mut vec := Vec.new(I64)
+    // Vec starts with cap=0, so the very first insert_at triggers growth
+    vec.insert_at(0, 10)?
+    assert_eq(loc(), 1, vec.len())
+    test(loc(), vec.ptr.elem_size.gt(0), "ptr.elem_size should be set after insert_at growth")
+    assert_eq(loc(), size_of(I64), vec.ptr.elem_size)
+
+    // Fill to capacity to trigger another growth via insert_at
+    while vec.len().lt(vec.cap) {
+        vec.push(0)
+    }
+    old_cap := vec.cap
+    vec.insert_at(0, 99)?
+    test(loc(), vec.cap.gt(old_cap), "cap should have grown")
+    assert_eq(loc(), size_of(I64), vec.ptr.elem_size)
+
+    // Verify data integrity after growth
+    mut val := 0
+    vec.get(0, val)?
+    assert_eq(loc(), 99, val)
+    vec.get(1, val)?
+    assert_eq(loc(), 10, val)
+
+    vec.delete()
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_insert_at_growth_preserves_ptr_metadata()
+
 test_vec_insert_at_out_of_bounds := proc() {
     mut vec := Vec.new(I64)
     vec.push(42)
