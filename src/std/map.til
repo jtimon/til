@@ -36,10 +36,6 @@ BinarySearchResult := struct {
  * For iteration in insertion order, use a different data structure.
  */
 Map := struct {
-    mut key_type_name: Str = ""       // e.g., "Str", "I64"
-    mut key_type_size: I64 = 0        // from size_of(KeyType)
-    mut value_type_name: Str = ""     // e.g., "Str", "Bool", "Expr"
-    mut value_type_size: I64 = 0      // from size_of(ValueType)
     mut keys: Vec = Vec()         // Dynamic array of keys (sorted)
     mut values: Vec = Vec()       // Dynamic array of values (parallel)
     mut _size: I64 = 0                // Number of entries (internal, use len() to access)
@@ -50,13 +46,8 @@ namespace Map {
      *  Example: Map.new(Str, I64) */
     new := proc(KeyType: Type, ValueType: Type) returns Map {
         mut m := Map()
-        m.key_type_name = type_as_str(KeyType)
-        m.key_type_size = size_of(KeyType)
-        m.value_type_name = type_as_str(ValueType)
-        m.value_type_size = size_of(ValueType)
-        // Can't pass Dynamic params to Vec.new(), so use type info directly
-        m.keys = Vec.new_from_type_info(m.key_type_name, m.key_type_size)
-        m.values = Vec.new_from_type_info(m.value_type_name, m.value_type_size)
+        m.keys = Vec.new_from_type_info(type_as_str(KeyType), size_of(KeyType))
+        m.values = Vec.new_from_type_info(type_as_str(ValueType), size_of(ValueType))
         m._size = 0
         return m
     }
@@ -65,16 +56,16 @@ namespace Map {
      *  For Str keys, uses lexicographic comparison via Str.cmp().
      *  For other types, uses memcmp on raw bytes. */
     compare_keys := func(self: Map, key_a_ptr: I64, key_b_ptr: I64) returns I64 {
-        if Str.eq(self.key_type_name, "Str") {
+        if Str.eq(self.keys.type_name, "Str") {
             // For Str keys, use Str.cmp() for proper lexicographic ordering
             mut a := ""
             mut b := ""
-            memcpy(to_ptr(a), key_a_ptr, self.key_type_size)
-            memcpy(to_ptr(b), key_b_ptr, self.key_type_size)
+            memcpy(to_ptr(a), key_a_ptr, self.keys.type_size)
+            memcpy(to_ptr(b), key_b_ptr, self.keys.type_size)
             return a.cmp(b)
         } else {
             // For other types, use memcmp
-            result := memcmp(key_a_ptr, key_b_ptr, self.key_type_size)
+            result := memcmp(key_a_ptr, key_b_ptr, self.keys.type_size)
             if result.lt(0) {
                 return sub(0, 1)
             } else if result.gt(0) {
@@ -102,7 +93,7 @@ namespace Map {
 
         while low.lteq(high) {
             mut mid := low.add(high.sub(low).div(2))
-            mid_key_ptr := self.keys.ptr.offset(mid.mul(self.key_type_size))
+            mid_key_ptr := self.keys.ptr.offset(mid.mul(self.keys.type_size))
             cmp := self.compare_keys(to_ptr(key), mid_key_ptr.data)
 
             if cmp.eq(0) {
@@ -162,8 +153,8 @@ namespace Map {
 
         if search.found {
             // Key found - update value in place
-            mut value_ptr := self.values.ptr.offset(search.index.mul(self.value_type_size))
-            value_ptr.copy_from_dynamic(value, self.value_type_size)
+            mut value_ptr := self.values.ptr.offset(search.index.mul(self.values.type_size))
+            value_ptr.copy_from_dynamic(value, self.values.type_size)
         } else {
             // Key not found - insert at sorted position
             self.keys.insert_at(search.index, key)?
@@ -183,8 +174,8 @@ namespace Map {
         search := self.binary_search(key)
 
         if search.found {
-            value_ptr := self.values.ptr.offset(search.index.mul(self.value_type_size))
-            value_ptr.copy_to_dynamic(dest, self.value_type_size)
+            value_ptr := self.values.ptr.offset(search.index.mul(self.values.type_size))
+            value_ptr.copy_to_dynamic(dest, self.values.type_size)
             return
         }
 
@@ -195,7 +186,7 @@ namespace Map {
     get_by_ref := proc(self: Map, key: Dynamic) returns Ptr throws KeyNotFoundError {
         search := self.binary_search(key)
         if search.found {
-            return self.values.ptr.offset(search.index.mul(self.value_type_size))
+            return self.values.ptr.offset(search.index.mul(self.values.type_size))
         }
         throw KeyNotFoundError(msg=format(loc(), "Key not found in map"))
     }
@@ -252,8 +243,8 @@ namespace Map {
 
     /** Get total size in bytes (keys + values). */
     size := func(self: Map) returns I64 {
-        mut keys_size := mul(self._size, self.key_type_size)
-        mut values_size := mul(self._size, self.value_type_size)
+        mut keys_size := mul(self._size, self.keys.type_size)
+        mut values_size := mul(self._size, self.values.type_size)
         return add(keys_size, values_size)
     }
 
@@ -271,10 +262,6 @@ namespace Map {
     // Bug #36 fix: Now we can inline throwing functions in struct literal params
     clone := func(self: Map) returns Map {
         return Map(
-            key_type_name=self.key_type_name,
-            key_type_size=self.key_type_size,
-            value_type_name=self.value_type_name,
-            value_type_size=self.value_type_size,
             keys=self.keys.clone(),
             values=self.values.clone(),
             _size=self._size

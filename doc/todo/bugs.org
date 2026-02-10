@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Wasted memory, inconsistency, blocks clean ownership model
-:STATUS: Open
+:STATUS: In progress
 :RELATED: Bug #159 (shallow copies), Issue #151 (pointer syntax)
 :END:
 
@@ -23,9 +23,9 @@ the ~elem_type~ and ~elem_size~ already in their ~Ptr~ field.
 Affected containers:
 - ~Vec~ (vec.til:11-12): ~type_name: Str~, ~type_size: I64~
 - ~Array~ (array.til:11-12): ~type_name: Str~, ~type_size: I64~
-- ~Set~ (set.til:6-7): ~elem_type_name: Str~, ~elem_type_size: I64~
-- ~Map~ (map.til:39-40): ~key_type_name: Str~, ~key_type_size: I64~
-- ~HashMap~ (hashmap.til:27-28): ~key_type_name: Str~, ~key_type_size: I64~
+- ~Set~ (set.til:6-7): ~elem_type_name: Str~, ~elem_type_size: I64~ -- DONE
+- ~Map~ (map.til:39-42): 4 fields -- DONE (partial, see below)
+- ~HashMap~ (hashmap.til:27-30): 4 fields
 - ~List~ (list.til:15-16): ~type_names: Vec~, ~type_sizes: Vec~ (per-element!)
 
 ~Ptr~ already has (ptr.til:11-12):
@@ -47,6 +47,59 @@ growth logic (they used to before Vec was introduced) but would have less
 indirection and smaller struct sizes. Vec is essentially Ptr + len + cap +
 growth, and some containers (e.g. Map with sorted binary search) already have
 custom growth/insertion logic that doesn't benefit from Vec's abstraction.
+
+*** Progress
+
+**** Step 1: Set (DONE)
+Removed ~elem_type_name~ and ~elem_type_size~ from Set struct.
+Reads go through ~self.elements.type_name~ and ~self.elements.ptr.elem_size~.
+All 98 tests pass. Committed at ece4fa89.
+
+**** Step 2: Map (DONE - partial)
+Removed ~key_type_name~, ~key_type_size~, ~value_type_name~, ~value_type_size~
+from Map struct. Type name reads go through ~self.keys.type_name~ /
+~self.values.type_name~. However, type SIZE reads use ~self.keys.type_size~ /
+~self.values.type_size~ (Vec's field), NOT ~self.keys.ptr.elem_size~ (Ptr's
+field). Map's own 4 fields are removed, but it still depends on Vec.type_size.
+
+***** Why Set can use ptr.elem_size but Map cannot
+
+Set.insert uses a copy-local-modify-copy-back pattern:
+#+begin_src til
+mut elems_arr := self.elements    // copy Vec to local
+elems_arr.push(elem)             // push allocates new Ptr with elem_size set
+self.elements = elems_arr        // copy back entire Vec including updated Ptr
+#+end_src
+
+The copy-back writes the entire Vec (with its updated Ptr that has elem_size
+set by ~_alloc_ptr~) back into ~self.elements~.
+
+Map.insert calls methods directly on chained fields:
+#+begin_src til
+self.keys.insert_at(search.index, key)
+#+end_src
+
+The interpreter passes ~self.keys~ as ~mut self~ to ~insert_at~, which
+allocates a new Ptr and stores it in ~self.ptr~. The Vec's ~_len~ and
+~ptr.data~ propagate back correctly (Map works), but ~ptr.elem_size~ reads
+as 0 when accessed later via ~self.keys.ptr.elem_size~. This causes
+~memcmp(..., 0)~ to always return 0 (match), breaking binary search.
+
+Tested empirically: ~ptr.elem_size~ is 0 in both rs_interpreted and
+rs_compiled modes for Map. Set works because the explicit copy-back ensures
+the complete Ptr (including elem_size) survives.
+
+When Vec.type_size is removed (later step), Map will need to be revisited.
+Options: (a) adopt the copy-local-copy-back pattern like Set, (b) fix the
+interpreter's chained field propagation, or (c) set ptr.elem_size in Vec.new
+itself (not just in _alloc_ptr).
+
+**** Remaining steps
+- Step 3: HashMap (same pattern as Map)
+- Step 4: Remove Vec.new_from_type_info
+- Step 5: Vec -- remove type_size, use ptr.elem_size everywhere
+- Step 6: Array -- remove type_name/type_size, migrate ptr from I64 to Ptr
+- Step 7: List (needs investigation, heterogeneous)
 
 ** Bug #165: Compiled TIL binary leaks 200-800x memory vs Rust
 :PROPERTIES:
