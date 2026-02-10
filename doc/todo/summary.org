@@ -2,10 +2,12 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-02-09
 
-* bugs.org (9 bugs/issues)
+* bugs.org (11 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                      |
 |-----+------------------------------------------------------------------+-----------------------------|
+| 165 | Compiled TIL binary leaks 200-800x memory vs Rust               | Memory leak                 |
+| 159 | Shallow copy semantics not fully eliminated                      | Memory corruption           |
 | 152 | Migrate doc/todo files to numbered issue system                  | Documentation cleanup       |
 | 144 | for-in loops iterate by copy instead of by reference             | Performance, semantics      |
 | 133 | Precomputed heap values have invalid pointers at runtime         | Partial fix (nested broken) |

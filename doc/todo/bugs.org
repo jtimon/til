@@ -9,6 +9,139 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #165: Compiled TIL binary leaks 200-800x memory vs Rust
+:PROPERTIES:
+:DISCOVERED: 2026-02-10
+:IMPACT: Compiled TIL programs use 200-800x more memory than equivalent Rust interpreter
+:STATUS: Blocked by Bug #159 (shallow copies prevent safe ASAP deletion)
+:RELATED: Bug #159 (shallow copies), Bug #114 (ScopeFrame copy leak), Issue #117 (ASAP destruction)
+:END:
+
+*** Description
+The compiled TIL binary (generated C code) leaks memory massively compared to the
+Rust interpreter. Clone/delete imbalance: ~2500 Str clones vs ~1850 Str deletes in
+generated C code, leaving ~650 leaked Str allocations per test run.
+
+*** Failed attempt: ASAP deletion for named locals (wip165 branch)
+Branch ~wip165~ has 2 commits ahead of master implementing ASAP deletion for named
+locals with alias/escape detection:
+
+**** Rules implemented
+- Rule A (alias detection): Skip delete if variable was assigned from another local
+  (e.g., ~x := y~ -- deleting x would corrupt y's data via shared pointer)
+- Rule B (escape detection): Skip delete if variable was passed to a function after
+  its last read (value may have escaped into another data structure)
+- Rule C (owned return): Only delete variables assigned from known-allocating functions
+  (constructors, .new(), .clone(), .to_str(), .format(), .concat(), etc.)
+
+**** Results
+- All 98 tests pass in all 4 modes
+- Zero memory improvement -- clone/delete ratio unchanged
+- Root cause: most leaks come from shallow copies (memcpy of structs with heap
+  pointers), not from missing deletes of named locals
+
+**** Why ASAP deletion doesn't help
+The ~650 leaked Str allocations come from:
+- Function return values (shallow memcpy at call site)
+- Container operations (get/push/set all use copy_to_dynamic/copy_from_dynamic)
+- Temporary expressions (_tmp_ variables holding intermediate results)
+
+None of these are named locals that ASAP deletion can target. The fundamental
+problem is Bug #159: shallow copies create hidden aliases that make it unsafe
+to delete anything without risking double-free.
+
+*** Blocked by
+Bug #159 must be resolved first. Until shallow copies are eliminated, any
+deletion strategy risks double-free on aliased heap pointers.
+
+** Bug #159: Shallow copy semantics for structs with Ptr/Vec fields (REOPENED)
+:PROPERTIES:
+:DISCOVERED: 2026-01-31
+:IMPACT: Memory corruption, prevents ASAP deletion, root cause of memory leaks
+:STATUS: Open -- partially fixed, shallow copies remain throughout codebase
+:RELATED: Bug #165 (memory leak blocked by this), Bug #114 (ScopeFrame leak)
+:END:
+
+*** Description
+When doing =mut cloned := original=, the interpreter used =copy_fields= which did
+a byte-level copy. For structs containing Ptr or Vec fields, both the original and
+clone shared the same underlying memory.
+
+*** What was done (2026-02-07, originally declared fixed)
+Removed =copy_fields= (shallow copy) from the interpreter. Replaced with:
+1. Garbager inserts =Type.clone()= calls for struct-typed identifier args (4 sites)
+2. Interpreter uses offset binding or memcpy instead of copy_fields
+
+Steps completed:
+- Step 1: preinit generates clone/delete methods
+- Step 2: Dynamic type info added to Ptr
+- Step 3: mut declarations (clone + offset binding)
+- Step 4: Function copy params (clone + offset binding)
+- Step 5: Struct literal fields (memcpy)
+- Step 6: Assignment statements (memcpy)
+- Step 7: Nested member assign + own params (memcpy), copy_fields deleted
+- Step 8: Own params simplified to pure offset binding
+
+Dead code removed: =copy_fields=, =SavedOffsets=, =insert_struct_instance_into_frame=,
+=EvalArenaMapping= import.
+
+Test: src/test/bug159.til (passes all 4 modes)
+
+*** What remains -- shallow copies still present
+The interpreter fix only addressed =copy_fields=. Shallow copies remain throughout
+the codebase via memcpy in generated C code and core library operations.
+
+**** 1. ccodegen -- Function return values
+- =*_ret = value;= (struct assignment = implicit memcpy in C)
+- =var = _ret_X;= (call site receives shallow copy of return value)
+- Every function returning a struct creates a shallow copy at the call site
+
+**** 2. src/core/ptr.til -- Raw memcpy operations
+- =copy_to_dynamic= (line 108): =memcpy(to_ptr(dest), self.data, size)=
+- =copy_from_dynamic= (line 103): =memcpy(self.data, to_ptr(src), size)=
+- =copy_to= (line 93): =memcpy(dest.data, self.data, size)=
+- =copy_from= (line 89): =memcpy(self.data, src.data, size)=
+- =dereference= (line 113): =memcpy(to_ptr(dest), self.data, size)=
+- =Ptr.clone= (line 72): copies struct bytes, shared heap pointer
+
+**** 3. src/core/vec.til -- Collection operations using copy_to/from_dynamic
+- =get= (line 127): =src.copy_to_dynamic(T, self.type_size)= -- out-param
+- =push= (line 112): =dest.copy_from_dynamic(value, self.type_size)=
+- =set= (line 150): =dest.copy_from_dynamic(value, self.type_size)=
+- =clone= (line 189): =cloned.ptr.copy_from(self.ptr, ...)= -- byte copy of all elements
+- =extend= (line 225): =dest.copy_from(src, self.type_size)=
+- =extend_with= (line 258): =dest.copy_from_dynamic(value, self.type_size)=
+- =contains= (lines 272/274): =src.copy_to_dynamic= + =memcpy= for comparison
+- =remove= (line 299): =dest.copy_from(src, ...)= -- shift elements left
+- =insert_at= (lines 340/346): shift + =dest.copy_from_dynamic(value, ...)=
+- =to_str= (line 362): =src.copy_to_dynamic(elem, ...)= for string building
+- =split_off= (line 391): =result.ptr.copy_from(src, ...)=
+- =pop= (line 161): via =self.get(...)= -- shallow copy
+
+**** 4. src/core/set.til -- Uses Vec internally
+- =insert= (lines 42/44): copy_to_dynamic for comparison
+- =remove= (lines 78/80/97): copy_to_dynamic for comparison
+- =contains= (lines 120/122): copy_to_dynamic for comparison
+- =get= (line 152): copy_to_dynamic for retrieval
+
+**** 5. src/core/array.til -- Direct memcpy
+- =get= (line 54): =src.copy_to_dynamic(dest, self.type_size)=
+- =set= (line 80): =dest.copy_from_dynamic(value, self.type_size)=
+- =clone= (line 99): =cloned_ptr.copy_from(self.ptr, ...)=
+
+**** 6. ccodegen -- enum_get_payload
+- Shallow memcpy of enum payload data
+
+**** 7. ccodegen -- create_alias directive
+- Intentional shallow copy (aliases by design, dont_delete protects it)
+
+*** Parameter passing semantics (unchanged)
+| Mode      | Semantics                                      |
+|-----------+------------------------------------------------|
+| (default) | By reference - share offset                    |
+| =mut=     | By reference - share offset                    |
+| =own=     | Ownership transfer - share offset, remove src  |
+| =copy=    | Deep copy - garbager inserts clone, bind result |
 
 ** Issue #152: Migrate doc/todo files to numbered issue system
 :PROPERTIES:
