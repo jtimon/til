@@ -140,7 +140,7 @@ Part 2 (future, blocked on __init__ or Map-uses-Ptr-directly):
 :DISCOVERED: 2026-02-10
 :IMPACT: Compiled TIL programs use 200-800x more memory than equivalent Rust interpreter
 :STATUS: Blocked by Bug #159 (shallow copies prevent safe ASAP deletion)
-:RELATED: Bug #159 (shallow copies), Bug #114 (ScopeFrame copy leak), Issue #117 (ASAP destruction)
+:RELATED: Bug #159 (shallow copies), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame copy leak), Issue #117 (ASAP destruction)
 :END:
 
 *** Description
@@ -185,7 +185,7 @@ deletion strategy risks double-free on aliased heap pointers.
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, prevents ASAP deletion, root cause of memory leaks
 :STATUS: Open -- partially fixed, shallow copies remain throughout codebase
-:RELATED: Bug #165 (memory leak blocked by this), Bug #114 (ScopeFrame leak)
+:RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak)
 :END:
 
 *** Description
@@ -1041,6 +1041,7 @@ Most warning issues now consolidated into Bug #99 (gcc warnings). Bug #140 (dang
 :DISCOVERED: 2026-01-01
 :IMPACT: til_compiled fails - ./bin/til build/run generates invalid C code
 :STATUS: Active
+:RELATED: Bug #168 (ccodegen return copies), Issue #117 (ASAP destruction), Issue #100 (get rid of rstil)
 :END:
 
 *** Description

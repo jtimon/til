@@ -420,7 +420,7 @@ This issue is about the general language feature; Bug #144 is a specific applica
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
 :STATUS: Open - Steps 1-9 done, Step 10A done, Step 10B done (98/98 pass)
 :DEPENDS: Bug #101 (unused warnings - shared infrastructure)
-:RELATED: Bug #114 (memory leak documentation), Bug #144 (for-in by-ref)
+:RELATED: Bug #114 (memory leak documentation), Bug #144 (for-in by-ref), Bug #168 (ccodegen return copies)
 :END:
 
 *** Description
@@ -1231,6 +1231,45 @@ creates a shared-pointer alias. Both ~Str.delete(elem_type)~ and
 2. Double-free tests - delete() is idempotent
 3. Control flow tests - returns, throws, branches, loops
 4. ~make benchmark~ must pass
+
+** Bug #168: ccodegen return values create copies the interpreter doesn't
+:PROPERTIES:
+:DISCOVERED: 2026-02-10
+:IMPACT: Semantic divergence between interpreter and compiled code; root cause of memory leak gap
+:STATUS: Open
+:RELATED: Bug #159 (shallow copies), Bug #165 (memory leak), Bug #80 (ccodegen divergence), Issue #117 (ASAP destruction)
+:END:
+
+*** Description
+In the interpreter, function returns are shared offsets -- no copy happens.
+In ccodegen, every struct return is a memcpy:
+#+begin_src c
+*_ret = value;          // callee: struct assignment = implicit memcpy
+var = func_call();      // caller: receives shallow copy
+#+end_src
+
+This means ccodegen creates copies the interpreter never does. The original
+value in the callee's scope is abandoned (heap pointers aliased, never freed).
+This is the fundamental semantic gap between interpreter and compiled memory
+behavior, and the reason compiled TIL leaks far more than interpreted.
+
+In C, return values are effectively pointer-based anyway (NRVO, hidden
+destination pointer). The memcpy is semantically unnecessary. Same applies
+to throw values and out params.
+
+*** Why this matters
+- #117 (ASAP destruction) can't be completed for ccodegen while returns
+  create aliases the interpreter doesn't have
+- #80 (ccodegen match) can't be verified because compiled TIL eats too
+  much memory to run =make diff til.til=
+- #100 (self-hosting) is blocked by #80 which is blocked by this
+
+*** Inventory (from Bug #159 section 1)
+- =*_ret = value;= -- callee struct assignment
+- =var = _ret_X;= -- call site receives shallow copy
+- Every function returning a struct creates a shallow copy at the call site
+- throw values -- same pattern
+- out params -- same pattern
 
 ** Issue #115: Owned struct fields and auto-generated methods
 :PROPERTIES:
