@@ -13,6 +13,51 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #167: Benchmark HashMap vs Map (OrderedMap) in Rust and TIL
+:PROPERTIES:
+:DISCOVERED: 2026-02-10
+:IMPACT: Performance - understand when HashMap is actually faster
+:STATUS: Open
+:RELATED: Issue #112 (HashMap implementation), Bug #166 (container dedup)
+:END:
+
+*** Summary
+Systematically benchmark HashMap vs Map to understand when each wins.
+
+In Rust, the codebase used ~HashMap~ (std) everywhere until ~OrderedMap~ was
+introduced. In TIL, everything uses ~Map~ (sorted, O(log n) binary search).
+TIL has a ~HashMap~ implementation (Issue #112) but it was slower than Map in
+the two cases tested (small maps, ScopeFrame maps).
+
+The question: is HashMap ever faster, and if so, does that advantage translate
+to TIL?
+
+*** Plan
+1. In Rust: identify use cases where HashMap should win (large N, frequent
+   lookup, no ordering needed). Benchmark HashMap vs OrderedMap for each.
+2. For cases where HashMap wins in Rust, try the same in TIL. See if TIL's
+   HashMap also wins, or if TIL's overhead negates the algorithmic advantage.
+3. Document results:
+   - If HashMap wins for some cases in both Rust and TIL: use HashMap there
+   - If HashMap wins in Rust but not TIL: document the gap, investigate why
+   - If Map/OrderedMap wins everywhere: validates TIL's design choice of Map
+     as the shorter/default name. Document this.
+
+*** Context
+- Rust: ~HashMap~ (std, highly optimized SwissTable) vs ~OrderedMap~ (custom, sorted)
+- TIL: ~Map~ (sorted, binary search) vs ~HashMap~ (first attempt, separate chaining)
+- Only Map (TIL) and OrderedMap (Rust) are maintained equivalents by design.
+  TIL's HashMap is a first attempt and likely far less optimized than Rust's
+  std HashMap (which uses SwissTable/hashbrown). If HashMap wins in Rust but
+  loses in TIL, the fault may be in TIL's naive HashMap implementation, not
+  in the concept of hashing itself.
+- Issue #112 showed TIL HashMap 81% slower for ScopeFrame maps (til interpreted)
+  and 5-6% slower for small maps. But those were specific cases -- larger
+  collections with pure lookup workloads may differ.
+- For cases with few elements, the simpler sorted approach may win due to
+  cache locality and lower overhead. This is expected and would reinforce
+  TIL's choice of ~Map~ as the primary/shorter name.
+
 ** Issue #112: Add HashMap type with O(1) lookup
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
