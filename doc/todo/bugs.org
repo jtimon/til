@@ -9,6 +9,45 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #166: Containers duplicate type info already in Ptr
+:PROPERTIES:
+:DISCOVERED: 2026-02-10
+:IMPACT: Wasted memory, inconsistency, blocks clean ownership model
+:STATUS: Open
+:RELATED: Bug #159 (shallow copies), Issue #151 (pointer syntax)
+:END:
+
+Vec, Array, and List store ~type_name~ and ~type_size~ fields that duplicate
+the ~elem_type~ and ~elem_size~ already in their ~Ptr~ field.
+
+Affected containers:
+- ~Vec~ (vec.til:11-12): ~type_name: Str~, ~type_size: I64~
+- ~Array~ (array.til:11-12): ~type_name: Str~, ~type_size: I64~
+- ~Set~ (set.til:6-7): ~elem_type_name: Str~, ~elem_type_size: I64~
+- ~Map~ (map.til:39-40): ~key_type_name: Str~, ~key_type_size: I64~
+- ~HashMap~ (hashmap.til:27-28): ~key_type_name: Str~, ~key_type_size: I64~
+- ~List~ (list.til:15-16): ~type_names: Vec~, ~type_sizes: Vec~ (per-element!)
+
+~Ptr~ already has (ptr.til:11-12):
+- ~mut elem_type: I64~ (pointer to C string type name)
+- ~mut elem_size: I64~ (bytes per element)
+
+When these fields were added to Ptr, the originals in containers should
+have been removed. Fix: remove type_name/type_size from containers, access
+them through their Ptr (or Vec's Ptr) instead. E.g. ~self.keys.ptr.elem_size~
+instead of ~self.key_type_size~. May need a helper to convert elem_type
+(raw C string pointer) back to Str for cases that need it.
+
+Array is a special case -- it uses ~mut ptr: I64~ (raw integer) instead of
+~Ptr~. It should be migrated to use ~Ptr~ as well.
+
+Future direction: containers like Map, HashMap, Set, List, and Arena currently
+use Vec internally but could use Ptr directly instead. They'd manage their own
+growth logic (they used to before Vec was introduced) but would have less
+indirection and smaller struct sizes. Vec is essentially Ptr + len + cap +
+growth, and some containers (e.g. Map with sorted binary search) already have
+custom growth/insertion logic that doesn't benefit from Vec's abstraction.
+
 ** Bug #165: Compiled TIL binary leaks 200-800x memory vs Rust
 :PROPERTIES:
 :DISCOVERED: 2026-02-10

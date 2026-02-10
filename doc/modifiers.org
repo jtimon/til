@@ -1,0 +1,308 @@
+#+TITLE: TIL Modifiers: mut, own, borrow, copy
+#+DATE: 2026-02-10
+#+AUTHOR: TIL Development
+
+* Overview
+
+TIL uses keyword modifiers to express mutability, ownership, and storage
+across four contexts: struct fields, function parameters, return values,
+and local variables. The goal is consistency across contexts while
+keeping the most common case as the default (no keyword needed).
+
+Design principle: the common, safe thing is the default. Keywords mark
+the exceptional cases.
+
+* Modifier Summary
+
+| Modifier | Fields             | Parameters          | Returns           | Locals             |
+|----------+--------------------+---------------------+-------------------+--------------------|
+| (none)   | Immutable, inline  | Immutable reference | Owned             | Immutable, inline  |
+| ~mut~    | Mutable, inline    | Mutable reference   | --                | Mutable, inline    |
+| ~copy~   | --                 | Deep copy (clone)   | --                | --                 |
+| ~own~    | Owned pointer      | Ownership transfer  | (default)         | Owned pointer      |
+| ~borrow~ | Borrowed pointer   | --                  | Borrowed ref      | Borrowed pointer   |
+
+* Struct Fields
+
+** Current state (pre-#161)
+
+| Syntax                | Meaning                  |
+|-----------------------+--------------------------|
+| ~field := value~      | Associated constant      |
+| ~mut field := value~  | Per-instance mutable     |
+
+** After Issue #161
+
+Non-mut fields become per-instance immutables (frozen after construction).
+Constants move to ~namespace~ blocks.
+
+| Syntax                | Meaning                  |
+|-----------------------+--------------------------|
+| ~field := value~      | Per-instance immutable   |
+| ~mut field := value~  | Per-instance mutable     |
+
+** With pointer fields (Issue #151 / #115)
+
+| Syntax                        | Storage  | Mutability  | Ownership | On delete()        |
+|-------------------------------+----------+-------------+-----------+--------------------|
+| ~field: T = default~          | Inline   | Immutable   | Value     | Cascade delete     |
+| ~mut field: T = default~      | Inline   | Mutable     | Value     | Cascade delete     |
+| ~own field: T~                | Pointer  | Mutable     | Owned     | Cascade delete     |
+| ~borrow field: T~             | Pointer  | Immutable   | Borrowed  | Skip               |
+| ~mut borrow field: T~         | Pointer  | Mutable     | Borrowed  | Skip               |
+
+*** Inline fields (value semantics)
+
+Default and ~mut~ fields store data inline in the struct. The struct's
+byte size includes the full size of these fields.
+
+#+BEGIN_SRC til
+Player := struct {
+    id := 0              // immutable after construction (8 bytes inline)
+    mut name := ""       // mutable (Str bytes inline)
+    mut score := 0       // mutable (8 bytes inline)
+}
+#+END_SRC
+
+*** Owned pointer fields
+
+~own~ fields store a pointer (8 bytes) in the struct. The data lives on
+the heap. The struct owns it: ~struct.delete()~ cascades into the field.
+
+~own~ is always mutable -- you own it, you can do what you want with it.
+This matches ~own~ in function parameters (ownership transfer implies
+full control).
+
+#+BEGIN_SRC til
+Layer := struct {
+    own weights: Vec     // Layer owns this Vec (8 byte pointer)
+    own output: Vec      // Layer owns this too
+}
+// Layer.delete() frees weights and output
+#+END_SRC
+
+Use case: fields that are too large or variable-sized to store inline,
+or fields that need independent heap lifetime management.
+
+*** Borrowed pointer fields
+
+~borrow~ fields store a pointer (8 bytes) but the struct does NOT own
+the data. ~struct.delete()~ skips borrowed fields.
+
+~borrow~ is immutable by default -- you're borrowing someone else's data,
+you shouldn't modify it.
+
+#+BEGIN_SRC til
+Layer := struct {
+    own weights: Vec     // Owned -- delete on Layer.delete()
+    borrow input: Vec    // Borrowed -- skip on Layer.delete()
+}
+// input points to previous layer's output -- same memory, two views
+#+END_SRC
+
+Borrowed fields cannot have default values (they must be bound to an
+existing value at construction).
+
+*** own field defaults
+
+Open question: should ~own~ fields have defaults? Like other fields,
+it could make sense: ~own weights: Vec = Vec.new(U8)~. But an owned
+pointer default means allocating at construction. TBD.
+
+*** mut borrow
+
+~borrow~ is immutable by default. ~mut borrow~ allows reassigning the
+pointer to point elsewhere and mutating through it.
+
+#+BEGIN_SRC til
+Layer := struct {
+    borrow input: Vec          // immutable borrowed pointer
+    mut borrow cursor: Node    // mutable borrowed pointer (reassignable)
+}
+#+END_SRC
+
+*** Open: immutable own?
+
+If you own data but never mutate it after construction, you could use
+an inline immutable field instead. The only reason for an immutable
+owned pointer would be large data that must live on the heap for size
+reasons. Maybe not worth a syntax -- just use ~own~ and don't mutate it.
+
+* Function Parameters
+
+Already implemented. Four modes:
+
+| Syntax           | Semantics                | Copy?   | Callee deletes? |
+|------------------+--------------------------+---------+-----------------|
+| ~f(x: T)~       | Immutable reference      | No      | No              |
+| ~f(mut x: T)~   | Mutable reference        | No      | No              |
+| ~f(copy x: T)~  | Deep copy (clone)        | Yes     | Yes (last use)  |
+| ~f(own x: T)~   | Ownership transfer       | No      | Yes (last use)  |
+
+- *default*: Caller retains ownership. Callee gets ~const T*~ in C.
+  Cannot modify. Most common case.
+- *mut*: Caller retains ownership. Callee gets ~T*~ in C. Modifications
+  visible to caller.
+- *copy*: Garbager inserts ~T.clone()~ before the call. Callee owns the
+  clone. Must delete.
+- *own*: Caller surrenders ownership. Callee must delete on last use.
+  Call site requires ~own~ keyword: ~f(own x)~.
+
+Note: ~borrow~ is NOT a parameter modifier. The default is already an
+immutable reference (borrowed). Adding ~borrow~ would be redundant.
+
+Similarly, ~copy~ is NOT a field modifier. Fields don't "copy" data at
+access time.
+
+* Return Values
+
+** Current state
+
+~returns T~ -- ambiguous. Some functions return owned data (constructors,
+allocating functions), others return borrowed references (getters, lookups).
+
+In compiled C: return is via out-parameter (~T* _ret~), which is always
+a memcpy (shallow copy). This creates aliasing when the returned struct
+contains heap pointers.
+
+** Proposed
+
+| Syntax              | Meaning                           | Caller deletes? |
+|---------------------+-----------------------------------+-----------------|
+| ~returns T~         | Owned return (default)            | Yes             |
+| ~returns borrow T~  | Borrowed return                   | No              |
+
+- *returns T* (default = owned): The function creates or transfers data
+  to the caller. Caller takes ownership and must delete. Examples:
+  constructors, ~to_str~, ~concat~, ~clone~, ~split~.
+
+- *returns borrow T*: The function returns a reference to data it does
+  NOT own (or data that outlives the call). Caller must NOT delete.
+  Examples: ~get_by_ref~, ~lookup_func~, ~lookup_struct~.
+
+*** Runtime mechanism: Ptr.is_borrowed
+
+Internally, ~borrow~ returns map to ~Ptr~ with ~is_borrowed = 1~.
+The garbager inserts ~delete()~ for ALL locals at last use, and
+~Ptr.delete~ checks the flag at runtime -- borrowed pointers are
+no-ops on delete.
+
+*** Compile-time benefit
+
+Even though ~Ptr.is_borrowed~ handles correctness at runtime, having
+~borrow~ in the type system gives the garbager compile-time information:
+
+- ASAP delete owned locals on last use
+- ASAP delete borrowed locals on last use (no-op via runtime flag)
+- Don't ASAP delete the SOURCE of a borrowed value until after the
+  borrowed local's last use (lightweight lifetime extension)
+
+*** Note: own is NOT a return modifier
+
+~returns own T~ is redundant -- the default is already owned. There's
+no need for it. ~own~ as a return modifier doesn't add information.
+
+* Local Variables
+
+Locals work the same as fields: default is immutable inline, ~mut~ is
+mutable inline, ~own~ is owned pointer, ~borrow~ is borrowed pointer.
+
+** Current state (only inline)
+
+| Syntax           | Meaning             |
+|------------------+---------------------|
+| ~x := expr~     | Immutable, inline   |
+| ~mut x := expr~ | Mutable, inline     |
+
+** With pointer locals (Issue #151)
+
+| Syntax                  | Storage  | Mutability | Ownership | Garbager action        |
+|-------------------------+----------+------------+-----------+------------------------|
+| ~x := expr~             | Inline   | Immutable  | Value     | Depends on RHS (*)     |
+| ~mut x := expr~         | Inline   | Mutable    | Value     | Clone + delete         |
+| ~own x := expr~         | Pointer  | Mutable    | Owned     | Delete on last use     |
+| ~borrow x := expr~      | Pointer  | Immutable  | Borrowed  | No-op delete last use  |
+| ~mut borrow x := expr~  | Pointer  | Mutable    | Borrowed  | No-op delete last use  |
+
+(*) Inline const locals are sometimes aliases, sometimes owned copies.
+The garbager infers this from the RHS:
+
+| RHS of ~x := ...~          | Result        | Garbager action    |
+|-----------------------------+---------------+--------------------|
+| Constructor (~T.new()~)     | Owned         | Delete             |
+| Literal (~42~, ~"hello"~)  | Owned         | Delete             |
+| Const identifier            | Alias         | Don't delete       |
+| Mut identifier              | Clone (#159)  | Delete             |
+| Field access on const       | Alias         | Don't delete       |
+| Field access on mut         | Clone (#159)  | Delete             |
+| Function returning T        | Owned         | Delete             |
+| Function returning borrow T | Borrowed      | Delete (no-op)     |
+
+Key rule: const-to-const is a safe alias (nobody can mutate).
+Const-to-mut clones (mutations through alias would be surprising).
+See ownership2.org for full details.
+
+*** Examples
+
+#+BEGIN_SRC til
+name := "hello"                  // inline immutable Str
+mut counter := 0                 // inline mutable I64
+own buffer := Vec.new(U8)        // owned pointer to Vec on heap
+borrow parent := tree.root       // borrowed pointer, tree owns it
+mut borrow cursor := list.head   // mutable borrowed pointer (reassignable)
+#+END_SRC
+
+* Consistency Across Contexts
+
+| Keyword       | Fields           | Params           | Returns        | Locals           |
+|---------------+------------------+------------------+----------------+------------------|
+| (default)     | Immut, inline    | Immut ref        | Owned          | Immut, inline    |
+| ~mut~         | Mutable, inline  | Mutable ref      | N/A            | Mutable, inline  |
+| ~copy~        | N/A              | Clone            | N/A            | N/A              |
+| ~own~         | Owned pointer    | Ownership xfer   | N/A (default)  | Owned pointer    |
+| ~borrow~      | Borrowed pointer | N/A (= default)  | Borrowed ref   | Borrowed pointer |
+| ~mut borrow~  | Mut borrow ptr   | N/A              | N/A            | Mut borrow ptr   |
+
+Fields and locals are symmetric -- same four modes, same semantics.
+Parameters and returns have their own modes suited to function boundaries.
+
+~copy~ is parameter-only (clone at call boundary).
+~borrow~ is NOT a parameter modifier (default is already borrowed).
+~own~ is NOT a return modifier (default is already owned).
+
+| Keyword   | Core meaning across all contexts                            |
+|-----------+-------------------------------------------------------------|
+| ~mut~     | "This data can be mutated"                                  |
+| ~copy~    | "Make an independent copy"                                  |
+| ~own~     | "Take/hold ownership, responsible for deletion"             |
+| ~borrow~  | "Reference only, someone else is responsible for deletion"  |
+
+* Codegen
+
+Ccodegen does not need to understand ownership. By the time the AST
+reaches ccodegen, the garbager has already inserted all necessary
+~Type.clone()~ and ~Type.delete()~ calls based on the modifiers.
+Ccodegen translates those calls like any other function calls.
+
+* Dependencies
+
+| Feature                  | Depends on                | Issue   |
+|--------------------------+---------------------------+---------|
+| Per-instance immutables  | Namespace constants       | #161    |
+| ~own~ / ~borrow~ fields  | Pointer syntax in types   | #151    |
+| ~returns borrow T~       | Pointer syntax in types   | #151    |
+| ASAP deletion of locals  | Borrow tracking           | #117    |
+| ASAP for borrowed locals | Lifetime extension        | #151    |
+| Fix memcpy aliasing      | Return by reference       | #159    |
+
+* Open Questions
+
+1. *own field defaults*: Should ~own~ fields require/allow defaults?
+   ~own weights: Vec = Vec.new(U8)~ means allocating at construction. TBD.
+
+2. *Immutable own*: Is there a use case beyond "large data on heap"?
+   Currently ~own~ is always mutable. If you want immutable owned data,
+   use an inline immutable field/local instead.
+
+3. *Arrays and slices*: How do ~own~ / ~borrow~ interact with fixed-size
+   arrays and slices? TBD when those features are designed.

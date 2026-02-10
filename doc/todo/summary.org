@@ -2,10 +2,11 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-02-09
 
-* bugs.org (11 bugs/issues)
+* bugs.org (12 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                      |
 |-----+------------------------------------------------------------------+-----------------------------|
+| 166 | Containers duplicate type info already in Ptr                    | Wasted memory, inconsistency|
 | 165 | Compiled TIL binary leaks 200-800x memory vs Rust               | Memory leak                 |
 | 159 | Shallow copy semantics not fully eliminated                      | Memory corruption           |
 | 152 | Migrate doc/todo files to numbered issue system                  | Documentation cleanup       |
