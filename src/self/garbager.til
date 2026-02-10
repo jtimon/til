@@ -72,32 +72,31 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         }
 
         // 3b: Scan new_body for Declaration nodes with deletable types.
-        // Skip if function has any catch blocks: throws can skip declarations,
-        // making unconditional deletes at function end unsafe.
-        mut has_any_catch := false
-        for catch_idx in 0..new_body.len() {
-            mut catch_check_stmt := Expr()
-            new_body.get(catch_idx, catch_check_stmt)?
-            switch catch_check_stmt.node_type {
-            case NodeType.Catch:
-                has_any_catch = true
-            case:
-            }
-        }
-        if not(has_any_catch) {
-            for stmt: Expr in new_body {
-                switch stmt.node_type {
-                case NodeType.Declaration(decl):
-                    switch decl.value_type {
-                    case ValueType.TCustom(type_name):
-                        if is_deletable_type(type_name, context) {
-                            cand_vars.push(decl.name)
-                            cand_types.push(type_name)
+        // Rule A: Only declarations whose initializer is a CONSTRUCTOR or
+        // allocating static method (Type(), Type.new(), Type.clone()).
+        // Regular function calls may return aliased (shallow-copied) data.
+        for stmt: Expr in new_body {
+            switch stmt.node_type {
+            case NodeType.Declaration(decl):
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    if is_deletable_type(type_name, context) {
+                        if stmt.params.len().gt(0) {
+                            mut init_expr := Expr()
+                            stmt.params.get(0, init_expr)?
+                            switch init_expr.node_type {
+                            case NodeType.FCall(_):
+                                if is_owned_return_fcall(init_expr, context)? {
+                                    cand_vars.push(decl.name)
+                                    cand_types.push(type_name)
+                                }
+                            case:
+                            }
                         }
-                    case:
                     }
                 case:
                 }
+            case:
             }
         }
 
@@ -143,50 +142,59 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             }
         }
 
-        // Step 5: Insert Type.delete(var) calls.
-        // copy/own params: ASAP after last use (deep copies, no aliasing).
-        // locals: at function end (shared offsets mean locals can alias).
-        mut param_names := Vec.new(Str)
-        for parg: Declaration in func_def.args {
-            if parg.is_copy.or(parg.is_own) {
-                param_names.push(parg.name)
+        // Step 4b: Rule B -- exclude reassigned candidates
+        reassigned := collect_reassigned_vars(new_body, filtered_vars)?
+        mut rb_vars := Vec.new(Str)
+        mut rb_types := Vec.new(Str)
+        for rbi in 0..filtered_vars.len() {
+            mut rv := ""
+            filtered_vars.get(rbi, rv)?
+            mut rt := ""
+            filtered_types.get(rbi, rt)?
+            mut is_reassigned := false
+            for ras: Str in reassigned {
+                if ras.eq(rv) { is_reassigned = true }
+            }
+            if not(is_reassigned) {
+                rb_vars.push(rv)
+                rb_types.push(rt)
             }
         }
+        filtered_vars = rb_vars
+        filtered_types = rb_types
 
-        // Separate params (ASAP) from locals (end-of-function)
-        mut asap_vars := Vec.new(Str)
-        mut asap_types := Vec.new(Str)
-        mut end_vars := Vec.new(Str)
-        mut end_types := Vec.new(Str)
-        for ci in 0..filtered_vars.len() {
-            mut cv := ""
-            filtered_vars.get(ci, cv)?
-            mut ct := ""
-            filtered_types.get(ci, ct)?
-            mut is_param := false
-            for pn: Str in param_names {
-                if pn.eq(cv) { is_param = true }
+        // Step 4c: Rule C -- exclude escaped candidates
+        escaped := collect_escaped_vars(new_body, filtered_vars, context, local_types)?
+        mut rc_vars := Vec.new(Str)
+        mut rc_types := Vec.new(Str)
+        for rci in 0..filtered_vars.len() {
+            mut rcv := ""
+            filtered_vars.get(rci, rcv)?
+            mut rct := ""
+            filtered_types.get(rci, rct)?
+            mut is_escaped := false
+            for esc: Str in escaped {
+                if esc.eq(rcv) { is_escaped = true }
             }
-            if is_param {
-                asap_vars.push(cv)
-                asap_types.push(ct)
-            } else {
-                end_vars.push(cv)
-                end_types.push(ct)
+            if not(is_escaped) {
+                rc_vars.push(rcv)
+                rc_types.push(rct)
             }
         }
+        filtered_vars = rc_vars
+        filtered_types = rc_types
 
-        // ASAP: insert after last use for copy/own params
+        // Step 5: ASAP delete after last use for all candidates
         body_len := new_body.len()
         mut insert_positions := Vec.new(I64)
         mut insert_del_calls := Vec.new(Expr)
-        mut ri := asap_vars.len()
+        mut ri := filtered_vars.len()
         while ri.gt(0) {
             ri = ri.sub(1)
             mut del_var := ""
-            asap_vars.get(ri, del_var)?
+            filtered_vars.get(ri, del_var)?
             mut del_type := ""
-            asap_types.get(ri, del_type)?
+            filtered_types.get(ri, del_type)?
             last_use := find_last_use_index(new_body, del_var)
             mut insert_pos := body_len
             if last_use.gteq(0) {
@@ -228,24 +236,12 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             }
         }
 
-        // End-of-function: append locals in reverse declaration order
-        mut last_line := e.line
-        mut last_col := e.col
-        if final_body.len().gt(0) {
-            mut last_s := Expr()
-            final_body.get(final_body.len().sub(1), last_s)?
-            last_line = last_s.line
-            last_col = last_s.col
-        }
-        mut eri := end_vars.len()
-        while eri.gt(0) {
-            eri = eri.sub(1)
-            mut ev := ""
-            end_vars.get(eri, ev)?
-            mut et := ""
-            end_types.get(eri, et)?
-            final_body.push(build_delete_call_expr(et, ev, last_line, last_col))
-        }
+        // TODO Bug #165: Process nested bodies for ASAP deletion within
+        // if/while/for/switch blocks. Currently disabled because switch arm
+        // payload variables and other complex aliasing patterns cause
+        // double-frees. The function-level ASAP deletion already handles
+        // the main memory leak cases.
+        // final_body = process_nested_bodies(final_body, context, local_types)?
         new_body = final_body
 
         catch (err: IndexOutOfBoundsError) {
@@ -486,6 +482,50 @@ is_deletable_type := func(type_name: Str, context: Context) returns Bool {
     }
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), "IndexOutOfBoundsError in is_deletable_type: ", err.msg)
+    }
+}
+
+/// Check if an FCall expression returns owned (freshly-allocated) data safe to
+/// ASAP-delete. In TIL/C, function returns are shallow memcpy -- the caller
+/// gets a copy that may share heap pointers with data owned by someone else.
+/// Only constructors, allocating static methods, and known-allocating instance
+/// methods return truly owned data.
+is_owned_return_fcall := proc(fcall_expr: Expr, context: Context) returns Bool throws Str {
+    mut chain := Vec.new(Str)
+    get_fcall_identifier_chain(fcall_expr, chain)
+    if chain.len().eq(0) { return false }
+
+    // Single-element chain: constructor call like SFuncDef() or Vec()
+    if chain.len().eq(1) {
+        mut first := ""
+        chain.get(0, first)?
+        return context.scope_stack.has_struct(first)
+    }
+
+    // Two-element chain: static method like Vec.new(T) or Type.clone(x)
+    if chain.len().eq(2) {
+        mut first := ""
+        chain.get(0, first)?
+        if context.scope_stack.has_struct(first) {
+            mut method := ""
+            chain.get(1, method)?
+            return method.eq("new").or(method.starts_with("new_")).or(method.eq("clone"))
+        }
+    }
+
+    // Known instance methods that always return freshly-allocated data.
+    // These allocate new heap memory for their return value.
+    mut last_idx := chain.len().sub(1)
+    mut last := ""
+    chain.get(last_idx, last)?
+    if last.eq("to_str").or(last.eq("to_str_with_indent")).or(last.eq("lang_error")).or(last.eq("lang_error_with_path")).or(last.eq("format")).or(last.eq("concat")).or(last.eq("split")).or(last.eq("replace")).or(last.eq("trim")).or(last.eq("trim_start")).or(last.eq("trim_end")).or(last.eq("substring")).or(last.eq("substr")).or(last.eq("repeat")).or(last.eq("to_lower")).or(last.eq("to_upper")).or(last.eq("join")).or(last.eq("slice")) {
+        return true
+    }
+
+    return false
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
     }
 }
 
@@ -967,4 +1007,432 @@ transform_struct_literal_fields := proc(context: Context, e: Expr, mut new_param
         case:
         }
     }
+}
+
+/// Rule B: Collect variables that are reassigned after declaration.
+/// B1: candidate appears as last arg of .get() or .pop() (out-param overwrite)
+/// B2: candidate is target of Assignment (no dot in target name)
+collect_reassigned_vars := proc(body: Vec, cand_vars: Vec) returns Vec throws Str {
+    mut result := Vec.new(Str)
+    for stmt: Expr in body {
+        collect_reassigned_vars_recursive(stmt, cand_vars, result)?
+    }
+    return result
+}
+
+collect_reassigned_vars_recursive := proc(e: Expr, cand_vars: Vec, mut result: Vec) throws Str {
+    // B1: FCall where method chain ends with "get" or "pop"
+    switch e.node_type {
+    case NodeType.FCall(_):
+        mut chain := Vec.new(Str)
+        get_fcall_identifier_chain(e, chain)
+        if chain.len().gt(0) {
+            mut last_method := ""
+            chain.get(chain.len().sub(1), last_method)?
+            if last_method.eq("get").or(last_method.eq("pop")).or(last_method.eq("enum_get_payload")) {
+                // Last param (the out-param) is the one that gets overwritten
+                if e.params.len().gteq(2) {
+                    mut last_param := Expr()
+                    e.params.get(e.params.len().sub(1), last_param)?
+                    switch last_param.node_type {
+                    case NodeType.Identifier(var_name):
+                        if last_param.params.len().eq(0) {
+                            for cv: Str in cand_vars {
+                                if cv.eq(var_name) {
+                                    // Check not already in result
+                                    mut already := false
+                                    for r: Str in result {
+                                        if r.eq(var_name) { already = true }
+                                    }
+                                    if not(already) {
+                                        result.push(var_name)
+                                    }
+                                }
+                            }
+                        }
+                    case:
+                    }
+                }
+            }
+        }
+    case:
+    }
+    // B2: Assignment(target) where target has no dot
+    switch e.node_type {
+    case NodeType.Assignment(target):
+        if not(target.contains(".")) {
+            for cv: Str in cand_vars {
+                if cv.eq(target) {
+                    mut already := false
+                    for r: Str in result {
+                        if r.eq(target) { already = true }
+                    }
+                    if not(already) {
+                        result.push(target)
+                    }
+                }
+            }
+        }
+    case:
+    }
+    // Recurse into params but NOT into FuncDef bodies
+    for param: Expr in e.params {
+        collect_reassigned_vars_recursive(param, cand_vars, result)?
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("collect_reassigned_vars: ", err.msg)
+    }
+}
+
+/// Rule C: Collect variables whose data escapes to other variables.
+/// C1: candidate passed as non-receiver arg to push/set/insert
+/// C2: candidate referenced in initializer of a declaration with deletable type
+/// C3: candidate is RHS of a field assignment (Assignment with dot in target)
+collect_escaped_vars := proc(body: Vec, cand_vars: Vec, context: Context, local_types: Map) returns Vec throws Str {
+    mut result := Vec.new(Str)
+    for stmt: Expr in body {
+        collect_escaped_vars_recursive(stmt, cand_vars, context, local_types, result)?
+    }
+    return result
+}
+
+collect_escaped_vars_recursive := proc(e: Expr, cand_vars: Vec, context: Context, local_types: Map, mut result: Vec) throws Str {
+    // C1: FCall where method chain ends with "push"/"set"/"insert"
+    switch e.node_type {
+    case NodeType.FCall(_):
+        mut chain := Vec.new(Str)
+        get_fcall_identifier_chain(e, chain)
+        if chain.len().gt(0) {
+            mut last_method := ""
+            chain.get(chain.len().sub(1), last_method)?
+            if last_method.eq("push").or(last_method.eq("set")).or(last_method.eq("insert")) {
+                // Determine data arg start index
+                mut first_in_chain := ""
+                chain.get(0, first_in_chain)?
+                mut data_start := 1
+                if context.scope_stack.has_struct(first_in_chain) {
+                    data_start = 2
+                }
+                for pi in data_start..e.params.len() {
+                    mut param_expr := Expr()
+                    e.params.get(pi, param_expr)?
+                    switch param_expr.node_type {
+                    case NodeType.Identifier(var_name):
+                        if param_expr.params.len().eq(0) {
+                            for cv: Str in cand_vars {
+                                if cv.eq(var_name) {
+                                    mut already := false
+                                    for r: Str in result {
+                                        if r.eq(var_name) { already = true }
+                                    }
+                                    if not(already) {
+                                        result.push(var_name)
+                                    }
+                                }
+                            }
+                        }
+                    case:
+                    }
+                }
+            }
+            // C4: get_by_ref returns a pointer into the receiver's storage
+            if last_method.eq("get_by_ref") {
+                if chain.len().gteq(2) {
+                    mut receiver := ""
+                    chain.get(0, receiver)?
+                    if not(context.scope_stack.has_struct(receiver)) {
+                        for cv: Str in cand_vars {
+                            if cv.eq(receiver) {
+                                mut already := false
+                                for r: Str in result {
+                                    if r.eq(receiver) { already = true }
+                                }
+                                if not(already) {
+                                    result.push(receiver)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    case:
+    }
+    // C2: Declaration with deletable type -- check if initializer references any candidate
+    switch e.node_type {
+    case NodeType.Declaration(decl):
+        switch decl.value_type {
+        case ValueType.TCustom(type_name):
+            if is_deletable_type(type_name, context) {
+                if e.params.len().gt(0) {
+                    mut init_expr := Expr()
+                    e.params.get(0, init_expr)?
+                    for cv: Str in cand_vars {
+                        if expr_references_var(init_expr, cv) {
+                            mut already := false
+                            for r: Str in result {
+                                if r.eq(cv) { already = true }
+                            }
+                            if not(already) {
+                                result.push(cv)
+                            }
+                        }
+                    }
+                }
+            }
+        case:
+        }
+    case:
+    }
+    // C3: Assignment(target) where target has a dot -- RHS is bare Identifier candidate
+    switch e.node_type {
+    case NodeType.Assignment(target):
+        if target.contains(".") {
+            if e.params.len().gt(0) {
+                mut rhs := Expr()
+                e.params.get(0, rhs)?
+                switch rhs.node_type {
+                case NodeType.Identifier(var_name):
+                    if rhs.params.len().eq(0) {
+                        for cv: Str in cand_vars {
+                            if cv.eq(var_name) {
+                                mut already := false
+                                for r: Str in result {
+                                    if r.eq(var_name) { already = true }
+                                }
+                                if not(already) {
+                                    result.push(var_name)
+                                }
+                            }
+                        }
+                    }
+                case:
+                }
+            }
+        }
+    case:
+    }
+    // Recurse into params but NOT into FuncDef bodies
+    for param: Expr in e.params {
+        collect_escaped_vars_recursive(param, cand_vars, context, local_types, result)?
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("collect_escaped_vars: ", err.msg)
+    }
+}
+
+/// Process a Body node's params: collect candidates, apply rules, insert ASAP deletes.
+/// Returns (processed_stmts, nested_local_types) via out-params.
+process_body_params := proc(body_stmts: Vec, context: Context, local_types: Map,
+        default_line: I64, default_col: I64,
+        mut out_stmts: Vec, mut out_local_types: Map) throws Str {
+    // Update local_types with declarations from this body
+    out_local_types = local_types.clone()
+    for stmt: Expr in body_stmts {
+        switch stmt.node_type {
+        case NodeType.Declaration(decl):
+            switch decl.value_type {
+            case ValueType.TCustom(type_name):
+                out_local_types.set(decl.name, type_name)
+            case:
+            }
+        case:
+        }
+    }
+
+    // Collect dont_delete vars from this body
+    mut dont_delete_vars := Vec.new(Str)
+    mut filtered_stmts := Vec.new(Expr)
+    for stmt: Expr in body_stmts {
+        if is_dont_delete_call(stmt) {
+            dd_var := get_dont_delete_var(stmt)
+            if dd_var.len().gt(0) {
+                dont_delete_vars.push(dd_var)
+            }
+        } else {
+            alias_var := get_create_alias_var(stmt)
+            if alias_var.len().gt(0) {
+                dont_delete_vars.push(alias_var)
+            }
+            filtered_stmts.push(stmt)
+        }
+    }
+
+    // Rule A: Collect candidates (constructor/allocating FCall + deletable type)
+    mut cand_vars := Vec.new(Str)
+    mut cand_types := Vec.new(Str)
+    for stmt: Expr in filtered_stmts {
+        switch stmt.node_type {
+        case NodeType.Declaration(decl):
+            switch decl.value_type {
+            case ValueType.TCustom(type_name):
+                if is_deletable_type(type_name, context) {
+                    if stmt.params.len().gt(0) {
+                        mut init_expr := Expr()
+                        stmt.params.get(0, init_expr)?
+                        switch init_expr.node_type {
+                        case NodeType.FCall(_):
+                            if is_owned_return_fcall(init_expr, context)? {
+                                cand_vars.push(decl.name)
+                                cand_types.push(type_name)
+                            }
+                        case:
+                        }
+                    }
+                }
+            case:
+            }
+        case:
+        }
+    }
+
+    // Filter: _, dont_delete_vars, own_transfers
+    own_transfers := collect_own_transfers(filtered_stmts, context, out_local_types)?
+    mut filt_vars := Vec.new(Str)
+    mut filt_types := Vec.new(Str)
+    for fi in 0..cand_vars.len() {
+        mut fv := ""
+        cand_vars.get(fi, fv)?
+        mut ft := ""
+        cand_types.get(fi, ft)?
+        mut excluded := fv.eq("_")
+        for dd: Str in dont_delete_vars {
+            if dd.eq(fv) { excluded = true }
+        }
+        for ot: Str in own_transfers {
+            if ot.eq(fv) { excluded = true }
+        }
+        if not(excluded) {
+            filt_vars.push(fv)
+            filt_types.push(ft)
+        }
+    }
+
+    // Rule B: exclude reassigned
+    reassigned := collect_reassigned_vars(filtered_stmts, filt_vars)?
+    mut rb_vars := Vec.new(Str)
+    mut rb_types := Vec.new(Str)
+    for rbi in 0..filt_vars.len() {
+        mut rv := ""
+        filt_vars.get(rbi, rv)?
+        mut rt := ""
+        filt_types.get(rbi, rt)?
+        mut is_reassigned := false
+        for ras: Str in reassigned {
+            if ras.eq(rv) { is_reassigned = true }
+        }
+        if not(is_reassigned) {
+            rb_vars.push(rv)
+            rb_types.push(rt)
+        }
+    }
+    filt_vars = rb_vars
+    filt_types = rb_types
+
+    // Rule C: exclude escaped
+    escaped := collect_escaped_vars(filtered_stmts, filt_vars, context, out_local_types)?
+    mut rc_vars := Vec.new(Str)
+    mut rc_types := Vec.new(Str)
+    for rci in 0..filt_vars.len() {
+        mut rcv := ""
+        filt_vars.get(rci, rcv)?
+        mut rct := ""
+        filt_types.get(rci, rct)?
+        mut is_escaped := false
+        for esc: Str in escaped {
+            if esc.eq(rcv) { is_escaped = true }
+        }
+        if not(is_escaped) {
+            rc_vars.push(rcv)
+            rc_types.push(rct)
+        }
+    }
+    filt_vars = rc_vars
+    filt_types = rc_types
+
+    // ASAP insert delete calls
+    nb_body_len := filtered_stmts.len()
+    mut insert_positions := Vec.new(I64)
+    mut insert_del_calls := Vec.new(Expr)
+    mut ri := filt_vars.len()
+    while ri.gt(0) {
+        ri = ri.sub(1)
+        mut del_var := ""
+        filt_vars.get(ri, del_var)?
+        mut del_type := ""
+        filt_types.get(ri, del_type)?
+        last_use := find_last_use_index(filtered_stmts, del_var)
+        mut insert_pos := nb_body_len
+        if last_use.gteq(0) {
+            insert_pos = last_use.add(1)
+        }
+        mut del_line := default_line
+        mut del_col := default_col
+        if insert_pos.gt(0).and(insert_pos.lteq(nb_body_len)) {
+            mut prev_stmt := Expr()
+            filtered_stmts.get(insert_pos.sub(1), prev_stmt)?
+            del_line = prev_stmt.line
+            del_col = prev_stmt.col
+        } else {
+            if filtered_stmts.len().gt(0) {
+                mut last_s := Expr()
+                filtered_stmts.get(filtered_stmts.len().sub(1), last_s)?
+                del_line = last_s.line
+                del_col = last_s.col
+            }
+        }
+        insert_positions.push(insert_pos)
+        insert_del_calls.push(build_delete_call_expr(del_type, del_var, del_line, del_col))
+    }
+
+    out_stmts = Vec.new(Expr)
+    for i in 0..nb_body_len {
+        mut body_stmt := Expr()
+        filtered_stmts.get(i, body_stmt)?
+        out_stmts.push(body_stmt)
+        for di in 0..insert_positions.len() {
+            mut dpos := 0
+            insert_positions.get(di, dpos)?
+            if dpos.eq(i.add(1)) {
+                mut dc := Expr()
+                insert_del_calls.get(di, dc)?
+                out_stmts.push(dc)
+            }
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw loc().concat("process_body_params: ").concat(err.msg)
+    }
+}
+
+/// Process nested Body nodes for ASAP deletion within if/while/for/switch blocks.
+/// Walks each statement's params. For Body nodes, processes them (candidates + ASAP)
+/// then recurses. For non-Body nodes, recurses into their params.
+process_nested_bodies := proc(stmts: Vec, context: Context, local_types: Map) returns Vec throws Str {
+    mut result := Vec.new(Expr)
+    for stmt: Expr in stmts {
+        mut new_params := Vec.new(Expr)
+        for param: Expr in stmt.params {
+            switch param.node_type {
+            case NodeType.Body:
+                // Process this Body: candidates + ASAP deletes
+                mut processed_stmts := Vec.new(Expr)
+                mut nested_local_types := Map.new(Str, Str)
+                process_body_params(param.params, context, local_types,
+                    param.line, param.col, processed_stmts, nested_local_types)?
+                // Recurse into the processed body's statements
+                recursed_stmts := process_nested_bodies(processed_stmts, context, nested_local_types)?
+                new_params.push(Expr.new_explicit(NodeType.Body, recursed_stmts, param.line, param.col))
+            case:
+                // Recurse into non-Body params to find deeper nested bodies
+                inner_result := process_nested_bodies(param.params, context, local_types)?
+                new_params.push(Expr.new_explicit(param.node_type, inner_result, param.line, param.col))
+            }
+        }
+        result.push(Expr.new_explicit(stmt.node_type, new_params, stmt.line, stmt.col))
+    }
+    return result
 }

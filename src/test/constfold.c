@@ -632,6 +632,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
         til_Array_delete(&_tmp_format_28);
     }
     return til_Str_result;
+    til_Str_delete(&til_Str_result);
     return (til_Str){0};
 }
 
@@ -712,7 +713,6 @@ void til_test_string_concat(void) {
     til_Str til_Str_result = til_concat(&((til_Str){((til_Ptr){(til_I64)"hello", 1, 0, 0, 0}), 5, 0}), &((til_Str){((til_Ptr){(til_I64)" world", 1, 0, 0, 0}), 6, 0}));
     til_Bool _tmp_test_string_concat_0 = til_Str_eq(&til_Str_result, &((til_Str){((til_Ptr){(til_I64)"hello world", 1, 0, 0, 0}), 11, 0}));
     til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:29:10:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_string_concat_0, &((til_Str){((til_Ptr){(til_I64)"concat is folded at compile time", 1, 0, 0, 0}), 32, 0}));
-    til_Str_delete(&til_Str_result);
 }
 
 void til_test_fold_variable(void) {
@@ -730,7 +730,6 @@ void til_test_loc_folded_correctly(void) {
     til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:45:10:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_loc_folded_correctly_0, &((til_Str){((til_Ptr){(til_I64)"loc() should contain filename", 1, 0, 0, 0}), 29, 0}));
     til_Bool _tmp_test_loc_folded_correctly_1 = til_Str_contains(&til_Str_location, &((til_Str){((til_Ptr){(til_I64)":44:", 1, 0, 0, 0}), 4, 0}));
     til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:46:10:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_loc_folded_correctly_1, &((til_Str){((til_Ptr){(til_I64)"loc() should contain correct line number", 1, 0, 0, 0}), 40, 0}));
-    til_Str_delete(&til_Str_location);
 }
 
 void til_test_struct_fold_simple(void) {
@@ -739,7 +738,6 @@ void til_test_struct_fold_simple(void) {
     til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:73:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_simple_0, &til_CfVec2_v.x);
     til_I64 _tmp_test_struct_fold_simple_1 = 99;
     til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:74:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_simple_1, &til_CfVec2_v.y);
-    til_CfVec2_delete(&til_CfVec2_v);
 }
 
 void til_test_struct_fold_values(void) {
@@ -750,7 +748,6 @@ void til_test_struct_fold_values(void) {
     til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:81:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_values_2, &til_CfVec2_p.x);
     til_I64 _tmp_test_struct_fold_values_3 = 20;
     til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:82:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_values_3, &til_CfVec2_p.y);
-    til_CfVec2_delete(&til_CfVec2_p);
 }
 
 void til_test_struct_fold_nested(void) {
@@ -763,7 +760,6 @@ void til_test_struct_fold_nested(void) {
     til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:103:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_2, &til_CfRect_r.bottom_right.x);
     til_I64 _tmp_test_struct_fold_nested_3 = 200;
     til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:104:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_3, &til_CfRect_r.bottom_right.y);
-    til_CfRect_delete(&til_CfRect_r);
 }
 
 void til_IndexOutOfBoundsError_delete(til_IndexOutOfBoundsError* til_IndexOutOfBoundsError_self) {
@@ -810,6 +806,7 @@ til_Array til_Array_new(til_Type til_Type_T, const til_I64* til_I64_capacity) {
     til_memset(&til_Array_arr.ptr, &til_U8_zero, &til_I64_size_bytes);
     til_Array_arr._len = (*til_I64_capacity);
     return til_Array_arr;
+    til_Array_delete(&til_Array_arr);
     return (til_Array){0};
 }
 
@@ -917,6 +914,7 @@ til_Array til_Array_clone(const til_Array* til_Array_self) {
     }
     til_memcpy(&til_Array_cloned.ptr, &til_Array_self->ptr, &til_I64_total_bytes);
     return til_Array_cloned;
+    til_Array_delete(&til_Array_cloned);
     return (til_Array){0};
 }
 
