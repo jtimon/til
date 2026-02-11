@@ -189,7 +189,8 @@ run_regen := proc() {
 run_benchmark := proc() {
     run_tests()
     _ := run_stream_cmd("cp gen/benchmark.csv doc/benchmark.csv")
-    println("Benchmark saved to doc/benchmark.csv, can be committed")
+    _ := run_stream_cmd("cp gen/totals.org doc/totals.org")
+    println("Benchmark saved to doc/benchmark.csv + doc/totals.org, can be committed")
 }
 
 run_test_cross := proc() {

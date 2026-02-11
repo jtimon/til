@@ -1013,12 +1013,16 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     println("Total:                   ", format_time(total_all))
     println("Failed:                  ", errors_found.to_str(), "/", total_tests.to_str())
 
-    // Prepend totals row right after header for easy git history tracking
-    csv_header := "test,args,section,rs_interp_ms,rs_interp_kb,rs_comp_ms,rs_comp_kb,til_interp_ms,til_interp_kb,til_comp_ms,til_comp_kb\n"
-    totals_row := format("TOTAL,,totals,", total_rs_interp.to_str(), ",", maxrss_rs_interp.to_str(), ",", total_rs_compile.to_str(), ",", maxrss_rs_compile.to_str(), ",", total_til_interp.to_str(), ",", maxrss_til_interp.to_str(), ",", total_til_compile.to_str(), ",", maxrss_til_compile.to_str(), "\n")
-    // benchmark_content already starts with csv_header from initialization; replace it with header+totals+data
-    csv_data := get_substr(benchmark_content, csv_header.len(), benchmark_content.len())?
-    writefile("gen/benchmark.csv", csv_header.concat(totals_row).concat(csv_data))?
+    writefile("gen/benchmark.csv", benchmark_content)?
+
+    // Totals in separate org file for easy git history tracking
+    mut totals := "* Totals\n"
+    totals = totals.concat("- Total rust interpreted :: ").concat(format_time(total_rs_interp)).concat(", max ").concat(format_maxrss(maxrss_rs_interp)).concat("\n")
+    totals = totals.concat("- Total rust compiled :: ").concat(format_time(total_rs_compile)).concat(", max ").concat(format_maxrss(maxrss_rs_compile)).concat("\n")
+    totals = totals.concat("- Total til interpreted :: ").concat(format_time(total_til_interp)).concat(", max ").concat(format_maxrss(maxrss_til_interp)).concat("\n")
+    totals = totals.concat("- Total til compiled :: ").concat(format_time(total_til_compile)).concat(", max ").concat(format_maxrss(maxrss_til_compile)).concat("\n")
+    totals = totals.concat("- Total :: ").concat(format_time(total_all)).concat("\n")
+    writefile("gen/totals.org", totals)?
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     catch (err: WriteError) { panic(loc(), err.msg) }

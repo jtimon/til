@@ -1,99 +1,98 @@
 test,args,section,rs_interp_ms,rs_interp_kb,rs_comp_ms,rs_comp_kb,til_interp_ms,til_interp_kb,til_comp_ms,til_comp_kb
-src/test/memcmp_str_interpreted.til,,rs_interpreted,230,15928,,,,,,
-src/examples/hello_safe_script.til,,rs_interpreted,240,15592,,,,,,
-src/test/introspections.til,,rs_interpreted,350,15928,,,,,,
-src/test/memcmp_str_compiled.til,,rs_compiled,,,10,5952,,,,
-src/test/extra_syscalls.til,,rs_compiled,,,20,5960,,,,
-src/test/sugar.til,,rs_common,220,16236,200,10720,,,,
-src/test/precomp_throw.til,,rs_common,210,15624,260,17660,,,,
-src/test/bug47.til,,rs_common,9550,55792,40,16268,,,,
-src/til.til,help,rs_common,19470,124468,110,29540,,,,
-src/test/test_parser.til,,rs_common,39500,49308,20,11720,,,,
-src/test/sugar.til,,til_common,,,,,3010,1988264,2910,1940516
-src/test/bug56.til,,all_common,240,15588,0,5932,3240,1991720,80,42724
-src/test/bug55.til,,all_common,240,15348,0,5752,3280,2018728,80,42788
-src/test/bug57.til,,all_common,250,15740,0,6144,3370,2014988,80,43744
-src/test/arrays.til,,all_common,290,15984,10,6208,3500,2066344,80,44520
-src/test/bug52.til,,all_common,280,15416,0,5716,3600,2084264,80,42944
-src/test/arenas.til,,all_common,350,15668,0,6164,3680,2156712,80,44324
-src/test/args.til,,all_common,480,15364,10,6164,4680,2301348,90,49592
-src/test/bug43.til,,all_common,380,15384,0,5652,4970,2772392,90,47396
-src/test/bug157.til,,all_common,220,15380,0,5892,3150,1967080,80,43232
-src/test/bug159.til,,all_common,240,15416,0,5920,3320,2033448,80,43300
-src/test/c_mem.til,,all_common,260,15368,0,6164,3330,1999080,80,44260
-src/test/cross_file_forward.til,,all_common,270,15380,0,5652,3740,2262248,80,43556
-src/examples/empty.til,,all_common,220,15124,0,5700,3040,1854184,70,42212
-src/test/deterministic.til,,all_common,280,15964,0,5716,3670,2148020,80,43728
-src/test/bug162.til,,all_common,390,15188,10,5908,4980,2823656,90,47868
-src/test/bug139.til,,all_common,220,15400,200,10124,3150,1969520,3050,1922788
-src/examples/hello_cli.til,,all_common,220,14868,0,5712,3030,1854504,80,41900
-src/examples/hello_lib.til,,all_common,210,15408,0,5716,3010,1853416,80,42276
-src/examples/hello_liba.til,,all_common,220,15592,0,5652,3020,1854184,70,41956
-src/examples/hello_pure.til,,all_common,220,14932,0,5652,2990,1855144,80,42276
-src/examples/hello_pura.til,,all_common,210,15636,0,5680,3020,1853928,80,41984
-src/examples/hello_script.til,,all_common,220,15364,0,5972,3050,1854888,80,41640
-src/examples/hello_test.til,,all_common,240,14908,0,5692,3240,1971864,80,42468
-src/test/arithmetics.til,,all_common,280,15428,0,6188,3370,2017960,90,47396
-src/test/branchless.til,,all_common,230,15380,0,5920,3200,1966720,80,42712
-src/test/boolean.til,,all_common,320,15080,10,5908,3460,2021160,90,48356
-src/test/bug41.til,,all_common,230,15884,0,5652,3190,1973288,80,43044
-src/test/bug46.til,,all_common,270,14908,0,5708,3340,1911976,80,43236
-src/test/circular_test.til,,all_common,230,15416,0,5856,3180,1971112,80,43024
-src/test/comparisons.til,,all_common,240,15392,0,5652,3190,1975908,80,43400
-src/test/bug48.til,,all_common,230,15660,200,10652,3210,1972456,3060,1924896
-src/test/bug49.til,,all_common,220,15060,190,10780,3150,1965096,3080,1917668
-src/examples/lolalalo.til,,all_common,1240,16212,0,5652,8140,2448872,80,44324
-src/test/constfold.til,,all_common,380,15136,0,5908,4240,2069736,80,44004
-src/test/bug50.til,,all_common,230,15356,190,10488,3170,1965480,3080,1916676
-src/test/editor_mode_test.til,,all_common,230,15428,0,5936,3070,1884324,80,42720
-src/test/clone.til,,all_common,540,15364,10,6188,6690,3481508,100,52416
-src/test/eval.til,,all_common,230,15184,0,5908,3160,1964520,80,42788
-src/test/exit.til,,all_common,220,15360,0,5436,3150,1963432,80,42168
-src/test/errors.til,,all_common,400,15124,0,6412,4350,2233640,90,47324
-src/test/fibonacci.til,,all_common,290,16212,10,5908,3580,2031716,80,43444
-src/test/flow.til,,all_common,270,15416,0,5908,3410,2032332,90,46308
-src/test/forward_declarations.til,,all_common,240,15472,0,5652,3260,1981608,80,43740
-src/test/function_pointers.til,,all_common,220,15248,0,5520,3170,1964456,80,42484
-src/test/func_purity.til,,all_common,230,15404,0,5652,3160,1967272,80,42980
-src/test/intro.til,,all_common,310,14676,0,5936,3520,2006504,80,43236
-src/test/literals.til,,all_common,240,15396,0,5776,3230,1988456,80,42980
-src/test/macros.til,,all_common,260,16152,0,6208,3360,2000872,80,44248
-src/test/loops.til,,all_common,360,15420,0,5948,4060,2133160,80,44728
-src/test/mut_test.til,,all_common,240,15648,0,5652,3210,1992872,80,43244
-src/test/lists.til,,all_common,730,15936,10,5908,6830,3193064,90,51880
-src/test/enums.til,,all_common,1710,15940,10,6952,11540,2902948,110,55516
-src/test/namespaces.til,,all_common,280,15660,0,5716,3530,1992168,80,43300
-src/test/optional_args.til,,all_common,270,15404,0,5956,3370,2004708,80,43268
-src/test/panic.til,,all_common,230,16000,0,5636,3150,1963176,80,42912
-src/test/return_value_usage.til,,all_common,230,15616,0,5716,3170,1969384,80,43236
-src/test/pointers.til,,all_common,240,15700,0,5756,3260,2009000,80,43044
-src/test/modes.til,,all_common,700,17456,10,6336,8150,4014244,120,61924
-src/test/scope_isolation.til,,all_common,250,14856,0,5972,3280,2004968,80,44260
-src/test/sets.til,,all_common,610,15964,10,5932,5560,2565800,90,48868
-src/test/u8.til,,all_common,220,15928,0,5652,3130,1967592,80,43044
-src/test/structs.til,,all_common,300,15380,10,6144,3580,2105040,90,46840
-src/test/parallel_cmd.til,,all_common,1470,15188,1260,5704,4950,2262952,1330,45008
-src/test/strings.til,,all_common,910,16220,0,6228,7280,2463656,90,49396
-src/test/syscalls.til,,all_common,580,15928,0,5900,5660,2381800,80,45804
-src/test/underscore.til,,all_common,230,15616,0,5636,3130,1965328,80,42980
-src/test/variadic.til,,all_common,330,15200,0,5908,3640,2024872,80,44320
-src/test/ufcs.til,,all_common,490,15700,0,6228,4840,2416296,90,49360
-src/test/undefined.til,,all_common,220,15124,190,10640,3170,1964456,3070,1916708
-src/test/vecs.til,,all_common,780,15708,10,6996,6590,2840040,110,56812
-src/test/test_lexer.til,,all_common,2950,18736,10,6828,17070,4249000,120,61400
-src/examples/music.til,dorico re,all_common,2710,16284,10,7188,13430,3544232,110,54476
-src/examples/music.til,jonio do,all_common,2880,16172,10,6992,13800,3566824,100,55044
-src/examples/music.til,frigio mi,all_common,2580,16352,10,7444,12950,3520168,100,55268
-src/examples/music.til,-lang=pt mixolidio sol,all_common,2830,15560,10,6932,13700,3563496,110,55248
-src/examples/music.til,-lang=pt lidio fax,all_common,3220,17348,10,6660,15100,3642088,100,55012
-src/test/maps.til,,all_common,5480,19140,10,7188,36510,7319924,130,69620
-src/examples/music.til,-lang=pt eolio lab,all_common,3660,17392,10,7188,16500,3717032,100,55256
-src/examples/music.til,-lang=en aeolian la,all_common,2890,16248,10,7188,14000,3573348,110,54760
-src/examples/music.til,-lang=es jonico mib,all_common,2920,16652,10,5848,14070,3585000,100,54736
-src/examples/music.til,-lang=en locrian six,all_common,3840,16872,10,7188,17130,3754216,100,54728
-src/examples/music.til,-lang=en ionian solx,all_common,3530,17104,10,7468,16210,3705064,100,54728
-src/examples/music.til,-lang=es locrio rex,all_common,3210,17448,10,6932,15110,3632360,100,54720
-src/examples/music.til,-notation=american ionian C,all_common,2410,16136,10,7244,12110,3481256,100,54732
-src/examples/music.til,-lang=es eolico sib,all_common,3680,17304,10,7188,16480,3717928,100,55040
-src/examples/music.til,-notation=american phrygian G,all_common,2570,16632,10,7216,12660,3516968,100,54756
-TOTAL,,totals,146440,124468,3170,29540,536930,7319924,26600,1940516
+src/test/memcmp_str_interpreted.til,,rs_interpreted,220,15688,,,,,,
+src/examples/hello_safe_script.til,,rs_interpreted,240,15656,,,,,,
+src/test/introspections.til,,rs_interpreted,350,15936,,,,,,
+src/test/memcmp_str_compiled.til,,rs_compiled,,,0,5972,,,,
+src/test/extra_syscalls.til,,rs_compiled,,,20,5716,,,,
+src/test/sugar.til,,rs_common,220,15700,190,10520,,,,
+src/test/precomp_throw.til,,rs_common,210,15356,250,17380,,,,
+src/test/bug47.til,,rs_common,9570,56276,40,15292,,,,
+src/til.til,help,rs_common,19520,124816,110,29440,,,,
+src/test/test_parser.til,,rs_common,39520,48948,20,12076,,,,
+src/test/sugar.til,,til_common,,,,,3030,1987276,2910,1940232
+src/test/bug56.til,,all_common,230,15860,0,5900,3220,1990804,80,42724
+src/test/bug55.til,,all_common,240,15676,0,5652,3310,2017768,80,43232
+src/test/bug57.til,,all_common,250,15956,0,5704,3400,2014952,80,43988
+src/test/arrays.til,,all_common,270,15360,0,6256,3510,2066600,80,44480
+src/test/bug52.til,,all_common,280,16188,0,5776,3590,2085288,80,43044
+src/test/arenas.til,,all_common,350,15908,0,5652,3660,2157736,80,44836
+src/test/args.til,,all_common,480,15372,10,6476,4670,2301672,100,50468
+src/test/bug43.til,,all_common,370,15408,0,5760,4910,2772136,90,47588
+src/test/bug157.til,,all_common,230,15188,0,5648,3220,1966312,80,42980
+src/test/bug159.til,,all_common,250,14868,0,5652,3360,2033320,80,42976
+src/test/c_mem.til,,all_common,260,14676,0,6012,3330,1999788,80,44552
+src/test/cross_file_forward.til,,all_common,280,15404,0,5648,3770,2261224,80,42956
+src/examples/empty.til,,all_common,220,14868,0,5936,3060,1854248,80,42208
+src/test/deterministic.til,,all_common,280,15724,0,5936,3670,2148616,80,43940
+src/test/bug162.til,,all_common,400,15440,10,5652,4990,2823080,90,47876
+src/test/bug139.til,,all_common,230,15704,200,10484,3190,1970088,3100,1921764
+src/examples/hello_cli.til,,all_common,220,15496,0,5740,3040,1854632,80,42212
+src/examples/hello_lib.til,,all_common,220,15124,0,5932,3050,1854440,80,41644
+src/examples/hello_liba.til,,all_common,220,14932,0,5716,3060,1853672,80,41976
+src/examples/hello_pure.til,,all_common,220,15636,0,5972,3050,1853416,80,42020
+src/examples/hello_pura.til,,all_common,210,15420,0,5896,3060,1854620,80,41992
+src/examples/hello_script.til,,all_common,210,15928,0,5716,3060,1854376,80,42152
+src/examples/hello_test.til,,all_common,240,14868,0,5748,3290,1970920,80,42980
+src/test/branchless.til,,all_common,240,15452,0,5972,3200,1966504,80,43236
+src/test/arithmetics.til,,all_common,290,15168,0,5972,3660,2017192,90,47064
+src/test/boolean.til,,all_common,340,15484,0,6192,3500,2021416,90,48556
+src/test/bug41.til,,all_common,240,15408,0,5396,3190,1973544,80,42724
+src/test/bug46.til,,all_common,270,15108,0,5836,3310,1912740,80,43236
+src/test/circular_test.til,,all_common,240,15128,0,5652,3180,1971308,80,43044
+src/test/comparisons.til,,all_common,250,15360,0,5652,3250,1974928,80,43300
+src/test/bug48.til,,all_common,230,15416,200,10744,3200,1972904,3060,1925668
+src/test/bug49.til,,all_common,230,15172,190,10552,3190,1965508,3050,1918436
+src/examples/lolalalo.til,,all_common,1250,15952,10,5716,8160,2449128,80,44516
+src/test/constfold.til,,all_common,400,15104,0,6144,4250,2068904,80,44072
+src/test/bug50.til,,all_common,230,15636,200,10064,3190,1965288,3060,1917476
+src/test/editor_mode_test.til,,all_common,230,15444,0,5776,3090,1884904,80,42424
+src/test/clone.til,,all_common,540,15124,10,6148,6740,3481640,100,52500
+src/test/eval.til,,all_common,230,15112,0,5412,3190,1963744,80,42788
+src/test/exit.til,,all_common,230,14908,0,5892,3180,1964480,80,42272
+src/test/errors.til,,all_common,400,15656,0,6400,4380,2234280,90,47848
+src/test/fibonacci.til,,all_common,280,16708,0,5896,3580,2030056,80,43236
+src/test/flow.til,,all_common,270,15880,0,5916,3470,2033064,90,46068
+src/test/forward_declarations.til,,all_common,240,15364,0,5908,3270,1981928,80,43496
+src/test/function_pointers.til,,all_common,230,15616,0,5936,3170,1963944,80,42788
+src/test/func_purity.til,,all_common,230,14940,0,5972,3200,1967784,80,43044
+src/test/intro.til,,all_common,310,14932,0,5908,3460,2007848,80,44004
+src/test/literals.til,,all_common,240,15940,0,5716,3250,1988776,80,42940
+src/test/macros.til,,all_common,260,16148,0,5948,3370,2000168,80,43812
+src/test/loops.til,,all_common,360,14932,0,6228,4060,2134476,90,45288
+src/test/mut_test.til,,all_common,240,14868,0,5972,3270,1992144,80,43748
+src/test/lists.til,,all_common,730,15672,10,6164,6970,3192616,100,51916
+src/test/namespaces.til,,all_common,280,15620,0,5936,3560,1992356,80,42468
+src/test/enums.til,,all_common,1690,16128,10,6932,11610,2903976,100,54744
+src/test/optional_args.til,,all_common,270,15368,0,5652,3420,2005224,80,44068
+src/test/panic.til,,all_common,230,15956,0,5716,3170,1963116,80,42532
+src/test/return_value_usage.til,,all_common,230,15480,0,5760,3190,1969320,80,43300
+src/test/modes.til,,all_common,710,16744,10,6748,8130,4014888,120,61668
+src/test/pointers.til,,all_common,240,15408,0,5888,3270,2009064,80,43240
+src/test/scope_isolation.til,,all_common,240,15128,0,6228,3270,2005364,80,43812
+src/test/sets.til,,all_common,600,15672,10,6188,5580,2565288,90,48932
+src/test/u8.til,,all_common,230,15452,0,5960,3190,1968104,80,43000
+src/test/structs.til,,all_common,300,15708,0,5896,3590,2105896,90,46812
+src/test/parallel_cmd.til,,all_common,1470,15676,1260,5652,5000,2263248,1340,45028
+src/test/strings.til,,all_common,910,16168,0,6164,7280,2463656,90,49892
+src/test/syscalls.til,,all_common,580,15648,10,5972,5610,2382056,80,45492
+src/test/underscore.til,,all_common,240,15408,0,5716,3190,1965288,80,43044
+src/test/variadic.til,,all_common,330,15124,10,6000,3690,2025192,80,43556
+src/test/ufcs.til,,all_common,490,16160,0,6420,4910,2416360,90,49700
+src/test/undefined.til,,all_common,220,15176,190,10492,3190,1963944,3030,1915584
+src/test/vecs.til,,all_common,780,15688,10,7168,6640,2840256,110,56832
+src/test/test_lexer.til,,all_common,2950,18196,10,6728,17250,4250088,120,61376
+src/examples/music.til,dorico re,all_common,2720,16024,10,6856,13250,3545064,110,55268
+src/examples/music.til,jonio do,all_common,2840,16408,10,6736,13930,3566824,110,55076
+src/examples/music.til,frigio mi,all_common,2600,15760,10,7504,12910,3519400,110,55260
+src/examples/music.til,-lang=pt mixolidio sol,all_common,2820,16204,10,7436,13850,3562920,110,55076
+src/examples/music.til,-lang=pt lidio fax,all_common,3190,17124,10,6976,15160,3640552,110,55244
+src/test/maps.til,,all_common,5480,18640,10,6972,36710,7319796,130,69828
+src/examples/music.til,-lang=pt eolio lab,all_common,3600,17088,10,7188,16560,3718004,110,55012
+src/examples/music.til,-lang=en aeolian la,all_common,2900,16084,10,7432,14020,3574160,110,55260
+src/examples/music.til,-lang=es jonico mib,all_common,2940,16916,10,6996,14340,3584228,100,55284
+src/examples/music.til,-lang=en locrian six,all_common,3860,17112,10,7176,17300,3754852,100,55292
+src/examples/music.til,-lang=en ionian solx,all_common,3520,17340,10,7252,16190,3704728,100,54784
+src/examples/music.til,-lang=es locrio rex,all_common,3220,17152,10,6916,14980,3633384,100,54732
+src/examples/music.til,-notation=american ionian C,all_common,2430,16600,10,6920,12190,3481384,100,55032
+src/examples/music.til,-lang=es eolico sib,all_common,3640,17880,10,7184,16460,3717800,100,55276
+src/examples/music.til,-notation=american phrygian G,all_common,2580,15744,10,6908,12810,3518632,100,55012
