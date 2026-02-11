@@ -1,6 +1,6 @@
 * Totals
-- Total rust interpreted :: 146.320s, max 121MB
-- Total rust compiled :: 3.170s, max 29MB
-- Total til interpreted :: 547.430s, max 7150MB
-- Total til compiled :: 27.180s, max 1894MB
-- Total :: 724.100s
+- Total rust interpreted :: 146.970s, max 121MB
+- Total rust compiled :: 3.160s, max 29MB
+- Total til interpreted :: 549.530s, max 7147MB
+- Total til compiled :: 27.040s, max 1893MB
+- Total :: 726.700s
