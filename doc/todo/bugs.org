@@ -9,6 +9,15 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #171: make.til doesn't detect when it needs to rebuild itself
+:PROPERTIES:
+:DISCOVERED: 2026-02-11
+:END:
+
+Changing make.til requires `make clean` before `make benchmark` because the
+build system doesn't detect that make.til itself changed. The compiled
+`bin/rs/make` binary is stale but gets reused.
+
 ** Bug #170: Scope-exit deletion for local variables
 :PROPERTIES:
 :DISCOVERED: 2026-02-11
