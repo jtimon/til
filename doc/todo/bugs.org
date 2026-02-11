@@ -9,6 +9,79 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #170: Scope-exit deletion for local variables
+:PROPERTIES:
+:DISCOVERED: 2026-02-11
+:IMPACT: Memory leak -- locals only deleted at function end (or never if catch blocks exist)
+:STATUS: Open
+:RELATED: Bug #165 (memory leak), Bug #159 (shallow copies), Issue #117 (ASAP destruction)
+:END:
+
+*** Problem
+The garbager deletes local mut variables at function end only (and skips them
+entirely if the function has catch blocks). Locals declared in inner scopes
+(if/while/for) leak until function end or forever. copy/own params get ASAP
+deletion after last use, but locals don't.
+
+*** Design: unified scope-exit deletion
+One concept: *delete at scope exit*. Every deletable variable gets deleted when
+its declaring scope ends. All current deletion triggers are specific cases of
+scope exit:
+
+| Trigger                  | What it is                                    |
+|--------------------------+-----------------------------------------------|
+| ~}~ of if/while/for      | Scope exit for variables declared inside       |
+| ~return~                  | Scope exit for entire function                 |
+| ~throw~                   | Scope exit for entire function                 |
+| ~own~ arg call            | Early scope exit for that one variable         |
+
+Reverse declaration order within a scope naturally handles the container-
+outlives-alias problem: ~elem := vec.get(0)~ is declared after ~vec~, so
+~elem~ is deleted first, then ~vec~.
+
+*** What the garbager needs to do
+
+**** For each scope boundary (~}~ of if/while/for/block):
+Insert ~Type.delete(var)~ for each deletable mut variable declared in that
+scope, in reverse declaration order. Respect ~dont_delete~ as today.
+
+**** For ~return~ statements:
+Insert deletes for ALL in-scope deletable mut variables before the return.
+Reverse declaration order, innermost scope first.
+
+**** For ~throw~ paths:
+Same as return -- delete everything in scope before the throw. But only
+variables guaranteed to have been initialized (declared before the throw
+point, not conditionally).
+
+**** For ~own~ transfers:
+Already handled: variable is consumed, removed from deletion candidates.
+
+*** Open questions
+
+1. *Const locals:* Should const locals also get scope-exit deletion (relying
+   on reverse declaration order for safety), or only mut locals for now?
+   Const locals are more likely to be aliases (field extractions), but reverse
+   declaration order may handle that. Need to verify with concrete examples.
+
+2. *Catch blocks:* Keep current conservative approach (skip all deletion if
+   any catch exists) or implement smarter analysis (only skip variables whose
+   initialization could be skipped by a throw)? Smarter is more complex but
+   covers more functions since many functions have catch blocks.
+
+3. *Scope tracking in garbager:* Currently does a flat scan of function body.
+   Needs to understand nesting (if/while/for bodies are nested Expr params).
+   The garbager already recurses into bodies for other transforms -- need to
+   check if scope info is available or needs threading through.
+
+4. *ccodegen impact:* If garbager inserts scope-exit deletes into the AST,
+   ccodegen just emits them -- probably no ccodegen changes needed. Verify.
+
+5. *Reassignment:* ~mut x := Str.new("a"); x = Str.new("b")~ -- the old value
+   leaks. Scope-exit deletion only frees the final value. The old value needs
+   clone-on-assign + delete-old-value semantics (Bug #159 territory, not this
+   bug).
+
 ** Bug #166: Containers duplicate type info already in Ptr
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
