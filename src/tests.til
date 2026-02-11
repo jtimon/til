@@ -690,52 +690,17 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
 
 // ============ End parallel execution ============
 
-run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, all_common: Vec, parallelism: I64) {
+run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til_interpreted: Vec, til_compiled: Vec, til_common: Vec, all_common: Vec, parallelism: I64) {
     mut errors_found := 0
     total_tests := til_interpreted.len().add(til_compiled.len()).add(til_common.len()).add(rs_interpreted.len()).add(rs_compiled.len()).add(rs_common.len()).add(all_common.len())
     mut benchmark_content := ""
-
-    // til_interpreted
-    mut til_interp_totals := Vec.new(I64)
-    til_interp_totals.push(0)
-    if til_interpreted.len().gt(0).and(not(g_rust_only)) {
-        println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("* til_interpreted\n")
-        mut til_interp_phases := Vec.new(TestPhase)
-        til_interp_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
-        errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_totals, benchmark_content))
-    }
-
-    // til_compiled
-    mut til_compile_totals := Vec.new(I64)
-    til_compile_totals.push(0)
-    if til_compiled.len().gt(0).and(not(g_rust_only)) {
-        println("\n=== til_compiled (", til_compiled.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("\n* til_compiled\n")
-        mut til_compile_phases := Vec.new(TestPhase)
-        til_compile_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_compiled", label="til compiled"))
-        errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_totals, benchmark_content))
-    }
-
-    // til_common (both modes per test)
-    mut til_common_totals := Vec.new(I64)
-    til_common_totals.push(0)
-    til_common_totals.push(0)
-    if til_common.len().gt(0).and(not(g_rust_only)) {
-        println("\n=== til_common (", til_common.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("\n* til_common\n")
-        mut til_common_phases := Vec.new(TestPhase)
-        til_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
-        til_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_interpreted", label="til compiled"))
-        errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_totals, benchmark_content))
-    }
 
     // rs_interpreted
     mut rs_interp_totals := Vec.new(I64)
     rs_interp_totals.push(0)
     if rs_interpreted.len().gt(0) {
         println("\n=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("\n* rs_interpreted\n")
+        benchmark_content = benchmark_content.concat("* rs_interpreted\n")
         mut rs_interp_phases := Vec.new(TestPhase)
         rs_interp_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
         errors_found = errors_found.add(run_parallel(rs_interpreted, rs_interp_phases, parallelism, rs_interp_totals, benchmark_content))
@@ -763,6 +728,41 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         rs_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
         rs_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
         errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_totals, benchmark_content))
+    }
+
+    // til_interpreted
+    mut til_interp_totals := Vec.new(I64)
+    til_interp_totals.push(0)
+    if til_interpreted.len().gt(0).and(not(g_rust_only)) {
+        println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("\n* til_interpreted\n")
+        mut til_interp_phases := Vec.new(TestPhase)
+        til_interp_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
+        errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_totals, benchmark_content))
+    }
+
+    // til_compiled
+    mut til_compile_totals := Vec.new(I64)
+    til_compile_totals.push(0)
+    if til_compiled.len().gt(0).and(not(g_rust_only)) {
+        println("\n=== til_compiled (", til_compiled.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("\n* til_compiled\n")
+        mut til_compile_phases := Vec.new(TestPhase)
+        til_compile_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_compiled", label="til compiled"))
+        errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_totals, benchmark_content))
+    }
+
+    // til_common (both modes per test)
+    mut til_common_totals := Vec.new(I64)
+    til_common_totals.push(0)
+    til_common_totals.push(0)
+    if til_common.len().gt(0).and(not(g_rust_only)) {
+        println("\n=== til_common (", til_common.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("\n* til_common\n")
+        mut til_common_phases := Vec.new(TestPhase)
+        til_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
+        til_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_interpreted", label="til compiled"))
+        errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_totals, benchmark_content))
     }
 
     // all_common (4 modes: rs_interpreted, rs_compiled, til_interpreted, til_compiled)
@@ -796,29 +796,15 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     }
 
     // Compute totals (only for non-empty categories)
-    mut total_til_interp := 0
-    mut total_til_compile := 0
     mut total_rs_interp := 0
     mut total_rs_compile := 0
-    if til_interpreted.len().gt(0) {
-        til_interp_totals.get(0, total_til_interp)?
-    }
-    if til_compiled.len().gt(0) {
-        til_compile_totals.get(0, total_til_compile)?
-    }
+    mut total_til_interp := 0
+    mut total_til_compile := 0
     if rs_interpreted.len().gt(0) {
         rs_interp_totals.get(0, total_rs_interp)?
     }
     if rs_compiled.len().gt(0) {
         rs_compile_totals.get(0, total_rs_compile)?
-    }
-    if til_common.len().gt(0) {
-        mut til_common_interp := 0
-        mut til_common_compile := 0
-        til_common_totals.get(0, til_common_interp)?
-        til_common_totals.get(1, til_common_compile)?
-        total_til_interp = total_til_interp.add(til_common_interp)
-        total_til_compile = total_til_compile.add(til_common_compile)
     }
     if rs_common.len().gt(0) {
         mut rs_common_interp := 0
@@ -827,6 +813,20 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         rs_common_totals.get(1, rs_common_compile)?
         total_rs_interp = total_rs_interp.add(rs_common_interp)
         total_rs_compile = total_rs_compile.add(rs_common_compile)
+    }
+    if til_interpreted.len().gt(0) {
+        til_interp_totals.get(0, total_til_interp)?
+    }
+    if til_compiled.len().gt(0) {
+        til_compile_totals.get(0, total_til_compile)?
+    }
+    if til_common.len().gt(0) {
+        mut til_common_interp := 0
+        mut til_common_compile := 0
+        til_common_totals.get(0, til_common_interp)?
+        til_common_totals.get(1, til_common_compile)?
+        total_til_interp = total_til_interp.add(til_common_interp)
+        total_til_compile = total_til_compile.add(til_common_compile)
     }
     if all_common.len().gt(0) {
         mut all_common_rs_interp := 0
@@ -874,29 +874,29 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     }
 }
 
-regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec, til_common: Vec, til_compiled: Vec, til_interpreted: Vec, all_common: Vec) {
-    // rs_common, rs_interpreted, all_common -> .rs_interpreted.out (via regen_test)
+regen := proc(files: Vec, rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til_interpreted: Vec, til_compiled: Vec, til_common: Vec, all_common: Vec) {
+    // rs_interpreted, rs_common, all_common -> .rs_interpreted.out (via regen_test)
     // rs_compiled -> .rs_compiled.out (via regen_test_compiled)
-    // til_common, til_interpreted -> .til_interpreted.out (via regen_test_til)
+    // til_interpreted, til_common -> .til_interpreted.out (via regen_test_til)
     // til_compiled -> .til_compiled.out (via regen_test_til_compiled)
     if files.len().eq(0) {
         // regen all
-        for entry: TestEntry in rs_common {
+        for entry: TestEntry in rs_interpreted {
             regen_test(entry)
         }
         for entry: TestEntry in rs_compiled {
             regen_test_compiled(entry)
         }
-        for entry: TestEntry in rs_interpreted {
+        for entry: TestEntry in rs_common {
             regen_test(entry)
         }
-        for entry: TestEntry in til_common {
+        for entry: TestEntry in til_interpreted {
             regen_test_til(entry)
         }
         for entry: TestEntry in til_compiled {
             regen_test_til_compiled(entry)
         }
-        for entry: TestEntry in til_interpreted {
+        for entry: TestEntry in til_common {
             regen_test_til(entry)
         }
         for entry: TestEntry in all_common {
@@ -907,7 +907,7 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec,
         // Match by full path or by suffix (e.g., "loops.til" matches "src/test/loops.til")
         for file: Str in files {
             // Search in each list for entries with matching path
-            for entry: TestEntry in rs_common {
+            for entry: TestEntry in rs_interpreted {
                 if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test(entry)
                 }
@@ -917,12 +917,12 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec,
                     regen_test_compiled(entry)
                 }
             }
-            for entry: TestEntry in rs_interpreted {
+            for entry: TestEntry in rs_common {
                 if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test(entry)
                 }
             }
-            for entry: TestEntry in til_common {
+            for entry: TestEntry in til_interpreted {
                 if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test_til(entry)
                 }
@@ -932,7 +932,7 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec,
                     regen_test_til_compiled(entry)
                 }
             }
-            for entry: TestEntry in til_interpreted {
+            for entry: TestEntry in til_common {
                 if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test_til(entry)
                 }
@@ -1082,6 +1082,24 @@ main := proc(args: ..Str) {
         }
     }
 
+    // rs_interpreted: tests that pass with rstil interpret only
+    mut rs_interpreted := Vec.new(TestEntry)
+    rs_interpreted.push(TestEntry(path="src/examples/hello_safe_script.til", expected_status=1)) // TODO: compiled version doesn't enforce safe_script whitelist
+    rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
+    rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
+    rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO: Add C impl for Introspection.has_const/has_field in src/ext.c
+
+    // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
+    // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
+    // Input must end with exit(0) to break out of the infinite while loop
+    // rs_interpreted.push(TestEntry(path="src/modes/repl.til"))
+
+    // rs_compiled: tests that pass with rstil run only
+    mut rs_compiled := Vec.new(TestEntry)
+    rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
+    rs_compiled.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
+    rs_compiled.push(TestEntry(path="src/test/extra_syscalls.til"))  // TODO: list_dir/glob_files wrappers timeout in interpreted modes
+
     // rs_common: tests that pass with rstil but NOT yet with til (interpreted or compiled)
     // (tests that pass all 4 modes are in all_common)
     mut rs_common := Vec.new(TestEntry)
@@ -1090,29 +1108,9 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/test_parser.til"))  // TODO: til_interpreted too slow (~23s)
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
 
-    mut rs_compiled := Vec.new(TestEntry)
-
-    rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
-    rs_compiled.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
-    rs_compiled.push(TestEntry(path="src/test/extra_syscalls.til"))  // TODO: list_dir/glob_files wrappers timeout in interpreted modes
-
-    mut rs_interpreted := Vec.new(TestEntry)
-
-    rs_interpreted.push(TestEntry(path="src/examples/hello_safe_script.til", expected_status=1)) // TODO: compiled version doesn't enforce safe_script whitelist
-    rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
-    rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
-    rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO: Add C impl for Introspection.has_const/has_field in src/ext.c
-    // Bug #139 test moved to all_common now that Bug #150 is fixed
-
-    // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
-    // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
-    // Input must end with exit(0) to break out of the infinite while loop
-    // rs_interpreted.push(TestEntry(path="src/modes/repl.til"))
-
     // til_interpreted: tests that pass with til interpret but NOT yet with til_compiled
     // (tests that pass all 4 modes are in all_common)
     mut til_interpreted := Vec.new(TestEntry)
-    // Bug #139 test moved to all_common now that Bug #150 is fixed
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
@@ -1203,14 +1201,14 @@ main := proc(args: ..Str) {
     // Parse remaining args (after -j was extracted)
     if remaining_args.len().eq(0) {
         // Default: run tests
-        run_all_tests(til_interpreted, til_compiled, til_common, rs_interpreted, rs_compiled, rs_common, all_common, parallelism)
+        run_all_tests(rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common, parallelism)
     } else {
         mut cmd := ""
         remaining_args.get(0, cmd)?
         switch cmd {
         case "test":
             if remaining_args.len().eq(1) {
-                run_all_tests(til_interpreted, til_compiled, til_common, rs_interpreted, rs_compiled, rs_common, all_common, parallelism)
+                run_all_tests(rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common, parallelism)
             } else if remaining_args.len().lt(3) {
                 println("Error: test requires <mode> and <file>")
                 usage()
@@ -1259,7 +1257,7 @@ main := proc(args: ..Str) {
                 remaining_args.get(regen_idx, path)?
                 files.push(path)
             }
-            regen(files, rs_common, rs_compiled, rs_interpreted, til_common, til_compiled, til_interpreted, all_common)
+            regen(files, rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common)
         case:
             usage()
         }
