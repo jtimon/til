@@ -1,11 +1,12 @@
 #+TITLE: Open Bugs and Issues Summary
 #+AUTHOR: TIL Development
-#+DATE: 2026-02-09
+#+DATE: 2026-02-11
 
-* bugs.org (12 bugs/issues)
+* bugs.org (13 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                      |
 |-----+------------------------------------------------------------------+-----------------------------|
+| 170 | Scope-exit deletion for local variables (blocked by #159)        | Memory leak                 |
 | 166 | Containers duplicate type info already in Ptr (Part 1 done)      | Wasted memory, inconsistency|
 | 165 | Compiled TIL binary leaks 200-800x memory vs Rust               | Memory leak                 |
 | 159 | Shallow copy semantics not fully eliminated                      | Memory corruption           |
@@ -16,7 +17,7 @@
 | 114 | ScopeStack lookup functions leak memory by copying ScopeFrame    | Memory leak (partial)       |
 | 113 | Self-hosted interpreter fails with "symbol 'msg' not found"      | Interpreter broken          |
 |  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality                |
-|  94 | gcc warnings cause bug47.til compilation failure                 | Build issue                 |
+|  94 | gcc warnings cause bug47.til compilation failure (blocked by #99 5c) | Build issue              |
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence                  |
 
 * future.org (15 issues)
