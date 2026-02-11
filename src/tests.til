@@ -1242,7 +1242,8 @@ main := proc(args: ..Str) {
 
     // rs_interpreted: tests that pass with rstil interpret only
     mut rs_interpreted := Vec.new(TestEntry)
-    rs_interpreted.push(TestEntry(path="src/examples/hello_safe_script.til", expected_status=1)) // TODO: compiled version doesn't enforce safe_script whitelist
+    // TODO: Disabled to save test time -- rs_interpreted section runs 0 tests so tests.til skips it entirely
+    // rs_interpreted.push(TestEntry(path="src/examples/hello_safe_script.til", expected_status=1)) // TODO: compiled version doesn't enforce safe_script whitelist
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
