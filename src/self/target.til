@@ -318,7 +318,6 @@ push_common_flags := proc(mut result: Vec) {
     result.push("-Wno-unused-variable")           // 1514 occurrences
     result.push("-Wno-unused-but-set-variable")   // 386 occurrences
     result.push("-Wno-unused-label")              // 153 occurrences
-    result.push("-Wno-unused-parameter")          // underscore-prefixed params are intentionally unused
     result.push("-Wno-unused-value")              // Issue #110: switch desugaring generates expression-only statements
 }
 

@@ -945,6 +945,7 @@ til_Bool til_Array_contains(const til_Array* til_Array_self, const til_Str* til_
 }
 
 til_I64 til_Bool_len(const til_Bool* _self) {
+    (void)_self;
     return 1;
     return (til_I64){0};
 }
@@ -1012,6 +1013,7 @@ til_I64 til_Bool_size(void) {
 }
 
 void til_Bool_delete(til_Bool* _self) {
+    (void)_self;
 }
 
 til_Bool til_Bool_clone(const til_Bool* til_Bool_self) {
@@ -1308,6 +1310,7 @@ til_I64 til_I64_size(void) {
 }
 
 void til_I64_delete(til_I64* _self) {
+    (void)_self;
 }
 
 til_I64 til_I64_clone(const til_I64* til_I64_self) {
@@ -2684,6 +2687,7 @@ til_I64 til_Str_hash(const til_Str* til_Str_self) {
 }
 
 til_I64 til_U8_len(const til_U8* _self) {
+    (void)_self;
     return 1;
     return (til_I64){0};
 }
@@ -2985,6 +2989,7 @@ til_I64 til_U8_size(void) {
 }
 
 void til_U8_delete(til_U8* _self) {
+    (void)_self;
 }
 
 til_U8 til_U8_clone(const til_U8* til_U8_self) {
@@ -3008,6 +3013,7 @@ til_CfRect til_CfRect_sample(void) {
 }
 
 void til_CfVec2_delete(til_CfVec2* _self) {
+    (void)_self;
 }
 
 til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {

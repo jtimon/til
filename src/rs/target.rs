@@ -158,7 +158,6 @@ pub fn toolchain_extra_args(target: &Target, _lang: &Lang, compiler: &str) -> Ve
         "-Wno-unused-variable",           // 1514 occurrences
         "-Wno-unused-but-set-variable",   // 386 occurrences
         "-Wno-unused-label",              // 153 occurrences
-        "-Wno-unused-parameter",          // underscore-prefixed params are intentionally unused
         "-Wno-unused-value",              // Issue #110: switch desugaring generates expression-only statements
     ];
     let gcc_only: &[&str] = &[

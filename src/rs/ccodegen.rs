@@ -3266,6 +3266,15 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     emit_func_signature(&mangled_name, func_def, context, output)?;
     output.push_str(" {\n");
 
+    // Bug #99: Suppress -Wunused-parameter for intentionally unused params
+    // _-prefixed params are always unused; all params unused in empty-body functions
+    for arg in &func_def.args {
+        if arg.name.starts_with('_') || func_def.body.is_empty() {
+            let c_name = til_var_name(&arg.name, &value_type_to_c_prefix(&arg.value_type));
+            output.push_str(&format!("    (void){};\n", c_name));
+        }
+    }
+
     // Emit function body with catch pattern detection
     emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
@@ -3578,6 +3587,15 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
 
                 emit_func_signature(&func_name, func_def, context, output)?;
                 output.push_str(" {\n");
+
+                // Bug #99: Suppress -Wunused-parameter for intentionally unused params
+                // _-prefixed params are always unused; all params unused in empty-body functions
+                for arg in &func_def.args {
+                    if arg.name.starts_with('_') || func_def.body.is_empty() {
+                        let c_name = til_var_name(&arg.name, &value_type_to_c_prefix(&arg.value_type));
+                        output.push_str(&format!("    (void){};\n", c_name));
+                    }
+                }
 
                 // Emit function body with catch pattern detection
                 emit_stmts(&func_def.body, output, 1, ctx, context)?;
@@ -5218,6 +5236,16 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 // Emit the function
                 emit_func_signature(&til_name(&mangled_name), func_def, context, &mut func_output)?;
                 func_output.push_str(" {\n");
+
+                // Bug #99: Suppress -Wunused-parameter for intentionally unused params
+                // _-prefixed params are always unused; all params unused in empty-body functions
+                for arg in &func_def.args {
+                    if arg.name.starts_with('_') || func_def.body.is_empty() {
+                        let c_name = til_var_name(&arg.name, &value_type_to_c_prefix(&arg.value_type));
+                        func_output.push_str(&format!("    (void){};\n", c_name));
+                    }
+                }
+
                 emit_stmts(&func_def.body, &mut func_output, 1, ctx, context)?;
                 // Add implicit return at end to silence gcc -Wreturn-type warnings
                 if !func_def.throw_types.is_empty() {
