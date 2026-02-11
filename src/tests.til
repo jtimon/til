@@ -421,7 +421,7 @@ parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, 
 // phases: Vec of TestPhase (1 for single-mode, 2 for common tests)
 // phase_totals: mut Vec of I64, one per phase for accumulating times
 // phase_maxrss_maxes: mut Vec of I64, one per phase for tracking max RSS (keeps highest)
-run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals: Vec, mut phase_maxrss_maxes: Vec, mut benchmark_content: Str) returns I64 {
+run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals: Vec, mut phase_maxrss_maxes: Vec, mut benchmark_content: Str, section_name: Str) returns I64 {
     // Ensure tmp directory exists for result files
     mut mkdir_out := ""
     _ := mkdir_out.run_cmd("mkdir", "-p", "tmp")
@@ -632,7 +632,15 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
 
                         // Build timing string (includes memory)
                         mut timing_str := ""
-                        mut bench_timing := ""
+                        // CSV columns: rs_interp_ms, rs_interp_kb, rs_comp_ms, rs_comp_kb, til_interp_ms, til_interp_kb, til_comp_ms, til_comp_kb
+                        mut csv_rs_interp_ms := ""
+                        mut csv_rs_interp_kb := ""
+                        mut csv_rs_comp_ms := ""
+                        mut csv_rs_comp_kb := ""
+                        mut csv_til_interp_ms := ""
+                        mut csv_til_interp_kb := ""
+                        mut csv_til_comp_ms := ""
+                        mut csv_til_comp_kb := ""
                         for p_idx in 0..num_phases {
                             mut p := TestPhase()
                             phases.get(p_idx, p)?
@@ -642,10 +650,22 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                             current.phase_maxrss.get(p_idx, rss)?
                             if p_idx.gt(0) {
                                 timing_str = timing_str.concat(", ")
-                                bench_timing = bench_timing.concat(", ")
                             }
                             timing_str = timing_str.concat(p.label).concat(": ").concat(format_time(t)).concat(" ").concat(format_maxrss(rss))
-                            bench_timing = bench_timing.concat(p.label).concat(": ").concat(format_time(t)).concat(" ").concat(format_maxrss(rss))
+                            // Map to CSV columns by test_mode
+                            if p.test_mode.eq("rs_interpreted") {
+                                csv_rs_interp_ms = t.to_str()
+                                csv_rs_interp_kb = rss.to_str()
+                            } else if p.test_mode.eq("rs_compiled") {
+                                csv_rs_comp_ms = t.to_str()
+                                csv_rs_comp_kb = rss.to_str()
+                            } else if p.test_mode.eq("til_interpreted") {
+                                csv_til_interp_ms = t.to_str()
+                                csv_til_interp_kb = rss.to_str()
+                            } else if p.test_mode.eq("til_compiled") {
+                                csv_til_comp_ms = t.to_str()
+                                csv_til_comp_kb = rss.to_str()
+                            }
                         }
 
                         // For 2-phase tests, add "faster" annotation
@@ -726,7 +746,9 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         }
 
                         println("[", completed_count.to_str(), "/", tests.len().to_str(), "] ", current.entry.path, args_display, " (", timing_str, ")", faster)
-                        benchmark_content = benchmark_content.concat("- ").concat(current.entry.path).concat(" :: ").concat(bench_timing).concat(faster).concat("\n")
+                        // CSV row: test,args,section,rs_interp_ms,rs_interp_kb,rs_comp_ms,rs_comp_kb,til_interp_ms,til_interp_kb,til_comp_ms,til_comp_kb
+                        csv_row := format(current.entry.path, ",", current.entry.cmd_args, ",", section_name, ",", csv_rs_interp_ms, ",", csv_rs_interp_kb, ",", csv_rs_comp_ms, ",", csv_rs_comp_kb, ",", csv_til_interp_ms, ",", csv_til_interp_kb, ",", csv_til_comp_ms, ",", csv_til_comp_kb, "\n")
+                        benchmark_content = benchmark_content.concat(csv_row)
 
                         // Remove from running
                         success_last_idx := running.len().sub(1)
@@ -774,7 +796,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
 run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til_interpreted: Vec, til_compiled: Vec, til_common: Vec, all_common: Vec, parallelism: I64) {
     mut errors_found := 0
     total_tests := til_interpreted.len().add(til_compiled.len()).add(til_common.len()).add(rs_interpreted.len()).add(rs_compiled.len()).add(rs_common.len()).add(all_common.len())
-    mut benchmark_content := ""
+    mut benchmark_content := "test,args,section,rs_interp_ms,rs_interp_kb,rs_comp_ms,rs_comp_kb,til_interp_ms,til_interp_kb,til_comp_ms,til_comp_kb\n"
 
     // rs_interpreted
     mut rs_interp_totals := Vec.new(I64)
@@ -783,10 +805,9 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     rs_interp_maxrss.push(0)
     if rs_interpreted.len().gt(0) {
         println("\n=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("* rs_interpreted\n")
         mut rs_interp_phases := Vec.new(TestPhase)
         rs_interp_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
-        errors_found = errors_found.add(run_parallel(rs_interpreted, rs_interp_phases, parallelism, rs_interp_totals, rs_interp_maxrss, benchmark_content))
+        errors_found = errors_found.add(run_parallel(rs_interpreted, rs_interp_phases, parallelism, rs_interp_totals, rs_interp_maxrss, benchmark_content, "rs_interpreted"))
     }
 
     // rs_compiled
@@ -796,10 +817,9 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     rs_compile_maxrss.push(0)
     if rs_compiled.len().gt(0) {
         println("\n=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("\n* rs_compiled\n")
         mut rs_compile_phases := Vec.new(TestPhase)
         rs_compile_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_compiled", label="compiled"))
-        errors_found = errors_found.add(run_parallel(rs_compiled, rs_compile_phases, parallelism, rs_compile_totals, rs_compile_maxrss, benchmark_content))
+        errors_found = errors_found.add(run_parallel(rs_compiled, rs_compile_phases, parallelism, rs_compile_totals, rs_compile_maxrss, benchmark_content, "rs_compiled"))
     }
 
     // rs_common (both modes per test)
@@ -811,11 +831,10 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     rs_common_maxrss.push(0)
     if rs_common.len().gt(0) {
         println("\n=== rs_common (", rs_common.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("\n* rs_common\n")
         mut rs_common_phases := Vec.new(TestPhase)
         rs_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
         rs_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
-        errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_totals, rs_common_maxrss, benchmark_content))
+        errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_totals, rs_common_maxrss, benchmark_content, "rs_common"))
     }
 
     // til_interpreted
@@ -825,10 +844,9 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     til_interp_maxrss.push(0)
     if til_interpreted.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("\n* til_interpreted\n")
         mut til_interp_phases := Vec.new(TestPhase)
         til_interp_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
-        errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_totals, til_interp_maxrss, benchmark_content))
+        errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_totals, til_interp_maxrss, benchmark_content, "til_interpreted"))
     }
 
     // til_compiled
@@ -838,10 +856,9 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     til_compile_maxrss.push(0)
     if til_compiled.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_compiled (", til_compiled.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("\n* til_compiled\n")
         mut til_compile_phases := Vec.new(TestPhase)
         til_compile_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_compiled", label="til compiled"))
-        errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_totals, til_compile_maxrss, benchmark_content))
+        errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_totals, til_compile_maxrss, benchmark_content, "til_compiled"))
     }
 
     // til_common (both modes per test)
@@ -853,11 +870,10 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     til_common_maxrss.push(0)
     if til_common.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_common (", til_common.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("\n* til_common\n")
         mut til_common_phases := Vec.new(TestPhase)
         til_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
         til_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_interpreted", label="til compiled"))
-        errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_totals, til_common_maxrss, benchmark_content))
+        errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_totals, til_common_maxrss, benchmark_content, "til_common"))
     }
 
     // all_common (4 modes: rs_interpreted, rs_compiled, til_interpreted, til_compiled)
@@ -878,20 +894,18 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
         if g_rust_only {
             // Run as rs_common (2 phases)
             println("\n=== all_common [rust-only] (", all_common.len().to_str(), " tests) ===\n")
-            benchmark_content = benchmark_content.concat("\n* all_common [rust-only]\n")
             mut rs_only_phases := Vec.new(TestPhase)
             rs_only_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
             rs_only_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
-            errors_found = errors_found.add(run_parallel(all_common, rs_only_phases, parallelism, all_common_totals, all_common_maxrss, benchmark_content))
+            errors_found = errors_found.add(run_parallel(all_common, rs_only_phases, parallelism, all_common_totals, all_common_maxrss, benchmark_content, "all_common"))
         } else {
             println("\n=== all_common (", all_common.len().to_str(), " tests) ===\n")
-            benchmark_content = benchmark_content.concat("\n* all_common\n")
             mut all_common_phases := Vec.new(TestPhase)
             all_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="rs interpreted"))
             all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="rs compiled"))
             all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="rs_interpreted", label="til interpreted"))
             all_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="rs_interpreted", label="til compiled"))
-            errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, all_common_maxrss, benchmark_content))
+            errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, all_common_maxrss, benchmark_content, "all_common"))
         }
     }
 
@@ -999,15 +1013,12 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     println("Total:                   ", format_time(total_all))
     println("Failed:                  ", errors_found.to_str(), "/", total_tests.to_str())
 
-    // Build totals section and prepend it
-    mut totals := "* Totals\n"
-    totals = totals.concat("- Total rust interpreted :: ").concat(format_time(total_rs_interp)).concat(", max ").concat(format_maxrss(maxrss_rs_interp)).concat("\n")
-    totals = totals.concat("- Total rust compiled :: ").concat(format_time(total_rs_compile)).concat(", max ").concat(format_maxrss(maxrss_rs_compile)).concat("\n")
-    totals = totals.concat("- Total til interpreted :: ").concat(format_time(total_til_interp)).concat(", max ").concat(format_maxrss(maxrss_til_interp)).concat("\n")
-    totals = totals.concat("- Total til compiled :: ").concat(format_time(total_til_compile)).concat(", max ").concat(format_maxrss(maxrss_til_compile)).concat("\n")
-    totals = totals.concat("- Total :: ").concat(format_time(total_all)).concat("\n\n")
-
-    writefile("gen/benchmark.org", totals.concat(benchmark_content))?
+    // Prepend totals row right after header for easy git history tracking
+    csv_header := "test,args,section,rs_interp_ms,rs_interp_kb,rs_comp_ms,rs_comp_kb,til_interp_ms,til_interp_kb,til_comp_ms,til_comp_kb\n"
+    totals_row := format("TOTAL,,totals,", total_rs_interp.to_str(), ",", maxrss_rs_interp.to_str(), ",", total_rs_compile.to_str(), ",", maxrss_rs_compile.to_str(), ",", total_til_interp.to_str(), ",", maxrss_til_interp.to_str(), ",", total_til_compile.to_str(), ",", maxrss_til_compile.to_str(), "\n")
+    // benchmark_content already starts with csv_header from initialization; replace it with header+totals+data
+    csv_data := get_substr(benchmark_content, csv_header.len(), benchmark_content.len())?
+    writefile("gen/benchmark.csv", csv_header.concat(totals_row).concat(csv_data))?
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     catch (err: WriteError) { panic(loc(), err.msg) }
