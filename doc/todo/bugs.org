@@ -135,6 +135,29 @@ Part 2 (future, blocked on __init__ or Map-uses-Ptr-directly):
   Update eval_heap.rs + eval_heap.til for new Array layout.
 - List (needs investigation, heterogeneous)
 
+** Bug #169: Get rid of memcmp
+:PROPERTIES:
+:DISCOVERED: 2026-02-10
+:IMPACT: Semantic correctness -- memcmp compares raw bytes (pointers, padding) not logical values
+:STATUS: Step 1 done (pure TIL memcmp)
+:RELATED: Bug #166 (container type info duplication, memcmp elem_size=0 breakage)
+:END:
+
+*** Problem
+Containers (Vec, Set, Map, HashMap) use ~memcmp~ to compare elements. This
+compares raw struct bytes -- meaning pointer values, padding bytes, and all.
+Two structs with identical logical content but different pointer addresses
+(e.g. two Str with same text but different allocations) will compare as
+NOT equal. Creates interpreted/compiled divergence.
+
+*** Plan
+- Step 1: Replace ext_func memcmp with pure TIL implementation (DONE)
+  Removed C/Rust/TIL-interpreter implementations. memcmp is now a regular
+  TIL function in mem.til using byte-by-byte comparison via memcpy+to_ptr.
+- Step 2: Add typed equality (.eq()) to containers
+- Step 3: Migrate containers from memcmp to typed equality
+- Step 4: Remove memcmp entirely (or keep for low-level use only)
+
 ** Bug #165: Compiled TIL binary leaks 200-800x memory vs Rust
 :PROPERTIES:
 :DISCOVERED: 2026-02-10

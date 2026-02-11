@@ -2732,8 +2732,6 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_memset(context, e)?
     case "memcpy":
         return func_memcpy(context, e)?
-    case "memcmp":
-        return func_memcmp(context, e)?
     case "i64_lt":
         return func_lt(context, e)?
     case "i64_gt":

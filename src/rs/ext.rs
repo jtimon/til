@@ -156,56 +156,6 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     Ok(EvalResult::new(""))
 }
 
-pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "memcmp", 3, false)?;
-
-    let ptr1_result = eval_expr(context, e.get(1)?)?;
-    if ptr1_result.is_throw {
-        return Ok(ptr1_result); // Propagate throw
-    }
-    let ptr2_result = eval_expr(context, e.get(2)?)?;
-    if ptr2_result.is_throw {
-        return Ok(ptr2_result); // Propagate throw
-    }
-    let size_result = eval_expr(context, e.get(3)?)?;
-    if size_result.is_throw {
-        return Ok(size_result); // Propagate throw
-    }
-
-    let ptr1_str = ptr1_result.value;
-    let ptr2_str = ptr2_result.value;
-    let size_str = size_result.value;
-
-    let ptr1 = match ptr1_str.parse::<usize>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcmp: Invalid ptr1 (usize): '{}': {}", ptr1_str, err))),
-    };
-
-    let ptr2 = match ptr2_str.parse::<usize>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcmp: Invalid ptr2 (usize): '{}': {}", ptr2_str, err))),
-    };
-
-    let size = match size_str.parse::<usize>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcmp: Invalid size (usize): '{}': {}", size_str, err))),
-    };
-
-    // Compare bytes
-    for i in 0..size {
-        let byte1 = EvalHeap::g().get(ptr1 + i, 1)[0];
-        let byte2 = EvalHeap::g().get(ptr2 + i, 1)[0];
-        if byte1 < byte2 {
-            return Ok(EvalResult::new("-1"));
-        } else if byte1 > byte2 {
-            return Ok(EvalResult::new("1"));
-        }
-    }
-
-    // All bytes equal
-    Ok(EvalResult::new("0"))
-}
-
 pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "to_ptr", 1, false)?;
 

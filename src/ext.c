@@ -187,11 +187,6 @@ static inline void til_memcpy(const til_I64* dest, const til_I64* src, const til
     memcpy((void*)*dest, (void*)*src, (size_t)*n);
 }
 
-static inline til_I64 til_memcmp(const til_I64* a, const til_I64* b, const til_I64* n)
-{
-    return (til_I64)memcmp((void*)*a, (void*)*b, (size_t)*n);
-}
-
 static inline void til_memset(const til_I64* ptr, const til_U8* value, const til_I64* n)
 {
     memset((void*)*ptr, (int)*value, (size_t)*n);
