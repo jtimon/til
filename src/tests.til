@@ -1258,7 +1258,6 @@ main := proc(args: ..Str) {
     // rs_common: tests that pass with rstil but NOT yet with til (interpreted or compiled)
     // (tests that pass all 4 modes are in all_common)
     mut rs_common := Vec.new(TestEntry)
-    rs_common.push(TestEntry(path="src/test/memcmp_str.til"))
     rs_common.push(TestEntry(path="src/test/introspections.til")) // TODO: Actually use Introspection from func that is called from const initialization
     rs_common.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
     rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: til_interpreted too slow (~35s)
@@ -1331,6 +1330,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/loops.til"))
     all_common.push(TestEntry(path="src/test/macros.til"))
     all_common.push(TestEntry(path="src/test/maps.til"))
+    all_common.push(TestEntry(path="src/test/memcmp_str.til"))
     all_common.push(TestEntry(path="src/test/modes.til"))
     all_common.push(TestEntry(path="src/test/mut_test.til"))
     all_common.push(TestEntry(path="src/test/namespaces.til"))
