@@ -663,13 +663,13 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     output.push_str(variadic_count.to_str())
     output.push_str(";\n")
 
-    // Emit Array.new call (non-throwing, panics internally on malloc failure)
-    // til_Array arr = til_Array_new(type_temp, &count_temp);
+    // Bug #168: Emit Array.new call with out-pointer pattern
+    // til_Array_new(&arr, type_temp, &count_temp);
     output.push_str(indent_str)
-    output.push_str(arr_var)
-    output.push_str(" = ")
     output.push_str(TIL_PREFIX)
-    output.push_str("Array_new(")
+    output.push_str("Array_new(&")
+    output.push_str(arr_var)
+    output.push_str(", ")
     output.push_str(type_temp)
     output.push_str(", &")
     output.push_str(count_temp)
@@ -1501,11 +1501,6 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     }
     variadic_arr_var := emit_variadic_array_with_strings(vi.elem_type, variadic_arg_strings, hoist_output, indent, ctx)?
 
-    // Emit the function call
-    hoist_output.push_str(indent_str)
-    hoist_output.push_str(temp_var)
-    hoist_output.push_str(" = ")
-
     // Get function name
     if arg.params.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name")
@@ -1523,30 +1518,56 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
         ctx.nested_func_names.get(orig_func_name, mangled_name)?
     }
 
-    hoist_output.push_str(til_func_name(mangled_name))
-    hoist_output.push_str("(")
+    // Bug #168: Check if return type needs out-pointer
+    use_out_ptr := needs_out_pointer(first_ret)
 
-    // Regular arguments
-    mut first := true
-    mut ri := 0
-    while ri.lt(vi.regular_count) {
-        mut arg_str := ""
-        nested_arg_strings.get(ri, arg_str)?
+    // Emit the function call
+    hoist_output.push_str(indent_str)
+    if use_out_ptr {
+        // Out-pointer call: func(&temp, regular_args, &arr)
+        hoist_output.push_str(til_func_name(mangled_name))
+        hoist_output.push_str("(&")
+        hoist_output.push_str(temp_var)
+        mut ri := 0
+        while ri.lt(vi.regular_count) {
+            hoist_output.push_str(", ")
+            mut arg_str := ""
+            nested_arg_strings.get(ri, arg_str)?
+            hoist_output.push_str(arg_str)
+            ri.inc()
+        }
+        hoist_output.push_str(", &")
+        hoist_output.push_str(variadic_arr_var)
+        hoist_output.push_str(");\n")
+    } else {
+        // Regular call: temp = func(regular_args, &arr)
+        hoist_output.push_str(temp_var)
+        hoist_output.push_str(" = ")
+        hoist_output.push_str(til_func_name(mangled_name))
+        hoist_output.push_str("(")
+
+        // Regular arguments
+        mut first := true
+        mut ri := 0
+        while ri.lt(vi.regular_count) {
+            mut arg_str := ""
+            nested_arg_strings.get(ri, arg_str)?
+            if not(first) {
+                hoist_output.push_str(", ")
+            }
+            first = false
+            hoist_output.push_str(arg_str)
+            ri.inc()
+        }
+
+        // Variadic array pointer
         if not(first) {
             hoist_output.push_str(", ")
         }
-        first = false
-        hoist_output.push_str(arg_str)
-        ri.inc()
+        hoist_output.push_str("&")
+        hoist_output.push_str(variadic_arr_var)
+        hoist_output.push_str(");\n")
     }
-
-    // Variadic array pointer
-    if not(first) {
-        hoist_output.push_str(", ")
-    }
-    hoist_output.push_str("&")
-    hoist_output.push_str(variadic_arr_var)
-    hoist_output.push_str(");\n")
 
     // Delete variadic array
     hoist_output.push_str(indent_str)
@@ -1628,12 +1649,12 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, mut o
     output.push_str(elem_count.to_str())
     output.push_str(";\n")
 
-    // Call Array.new (non-throwing)
+    // Bug #168: Call Array.new with out-pointer
     output.push_str(indent_str)
-    output.push_str(arr_var)
-    output.push_str(" = ")
     output.push_str(TIL_PREFIX)
-    output.push_str("Array_new(")
+    output.push_str("Array_new(&")
+    output.push_str(arr_var)
+    output.push_str(", ")
     output.push_str(type_temp)
     output.push_str(", &")
     output.push_str(count_temp)
@@ -2038,6 +2059,40 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         }
         catch (err: KeyNotFoundError) {
             // REM: Not an enum
+        }
+    }
+
+    // Bug #168: For non-enum-constructor, non-throwing struct-returning functions,
+    // hoist to temp with out-pointer
+    if not(is_enum_constructor) {
+        if fd_found.and(fd_opt.throw_types.is_empty()).and(not(fd_opt.return_types.is_empty())) {
+            mut eas_first_ret := ValueType.TCustom(INFER_TYPE)
+            fd_opt.return_types.get(0, eas_first_ret)?
+            if needs_out_pointer(eas_first_ret) {
+                indent_str := repeat("    ", indent)
+                eas_temp := next_mangled(ctx)
+                eas_c_type := til_type_to_c(eas_first_ret)?
+                hoist_output.push_str(indent_str)
+                hoist_output.push_str(eas_c_type)
+                hoist_output.push_str(" ")
+                hoist_output.push_str(eas_temp)
+                hoist_output.push_str(";\n")
+                hoist_output.push_str(indent_str)
+                hoist_output.push_str(til_func_name(mangled_name))
+                hoist_output.push_str("(&")
+                hoist_output.push_str(eas_temp)
+                mut ci := 0
+                while ci.lt(nested_arg_strings.len()) {
+                    hoist_output.push_str(", ")
+                    mut arg_str := ""
+                    nested_arg_strings.get(ci, arg_str)?
+                    hoist_output.push_str(arg_str)
+                    ci.inc()
+                }
+                hoist_output.push_str(");\n")
+                return eas_temp
+            }
+            catch (err: IndexOutOfBoundsError) { }
         }
     }
 
@@ -2551,7 +2606,8 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         if main_has_variadic {
             // Convert argc/argv to til_Array and pass to til_main
             // Skip argv[0] (exe path) to match interpreter behavior
-            output.push_str("    til_Array _main_args = til_Array_new(\"Str\", &(til_I64){argc - 1});\n")
+            output.push_str("    til_Array _main_args;\n")
+            output.push_str("    til_Array_new(&_main_args, \"Str\", &(til_I64){argc - 1});\n")
             output.push_str("    for (int i = 1; i < argc; i++) {\n")
             output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1, 0, 0, 0}), strlen(argv[i]), 0};\n")
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n")
@@ -4065,10 +4121,15 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
         // Non-throwing functions with return type - add zero-initialized fallback
         mut ret_type_vt := ValueType.TCustom("")
         func_def.return_types.get(0, ret_type_vt)?
-        ret_type := til_type_to_c(ret_type_vt)?
-        output.push_str("    return (")
-        output.push_str(ret_type)
-        output.push_str("){0};\n")
+        // Bug #168: out-pointer functions just need return; (no value)
+        if needs_out_pointer(ret_type_vt) {
+            output.push_str("    return;\n")
+        } else {
+            ret_type := til_type_to_c(ret_type_vt)?
+            output.push_str("    return (")
+            output.push_str(ret_type)
+            output.push_str("){0};\n")
+        }
     }
 
     output.push_str("}\n\n")
@@ -4198,9 +4259,14 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
         } else {
             mut ret_type_vt := ValueType.TCustom("")
             func_def.return_types.get(0, ret_type_vt)?
-            ret_type := til_type_to_c(ret_type_vt)?
-            output.push_str(ret_type)
-            output.push_str(" ")
+            // Bug #168: Struct-returning functions use out-pointer, return void
+            if needs_out_pointer(ret_type_vt) {
+                output.push_str("void ")
+            } else {
+                ret_type := til_type_to_c(ret_type_vt)?
+                output.push_str(ret_type)
+                output.push_str(" ")
+            }
         }
     }
 
@@ -4237,6 +4303,19 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
                 param_count.inc()
             }
         }
+    }
+
+    // Bug #168: Non-throwing struct-returning functions also get _ret as first param
+    if not(is_throwing).and(not(func_def.return_types.is_empty())) {
+        mut nt_ret_type_vt := ValueType.TCustom("")
+        func_def.return_types.get(0, nt_ret_type_vt)?
+        if needs_out_pointer(nt_ret_type_vt) {
+            nt_ret_type := til_type_to_c(nt_ret_type_vt)?
+            output.push_str(nt_ret_type)
+            output.push_str("* _ret")
+            param_count.inc()
+        }
+        catch (err: IndexOutOfBoundsError) { }
     }
 
     // Input parameters
@@ -4444,10 +4523,15 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 } else if not(func_def.return_types.is_empty()) {
                     mut ret_type_vt := ValueType.TCustom("")
                     func_def.return_types.get(0, ret_type_vt)?
-                    ret_type := til_type_to_c(ret_type_vt)?
-                    output.push_str("    return (")
-                    output.push_str(ret_type)
-                    output.push_str("){0};\n")
+                    // Bug #168: out-pointer functions just need return; (no value)
+                    if needs_out_pointer(ret_type_vt) {
+                        output.push_str("    return;\n")
+                    } else {
+                        ret_type := til_type_to_c(ret_type_vt)?
+                        output.push_str("    return (")
+                        output.push_str(ret_type)
+                        output.push_str("){0};\n")
+                    }
                 }
 
                 output.push_str("}\n\n")
@@ -5025,6 +5109,21 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
 }
 
+// Bug #168: Check if a return type needs out-pointer instead of return-by-value.
+// Structs with heap data (Str, Vec, Array, Map, Set, List, user structs) use out-pointer
+// to avoid implicit memcpy at call sites. Scalars (I64, U8, Bool, Ptr, Dynamic, Type) stay by-value.
+needs_out_pointer := func(return_type: ValueType) returns Bool {
+    switch return_type {
+    case ValueType.TCustom(name):
+        if name.eq("I64").or(name.eq("U8")).or(name.eq("Bool")).or(name.eq("Dynamic")).or(name.eq("Type")).or(name.eq("Ptr")) {
+            return false
+        }
+        return true
+    case:
+        return false
+    }
+}
+
 /// Get the function name from an FCall expression (returns underscore format like Type_method)
 /// This returns the name WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
@@ -5132,31 +5231,67 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
     func_name_c := func_name.replace(".", "_")
 
+    // Bug #168: Check if return type needs out-pointer
+    mut use_out_ptr := false
+    fd_out := get_fcall_func_def(context, fcall)?
+    if not(fd_out.return_types.is_empty()) {
+        mut first_rt := ValueType.TCustom(INFER_TYPE)
+        fd_out.return_types.get(0, first_rt)?
+        use_out_ptr = needs_out_pointer(first_rt)
+    }
+    catch (err: KeyNotFoundError) { }
+    catch (err: IndexOutOfBoundsError) { }
+
     // For declarations: declare the variable (skip for "_" - Bug #35)
     if not(decl_name.eq("")) {
         if decl_name.eq("_") {
             // Bug #35: For underscore, just call the function (discard result)
-            output.push_str(indent_str)
-            // Emit call inline
-            output.push_str(TIL_PREFIX)
-            output.push_str(func_name_c)
-            output.push_str("(")
-            mut ci := 0
-            while ci.lt(regular_count) {
-                if ci.gt(0) {
+            if use_out_ptr {
+                // Need temp for discarded out-pointer result
+                temp_discard := next_mangled(ctx)
+                output.push_str(indent_str)
+                output.push_str(ret_type)
+                output.push_str(" ")
+                output.push_str(temp_discard)
+                output.push_str(";\n")
+                output.push_str(indent_str)
+                output.push_str(TIL_PREFIX)
+                output.push_str(func_name_c)
+                output.push_str("(&")
+                output.push_str(temp_discard)
+                mut ci := 0
+                while ci.lt(regular_count) {
+                    output.push_str(", ")
+                    mut arg_str_discard := ""
+                    arg_strings.get(ci, arg_str_discard)?
+                    output.push_str(arg_str_discard)
+                    ci.inc()
+                }
+                output.push_str(", &")
+                output.push_str(variadic_arr_var)
+                output.push_str(");\n")
+            } else {
+                output.push_str(indent_str)
+                output.push_str(TIL_PREFIX)
+                output.push_str(func_name_c)
+                output.push_str("(")
+                mut ci := 0
+                while ci.lt(regular_count) {
+                    if ci.gt(0) {
+                        output.push_str(", ")
+                    }
+                    mut arg_str_discard := ""
+                    arg_strings.get(ci, arg_str_discard)?
+                    output.push_str(arg_str_discard)
+                    ci.inc()
+                }
+                if regular_count.gt(0) {
                     output.push_str(", ")
                 }
-                mut arg_str_discard := ""
-                arg_strings.get(ci, arg_str_discard)?
-                output.push_str(arg_str_discard)
-                ci.inc()
+                output.push_str("&")
+                output.push_str(variadic_arr_var)
+                output.push_str(");\n")
             }
-            if regular_count.gt(0) {
-                output.push_str(", ")
-            }
-            output.push_str("&")
-            output.push_str(variadic_arr_var)
-            output.push_str(");\n")
         } else {
             // Bug #97: Register in scope FIRST so we can get the type-mangled name
             fd3 := get_fcall_func_def(context, fcall)?
@@ -5173,24 +5308,129 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             }
             catch (err: KeyNotFoundError) { }
             variadic_c_var_name := til_var_name_from_context(decl_name, context)
+            if use_out_ptr {
+                // Bug #168: Declare var, then call with out-pointer
+                output.push_str(indent_str)
+                output.push_str(ret_type)
+                output.push_str(" ")
+                output.push_str(variadic_c_var_name.clone())
+                output.push_str(";\n")
+                output.push_str(indent_str)
+                output.push_str(TIL_PREFIX)
+                output.push_str(func_name_c)
+                output.push_str("(&")
+                output.push_str(variadic_c_var_name.clone())
+                mut di := 0
+                while di.lt(regular_count) {
+                    output.push_str(", ")
+                    mut arg_str_decl := ""
+                    arg_strings.get(di, arg_str_decl)?
+                    output.push_str(arg_str_decl)
+                    di.inc()
+                }
+                output.push_str(", &")
+                output.push_str(variadic_arr_var)
+                output.push_str(");\n")
+            } else {
+                output.push_str(indent_str)
+                output.push_str(ret_type)
+                output.push_str(" ")
+                output.push_str(variadic_c_var_name.clone())
+                output.push_str(" = ")
+                output.push_str(TIL_PREFIX)
+                output.push_str(func_name_c)
+                output.push_str("(")
+                mut di := 0
+                while di.lt(regular_count) {
+                    if di.gt(0) {
+                        output.push_str(", ")
+                    }
+                    mut arg_str_decl := ""
+                    arg_strings.get(di, arg_str_decl)?
+                    output.push_str(arg_str_decl)
+                    di.inc()
+                }
+                if regular_count.gt(0) {
+                    output.push_str(", ")
+                }
+                output.push_str("&")
+                output.push_str(variadic_arr_var)
+                output.push_str(");\n")
+            }
+
+            _ := ctx.declared_vars.insert(variadic_c_var_name)
+        }
+    } else if not(assign_name.eq("")) {
+        // Assignment
+        if use_out_ptr {
+            // Bug #168: Call with out-pointer to destination directly
             output.push_str(indent_str)
-            output.push_str(ret_type)
-            output.push_str(" ")
-            output.push_str(variadic_c_var_name.clone())
-            output.push_str(" = ")
-            // Emit call inline
+            dot_pos := assign_name.find(".")
+            mut dest_expr := ""
+            if dot_pos.gteq(0) {
+                base := assign_name.get_substr(0, dot_pos)?
+                rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
+                if ctx.current_ref_params.contains(base) {
+                    dest_expr = concat("&(", til_var_name_from_context(base, context)).concat("->").concat(rest).concat(")")
+                } else {
+                    dest_expr = concat("&(", til_var_name_from_context(base, context)).concat(".").concat(rest).concat(")")
+                }
+            } else if ctx.current_ref_params.contains(assign_name) {
+                // Already a pointer
+                dest_expr = til_var_name_from_context(assign_name, context)
+            } else {
+                dest_expr = concat("&", til_var_name_from_context(assign_name, context))
+            }
             output.push_str(TIL_PREFIX)
             output.push_str(func_name_c)
             output.push_str("(")
-            mut di := 0
-            while di.lt(regular_count) {
-                if di.gt(0) {
+            output.push_str(dest_expr)
+            mut ai := 0
+            while ai.lt(regular_count) {
+                output.push_str(", ")
+                mut arg_str_assign := ""
+                arg_strings.get(ai, arg_str_assign)?
+                output.push_str(arg_str_assign)
+                ai.inc()
+            }
+            output.push_str(", &")
+            output.push_str(variadic_arr_var)
+            output.push_str(");\n")
+        } else {
+            output.push_str(indent_str)
+            // Bug #97: Use type-mangled names for variables
+            dot_pos := assign_name.find(".")
+            if dot_pos.gteq(0) {
+                base := assign_name.get_substr(0, dot_pos)?
+                rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
+                if ctx.current_ref_params.contains(base) {
+                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str("->")
+                    output.push_str(rest)
+                } else {
+                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(".")
+                    output.push_str(rest)
+                }
+            } else if ctx.current_ref_params.contains(assign_name) {
+                output.push_str("*")
+                output.push_str(til_var_name_from_context(assign_name, context))
+            } else {
+                output.push_str(til_var_name_from_context(assign_name, context))
+            }
+            output.push_str(" = ")
+            output.push_str(TIL_PREFIX)
+            output.push_str(func_name_c)
+            output.push_str("(")
+            mut ai := 0
+            while ai.lt(regular_count) {
+                if ai.gt(0) {
                     output.push_str(", ")
                 }
-                mut arg_str_decl := ""
-                arg_strings.get(di, arg_str_decl)?
-                output.push_str(arg_str_decl)
-                di.inc()
+                mut arg_str_assign := ""
+                arg_strings.get(ai, arg_str_assign)?
+                output.push_str(arg_str_assign)
+                ai.inc()
             }
             if regular_count.gt(0) {
                 output.push_str(", ")
@@ -5198,80 +5438,55 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             output.push_str("&")
             output.push_str(variadic_arr_var)
             output.push_str(");\n")
-
-            _ := ctx.declared_vars.insert(variadic_c_var_name)
         }
-    } else if not(assign_name.eq("")) {
-        // Assignment
-        output.push_str(indent_str)
-        // Bug #97: Use type-mangled names for variables
-        // Check if assignment target is a field access on a mut param (self.field)
-        // If so, emit with -> instead of .
-        dot_pos := assign_name.find(".")
-        if dot_pos.gteq(0) {
-            base := assign_name.get_substr(0, dot_pos)?
-            rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
-            if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_Type_self->field
-                output.push_str(til_var_name_from_context(base, context))
-                output.push_str("->")
-                output.push_str(rest)
-            } else {
-                output.push_str(til_var_name_from_context(base, context))
-                output.push_str(".")
-                output.push_str(rest)
-            }
-        } else if ctx.current_ref_params.contains(assign_name) {
-            // Direct assignment to mut param: *til_Type_self = value
-            output.push_str("*")
-            output.push_str(til_var_name_from_context(assign_name, context))
-        } else {
-            output.push_str(til_var_name_from_context(assign_name, context))
-        }
-        output.push_str(" = ")
-        // Emit call inline
-        output.push_str(TIL_PREFIX)
-        output.push_str(func_name_c)
-        output.push_str("(")
-        mut ai := 0
-        while ai.lt(regular_count) {
-            if ai.gt(0) {
-                output.push_str(", ")
-            }
-            mut arg_str_assign := ""
-            arg_strings.get(ai, arg_str_assign)?
-            output.push_str(arg_str_assign)
-            ai.inc()
-        }
-        if regular_count.gt(0) {
-            output.push_str(", ")
-        }
-        output.push_str("&")
-        output.push_str(variadic_arr_var)
-        output.push_str(");\n")
     } else {
         // Standalone variadic call (no return value used)
-        output.push_str(indent_str)
-        // Emit call inline
-        output.push_str(TIL_PREFIX)
-        output.push_str(func_name_c)
-        output.push_str("(")
-        mut si := 0
-        while si.lt(regular_count) {
-            if si.gt(0) {
+        if use_out_ptr {
+            // Need temp for discarded out-pointer result
+            temp_standalone := next_mangled(ctx)
+            output.push_str(indent_str)
+            output.push_str(ret_type)
+            output.push_str(" ")
+            output.push_str(temp_standalone)
+            output.push_str(";\n")
+            output.push_str(indent_str)
+            output.push_str(TIL_PREFIX)
+            output.push_str(func_name_c)
+            output.push_str("(&")
+            output.push_str(temp_standalone)
+            mut si := 0
+            while si.lt(regular_count) {
+                output.push_str(", ")
+                mut arg_str_standalone := ""
+                arg_strings.get(si, arg_str_standalone)?
+                output.push_str(arg_str_standalone)
+                si.inc()
+            }
+            output.push_str(", &")
+            output.push_str(variadic_arr_var)
+            output.push_str(");\n")
+        } else {
+            output.push_str(indent_str)
+            output.push_str(TIL_PREFIX)
+            output.push_str(func_name_c)
+            output.push_str("(")
+            mut si := 0
+            while si.lt(regular_count) {
+                if si.gt(0) {
+                    output.push_str(", ")
+                }
+                mut arg_str_standalone := ""
+                arg_strings.get(si, arg_str_standalone)?
+                output.push_str(arg_str_standalone)
+                si.inc()
+            }
+            if regular_count.gt(0) {
                 output.push_str(", ")
             }
-            mut arg_str_standalone := ""
-            arg_strings.get(si, arg_str_standalone)?
-            output.push_str(arg_str_standalone)
-            si.inc()
+            output.push_str("&")
+            output.push_str(variadic_arr_var)
+            output.push_str(");\n")
         }
-        if regular_count.gt(0) {
-            output.push_str(", ")
-        }
-        output.push_str("&")
-        output.push_str(variadic_arr_var)
-        output.push_str(");\n")
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -6450,10 +6665,15 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 } else if not(func_def.return_types.is_empty()) {
                     mut ret_type_vt := ValueType.TCustom("")
                     func_def.return_types.get(0, ret_type_vt)?
-                    ret_type := til_type_to_c(ret_type_vt)?
-                    func_output.push_str("    return (")
-                    func_output.push_str(ret_type)
-                    func_output.push_str("){0};\n")
+                    // Bug #168: out-pointer functions just need return; (no value)
+                    if needs_out_pointer(ret_type_vt) {
+                        func_output.push_str("    return;\n")
+                    } else {
+                        ret_type := til_type_to_c(ret_type_vt)?
+                        func_output.push_str("    return (")
+                        func_output.push_str(ret_type)
+                        func_output.push_str("){0};\n")
+                    }
                 }
                 func_output.push_str("}\n\n")
 
@@ -6495,38 +6715,29 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             rhs_string = emit_arg_string(rhs, Ptr(), false, output, indent, ctx, context)?
             has_rhs_string = true
         case NodeType.Identifier(name):
-            // Bug #157: Check for UFCS field access on throwing call
-            // Pattern: Identifier("_") with params[0] = throwing FCall, params[1..] = field chain
+            // Bug #157: Hoist throwing calls in UFCS chains
+            // Bug #168: Also hoist non-throwing out-pointer calls in UFCS chains
+            // Pattern: Identifier("_") with params[0] = FCall, params[1..] = field chain
             if name.eq("_").and(not(rhs.params.is_empty())) {
                 mut first_param := Expr()
                 rhs.params.get(0, first_param)?
                 switch first_param.node_type {
                 case NodeType.FCall(_):
-                    mut fd := SFuncDef()
-                    mut found_fd := false
-                    fd = get_fcall_func_def(context, first_param)?
-                    found_fd = true
-                    catch (err: KeyNotFoundError) {
-                        // Not a function call we can look up
-                    }
-                    if found_fd.and(not(fd.throw_types.is_empty())) {
-                        // Hoist the throwing call
-                        base_temp := emit_arg_string(first_param, Ptr(), false, output, indent, ctx, context)?
-                        // Append field chain: temp.field1.field2...
-                        mut result := base_temp
-                        for field_idx in 1..rhs.params.len() {
-                            mut field_expr := Expr()
-                            rhs.params.get(field_idx, field_expr)?
-                            switch field_expr.node_type {
-                            case NodeType.Identifier(field):
-                                result = result.concat(".")
-                                result = result.concat(field)
-                            case:
-                            }
+                    base_temp := emit_arg_string(first_param, Ptr(), false, output, indent, ctx, context)?
+                    // Append field chain: temp.field1.field2...
+                    mut result := base_temp
+                    for field_idx in 1..rhs.params.len() {
+                        mut field_expr := Expr()
+                        rhs.params.get(field_idx, field_expr)?
+                        switch field_expr.node_type {
+                        case NodeType.Identifier(field):
+                            result = result.concat(".")
+                            result = result.concat(field)
+                        case:
                         }
-                        rhs_string = result
-                        has_rhs_string = true
                     }
+                    rhs_string = result
+                    has_rhs_string = true
                 case:
                 }
             }
@@ -7227,47 +7438,68 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     }
 
                     // Emit the function call storing result
-                    temp_var := next_mangled(ctx)
                     ret_type_vt := get_value_type(context, return_expr)?
                     catch (err: Str) {
                         throw return_expr.lang_error(context.path, "ccodegen", err)
                     }
-                    ret_type := til_type_to_c(ret_type_vt)?
-                    catch (err2: Str) {
-                        throw return_expr.lang_error(context.path, "ccodegen", err2)
-                    }
-                    output.push_str(indent_str)
-                    output.push_str(ret_type)
-                    output.push_str(" ")
-                    output.push_str(temp_var)
-                    output.push_str(" = ")
-                    // Emit the function call
+                    // Bug #168: Check if out-pointer return
+                    vret_use_out_ptr := needs_out_pointer(ret_type_vt)
+
                     mut var_first_param := Expr()
                     return_expr.params.get(0, var_first_param)?
+                    mut vret_func_name := ""
                     switch var_first_param.node_type {
-                    case NodeType.Identifier(func_name):
-                        output.push_str(til_func_name(func_name))
+                    case NodeType.Identifier(vret_fn_id):
+                        vret_func_name = vret_fn_id
                     case:
                     }
-                    output.push_str("(")
-                    // Emit regular args
-                    mut vret_arg_i := 0
-                    while vret_arg_i.lt(regular_arg_strings.len()) {
-                        if vret_arg_i.gt(0) {
+
+                    if vret_use_out_ptr {
+                        // Bug #168: Pass _ret directly to variadic callee
+                        output.push_str(indent_str)
+                        output.push_str(til_func_name(vret_func_name))
+                        output.push_str("(_ret")
+                        mut vret_arg_i := 0
+                        while vret_arg_i.lt(regular_arg_strings.len()) {
+                            output.push_str(", ")
+                            mut vret_arg_str := ""
+                            regular_arg_strings.get(vret_arg_i, vret_arg_str)?
+                            output.push_str(vret_arg_str)
+                            vret_arg_i.inc()
+                        }
+                        output.push_str(", &")
+                        output.push_str(arr_var)
+                        output.push_str(");\n")
+                    } else {
+                        temp_var := next_mangled(ctx)
+                        ret_type := til_type_to_c(ret_type_vt)?
+                        catch (err2: Str) {
+                            throw return_expr.lang_error(context.path, "ccodegen", err2)
+                        }
+                        output.push_str(indent_str)
+                        output.push_str(ret_type)
+                        output.push_str(" ")
+                        output.push_str(temp_var)
+                        output.push_str(" = ")
+                        output.push_str(til_func_name(vret_func_name))
+                        output.push_str("(")
+                        mut vret_arg_i := 0
+                        while vret_arg_i.lt(regular_arg_strings.len()) {
+                            if vret_arg_i.gt(0) {
+                                output.push_str(", ")
+                            }
+                            mut vret_arg_str := ""
+                            regular_arg_strings.get(vret_arg_i, vret_arg_str)?
+                            output.push_str(vret_arg_str)
+                            vret_arg_i.inc()
+                        }
+                        if variadic_fcall_info.regular_count.gt(0) {
                             output.push_str(", ")
                         }
-                        mut vret_arg_str := ""
-                        regular_arg_strings.get(vret_arg_i, vret_arg_str)?
-                        output.push_str(vret_arg_str)
-                        vret_arg_i.inc()
+                        output.push_str("&")
+                        output.push_str(arr_var)
+                        output.push_str(");\n")
                     }
-                    // Emit variadic array pointer
-                    if variadic_fcall_info.regular_count.gt(0) {
-                        output.push_str(", ")
-                    }
-                    output.push_str("&")
-                    output.push_str(arr_var)
-                    output.push_str(");\n")
 
                     // Delete array
                     output.push_str(indent_str)
@@ -7276,11 +7508,15 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     output.push_str(arr_var)
                     output.push_str(");\n")
 
-                    // Return the result
+                    // Return
                     output.push_str(indent_str)
-                    output.push_str("return ")
-                    output.push_str(temp_var)
-                    output.push_str(";\n")
+                    if vret_use_out_ptr {
+                        output.push_str("return;\n")
+                    } else {
+                        output.push_str("return ")
+                        output.push_str(temp_var)
+                        output.push_str(";\n")
+                    }
                     return
                 }
             case:
@@ -7298,13 +7534,30 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         }
 
         // Regular non-variadic return
-        output.push_str(indent_str)
-        output.push_str("return")
-        if has_nv_return {
-            output.push_str(" ")
-            output.push_str(nv_return_str)
+        // Bug #168: Check if current function returns struct needing out-pointer
+        mut ret_needs_out_ptr := false
+        if not(ctx.current_return_types.is_empty()) {
+            mut cur_ret_type := ValueType.TCustom(INFER_TYPE)
+            ctx.current_return_types.get(0, cur_ret_type)?
+            ret_needs_out_ptr = needs_out_pointer(cur_ret_type)
+            catch (err: IndexOutOfBoundsError) { }
         }
-        output.push_str(";\n")
+        if ret_needs_out_ptr.and(has_nv_return) {
+            output.push_str(indent_str)
+            output.push_str("*_ret = ")
+            output.push_str(nv_return_str)
+            output.push_str(";\n")
+            output.push_str(indent_str)
+            output.push_str("return;\n")
+        } else {
+            output.push_str(indent_str)
+            output.push_str("return")
+            if has_nv_return {
+                output.push_str(" ")
+                output.push_str(nv_return_str)
+            }
+            output.push_str(";\n")
+        }
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -8604,6 +8857,32 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         }
     }
 
+    // Bug #168: For non-throwing struct-returning functions at statement level,
+    // declare a temp for discarded out-pointer result
+    mut stmt_out_ptr := ""
+    mut has_stmt_out_ptr := false
+    if is_stmt_level.and(not(is_enum_constructor)) {
+        fcall_fd := get_fcall_func_def(context, expr)?
+        if fcall_fd.throw_types.is_empty().and(not(fcall_fd.return_types.is_empty())) {
+            mut fcall_first_rt := ValueType.TCustom(INFER_TYPE)
+            fcall_fd.return_types.get(0, fcall_first_rt)?
+            if needs_out_pointer(fcall_first_rt) {
+                fcall_temp := next_mangled(ctx)
+                fcall_c_type := til_type_to_c(fcall_first_rt)?
+                output.push_str(indent_str)
+                output.push_str(fcall_c_type)
+                output.push_str(" ")
+                output.push_str(fcall_temp)
+                output.push_str(";\n")
+                output.push_str(indent_str)
+                stmt_out_ptr = concat("&", fcall_temp)
+                has_stmt_out_ptr = true
+            }
+        }
+        catch (err: KeyNotFoundError) { }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+
     output.push_str(TIL_PREFIX)
     if is_enum_constructor {
         ctor_parts := func_name.split("_")?
@@ -8619,6 +8898,11 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
     output.push_str("(")
 
+    // Bug #168: Add out-pointer as first arg
+    if has_stmt_out_ptr {
+        output.push_str(stmt_out_ptr)
+    }
+
     // Check if this is a variadic function call
     if have_variadic_info {
         mut var_fcall_info := VariadicFCallInfo()
@@ -8630,7 +8914,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             // Emit regular args from arg_strings
             mut vstmt_arg_i := 0
             while vstmt_arg_i.lt(var_regular_count) {
-                if vstmt_arg_i.gt(0) {
+                if vstmt_arg_i.gt(0).or(has_stmt_out_ptr) {
                     output.push_str(", ")
                 }
                 mut vstmt_arg_str := ""
@@ -8691,7 +8975,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
         // Emit variadic array pointer
         if has_variadic_arr {
-            if var_regular_count.gt(0) {
+            if var_regular_count.gt(0).or(has_stmt_out_ptr) {
                 output.push_str(", ")
             }
             output.push_str("&")
@@ -8706,7 +8990,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         if is_stmt_level {
             mut nstmt_arg_i := 0
             while nstmt_arg_i.lt(arg_strings.len()) {
-                if nstmt_arg_i.gt(0) {
+                if nstmt_arg_i.gt(0).or(has_stmt_out_ptr) {
                     output.push_str(", ")
                 }
                 mut nstmt_arg_str := ""

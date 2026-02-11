@@ -1236,27 +1236,20 @@ creates a shared-pointer alias. Both ~Str.delete(elem_type)~ and
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Semantic divergence between interpreter and compiled code; root cause of memory leak gap
-:STATUS: In progress
+:STATUS: In progress -- Commits 1-2 done, Commit 3 (placement construction) remaining
 :RELATED: Bug #159 (shallow copies), Bug #165 (memory leak), Bug #80 (ccodegen divergence), Issue #117 (ASAP destruction)
 :PLAN: .claude/plans/foamy-swimming-kernighan.md
 :END:
 
 *** Description
 In the interpreter, function returns are shared offsets -- no copy happens.
-In ccodegen, every struct return is a memcpy:
-#+begin_src c
-*_ret = value;          // callee: struct assignment = implicit memcpy
-var = func_call();      // caller: receives shallow copy
-#+end_src
+The callee writes data to the heap, returns the offset, and the caller binds
+that same offset to a new variable name. Two names, same data, zero copies.
 
-This means ccodegen creates copies the interpreter never does. The original
-value in the callee's scope is abandoned (heap pointers aliased, never freed).
-This is the fundamental semantic gap between interpreter and compiled memory
-behavior, and the reason compiled TIL leaks far more than interpreted.
-
-In C, return values are effectively pointer-based anyway (NRVO, hidden
-destination pointer). The memcpy is semantically unnecessary. Same applies
-to throw values and out params.
+In ccodegen, every struct return creates shallow memcpy copies. The callee's
+local is abandoned with aliased heap pointers, never freed. This is the
+fundamental semantic gap and the reason compiled TIL leaks far more than
+interpreted.
 
 *** Why this matters
 - #117 (ASAP destruction) can't be completed for ccodegen while returns
@@ -1265,25 +1258,20 @@ to throw values and out params.
   much memory to run =make diff til.til=
 - #100 (self-hosting) is blocked by #80 which is blocked by this
 
-*** Inventory (from Bug #159 section 1)
-- =*_ret = value;= -- callee struct assignment
-- =var = _ret_X;= -- call site receives shallow copy
-- Every function returning a struct creates a shallow copy at the call site
-- throw values -- same pattern
-- out params -- same pattern
+*** IMPORTANT: This issue can't be closed without a noticeable improvement in performance
+Commits 1 and 2 are infrastructure only. They eliminate unnecessary copies at
+call sites but the callee still does =*_ret = local;= which is a shallow copy
+that aliases heap pointers. The memory leak gap (Bug #165) won't improve until
+Commit 3 (placement construction) eliminates that last copy. If performance
+doesn't measurably improve after Commit 3, the issue stays open.
 
-*** Implementation plan
+*** Done: Commit 1 -- Throwing calls eliminate intermediate =_ret_N= temp
 
-Goal: every struct-returning call has at most 1 copy (=*_ret = local= inside
-the callee). Call sites pass destination address directly -- no intermediate temp.
-
-**** Commit 1: Throwing calls -- eliminate intermediate =_ret_N= temp
-
-Throwing functions already use the out-pointer pattern. The only problem is
-the unnecessary intermediate temp at call sites:
+Throwing functions already used out-pointer. Eliminated the unnecessary temp
+at call sites:
 
 #+begin_src c
-// BEFORE (current):
+// BEFORE:
 til_Str _ret_N;                              // temp
 int _status_N = func(&_ret_N, &_err, args);  // write to temp
 dest = _ret_N;                               // UNNECESSARY COPY
@@ -1292,15 +1280,16 @@ dest = _ret_N;                               // UNNECESSARY COPY
 int _status_N = func(&dest, &_err, args);    // write to dest directly
 #+end_src
 
-- Step 1: Add =build_dest_ptr_expr= helper
-- Step 2: Modify =emit_throwing_call_propagate= -- skip temp, use dest ptr, skip copy
-- Step 3: Modify =emit_throwing_call_with_goto= -- same changes
-- Step 4: Port to ccodegen.til
+- =build_dest_ptr_expr= helper computes &dest for all LHS patterns
+- =emit_throwing_call_propagate= and =emit_throwing_call_with_goto= skip
+  temp declaration, pass dest ptr directly, skip final copy
+- Ported to ccodegen.til
+- 98/98 tests pass
 
-**** Commit 2: Non-throwing struct returns -- switch to out-pointer
+*** Done: Commit 2 -- Non-throwing struct returns switch to out-pointer
 
-Change non-throwing struct-returning functions from return-by-value to
-out-pointer, matching the pattern throwing functions already use.
+Changed non-throwing struct-returning functions from return-by-value to
+out-pointer, matching throwing functions:
 
 #+begin_src c
 // BEFORE:
@@ -1313,22 +1302,47 @@ til_Vec dest = til_Vec_new(T);  // implicit memcpy
 // AFTER:
 void til_Vec_new(til_Vec* _ret, til_Type T) {
     til_Vec vec = {...};
-    *_ret = vec;           // one copy
+    *_ret = vec;           // one copy (STILL A SHALLOW COPY)
     return;
 }
 til_Vec dest;
 til_Vec_new(&dest, T);    // zero copies at call site
 #+end_src
 
-- Step 5: Add =needs_out_pointer= helper
-- Step 6: Modify =emit_func_signature= -- void + =_ret= param for structs
-- Step 7: Modify =emit_return= -- =*_ret = value; return;=
-- Step 8: Modify implicit return fallbacks (3 locations)
-- Step 9: Modify =emit_fcall_arg_string= -- hoist nested struct calls
-- Step 10: Modify =emit_declaration= for direct out-pointer
-- Step 11: Modify =emit_assignment= for direct out-pointer
-- Step 12: Update ext.c (=til_i64_to_str=, =til_fs_parent_dir=)
-- Step 13: Port all to ccodegen.til
+Changes: =needs_out_pointer= helper, =emit_func_signature= (void + =_ret=),
+=emit_return= (=*_ret = value; return;=), implicit return fallbacks,
+=emit_fcall_arg_string= (hoist nested calls), =emit_variadic_call=,
+=emit_variadic_arg_string=, =emit_fcall= (statement-level), =emit_declaration=
+(UFCS chains), ext.c (=til_i64_to_str=, =til_fs_parent_dir=). All ported to
+ccodegen.til. 98/98 tests pass.
+
+This commit is infrastructure only -- call sites are clean but callees still
+create a local and copy to =*_ret=.
+
+*** TODO: Commit 3 -- Placement construction (the actual fix)
+
+Callees must construct directly into =*_ret= instead of creating a local
+and copying. This eliminates the last shallow copy and matches the interpreter.
+
+#+begin_src c
+// Current (after Commit 2) -- still 1 shallow copy:
+void til_make_thing(til_MyStruct* _ret) {
+    til_MyStruct til_MyStruct_result = {0};  // local
+    til_MyStruct_result.field = 42;
+    *_ret = til_MyStruct_result;             // shallow copy, local leaked
+}
+
+// Goal -- zero copies, like the interpreter:
+void til_make_thing(til_MyStruct* _ret) {
+    *_ret = (til_MyStruct){0};               // construct into dest
+    _ret->field = 42;                        // write into dest
+    return;                                  // no local, no copy, no leak
+}
+#+end_src
+
+Approach: detect the "return variable" in the callee and alias it to =_ret=.
+When the codegen sees =result := MyStruct()= followed by =return result=, it
+should emit construction into =*_ret= and field writes via =_ret->=.
 
 **** Scope exclusions
 - =emit_enum_to_str_function= -- returns Str with borrowed literals, safe

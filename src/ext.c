@@ -204,12 +204,12 @@ static inline void til_exit(const til_I64* code)
 }
 
 // String conversion functions
-static inline til_Str til_i64_to_str(const til_I64* v)
+static inline void til_i64_to_str(til_Str* _ret, const til_I64* v)
 {
     char* buf = (char*)malloc(32);
     if (!buf) {
-        til_Str s = {{0, 0, 0, 0, 0}, 0, 0};  // Ptr{data, is_borrowed, alloc_size, elem_type, elem_size}
-        return s;
+        *_ret = (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // Ptr{data, is_borrowed, alloc_size, elem_type, elem_size}
+        return;
     }
     snprintf(buf, 32, "%lld", (long long)*v);
     til_Str s;
@@ -220,7 +220,8 @@ static inline til_Str til_i64_to_str(const til_I64* v)
     s.c_string.elem_size = 0;
     s._len = strlen(buf);
     s.cap = 32;
-    return s;
+    *_ret = s;
+    return;
 }
 
 static inline til_I64 til_str_to_i64(const til_Str* s)
@@ -557,7 +558,7 @@ static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* p
 }
 
 // fs_parent_dir: Get parent directory of a path (Windows version)
-static inline til_Str til_fs_parent_dir(const til_Str* path) {
+static inline void til_fs_parent_dir(til_Str* _ret, const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
 
@@ -572,14 +573,16 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     if (!found || last_slash == 0) {
-        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
+        *_ret = (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
+        return;
     }
 
     // Allocate and copy parent path
     char* result = (char*)malloc(last_slash + 1);
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
-    return (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
+    *_ret = (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
+    return;
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Windows)
@@ -706,7 +709,7 @@ static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* p
 }
 
 // fs_parent_dir: Get parent directory of a path
-static inline til_Str til_fs_parent_dir(const til_Str* path) {
+static inline void til_fs_parent_dir(til_Str* _ret, const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
 
@@ -721,14 +724,16 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     if (!found || last_slash == 0) {
-        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
+        *_ret = (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
+        return;
     }
 
     // Allocate and copy parent path
     char* result = (char*)malloc(last_slash + 1);
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
-    return (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
+    *_ret = (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
+    return;
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Unix)

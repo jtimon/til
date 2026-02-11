@@ -171,6 +171,17 @@ fn is_empty_error_struct(context: &Context, throw_type: &ValueType) -> bool {
     false
 }
 
+// Bug #168: Check if a return type needs out-pointer instead of return-by-value.
+// Structs with heap data (Str, Vec, Array, Map, Set, List, user structs) use out-pointer
+// to avoid implicit memcpy at call sites. Scalars (I64, U8, Bool, Ptr, Dynamic, Type) stay by-value.
+fn needs_out_pointer(return_type: &ValueType) -> bool {
+    if let ValueType::TCustom(name) = return_type {
+        !matches!(name.as_str(), "I64" | "U8" | "Bool" | "Dynamic" | "Type" | "Ptr")
+    } else {
+        false
+    }
+}
+
 // Get function name from FCall's first param, handling both AST patterns:
 // - Identifier("func") with params = [] -> "func"
 // - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
@@ -515,13 +526,13 @@ fn hoist_variadic_args(
     output.push_str(&variadic_count.to_string());
     output.push_str(";\n");
 
-    // Emit Array.new call (non-throwing, panics internally on malloc failure)
-    // til_Array arr = til_Array_new(type_temp, &count_temp);
+    // Bug #168: Emit Array.new call with out-pointer
+    // til_Array_new(&arr, type_temp, &count_temp);
     output.push_str(&indent_str);
-    output.push_str(&arr_var);
-    output.push_str(" = ");
     output.push_str(TIL_PREFIX);
-    output.push_str("Array_new(");
+    output.push_str("Array_new(&");
+    output.push_str(&arr_var);
+    output.push_str(", ");
     output.push_str(&type_temp);
     output.push_str(", &");
     output.push_str(&count_temp);
@@ -1160,36 +1171,53 @@ fn emit_variadic_arg_string(
     )?;
 
     // Emit the function call
-    hoist_output.push_str(&indent_str);
-    hoist_output.push_str(&temp_var);
-    hoist_output.push_str(" = ");
-
     // Get function name
     let func_name = get_func_name_string(&arg.params[0])
         .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
     let orig_func_name = get_til_func_name_string(&arg.params[0]).unwrap_or_else(|| func_name.clone());
     let mangled_name = ctx.nested_func_names.get(&orig_func_name).cloned().unwrap_or(func_name.clone());
 
-    hoist_output.push_str(&til_func_name(&mangled_name));
-    hoist_output.push('(');
+    // Bug #168: Check if return type needs out-pointer
+    let use_out_ptr = fd.return_types.first().map(|rt| needs_out_pointer(rt)).unwrap_or(false);
 
-    // Regular arguments
-    let mut first = true;
-    for arg_str in nested_arg_strings.iter().take(vi.regular_count) {
+    hoist_output.push_str(&indent_str);
+    if use_out_ptr {
+        // Out-pointer call: func(&temp, regular_args, &arr)
+        hoist_output.push_str(&til_func_name(&mangled_name));
+        hoist_output.push_str("(&");
+        hoist_output.push_str(&temp_var);
+        for arg_str in nested_arg_strings.iter().take(vi.regular_count) {
+            hoist_output.push_str(", ");
+            hoist_output.push_str(arg_str);
+        }
+        hoist_output.push_str(", &");
+        hoist_output.push_str(&variadic_arr_var);
+        hoist_output.push_str(");\n");
+    } else {
+        // Regular call: temp = func(regular_args, &arr)
+        hoist_output.push_str(&temp_var);
+        hoist_output.push_str(" = ");
+        hoist_output.push_str(&til_func_name(&mangled_name));
+        hoist_output.push('(');
+
+        // Regular arguments
+        let mut first = true;
+        for arg_str in nested_arg_strings.iter().take(vi.regular_count) {
+            if !first {
+                hoist_output.push_str(", ");
+            }
+            first = false;
+            hoist_output.push_str(arg_str);
+        }
+
+        // Variadic array pointer
         if !first {
             hoist_output.push_str(", ");
         }
-        first = false;
-        hoist_output.push_str(arg_str);
+        hoist_output.push_str("&");
+        hoist_output.push_str(&variadic_arr_var);
+        hoist_output.push_str(");\n");
     }
-
-    // Variadic array pointer
-    if !first {
-        hoist_output.push_str(", ");
-    }
-    hoist_output.push_str("&");
-    hoist_output.push_str(&variadic_arr_var);
-    hoist_output.push_str(");\n");
 
     // Delete variadic array
     hoist_output.push_str(&indent_str);
@@ -1267,12 +1295,12 @@ fn emit_variadic_array_with_strings(
     output.push_str(&elem_count.to_string());
     output.push_str(";\n");
 
-    // Call Array.new (non-throwing)
+    // Bug #168: Call Array.new with out-pointer
     output.push_str(&indent_str);
-    output.push_str(&arr_var);
-    output.push_str(" = ");
     output.push_str(TIL_PREFIX);
-    output.push_str("Array_new(");
+    output.push_str("Array_new(&");
+    output.push_str(&arr_var);
+    output.push_str(", ");
     output.push_str(&type_temp);
     output.push_str(", &");
     output.push_str(&count_temp);
@@ -1622,6 +1650,36 @@ fn emit_fcall_arg_string(
     } else {
         false
     };
+
+    // Bug #168: Non-throwing struct-returning calls used as arguments need out-pointer hoisting
+    if !is_enum_constructor {
+        if let Some(ref fd) = fd_opt {
+            if fd.throw_types.is_empty() && !fd.return_types.is_empty()
+                && needs_out_pointer(&fd.return_types[0])
+            {
+                let indent_str = "    ".repeat(indent);
+                let temp = next_mangled(ctx);
+                let c_type = til_type_to_c(&fd.return_types[0])?;
+                // Declare temp
+                hoist_output.push_str(&indent_str);
+                hoist_output.push_str(&c_type);
+                hoist_output.push_str(" ");
+                hoist_output.push_str(&temp);
+                hoist_output.push_str(";\n");
+                // Call with &temp as _ret
+                hoist_output.push_str(&indent_str);
+                hoist_output.push_str(&til_func_name(&mangled_name));
+                hoist_output.push_str("(&");
+                hoist_output.push_str(&temp);
+                for arg_str in nested_arg_strings.iter() {
+                    hoist_output.push_str(", ");
+                    hoist_output.push_str(arg_str);
+                }
+                hoist_output.push_str(");\n");
+                return Ok(temp);
+            }
+        }
+    }
 
     let mut call_str = String::new();
     if is_enum_constructor {
@@ -2044,7 +2102,8 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         if main_has_variadic {
             // Convert argc/argv to til_Array and pass to til_main
             // Skip argv[0] (exe path) to match interpreter behavior
-            output.push_str("    til_Array _main_args = til_Array_new(\"Str\", &(til_I64){argc - 1});\n");
+            output.push_str("    til_Array _main_args;\n");
+            output.push_str("    til_Array_new(&_main_args, \"Str\", &(til_I64){argc - 1});\n");
             output.push_str("    for (int i = 1; i < argc; i++) {\n");
             output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1, 0, 0, 0}), strlen(argv[i]), 0};\n");
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n");
@@ -3275,9 +3334,14 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
         // Throwing functions return int (0=success, 1+=error)
         output.push_str("    return 0;\n");
     } else if !func_def.return_types.is_empty() {
-        // Non-throwing functions with return type - add zero-initialized fallback
-        let ret_type = til_type_to_c(&func_def.return_types[0])?;
-        output.push_str(&format!("    return ({}){{0}};\n", ret_type));
+        if needs_out_pointer(&func_def.return_types[0]) {
+            // Bug #168: Out-pointer function returns void
+            output.push_str("    return;\n");
+        } else {
+            // Non-throwing functions with return type - add zero-initialized fallback
+            let ret_type = til_type_to_c(&func_def.return_types[0])?;
+            output.push_str(&format!("    return ({}){{0}};\n", ret_type));
+        }
     }
 
     output.push_str("}\n\n");
@@ -3377,6 +3441,9 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, 
         // Non-throwing function returns its actual type
         if func_def.return_types.is_empty() {
             output.push_str("void ");
+        } else if needs_out_pointer(&func_def.return_types[0]) {
+            // Bug #168: Struct returns use out-pointer, function returns void
+            output.push_str("void ");
         } else {
             let ret_type = til_type_to_c(&func_def.return_types[0])?;
             output.push_str(&ret_type);
@@ -3388,6 +3455,16 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, 
     output.push_str("(");
 
     let mut param_count = 0;
+
+    // Bug #168: Non-throwing struct returns also get _ret out-pointer as first param
+    let needs_ret_ptr = !is_throwing && !func_def.return_types.is_empty()
+        && needs_out_pointer(&func_def.return_types[0]);
+    if needs_ret_ptr {
+        let ret_type = til_type_to_c(&func_def.return_types[0])?;
+        output.push_str(&ret_type);
+        output.push_str("* _ret");
+        param_count += 1;
+    }
 
     if is_throwing {
         // Output params first: return value pointer, then error pointers
@@ -3586,8 +3663,13 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 if !func_def.throw_types.is_empty() {
                     output.push_str("    return 0;\n");
                 } else if !func_def.return_types.is_empty() {
-                    let ret_type = til_type_to_c(&func_def.return_types[0])?;
-                    output.push_str(&format!("    return ({}){{0}};\n", ret_type));
+                    if needs_out_pointer(&func_def.return_types[0]) {
+                        // Bug #168: Out-pointer function returns void
+                        output.push_str("    return;\n");
+                    } else {
+                        let ret_type = til_type_to_c(&func_def.return_types[0])?;
+                        output.push_str(&format!("    return ({}){{0}};\n", ret_type));
+                    }
                 }
 
                 output.push_str("}\n\n");
@@ -4118,29 +4200,40 @@ fn emit_variadic_call(
     let variadic_arr_var = emit_variadic_array_with_strings(elem_type, &variadic_arg_strings, output, indent, ctx)?;
 
     // Determine return type if we need to declare a variable
+    let ret_type_vt = func_def_opt.as_ref().and_then(|fd| fd.return_types.first().cloned());
     let ret_type = if decl_name.is_some() || assign_name.is_some() {
-        get_fcall_func_def(context, fcall)
-            .and_then(|fd| fd.return_types.first().cloned())
-            .map(|t| til_type_to_c(&t).unwrap_or("int".to_string()))
+        ret_type_vt.as_ref()
+            .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
     } else {
         "int".to_string()
     };
 
+    // Bug #168: Check if return type needs out-pointer
+    let use_out_ptr = ret_type_vt.as_ref().map(|rt| needs_out_pointer(rt)).unwrap_or(false);
+
     // Helper to emit the function call with pre-computed arg_strings
-    let emit_call = |out: &mut String| {
+    // dest_ptr: optional destination pointer expression (e.g. "&til_Str_x") for out-pointer calls
+    let emit_call = |out: &mut String, dest_ptr: Option<&str>| {
         out.push_str(TIL_PREFIX);
         out.push_str(&func_name.replace('.', "_"));
         out.push_str("(");
+        let mut need_comma = false;
+        // Bug #168: Add destination pointer as first arg for out-pointer calls
+        if let Some(dp) = dest_ptr {
+            out.push_str(dp);
+            need_comma = true;
+        }
         // Emit regular args using pre-computed arg_strings
-        for (vret_arg_i, vret_arg_str) in arg_strings.iter().take(regular_count).enumerate() {
-            if vret_arg_i > 0 {
+        for vret_arg_str in arg_strings.iter().take(regular_count) {
+            if need_comma {
                 out.push_str(", ");
             }
+            need_comma = true;
             out.push_str(vret_arg_str);
         }
         // Emit variadic array pointer
-        if regular_count > 0 {
+        if need_comma {
             out.push_str(", ");
         }
         out.push_str("&");
@@ -4152,9 +4245,22 @@ fn emit_variadic_call(
     if let Some(var_name) = decl_name {
         if var_name == "_" {
             // Bug #35: For underscore, just call the function (discard result)
-            output.push_str(&indent_str);
-            emit_call(output);
-            output.push_str(";\n");
+            if use_out_ptr {
+                // Need temp for discarded out-pointer result
+                let temp = next_mangled(ctx);
+                output.push_str(&indent_str);
+                output.push_str(&ret_type);
+                output.push_str(" ");
+                output.push_str(&temp);
+                output.push_str(";\n");
+                output.push_str(&indent_str);
+                emit_call(output, Some(&format!("&{}", temp)));
+                output.push_str(";\n");
+            } else {
+                output.push_str(&indent_str);
+                emit_call(output, None);
+                output.push_str(";\n");
+            }
         } else {
             // Bug #97: Register in scope FIRST so we can get the type-mangled name
             if let Some(fd) = get_fcall_func_def(context, fcall) {
@@ -4166,50 +4272,96 @@ fn emit_variadic_call(
                 }
             }
             let c_var_name = til_var_name_from_context(var_name, context);
-            output.push_str(&indent_str);
-            output.push_str(&ret_type);
-            output.push_str(" ");
-            output.push_str(&c_var_name);
-            output.push_str(" = ");
-            emit_call(output);
-            output.push_str(";\n");
+            if use_out_ptr {
+                // Bug #168: Declare var, then call with out-pointer
+                output.push_str(&indent_str);
+                output.push_str(&ret_type);
+                output.push_str(" ");
+                output.push_str(&c_var_name);
+                output.push_str(";\n");
+                output.push_str(&indent_str);
+                emit_call(output, Some(&format!("&{}", c_var_name)));
+                output.push_str(";\n");
+            } else {
+                output.push_str(&indent_str);
+                output.push_str(&ret_type);
+                output.push_str(" ");
+                output.push_str(&c_var_name);
+                output.push_str(" = ");
+                emit_call(output, None);
+                output.push_str(";\n");
+            }
 
             ctx.declared_vars.insert(c_var_name);
         }
     } else if let Some(var_name) = assign_name {
         // Assignment
-        output.push_str(&indent_str);
-        // Bug #97: Use type-mangled names for variables
-        // Check if assignment target is a field access on a mut param (self.field)
-        // If so, emit with -> instead of .
-        if let Some(dot_pos) = var_name.find('.') {
-            let base = &var_name[..dot_pos];
-            let rest = &var_name[dot_pos + 1..];
-            if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_Type_self->field
-                output.push_str(&til_var_name_from_context(base, context));
-                output.push_str("->");
-                output.push_str(rest);
+        if use_out_ptr {
+            // Bug #168: Call with out-pointer to destination directly
+            output.push_str(&indent_str);
+            let dest_expr = if let Some(dot_pos) = var_name.find('.') {
+                let base = &var_name[..dot_pos];
+                let rest = &var_name[dot_pos + 1..];
+                if ctx.current_ref_params.contains(base) {
+                    format!("&({}->{})", til_var_name_from_context(base, context), rest)
+                } else {
+                    format!("&({}.{})", til_var_name_from_context(base, context), rest)
+                }
+            } else if ctx.current_ref_params.contains(var_name) {
+                // Already a pointer
+                til_var_name_from_context(var_name, context)
             } else {
-                output.push_str(&til_var_name_from_context(base, context));
-                output.push_str(".");
-                output.push_str(rest);
-            }
-        } else if ctx.current_ref_params.contains(var_name) {
-            // Direct assignment to mut param: *til_Type_self = value
-            output.push_str("*");
-            output.push_str(&til_var_name_from_context(var_name, context));
+                format!("&{}", til_var_name_from_context(var_name, context))
+            };
+            emit_call(output, Some(&dest_expr));
+            output.push_str(";\n");
         } else {
-            output.push_str(&til_var_name_from_context(var_name, context));
+            output.push_str(&indent_str);
+            // Bug #97: Use type-mangled names for variables
+            // Check if assignment target is a field access on a mut param (self.field)
+            // If so, emit with -> instead of .
+            if let Some(dot_pos) = var_name.find('.') {
+                let base = &var_name[..dot_pos];
+                let rest = &var_name[dot_pos + 1..];
+                if ctx.current_ref_params.contains(base) {
+                    // Mut param field access: til_Type_self->field
+                    output.push_str(&til_var_name_from_context(base, context));
+                    output.push_str("->");
+                    output.push_str(rest);
+                } else {
+                    output.push_str(&til_var_name_from_context(base, context));
+                    output.push_str(".");
+                    output.push_str(rest);
+                }
+            } else if ctx.current_ref_params.contains(var_name) {
+                // Direct assignment to mut param: *til_Type_self = value
+                output.push_str("*");
+                output.push_str(&til_var_name_from_context(var_name, context));
+            } else {
+                output.push_str(&til_var_name_from_context(var_name, context));
+            }
+            output.push_str(" = ");
+            emit_call(output, None);
+            output.push_str(";\n");
         }
-        output.push_str(" = ");
-        emit_call(output);
-        output.push_str(";\n");
     } else {
         // Standalone variadic call (no return value used)
-        output.push_str(&indent_str);
-        emit_call(output);
-        output.push_str(";\n");
+        if use_out_ptr {
+            // Need temp for discarded out-pointer result
+            let temp = next_mangled(ctx);
+            output.push_str(&indent_str);
+            output.push_str(&ret_type);
+            output.push_str(" ");
+            output.push_str(&temp);
+            output.push_str(";\n");
+            output.push_str(&indent_str);
+            emit_call(output, Some(&format!("&{}", temp)));
+            output.push_str(";\n");
+        } else {
+            output.push_str(&indent_str);
+            emit_call(output, None);
+            output.push_str(";\n");
+        }
     }
 
     // Clean up variadic array
@@ -5223,8 +5375,13 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 if !func_def.throw_types.is_empty() {
                     func_output.push_str("    return 0;\n");
                 } else if !func_def.return_types.is_empty() {
-                    let ret_type = til_type_to_c(&func_def.return_types[0])?;
-                    func_output.push_str(&format!("    return ({}){{0}};\n", ret_type));
+                    if needs_out_pointer(&func_def.return_types[0]) {
+                        // Bug #168: Out-pointer function returns void
+                        func_output.push_str("    return;\n");
+                    } else {
+                        let ret_type = til_type_to_c(&func_def.return_types[0])?;
+                        func_output.push_str(&format!("    return ({}){{0}};\n", ret_type));
+                    }
                 }
                 func_output.push_str("}\n\n");
 
@@ -5258,6 +5415,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     // Bug #143: Process RHS FCall with emit_arg_string
     // This handles builtins (to_ptr, size_of, etc.), throwing calls, by-ref params, and Dynamic params properly
     // Bug #157: Also handle field access on throwing calls (e.g., get_wrapper()?.value)
+    // Bug #168: Non-throwing struct-returning calls are hoisted with out-pointer by emit_fcall_arg_string
     let rhs_string: Option<String> = if !expr.params.is_empty() {
         let rhs = &expr.params[0];
         if let NodeType::FCall(_) = &rhs.node_type {
@@ -5267,25 +5425,18 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             // Pattern: Identifier("_") with params[0] = throwing FCall, params[1..] = field chain
             if name == "_" && !rhs.params.is_empty() {
                 if let NodeType::FCall(_) = &rhs.params[0].node_type {
-                    if let Some(fd) = get_fcall_func_def(context, &rhs.params[0]) {
-                        if !fd.throw_types.is_empty() {
-                            // Hoist the throwing call
-                            let base_temp = emit_arg_string(&rhs.params[0], None, false, output, indent, ctx, context)?;
-                            // Append field chain: temp.field1.field2...
-                            let mut result = base_temp;
-                            for field_expr in &rhs.params[1..] {
-                                if let NodeType::Identifier(field) = &field_expr.node_type {
-                                    result.push('.');
-                                    result.push_str(field);
-                                }
-                            }
-                            Some(result)
-                        } else {
-                            None
+                    // Bug #157: Hoist throwing calls in UFCS chains
+                    // Bug #168: Also hoist non-throwing out-pointer calls in UFCS chains
+                    let base_temp = emit_arg_string(&rhs.params[0], None, false, output, indent, ctx, context)?;
+                    // Append field chain: temp.field1.field2...
+                    let mut result = base_temp;
+                    for field_expr in &rhs.params[1..] {
+                        if let NodeType::Identifier(field) = &field_expr.node_type {
+                            result.push('.');
+                            result.push_str(field);
                         }
-                    } else {
-                        None
                     }
+                    Some(result)
                 } else {
                     None
                 }
@@ -5665,6 +5816,7 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
         }
 
         // Process RHS with emit_arg_string (handles hoisting)
+        // Bug #168: Non-throwing struct-returning calls are hoisted with out-pointer by emit_fcall_arg_string
         Some(emit_arg_string(rhs_expr, None, false, output, indent, ctx, context)?)
     } else {
         None
@@ -5776,53 +5928,88 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                         regular_arg_strings.push(emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?);
                     }
 
-                    // Emit the function call storing result
-                    let temp_var = next_mangled(ctx);
-                    let ret_type = match get_value_type(context, return_expr) {
-                        Ok(t) => til_type_to_c(&t).map_err(|e| return_expr.lang_error(&context.path, "ccodegen", &e))?,
-                        Err(e) => return Err(return_expr.lang_error(&context.path, "ccodegen", &e)),
-                    };
-                    output.push_str(&indent_str);
-                    output.push_str(&ret_type);
-                    output.push_str(" ");
-                    output.push_str(&temp_var);
-                    output.push_str(" = ");
-                    // Emit the function call
-                    if let NodeType::Identifier(func_name) = &return_expr.params[0].node_type {
-                        output.push_str(&til_func_name(func_name));
-                    }
-                    output.push_str("(");
-                    // Emit regular args
-                    for (i, arg_str) in regular_arg_strings.iter().enumerate() {
-                        if i > 0 {
+                    // Bug #168: Check if current function uses out-pointer return
+                    let use_out_ptr = !ctx.current_return_types.is_empty()
+                        && needs_out_pointer(&ctx.current_return_types[0]);
+
+                    if use_out_ptr {
+                        // Bug #168: Call with _ret as out-pointer directly
+                        output.push_str(&indent_str);
+                        if let NodeType::Identifier(func_name) = &return_expr.params[0].node_type {
+                            output.push_str(&til_func_name(func_name));
+                        }
+                        output.push_str("(_ret");
+                        for arg_str in regular_arg_strings.iter() {
+                            output.push_str(", ");
+                            output.push_str(arg_str);
+                        }
+                        output.push_str(", &");
+                        output.push_str(&arr_var);
+                        output.push_str(");\n");
+
+                        // Delete array
+                        output.push_str(&indent_str);
+                        output.push_str(TIL_PREFIX);
+                        output.push_str("Array_delete(&");
+                        output.push_str(&arr_var);
+                        output.push_str(");\n");
+
+                        // Return void
+                        output.push_str(&indent_str);
+                        output.push_str("return;\n");
+                    } else {
+                        // Emit the function call storing result
+                        let temp_var = next_mangled(ctx);
+                        let ret_type = match get_value_type(context, return_expr) {
+                            Ok(t) => til_type_to_c(&t).map_err(|e| return_expr.lang_error(&context.path, "ccodegen", &e))?,
+                            Err(e) => return Err(return_expr.lang_error(&context.path, "ccodegen", &e)),
+                        };
+                        output.push_str(&indent_str);
+                        output.push_str(&ret_type);
+                        output.push_str(" ");
+                        output.push_str(&temp_var);
+                        output.push_str(" = ");
+                        // Emit the function call
+                        if let NodeType::Identifier(func_name) = &return_expr.params[0].node_type {
+                            output.push_str(&til_func_name(func_name));
+                        }
+                        output.push_str("(");
+                        // Emit regular args
+                        for (i, arg_str) in regular_arg_strings.iter().enumerate() {
+                            if i > 0 {
+                                output.push_str(", ");
+                            }
+                            output.push_str(arg_str);
+                        }
+                        // Emit variadic array pointer
+                        if variadic_fcall_info.regular_count > 0 {
                             output.push_str(", ");
                         }
-                        output.push_str(arg_str);
-                    }
-                    // Emit variadic array pointer
-                    if variadic_fcall_info.regular_count > 0 {
-                        output.push_str(", ");
-                    }
-                    output.push_str("&");
-                    output.push_str(&arr_var);
-                    output.push_str(");\n");
+                        output.push_str("&");
+                        output.push_str(&arr_var);
+                        output.push_str(");\n");
 
-                    // Delete array
-                    output.push_str(&indent_str);
-                    output.push_str(TIL_PREFIX);
-                    output.push_str("Array_delete(&");
-                    output.push_str(&arr_var);
-                    output.push_str(");\n");
+                        // Delete array
+                        output.push_str(&indent_str);
+                        output.push_str(TIL_PREFIX);
+                        output.push_str("Array_delete(&");
+                        output.push_str(&arr_var);
+                        output.push_str(");\n");
 
-                    // Return the result
-                    output.push_str(&indent_str);
-                    output.push_str("return ");
-                    output.push_str(&temp_var);
-                    output.push_str(";\n");
+                        // Return the result
+                        output.push_str(&indent_str);
+                        output.push_str("return ");
+                        output.push_str(&temp_var);
+                        output.push_str(";\n");
+                    }
                     return Ok(());
                 }
             }
         }
+
+        // Bug #168: Check if current function uses out-pointer return
+        let use_out_ptr = !ctx.current_return_types.is_empty()
+            && needs_out_pointer(&ctx.current_return_types[0]);
 
         // Bug #143: Use emit_arg_string to handle hoisting
         let return_str = if !expr.params.is_empty() {
@@ -5831,14 +6018,26 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             None
         };
 
-        // Regular non-variadic return
-        output.push_str(&indent_str);
-        output.push_str("return");
-        if let Some(ref ret_str) = return_str {
-            output.push_str(" ");
-            output.push_str(ret_str);
+        if use_out_ptr {
+            // Bug #168: Write to *_ret and return void
+            if let Some(ref ret_str) = return_str {
+                output.push_str(&indent_str);
+                output.push_str("*_ret = ");
+                output.push_str(ret_str);
+                output.push_str(";\n");
+            }
+            output.push_str(&indent_str);
+            output.push_str("return;\n");
+        } else {
+            // Regular non-variadic return
+            output.push_str(&indent_str);
+            output.push_str("return");
+            if let Some(ref ret_str) = return_str {
+                output.push_str(" ");
+                output.push_str(ret_str);
+            }
+            output.push_str(";\n");
         }
-        output.push_str(";\n");
     }
     Ok(())
 }
@@ -6862,6 +7061,32 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 false
             };
 
+            // Bug #168: For non-throwing struct-returning functions at statement level,
+            // declare a temp for discarded out-pointer result
+            let stmt_out_ptr: Option<String> = if is_stmt_level && !is_enum_constructor {
+                if let Some(fd) = get_fcall_func_def(context, expr) {
+                    if fd.throw_types.is_empty() && !fd.return_types.is_empty()
+                        && needs_out_pointer(&fd.return_types[0])
+                    {
+                        let temp = next_mangled(ctx);
+                        let c_type = til_type_to_c(&fd.return_types[0])?;
+                        output.push_str(&indent_str);
+                        output.push_str(&c_type);
+                        output.push_str(" ");
+                        output.push_str(&temp);
+                        output.push_str(";\n");
+                        output.push_str(&indent_str);
+                        Some(format!("&{}", temp))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
             output.push_str(TIL_PREFIX);
             if is_enum_constructor {
                 // Emit til_Type_make_Variant
@@ -6874,6 +7099,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             output.push_str("(");
 
+            // Bug #168: Add out-pointer as first arg
+            if let Some(ref dp) = stmt_out_ptr {
+                output.push_str(dp);
+            }
+
             // Check if this is a variadic function call
             if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
                 let regular_count = variadic_info.regular_count;
@@ -6881,7 +7111,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if is_stmt_level {
                     // Emit regular args from arg_strings
                     for (vstmt_arg_i, vstmt_arg_str) in arg_strings.iter().take(regular_count).enumerate() {
-                        if vstmt_arg_i > 0 {
+                        if vstmt_arg_i > 0 || stmt_out_ptr.is_some() {
                             output.push_str(", ");
                         }
                         output.push_str(vstmt_arg_str);
@@ -6920,7 +7150,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
                 // Emit variadic array pointer
                 if let Some(ref arr_var) = variadic_arr_var {
-                    if regular_count > 0 {
+                    if regular_count > 0 || stmt_out_ptr.is_some() {
                         output.push_str(", ");
                     }
                     output.push_str("&");
@@ -6931,7 +7161,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Bug #143: Use pre-computed arg_strings
                 if is_stmt_level {
                     for (nstmt_arg_i, nstmt_arg_str) in arg_strings.iter().enumerate() {
-                        if nstmt_arg_i > 0 {
+                        if nstmt_arg_i > 0 || stmt_out_ptr.is_some() {
                             output.push_str(", ");
                         }
                         output.push_str(nstmt_arg_str);
