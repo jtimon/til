@@ -22,7 +22,7 @@ build system doesn't detect that make.til itself changed. The compiled
 :PROPERTIES:
 :DISCOVERED: 2026-02-11
 :IMPACT: Memory leak -- locals only deleted at function end (or never if catch blocks exist)
-:STATUS: Open
+:STATUS: Open -- two approaches failed 2026-02-11, see implementation notes
 :RELATED: Bug #165 (memory leak), Bug #159 (shallow copies), Issue #117 (ASAP destruction)
 :END:
 
@@ -90,6 +90,72 @@ Already handled: variable is consumed, removed from deletion candidates.
    leaks. Scope-exit deletion only frees the final value. The old value needs
    clone-on-assign + delete-old-value semantics (Bug #159 territory, not this
    bug).
+
+*** Implementation attempt 2026-02-11 -- two approaches failed
+
+**** Attempt 1: ASAP deletion for top-level locals
+Changed end-of-function locals to use ~find_last_use_index()~ (same as
+copy/own params). Result: 89/92 tests failed with ~free(): invalid pointer~.
+
+Root cause: shallow-copy aliasing (Bug #159). Pattern:
+#+begin_example
+mut tokens := lex("mode safe_script")
+mut first_token := Token()
+tokens.get(0, first_token)   // shallow copy -- first_token aliases tokens[0]
+// ... more code using first_token ...
+// ASAP: Vec.delete(tokens) inserted here (last direct reference to "tokens")
+// ... first_token.text is now dangling -- freed with tokens
+#+end_example
+
+~Vec.get()~, ~Array.get()~, field access -- all do shallow memcpy. The
+extracted value aliases heap pointers in the container. Deleting the container
+ASAP frees the shared heap data while the alias is still live.
+
+The original code comment was correct:
+: // locals: at function end (shared offsets mean locals can alias).
+
+ASAP deletion is only safe for copy/own params because the garbager inserts
+~Type.clone()~ for those, giving them independent heap data.
+
+**** Attempt 2: Collect inner-scope locals, delete at function end
+Added ~collect_declarations_recursive()~ to scan Body nodes inside
+if/while/for and add their declarations to the function-end deletion list.
+Result: 69/92 tests failed with signal 11 (SIGSEGV).
+
+Root cause: conditional initialization. Pattern:
+#+begin_example
+func foo(x: I64) {
+    if x > 0 {
+        mut thing := SomeStruct()   // only initialized when x > 0
+    }
+    // garbager inserts: SomeStruct.delete(thing)  -- SIGSEGV when x <= 0
+}
+#+end_example
+
+Inner-scope variables are only initialized when the scope executes. Inserting
+unconditional ~delete()~ at function end crashes when the scope was skipped.
+
+**** What would work: scope-exit deletion in the Body handler
+The correct approach: insert ~Type.delete(var)~ at the end of the BODY node
+where the variable was declared, not at function end. This guarantees the
+variable is initialized (we're inside the scope that declared it).
+
+Still has the shallow-copy aliasing risk (Bug #159), but no worse than
+current function-end deletion for top-level locals. The aliasing risk is
+mitigated by reverse declaration order: if ~elem := vec.get(0)~ is declared
+after ~vec~, then ~elem~ is deleted first, then ~vec~.
+
+Needs:
+- Modify ~garbager_recursive~ Body handler to scan for declarations and
+  append deletes at body end
+- Per-scope ~dont_delete~ / ~own_transfer~ filtering (or inherit from parent)
+- Per-scope ~has_any_catch~ check
+- Name collision avoidance: TIL has flat namespace, helper functions must not
+  collide with ~collect_declarations_recursive~ in ccodegen.til
+
+Also learned: name ~collect_declarations_recursive~ already exists in
+ccodegen.til. TIL's flat namespace causes collision. Any new helpers in
+garbager.til need prefixed names (e.g., ~garbager_collect_decls~).
 
 ** Bug #166: Containers duplicate type info already in Ptr
 :PROPERTIES:
