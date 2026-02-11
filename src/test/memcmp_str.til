@@ -1,0 +1,22 @@
+mode test
+
+// Test memcmp behavior with string literals
+// memcmp compares raw struct bytes (including pointers), not string content.
+// Pointer equality of identical literals is an implementation detail that
+// varies between interpreter and compiler, so we only test the deterministic
+// case: different strings always produce non-zero memcmp.
+
+test_memcmp_str := proc() {
+    mut s1 := "hello"
+    mut s2 := "hello"
+    mut s3 := "world"
+
+    // memcmp on different strings is always non-zero (deterministic)
+    mut result := memcmp(to_ptr(s1), to_ptr(s3), size_of(Str))
+    test(loc(), not(result.eq(0)), "memcmp on different Str structs should be non-zero")
+
+    // Verify content equality works with .eq()
+    test(loc(), s1.eq(s2), "s1.eq(s2) should be true for same content")
+    test(loc(), not(s1.eq(s3)), "s1.eq(s3) should be false for different content")
+}
+test_memcmp_str()
