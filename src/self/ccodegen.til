@@ -5649,6 +5649,45 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 }
 
+// Bug #168: Compute destination pointer expression for throwing calls.
+// Returns the address expression to pass directly as _ret instead of using _ret_N temp.
+// Returns "" when result is discarded (need temp as sink).
+build_dest_ptr_expr := func(decl_name: Str, assign_name: Str, ctx: CodegenContext, context: Context) returns Str throws Str {
+    if not(decl_name.eq("")) {
+        if decl_name.eq("_") {
+            return ""
+        }
+        c_name := til_var_name_from_context(decl_name, context)
+        return format("&", c_name)
+    }
+    if not(assign_name.eq("")) {
+        if assign_name.starts_with("*") {
+            // *_ret -> _ret (already a pointer)
+            return assign_name.get_substr(1, assign_name.len())?
+        }
+        dot_pos := assign_name.find(".")
+        if dot_pos.gteq(0) {
+            base := assign_name.get_substr(0, dot_pos)?
+            rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
+            c_base := til_var_name_from_context(base, context)
+            if ctx.current_ref_params.contains(base) {
+                return format("&(", c_base, "->", rest, ")")
+            } else {
+                return format("&(", c_base, ".", rest, ")")
+            }
+        }
+        if ctx.current_ref_params.contains(assign_name) {
+            // Ref param: already a pointer
+            return til_var_name_from_context(assign_name, context)
+        }
+        c_name := til_var_name_from_context(assign_name, context)
+        return format("&", c_name)
+    }
+    return ""
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+}
+
 /// Emit a throwing function call that propagates errors to the caller (no catch blocks)
 /// This is used when a throwing function calls another throwing function without catching
 emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
@@ -5729,16 +5768,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         catch (err: IndexOutOfBoundsError) { }
     }
 
-    // Declare temp for return value if needed
-    if needs_ret {
-        output.push_str(indent_str)
-        output.push_str(ret_type)
-        output.push_str(" _ret_")
-        output.push_str(temp_suffix)
-        output.push_str(";\n")
-    }
-
-    // For declarations: declare the variable BEFORE the if block so it's visible after
+    // For declarations: declare the variable BEFORE the temp so dest_ptr can reference it
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
@@ -5762,6 +5792,21 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         output.push_str(throwing_decl_c_var.clone())
         output.push_str(";\n")
         _ := ctx.declared_vars.insert(throwing_decl_c_var)
+    }
+
+    // Bug #168: Try to write directly to destination instead of intermediate _ret_N
+    mut dest_ptr := ""
+    if needs_ret {
+        dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context)?
+    }
+
+    // Declare temp for return value if needed (Bug #168: skip when writing to dest directly)
+    if needs_ret.and(dest_ptr.eq("")) {
+        output.push_str(indent_str)
+        output.push_str(ret_type)
+        output.push_str(" _ret_")
+        output.push_str(temp_suffix)
+        output.push_str(";\n")
     }
 
     // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
@@ -5814,9 +5859,14 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     output.push_str("(")
 
     // First: return value pointer
+    // Bug #168: use destination pointer directly when available
     if needs_ret {
-        output.push_str("&_ret_")
-        output.push_str(temp_suffix)
+        if not(dest_ptr.eq("")) {
+            output.push_str(dest_ptr)
+        } else {
+            output.push_str("&_ret_")
+            output.push_str(temp_suffix)
+        }
     }
 
     // Then: error pointers (Issue #119: skip empty struct errors)
@@ -5921,37 +5971,40 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Success case: assign return value to target variable if needed
-    // Bug #97: Use type-mangled names for variables
-    if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
-        output.push_str(indent_str)
-        output.push_str(til_var_name_from_context(decl_name, context))
-        output.push_str(" = _ret_")
-        output.push_str(temp_suffix)
-        output.push_str(";\n")
-    } else if not(assign_name.eq("")) {
-        output.push_str(indent_str)
-        dot_pos := assign_name.find(".")
-        if dot_pos.gteq(0) {
-            base := assign_name.get_substr(0, dot_pos)?
-            rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
-            if ctx.current_ref_params.contains(base) {
-                output.push_str(til_var_name_from_context(base, context))
-                output.push_str("->")
-                output.push_str(rest)
+    // Bug #168: skip when dest_ptr was used (function wrote to destination directly)
+    if dest_ptr.eq("") {
+        // Bug #97: Use type-mangled names for variables
+        if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
+            output.push_str(indent_str)
+            output.push_str(til_var_name_from_context(decl_name, context))
+            output.push_str(" = _ret_")
+            output.push_str(temp_suffix)
+            output.push_str(";\n")
+        } else if not(assign_name.eq("")) {
+            output.push_str(indent_str)
+            dot_pos := assign_name.find(".")
+            if dot_pos.gteq(0) {
+                base := assign_name.get_substr(0, dot_pos)?
+                rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
+                if ctx.current_ref_params.contains(base) {
+                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str("->")
+                    output.push_str(rest)
+                } else {
+                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(".")
+                    output.push_str(rest)
+                }
+            } else if ctx.current_ref_params.contains(assign_name) {
+                output.push_str("*")
+                output.push_str(til_var_name_from_context(assign_name, context))
             } else {
-                output.push_str(til_var_name_from_context(base, context))
-                output.push_str(".")
-                output.push_str(rest)
+                output.push_str(til_var_name_from_context(assign_name, context))
             }
-        } else if ctx.current_ref_params.contains(assign_name) {
-            output.push_str("*")
-            output.push_str(til_var_name_from_context(assign_name, context))
-        } else {
-            output.push_str(til_var_name_from_context(assign_name, context))
+            output.push_str(" = _ret_")
+            output.push_str(temp_suffix)
+            output.push_str(";\n")
         }
-        output.push_str(" = _ret_")
-        output.push_str(temp_suffix)
-        output.push_str(";\n")
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -6039,16 +6092,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         catch (err: IndexOutOfBoundsError) { }
     }
 
-    // Declare temp for return value if needed
-    if needs_ret {
-        output.push_str(indent_str)
-        output.push_str(ret_type)
-        output.push_str(" _ret_")
-        output.push_str(temp_suffix)
-        output.push_str(";\n")
-    }
-
-    // For declarations: declare the variable BEFORE the if block so it's visible after
+    // For declarations: declare the variable BEFORE the temp so dest_ptr can reference it
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
@@ -6072,6 +6116,21 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         output.push_str(throwing_decl_c_var.clone())
         output.push_str(";\n")
         _ := ctx.declared_vars.insert(throwing_decl_c_var)
+    }
+
+    // Bug #168: Try to write directly to destination instead of intermediate _ret_N
+    mut dest_ptr := ""
+    if needs_ret {
+        dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context)?
+    }
+
+    // Declare temp for return value if needed (Bug #168: skip when writing to dest directly)
+    if needs_ret.and(dest_ptr.eq("")) {
+        output.push_str(indent_str)
+        output.push_str(ret_type)
+        output.push_str(" _ret_")
+        output.push_str(temp_suffix)
+        output.push_str(";\n")
     }
 
     // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
@@ -6124,9 +6183,14 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     output.push_str("(")
 
     // First: return value pointer
+    // Bug #168: use destination pointer directly when available
     if needs_ret {
-        output.push_str("&_ret_")
-        output.push_str(temp_suffix)
+        if not(dest_ptr.eq("")) {
+            output.push_str(dest_ptr)
+        } else {
+            output.push_str("&_ret_")
+            output.push_str(temp_suffix)
+        }
     }
 
     // Then: error pointers (Issue #119: skip empty struct errors)
@@ -6254,37 +6318,40 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Success case: assign return value to target variable if needed
-    // Bug #97: Use type-mangled names for variables
-    if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
-        output.push_str(indent_str)
-        output.push_str(til_var_name_from_context(decl_name, context))
-        output.push_str(" = _ret_")
-        output.push_str(temp_suffix)
-        output.push_str(";\n")
-    } else if not(assign_name.eq("")) {
-        output.push_str(indent_str)
-        dot_pos := assign_name.find(".")
-        if dot_pos.gteq(0) {
-            base := assign_name.get_substr(0, dot_pos)?
-            rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
-            if ctx.current_ref_params.contains(base) {
-                output.push_str(til_var_name_from_context(base, context))
-                output.push_str("->")
-                output.push_str(rest)
+    // Bug #168: skip when dest_ptr was used (function wrote to destination directly)
+    if dest_ptr.eq("") {
+        // Bug #97: Use type-mangled names for variables
+        if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
+            output.push_str(indent_str)
+            output.push_str(til_var_name_from_context(decl_name, context))
+            output.push_str(" = _ret_")
+            output.push_str(temp_suffix)
+            output.push_str(";\n")
+        } else if not(assign_name.eq("")) {
+            output.push_str(indent_str)
+            dot_pos := assign_name.find(".")
+            if dot_pos.gteq(0) {
+                base := assign_name.get_substr(0, dot_pos)?
+                rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
+                if ctx.current_ref_params.contains(base) {
+                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str("->")
+                    output.push_str(rest)
+                } else {
+                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(".")
+                    output.push_str(rest)
+                }
+            } else if ctx.current_ref_params.contains(assign_name) {
+                output.push_str("*")
+                output.push_str(til_var_name_from_context(assign_name, context))
             } else {
-                output.push_str(til_var_name_from_context(base, context))
-                output.push_str(".")
-                output.push_str(rest)
+                output.push_str(til_var_name_from_context(assign_name, context))
             }
-        } else if ctx.current_ref_params.contains(assign_name) {
-            output.push_str("*")
-            output.push_str(til_var_name_from_context(assign_name, context))
-        } else {
-            output.push_str(til_var_name_from_context(assign_name, context))
+            output.push_str(" = _ret_")
+            output.push_str(temp_suffix)
+            output.push_str(";\n")
         }
-        output.push_str(" = _ret_")
-        output.push_str(temp_suffix)
-        output.push_str(";\n")
     }
 
     catch (err: IndexOutOfBoundsError) {
