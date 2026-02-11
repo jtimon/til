@@ -53,6 +53,30 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             }
         }
 
+        // Build local name->type map for clone-after-get and own-transfer detection
+        mut local_types := Map.new(Str, Str)
+        for arg_def: Declaration in func_def.args {
+            switch arg_def.value_type {
+            case ValueType.TCustom(type_name):
+                local_types.set(arg_def.name, type_name)
+            case:
+            }
+        }
+        for lt_stmt: Expr in new_body {
+            switch lt_stmt.node_type {
+            case NodeType.Declaration(decl):
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    local_types.set(decl.name, type_name)
+                case:
+                }
+            case:
+            }
+        }
+
+        // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
+        new_body = insert_clone_after_get(new_body, local_types, context)?
+
         // Step 3: Collect delete candidates (parallel vecs: var names + type names)
         mut cand_vars := Vec.new(Str)
         mut cand_types := Vec.new(Str)
@@ -102,26 +126,6 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         }
 
         // Step 4: Remove dont_delete_vars and own-transferred vars
-        // Build local name->type map for UFCS resolution in collect_own_transfers
-        mut local_types := Map.new(Str, Str)
-        for arg_def: Declaration in func_def.args {
-            switch arg_def.value_type {
-            case ValueType.TCustom(type_name):
-                local_types.set(arg_def.name, type_name)
-            case:
-            }
-        }
-        for lt_stmt: Expr in new_body {
-            switch lt_stmt.node_type {
-            case NodeType.Declaration(decl):
-                switch decl.value_type {
-                case ValueType.TCustom(type_name):
-                    local_types.set(decl.name, type_name)
-                case:
-                }
-            case:
-            }
-        }
         own_transfers := collect_own_transfers(new_body, context, local_types)?
         mut filtered_vars := Vec.new(Str)
         mut filtered_types := Vec.new(Str)
@@ -540,6 +544,152 @@ build_delete_call_expr := func(type_name: Str, var_name: Str, line: I64, col: I6
     delete_call.params.push(type_delete_access)
     delete_call.params.push(var_expr)
     return delete_call
+}
+
+/// Build AST for var = Type.clone(var): Assignment with RHS = clone FCall.
+/// Used to break shallow-copy aliasing after container get/pop calls.
+build_clone_assignment_expr := func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr {
+    var_expr := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
+    clone_call := build_clone_call_expr(type_name, var_expr, line, col)
+    mut assign := Expr(node_type=NodeType.Assignment(var_name), line=line, col=col)
+    assign.params.push(clone_call)
+    return assign
+}
+
+/// Check if stmt is a container get/pop call with a shallow-copy out-param.
+/// Returns true if match, with var_name and type_name via out-params.
+detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Context, mut out_var: Str, mut out_type: Str) returns Bool throws Str {
+    switch stmt.node_type {
+    case NodeType.FCall(_):
+    case:
+        return false
+    }
+    mut chain := Vec.new(Str)
+    get_fcall_identifier_chain(stmt, chain)
+    if chain.len().eq(0) {
+        return false
+    }
+    mut resolved := ResolvedFCall()
+    resolved = resolve_fcall_from_chain(chain, local_types, context)?
+    catch (err: KeyNotFoundError) {
+        return false
+    }
+
+    // Build "Type.method" name from resolved func_def's first arg type
+    if resolved.func_def.args.len().eq(0) {
+        return false
+    }
+    mut first_arg := Declaration()
+    resolved.func_def.args.get(0, first_arg)?
+    catch (err: IndexOutOfBoundsError) {
+        return false
+    }
+    mut self_type := ""
+    switch first_arg.value_type {
+    case ValueType.TCustom(t):
+        self_type = t
+    case:
+        return false
+    }
+    mut method_name := ""
+    chain.get(chain.len().sub(1), method_name)?
+    catch (err: IndexOutOfBoundsError) {
+        return false
+    }
+    qualified := format(self_type, ".", method_name)
+
+    // Check against whitelist
+    mut whitelisted := false
+    if qualified.eq("Vec.get").or(qualified.eq("Vec.pop")).or(qualified.eq("Array.get")).or(qualified.eq("Set.get")) {
+        whitelisted = true
+    }
+    if qualified.eq("Map.get").or(qualified.eq("HashMap.get")).or(qualified.eq("List.get")).or(qualified.eq("List.pop")) {
+        whitelisted = true
+    }
+    if not(whitelisted) {
+        return false
+    }
+
+    // Find last mut arg (the out-param)
+    last_arg_idx := resolved.func_def.args.len().sub(1)
+    mut last_arg := Declaration()
+    resolved.func_def.args.get(last_arg_idx, last_arg)?
+    catch (err: IndexOutOfBoundsError) {
+        return false
+    }
+    if not(last_arg.is_mut) {
+        return false
+    }
+
+    // Map to call-site param index
+    mut param_idx := last_arg_idx.add(1)
+    if resolved.is_ufcs {
+        param_idx = last_arg_idx
+    }
+    if param_idx.gteq(stmt.params.len()) {
+        return false
+    }
+
+    // Check if call-site param is a bare identifier
+    mut param_expr := Expr()
+    stmt.params.get(param_idx, param_expr)?
+    catch (err: IndexOutOfBoundsError) {
+        return false
+    }
+    switch param_expr.node_type {
+    case NodeType.Identifier(var_name):
+        if param_expr.params.len().eq(0) {
+            mut type_name := ""
+            local_types.get(var_name, type_name)?
+            catch (err: KeyNotFoundError) {
+                return false
+            }
+            if is_deletable_type(type_name, context) {
+                out_var = var_name
+                out_type = type_name
+                return true
+            }
+        }
+    case:
+    }
+    return false
+}
+
+/// Insert clone assignments after container get/pop calls in a statement list.
+/// Recurses into nested Body nodes but not into FuncDef bodies.
+insert_clone_after_get := proc(stmts: Vec, local_types: Map, context: Context) returns Vec throws Str {
+    mut result := Vec.new(Expr)
+    for stmt: Expr in stmts {
+        processed := process_stmt_for_clone_after_get(stmt, local_types, context)?
+        mut det_var := ""
+        mut det_type := ""
+        needs_clone := detect_shallow_copy_outparam(processed, local_types, context, det_var, det_type)?
+        det_line := processed.line
+        det_col := processed.col
+        result.push(processed)
+        if needs_clone {
+            result.push(build_clone_assignment_expr(det_type, det_var, det_line, det_col))
+        }
+    }
+    return result
+}
+
+/// Process a single statement: recurse into Body children, leave FuncDef alone.
+process_stmt_for_clone_after_get := proc(e: Expr, local_types: Map, context: Context) returns Expr throws Str {
+    switch e.node_type {
+    case NodeType.FuncDef(_):
+        return e // separate scope, don't touch
+    case NodeType.Body:
+        new_children := insert_clone_after_get(e.params, local_types, context)?
+        return Expr.new_explicit(e.node_type, new_children, e.line, e.col)
+    case:
+        // Recurse into params (covers if/while/for/switch which store bodies as params)
+        mut new_params := Vec.new(Expr)
+        for param: Expr in e.params {
+            new_params.push(process_stmt_for_clone_after_get(param, local_types, context)?)
+        }
+        return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
+    }
 }
 
 /// Extract function name from FCall's first param (the name expression).

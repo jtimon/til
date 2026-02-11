@@ -51,6 +51,24 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 }
             }
 
+            // Build local name->type map for clone-after-get and own-transfer detection
+            let mut local_types: HashMap<String, String> = HashMap::new();
+            for arg_def in &func_def.args {
+                if let ValueType::TCustom(type_name) = &arg_def.value_type {
+                    local_types.insert(arg_def.name.clone(), type_name.clone());
+                }
+            }
+            for stmt in &new_body {
+                if let NodeType::Declaration(decl) = &stmt.node_type {
+                    if let ValueType::TCustom(type_name) = &decl.value_type {
+                        local_types.insert(decl.name.clone(), type_name.clone());
+                    }
+                }
+            }
+
+            // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
+            let new_body = insert_clone_after_get(&new_body, &local_types, context);
+
             // Step 3: Collect delete candidates
             let mut candidates: Vec<(String, String)> = Vec::new();
 
@@ -84,20 +102,6 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
 
             // Step 4: Remove dont_delete_vars, own-transferred vars, and wildcards
-            // Build local name->type map for UFCS resolution in collect_own_transfers
-            let mut local_types: HashMap<String, String> = HashMap::new();
-            for arg_def in &func_def.args {
-                if let ValueType::TCustom(type_name) = &arg_def.value_type {
-                    local_types.insert(arg_def.name.clone(), type_name.clone());
-                }
-            }
-            for stmt in &new_body {
-                if let NodeType::Declaration(decl) = &stmt.node_type {
-                    if let ValueType::TCustom(type_name) = &decl.value_type {
-                        local_types.insert(decl.name.clone(), type_name.clone());
-                    }
-                }
-            }
             let own_transfers = collect_own_transfers(&new_body, context, &local_types);
             candidates.retain(|(var_name, _)| {
                 var_name != "_"
@@ -397,6 +401,111 @@ fn build_delete_call_expr(type_name: &str, var_name: &str, line: usize, col: usi
     let var_expr = Expr::new_explicit(
         NodeType::Identifier(var_name.to_string()), vec![], line, col);
     Expr::new_explicit(NodeType::FCall(false), vec![type_delete_access, var_expr], line, col)
+}
+
+/// Build AST for var = Type.clone(var): Assignment with RHS = clone FCall.
+/// Used to break shallow-copy aliasing after container get/pop calls.
+fn build_clone_assignment_expr(type_name: &str, var_name: &str, line: usize, col: usize) -> Expr {
+    let var_expr = Expr::new_explicit(
+        NodeType::Identifier(var_name.to_string()), vec![], line, col);
+    let clone_call = build_clone_call_expr(type_name, var_expr, line, col);
+    Expr::new_explicit(
+        NodeType::Assignment(var_name.to_string()), vec![clone_call], line, col)
+}
+
+/// Check if stmt is a container get/pop call with a shallow-copy out-param.
+/// Returns (var_name, type_name) if the out-param is a local with deletable type.
+fn detect_shallow_copy_outparam(stmt: &Expr, local_types: &HashMap<String, String>, context: &Context) -> Option<(String, String)> {
+    if !matches!(&stmt.node_type, NodeType::FCall(_)) {
+        return None;
+    }
+    let chain = get_fcall_identifier_chain(stmt);
+    if chain.is_empty() {
+        return None;
+    }
+    let resolved = resolve_fcall_from_chain(&chain, local_types, context)?;
+    let func_def = &resolved.func_def;
+
+    // Build "Type.method" name from resolved func_def's first arg type
+    if func_def.args.is_empty() {
+        return None;
+    }
+    let self_type = match &func_def.args[0].value_type {
+        ValueType::TCustom(t) => t.clone(),
+        _ => return None,
+    };
+    let method_name = &chain[chain.len() - 1];
+    let qualified = format!("{}.{}", self_type, method_name);
+
+    // Check against whitelist
+    let whitelist = [
+        "Vec.get", "Vec.pop", "Array.get", "Set.get",
+        "Map.get", "HashMap.get", "List.get", "List.pop",
+    ];
+    if !whitelist.contains(&qualified.as_str()) {
+        return None;
+    }
+
+    // Find last mut arg (the out-param)
+    let last_arg_idx = func_def.args.len() - 1;
+    if !func_def.args[last_arg_idx].is_mut {
+        return None;
+    }
+
+    // Map to call-site param index
+    let param_idx = if resolved.is_ufcs { last_arg_idx } else { last_arg_idx + 1 };
+    if param_idx >= stmt.params.len() {
+        return None;
+    }
+
+    // Check if call-site param is a bare identifier
+    let param_expr = &stmt.params[param_idx];
+    if let NodeType::Identifier(var_name) = &param_expr.node_type {
+        if param_expr.params.is_empty() {
+            // Look up type in local_types
+            if let Some(type_name) = local_types.get(var_name) {
+                if is_deletable_type(type_name, context) {
+                    return Some((var_name.clone(), type_name.clone()));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Insert clone assignments after container get/pop calls in a statement list.
+/// Recurses into nested Body nodes but not into FuncDef bodies.
+fn insert_clone_after_get(stmts: &[Expr], local_types: &HashMap<String, String>, context: &Context) -> Vec<Expr> {
+    let mut result = Vec::new();
+    for stmt in stmts {
+        // Recurse into nested bodies within this statement
+        let processed = process_stmt_for_clone_after_get(stmt, local_types, context);
+        result.push(processed.clone());
+        // Check if this statement itself is a get/pop call
+        if let Some((var_name, type_name)) = detect_shallow_copy_outparam(&processed, local_types, context) {
+            result.push(build_clone_assignment_expr(&type_name, &var_name, processed.line, processed.col));
+        }
+    }
+    result
+}
+
+/// Process a single statement: recurse into Body children, leave FuncDef alone.
+fn process_stmt_for_clone_after_get(e: &Expr, local_types: &HashMap<String, String>, context: &Context) -> Expr {
+    match &e.node_type {
+        NodeType::FuncDef(_) => e.clone(), // separate scope, don't touch
+        NodeType::Body => {
+            let new_children = insert_clone_after_get(&e.params, local_types, context);
+            Expr::new_explicit(e.node_type.clone(), new_children, e.line, e.col)
+        }
+        _ => {
+            // Recurse into params (covers if/while/for/switch which store bodies as params)
+            let mut new_params = Vec::new();
+            for param in &e.params {
+                new_params.push(process_stmt_for_clone_after_get(param, local_types, context));
+            }
+            Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col)
+        }
+    }
 }
 
 /// Extract function name from FCall's first param (the name expression).

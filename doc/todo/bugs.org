@@ -355,7 +355,7 @@ deletion strategy risks double-free on aliased heap pointers.
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, prevents ASAP deletion, root cause of memory leaks
-:STATUS: Open -- partially fixed, shallow copies remain throughout codebase
+:STATUS: Open -- clone-after-get for container out-params, shallow copies remain elsewhere
 :RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak)
 :END:
 
@@ -431,6 +431,30 @@ the codebase via memcpy in generated C code and core library operations.
 
 **** 7. ccodegen -- create_alias directive
 - Intentional shallow copy (aliases by design, dont_delete protects it)
+
+*** Step 9: Clone-after-get for container out-params (2026-02-11)
+Container =get()= and =pop()= methods extract elements via =copy_to_dynamic=
+(memcpy), creating shallow copies that alias the container's internal heap
+pointers. The garbager now inserts =elem = ElemType.clone(elem)= after every
+container get/pop call where the out-param is a local variable with a deletable
+struct type.
+
+Whitelist of affected methods:
+- =Vec.get=, =Vec.pop=, =Array.get=, =Set.get=
+- =Map.get=, =HashMap.get=, =List.get=, =List.pop=
+
+New garbager functions:
+- =build_clone_assignment_expr= -- builds AST for =var = Type.clone(var)=
+- =detect_shallow_copy_outparam= -- checks if stmt is a whitelisted get/pop call
+- =insert_clone_after_get= / =process_stmt_for_clone_after_get= -- inserts clones
+  after matching calls, recursing into nested Body/If/While/For/Switch nodes
+
+Step 2.7 in FuncDef handler runs after local_types is built, before Step 3
+(delete candidate collection). The =local_types= map was moved earlier (from
+Step 4 to after Step 2.5) so it's available for both clone-after-get and
+own-transfer detection.
+
+All 92 tests pass in all 4 modes.
 
 *** Parameter passing semantics (unchanged)
 | Mode      | Semantics                                      |
