@@ -1086,7 +1086,6 @@ main := proc(args: ..Str) {
     mut rs_interpreted := Vec.new(TestEntry)
     rs_interpreted.push(TestEntry(path="src/examples/hello_safe_script.til", expected_status=1)) // TODO: compiled version doesn't enforce safe_script whitelist
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
-    rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
     rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO: Add C impl for Introspection.has_const/has_field in src/ext.c
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
@@ -1097,12 +1096,12 @@ main := proc(args: ..Str) {
     // rs_compiled: tests that pass with rstil run only
     mut rs_compiled := Vec.new(TestEntry)
     rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
-    rs_compiled.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
     rs_compiled.push(TestEntry(path="src/test/extra_syscalls.til"))  // TODO: list_dir/glob_files wrappers timeout in interpreted modes
 
     // rs_common: tests that pass with rstil but NOT yet with til (interpreted or compiled)
     // (tests that pass all 4 modes are in all_common)
     mut rs_common := Vec.new(TestEntry)
+    rs_common.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
     rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: til_interpreted too slow (~35s)
     rs_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // REM: error output differs from til (Issue #69)
     rs_common.push(TestEntry(path="src/test/test_parser.til"))  // TODO: til_interpreted too slow (~23s)
