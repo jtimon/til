@@ -5260,7 +5260,8 @@ All tests must pass.
 :PROPERTIES:
 :DISCOVERED: 2025-12-31
 :IMPACT: Test infrastructure, rstil/til output validation
-:STATUS: In Progress
+:STATUS: Fixed
+:FIXED: 2026-02-11
 :RELATED: Bug #126 (error message divergence), Bug #100 (get rid of rstil)
 :END:
 
@@ -5302,9 +5303,14 @@ bug50.til now in all_common (2026-01-22).
 Tests moved to all_common:
 - panic.til (2026-01-22): Error messages now identical after Bug #126 fixes
 - bug50.til (2026-01-22): LANG_NAME unified to "til" in both implementations
+- sugar.til (2026-02-11): Fixed spurious println! in init.rs UFCS error handling
 
-Remaining in rs_common + til_common separately:
-- sugar.til: Error output still differs between rstil and til
+*** Fix Details (sugar.til)
+Root cause: init.rs had two ~println!()~ calls (at the "struct has no member c"
+and "struct has no member (variadic)" error paths) that printed intermediate UFCS
+errors before returning a different error. The TIL equivalent correctly discarded
+the intermediate error. Removed the printlns so all 4 modes produce identical output.
+sugar.til moved from rs_common + til_common to all_common. til_common now empty.
 
 *** Benchmark Annotations
 4-phase all_common tests will show timing comparisons:
