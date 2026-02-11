@@ -1056,15 +1056,15 @@ fixed so we can enable ~-Werror~ (treat warnings as errors) in the build.
 - rustc: DONE - added ~-D warnings~ to Makefile and make.til (no warnings currently)
 - gcc: TODO - need to fix warnings before enabling ~-Werror~
 
-*** Warning Categories (updated 2026-01-25)
+*** Warning Categories (updated 2026-02-11)
 Audit of generated C code with ~gcc -Wall -Wextra~:
 
 | Type                         | Count | Priority | Notes                                      |
 |------------------------------+-------+----------+--------------------------------------------|
-| -Wunused-variable            |  1514 | Low      | Generated temp vars not always used        |
+| -Wunused-variable            |  1711 | Low      | Generated temp vars not always used        |
 | -Wdangling-pointer           |   971 | High     | Statement expressions return &local_var    |
-| -Wunused-but-set-variable    |   386 | Low      | Similar to above                           |
-| -Wunused-label               |   153 | Low      | Catch labels generated but not jumped to   |
+| -Wunused-but-set-variable    |     9 | Low      | Similar to above                           |
+| -Wunused-label               |   195 | Low      | Catch labels generated but not jumped to   |
 | -Wunused-parameter           |     0 | Low      | FIXED 2026-02-11 - (void) casts            |
 | -Wmissing-braces             |     0 | Low      | FIXED 2026-01-25                           |
 | -Wmissing-field-initializers |     0 | Low      | FIXED 2026-01-25                           |
@@ -1127,8 +1127,8 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [X] Step 4: Switch to -Wall -Wextra -Werror with suppressions (2026-01-25)
 - [X] Step 5a: Remove -Wno-dangling-pointer (971 occurrences) - fixed by Bug #143, flag removed in Bug #140 fix
 - [-] Step 5b: Remove -Wno-unused-variable (1514 occurrences, partial progress)
-- [ ] Step 5c: Remove -Wno-unused-but-set-variable (386 occurrences)
-- [ ] Step 5d: Remove -Wno-unused-label (153 occurrences)
+- [-] Step 5c: Remove -Wno-unused-but-set-variable (9 occurrences, down from 386)
+- [ ] Step 5d: Remove -Wno-unused-label (195 occurrences)
 - [X] Step 5e: Remove -Wno-unused-parameter (2026-02-11) - emit (void)param; casts at top of function bodies for _-prefixed params and all params in empty-body functions (e.g., empty delete stubs)
 - [X] Step 5f: Remove -Wno-missing-braces (2026-01-25) - use Ptr() instead of NULL for Declaration.default_value in desugarer.til/garbager.til; Ptr() emits ~((til_Ptr){0})~ with proper braces
 - [X] Step 5g: Remove -Wno-missing-field-initializers (2026-01-25) - add cap=0 to Str literals for Type params in ccodegen emit_main_args
