@@ -1236,9 +1236,8 @@ creates a shared-pointer alias. Both ~Str.delete(elem_type)~ and
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Semantic divergence between interpreter and compiled code; root cause of memory leak gap
-:STATUS: In progress
+:STATUS: Partially done -- Commit 1 on master, rest on failed168 branch
 :RELATED: Bug #159 (shallow copies), Bug #165 (memory leak), Bug #80 (ccodegen divergence), Issue #117 (ASAP destruction)
-:PLAN: .claude/plans/foamy-swimming-kernighan.md
 :END:
 
 *** Description
@@ -1272,18 +1271,15 @@ to throw values and out params.
 - throw values -- same pattern
 - out params -- same pattern
 
-*** Implementation plan
+*** Implementation
 
-Goal: every struct-returning call has at most 1 copy (=*_ret = local= inside
-the callee). Call sites pass destination address directly -- no intermediate temp.
+**** Commit 1: Throwing calls -- eliminate intermediate =_ret_N= temp -- DONE
 
-**** Commit 1: Throwing calls -- eliminate intermediate =_ret_N= temp
-
-Throwing functions already use the out-pointer pattern. The only problem is
-the unnecessary intermediate temp at call sites:
+Throwing functions already use the out-pointer pattern. Eliminated the
+unnecessary intermediate temp at call sites:
 
 #+begin_src c
-// BEFORE (current):
+// BEFORE:
 til_Str _ret_N;                              // temp
 int _status_N = func(&_ret_N, &_err, args);  // write to temp
 dest = _ret_N;                               // UNNECESSARY COPY
@@ -1292,47 +1288,27 @@ dest = _ret_N;                               // UNNECESSARY COPY
 int _status_N = func(&dest, &_err, args);    // write to dest directly
 #+end_src
 
-- Step 1: Add =build_dest_ptr_expr= helper
-- Step 2: Modify =emit_throwing_call_propagate= -- skip temp, use dest ptr, skip copy
-- Step 3: Modify =emit_throwing_call_with_goto= -- same changes
-- Step 4: Port to ccodegen.til
+Added =build_dest_ptr_expr= helper. Modified =emit_throwing_call_propagate=
+and =emit_throwing_call_with_goto= to skip temp, use dest ptr, skip copy.
+Ported to ccodegen.til. On master at 639c1741.
 
-**** Commit 2: Non-throwing struct returns -- switch to out-pointer
+**** Commit 2+3: Out-pointer + placement construction -- FAILED (branch: failed168)
 
-Change non-throwing struct-returning functions from return-by-value to
-out-pointer, matching the pattern throwing functions already use.
+Attempted to switch non-throwing struct returns to out-pointer (=void func(Type* _ret, ...)=)
+as infrastructure for "placement construction" (constructing directly into =*_ret=
+instead of a local, eliminating the unreachable delete after return).
 
-#+begin_src c
-// BEFORE:
-til_Vec til_Vec_new(til_Type T) {
-    til_Vec vec = {...};
-    return vec;            // implicit memcpy
-}
-til_Vec dest = til_Vec_new(T);  // implicit memcpy
+Commit 2 (out-pointer conversion) worked but added significant complexity to
+ccodegen for zero performance gain on its own. Benchmark times increased.
+Commit 3 (placement construction) was planned but not completed.
 
-// AFTER:
-void til_Vec_new(til_Vec* _ret, til_Type T) {
-    til_Vec vec = {...};
-    *_ret = vec;           // one copy
-    return;
-}
-til_Vec dest;
-til_Vec_new(&dest, T);    // zero copies at call site
-#+end_src
+The approach was shelved because:
+- Commit 2 alone was pure overhead (more complex codegen, slower benchmarks)
+- Placement construction requires deep changes to how every function emits code
+- The complexity-to-benefit ratio was poor
+- Better to find a simpler approach to the memory leak problem
 
-- Step 5: Add =needs_out_pointer= helper
-- Step 6: Modify =emit_func_signature= -- void + =_ret= param for structs
-- Step 7: Modify =emit_return= -- =*_ret = value; return;=
-- Step 8: Modify implicit return fallbacks (3 locations)
-- Step 9: Modify =emit_fcall_arg_string= -- hoist nested struct calls
-- Step 10: Modify =emit_declaration= for direct out-pointer
-- Step 11: Modify =emit_assignment= for direct out-pointer
-- Step 12: Update ext.c (=til_i64_to_str=, =til_fs_parent_dir=)
-- Step 13: Port all to ccodegen.til
-
-**** Scope exclusions
-- =emit_enum_to_str_function= -- returns Str with borrowed literals, safe
-- Enum =_make_Variant= constructors -- inline, typically no heap pointers
+Code preserved on =failed168= branch for reference.
 
 ** Issue #115: Owned struct fields and auto-generated methods
 :PROPERTIES:
