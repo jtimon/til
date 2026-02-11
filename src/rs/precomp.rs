@@ -199,9 +199,9 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
 fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     // Save and restore context.path - interpreter may change it during function calls
     let saved_path = context.path.clone();
-    let result = eval_expr(context, e);
+    let eval_result = eval_expr(context, e);
     context.path = saved_path;
-    let result = result?;
+    let result = eval_result?;
 
     // Check if the function threw an exception during evaluation
     if result.is_throw {

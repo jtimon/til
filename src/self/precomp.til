@@ -307,6 +307,11 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Save and restore context.path - interpreter may change it during function calls
     saved_path := context.path
     result := eval_expr(context, e)?
+    catch (err: Str) {
+        // REM: Restore context.path before re-throwing (Rust captures Result, restores, then ?)
+        context.path = saved_path
+        throw err
+    }
     context.path = saved_path
 
     // Check if the function threw an exception during evaluation

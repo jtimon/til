@@ -1259,8 +1259,8 @@ main := proc(args: ..Str) {
     // (tests that pass all 4 modes are in all_common)
     mut rs_common := Vec.new(TestEntry)
     rs_common.push(TestEntry(path="src/test/introspections.til")) // TODO: Actually use Introspection from func that is called from const initialization
-    rs_common.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
-    rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: til_interpreted too slow (~35s)
+    rs_common.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: rstil fails at precomp (correct), til fails at runtime (wrong catch ordering in precomp.til)
+    rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: til both modes timeout (>120s), rstil interpreted ~9.5s
     rs_common.push(TestEntry(path="src/test/test_parser.til"))  // TODO: til_interpreted too slow (~23s)
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
 
@@ -1338,6 +1338,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/panic.til", expected_status=1))
     all_common.push(TestEntry(path="src/test/parallel_cmd.til"))
     all_common.push(TestEntry(path="src/test/pointers.til"))
+
     all_common.push(TestEntry(path="src/test/return_value_usage.til"))
     all_common.push(TestEntry(path="src/test/scope_isolation.til"))
     all_common.push(TestEntry(path="src/test/sets.til"))
