@@ -24,31 +24,70 @@ mut g_cc := ""
 // Example: gen/out/test/foo.rs_interpreted.actual.out
 // Example: gen/out/til.rs_interpreted.help.actual.out
 
-// Parse time output like "real\t0m0.042s" -> milliseconds
+// Parse wall-clock time from /usr/bin/time -v output
+// Looks for "Elapsed (wall clock) time (h:mm:ss or m:ss): M:SS.SS"
+// Format: m:ss.ss (under 1 hour) or h:mm:ss (over 1 hour)
+// Returns milliseconds, or -1 if parsing fails
 parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
     lines := time_output.split("\n")?
     for line: Str in lines {
-        if line.starts_with("real") {
-            m_pos := line.find("m")
-            s_pos := line.find("s")
-            if m_pos.gt(0) {
-                if s_pos.gt(m_pos) {
-                    sec_str := get_substr(line, m_pos.add(1), s_pos)?
-                    parts := sec_str.split(".")?
-                    if parts.len().eq(2) {
-                        mut whole := ""
-                        mut frac := ""
-                        parts.get(0, whole)?
-                        parts.get(1, frac)?
-                        while frac.len().lt(3) {
-                            frac = frac.concat("0")
-                        }
-                        if frac.len().gt(3) {
-                            frac = get_substr(frac, 0, 3)?
-                        }
-                        return whole.to_i64().mul(1000).add(frac.to_i64())
+        if line.find("Elapsed (wall clock)").gt(sub(0, 1)) {
+            // Extract value after last ": "
+            parts := line.split(": ")?
+            if parts.len().gt(1) {
+                mut time_str := ""
+                parts.get(parts.len().sub(1), time_str)?
+                time_str = time_str.replace("\r", "")
+                // Find first colon (separates minutes from seconds, or hours from minutes)
+                colon_pos := time_str.find(":")
+                if colon_pos.lt(0) {
+                    return sub(0, 1)
+                }
+                dot_pos := time_str.find(".")
+                if dot_pos.gt(0) {
+                    // m:ss.ss format (under 1 hour)
+                    min_str := get_substr(time_str, 0, colon_pos)?
+                    sec_str := get_substr(time_str, colon_pos.add(1), dot_pos)?
+                    frac_str := get_substr(time_str, dot_pos.add(1), time_str.len())?
+                    // Pad or truncate frac to 3 digits for ms
+                    mut frac := frac_str
+                    while frac.len().lt(3) {
+                        frac = frac.concat("0")
+                    }
+                    if frac.len().gt(3) {
+                        frac = get_substr(frac, 0, 3)?
+                    }
+                    return min_str.to_i64().mul(60000).add(sec_str.to_i64().mul(1000)).add(frac.to_i64())
+                } else {
+                    // h:mm:ss format (over 1 hour, no fractional seconds)
+                    after_first := get_substr(time_str, colon_pos.add(1), time_str.len())?
+                    second_colon := after_first.find(":")
+                    if second_colon.gt(0) {
+                        hour_str := get_substr(time_str, 0, colon_pos)?
+                        min_str := get_substr(after_first, 0, second_colon)?
+                        sec_str := get_substr(after_first, second_colon.add(1), after_first.len())?
+                        return hour_str.to_i64().mul(3600000).add(min_str.to_i64().mul(60000)).add(sec_str.to_i64().mul(1000))
                     }
                 }
+            }
+        }
+    }
+    return sub(0, 1)
+}
+
+// Parse max RSS from /usr/bin/time -v output
+// Looks for "Maximum resident set size (kbytes): N"
+// Returns kilobytes, or -1 if parsing fails
+parse_maxrss_kb := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
+    lines := time_output.split("\n")?
+    for line: Str in lines {
+        if line.find("Maximum resident set size").gt(sub(0, 1)) {
+            parts := line.split(": ")?
+            if parts.len().gt(1) {
+                mut val_str := ""
+                parts.get(parts.len().sub(1), val_str)?
+                val_str = val_str.replace("\r", "")
+                return val_str.to_i64()
             }
         }
     }
@@ -186,41 +225,63 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
         cmd = cmd.concat(" ").concat(cmd_args)
     }
 
-    // Run with timing
-    wrapped := format("LC_ALL=C bash -c 'time ", cmd, "' 2>&1")
+    // Run with /usr/bin/time -v for wall-clock time and max RSS
+    wrapped := format("LC_ALL=C /usr/bin/time -v bash -c '", cmd, "' 2>&1")
     mut full_output := ""
     exit_code := full_output.run_cmd("bash", "-c", wrapped)
 
-    // Parse timing and output
+    // Parse timing, maxrss, and output
     mut output := ""
     mut time_ms := 0
+    mut maxrss_kb := 0
 
     // Truncate huge outputs to prevent hangs
-    max_output := 1000
+    // /usr/bin/time -v output is ~1000 chars, so keep more of the tail
+    max_output := 2000
     mut truncated := full_output
     if truncated.len().gt(max_output) {
         start_pos := truncated.len().sub(max_output)
         truncated = get_substr(truncated, start_pos, truncated.len())?
     }
 
-    split_pos := truncated.find("\nreal")
-    if split_pos.gt(0) {
-        output = get_substr(full_output, 0, full_output.len().sub(truncated.len()).add(split_pos))?
-        time_output := get_substr(truncated, split_pos, truncated.len())?
-        time_ms = parse_time_ms(time_output)?
-    } else {
-        if split_pos.eq(0) {
-            output = ""
-            time_ms = parse_time_ms(truncated)?
-        } else {
-            if truncated.starts_with("real") {
-                output = ""
-                time_ms = parse_time_ms(truncated)?
-            } else {
-                output = full_output
-                time_ms = 0
-            }
+    // Find the start of /usr/bin/time -v output block
+    // "Command being timed" is always present (prefixed by \t)
+    // "Command exited with non-zero" appears before it on non-zero exit (no \t prefix)
+    time_pos := truncated.find("Command being timed")
+    exit_pos := truncated.find("Command exited with non-zero")
+
+    // Use the earlier marker for output splitting
+    mut output_split := time_pos
+    mut backup := 1  // back up past \t before "Command being timed"
+    if exit_pos.gt(sub(0, 1)) {
+        if output_split.lt(0).or(exit_pos.lt(output_split)) {
+            output_split = exit_pos
+            backup = 0  // "Command exited" has no \t prefix, just \n before it
         }
+    }
+
+    if output_split.gt(sub(0, 1)) {
+        mut output_end_in_truncated := output_split.sub(backup)
+        if output_end_in_truncated.lt(0) {
+            output_end_in_truncated = 0
+        }
+        output_end_in_full := full_output.len().sub(truncated.len()).add(output_end_in_truncated)
+        if output_end_in_full.gt(0) {
+            output = get_substr(full_output, 0, output_end_in_full)?
+        } else {
+            output = ""
+        }
+        // Parse time/maxrss from "Command being timed" block
+        if time_pos.gt(sub(0, 1)) {
+            time_output := get_substr(truncated, time_pos, truncated.len())?
+            time_ms = parse_time_ms(time_output)?
+            maxrss_kb = parse_maxrss_kb(time_output)?
+        }
+    } else {
+        // Couldn't find time marker
+        output = full_output
+        time_ms = 0
+        maxrss_kb = 0
     }
 
     // Check exit code
@@ -270,8 +331,8 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
     }
 
     // Success - print timing info for tests.til to parse
-    // Format: PASS <time_ms>
-    println("PASS ", time_ms.to_str())
+    // Format: PASS <time_ms> <maxrss_kb>
+    println("PASS ", time_ms.to_str(), " ", maxrss_kb.to_str())
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     catch (err: ReadError) { panic(loc(), err.msg) }

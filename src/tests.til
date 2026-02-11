@@ -44,7 +44,8 @@ RunningTest := struct {
     mut entry: TestEntry = TestEntry()
     mut actual_file: Str = ""       // Unique actual output file path
     mut current_phase: I64 = 0      // Index into phases vec (0, 1, ...)
-    mut phase_times: Vec = Vec.new(I64)  // Times for completed phases
+    mut phase_times: Vec = Vec.new(I64)    // Times for completed phases
+    mut phase_maxrss: Vec = Vec.new(I64)   // Max RSS (KB) for completed phases
 }
 
 // Helper to add music.til tests to a Vec
@@ -74,38 +75,49 @@ add_music_tests := proc(mut tests: Vec) {
     tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-notation=american phrygian G"))
 }
 
-// Parse time output like "real\t0m0.042s" -> milliseconds
-// Assumes LC_ALL=C format (dot as decimal separator)
-// Returns -1 if parsing fails
+// Parse wall-clock time from /usr/bin/time -v output
+// Looks for "Elapsed (wall clock) time (h:mm:ss or m:ss): M:SS.SS"
+// Format: m:ss.ss (under 1 hour) or h:mm:ss (over 1 hour)
+// Returns milliseconds, or -1 if parsing fails
 parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
-    // Find "real" line
     lines := time_output.split("\n")?
     for line: Str in lines {
-        if line.starts_with("real") {
-            // Format: "real\t0m0.042s"
-            // Find position of 'm' using index_of
-            m_pos := line.find("m")
-            s_pos := line.find("s")
-            if m_pos.gt(0) {
-                if s_pos.gt(m_pos) {
-                    // Extract seconds part between 'm' and 's'
-                    sec_str := get_substr(line, m_pos.add(1), s_pos)?
-                    // Convert to milliseconds (multiply by 1000)
-                    // Parse as float by splitting on dot
-                    parts := sec_str.split(".")?
-                    if parts.len().eq(2) {
-                        mut whole := ""
-                        mut frac := ""
-                        parts.get(0, whole)?
-                        parts.get(1, frac)?
-                        // Pad or truncate frac to 3 digits for ms
-                        while frac.len().lt(3) {
-                            frac = frac.concat("0")
-                        }
-                        if frac.len().gt(3) {
-                            frac = get_substr(frac, 0, 3)?
-                        }
-                        return whole.to_i64().mul(1000).add(frac.to_i64())
+        if line.find("Elapsed (wall clock)").gt(sub(0, 1)) {
+            // Extract value after last ": "
+            parts := line.split(": ")?
+            if parts.len().gt(1) {
+                mut time_str := ""
+                parts.get(parts.len().sub(1), time_str)?
+                time_str = time_str.replace("\r", "")
+                // Find first colon (separates minutes from seconds, or hours from minutes)
+                colon_pos := time_str.find(":")
+                if colon_pos.lt(0) {
+                    return sub(0, 1)
+                }
+                dot_pos := time_str.find(".")
+                if dot_pos.gt(0) {
+                    // m:ss.ss format (under 1 hour)
+                    min_str := get_substr(time_str, 0, colon_pos)?
+                    sec_str := get_substr(time_str, colon_pos.add(1), dot_pos)?
+                    frac_str := get_substr(time_str, dot_pos.add(1), time_str.len())?
+                    // Pad or truncate frac to 3 digits for ms
+                    mut frac := frac_str
+                    while frac.len().lt(3) {
+                        frac = frac.concat("0")
+                    }
+                    if frac.len().gt(3) {
+                        frac = get_substr(frac, 0, 3)?
+                    }
+                    return min_str.to_i64().mul(60000).add(sec_str.to_i64().mul(1000)).add(frac.to_i64())
+                } else {
+                    // h:mm:ss format (over 1 hour, no fractional seconds)
+                    after_first := get_substr(time_str, colon_pos.add(1), time_str.len())?
+                    second_colon := after_first.find(":")
+                    if second_colon.gt(0) {
+                        hour_str := get_substr(time_str, 0, colon_pos)?
+                        min_str := get_substr(after_first, 0, second_colon)?
+                        sec_str := get_substr(after_first, second_colon.add(1), after_first.len())?
+                        return hour_str.to_i64().mul(3600000).add(min_str.to_i64().mul(60000)).add(sec_str.to_i64().mul(1000))
                     }
                 }
             }
@@ -114,13 +126,41 @@ parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError
     return sub(0, 1)
 }
 
-// Run a command with timing, returns exit code and stores time in ms
+// Parse max RSS from /usr/bin/time -v output
+// Looks for "Maximum resident set size (kbytes): N"
+// Returns kilobytes, or -1 if parsing fails
+parse_maxrss_kb := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
+    lines := time_output.split("\n")?
+    for line: Str in lines {
+        if line.find("Maximum resident set size").gt(sub(0, 1)) {
+            parts := line.split(": ")?
+            if parts.len().gt(1) {
+                mut val_str := ""
+                parts.get(parts.len().sub(1), val_str)?
+                val_str = val_str.replace("\r", "")
+                return val_str.to_i64()
+            }
+        }
+    }
+    return sub(0, 1)
+}
+
+// Format kilobytes as human-readable MB string
+format_maxrss := func(kb: I64) returns Str {
+    if kb.lt(0) {
+        return "N/A"
+    }
+    mb := kb.div(1024)
+    return mb.to_str().concat("MB")
+}
+
+// Run a command with timing, returns exit code and stores time/maxrss
 // Output goes to mut output param, time goes to mut time_ms param
-// Uses LC_ALL=C for consistent time format
-run_timed := proc(mut output: Str, mut time_ms: I64, cmd: Str) returns I64 {
+// Uses /usr/bin/time -v for wall-clock time and max RSS
+run_timed := proc(mut output: Str, mut time_ms: I64, mut maxrss_kb: I64, cmd: Str) returns I64 {
     // Wrap command to capture both output and timing
-    // Uses LC_ALL=C for consistent time format (dot as decimal separator)
-    mut wrapped := "LC_ALL=C bash -c 'time "
+    // Uses /usr/bin/time -v for wall-clock time and max RSS
+    mut wrapped := "LC_ALL=C /usr/bin/time -v bash -c '"
     wrapped = wrapped.concat(cmd).concat("' 2>&1")
     mut full_output := ""
     exit_code := full_output.run_cmd("bash", "-c", wrapped)
@@ -128,40 +168,58 @@ run_timed := proc(mut output: Str, mut time_ms: I64, cmd: Str) returns I64 {
     // Truncate huge outputs (e.g., gcc errors) to prevent hangs
     // Str.find() is O(n*m) and slow in interpreter for large strings
     // Keep the END of output since timing info is at the end
-    max_output := 1000
-    if full_output.len().gt(max_output) {
-        start_pos := full_output.len().sub(max_output)
-        full_output = get_substr(full_output, start_pos, full_output.len())?
+    // /usr/bin/time -v output is ~1000 chars, so keep more of the tail
+    max_output := 2000
+    mut truncated := full_output
+    if truncated.len().gt(max_output) {
+        start_pos := truncated.len().sub(max_output)
+        truncated = get_substr(truncated, start_pos, truncated.len())?
     }
 
-    // Split output at "\nreal" - everything before is command output, after is time
-    // Also handle case where output starts with "real" (no program output)
-    split_pos := full_output.find("\nreal")
-    if split_pos.gt(0) {
-        // Normal case: program output before time
-        output = get_substr(full_output, 0, split_pos)?
-        time_output := get_substr(full_output, split_pos, full_output.len())?
-        time_ms = parse_time_ms(time_output)?
-    } else {
-        if split_pos.eq(0) {
-            // Time at very start (only newline before real)
-            output = ""
-            time_ms = parse_time_ms(full_output)?
-        } else {
-            // Try finding "real" at start (no newline before)
-            if full_output.starts_with("real") {
-                output = ""
-                time_ms = parse_time_ms(full_output)?
-            } else {
-                output = full_output
-                time_ms = sub(0, 1)
-            }
+    // Find the start of /usr/bin/time -v output block
+    // "Command being timed" is always present (prefixed by \t)
+    // "Command exited with non-zero" appears before it on non-zero exit (no \t prefix)
+    time_pos := truncated.find("Command being timed")
+    exit_pos := truncated.find("Command exited with non-zero")
+
+    // Use the earlier marker for output splitting
+    mut output_split := time_pos
+    mut backup := 1  // back up past \t before "Command being timed"
+    if exit_pos.gt(sub(0, 1)) {
+        if output_split.lt(0).or(exit_pos.lt(output_split)) {
+            output_split = exit_pos
+            backup = 0  // "Command exited" has no \t prefix, just \n before it
         }
+    }
+
+    if output_split.gt(sub(0, 1)) {
+        mut output_end_in_truncated := output_split.sub(backup)
+        if output_end_in_truncated.lt(0) {
+            output_end_in_truncated = 0
+        }
+        output_end_in_full := full_output.len().sub(truncated.len()).add(output_end_in_truncated)
+        if output_end_in_full.gt(0) {
+            output = get_substr(full_output, 0, output_end_in_full)?
+        } else {
+            output = ""
+        }
+        // Parse time/maxrss from "Command being timed" block
+        if time_pos.gt(sub(0, 1)) {
+            time_output := get_substr(truncated, time_pos, truncated.len())?
+            time_ms = parse_time_ms(time_output)?
+            maxrss_kb = parse_maxrss_kb(time_output)?
+        }
+    } else {
+        // Couldn't find time marker
+        output = full_output
+        time_ms = sub(0, 1)
+        maxrss_kb = sub(0, 1)
     }
 
     catch (err: IndexOutOfBoundsError) {
         output = full_output
         time_ms = sub(0, 1)
+        maxrss_kb = sub(0, 1)
     }
 
     return exit_code
@@ -213,12 +271,13 @@ test_with_cmd := proc(entry: TestEntry, cmd_prefix: Str, fail_label: Str, out_mo
 
     mut output := ""
     mut run_time := 0
+    mut run_maxrss := 0
     mut cmd := cmd_prefix
     cmd = cmd.concat(entry.path)
     if not(entry.cmd_args.eq("")) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
-    actual_exit_code := run_timed(output, run_time, cmd)
+    actual_exit_code := run_timed(output, run_time, run_maxrss, cmd)
     time_ms = run_time
 
     // Check exit code
@@ -319,29 +378,41 @@ spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns Run
 
     mut rt := RunningTest(pid=pid, entry=entry, actual_file=result_file, current_phase=0)
     rt.phase_times = Vec.new(I64)
+    rt.phase_maxrss = Vec.new(I64)
     return rt
 }
 
 // Parse test.til result file
-// On success: "PASS <time_ms>"
+// On success: "PASS <time_ms> <maxrss_kb>"
 // On failure: error output (and exit code was non-zero)
 // Returns true if passed, false if failed
-parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, mut error_output: Str) returns Bool throws IndexOutOfBoundsError, ReadError {
+parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, mut maxrss_kb: I64, mut error_output: Str) returns Bool throws IndexOutOfBoundsError, ReadError {
     output := readfile(result_file)?
 
     if exit_status.eq(0) {
-        // Success - parse "PASS <time_ms>"
+        // Success - parse "PASS <time_ms> <maxrss_kb>"
         if output.starts_with("PASS ") {
-            time_str := get_substr(output, 5, output.len())?.replace("\n", "")
-            time_ms = time_str.to_i64()
+            rest := get_substr(output, 5, output.len())?.replace("\n", "")
+            space_pos := rest.find(" ")
+            if space_pos.gt(0) {
+                time_str := get_substr(rest, 0, space_pos)?
+                rss_str := get_substr(rest, space_pos.add(1), rest.len())?
+                time_ms = time_str.to_i64()
+                maxrss_kb = rss_str.to_i64()
+            } else {
+                time_ms = rest.to_i64()
+                maxrss_kb = 0
+            }
         } else {
             time_ms = 0
+            maxrss_kb = 0
         }
         return true
     } else {
         // Failure - output contains error message
         error_output = output
         time_ms = 0
+        maxrss_kb = 0
         return false
     }
 }
@@ -349,7 +420,8 @@ parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, 
 // Unified parallel test runner
 // phases: Vec of TestPhase (1 for single-mode, 2 for common tests)
 // phase_totals: mut Vec of I64, one per phase for accumulating times
-run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals: Vec, mut benchmark_content: Str) returns I64 {
+// phase_maxrss_maxes: mut Vec of I64, one per phase for tracking max RSS (keeps highest)
+run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals: Vec, mut phase_maxrss_maxes: Vec, mut benchmark_content: Str) returns I64 {
     // Ensure tmp directory exists for result files
     mut mkdir_out := ""
     _ := mkdir_out.run_cmd("mkdir", "-p", "tmp")
@@ -476,16 +548,23 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                 phases.get(current.current_phase, current_phase)?
 
                 mut time_ms := 0
+                mut maxrss_kb := 0
                 mut error_output := ""
-                passed := parse_test_result(current.actual_file, status, time_ms, error_output)?
+                passed := parse_test_result(current.actual_file, status, time_ms, maxrss_kb, error_output)?
 
-                // Record time for this phase
+                // Record time and maxrss for this phase
                 current.phase_times.push(time_ms.clone())
+                current.phase_maxrss.push(maxrss_kb.clone())
 
-                // Accumulate to phase total
+                // Accumulate to phase total (time: sum, maxrss: keep max)
                 mut old_total := 0
                 phase_totals.get(current.current_phase, old_total)?
                 phase_totals.set(current.current_phase, old_total.add(time_ms))?
+                mut old_maxrss := 0
+                phase_maxrss_maxes.get(current.current_phase, old_maxrss)?
+                if maxrss_kb.gt(old_maxrss) {
+                    phase_maxrss_maxes.set(current.current_phase, maxrss_kb)?
+                }
 
                 if not(passed) {
                     // Phase failed - test.til already printed details
@@ -551,20 +630,22 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                             args_display = concat(" ", current.entry.cmd_args)
                         }
 
-                        // Build timing string
+                        // Build timing string (includes memory)
                         mut timing_str := ""
                         mut bench_timing := ""
                         for p_idx in 0..num_phases {
                             mut p := TestPhase()
                             phases.get(p_idx, p)?
                             mut t := 0
+                            mut rss := 0
                             current.phase_times.get(p_idx, t)?
+                            current.phase_maxrss.get(p_idx, rss)?
                             if p_idx.gt(0) {
                                 timing_str = timing_str.concat(", ")
                                 bench_timing = bench_timing.concat(", ")
                             }
-                            timing_str = timing_str.concat(p.label).concat(": ").concat(format_time(t))
-                            bench_timing = bench_timing.concat(p.label).concat(": ").concat(format_time(t))
+                            timing_str = timing_str.concat(p.label).concat(": ").concat(format_time(t)).concat(" ").concat(format_maxrss(rss))
+                            bench_timing = bench_timing.concat(p.label).concat(": ").concat(format_time(t)).concat(" ").concat(format_maxrss(rss))
                         }
 
                         // For 2-phase tests, add "faster" annotation
@@ -698,71 +779,85 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     // rs_interpreted
     mut rs_interp_totals := Vec.new(I64)
     rs_interp_totals.push(0)
+    mut rs_interp_maxrss := Vec.new(I64)
+    rs_interp_maxrss.push(0)
     if rs_interpreted.len().gt(0) {
         println("\n=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("* rs_interpreted\n")
         mut rs_interp_phases := Vec.new(TestPhase)
         rs_interp_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
-        errors_found = errors_found.add(run_parallel(rs_interpreted, rs_interp_phases, parallelism, rs_interp_totals, benchmark_content))
+        errors_found = errors_found.add(run_parallel(rs_interpreted, rs_interp_phases, parallelism, rs_interp_totals, rs_interp_maxrss, benchmark_content))
     }
 
     // rs_compiled
     mut rs_compile_totals := Vec.new(I64)
     rs_compile_totals.push(0)
+    mut rs_compile_maxrss := Vec.new(I64)
+    rs_compile_maxrss.push(0)
     if rs_compiled.len().gt(0) {
         println("\n=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* rs_compiled\n")
         mut rs_compile_phases := Vec.new(TestPhase)
         rs_compile_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_compiled", label="compiled"))
-        errors_found = errors_found.add(run_parallel(rs_compiled, rs_compile_phases, parallelism, rs_compile_totals, benchmark_content))
+        errors_found = errors_found.add(run_parallel(rs_compiled, rs_compile_phases, parallelism, rs_compile_totals, rs_compile_maxrss, benchmark_content))
     }
 
     // rs_common (both modes per test)
     mut rs_common_totals := Vec.new(I64)
     rs_common_totals.push(0)
     rs_common_totals.push(0)
+    mut rs_common_maxrss := Vec.new(I64)
+    rs_common_maxrss.push(0)
+    rs_common_maxrss.push(0)
     if rs_common.len().gt(0) {
         println("\n=== rs_common (", rs_common.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* rs_common\n")
         mut rs_common_phases := Vec.new(TestPhase)
         rs_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
         rs_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
-        errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_totals, benchmark_content))
+        errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_totals, rs_common_maxrss, benchmark_content))
     }
 
     // til_interpreted
     mut til_interp_totals := Vec.new(I64)
     til_interp_totals.push(0)
+    mut til_interp_maxrss := Vec.new(I64)
+    til_interp_maxrss.push(0)
     if til_interpreted.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* til_interpreted\n")
         mut til_interp_phases := Vec.new(TestPhase)
         til_interp_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
-        errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_totals, benchmark_content))
+        errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_totals, til_interp_maxrss, benchmark_content))
     }
 
     // til_compiled
     mut til_compile_totals := Vec.new(I64)
     til_compile_totals.push(0)
+    mut til_compile_maxrss := Vec.new(I64)
+    til_compile_maxrss.push(0)
     if til_compiled.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_compiled (", til_compiled.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* til_compiled\n")
         mut til_compile_phases := Vec.new(TestPhase)
         til_compile_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_compiled", label="til compiled"))
-        errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_totals, benchmark_content))
+        errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_totals, til_compile_maxrss, benchmark_content))
     }
 
     // til_common (both modes per test)
     mut til_common_totals := Vec.new(I64)
     til_common_totals.push(0)
     til_common_totals.push(0)
+    mut til_common_maxrss := Vec.new(I64)
+    til_common_maxrss.push(0)
+    til_common_maxrss.push(0)
     if til_common.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_common (", til_common.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* til_common\n")
         mut til_common_phases := Vec.new(TestPhase)
         til_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
         til_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_interpreted", label="til compiled"))
-        errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_totals, benchmark_content))
+        errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_totals, til_common_maxrss, benchmark_content))
     }
 
     // all_common (4 modes: rs_interpreted, rs_compiled, til_interpreted, til_compiled)
@@ -770,9 +865,14 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     mut all_common_totals := Vec.new(I64)
     all_common_totals.push(0)
     all_common_totals.push(0)
+    mut all_common_maxrss := Vec.new(I64)
+    all_common_maxrss.push(0)
+    all_common_maxrss.push(0)
     if not(g_rust_only) {
         all_common_totals.push(0)
         all_common_totals.push(0)
+        all_common_maxrss.push(0)
+        all_common_maxrss.push(0)
     }
     if all_common.len().gt(0) {
         if g_rust_only {
@@ -782,7 +882,7 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
             mut rs_only_phases := Vec.new(TestPhase)
             rs_only_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
             rs_only_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
-            errors_found = errors_found.add(run_parallel(all_common, rs_only_phases, parallelism, all_common_totals, benchmark_content))
+            errors_found = errors_found.add(run_parallel(all_common, rs_only_phases, parallelism, all_common_totals, all_common_maxrss, benchmark_content))
         } else {
             println("\n=== all_common (", all_common.len().to_str(), " tests) ===\n")
             benchmark_content = benchmark_content.concat("\n* all_common\n")
@@ -791,20 +891,33 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
             all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="rs compiled"))
             all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="rs_interpreted", label="til interpreted"))
             all_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="rs_interpreted", label="til compiled"))
-            errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, benchmark_content))
+            errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, all_common_maxrss, benchmark_content))
         }
     }
 
     // Compute totals (only for non-empty categories)
+    // Time totals (sum across tests)
     mut total_rs_interp := 0
     mut total_rs_compile := 0
     mut total_til_interp := 0
     mut total_til_compile := 0
+    // Max RSS totals (max across all sections per mode)
+    mut maxrss_rs_interp := 0
+    mut maxrss_rs_compile := 0
+    mut maxrss_til_interp := 0
+    mut maxrss_til_compile := 0
+
     if rs_interpreted.len().gt(0) {
         rs_interp_totals.get(0, total_rs_interp)?
+        mut rss := 0
+        rs_interp_maxrss.get(0, rss)?
+        if rss.gt(maxrss_rs_interp) { maxrss_rs_interp = rss }
     }
     if rs_compiled.len().gt(0) {
         rs_compile_totals.get(0, total_rs_compile)?
+        mut rss := 0
+        rs_compile_maxrss.get(0, rss)?
+        if rss.gt(maxrss_rs_compile) { maxrss_rs_compile = rss }
     }
     if rs_common.len().gt(0) {
         mut rs_common_interp := 0
@@ -813,12 +926,24 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
         rs_common_totals.get(1, rs_common_compile)?
         total_rs_interp = total_rs_interp.add(rs_common_interp)
         total_rs_compile = total_rs_compile.add(rs_common_compile)
+        mut rss0 := 0
+        mut rss1 := 0
+        rs_common_maxrss.get(0, rss0)?
+        rs_common_maxrss.get(1, rss1)?
+        if rss0.gt(maxrss_rs_interp) { maxrss_rs_interp = rss0 }
+        if rss1.gt(maxrss_rs_compile) { maxrss_rs_compile = rss1 }
     }
     if til_interpreted.len().gt(0) {
         til_interp_totals.get(0, total_til_interp)?
+        mut rss := 0
+        til_interp_maxrss.get(0, rss)?
+        if rss.gt(maxrss_til_interp) { maxrss_til_interp = rss }
     }
     if til_compiled.len().gt(0) {
         til_compile_totals.get(0, total_til_compile)?
+        mut rss := 0
+        til_compile_maxrss.get(0, rss)?
+        if rss.gt(maxrss_til_compile) { maxrss_til_compile = rss }
     }
     if til_common.len().gt(0) {
         mut til_common_interp := 0
@@ -827,6 +952,12 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
         til_common_totals.get(1, til_common_compile)?
         total_til_interp = total_til_interp.add(til_common_interp)
         total_til_compile = total_til_compile.add(til_common_compile)
+        mut rss0 := 0
+        mut rss1 := 0
+        til_common_maxrss.get(0, rss0)?
+        til_common_maxrss.get(1, rss1)?
+        if rss0.gt(maxrss_til_interp) { maxrss_til_interp = rss0 }
+        if rss1.gt(maxrss_til_compile) { maxrss_til_compile = rss1 }
     }
     if all_common.len().gt(0) {
         mut all_common_rs_interp := 0
@@ -835,6 +966,12 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
         all_common_totals.get(1, all_common_rs_compile)?
         total_rs_interp = total_rs_interp.add(all_common_rs_interp)
         total_rs_compile = total_rs_compile.add(all_common_rs_compile)
+        mut rss0 := 0
+        mut rss1 := 0
+        all_common_maxrss.get(0, rss0)?
+        all_common_maxrss.get(1, rss1)?
+        if rss0.gt(maxrss_rs_interp) { maxrss_rs_interp = rss0 }
+        if rss1.gt(maxrss_rs_compile) { maxrss_rs_compile = rss1 }
         if not(g_rust_only) {
             mut all_common_til_interp := 0
             mut all_common_til_compile := 0
@@ -842,26 +979,32 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
             all_common_totals.get(3, all_common_til_compile)?
             total_til_interp = total_til_interp.add(all_common_til_interp)
             total_til_compile = total_til_compile.add(all_common_til_compile)
+            mut rss2 := 0
+            mut rss3 := 0
+            all_common_maxrss.get(2, rss2)?
+            all_common_maxrss.get(3, rss3)?
+            if rss2.gt(maxrss_til_interp) { maxrss_til_interp = rss2 }
+            if rss3.gt(maxrss_til_compile) { maxrss_til_compile = rss3 }
         }
     }
 
     // Print and write totals
     println("")
     println("=== Totals ===")
-    println("Total rust interpreted:  ", format_time(total_rs_interp))
-    println("Total rust compiled:     ", format_time(total_rs_compile))
-    println("Total til interpreted:   ", format_time(total_til_interp))
-    println("Total til compiled:      ", format_time(total_til_compile))
+    println("Total rust interpreted:  ", format_time(total_rs_interp), ", max ", format_maxrss(maxrss_rs_interp))
+    println("Total rust compiled:     ", format_time(total_rs_compile), ", max ", format_maxrss(maxrss_rs_compile))
+    println("Total til interpreted:   ", format_time(total_til_interp), ", max ", format_maxrss(maxrss_til_interp))
+    println("Total til compiled:      ", format_time(total_til_compile), ", max ", format_maxrss(maxrss_til_compile))
     total_all := total_rs_interp.add(total_rs_compile).add(total_til_interp).add(total_til_compile)
     println("Total:                   ", format_time(total_all))
     println("Failed:                  ", errors_found.to_str(), "/", total_tests.to_str())
 
     // Build totals section and prepend it
     mut totals := "* Totals\n"
-    totals = totals.concat("- Total rust interpreted :: ").concat(format_time(total_rs_interp)).concat("\n")
-    totals = totals.concat("- Total rust compiled :: ").concat(format_time(total_rs_compile)).concat("\n")
-    totals = totals.concat("- Total til interpreted :: ").concat(format_time(total_til_interp)).concat("\n")
-    totals = totals.concat("- Total til compiled :: ").concat(format_time(total_til_compile)).concat("\n")
+    totals = totals.concat("- Total rust interpreted :: ").concat(format_time(total_rs_interp)).concat(", max ").concat(format_maxrss(maxrss_rs_interp)).concat("\n")
+    totals = totals.concat("- Total rust compiled :: ").concat(format_time(total_rs_compile)).concat(", max ").concat(format_maxrss(maxrss_rs_compile)).concat("\n")
+    totals = totals.concat("- Total til interpreted :: ").concat(format_time(total_til_interp)).concat(", max ").concat(format_maxrss(maxrss_til_interp)).concat("\n")
+    totals = totals.concat("- Total til compiled :: ").concat(format_time(total_til_compile)).concat(", max ").concat(format_maxrss(maxrss_til_compile)).concat("\n")
     totals = totals.concat("- Total :: ").concat(format_time(total_all)).concat("\n\n")
 
     writefile("gen/benchmark.org", totals.concat(benchmark_content))?
