@@ -1321,28 +1321,71 @@ create a local and copy to =*_ret=.
 
 *** TODO: Commit 3 -- Placement construction (the actual fix)
 
-Callees must construct directly into =*_ret= instead of creating a local
-and copying. This eliminates the last shallow copy and matches the interpreter.
+**** The root cause of the leak
+
+The garbager inserts =Type.delete(result)= at function end. But =return result=
+comes before it, making the delete unreachable. The local's heap pointers are
+aliased with =*_ret= and never freed:
 
 #+begin_src c
-// Current (after Commit 2) -- still 1 shallow copy:
-void til_make_thing(til_MyStruct* _ret) {
-    til_MyStruct til_MyStruct_result = {0};  // local
-    til_MyStruct_result.field = 42;
-    *_ret = til_MyStruct_result;             // shallow copy, local leaked
-}
-
-// Goal -- zero copies, like the interpreter:
-void til_make_thing(til_MyStruct* _ret) {
-    *_ret = (til_MyStruct){0};               // construct into dest
-    _ret->field = 42;                        // write into dest
-    return;                                  // no local, no copy, no leak
+// After Commit 2 -- the local is the leak:
+void til_concat(til_Str* _ret, ...) {
+    til_Str til_Str_result = {...};   // local with heap pointers
+    til_Str_result._len = ...;
+    *_ret = til_Str_result;           // shallow copy aliases heap ptrs
+    return;
+    til_Str_delete(&til_Str_result);  // UNREACHABLE = LEAKED
 }
 #+end_src
 
-Approach: detect the "return variable" in the callee and alias it to =_ret=.
-When the codegen sees =result := MyStruct()= followed by =return result=, it
-should emit construction into =*_ret= and field writes via =_ret->=.
+**** The fix: eliminate the local entirely
+
+#+begin_src c
+// Goal -- zero copies, like the interpreter:
+void til_concat(til_Str* _ret, ...) {
+    *_ret = (til_Str){...};           // construct into caller's memory
+    _ret->_len = ...;                 // write into caller's memory
+    return;                           // no local, no leak, no delete needed
+}
+#+end_src
+
+**** Approach: return variable aliasing
+
+Pre-scan each function body to find the "return variable" -- a local that ALL
+return paths return. Alias it to =_ret= throughout:
+
+| Context        | Before (local)            | After (alias to _ret)       |
+|----------------+---------------------------+-----------------------------|
+| Declaration    | =Type var = init;=        | =*_ret = init;= (no local) |
+| Field access   | =var.field=               | =_ret->field=               |
+| Value access   | =var=                     | =(*_ret)=                   |
+| By-ref arg     | =&var=                    | =_ret= (already ptr)        |
+| Return         | =*_ret = var; return;=    | =return;= (data there)      |
+| Delete         | =Type_delete(&var);=      | skip (no local to delete)   |
+
+Detection: =detect_return_variable(body, func_def)= scans all Return nodes.
+If ALL returns return the same Identifier(X), and X is a local declaration
+(not a parameter) with =needs_out_pointer= type, and the body ends with a
+Return (no implicit return path), then X is the return variable.
+
+When not detected (multiple return variables, returns expressions, implicit
+return path), keep current behavior -- no aliasing, =*_ret = local= copy.
+
+**** Implementation steps
+
+1. Add =detect_return_variable= function (pre-scan all Return nodes)
+2. Add =current_return_alias= field to CodegenContext
+3. Wire up in =emit_func_declaration= / =emit_funcdef= / nested functions
+4. Modify =emit_expr= Identifier handler (=_ret->field=, =(*_ret)=)
+5. Modify =emit_declaration= (=*_ret = init= instead of =Type var = init=)
+6. Modify =emit_assignment= (=_ret->field = expr=, =*_ret = expr=)
+7. Modify =emit_return= (just =return;= for the alias variable)
+8. Modify =emit_arg_string= (=_ret= for by-ref, =(*_ret)= for by-value)
+9. Modify =build_dest_ptr_expr= (return =_ret= for the alias)
+10. Skip =Type.delete(var)= when var is the alias
+11. Port all to ccodegen.til
+
+Full plan: =.claude/plans/foamy-swimming-kernighan.md=
 
 **** Scope exclusions
 - =emit_enum_to_str_function= -- returns Str with borrowed literals, safe
