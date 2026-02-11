@@ -4525,6 +4525,47 @@ fn emit_throwing_call(
     Ok(())
 }
 
+// Bug #168: Compute destination pointer expression for throwing calls.
+// Returns Some(expr) to pass directly as _ret instead of using _ret_N temp.
+// Returns None when result is discarded (need temp as sink).
+fn build_dest_ptr_expr(
+    decl_name: Option<&str>,
+    assign_name: Option<&str>,
+    ctx: &CodegenContext,
+    context: &Context,
+) -> Option<String> {
+    if let Some(var_name) = decl_name {
+        if var_name == "_" {
+            return None;
+        }
+        let c_name = til_var_name_from_context(var_name, context);
+        return Some(format!("&{}", c_name));
+    }
+    if let Some(var_name) = assign_name {
+        if var_name.starts_with('*') {
+            // *_ret -> _ret (already a pointer)
+            return Some(var_name[1..].to_string());
+        }
+        if let Some(dot_pos) = var_name.find('.') {
+            let base = &var_name[..dot_pos];
+            let rest = &var_name[dot_pos + 1..];
+            let c_base = til_var_name_from_context(base, context);
+            if ctx.current_ref_params.contains(base) {
+                return Some(format!("&({}->{})", c_base, rest));
+            } else {
+                return Some(format!("&({}.{})", c_base, rest));
+            }
+        }
+        if ctx.current_ref_params.contains(var_name) {
+            // Ref param: already a pointer
+            return Some(til_var_name_from_context(var_name, context));
+        }
+        let c_name = til_var_name_from_context(var_name, context);
+        return Some(format!("&{}", c_name));
+    }
+    None
+}
+
 /// Emit a throwing function call that propagates errors to the caller (no catch blocks)
 /// This is used when a throwing function calls another throwing function without catching
 fn emit_throwing_call_propagate(
@@ -4589,16 +4630,7 @@ fn emit_throwing_call_propagate(
         "int".to_string()
     };
 
-    // Declare temp for return value if needed
-    if needs_ret {
-        output.push_str(&indent_str);
-        output.push_str(&ret_type);
-        output.push_str(" _ret_");
-        output.push_str(&temp_suffix);
-        output.push_str(";\n");
-    }
-
-    // For declarations: declare the variable BEFORE the if block so it's visible after
+    // For declarations: declare the variable BEFORE the temp so dest_ptr can reference it
     // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
         if var_name != "_" {
@@ -4619,6 +4651,22 @@ fn emit_throwing_call_propagate(
             output.push_str(";\n");
             ctx.declared_vars.insert(c_var_name);
         }
+    }
+
+    // Bug #168: Try to write directly to destination instead of intermediate _ret_N
+    let dest_ptr = if needs_ret {
+        build_dest_ptr_expr(decl_name, assign_name, ctx, context)
+    } else {
+        None
+    };
+
+    // Declare temp for return value if needed (Bug #168: skip when writing to dest directly)
+    if needs_ret && dest_ptr.is_none() {
+        output.push_str(&indent_str);
+        output.push_str(&ret_type);
+        output.push_str(" _ret_");
+        output.push_str(&temp_suffix);
+        output.push_str(";\n");
     }
 
     // Declare error structs for each throw type of the called function
@@ -4655,9 +4703,14 @@ fn emit_throwing_call_propagate(
     output.push_str("(");
 
     // First: return value pointer (if function returns something)
+    // Bug #168: use destination pointer directly when available
     if needs_ret {
-        output.push_str("&_ret_");
-        output.push_str(&temp_suffix);
+        if let Some(ref dest) = dest_ptr {
+            output.push_str(dest);
+        } else {
+            output.push_str("&_ret_");
+            output.push_str(&temp_suffix);
+        }
     }
 
     // Then: error pointers (Issue #119: skip empty struct errors)
@@ -4747,43 +4800,46 @@ fn emit_throwing_call_propagate(
     }
 
     // Success case: assign return value to target variable if needed
-    // Skip for underscore _ which is just a discard
-    // Bug #97: Use type-mangled names
-    if let Some(var_name) = decl_name {
-        if var_name != "_" {
+    // Bug #168: skip when dest_ptr was used (function wrote to destination directly)
+    if dest_ptr.is_none() {
+        // Skip for underscore _ which is just a discard
+        // Bug #97: Use type-mangled names
+        if let Some(var_name) = decl_name {
+            if var_name != "_" {
+                output.push_str(&indent_str);
+                output.push_str(&til_var_name_from_context(var_name, context));
+                output.push_str(" = _ret_");
+                output.push_str(&temp_suffix);
+                output.push_str(";\n");
+            }
+        } else if let Some(var_name) = assign_name {
             output.push_str(&indent_str);
-            output.push_str(&til_var_name_from_context(var_name, context));
+            // Check if assignment target is a field access on a mut param (self.field)
+            // If so, emit with -> instead of .
+            if let Some(dot_pos) = var_name.find('.') {
+                let base = &var_name[..dot_pos];
+                let rest = &var_name[dot_pos + 1..];
+                if ctx.current_ref_params.contains(base) {
+                    // Mut param field access: til_Type_self->field
+                    output.push_str(&til_var_name_from_context(base, context));
+                    output.push_str("->");
+                    output.push_str(rest);
+                } else {
+                    output.push_str(&til_var_name_from_context(base, context));
+                    output.push_str(".");
+                    output.push_str(rest);
+                }
+            } else if ctx.current_ref_params.contains(var_name) {
+                // Direct assignment to mut param: *til_Type_var = value
+                output.push_str("*");
+                output.push_str(&til_var_name_from_context(var_name, context));
+            } else {
+                output.push_str(&til_var_name_from_context(var_name, context));
+            }
             output.push_str(" = _ret_");
             output.push_str(&temp_suffix);
             output.push_str(";\n");
         }
-    } else if let Some(var_name) = assign_name {
-        output.push_str(&indent_str);
-        // Check if assignment target is a field access on a mut param (self.field)
-        // If so, emit with -> instead of .
-        if let Some(dot_pos) = var_name.find('.') {
-            let base = &var_name[..dot_pos];
-            let rest = &var_name[dot_pos + 1..];
-            if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_Type_self->field
-                output.push_str(&til_var_name_from_context(base, context));
-                output.push_str("->");
-                output.push_str(rest);
-            } else {
-                output.push_str(&til_var_name_from_context(base, context));
-                output.push_str(".");
-                output.push_str(rest);
-            }
-        } else if ctx.current_ref_params.contains(var_name) {
-            // Direct assignment to mut param: *til_Type_var = value
-            output.push_str("*");
-            output.push_str(&til_var_name_from_context(var_name, context));
-        } else {
-            output.push_str(&til_var_name_from_context(var_name, context));
-        }
-        output.push_str(" = _ret_");
-        output.push_str(&temp_suffix);
-        output.push_str(";\n");
     }
 
     Ok(())
@@ -4853,16 +4909,7 @@ fn emit_throwing_call_with_goto(
         "int".to_string()
     };
 
-    // Declare temp for return value if needed
-    if needs_ret {
-        output.push_str(&indent_str);
-        output.push_str(&ret_type);
-        output.push_str(" _ret_");
-        output.push_str(&temp_suffix);
-        output.push_str(";\n");
-    }
-
-    // For declarations: declare the variable BEFORE the if block so it's visible after
+    // For declarations: declare the variable BEFORE the temp so dest_ptr can reference it
     // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
         if var_name != "_" {
@@ -4883,6 +4930,22 @@ fn emit_throwing_call_with_goto(
             output.push_str(";\n");
             ctx.declared_vars.insert(c_var_name);
         }
+    }
+
+    // Bug #168: Try to write directly to destination instead of intermediate _ret_N
+    let dest_ptr = if needs_ret {
+        build_dest_ptr_expr(decl_name, assign_name, ctx, context)
+    } else {
+        None
+    };
+
+    // Declare temp for return value if needed (Bug #168: skip when writing to dest directly)
+    if needs_ret && dest_ptr.is_none() {
+        output.push_str(&indent_str);
+        output.push_str(&ret_type);
+        output.push_str(" _ret_");
+        output.push_str(&temp_suffix);
+        output.push_str(";\n");
     }
 
     // Declare error structs for each throw type of the called function
@@ -4919,9 +4982,14 @@ fn emit_throwing_call_with_goto(
     output.push_str("(");
 
     // First: return value pointer (if function returns something)
+    // Bug #168: use destination pointer directly when available
     if needs_ret {
-        output.push_str("&_ret_");
-        output.push_str(&temp_suffix);
+        if let Some(ref dest) = dest_ptr {
+            output.push_str(dest);
+        } else {
+            output.push_str("&_ret_");
+            output.push_str(&temp_suffix);
+        }
     }
 
     // Then: error pointers (Issue #119: skip empty struct errors)
@@ -5024,44 +5092,47 @@ fn emit_throwing_call_with_goto(
     }
 
     // Success case: assign return value to target variable if needed
-    // This runs unconditionally after error checks - if we get here, status was 0
-    // Skip for underscore _ which is just a discard
-    // Bug #97: Use type-mangled names
-    if let Some(var_name) = decl_name {
-        if var_name != "_" {
+    // Bug #168: skip when dest_ptr was used (function wrote to destination directly)
+    if dest_ptr.is_none() {
+        // This runs unconditionally after error checks - if we get here, status was 0
+        // Skip for underscore _ which is just a discard
+        // Bug #97: Use type-mangled names
+        if let Some(var_name) = decl_name {
+            if var_name != "_" {
+                output.push_str(&indent_str);
+                output.push_str(&til_var_name_from_context(var_name, context));
+                output.push_str(" = _ret_");
+                output.push_str(&temp_suffix);
+                output.push_str(";\n");
+            }
+        } else if let Some(var_name) = assign_name {
             output.push_str(&indent_str);
-            output.push_str(&til_var_name_from_context(var_name, context));
+            // Check if assignment target is a field access on a mut param (self.field)
+            // If so, emit with -> instead of .
+            if let Some(dot_pos) = var_name.find('.') {
+                let base = &var_name[..dot_pos];
+                let rest = &var_name[dot_pos + 1..];
+                if ctx.current_ref_params.contains(base) {
+                    // Mut param field access: til_Type_self->field
+                    output.push_str(&til_var_name_from_context(base, context));
+                    output.push_str("->");
+                    output.push_str(rest);
+                } else {
+                    output.push_str(&til_var_name_from_context(base, context));
+                    output.push_str(".");
+                    output.push_str(rest);
+                }
+            } else if ctx.current_ref_params.contains(var_name) {
+                // Direct assignment to mut param: *til_Type_var = value
+                output.push_str("*");
+                output.push_str(&til_var_name_from_context(var_name, context));
+            } else {
+                output.push_str(&til_var_name_from_context(var_name, context));
+            }
             output.push_str(" = _ret_");
             output.push_str(&temp_suffix);
             output.push_str(";\n");
         }
-    } else if let Some(var_name) = assign_name {
-        output.push_str(&indent_str);
-        // Check if assignment target is a field access on a mut param (self.field)
-        // If so, emit with -> instead of .
-        if let Some(dot_pos) = var_name.find('.') {
-            let base = &var_name[..dot_pos];
-            let rest = &var_name[dot_pos + 1..];
-            if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_Type_self->field
-                output.push_str(&til_var_name_from_context(base, context));
-                output.push_str("->");
-                output.push_str(rest);
-            } else {
-                output.push_str(&til_var_name_from_context(base, context));
-                output.push_str(".");
-                output.push_str(rest);
-            }
-        } else if ctx.current_ref_params.contains(var_name) {
-            // Direct assignment to mut param: *til_Type_var = value
-            output.push_str("*");
-            output.push_str(&til_var_name_from_context(var_name, context));
-        } else {
-            output.push_str(&til_var_name_from_context(var_name, context));
-        }
-        output.push_str(" = _ret_");
-        output.push_str(&temp_suffix);
-        output.push_str(";\n");
     }
 
     Ok(())
