@@ -1262,7 +1262,6 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/introspections.til")) // TODO: Actually use Introspection from func that is called from const initialization
     rs_common.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
     rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: til_interpreted too slow (~35s)
-    rs_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // REM: error output differs from til (Issue #69)
     rs_common.push(TestEntry(path="src/test/test_parser.til"))  // TODO: til_interpreted too slow (~23s)
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
 
@@ -1277,7 +1276,6 @@ main := proc(args: ..Str) {
     // til_common: tests run with BOTH self-hosted TIL interpreter and compiler
     // (for tests where output differs between rstil and til, e.g. error messages)
     mut til_common := Vec.new(TestEntry)
-    til_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // REM: error output differs from rstil (Issue #69)
 
     // all_common: tests run with ALL 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
     mut all_common := Vec.new(TestEntry)
@@ -1343,6 +1341,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/return_value_usage.til"))
     all_common.push(TestEntry(path="src/test/scope_isolation.til"))
     all_common.push(TestEntry(path="src/test/sets.til"))
+    all_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // Issue #69: fixed, output now matches across all 4 modes
     all_common.push(TestEntry(path="src/test/strings.til"))
     all_common.push(TestEntry(path="src/test/structs.til"))
     all_common.push(TestEntry(path="src/test/syscalls.til"))

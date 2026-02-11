@@ -829,8 +829,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                             None => {
                                 match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
                                     Ok(ok_val) => return Ok(ok_val),
-                                    Err(error_string) => {
-                                        println!("{}", error_string);
+                                    Err(_) => {
                                         return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' c", custom_type_name, struct_after_dot_name)));
                                     },
                                 }
@@ -882,8 +881,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                             None => {
                                 match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
                                     Ok(ok_val) => return Ok(ok_val),
-                                    Err(error_string) => {
-                                        println!("{}", error_string);
+                                    Err(_) => {
                                         return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' (variadic)", variadic_type_name, variadic_after_dot_name)));
                                     },
                                 }
