@@ -62,20 +62,14 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             case:
             }
         }
-        for lt_stmt: Expr in new_body {
-            switch lt_stmt.node_type {
-            case NodeType.Declaration(decl):
-                switch decl.value_type {
-                case ValueType.TCustom(type_name):
-                    local_types.set(decl.name, type_name)
-                case:
-                }
-            case:
-            }
-        }
+        // Also collect declarations from nested scopes (if/while/for bodies)
+        collect_local_types_recursive(new_body, local_types)?
 
         // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
         new_body = insert_clone_after_get(new_body, local_types, context)?
+
+        // Step 2.8: Insert scope-exit deletes for inner-scope declarations.
+        new_body = insert_scope_exit_deletes(new_body, local_types, context)?
 
         // Step 3: Collect delete candidates (parallel vecs: var names + type names)
         mut cand_vars := Vec.new(Str)
@@ -464,6 +458,320 @@ build_clone_call_expr := func(type_name: Str, src_expr: Expr, line: I64, col: I6
     clone_call.params.push(type_clone_access)
     clone_call.params.push(src_expr)
     return clone_call
+}
+
+/// Recursively collect Declaration nodes with TCustom types from a statement list.
+/// Recurses into all children (not just Body nodes), skips nested FuncDef bodies.
+collect_local_types_recursive := proc(stmts: Vec, mut local_types: Map) throws Str {
+    for stmt: Expr in stmts {
+        switch stmt.node_type {
+        case NodeType.Declaration(decl):
+            switch decl.value_type {
+            case ValueType.TCustom(type_name):
+                if type_name.eq("auto") {
+                    // Infer type from RHS: for FCall like Vec.new() or Expr(),
+                    // the first element of the identifier chain is the type.
+                    if stmt.params.len().gt(0) {
+                        mut rhs := Expr()
+                        stmt.params.get(0, rhs)?
+                        mut chain := Vec.new(Str)
+                        get_fcall_identifier_chain(rhs, chain)
+                        if chain.len().gt(0) {
+                            mut first := ""
+                            chain.get(0, first)?
+                            first_char := first.char_at(0)
+                            if U8.to_i64(first_char).gteq(65).and(U8.to_i64(first_char).lteq(90)) {
+                                local_types.set(decl.name, first)
+                            }
+                        }
+                    }
+                } else {
+                    local_types.set(decl.name, type_name)
+                }
+            case:
+            }
+        case:
+        }
+        // Only recurse into Body children (if/while/for blocks), not every param.
+        // Deep recursion into all params causes OOM in TIL due to for-in leak (Bug #144).
+        switch stmt.node_type {
+        case NodeType.FuncDef(_):
+            // separate scope, skip
+        case:
+            for param: Expr in stmt.params {
+                switch param.node_type {
+                case NodeType.Body:
+                    collect_local_types_recursive(param.params, local_types)?
+                case:
+                }
+            }
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("collect_local_types_recursive: ", err.msg)
+    }
+}
+
+/// Insert scope-exit deletes for declarations in inner-scope Body nodes.
+/// Recurses into nested Body nodes but not into FuncDef bodies.
+insert_scope_exit_deletes := proc(stmts: Vec, local_types: Map, context: Context) returns Vec throws Str {
+    mut result := Vec.new(Expr)
+    for stmt: Expr in stmts {
+        processed := process_stmt_for_scope_exit(stmt, local_types, context)?
+        result.push(processed)
+    }
+    return result
+}
+
+process_stmt_for_scope_exit := proc(e: Expr, local_types: Map, context: Context) returns Expr throws Str {
+    switch e.node_type {
+    case NodeType.FuncDef(_):
+        return e // separate scope, don't touch
+    case NodeType.Body:
+        // First recurse into children (handles nested Body nodes)
+        recursed := insert_scope_exit_deletes(e.params, local_types, context)?
+
+        // Strip dont_delete, collect protected vars
+        mut final_stmts := Vec.new(Expr)
+        mut dont_delete_vars := Vec.new(Str)
+        for stmt: Expr in recursed {
+            if is_dont_delete_call(stmt) {
+                dd_var := get_dont_delete_var(stmt)
+                if dd_var.len().gt(0) {
+                    dont_delete_vars.push(dd_var)
+                }
+            } else {
+                if get_create_alias_var(stmt).len().gt(0) {
+                    dont_delete_vars.push(get_create_alias_var(stmt))
+                }
+                final_stmts.push(stmt)
+            }
+        }
+
+        // Collect catch error var names
+        for catch_stmt: Expr in final_stmts {
+            switch catch_stmt.node_type {
+            case NodeType.Catch:
+                if catch_stmt.params.len().gt(0) {
+                    mut catch_name_expr := Expr()
+                    catch_stmt.params.get(0, catch_name_expr)?
+                    switch catch_name_expr.node_type {
+                    case NodeType.Identifier(err_var_name):
+                        dont_delete_vars.push(err_var_name)
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+
+        // Check for catch blocks -- skip deletion if any
+        mut has_any_catch := false
+        for check_stmt: Expr in final_stmts {
+            switch check_stmt.node_type {
+            case NodeType.Catch:
+                has_any_catch = true
+            case:
+            }
+        }
+
+        if not(has_any_catch) {
+            // Whitelist approach: only collect declarations whose RHS is a
+            // known-allocating expression (constructor, format, concat, to_str,
+            // clone, new, split, etc.). Variables from container get/pop,
+            // field access, or other sources may be aliased and unsafe to delete.
+            mut cand_vars := Vec.new(Str)
+            mut cand_types := Vec.new(Str)
+            for decl_stmt: Expr in final_stmts {
+                switch decl_stmt.node_type {
+                case NodeType.Declaration(decl):
+                    switch decl.value_type {
+                    case ValueType.TCustom(type_name):
+                        if is_deletable_type(type_name, context) {
+                            if decl_stmt.params.len().gt(0) {
+                                mut decl_rhs := Expr()
+                                decl_stmt.params.get(0, decl_rhs)?
+                                if is_owned_rhs(decl_rhs) {
+                                    cand_vars.push(decl.name)
+                                    cand_types.push(type_name)
+                                }
+                            }
+                        }
+                    case:
+                    }
+                case:
+                }
+            }
+
+            // Collect own transfers
+            own_transfers := collect_own_transfers(final_stmts, context, local_types)?
+
+            // Collect vars used as function arguments (shallow-copy alias risk)
+            mut func_arg_vars := Vec.new(Str)
+            collect_func_arg_vars(final_stmts, func_arg_vars)
+
+            // Filter
+            mut filtered_vars := Vec.new(Str)
+            mut filtered_types := Vec.new(Str)
+            for fi in 0..cand_vars.len() {
+                mut fv := ""
+                cand_vars.get(fi, fv)?
+                mut ft := ""
+                cand_types.get(fi, ft)?
+                mut excluded := fv.eq("_")
+                for dd: Str in dont_delete_vars {
+                    if dd.eq(fv) { excluded = true }
+                }
+                for ot: Str in own_transfers {
+                    if ot.eq(fv) { excluded = true }
+                }
+                for fav: Str in func_arg_vars {
+                    if fav.eq(fv) { excluded = true }
+                }
+                if not(excluded) {
+                    filtered_vars.push(fv)
+                    filtered_types.push(ft)
+                }
+            }
+
+            // Append deletes at end of scope in reverse declaration order
+            if filtered_vars.len().gt(0) {
+                mut last_line := e.line
+                mut last_col := e.col
+                if final_stmts.len().gt(0) {
+                    mut last_s := Expr()
+                    final_stmts.get(final_stmts.len().sub(1), last_s)?
+                    last_line = last_s.line
+                    last_col = last_s.col
+                }
+                mut dri := filtered_vars.len()
+                while dri.gt(0) {
+                    dri = dri.sub(1)
+                    mut dv := ""
+                    filtered_vars.get(dri, dv)?
+                    mut dt := ""
+                    filtered_types.get(dri, dt)?
+                    final_stmts.push(build_delete_call_expr(dt, dv, last_line, last_col))
+                }
+            }
+        }
+
+        return Expr.new_explicit(e.node_type, final_stmts, e.line, e.col)
+
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(context.path, "garbager", format("process_stmt_for_scope_exit: ", err.msg))
+        }
+    case:
+        // Only recurse into Body children (if/while/for blocks), not all params.
+        // Body nodes only appear as direct children of control flow statements.
+        mut new_params := Vec.new(Expr)
+        for param: Expr in e.params {
+            switch param.node_type {
+            case NodeType.Body:
+                new_params.push(process_stmt_for_scope_exit(param, local_types, context)?)
+            case:
+                new_params.push(param)
+            }
+        }
+        return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
+    }
+}
+
+/// Collect identifiers used as arguments to function calls in a list of statements.
+/// Shallow scan only: checks each statement's top-level FCall, plus FCall in
+/// Assignment RHS and Declaration RHS. Does NOT recurse into nested expressions
+/// to avoid OOM from for-in leak (Bug #144).
+/// Any variable passed as a function argument gets shallow-copied (memcpy) in TIL/C,
+/// creating an alias that makes it unsafe to delete.
+collect_func_arg_vars := proc(stmts: Vec, mut result: Vec) {
+    for stmt: Expr in stmts {
+        collect_fcall_arg_identifiers(stmt, result)
+        // Also check one level deeper: Assignment RHS and Declaration RHS
+        switch stmt.node_type {
+        case NodeType.Assignment(_):
+            if stmt.params.len().gt(0) {
+                mut rhs := Expr()
+                stmt.params.get(0, rhs)?
+                catch (err: IndexOutOfBoundsError) { }
+                collect_fcall_arg_identifiers(rhs, result)
+            }
+        case NodeType.Declaration(_):
+            if stmt.params.len().gt(0) {
+                mut rhs := Expr()
+                stmt.params.get(0, rhs)?
+                catch (err: IndexOutOfBoundsError) { }
+                collect_fcall_arg_identifiers(rhs, result)
+            }
+        case:
+        }
+    }
+}
+
+/// Collect bare identifiers from FCall arguments (params[1..]).
+/// Only collects from this single FCall node, no recursion.
+collect_fcall_arg_identifiers := proc(e: Expr, mut result: Vec) {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        for i in 1..e.params.len() {
+            mut param_expr := Expr()
+            e.params.get(i, param_expr)?
+            catch (err: IndexOutOfBoundsError) { }
+            switch param_expr.node_type {
+            case NodeType.Identifier(var_name):
+                if param_expr.params.len().eq(0) {
+                    result.push(var_name)
+                }
+            case:
+            }
+        }
+    case:
+    }
+}
+
+/// Check if a Declaration RHS is a known-allocating expression.
+/// Only these expressions produce truly owned data safe to delete:
+/// - Constructor calls: Type(...), Type.new(...), Type.clone(...)
+/// - String-allocating calls: format(...), concat(...), to_str(), to_lowercase()
+/// - Collection constructors: Vec.new(...), Set.new(...), Map.new(...)
+/// Variables from get/pop, field access, or other sources may be aliased.
+is_owned_rhs := proc(rhs: Expr) returns Bool {
+    switch rhs.node_type {
+    case NodeType.FCall(_):
+        mut chain := Vec.new(Str)
+        get_fcall_identifier_chain(rhs, chain)
+        if chain.len().eq(0) {
+            return false
+        }
+        mut last := ""
+        chain.get(chain.len().sub(1), last)?
+        catch (err: IndexOutOfBoundsError) {
+            return false
+        }
+        // Known-allocating function names (last in chain)
+        if last.eq("new").or(last.eq("clone")).or(last.eq("format")).or(last.eq("concat")).or(last.eq("to_str")).or(last.eq("to_lowercase")).or(last.eq("split")).or(last.eq("read_file")).or(last.eq("Str")).or(last.eq("Vec")).or(last.eq("Set")).or(last.eq("Map")).or(last.eq("Array")) {
+            return true
+        }
+        // Constructor calls: single identifier matching a type name (e.g., MyStruct(...))
+        // Skip namespace-qualified calls like "Lexer.peek" (contains dot).
+        if chain.len().eq(1) {
+            mut first := ""
+            chain.get(0, first)?
+            catch (err: IndexOutOfBoundsError) {
+                return false
+            }
+            if not(first.contains(".")) {
+                // Check if first character is uppercase (A=65, Z=90)
+                first_char := first.char_at(0)
+                if U8.to_i64(first_char).gteq(65).and(U8.to_i64(first_char).lteq(90)) {
+                    return true
+                }
+            }
+        }
+        return false
+    case:
+        return false
+    }
 }
 
 /// Check if a type should have delete() calls inserted.

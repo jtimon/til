@@ -1848,6 +1848,7 @@ til_Bool til_Str_contains(const til_Str* til_Str_self, const til_Str* til_Str_ne
                 return true;
             }
             til_I64_inc(&til_I64_start_idx);
+            til_Bool_delete(&til_Bool_matches);
         }
     } else {
         while (1) {
@@ -1905,6 +1906,7 @@ til_Bool til_Str_contains(const til_Str* til_Str_self, const til_Str* til_Str_ne
                 return true;
             }
             til_I64_dec(&til_I64_start_idx);
+            til_Bool_delete(&til_Bool_matches);
         }
     }
     return false;
@@ -1965,6 +1967,7 @@ til_I64 til_Str_find(const til_Str* til_Str_self, const til_Str* til_Str_needle)
             return til_I64_start_idx;
         }
         til_I64_inc(&til_I64_start_idx);
+        til_Bool_delete(&til_Bool_matches);
     }
     til_I64 _tmp_til_Str_find_19 = 0;
     til_I64 _tmp_til_Str_find_20 = 1;
@@ -2057,6 +2060,7 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
                 til_I64_last_found = til_I64_start_idx;
             }
             til_I64_inc(&til_I64_start_idx);
+            til_Bool_delete(&til_Bool_matches);
         }
     } else {
         while (1) {
@@ -2114,6 +2118,7 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
                 til_I64_last_found = til_I64_start_idx;
             }
             til_I64_dec(&til_I64_start_idx);
+            til_Bool_delete(&til_Bool_matches);
         }
     }
     return til_I64_last_found;
@@ -2191,6 +2196,7 @@ til_Str til_Str_replace(const til_Str* til_Str_self, const til_Str* til_Str_from
         } else {
             til_I64_inc(&til_I64_search_start);
         }
+        til_Bool_delete(&til_Bool_matches);
     }
     til_I64 _tmp_til_Str_replace_26 = 0;
     if (til_I64_eq(&til_I64_count, &_tmp_til_Str_replace_26).data) {
@@ -2289,6 +2295,7 @@ til_Str til_Str_replace(const til_Str* til_Str_self, const til_Str* til_Str_from
             til_I64_inc(&til_I64_dst_idx);
             til_I64_inc(&til_I64_src_idx);
         }
+        til_Bool_delete(&til_Bool_found_match);
     }
     const til_U8 til_U8_zero = 0;
     til_I64 _tmp_til_Str_replace_66 = til_Ptr_offset(&til_Str_result.c_string, &til_Str_result._len).data;
@@ -2584,6 +2591,7 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
         } else {
             til_I64_inc(&til_I64_pos);
         }
+        til_Bool_delete(&til_Bool_matches);
     }
     til_Str til_Str_remaining_part;
     til_I64 _tmp_til_Str_split_28 = til_Str_len(til_Str_self);

@@ -1212,8 +1212,8 @@ main := proc(args: ..Str) {
     // Parse options first (before other args processing)
     // -jN: parallelism (e.g., -j8, -j32) - like make
     // --force-rebuild: force recompilation for compiled tests
-    // Issue #117: use quarter the threads to reduce memory pressure
-    mut parallelism := get_thread_count().div(4)
+    // Bug #165: til_interpreted leaks up to 33GB per test. Force -j1 until fixed.
+    mut parallelism := 1
     if parallelism.lt(1) {
         parallelism = 1
     }

@@ -58,16 +58,14 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     local_types.insert(arg_def.name.clone(), type_name.clone());
                 }
             }
-            for stmt in &new_body {
-                if let NodeType::Declaration(decl) = &stmt.node_type {
-                    if let ValueType::TCustom(type_name) = &decl.value_type {
-                        local_types.insert(decl.name.clone(), type_name.clone());
-                    }
-                }
-            }
+            // Also collect declarations from nested scopes (if/while/for bodies)
+            collect_local_types_recursive(&new_body, &mut local_types);
 
             // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
             let new_body = insert_clone_after_get(&new_body, &local_types, context);
+
+            // Step 2.8: Insert scope-exit deletes for inner-scope declarations.
+            let new_body = insert_scope_exit_deletes(&new_body, &local_types, context);
 
             // Step 3: Collect delete candidates
             let mut candidates: Vec<(String, String)> = Vec::new();
@@ -347,6 +345,228 @@ fn build_clone_call_expr(type_name: &str, src_expr: Expr, line: usize, col: usiz
         line,
         col,
     )
+}
+
+/// Recursively collect Declaration nodes with TCustom types from a statement list.
+/// Only recurses into Body nodes (if/while/for bodies), not into all AST children.
+/// Skips nested FuncDef bodies (separate scope).
+fn collect_local_types_recursive(stmts: &[Expr], local_types: &mut HashMap<String, String>) {
+    for stmt in stmts {
+        if let NodeType::Declaration(decl) = &stmt.node_type {
+            if let ValueType::TCustom(type_name) = &decl.value_type {
+                if type_name == "auto" {
+                    // Infer type from RHS: for FCall like Vec.new() or Expr(),
+                    // the first element of the identifier chain is the type.
+                    if !stmt.params.is_empty() {
+                        let rhs = &stmt.params[0];
+                        let chain = get_fcall_identifier_chain(rhs);
+                        if !chain.is_empty() {
+                            let first = &chain[0];
+                            let first_char = first.chars().next().unwrap_or('a');
+                            if first_char.is_uppercase() {
+                                local_types.insert(decl.name.clone(), first.clone());
+                            }
+                        }
+                    }
+                } else {
+                    local_types.insert(decl.name.clone(), type_name.clone());
+                }
+            }
+        }
+        // Only recurse into Body children (if/while/for blocks), not every param.
+        // Deep recursion into all params causes OOM in TIL due to for-in leak (Bug #144).
+        match &stmt.node_type {
+            NodeType::FuncDef(_) => {} // separate scope, skip
+            _ => {
+                for param in &stmt.params {
+                    if let NodeType::Body = &param.node_type {
+                        collect_local_types_recursive(&param.params, local_types);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Insert scope-exit deletes for declarations in inner-scope Body nodes.
+/// Recurses into nested Body nodes but not into FuncDef bodies.
+fn insert_scope_exit_deletes(stmts: &[Expr], local_types: &HashMap<String, String>, context: &Context) -> Vec<Expr> {
+    let mut result = Vec::new();
+    for stmt in stmts {
+        result.push(process_stmt_for_scope_exit(stmt, local_types, context));
+    }
+    result
+}
+
+fn process_stmt_for_scope_exit(e: &Expr, local_types: &HashMap<String, String>, context: &Context) -> Expr {
+    match &e.node_type {
+        NodeType::FuncDef(_) => e.clone(), // separate scope, don't touch
+        NodeType::Body => {
+            // First recurse into children (handles nested Body nodes)
+            let recursed = insert_scope_exit_deletes(&e.params, local_types, context);
+
+            // Strip dont_delete, collect protected vars
+            let mut final_stmts = Vec::new();
+            let mut dont_delete_vars: HashSet<String> = HashSet::new();
+            for stmt in &recursed {
+                if is_dont_delete_call(stmt) {
+                    if let Some(var_name) = get_dont_delete_var(stmt) {
+                        dont_delete_vars.insert(var_name);
+                    }
+                    continue; // strip from AST
+                }
+                if let Some(alias_var) = get_create_alias_var(stmt) {
+                    dont_delete_vars.insert(alias_var);
+                }
+                final_stmts.push(stmt.clone());
+            }
+
+            // Collect catch error var names
+            for stmt in &final_stmts {
+                if let NodeType::Catch = &stmt.node_type {
+                    if !stmt.params.is_empty() {
+                        if let NodeType::Identifier(err_var) = &stmt.params[0].node_type {
+                            dont_delete_vars.insert(err_var.clone());
+                        }
+                    }
+                }
+            }
+
+            // Check for catch blocks -- skip deletion if any
+            let has_any_catch = final_stmts.iter().any(|s|
+                matches!(&s.node_type, NodeType::Catch));
+
+            if !has_any_catch {
+                // Whitelist approach: only collect declarations whose RHS is a
+                // known-allocating expression (constructor, format, concat, to_str,
+                // clone, new, split, etc.). Variables from container get/pop,
+                // field access, or other sources may be aliased and unsafe to delete.
+                let mut candidates: Vec<(String, String)> = Vec::new();
+                for stmt in &final_stmts {
+                    if let NodeType::Declaration(decl) = &stmt.node_type {
+                        if let ValueType::TCustom(type_name) = &decl.value_type {
+                            if is_deletable_type(type_name, context) {
+                                // Check if RHS is a known-allocating call
+                                if !stmt.params.is_empty() && is_owned_rhs(&stmt.params[0]) {
+                                    candidates.push((decl.name.clone(), type_name.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Collect own transfers
+                let own_transfers = collect_own_transfers(&final_stmts, context, local_types);
+
+                // Collect vars used as function arguments (shallow-copy alias risk)
+                let mut func_arg_vars: HashSet<String> = HashSet::new();
+                collect_func_arg_vars(&final_stmts, &mut func_arg_vars);
+
+                // Filter
+                candidates.retain(|(var_name, _)| {
+                    var_name != "_"
+                        && !dont_delete_vars.contains(var_name)
+                        && !own_transfers.contains(var_name)
+                        && !func_arg_vars.contains(var_name)
+                });
+
+                // Append deletes at end of scope in reverse declaration order
+                if !candidates.is_empty() {
+                    let last_line = final_stmts.last().map_or(e.line, |s| s.line);
+                    let last_col = final_stmts.last().map_or(e.col, |s| s.col);
+                    candidates.reverse();
+                    for (var_name, type_name) in &candidates {
+                        final_stmts.push(build_delete_call_expr(
+                            type_name, var_name, last_line, last_col));
+                    }
+                }
+            }
+
+            Expr::new_explicit(e.node_type.clone(), final_stmts, e.line, e.col)
+        }
+        _ => {
+            let mut new_params = Vec::new();
+            for param in &e.params {
+                if let NodeType::Body = &param.node_type {
+                    new_params.push(process_stmt_for_scope_exit(param, local_types, context));
+                } else {
+                    new_params.push(param.clone());
+                }
+            }
+            Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col)
+        }
+    }
+}
+
+/// Collect identifiers used as arguments to function calls in a list of statements.
+/// Shallow scan only: checks each statement's top-level FCall, plus FCall in
+/// Assignment RHS and Declaration RHS. Does NOT recurse into nested expressions
+/// to avoid OOM from for-in leak (Bug #144).
+/// Any variable passed as a function argument gets shallow-copied (memcpy) in TIL/C,
+/// creating an alias that makes it unsafe to delete.
+fn collect_func_arg_vars(stmts: &[Expr], result: &mut HashSet<String>) {
+    for stmt in stmts {
+        collect_fcall_arg_identifiers(stmt, result);
+        // Also check one level deeper: Assignment RHS and Declaration RHS
+        match &stmt.node_type {
+            NodeType::Assignment(_) | NodeType::Declaration(_) => {
+                if !stmt.params.is_empty() {
+                    collect_fcall_arg_identifiers(&stmt.params[0], result);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Collect bare identifiers from FCall arguments (params[1..]).
+/// Only collects from this single FCall node, no recursion.
+fn collect_fcall_arg_identifiers(e: &Expr, result: &mut HashSet<String>) {
+    if let NodeType::FCall(_) = &e.node_type {
+        for i in 1..e.params.len() {
+            if let NodeType::Identifier(var_name) = &e.params[i].node_type {
+                if e.params[i].params.is_empty() {
+                    result.insert(var_name.clone());
+                }
+            }
+        }
+    }
+}
+
+/// Check if a Declaration RHS is a known-allocating expression.
+/// Only these expressions produce truly owned data safe to delete:
+/// - Constructor calls: Type(...), Type.new(...), Type.clone(...)
+/// - String-allocating calls: format(...), concat(...), to_str(), to_lowercase()
+/// - Collection constructors: Vec.new(...), Set.new(...), Map.new(...)
+/// Variables from get/pop, field access, or other sources may be aliased.
+fn is_owned_rhs(rhs: &Expr) -> bool {
+    match &rhs.node_type {
+        NodeType::FCall(_) => {
+            let chain = get_fcall_identifier_chain(rhs);
+            if chain.is_empty() {
+                return false;
+            }
+            let last = &chain[chain.len() - 1];
+            // Known-allocating function names (last in chain)
+            let allocating_funcs = [
+                "new", "clone", "format", "concat", "to_str", "to_lowercase",
+                "split", "read_file", "Str", "Vec", "Set", "Map", "Array",
+            ];
+            if allocating_funcs.contains(&last.as_str()) {
+                return true;
+            }
+            // Constructor calls: single identifier matching a type name (e.g., MyStruct(...))
+            // Skip namespace-qualified calls like "Lexer.peek" (contains dot).
+            if chain.len() == 1 && !chain[0].contains('.') {
+                let first_char = chain[0].chars().next().unwrap_or('a');
+                if first_char.is_uppercase() {
+                    return true;
+                }
+            }
+            false
+        }
+        _ => false,
+    }
 }
 
 /// Check if a type should have delete() calls inserted.
