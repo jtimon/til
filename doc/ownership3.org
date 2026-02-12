@@ -1,0 +1,86 @@
+#+TITLE: TIL Ownership Model v3 - Scope-Exit Deletion as Defer
+#+DATE: 2026-02-12
+#+AUTHOR: TIL Development
+
+* The Defer Analogy
+
+Scope-exit deletion is just =defer(delete)=.
+
+Every declaration that allocates owned data implicitly defers a delete to
+the end of the enclosing scope. That's the entire mental model.
+
+#+begin_example
+{
+    x := Foo()        // defer Foo.delete(x)
+    y := format(...)  // defer Str.delete(y)
+    z := bar()        // NOT deferred -- bar() may return aliased data
+    ...
+}                     // y.delete(), x.delete() -- reverse declaration order
+#+end_example
+
+** What gets deferred
+
+Only declarations whose RHS is a *known-allocating expression* (whitelist):
+- Constructors: =Foo()=, =Type.new(...)=, =Type.clone(...)=
+- String allocators: =format(...)=, =concat(...)=, =to_str()=, =split(...)=
+- Collection constructors: =Vec.new(...)=, =Set.new(...)=, =Map.new(...)=
+
+Everything else (=container.get()=, field access, function returns of unknown
+provenance) is assumed potentially aliased and NOT deferred. This is the
+=is_owned_rhs= whitelist check.
+
+** What cancels a deferred delete
+
+Three things cancel the deferred delete for a variable:
+1. *Return/throw*: The variable is being passed out of the function scope.
+   Ownership transfers to the caller.
+2. *Own transfer*: The variable is passed as an =own= parameter to a function.
+   Ownership transfers to the callee.
+3. *dont_delete directive*: Explicit annotation that the variable is aliased
+   (e.g., =dont_delete(elem_type)= when a field shares a pointer with its
+   containing struct).
+
+That's it. No need for:
+- Tracking which variables are passed as function arguments (non-receiver args)
+- Tracking which variables are reassigned
+- Tracking which variables escape via assignment to struct fields
+
+** Why those analyses were wrong
+
+The previous approach had 4 deep-recursion helpers that walked every AST node:
+- =collect_non_receiver_arg_vars=: blocked deletion of ANY var passed to ANY
+  function. But default params are by-reference -- they don't transfer
+  ownership. Only =own= params transfer ownership.
+- =collect_assignment_escapes=: blocked deletion if var was assigned to a
+  struct field. But the garbager already inserts =Type.clone()= for
+  identifier-RHS assignments (Issue #159 Step 6), so the assignment gets
+  a deep copy, not an alias.
+- =collect_reassigned_vars=: blocked deletion if var was target of an
+  assignment. Overly conservative -- the whitelist already ensures we only
+  delete vars with known-allocating RHS at declaration time.
+- =is_scope_exit_node= + pre-exit insertion: tried to insert deletes before
+  every return/break/continue/throw. Complex and fragile. Just appending
+  at scope end is simpler -- if an early exit skips the delete, that's a
+  leak (not a crash), same as any function-level local.
+
+** Where deletes are inserted
+
+| Scope level   | Where deletes go           |
+|---------------+----------------------------|
+| Function body | End of function (Step 3)   |
+| Inner scope   | End of Body node (Step 2.8)|
+
+Both use reverse declaration order. Both skip if the Body contains catch
+blocks (throws can skip declarations, making deletes unsafe).
+
+** The recursion fix
+
+The old helpers recursed into every AST child (=for param in e.params=),
+which in TIL triggers the for-in leak (Bug #144 -- each iteration constructs
+a default Expr() that never gets freed). With 4 helpers doing full-AST walks,
+compiling the compiler itself OOM'd.
+
+The fix: only recurse into direct Body children. Body nodes only appear as
+direct children of control-flow statements (if/while/for). They cannot appear
+inside expression trees. So checking =param.node_type == Body= on direct
+children is sufficient and avoids the deep-recursion leak entirely.
