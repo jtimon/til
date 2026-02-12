@@ -84,3 +84,11 @@ The fix: only recurse into direct Body children. Body nodes only appear as
 direct children of control-flow statements (if/while/for). They cannot appear
 inside expression trees. So checking =param.node_type == Body= on direct
 children is sufficient and avoids the deep-recursion leak entirely.
+
+** Implementation branch
+
+Branch =failure117again= contains a WIP implementation (88/92 tests fail).
+The Rust garbager changes work (4/4 rs_common tests pass), but the TIL port
+of =collect_func_arg_vars= / =collect_fcall_arg_identifiers= breaks the
+self-hosted compiler. Known issues: used =proc= instead of =func=, empty
+catch blocks silencing errors.
