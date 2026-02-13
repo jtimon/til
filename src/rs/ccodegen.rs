@@ -4316,15 +4316,7 @@ fn emit_throwing_call(
         "int".to_string()
     };
 
-    if needs_ret {
-        output.push_str(&indent_str);
-        output.push_str(&ret_type);
-        output.push_str(" _ret_");
-        output.push_str(&temp_suffix.to_string());
-        output.push_str(";\n");
-    }
-
-    // For declarations: declare the variable BEFORE the if block so it's visible after
+    // For declarations: declare the variable BEFORE the temp so dest_ptr can reference it
     // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
         if var_name != "_" {
@@ -4345,6 +4337,22 @@ fn emit_throwing_call(
             output.push_str(";\n");
             ctx.declared_vars.insert(c_var_name);
         }
+    }
+
+    // Bug #168: Try to write directly to destination instead of intermediate _ret_N
+    let dest_ptr = if needs_ret {
+        build_dest_ptr_expr(decl_name, assign_name, ctx, context)
+    } else {
+        None
+    };
+
+    // Declare temp for return value if needed (Bug #168: skip when writing to dest directly)
+    if needs_ret && dest_ptr.is_none() {
+        output.push_str(&indent_str);
+        output.push_str(&ret_type);
+        output.push_str(" _ret_");
+        output.push_str(&temp_suffix.to_string());
+        output.push_str(";\n");
     }
 
     // Declare error structs for each throw type (Issue #119: skip empty struct errors)
@@ -4381,9 +4389,14 @@ fn emit_throwing_call(
     output.push_str("(");
 
     // First: return value pointer (if function returns something)
+    // Bug #168: use destination pointer directly when available
     if needs_ret {
-        output.push_str("&_ret_");
-        output.push_str(&temp_suffix.to_string());
+        if let Some(ref dest) = dest_ptr {
+            output.push_str(dest);
+        } else {
+            output.push_str("&_ret_");
+            output.push_str(&temp_suffix.to_string());
+        }
     }
 
     // Then: error pointers (Issue #119: skip empty struct errors)
@@ -4439,47 +4452,50 @@ fn emit_throwing_call(
     output.push_str(" == 0) {\n");
 
     // Success case: assign return value to target variable
-    // Skip for underscore _ which is just a discard
-    // Bug #97: Use type-mangled names
-    if let Some(var_name) = decl_name {
-        if var_name != "_" {
-            // Declaration: assign to newly declared variable (declared before if block)
+    // Bug #168: skip when dest_ptr was used (function wrote to destination directly)
+    if dest_ptr.is_none() {
+        // Skip for underscore _ which is just a discard
+        // Bug #97: Use type-mangled names
+        if let Some(var_name) = decl_name {
+            if var_name != "_" {
+                // Declaration: assign to newly declared variable (declared before if block)
+                let inner_indent = "    ".repeat(indent + 1);
+                output.push_str(&inner_indent);
+                output.push_str(&til_var_name_from_context(var_name, context));
+                output.push_str(" = _ret_");
+                output.push_str(&temp_suffix.to_string());
+                output.push_str(";\n");
+            }
+        } else if let Some(var_name) = assign_name {
+            // Assignment: assign to existing variable
             let inner_indent = "    ".repeat(indent + 1);
             output.push_str(&inner_indent);
-            output.push_str(&til_var_name_from_context(var_name, context));
+            // Check if assignment target is a field access on a mut param (self.field)
+            // If so, emit with -> instead of .
+            if let Some(dot_pos) = var_name.find('.') {
+                let base = &var_name[..dot_pos];
+                let rest = &var_name[dot_pos + 1..];
+                if ctx.current_ref_params.contains(base) {
+                    // Mut param field access: til_Type_self->field
+                    output.push_str(&til_var_name_from_context(base, context));
+                    output.push_str("->");
+                    output.push_str(rest);
+                } else {
+                    output.push_str(&til_var_name_from_context(base, context));
+                    output.push_str(".");
+                    output.push_str(rest);
+                }
+            } else if ctx.current_ref_params.contains(var_name) {
+                // Direct assignment to mut param: *til_Type_var = value
+                output.push_str("*");
+                output.push_str(&til_var_name_from_context(var_name, context));
+            } else {
+                output.push_str(&til_var_name_from_context(var_name, context));
+            }
             output.push_str(" = _ret_");
             output.push_str(&temp_suffix.to_string());
             output.push_str(";\n");
         }
-    } else if let Some(var_name) = assign_name {
-        // Assignment: assign to existing variable
-        let inner_indent = "    ".repeat(indent + 1);
-        output.push_str(&inner_indent);
-        // Check if assignment target is a field access on a mut param (self.field)
-        // If so, emit with -> instead of .
-        if let Some(dot_pos) = var_name.find('.') {
-            let base = &var_name[..dot_pos];
-            let rest = &var_name[dot_pos + 1..];
-            if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_Type_self->field
-                output.push_str(&til_var_name_from_context(base, context));
-                output.push_str("->");
-                output.push_str(rest);
-            } else {
-                output.push_str(&til_var_name_from_context(base, context));
-                output.push_str(".");
-                output.push_str(rest);
-            }
-        } else if ctx.current_ref_params.contains(var_name) {
-            // Direct assignment to mut param: *til_Type_var = value
-            output.push_str("*");
-            output.push_str(&til_var_name_from_context(var_name, context));
-        } else {
-            output.push_str(&til_var_name_from_context(var_name, context));
-        }
-        output.push_str(" = _ret_");
-        output.push_str(&temp_suffix.to_string());
-        output.push_str(";\n");
     }
 
     output.push_str(&indent_str);

@@ -5402,15 +5402,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         catch (err: IndexOutOfBoundsError) { }
     }
 
-    if needs_ret {
-        output.push_str(indent_str)
-        output.push_str(ret_type)
-        output.push_str(" _ret_")
-        output.push_str(temp_suffix)
-        output.push_str(";\n")
-    }
-
-    // For declarations: declare the variable BEFORE the if block so it's visible after
+    // For declarations: declare the variable BEFORE the temp so dest_ptr can reference it
     // Skip for underscore _ which is just a discard
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
@@ -5435,6 +5427,21 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         output.push_str(throw_c_var_name.clone())
         output.push_str(";\n")
         _ := ctx.declared_vars.insert(throw_c_var_name)
+    }
+
+    // Bug #168: Try to write directly to destination instead of intermediate _ret_N
+    mut dest_ptr := ""
+    if needs_ret {
+        dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context)?
+    }
+
+    // Declare temp for return value if needed (Bug #168: skip when writing to dest directly)
+    if needs_ret.and(dest_ptr.eq("")) {
+        output.push_str(indent_str)
+        output.push_str(ret_type)
+        output.push_str(" _ret_")
+        output.push_str(temp_suffix)
+        output.push_str(";\n")
     }
 
     // Declare error structs for each throw type (Issue #119: skip empty struct errors)
@@ -5486,9 +5493,14 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     output.push_str("(")
 
     // First: return value pointer (if function returns something)
+    // Bug #168: use destination pointer directly when available
     if needs_ret {
-        output.push_str("&_ret_")
-        output.push_str(temp_suffix)
+        if not(dest_ptr.eq("")) {
+            output.push_str(dest_ptr)
+        } else {
+            output.push_str("&_ret_")
+            output.push_str(temp_suffix)
+        }
     }
 
     // Then: error pointers (Issue #119: skip empty struct errors)
@@ -5553,44 +5565,47 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     output.push_str(" == 0) {\n")
 
     // Success case: assign return value to target variable
-    // Skip for underscore _ which is just a discard
-    // Bug #97: Use type-mangled names for variables
-    if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
-        decl_inner_indent := repeat("    ", indent.add(1))
-        output.push_str(decl_inner_indent)
-        output.push_str(til_var_name_from_context(decl_name, context))
-        output.push_str(" = _ret_")
-        output.push_str(temp_suffix)
-        output.push_str(";\n")
-    } else if not(assign_name.eq("")) {
-        // Assignment: assign to existing variable
-        assign_inner_indent := repeat("    ", indent.add(1))
-        output.push_str(assign_inner_indent)
-        // Check if assignment target is a field access on a mut param (self.field)
-        dot_pos := assign_name.find(".")
-        if dot_pos.gteq(0) {
-            base := assign_name.get_substr(0, dot_pos)?
-            rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
-            if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_Type_self->field
-                output.push_str(til_var_name_from_context(base, context))
-                output.push_str("->")
-                output.push_str(rest)
+    // Bug #168: skip when dest_ptr was used (function wrote to destination directly)
+    if dest_ptr.eq("") {
+        // Skip for underscore _ which is just a discard
+        // Bug #97: Use type-mangled names for variables
+        if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
+            decl_inner_indent := repeat("    ", indent.add(1))
+            output.push_str(decl_inner_indent)
+            output.push_str(til_var_name_from_context(decl_name, context))
+            output.push_str(" = _ret_")
+            output.push_str(temp_suffix)
+            output.push_str(";\n")
+        } else if not(assign_name.eq("")) {
+            // Assignment: assign to existing variable
+            assign_inner_indent := repeat("    ", indent.add(1))
+            output.push_str(assign_inner_indent)
+            // Check if assignment target is a field access on a mut param (self.field)
+            dot_pos := assign_name.find(".")
+            if dot_pos.gteq(0) {
+                base := assign_name.get_substr(0, dot_pos)?
+                rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
+                if ctx.current_ref_params.contains(base) {
+                    // Mut param field access: til_Type_self->field
+                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str("->")
+                    output.push_str(rest)
+                } else {
+                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(".")
+                    output.push_str(rest)
+                }
+            } else if ctx.current_ref_params.contains(assign_name) {
+                // Direct assignment to mut param: *til_Type_var = value
+                output.push_str("*")
+                output.push_str(til_var_name_from_context(assign_name, context))
             } else {
-                output.push_str(til_var_name_from_context(base, context))
-                output.push_str(".")
-                output.push_str(rest)
+                output.push_str(til_var_name_from_context(assign_name, context))
             }
-        } else if ctx.current_ref_params.contains(assign_name) {
-            // Direct assignment to mut param: *til_Type_var = value
-            output.push_str("*")
-            output.push_str(til_var_name_from_context(assign_name, context))
-        } else {
-            output.push_str(til_var_name_from_context(assign_name, context))
+            output.push_str(" = _ret_")
+            output.push_str(temp_suffix)
+            output.push_str(";\n")
         }
-        output.push_str(" = _ret_")
-        output.push_str(temp_suffix)
-        output.push_str(";\n")
     }
 
     output.push_str(indent_str)
