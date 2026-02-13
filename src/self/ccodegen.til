@@ -73,6 +73,8 @@ CodegenContext := struct {
     // Bug #133 fix: Map var_name -> static array name for precomputed heap values
     // When emitting assignments in main(), Ptr fields will use these static pointers
     mut precomputed_static_arrays: Map = Map.new(Str, PrecomputedStaticInfo)
+    // Bug #168: variable name aliased to _ret for placement construction
+    mut ret_var_alias: Str = ""
 }
 
 namespace CodegenContext {
@@ -158,6 +160,142 @@ til_var_name_from_context := func(name: Str, context: Context) returns Str {
     }
     type_str := value_type_to_c_prefix(sym.value_type)
     return format(TIL_PREFIX, type_str, "_", name)
+}
+
+// Bug #168: Resolve a variable name, mapping ret_var_alias to "_ret"
+resolve_var_name := func(name: Str, ctx: CodegenContext, context: Context) returns Str {
+    if not(ctx.ret_var_alias.is_empty()) {
+        if name.eq(ctx.ret_var_alias) {
+            return "_ret"
+        }
+    }
+    return til_var_name_from_context(name, context)
+}
+
+// Bug #168: Recursively collect Return nodes from AST, skipping nested FuncDefs
+collect_return_exprs := proc(stmts: Vec, mut out: Vec) {
+    for expr: Expr in stmts {
+        switch expr.node_type {
+        case NodeType.Return:
+            out.push(expr.clone())
+        case NodeType.FuncDef(_):
+            // Skip nested function bodies - their returns belong to them
+        case:
+            // Recurse into children
+            collect_return_exprs(expr.params, out)
+        }
+    }
+}
+
+// Bug #168: Check if a variable is reassigned (full assignment, not field write)
+// anywhere in the function body. Skips nested FuncDefs.
+has_reassignment_of := proc(stmts: Vec, var_name: Str) returns Bool {
+    for expr: Expr in stmts {
+        switch expr.node_type {
+        case NodeType.Assignment(name):
+            // Full reassignment (no dot = no field access)
+            if name.eq(var_name).and(name.find(".").lt(0)) {
+                return true
+            }
+        case NodeType.FuncDef(_):
+            // Skip nested function bodies
+        case:
+            if has_reassignment_of(expr.params, var_name) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+// Bug #168: Pre-scan function body to find a single return variable that can be
+// placed directly into _ret. Returns the var name or "" if not applicable.
+find_ret_var_for_placement := proc(func_def: SFuncDef) returns Str {
+    // Must be a throwing function with struct/enum return type
+    if func_def.throw_types.is_empty() {
+        return ""
+    }
+    if func_def.return_types.is_empty() {
+        return ""
+    }
+    mut first_ret_type := ValueType.TCustom("")
+    func_def.return_types.get(0, first_ret_type)?
+    catch (err: IndexOutOfBoundsError) {
+        return ""
+    }
+    switch first_ret_type {
+    case ValueType.TCustom(_):
+        // good - struct/enum return type
+    case:
+        return ""
+    }
+
+    // Collect all return expressions
+    mut ret_exprs := Vec.new(Expr)
+    collect_return_exprs(func_def.body, ret_exprs)
+
+    if ret_exprs.is_empty() {
+        return ""
+    }
+
+    // Check that all returns use the same simple Identifier
+    mut ret_var_name := ""
+    mut has_ret_var := false
+    for ret_expr: Expr in ret_exprs {
+        if ret_expr.params.is_empty() {
+            return ""  // bare return with no value
+        }
+        mut value := Expr()
+        ret_expr.params.get(0, value)?
+        catch (err: IndexOutOfBoundsError) {
+            return ""
+        }
+        switch value.node_type {
+        case NodeType.Identifier(name):
+            if not(value.params.is_empty()) {
+                return ""  // field access like result.field
+            }
+            if not(has_ret_var) {
+                ret_var_name = name.clone()
+                has_ret_var = true
+            } else if not(ret_var_name.eq(name)) {
+                return ""  // different return variables
+            }
+        case:
+            return ""  // not a simple identifier (e.g. FCall)
+        }
+    }
+
+    if not(has_ret_var) {
+        return ""
+    }
+
+    // Must not be a function parameter (params have their own storage)
+    for arg: Declaration in func_def.args {
+        if arg.name.eq(ret_var_name) {
+            return ""
+        }
+    }
+
+    // Must not be reassigned after initialization (RVO aliasing makes
+    // *_ret = func(_ret, ...) unsafe - the C compiler may construct the
+    // return value directly in *_ret, destroying the input argument)
+    if has_reassignment_of(func_def.body, ret_var_name) {
+        return ""
+    }
+
+    // Must not have any parameter with the same type as the return type.
+    // Callers can pass the same variable as both _ret and an input param
+    // (e.g. new_body = f(new_body, ...)). The optimization writes to *_ret
+    // immediately, destroying the aliased input before it's read.
+    ret_type_str := value_type_to_str(first_ret_type)
+    for arg: Declaration in func_def.args {
+        if value_type_to_str(arg.value_type).eq(ret_type_str) {
+            return ""
+        }
+    }
+
+    return ret_var_name
 }
 
 // Emit a struct literal, using compound literal syntax if already_declared
@@ -977,7 +1115,8 @@ emit_arg_string_dynamic := proc(arg: Expr, mut hoist_output: Str, indent: I64, i
                 }
                 if is_ptr {
                     // Bug #97: Use type-mangled name
-                    return format("(", TIL_PREFIX, "Dynamic*)", til_var_name_from_context(name, context))
+                    // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
+                    return format("(", TIL_PREFIX, "Dynamic*)", resolve_var_name(name, ctx, context))
                 }
             }
         case:
@@ -1038,7 +1177,8 @@ emit_arg_string_by_ref := proc(arg: Expr, mut hoist_output: Str, indent: I64, in
                 }
                 if is_ptr {
                     // Bug #97: Use type-mangled name
-                    return til_var_name_from_context(name, context)
+                    // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
+                    return resolve_var_name(name, ctx, context)
                 }
             }
         case:
@@ -4075,6 +4215,12 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
         }
     }
 
+    // Bug #168: Pre-scan for return variable placement optimization
+    ctx.ret_var_alias = find_ret_var_for_placement(func_def)
+    if not(ctx.ret_var_alias.is_empty()) {
+        _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
+    }
+
     // Emit function body with catch pattern detection
     emit_stmts(func_def.body, output, 1, ctx, context)?
 
@@ -4106,6 +4252,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     // Clear current function context
     ctx.current_throw_types.clear()
     ctx.current_return_types.clear()
+    ctx.ret_var_alias = ""
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -4468,6 +4615,12 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                     }
                 }
 
+                // Bug #168: Pre-scan for return variable placement optimization
+                ctx.ret_var_alias = find_ret_var_for_placement(func_def)
+                if not(ctx.ret_var_alias.is_empty()) {
+                    _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
+                }
+
                 // Emit function body with catch pattern detection
                 emit_stmts(func_def.body, output, 1, ctx, context)?
 
@@ -4496,6 +4649,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 // Clear current function context
                 ctx.current_throw_types.clear()
                 ctx.current_return_types.clear()
+                ctx.ret_var_alias = ""
 
                 return
             case:
@@ -4589,7 +4743,8 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         // For ref params (which are pointers in C), use -> for field access
         is_ref_param := ctx.current_ref_params.contains(name)
         // Bug #97: Use type-mangled name for variables
-        c_var_name := til_var_name_from_context(name, context)
+        // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
+        c_var_name := resolve_var_name(name, ctx, context)
         if is_ref_param.and(not(expr.params.is_empty())) {
             // Ref param with field access: til_Type_self->field1.field2.field3
             // First field uses -> (self is a pointer), rest use . (struct values)
@@ -5240,26 +5395,27 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         // Bug #97: Use type-mangled names for variables
         // Check if assignment target is a field access on a mut param (self.field)
         // If so, emit with -> instead of .
+        // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
         dot_pos := assign_name.find(".")
         if dot_pos.gteq(0) {
             base := assign_name.get_substr(0, dot_pos)?
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
             if ctx.current_ref_params.contains(base) {
                 // Mut param field access: til_Type_self->field
-                output.push_str(til_var_name_from_context(base, context))
+                output.push_str(resolve_var_name(base, ctx, context))
                 output.push_str("->")
                 output.push_str(rest)
             } else {
-                output.push_str(til_var_name_from_context(base, context))
+                output.push_str(resolve_var_name(base, ctx, context))
                 output.push_str(".")
                 output.push_str(rest)
             }
         } else if ctx.current_ref_params.contains(assign_name) {
             // Direct assignment to mut param: *til_Type_self = value
             output.push_str("*")
-            output.push_str(til_var_name_from_context(assign_name, context))
+            output.push_str(resolve_var_name(assign_name, ctx, context))
         } else {
-            output.push_str(til_var_name_from_context(assign_name, context))
+            output.push_str(resolve_var_name(assign_name, ctx, context))
         }
         output.push_str(" = ")
         // Emit call inline
@@ -5421,11 +5577,15 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
         throw_c_var_name := til_var_name_from_context(decl_name, context)
-        output.push_str(indent_str)
-        output.push_str(ret_type)
-        output.push_str(" ")
-        output.push_str(throw_c_var_name.clone())
-        output.push_str(";\n")
+        // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
+        is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
+        if not(is_ret_alias) {
+            output.push_str(indent_str)
+            output.push_str(ret_type)
+            output.push_str(" ")
+            output.push_str(throw_c_var_name.clone())
+            output.push_str(";\n")
+        }
         _ := ctx.declared_vars.insert(throw_c_var_name)
     }
 
@@ -5581,26 +5741,27 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             assign_inner_indent := repeat("    ", indent.add(1))
             output.push_str(assign_inner_indent)
             // Check if assignment target is a field access on a mut param (self.field)
+            // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
             dot_pos := assign_name.find(".")
             if dot_pos.gteq(0) {
                 base := assign_name.get_substr(0, dot_pos)?
                 rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
                 if ctx.current_ref_params.contains(base) {
                     // Mut param field access: til_Type_self->field
-                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(resolve_var_name(base, ctx, context))
                     output.push_str("->")
                     output.push_str(rest)
                 } else {
-                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(resolve_var_name(base, ctx, context))
                     output.push_str(".")
                     output.push_str(rest)
                 }
             } else if ctx.current_ref_params.contains(assign_name) {
                 // Direct assignment to mut param: *til_Type_var = value
                 output.push_str("*")
-                output.push_str(til_var_name_from_context(assign_name, context))
+                output.push_str(resolve_var_name(assign_name, ctx, context))
             } else {
-                output.push_str(til_var_name_from_context(assign_name, context))
+                output.push_str(resolve_var_name(assign_name, ctx, context))
             }
             output.push_str(" = _ret_")
             output.push_str(temp_suffix)
@@ -5705,6 +5866,12 @@ build_dest_ptr_expr := func(decl_name: Str, assign_name: Str, ctx: CodegenContex
         if decl_name.eq("_") {
             return ""
         }
+        // Bug #168: ret_var_alias is already mapped to _ret pointer
+        if not(ctx.ret_var_alias.is_empty()) {
+            if decl_name.eq(ctx.ret_var_alias) {
+                return "_ret"
+            }
+        }
         c_name := til_var_name_from_context(decl_name, context)
         return format("&", c_name)
     }
@@ -5717,7 +5884,7 @@ build_dest_ptr_expr := func(decl_name: Str, assign_name: Str, ctx: CodegenContex
         if dot_pos.gteq(0) {
             base := assign_name.get_substr(0, dot_pos)?
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
-            c_base := til_var_name_from_context(base, context)
+            c_base := resolve_var_name(base, ctx, context)
             if ctx.current_ref_params.contains(base) {
                 return format("&(", c_base, "->", rest, ")")
             } else {
@@ -5726,7 +5893,7 @@ build_dest_ptr_expr := func(decl_name: Str, assign_name: Str, ctx: CodegenContex
         }
         if ctx.current_ref_params.contains(assign_name) {
             // Ref param: already a pointer
-            return til_var_name_from_context(assign_name, context)
+            return resolve_var_name(assign_name, ctx, context)
         }
         c_name := til_var_name_from_context(assign_name, context)
         return format("&", c_name)
@@ -5834,11 +6001,15 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
         throwing_decl_c_var := til_var_name_from_context(decl_name, context)
-        output.push_str(indent_str)
-        output.push_str(ret_type)
-        output.push_str(" ")
-        output.push_str(throwing_decl_c_var.clone())
-        output.push_str(";\n")
+        // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
+        is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
+        if not(is_ret_alias) {
+            output.push_str(indent_str)
+            output.push_str(ret_type)
+            output.push_str(" ")
+            output.push_str(throwing_decl_c_var.clone())
+            output.push_str(";\n")
+        }
         _ := ctx.declared_vars.insert(throwing_decl_c_var)
     }
 
@@ -6030,24 +6201,25 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             output.push_str(";\n")
         } else if not(assign_name.eq("")) {
             output.push_str(indent_str)
+            // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
             dot_pos := assign_name.find(".")
             if dot_pos.gteq(0) {
                 base := assign_name.get_substr(0, dot_pos)?
                 rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
                 if ctx.current_ref_params.contains(base) {
-                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(resolve_var_name(base, ctx, context))
                     output.push_str("->")
                     output.push_str(rest)
                 } else {
-                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(resolve_var_name(base, ctx, context))
                     output.push_str(".")
                     output.push_str(rest)
                 }
             } else if ctx.current_ref_params.contains(assign_name) {
                 output.push_str("*")
-                output.push_str(til_var_name_from_context(assign_name, context))
+                output.push_str(resolve_var_name(assign_name, ctx, context))
             } else {
-                output.push_str(til_var_name_from_context(assign_name, context))
+                output.push_str(resolve_var_name(assign_name, ctx, context))
             }
             output.push_str(" = _ret_")
             output.push_str(temp_suffix)
@@ -6158,11 +6330,15 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
         throwing_decl_c_var := til_var_name_from_context(decl_name, context)
-        output.push_str(indent_str)
-        output.push_str(ret_type)
-        output.push_str(" ")
-        output.push_str(throwing_decl_c_var.clone())
-        output.push_str(";\n")
+        // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
+        is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
+        if not(is_ret_alias) {
+            output.push_str(indent_str)
+            output.push_str(ret_type)
+            output.push_str(" ")
+            output.push_str(throwing_decl_c_var.clone())
+            output.push_str(";\n")
+        }
         _ := ctx.declared_vars.insert(throwing_decl_c_var)
     }
 
@@ -6377,24 +6553,25 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             output.push_str(";\n")
         } else if not(assign_name.eq("")) {
             output.push_str(indent_str)
+            // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
             dot_pos := assign_name.find(".")
             if dot_pos.gteq(0) {
                 base := assign_name.get_substr(0, dot_pos)?
                 rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
                 if ctx.current_ref_params.contains(base) {
-                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(resolve_var_name(base, ctx, context))
                     output.push_str("->")
                     output.push_str(rest)
                 } else {
-                    output.push_str(til_var_name_from_context(base, context))
+                    output.push_str(resolve_var_name(base, ctx, context))
                     output.push_str(".")
                     output.push_str(rest)
                 }
             } else if ctx.current_ref_params.contains(assign_name) {
                 output.push_str("*")
-                output.push_str(til_var_name_from_context(assign_name, context))
+                output.push_str(resolve_var_name(assign_name, ctx, context))
             } else {
-                output.push_str(til_var_name_from_context(assign_name, context))
+                output.push_str(resolve_var_name(assign_name, ctx, context))
             }
             output.push_str(" = _ret_")
             output.push_str(temp_suffix)
@@ -6448,6 +6625,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 prev_variadic_params := ctx.current_variadic_params.clone()
                 prev_function_name := ctx.current_function_name.clone()
                 prev_mangling_counter := ctx.mangling_counter
+                prev_ret_var_alias := ctx.ret_var_alias.clone()
 
                 ctx.current_throw_types = func_def.throw_types.clone()
                 ctx.current_return_types = func_def.return_types.clone()
@@ -6503,6 +6681,12 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     }
                 }
 
+                // Bug #168: Pre-scan for return variable placement optimization
+                ctx.ret_var_alias = find_ret_var_for_placement(func_def)
+                if not(ctx.ret_var_alias.is_empty()) {
+                    _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
+                }
+
                 emit_stmts(func_def.body, func_output, 1, ctx, context)?
                 // Add implicit return at end to silence gcc -Wreturn-type warnings
                 if not(func_def.throw_types.is_empty()) {
@@ -6529,6 +6713,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 ctx.current_variadic_params = prev_variadic_params
                 ctx.current_function_name = prev_function_name
                 ctx.mangling_counter = prev_mangling_counter
+                ctx.ret_var_alias = prev_ret_var_alias
 
                 ctx.hoisted_functions.push(func_output)
 
@@ -6695,11 +6880,25 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
     // Bug #97: Compute type-mangled C variable name
     type_prefix := value_type_to_c_prefix(var_type)
-    c_var_name := til_var_name(name, type_prefix)
+    orig_c_var_name := til_var_name(name, type_prefix)
 
     // Check if variable already declared in this function (avoid C redefinition errors)
     // Bug #97: Use type-mangled name so same name with different types are different variables
-    already_declared := ctx.declared_vars.contains(c_var_name)
+    mut already_declared := ctx.declared_vars.contains(orig_c_var_name)
+
+    // Bug #168: If this variable is the ret_var_alias, use (*_ret) as lvalue
+    mut is_ret_alias := false
+    if not(ctx.ret_var_alias.is_empty()) {
+        if name.eq(ctx.ret_var_alias).and(not(already_declared)) {
+            _ := ctx.declared_vars.insert(orig_c_var_name)
+            already_declared = true
+            is_ret_alias = true
+        }
+    }
+    mut c_var_name := orig_c_var_name
+    if is_ret_alias {
+        c_var_name = "(*_ret)"
+    }
 
     if has_struct_type {
         // Struct variable declaration with values (defaults or named args)
@@ -7133,27 +7332,28 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
     // Check if assignment target is a field access on a mut param (self.field)
     // If so, emit with -> instead of .
     // Bug #97: Use type-mangled variable names
+    // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
     dot_pos := name.find(".")
     if dot_pos.gteq(0) {
         base := name.get_substr(0, dot_pos)?
         rest := name.get_substr(dot_pos.add(1), name.len())?
         if ctx.current_ref_params.contains(base) {
             // Mut param field access: til_Type_self->field
-            output.push_str(til_var_name_from_context(base, context))
+            output.push_str(resolve_var_name(base, ctx, context))
             output.push_str("->")
             output.push_str(rest)
         } else {
             // Regular field access: til_Type_var.field
-            output.push_str(til_var_name_from_context(base, context))
+            output.push_str(resolve_var_name(base, ctx, context))
             output.push_str(".")
             output.push_str(rest)
         }
     } else if ctx.current_ref_params.contains(name) {
         // Direct assignment to mut param: *til_Type_self = value
         output.push_str("*")
-        output.push_str(til_var_name_from_context(name, context))
+        output.push_str(resolve_var_name(name, ctx, context))
     } else {
-        output.push_str(til_var_name_from_context(name, context))
+        output.push_str(resolve_var_name(name, ctx, context))
     }
     output.push_str(" = ")
 
@@ -7216,6 +7416,25 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     return
                 }
             case:
+            }
+
+            // Bug #168: If returning the ret_var_alias, skip the copy - it's already in _ret
+            mut skip_ret_copy := false
+            switch thr_return_expr.node_type {
+            case NodeType.Identifier(ret_name):
+                if thr_return_expr.params.is_empty() {
+                    if not(ctx.ret_var_alias.is_empty()) {
+                        if ret_name.eq(ctx.ret_var_alias) {
+                            output.push_str(indent_str)
+                            output.push_str("return 0;\n")
+                            skip_ret_copy = true
+                        }
+                    }
+                }
+            case:
+            }
+            if skip_ret_copy {
+                return
             }
 
             // Bug #143: Use emit_arg_string to handle hoisting

@@ -950,11 +950,10 @@ int til_Array_get_by_ref(til_Ptr* _ret, til_IndexOutOfBoundsError* _err1, const 
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Array_get_by_ref_0};
         return 1;
     }
-    til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
+    (*_ret) = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_I64 _tmp_til_Array_get_by_ref_7 = til_I64_mul(til_I64_index, &til_Array_self->type_size);
-    til_Ptr_p.data = til_I64_add(&til_Array_self->ptr, &_tmp_til_Array_get_by_ref_7);
-    til_Ptr_p.is_borrowed = 1;
-    *_ret = til_Ptr_p;
+    _ret->data = til_I64_add(&til_Array_self->ptr, &_tmp_til_Array_get_by_ref_7);
+    _ret->is_borrowed = 1;
     return 0;
     return 0;
 }
@@ -3158,13 +3157,12 @@ til_Str til_Str_replacen(const til_Str* til_Str_self, const til_Str* til_Str_fro
 }
 
 int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str* til_Str_self, const til_Str* til_Str_delimiter) {
-    til_Vec til_Vec_parts = til_Vec_new("Str");
+    (*_ret) = til_Vec_new("Str");
     til_I64 _tmp_til_Str_split_0 = til_Str_len(til_Str_delimiter);
     til_I64 _tmp_til_Str_split_1 = 0;
     if (til_I64_eq(&_tmp_til_Str_split_0, &_tmp_til_Str_split_1).data) {
         til_Str _tmp_til_Str_split_2 = til_Str_clone(til_Str_self);
-        til_Vec_push(&til_Vec_parts, (til_Dynamic*)&_tmp_til_Str_split_2);
-        *_ret = til_Vec_parts;
+        til_Vec_push(_ret, (til_Dynamic*)&_tmp_til_Str_split_2);
         return 0;
     }
     til_I64 til_I64_start = 0;
@@ -3232,9 +3230,9 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
                 til_IndexOutOfBoundsError _err0__tmp_til_Str_split_26 = {};
                 int __attribute__((unused)) _status__tmp_til_Str_split_26 = til_get_substr(&til_Str_part, &_err0__tmp_til_Str_split_26, til_Str_self, &til_I64_start, &til_I64_pos);
                 if (_status__tmp_til_Str_split_26 == 1) { *_err1 = _err0__tmp_til_Str_split_26; return 1; }
-                til_Vec_push(&til_Vec_parts, (til_Dynamic*)&til_Str_part);
+                til_Vec_push(_ret, (til_Dynamic*)&til_Str_part);
             } else {
-                til_Vec_push(&til_Vec_parts, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
+                til_Vec_push(_ret, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
             }
             til_I64 _tmp_til_Str_split_27 = til_Str_len(til_Str_delimiter);
             til_I64_start = til_I64_add(&til_I64_pos, &_tmp_til_Str_split_27);
@@ -3251,16 +3249,15 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
         til_IndexOutOfBoundsError _err0__tmp_til_Str_split_29 = {};
         int __attribute__((unused)) _status__tmp_til_Str_split_29 = til_get_substr(&til_Str_remaining_part, &_err0__tmp_til_Str_split_29, til_Str_self, &til_I64_start, &_tmp_til_Str_split_30);
         if (_status__tmp_til_Str_split_29 == 1) { *_err1 = _err0__tmp_til_Str_split_29; return 1; }
-        til_Vec_push(&til_Vec_parts, (til_Dynamic*)&til_Str_remaining_part);
+        til_Vec_push(_ret, (til_Dynamic*)&til_Str_remaining_part);
     } else {
         til_I64 _tmp_til_Str_split_31 = til_Str_len(til_Str_self);
         if (til_I64_eq(&til_I64_start, &_tmp_til_Str_split_31).data) {
-            til_Vec_push(&til_Vec_parts, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
+            til_Vec_push(_ret, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
         }
     }
-    *_ret = til_Vec_parts;
     return 0;
-    til_Vec_delete(&til_Vec_parts);
+    til_Vec_delete(_ret);
     return 0;
 }
 
@@ -3891,7 +3888,7 @@ til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self) {
 
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
-    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 110591801685200, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
+    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 103099481234336, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
     til_Ptr _tmp_1 = (til_Ptr){.data = 0, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0};
     til_Vec_g_entries = (til_Vec){.type_name = _tmp_0, .type_size = 0, .ptr = _tmp_1, ._len = 0, .cap = 0};
     til_Bool_g_enabled = til_Bool_clone(&false);
