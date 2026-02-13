@@ -20,6 +20,7 @@ ParseBuildOptionsResult := struct {
     mut cc: Str = ""  // Issue #131: --cc=COMPILER flag (empty = use default)
     mut translate_only: Bool = false
     mut force_rebuild: Bool = false
+    mut mem_report: Bool = false
 }
 
 parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws Str {
@@ -31,6 +32,7 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
     mut cc := ""
     mut translate_only := false
     mut force_rebuild := false
+    mut mem_report := false
 
     for opt_arg: Str in args {
         if opt_arg.starts_with("--target=") {
@@ -48,6 +50,8 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
             translate_only = true
         } else if opt_arg.eq("--force-rebuild") {
             force_rebuild = true
+        } else if opt_arg.eq("--mem-report") {
+            mem_report = true
         } else {
             remaining.push(opt_arg.clone())
         }
@@ -71,6 +75,7 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
     result.cc = cc
     result.translate_only = translate_only
     result.force_rebuild = force_rebuild
+    result.mem_report = mem_report
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
@@ -283,6 +288,9 @@ main := proc(args: ..Str) {
             run_opts.remaining.get(0, run_first_path)?
             // Pass remaining paths as arguments to the compiled program
             mut extra_args := Vec.new(Str)
+            if run_opts.mem_report {
+                extra_args.push("--mem-report")
+            }
             if run_opts.remaining.len().gt(1) {
                 mut k := 1
                 while k.lt(run_opts.remaining.len()) {

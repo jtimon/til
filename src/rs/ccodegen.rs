@@ -2036,8 +2036,18 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             })
             .cloned()
             .collect();
+
         emit_stmts(&main_stmts, &mut output, 1, &mut ctx, context)?;
     }
+
+    // Check argv for --mem-report flag, enable heap tracking if found
+    output.push_str("    for (int _i = 1; _i < argc; _i++) {\n");
+    output.push_str("        if (strcmp(argv[_i], \"--mem-report\") == 0) {\n");
+    output.push_str("            til_HeapState_enable();\n");
+    output.push_str("            for (int _j = _i; _j < argc - 1; _j++) argv[_j] = argv[_j + 1];\n");
+    output.push_str("            argc--; _i--;\n");
+    output.push_str("        }\n");
+    output.push_str("    }\n");
 
     // Call til_main() for modes that require a main proc (like cli)
     if context.mode_def.needs_main_proc {
@@ -2056,6 +2066,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         }
     }
 
+    output.push_str("    til_HeapState_report();\n");
     output.push_str("    return 0;\n");
     output.push_str("}\n");
 

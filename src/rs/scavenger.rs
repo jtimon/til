@@ -445,6 +445,13 @@ fn compute_reachable(
         used_types.insert(ext_type.to_string());
     }
 
+    // HeapState functions called by ext.c (til_malloc/til_free/til_exit) - not visible in TIL source
+    for hs_func in &["HeapState.enable", "HeapState.disable", "HeapState.add", "HeapState.remove", "HeapState.report"] {
+        mark_reachable(hs_func.to_string(), &mut reachable, &mut worklist);
+    }
+    used_types.insert("HeapState".to_string());
+    used_types.insert("HeapEntry".to_string());
+
     // Add struct types when their methods are reachable (e.g., Foo.bar reachable -> Foo is used)
     for func_name in &reachable {
         if let Some(method_dot_pos) = func_name.find('.') {

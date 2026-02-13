@@ -81,13 +81,14 @@ fn needs_rebuild(binary_path: &str, deps: &[String]) -> bool {
 }
 
 // Parse --target=X and --lang=X options from args, return (remaining_args, target, lang, translate_only, force_rebuild)
-fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, Option<String>, bool, bool), String> {
+fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, Option<String>, bool, bool, bool), String> {
     let mut remaining = Vec::new();
     let mut target: Option<Target> = None;
     let mut lang: Option<Lang> = None;
     let mut cc: Option<String> = None;
     let mut translate_only = false;
     let mut force_rebuild = false;
+    let mut mem_report = false;
 
     for opt_arg in args {
         if opt_arg.starts_with("--target=") {
@@ -103,6 +104,8 @@ fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, Op
             translate_only = true;
         } else if opt_arg == "--force-rebuild" {
             force_rebuild = true;
+        } else if opt_arg == "--mem-report" {
+            mem_report = true;
         } else {
             remaining.push(opt_arg.clone());
         }
@@ -113,7 +116,7 @@ fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, Op
     // Default lang is determined by target
     let final_lang = lang.unwrap_or_else(|| default_lang_for_target(&final_target));
 
-    Ok((remaining, final_target, final_lang, cc, translate_only, force_rebuild))
+    Ok((remaining, final_target, final_lang, cc, translate_only, force_rebuild, mem_report))
 }
 
 // ---------- main, usage, args, etc
@@ -242,7 +245,7 @@ fn main() {
             "build" | "translate" => {
                 // Parse build options from remaining args
                 match parse_build_options(&remaining_args) {
-                    Ok((paths, target, lang, cc, translate_flag, force_rebuild)) => {
+                    Ok((paths, target, lang, cc, translate_flag, force_rebuild, _mem_report)) => {
                         if paths.is_empty() {
                             println!("Error: No path specified");
                             usage();
@@ -260,15 +263,18 @@ fn main() {
             "run" => {
                 // Parse build options from remaining args
                 match parse_build_options(&remaining_args) {
-                    Ok((paths, target, lang, cc, _, force_rebuild)) => {
+                    Ok((paths, target, lang, cc, _, force_rebuild, mem_report)) => {
                         if paths.is_empty() {
                             println!("Error: No path specified");
                             usage();
                             std::process::exit(1);
                         }
                         // Pass remaining paths as arguments to the compiled program
-                        let extra_args = if paths.len() > 1 { &paths[1..] } else { &[] };
-                        run_file_or_exit(&paths[0], &target, &lang, cc.as_deref(), extra_args, force_rebuild);
+                        let mut extra_args_vec: Vec<String> = if paths.len() > 1 { paths[1..].to_vec() } else { Vec::new() };
+                        if mem_report {
+                            extra_args_vec.insert(0, "--mem-report".to_string());
+                        }
+                        run_file_or_exit(&paths[0], &target, &lang, cc.as_deref(), &extra_args_vec, force_rebuild);
                     },
                     Err(err) => {
                         println!("Error: {}", err);

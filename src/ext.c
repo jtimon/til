@@ -10,6 +10,14 @@
 // Forward declarations
 static inline til_I64 til_size_of(const til_Str* type_name);
 
+// HeapState tracking (compiled from heap_state.til)
+// Forward-declared for bootstrap/til.c compatibility.
+void til_HeapState_enable(void);
+void til_HeapState_disable(void);
+void til_HeapState_add(const til_I64* ptr, const til_I64* size);
+void til_HeapState_remove(const til_I64* ptr);
+void til_HeapState_report(void);
+
 // Bool constants
 #define true ((til_Bool){1})
 #define false ((til_Bool){0})
@@ -167,6 +175,8 @@ static inline til_I64 til_i64_or(const til_I64* a, const til_I64* b)
 
 // Memory functions
 // Issue #119: BadAlloc is an empty struct, so no error parameter needed - just return status
+static int _heap_state_guard = 0;
+
 static inline int til_malloc(til_I64* _ret, const til_I64* size)
 {
     void* ptr = malloc((size_t)*size);
@@ -174,11 +184,21 @@ static inline int til_malloc(til_I64* _ret, const til_I64* size)
         return 1;  // throw BadAlloc
     }
     *_ret = (til_I64)ptr;
+    if (!_heap_state_guard) {
+        _heap_state_guard = 1;
+        til_HeapState_add(_ret, size);
+        _heap_state_guard = 0;
+    }
     return 0;
 }
 
 static inline void til_free(const til_I64* ptr)
 {
+    if (!_heap_state_guard) {
+        _heap_state_guard = 1;
+        til_HeapState_remove(ptr);
+        _heap_state_guard = 0;
+    }
     free((void*)*ptr);
 }
 
@@ -195,17 +215,20 @@ static inline void til_memset(const til_I64* ptr, const til_U8* value, const til
 // Process control
 static inline void til_exit(const til_I64* code)
 {
+    til_HeapState_report();
     exit((int)*code);
 }
 
 // String conversion functions
 static inline til_Str til_i64_to_str(const til_I64* v)
 {
-    char* buf = (char*)malloc(32);
-    if (!buf) {
+    til_I64 _buf_ptr;
+    til_I64 _buf_size = 32;
+    if (til_malloc(&_buf_ptr, &_buf_size)) {
         til_Str s = {{0, 0, 0, 0, 0}, 0, 0};  // Ptr{data, is_borrowed, alloc_size, elem_type, elem_size}
         return s;
     }
+    char* buf = (char*)_buf_ptr;
     snprintf(buf, 32, "%lld", (long long)*v);
     til_Str s;
     s.c_string.data = (til_I64)buf;
@@ -235,16 +258,18 @@ static inline int til_input_read_line(til_Str* _ret, void* _err_v, const til_Str
         printf("%.*s", (int)prompt->_len, (const char*)prompt->c_string.data);
         fflush(stdout);
     }
-    char* buf = (char*)malloc(4096);
-    if (!buf) {
+    til_I64 _buf_ptr;
+    til_I64 _buf_size = 4096;
+    if (til_malloc(&_buf_ptr, &_buf_size)) {
         _err->msg.c_string.data = (til_I64)"Failed to allocate input buffer";
         _err->msg.c_string.is_borrowed = 1;
         _err->msg._len = 31;
         _err->msg.cap = 0;
         return 1;  // throw ReadError
     }
+    char* buf = (char*)_buf_ptr;
     if (fgets(buf, 4096, stdin) == NULL) {
-        free(buf);
+        til_free(&_buf_ptr);
         _err->msg.c_string.data = (til_I64)"Failed to read from stdin";
         _err->msg.c_string.is_borrowed = 1;
         _err->msg._len = 25;
@@ -273,8 +298,9 @@ static inline int til_readfile(til_Str* _ret, void* _err_v, const til_Str* path)
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
-    char* buf = (char*)malloc(len + 1);
-    if (!buf) {
+    til_I64 _buf_ptr;
+    til_I64 _buf_size = (til_I64)(len + 1);
+    if (til_malloc(&_buf_ptr, &_buf_size)) {
         fclose(f);
         _err->msg.c_string.data = (til_I64)"Failed to allocate buffer for file";
         _err->msg.c_string.is_borrowed = 1;
@@ -282,6 +308,7 @@ static inline int til_readfile(til_Str* _ret, void* _err_v, const til_Str* path)
         _err->msg.cap = 0;
         return 1;  // throw ReadError
     }
+    char* buf = (char*)_buf_ptr;
     fread(buf, 1, len, f);
     buf[len] = '\0';
     fclose(f);
@@ -322,14 +349,16 @@ static inline int til_writefile(void* _err_v, const til_Str* path, const til_Str
 static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
 {
     #define RUN_CMD_BUF_SIZE 65536
-    char* buf = (char*)malloc(RUN_CMD_BUF_SIZE);
-    if (!buf) {
+    til_I64 _buf_ptr;
+    til_I64 _buf_size = RUN_CMD_BUF_SIZE;
+    if (til_malloc(&_buf_ptr, &_buf_size)) {
         output_str->c_string.data = 0;
         output_str->c_string.is_borrowed = 0;
         output_str->_len = 0;
         output_str->cap = 0;
         return -1;
     }
+    char* buf = (char*)_buf_ptr;
     buf[0] = '\0';
 
     if (args->_len == 0) {
@@ -542,7 +571,16 @@ static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* p
     buf[pos] = '\0';
 
     // Allocate and copy result
-    char* result = (char*)malloc(pos + 1);
+    til_I64 _result_ptr;
+    til_I64 _result_size = (til_I64)(pos + 1);
+    if (til_malloc(&_result_ptr, &_result_size)) {
+        _err->msg.c_string.data = (til_I64)"Failed to allocate result buffer";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 31;
+        _err->msg.cap = 0;
+        return 1;  // throw IOError
+    }
+    char* result = (char*)_result_ptr;
     memcpy(result, buf, pos + 1);
     _ret->c_string.data = (til_I64)result;
     _ret->c_string.is_borrowed = 0;
@@ -571,7 +609,12 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     // Allocate and copy parent path
-    char* result = (char*)malloc(last_slash + 1);
+    til_I64 _result_ptr;
+    til_I64 _result_size = (til_I64)(last_slash + 1);
+    if (til_malloc(&_result_ptr, &_result_size)) {
+        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // OOM
+    }
+    char* result = (char*)_result_ptr;
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
     return (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
@@ -583,7 +626,10 @@ static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
     size_t len = path->_len;
     if (len == 0) return 0;
 
-    char* tmp = (char*)malloc(len + 1);
+    til_I64 _tmp_ptr;
+    til_I64 _tmp_size = (til_I64)(len + 1);
+    if (til_malloc(&_tmp_ptr, &_tmp_size)) return -1;
+    char* tmp = (char*)_tmp_ptr;
     memcpy(tmp, p, len);
     tmp[len] = '\0';
 
@@ -595,7 +641,7 @@ static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
         }
     }
     int result = _mkdir(tmp);
-    free(tmp);
+    til_free(&_tmp_ptr);
     return (result == 0 || errno == EEXIST) ? 0 : -1;
 }
 
@@ -691,7 +737,16 @@ static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* p
     buf[pos] = '\0';
 
     // Allocate and copy result
-    char* result = (char*)malloc(pos + 1);
+    til_I64 _result_ptr;
+    til_I64 _result_size = (til_I64)(pos + 1);
+    if (til_malloc(&_result_ptr, &_result_size)) {
+        _err->msg.c_string.data = (til_I64)"Failed to allocate result buffer";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 31;
+        _err->msg.cap = 0;
+        return 1;  // throw IOError
+    }
+    char* result = (char*)_result_ptr;
     memcpy(result, buf, pos + 1);
     _ret->c_string.data = (til_I64)result;
     _ret->c_string.is_borrowed = 0;
@@ -720,7 +775,12 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     // Allocate and copy parent path
-    char* result = (char*)malloc(last_slash + 1);
+    til_I64 _result_ptr;
+    til_I64 _result_size = (til_I64)(last_slash + 1);
+    if (til_malloc(&_result_ptr, &_result_size)) {
+        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // OOM
+    }
+    char* result = (char*)_result_ptr;
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
     return (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
@@ -732,7 +792,10 @@ static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
     size_t len = path->_len;
     if (len == 0) return 0;
 
-    char* tmp = (char*)malloc(len + 1);
+    til_I64 _tmp_ptr;
+    til_I64 _tmp_size = (til_I64)(len + 1);
+    if (til_malloc(&_tmp_ptr, &_tmp_size)) return -1;
+    char* tmp = (char*)_tmp_ptr;
     memcpy(tmp, p, len);
     tmp[len] = '\0';
 
@@ -744,7 +807,7 @@ static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
         }
     }
     int result = mkdir(tmp, 0755);
-    free(tmp);
+    til_free(&_tmp_ptr);
     return (result == 0 || errno == EEXIST) ? 0 : -1;
 }
 

@@ -7,6 +7,9 @@ import("std.io")
 // Global flag: --cc=COMPILER override (Issue #131)
 mut g_cc := ""
 
+// Global flag: enable heap memory profiling for compiled tests (set by --mem-report arg)
+mut g_mem_report := false
+
 // test_runner.til - Single test executor
 // Called by tests.til for parallel execution
 //
@@ -191,25 +194,32 @@ ensure_parent_dir := proc(file_path: Str) {
 do_regen := proc(test_mode: Str, out_mode: Str, file: Str, cmd_args: Str) {
     cmd_prefix := get_cmd_prefix(test_mode)
     if cmd_prefix.eq("") {
-        println("ERROR: Unknown mode '", test_mode, "'")
-        exit(1)
+        panic(loc(), format("Unknown mode '", test_mode, "'"))
     }
     mut cmd := cmd_prefix.concat(file)
+    if g_mem_report {
+        cmd = cmd.concat(" --mem-report")
+    }
     if cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(cmd_args)
     }
     mut output := ""
     exit_code := output.run_cmd("bash", "-c", cmd)
+    // Strip HEAP_STATE report line from output
+    heap_pos := output.find("\nHEAP_STATE:")
+    if heap_pos.gt(sub(0, 1)) {
+        output = get_substr(output, 0, heap_pos.add(1))?
+    } else if output.starts_with("HEAP_STATE:") {
+        output = ""
+    }
     formatted := format_expected(cmd_args, exit_code, output)
     expected_path := get_expected_path(file, out_mode, cmd_args)
     ensure_parent_dir(expected_path)
     writefile(expected_path, formatted)?
     println("Regenerated: ", expected_path)
 
-    catch (err: WriteError) {
-        println("ERROR writing ", expected_path, ": ", err.msg)
-        exit(1)
-    }
+    catch (err: WriteError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Run test and compare against .out file (with timing)
@@ -217,10 +227,12 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
     // Build run command
     cmd_prefix := get_cmd_prefix(test_mode)
     if cmd_prefix.eq("") {
-        println("ERROR: Unknown mode '", test_mode, "'")
-        exit(1)
+        panic(loc(), format("Unknown mode '", test_mode, "'"))
     }
     mut cmd := cmd_prefix.concat(file)
+    if g_mem_report {
+        cmd = cmd.concat(" --mem-report")
+    }
     if cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(cmd_args)
     }
@@ -284,6 +296,17 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
         maxrss_kb = 0
     }
 
+    // Strip HEAP_STATE report line from output (appended by compiled programs when TIL_MEM_REPORT is set)
+    mut mem_report_line := ""
+    heap_pos := output.find("\nHEAP_STATE:")
+    if heap_pos.gt(sub(0, 1)) {
+        mem_report_line = get_substr(output, heap_pos.add(1), output.len())?
+        output = get_substr(output, 0, heap_pos.add(1))?
+    } else if output.starts_with("HEAP_STATE:") {
+        mem_report_line = output
+        output = ""
+    }
+
     // Check exit code
     if not(exit_code.eq(expected_status)) {
         println("FAIL (exit code): ", file)
@@ -332,7 +355,12 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
 
     // Success - print timing info for tests.til to parse
     // Format: PASS <time_ms> <maxrss_kb>
-    println("PASS ", time_ms.to_str(), " ", maxrss_kb.to_str())
+    // If --mem-report, append mem report: PASS <time_ms> <maxrss_kb> <mem_report_line>
+    if g_mem_report.and(mem_report_line.len().gt(0)) {
+        println("PASS ", time_ms.to_str(), " ", maxrss_kb.to_str(), " ", mem_report_line)
+    } else {
+        println("PASS ", time_ms.to_str(), " ", maxrss_kb.to_str())
+    }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     catch (err: ReadError) { panic(loc(), err.msg) }
@@ -343,9 +371,7 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
 // out_mode: which .out file to compare against (e.g., rs_interpreted, til_interpreted)
 main := proc(args: ..Str) {
     if args.len().lt(5) {
-        println("Usage: test_runner <command> <mode> <out_mode> <expected_status> <file> [args...]")
-        println("Commands: test, regen")
-        exit(1)
+        panic(loc(), "Usage: test_runner <command> <mode> <out_mode> <expected_status> <file> [args...]")
     }
 
     // Extract required args
@@ -369,6 +395,8 @@ main := proc(args: ..Str) {
         args.get(i, arg)?
         if arg.starts_with("--cc=") {
             g_cc = arg.get_substr(5, arg.len())?
+        } else if arg.eq("--mem-report") {
+            g_mem_report = true
         } else {
             if cmd_args.len().gt(0) {
                 cmd_args = cmd_args.concat(" ")
@@ -383,9 +411,7 @@ main := proc(args: ..Str) {
     case "test":
         do_test(test_mode, out_mode, expected_status, file, cmd_args)
     case:
-        println("ERROR: Unknown command '", command, "'")
-        println("Commands: test, regen")
-        exit(1)
+        panic(loc(), format("Unknown command '", command, "'"))
     }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }

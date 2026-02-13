@@ -574,6 +574,15 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         _ := used_types.insert(ext_type.clone())
     }
 
+    // HeapState functions called by ext.c (til_malloc/til_free/til_exit) - not visible in TIL source
+    mark_reachable("HeapState.enable", reachable, worklist)
+    mark_reachable("HeapState.disable", reachable, worklist)
+    mark_reachable("HeapState.add", reachable, worklist)
+    mark_reachable("HeapState.remove", reachable, worklist)
+    mark_reachable("HeapState.report", reachable, worklist)
+    _ := used_types.insert("HeapState")
+    _ := used_types.insert("HeapEntry")
+
     // Add struct types when their methods are reachable (e.g., Foo.bar reachable -> Foo is used)
     for func_name: Str in reachable {
         method_dot_pos := func_name.find(".")
