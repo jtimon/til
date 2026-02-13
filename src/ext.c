@@ -1,14 +1,45 @@
 /*
  * ext.c - TIL External C Interface
  *
- * Has to be included in the right place of the output file, after the forward declarations and struct declarations.
+ * Compiled separately from the generated C code and linked as ext.o.
+ * Issue #135: Enables cross-compilation by isolating all OS-specific headers here.
  */
 
 #ifndef TIL_EXT_C
 #define TIL_EXT_C
 
-// Forward declarations
-static inline til_I64 til_size_of(const til_Str* type_name);
+// System headers (isolated here - generated C has zero #include statements)
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// TIL type definitions (must match the generated C typedefs exactly)
+typedef unsigned char til_U8;
+typedef long long til_I64;
+typedef struct til_Bool { til_U8 data; } til_Bool;
+typedef void* til_Dynamic;
+typedef const char* til_Type;
+
+typedef struct til_Ptr {
+    til_I64 data;
+    til_I64 is_borrowed;
+    til_I64 alloc_size;
+    til_I64 elem_type;
+    til_I64 elem_size;
+} til_Ptr;
+
+typedef struct til_Str {
+    til_Ptr c_string;
+    til_I64 _len;
+    til_I64 cap;
+} til_Str;
+
+typedef struct til_Array {
+    til_Str type_name;
+    til_I64 type_size;
+    til_I64 ptr;
+    til_I64 _len;
+} til_Array;
 
 // HeapState tracking (compiled from heap_state.til)
 // Forward-declared for bootstrap/til.c compatibility.
@@ -22,27 +53,30 @@ void til_HeapState_report(void);
 #define true ((til_Bool){1})
 #define false ((til_Bool){0})
 
+// til_size_of is generated per-program, resolved at link time
+extern til_I64 til_size_of(const til_Str* type_name);
+
 // single_print: print a string without newline
-static inline void til_single_print(const til_Str* s)
+void til_single_print(const til_Str* s)
 {
     printf("%s", (char*)s->c_string.data);
 }
 
 // print_flush: flush stdout
-static inline void til_print_flush(void)
+void til_print_flush(void)
 {
     fflush(stdout);
 }
 
 // to_ptr: get pointer address as integer
-static inline til_I64 til_to_ptr(til_I64* p)
+til_I64 til_to_ptr(til_I64* p)
 {
     return (til_I64)p;
 }
 
 // enum_get_payload: extract enum payload into out parameter
 // Takes enum as Dynamic*, payload type name as Str*, out as Dynamic*
-static inline void til_enum_get_payload(til_Dynamic* enum_ptr, const til_Str* payload_type, til_Dynamic* out_ptr)
+void til_enum_get_payload(til_Dynamic* enum_ptr, const til_Str* payload_type, til_Dynamic* out_ptr)
 {
     // Get payload size from type name
     til_I64 payload_size = til_size_of(payload_type);
@@ -53,12 +87,12 @@ static inline void til_enum_get_payload(til_Dynamic* enum_ptr, const til_Str* pa
 }
 
 // Type conversion helpers
-static inline til_I64 til_u8_to_i64(const til_U8* v)
+til_I64 til_u8_to_i64(const til_U8* v)
 {
     return (til_I64)*v;
 }
 
-static inline til_U8 til_i64_to_u8(const til_I64* v)
+til_U8 til_i64_to_u8(const til_I64* v)
 {
     return (til_U8)*v;
 }
@@ -112,63 +146,63 @@ til_U8 til_u8_or(const til_U8* a, const til_U8* b)
 }
 
 // Arithmetic functions
-static inline til_Bool til_i64_lt(const til_I64* a, const til_I64* b)
+til_Bool til_i64_lt(const til_I64* a, const til_I64* b)
 {
     return (til_Bool){*a < *b};
 }
 
-static inline til_Bool til_i64_gt(const til_I64* a, const til_I64* b)
+til_Bool til_i64_gt(const til_I64* a, const til_I64* b)
 {
     return (til_Bool){*a > *b};
 }
 
-static inline til_Bool til_u8_lt(const til_U8* a, const til_U8* b)
+til_Bool til_u8_lt(const til_U8* a, const til_U8* b)
 {
     return (til_Bool){*a < *b};
 }
 
-static inline til_Bool til_u8_gt(const til_U8* a, const til_U8* b)
+til_Bool til_u8_gt(const til_U8* a, const til_U8* b)
 {
     return (til_Bool){*a > *b};
 }
 
-static inline til_I64 til_i64_add(const til_I64* a, const til_I64* b)
+til_I64 til_i64_add(const til_I64* a, const til_I64* b)
 {
     return *a + *b;
 }
 
-static inline til_I64 til_i64_sub(const til_I64* a, const til_I64* b)
+til_I64 til_i64_sub(const til_I64* a, const til_I64* b)
 {
     return *a - *b;
 }
 
-static inline til_I64 til_i64_mul(const til_I64* a, const til_I64* b)
+til_I64 til_i64_mul(const til_I64* a, const til_I64* b)
 {
     return *a * *b;
 }
 
-static inline til_I64 til_i64_div(const til_I64* a, const til_I64* b)
+til_I64 til_i64_div(const til_I64* a, const til_I64* b)
 {
     return *b == 0 ? 0 : *a / *b;
 }
 
-static inline til_I64 til_i64_mod(const til_I64* a, const til_I64* b)
+til_I64 til_i64_mod(const til_I64* a, const til_I64* b)
 {
     return *b == 0 ? 0 : *a % *b;
 }
 
 // Bitwise operations
-static inline til_I64 til_i64_xor(const til_I64* a, const til_I64* b)
+til_I64 til_i64_xor(const til_I64* a, const til_I64* b)
 {
     return *a ^ *b;
 }
 
-static inline til_I64 til_i64_and(const til_I64* a, const til_I64* b)
+til_I64 til_i64_and(const til_I64* a, const til_I64* b)
 {
     return *a & *b;
 }
 
-static inline til_I64 til_i64_or(const til_I64* a, const til_I64* b)
+til_I64 til_i64_or(const til_I64* a, const til_I64* b)
 {
     return *a | *b;
 }
@@ -177,7 +211,7 @@ static inline til_I64 til_i64_or(const til_I64* a, const til_I64* b)
 // Issue #119: BadAlloc is an empty struct, so no error parameter needed - just return status
 static int _heap_state_guard = 0;
 
-static inline int til_malloc(til_I64* _ret, const til_I64* size)
+int til_malloc(til_I64* _ret, const til_I64* size)
 {
     void* ptr = malloc((size_t)*size);
     if (ptr == NULL && *size > 0) {
@@ -192,7 +226,7 @@ static inline int til_malloc(til_I64* _ret, const til_I64* size)
     return 0;
 }
 
-static inline void til_free(const til_I64* ptr)
+void til_free(const til_I64* ptr)
 {
     if (!_heap_state_guard) {
         _heap_state_guard = 1;
@@ -202,25 +236,25 @@ static inline void til_free(const til_I64* ptr)
     free((void*)*ptr);
 }
 
-static inline void til_memcpy(const til_I64* dest, const til_I64* src, const til_I64* n)
+void til_memcpy(const til_I64* dest, const til_I64* src, const til_I64* n)
 {
     memcpy((void*)*dest, (void*)*src, (size_t)*n);
 }
 
-static inline void til_memset(const til_I64* ptr, const til_U8* value, const til_I64* n)
+void til_memset(const til_I64* ptr, const til_U8* value, const til_I64* n)
 {
     memset((void*)*ptr, (int)*value, (size_t)*n);
 }
 
 // Process control
-static inline void til_exit(const til_I64* code)
+void til_exit(const til_I64* code)
 {
     til_HeapState_report();
     exit((int)*code);
 }
 
 // String conversion functions
-static inline til_Str til_i64_to_str(const til_I64* v)
+til_Str til_i64_to_str(const til_I64* v)
 {
     til_I64 _buf_ptr;
     til_I64 _buf_size = 32;
@@ -241,7 +275,7 @@ static inline til_Str til_i64_to_str(const til_I64* v)
     return s;
 }
 
-static inline til_I64 til_str_to_i64(const til_Str* s)
+til_I64 til_str_to_i64(const til_Str* s)
 {
     return (til_I64)strtoll((const char*)s->c_string.data, NULL, 10);
 }
@@ -250,7 +284,7 @@ static inline til_I64 til_str_to_i64(const til_Str* s)
 
 // input_read_line: read a line from stdin, displaying prompt first
 // Bug #98: Now throws ReadError instead of silently failing
-static inline int til_input_read_line(til_Str* _ret, void* _err_v, const til_Str* prompt)
+int til_input_read_line(til_Str* _ret, void* _err_v, const til_Str* prompt)
 {
     struct { til_Str msg; }* _err = _err_v;
     // Print the prompt if non-empty
@@ -284,7 +318,7 @@ static inline int til_input_read_line(til_Str* _ret, void* _err_v, const til_Str
 }
 
 // Bug #98: Now throws ReadError instead of returning empty string
-static inline int til_readfile(til_Str* _ret, void* _err_v, const til_Str* path)
+int til_readfile(til_Str* _ret, void* _err_v, const til_Str* path)
 {
     struct { til_Str msg; }* _err = _err_v;
     FILE* f = fopen((const char*)path->c_string.data, "rb");
@@ -320,7 +354,7 @@ static inline int til_readfile(til_Str* _ret, void* _err_v, const til_Str* path)
 }
 
 // Bug #98: Now throws WriteError instead of panicking
-static inline int til_writefile(void* _err_v, const til_Str* path, const til_Str* contents)
+int til_writefile(void* _err_v, const til_Str* path, const til_Str* contents)
 {
     struct { til_Str msg; }* _err = _err_v;
     FILE* f = fopen((const char*)path->c_string.data, "wb");
@@ -346,7 +380,7 @@ static inline int til_writefile(void* _err_v, const til_Str* path, const til_Str
 // run_cmd: run command with arguments, capture output and return exit code
 // Signature: run_cmd(mut output_str: Str, args: ..Str) returns I64
 // First element of args array is the command, rest are arguments
-static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
+til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
 {
     #define RUN_CMD_BUF_SIZE 65536
     til_I64 _buf_ptr;
@@ -457,7 +491,7 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
 // TODO: Implement actual eval_file functionality for compiled mode if needed
 // This would require reading, parsing, and evaluating TIL files at runtime,
 // which would essentially embed the full interpreter into the compiled binary.
-static inline void til_eval_file(const til_Str* _unused) {
+void til_eval_file(const til_Str* _unused) {
     (void)_unused;  // Suppress unused parameter warning
     printf("Error: eval_file is not available in compiled mode.\n");
     printf("Use 'til repl' with the interpreted version instead.\n");
@@ -474,7 +508,7 @@ static inline void til_eval_file(const til_Str* _unused) {
 #include <direct.h>  // for _mkdir
 
 // spawn_cmd: Spawn a command in the background, returns process handle
-static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd) {
+int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd) {
     struct { til_Str msg; }* _err = _err_v;
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
@@ -499,7 +533,7 @@ static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd)
 
 // check_cmd_status: Check if process has finished (non-blocking)
 // Returns -1 if still running, exit code if finished
-static inline til_I64 til_check_cmd_status(const til_I64* handle) {
+til_I64 til_check_cmd_status(const til_I64* handle) {
     DWORD result = WaitForSingleObject((HANDLE)*handle, 0);
     if (result == WAIT_TIMEOUT) {
         return -1;  // still running
@@ -511,21 +545,21 @@ static inline til_I64 til_check_cmd_status(const til_I64* handle) {
 }
 
 // sleep: Sleep for specified milliseconds
-static inline int til_sleep(void* _err_v, const til_I64* ms) {
+int til_sleep(void* _err_v, const til_I64* ms) {
     (void)_err_v;  // unused - sleep doesn't throw on Windows
     Sleep((DWORD)*ms);
     return 0;
 }
 
 // get_thread_count: Returns number of logical processors (threads)
-static inline til_I64 til_get_thread_count(void) {
+til_I64 til_get_thread_count(void) {
     SYSTEM_INFO sysinfo;
     GetSystemInfo(&sysinfo);
     return (til_I64)sysinfo.dwNumberOfProcessors;
 }
 
 // file_mtime: Returns file modification time as Unix timestamp, -1 if not exists
-static inline til_I64 til_file_mtime(const til_Str* path) {
+til_I64 til_file_mtime(const til_Str* path) {
     HANDLE h = CreateFileA((char*)path->c_string.data, GENERIC_READ,
         FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) return -1;
@@ -540,7 +574,7 @@ static inline til_I64 til_file_mtime(const til_Str* path) {
 }
 
 // Bug #98: Now throws IOError instead of returning empty string
-static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* path) {
+int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* path) {
     struct { til_Str msg; }* _err = _err_v;
     char pattern[1024];
     snprintf(pattern, sizeof(pattern), "%s/*", (char*)path->c_string.data);
@@ -590,7 +624,7 @@ static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* p
 }
 
 // fs_parent_dir: Get parent directory of a path (Windows version)
-static inline til_Str til_fs_parent_dir(const til_Str* path) {
+til_Str til_fs_parent_dir(const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
 
@@ -621,7 +655,7 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Windows)
-static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
+til_I64 til_fs_mkdir_p(const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
     if (len == 0) return 0;
@@ -653,7 +687,7 @@ static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
 #include <errno.h>
 
 // spawn_cmd: Spawn a command in the background, returns PID
-static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd) {
+int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd) {
     struct { til_Str msg; }* _err = _err_v;
     pid_t pid = fork();
     if (pid == 0) {
@@ -674,7 +708,7 @@ static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd)
 
 // check_cmd_status: Check if process has finished (non-blocking)
 // Returns -1 if still running, exit code if finished
-static inline til_I64 til_check_cmd_status(const til_I64* pid) {
+til_I64 til_check_cmd_status(const til_I64* pid) {
     int status;
     pid_t result = waitpid((pid_t)*pid, &status, WNOHANG);
     if (result == 0) {
@@ -687,21 +721,21 @@ static inline til_I64 til_check_cmd_status(const til_I64* pid) {
 }
 
 // sleep: Sleep for specified milliseconds
-static inline int til_sleep(void* _err_v, const til_I64* ms) {
+int til_sleep(void* _err_v, const til_I64* ms) {
     (void)_err_v;  // unused - sleep doesn't throw on success
     usleep((useconds_t)(*ms * 1000));
     return 0;
 }
 
 // get_thread_count: Returns number of logical processors (threads)
-static inline til_I64 til_get_thread_count(void) {
+til_I64 til_get_thread_count(void) {
     long count = sysconf(_SC_NPROCESSORS_ONLN);
     return count > 0 ? (til_I64)count : 1;
 }
 
 // file_mtime: Returns file modification time as Unix timestamp, -1 if not exists
 #include <sys/stat.h>
-static inline til_I64 til_file_mtime(const til_Str* path) {
+til_I64 til_file_mtime(const til_Str* path) {
     struct stat st;
     if (stat((char*)path->c_string.data, &st) != 0) return -1;
     return (til_I64)st.st_mtime;
@@ -709,7 +743,7 @@ static inline til_I64 til_file_mtime(const til_Str* path) {
 
 // Bug #98: Now throws IOError instead of returning empty string
 #include <dirent.h>
-static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* path) {
+int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* path) {
     struct { til_Str msg; }* _err = _err_v;
     DIR* d = opendir((char*)path->c_string.data);
     if (!d) {
@@ -756,7 +790,7 @@ static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* p
 }
 
 // fs_parent_dir: Get parent directory of a path
-static inline til_Str til_fs_parent_dir(const til_Str* path) {
+til_Str til_fs_parent_dir(const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
 
@@ -787,7 +821,7 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Unix)
-static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
+til_I64 til_fs_mkdir_p(const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
     if (len == 0) return 0;
@@ -812,5 +846,33 @@ static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
 }
 
 #endif  // _WIN32
+
+// Issue #135: Wrapper functions for C stdlib calls used in generated code.
+// Generated C has zero #include statements, so it calls these wrappers instead.
+
+// Raw memcpy for struct copies (replaces direct memcpy in generated code)
+void til_raw_memcpy(void* dest, const void* src, long long n)
+{
+    memcpy(dest, src, (size_t)n);
+}
+
+// Raw strlen for string literal construction (replaces direct strlen in generated code)
+long long til_raw_strlen(const char* s)
+{
+    return (long long)strlen(s);
+}
+
+// Raw strcmp for til_size_of type lookup (replaces direct strcmp in generated code)
+int til_raw_strcmp(const char* s1, const char* s2)
+{
+    return strcmp(s1, s2);
+}
+
+// Error reporting for unknown types in til_size_of (replaces fprintf(stderr,...) in generated code)
+void til_size_of_error(const char* type_name)
+{
+    fprintf(stderr, "size_of: unknown type %s\n", type_name);
+    exit(1);
+}
 
 #endif /* TIL_EXT_C */

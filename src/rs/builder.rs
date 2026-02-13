@@ -426,13 +426,42 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
         let _ = fs::create_dir_all(parent);
     }
 
-    // Build command with extra args for target
+    // Issue #135: Compile ext.c separately to ext.o for cross-compilation support.
+    // Check for precompiled ext.o first (e.g., lib/ext-linux-x64.o), fall back to compiling.
+    let target_str = crate::rs::target::target_to_str(target);
+    let precompiled_ext_o = format!("lib/ext-{}.o", target_str);
+    let gen_ext_o = format!("gen/{}/ext.o", crate::rs::lexer::LANG_NAME_141);
+
+    let ext_o_path = if std::path::Path::new(&precompiled_ext_o).exists() {
+        precompiled_ext_o
+    } else {
+        // Compile ext.c on the fly
+        let ext_o_dir = format!("gen/{}", crate::rs::lexer::LANG_NAME_141);
+        let _ = fs::create_dir_all(&ext_o_dir);
+        let mut ext_cmd = Command::new(&compiler);
+        ext_cmd.args(["-c", "src/ext.c"]);
+        for extra_arg in toolchain_extra_args(target, lang, &compiler) {
+            ext_cmd.arg(extra_arg);
+        }
+        ext_cmd.args(["-o", &gen_ext_o]);
+        match ext_cmd.output() {
+            Ok(out) => {
+                if !out.status.success() {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    return Err(format!("{} failed compiling ext.c: {}", compiler, stderr));
+                }
+            },
+            Err(e) => return Err(format!("Failed to run {} for ext.c: {}", compiler, e)),
+        }
+        gen_ext_o
+    };
+
+    // Build command: compile generated C and link with ext.o
     let mut cmd = Command::new(&compiler);
-    cmd.args(["-I", "src"]);
     for extra_arg in toolchain_extra_args(target, lang, &compiler) {
         cmd.arg(extra_arg);
     }
-    cmd.args([&source_output_path, "-o", &exe_path_str]);
+    cmd.args([&source_output_path, &ext_o_path, "-o", &exe_path_str]);
 
     let output = cmd.output();
 
