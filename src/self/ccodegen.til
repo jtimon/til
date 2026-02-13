@@ -2202,7 +2202,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
             if sizeof_is_type_var {
                 // Bug #97: Use type-mangled name for Type variable reference
                 c_var_name := til_var_name_from_context(type_name, context)
-                sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", c_var_name, ", 1, 0, 0, 0}), strlen(", c_var_name, "), 0})"))
+                sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", c_var_name, ", 1, 0, 0, 0}), til_raw_strlen(", c_var_name, "), 0})"))
             } else {
                 // Literal type name
                 sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"", type_name, "\", 1, 0, 0, 0}), ", type_name.len().to_str(), ", 0})"))
@@ -2275,7 +2275,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
                 // Type variable - already a const char*, wrap in Str struct literal
                 // Bug #97: Use type-mangled name for Type variable reference
                 tas_c_var_name := til_var_name_from_context(type_name, context)
-                return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", tas_c_var_name, ", 1, 0, 0, 0}), strlen(", tas_c_var_name, "), 0})")
+                return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", tas_c_var_name, ", 1, 0, 0, 0}), til_raw_strlen(", tas_c_var_name, "), 0})")
             } else {
                 // Literal type name - create Str compound literal
                 return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"", type_name, "\", 1, 0, 0, 0}), ", type_name.len().to_str(), ", 0})")
@@ -2611,16 +2611,16 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     mut output := ""
     mut ctx := CodegenContext.new()
 
-    // C boilerplate
-    output.push_str("#include <stdio.h>\n")
-    output.push_str("#include <stdlib.h>\n")
-    output.push_str("#include <string.h>\n\n")
+    // C boilerplate - Issue #135: zero #include statements for cross-compilation
     output.push_str(format("typedef unsigned char ", TIL_PREFIX, "U8;\n"))
     output.push_str(format("typedef long long ", TIL_PREFIX, "I64;\n"))
     output.push_str(format("typedef struct ", TIL_PREFIX, "Bool { ", TIL_PREFIX, "U8 data; } ", TIL_PREFIX, "Bool;\n"))
     // Dynamic and Type are special placeholder types
     output.push_str(format("typedef void* ", TIL_PREFIX, "Dynamic;\n"))
-    output.push_str(format("typedef const char* ", TIL_PREFIX, "Type;\n\n"))
+    output.push_str(format("typedef const char* ", TIL_PREFIX, "Type;\n"))
+    // Bool constants (moved from ext.c - macros can't cross translation units)
+    output.push_str(format("#define true ((", TIL_PREFIX, "Bool){1})\n"))
+    output.push_str(format("#define false ((", TIL_PREFIX, "Bool){0})\n\n"))
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     switch ast.node_type {
@@ -2806,10 +2806,60 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     }
     output.push_str("\n")
 
-    // Pass 3: include external C interface (after structs and forward decls)
-    // Use angle brackets to search only -I paths (src/), not the current directory
-    // This avoids including generated c/self/ext.c instead of the hand-written src/ext.c
-    output.push_str("#include <ext.c>\n\n")
+    // Pass 3: extern declarations for ext.c functions (Issue #135: no #include)
+    // ext.c is compiled separately to ext.o and linked, enabling cross-compilation
+    output.push_str("\n// ext.c function declarations (resolved at link time)\n")
+    output.push_str(format("extern void ", TIL_PREFIX, "single_print(const ", TIL_PREFIX, "Str* s);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "print_flush(void);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "to_ptr(", TIL_PREFIX, "I64* p);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "enum_get_payload(", TIL_PREFIX, "Dynamic* enum_ptr, const ", TIL_PREFIX, "Str* payload_type, ", TIL_PREFIX, "Dynamic* out_ptr);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "u8_to_i64(const ", TIL_PREFIX, "U8* v);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "U8 ", TIL_PREFIX, "i64_to_u8(const ", TIL_PREFIX, "I64* v);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "U8 ", TIL_PREFIX, "u8_add(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "U8 ", TIL_PREFIX, "u8_sub(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "U8 ", TIL_PREFIX, "u8_mul(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "U8 ", TIL_PREFIX, "u8_div(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "U8 ", TIL_PREFIX, "u8_mod(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "U8 ", TIL_PREFIX, "u8_xor(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "U8 ", TIL_PREFIX, "u8_and(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "U8 ", TIL_PREFIX, "u8_or(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "Bool ", TIL_PREFIX, "i64_lt(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "Bool ", TIL_PREFIX, "i64_gt(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "Bool ", TIL_PREFIX, "u8_lt(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "Bool ", TIL_PREFIX, "u8_gt(const ", TIL_PREFIX, "U8* a, const ", TIL_PREFIX, "U8* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "i64_add(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "i64_sub(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "i64_mul(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "i64_div(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "i64_mod(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "i64_xor(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "i64_and(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "i64_or(const ", TIL_PREFIX, "I64* a, const ", TIL_PREFIX, "I64* b);\n"))
+    output.push_str(format("extern int ", TIL_PREFIX, "malloc(", TIL_PREFIX, "I64* _ret, const ", TIL_PREFIX, "I64* size);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "free(const ", TIL_PREFIX, "I64* ptr);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "memcpy(const ", TIL_PREFIX, "I64* dest, const ", TIL_PREFIX, "I64* src, const ", TIL_PREFIX, "I64* n);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "memset(const ", TIL_PREFIX, "I64* ptr, const ", TIL_PREFIX, "U8* value, const ", TIL_PREFIX, "I64* n);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "exit(const ", TIL_PREFIX, "I64* code);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "Str ", TIL_PREFIX, "i64_to_str(const ", TIL_PREFIX, "I64* v);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "str_to_i64(const ", TIL_PREFIX, "Str* s);\n"))
+    output.push_str(format("extern int ", TIL_PREFIX, "input_read_line(", TIL_PREFIX, "Str* _ret, void* _err_v, const ", TIL_PREFIX, "Str* prompt);\n"))
+    output.push_str(format("extern int ", TIL_PREFIX, "readfile(", TIL_PREFIX, "Str* _ret, void* _err_v, const ", TIL_PREFIX, "Str* path);\n"))
+    output.push_str(format("extern int ", TIL_PREFIX, "writefile(void* _err_v, const ", TIL_PREFIX, "Str* path, const ", TIL_PREFIX, "Str* contents);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "run_cmd(", TIL_PREFIX, "Str* output_str, struct ", TIL_PREFIX, "Array* args);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "eval_file(const ", TIL_PREFIX, "Str* path);\n"))
+    output.push_str(format("extern int ", TIL_PREFIX, "spawn_cmd(", TIL_PREFIX, "I64* _ret, void* _err_v, const ", TIL_PREFIX, "Str* cmd);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "check_cmd_status(const ", TIL_PREFIX, "I64* handle);\n"))
+    output.push_str(format("extern int ", TIL_PREFIX, "sleep(void* _err_v, const ", TIL_PREFIX, "I64* ms);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "get_thread_count(void);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "file_mtime(const ", TIL_PREFIX, "Str* path);\n"))
+    output.push_str(format("extern int ", TIL_PREFIX, "list_dir_raw(", TIL_PREFIX, "Str* _ret, void* _err_v, const ", TIL_PREFIX, "Str* path);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "Str ", TIL_PREFIX, "fs_parent_dir(const ", TIL_PREFIX, "Str* path);\n"))
+    output.push_str(format("extern ", TIL_PREFIX, "I64 ", TIL_PREFIX, "fs_mkdir_p(const ", TIL_PREFIX, "Str* path);\n"))
+    // Wrapper functions for C stdlib (generated code calls these instead of stdlib directly)
+    output.push_str(format("extern void ", TIL_PREFIX, "raw_memcpy(void* dest, const void* src, long long n);\n"))
+    output.push_str(format("extern long long ", TIL_PREFIX, "raw_strlen(const char* s);\n"))
+    output.push_str(format("extern int ", TIL_PREFIX, "raw_strcmp(const char* s1, const char* s2);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "size_of_error(const char* type_name);\n\n"))
 
     // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
     // Also emits size_of constants for each struct
@@ -3048,7 +3098,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             output.push_str("    til_Array _main_args;\n")
             output.push_str("    til_Array_new(&_main_args, \"Str\", &(til_I64){argc - 1});\n")
             output.push_str("    for (int i = 1; i < argc; i++) {\n")
-            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1, 0, 0, 0}), strlen(argv[i]), 0};\n")
+            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1, 0, 0, 0}), til_raw_strlen(argv[i]), 0};\n")
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n")
             output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, (til_Dynamic*)&_arg);\n")
             output.push_str("    }\n")
@@ -3582,9 +3632,9 @@ emit_enum_size_of_constant := proc(expr: Expr, mut output: Str, mut ctx: Codegen
 }
 
 // Emit til_size_of function for runtime type size lookup
-emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
+emit_size_of_function : proc(mut output: Str, ctx: CodegenContext) = {
+    // Issue #135: non-static so ext.c can call it at link time
     output.push_str("\n")
-    output.push_str("static inline ")
     output.push_str(TIL_PREFIX)
     output.push_str("I64 ")
     output.push_str(TIL_PREFIX)
@@ -3594,7 +3644,7 @@ emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
 
     // All known types from structs and enums
     for type_name: Str in ctx.known_types {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(type_name)
         output.push_str("\") == 0) return ")
         output.push_str(TIL_PREFIX)
@@ -3603,8 +3653,8 @@ emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
         output.push_str(";\n")
     }
 
-    output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string.data);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "size_of_error((char*)type_name->c_string.data);\n"))
+    output.push_str("    return 0; // unreachable\n")
     output.push_str("}\n")
 }
 
@@ -9959,7 +10009,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(TIL_PREFIX)
                 output.push_str("I64)")
                 output.push_str(type_c_var_name)
-                output.push_str(", 1, 0, 0, 0}), strlen(")
+                output.push_str(", 1, 0, 0, 0}), til_raw_strlen(")
                 output.push_str(type_c_var_name)
                 output.push_str("), 0})")
             } else {
@@ -10049,7 +10099,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(TIL_PREFIX)
                 output.push_str("I64)")
                 output.push_str(payload_c_var_name)
-                output.push_str(", 1, 0, 0, 0}), strlen(")
+                output.push_str(", 1, 0, 0, 0}), til_raw_strlen(")
                 output.push_str(payload_c_var_name)
                 output.push_str("), 0})")
             } else {
@@ -10146,7 +10196,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(TIL_PREFIX)
                 output.push_str("I64)")
                 output.push_str(size_c_var_name)
-                output.push_str(", 1, 0, 0, 0}), strlen(")
+                output.push_str(", 1, 0, 0, 0}), til_raw_strlen(")
                 output.push_str(size_c_var_name)
                 output.push_str("), 0})")
             } else {
@@ -10164,7 +10214,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             output.push_str(TIL_PREFIX)
             output.push_str("I64)")
             emit_expr(size_type_arg, output, 0, ctx, context)?
-            output.push_str(", 1, 0, 0, 0}), strlen(")
+            output.push_str(", 1, 0, 0, 0}), til_raw_strlen(")
             emit_expr(size_type_arg, output, 0, ctx, context)?
             output.push_str("), 0})")
         }

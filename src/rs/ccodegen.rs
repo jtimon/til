@@ -1850,7 +1850,7 @@ fn emit_fcall_arg_string(
                 if is_type_var {
                     // Bug #97: Use type-mangled name for Type variable reference
                     let c_var_name = til_var_name_from_context(type_name, context);
-                    result.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
+                    result.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), til_raw_strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name
@@ -1943,7 +1943,7 @@ fn emit_fcall_arg_string(
                     // Type variable - already a const char*, wrap in Str struct literal
                     // Bug #97: Use type-mangled name for Type variable reference
                     let c_var_name = til_var_name_from_context(type_name, context);
-                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
+                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), til_raw_strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
@@ -2212,16 +2212,16 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     let mut output = String::new();
     let mut ctx = CodegenContext::new();
 
-    // C boilerplate
-    output.push_str("#include <stdio.h>\n");
-    output.push_str("#include <stdlib.h>\n");
-    output.push_str("#include <string.h>\n\n");
+    // C boilerplate - Issue #135: zero #include statements for cross-compilation
     output.push_str(&format!("typedef unsigned char {}U8;\n", TIL_PREFIX));
     output.push_str(&format!("typedef long long {}I64;\n", TIL_PREFIX));
     output.push_str(&format!("typedef struct {}Bool {{ {}U8 data; }} {}Bool;\n", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
     // Dynamic and Type are special placeholder types
     output.push_str(&format!("typedef void* {}Dynamic;\n", TIL_PREFIX));
-    output.push_str(&format!("typedef const char* {}Type;\n\n", TIL_PREFIX));
+    output.push_str(&format!("typedef const char* {}Type;\n", TIL_PREFIX));
+    // Bool constants (moved from ext.c - macros can't cross translation units)
+    output.push_str(&format!("#define true (({}Bool){{1}})\n", TIL_PREFIX));
+    output.push_str(&format!("#define false (({}Bool){{0}})\n\n", TIL_PREFIX));
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
@@ -2371,10 +2371,60 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     }
     output.push_str("\n");
 
-    // Pass 3: include external C interface (after structs and forward decls)
-    // Use angle brackets to search only -I paths (src/), not the current directory
-    // This avoids including generated c/self/ext.c instead of the hand-written src/ext.c
-    output.push_str("#include <ext.c>\n\n");
+    // Pass 3: extern declarations for ext.c functions (Issue #135: no #include)
+    // ext.c is compiled separately to ext.o and linked, enabling cross-compilation
+    output.push_str("\n// ext.c function declarations (resolved at link time)\n");
+    output.push_str(&format!("extern void {p}single_print(const {p}Str* s);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}print_flush(void);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}to_ptr({p}I64* p);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}enum_get_payload({p}Dynamic* enum_ptr, const {p}Str* payload_type, {p}Dynamic* out_ptr);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}u8_to_i64(const {p}U8* v);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}U8 {p}i64_to_u8(const {p}I64* v);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}U8 {p}u8_add(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}U8 {p}u8_sub(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}U8 {p}u8_mul(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}U8 {p}u8_div(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}U8 {p}u8_mod(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}U8 {p}u8_xor(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}U8 {p}u8_and(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}U8 {p}u8_or(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}Bool {p}i64_lt(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}Bool {p}i64_gt(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}Bool {p}u8_lt(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}Bool {p}u8_gt(const {p}U8* a, const {p}U8* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}i64_add(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}i64_sub(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}i64_mul(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}i64_div(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}i64_mod(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}i64_xor(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}i64_and(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}i64_or(const {p}I64* a, const {p}I64* b);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern int {p}malloc({p}I64* _ret, const {p}I64* size);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}free(const {p}I64* ptr);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}memcpy(const {p}I64* dest, const {p}I64* src, const {p}I64* n);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}memset(const {p}I64* ptr, const {p}U8* value, const {p}I64* n);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}exit(const {p}I64* code);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}Str {p}i64_to_str(const {p}I64* v);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}str_to_i64(const {p}Str* s);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern int {p}input_read_line({p}Str* _ret, void* _err_v, const {p}Str* prompt);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern int {p}readfile({p}Str* _ret, void* _err_v, const {p}Str* path);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern int {p}writefile(void* _err_v, const {p}Str* path, const {p}Str* contents);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}run_cmd({p}Str* output_str, struct {p}Array* args);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}eval_file(const {p}Str* path);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern int {p}spawn_cmd({p}I64* _ret, void* _err_v, const {p}Str* cmd);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}check_cmd_status(const {p}I64* handle);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern int {p}sleep(void* _err_v, const {p}I64* ms);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}get_thread_count(void);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}file_mtime(const {p}Str* path);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern int {p}list_dir_raw({p}Str* _ret, void* _err_v, const {p}Str* path);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}Str {p}fs_parent_dir(const {p}Str* path);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern {p}I64 {p}fs_mkdir_p(const {p}Str* path);\n", p=TIL_PREFIX));
+    // Wrapper functions for C stdlib (generated code calls these instead of stdlib directly)
+    output.push_str(&format!("extern void {p}raw_memcpy(void* dest, const void* src, long long n);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern long long {p}raw_strlen(const char* s);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern int {p}raw_strcmp(const char* s1, const char* s2);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}size_of_error(const char* type_name);\n\n", p=TIL_PREFIX));
 
     // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
     // Also emits size_of constants for each struct
@@ -2572,7 +2622,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             output.push_str("    til_Array _main_args;\n");
             output.push_str("    til_Array_new(&_main_args, \"Str\", &(til_I64){argc - 1});\n");
             output.push_str("    for (int i = 1; i < argc; i++) {\n");
-            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1, 0, 0, 0}), strlen(argv[i]), 0};\n");
+            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1, 0, 0, 0}), til_raw_strlen(argv[i]), 0};\n");
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n");
             output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, (til_Dynamic*)&_arg);\n");
             output.push_str("    }\n");
@@ -3338,8 +3388,8 @@ fn emit_precomputed_vec_str_static(
 // Bug #133 fix: Emit assignment for a precomputed Vec with patched Ptr fields
 // Emit til_size_of function for runtime type size lookup
 fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
+    // Issue #135: non-static so ext.c can call it at link time
     output.push_str("\n");
-    output.push_str("static inline ");
     output.push_str(TIL_PREFIX);
     output.push_str("I64 ");
     output.push_str(TIL_PREFIX);
@@ -3349,7 +3399,7 @@ fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
 
     // All known types from structs and enums
     for type_name in &ctx.known_types {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(type_name);
         output.push_str("\") == 0) return ");
         output.push_str(TIL_PREFIX);
@@ -3358,8 +3408,8 @@ fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
         output.push_str(";\n");
     }
 
-    output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string.data);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}size_of_error((char*)type_name->c_string.data);\n", p=TIL_PREFIX));
+    output.push_str("    return 0; // unreachable\n");
     output.push_str("}\n");
 }
 
@@ -8053,7 +8103,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // Bug #97: Use type-mangled name for Type variable reference
                     // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                     let c_var_name = til_var_name_from_context(type_name, context);
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
+                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), til_raw_strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
@@ -8140,7 +8190,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // Bug #97: Use type-mangled name for Type variable reference
                     // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                     let c_var_name = til_var_name_from_context(payload_type_name, context);
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
+                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), til_raw_strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
@@ -8180,7 +8230,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // Bug #97: Use type-mangled name for Type variable reference
                     // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                     let c_var_name = til_var_name_from_context(type_name, context);
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
+                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), til_raw_strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
@@ -8191,9 +8241,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Bug #60: emit_expr will dereference Type params via (*til_name)
                 // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                 output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64)", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
-                emit_expr(expr.params.get(1).unwrap(), output, 0, ctx, context)?;
-                output.push_str(", 1, 0, 0, 0}), strlen(");
-                emit_expr(expr.params.get(1).unwrap(), output, 0, ctx, context)?;
+                emit_expr(expr.get(1)?, output, 0, ctx, context)?;
+                output.push_str(", 1, 0, 0, 0}), til_raw_strlen(");
+                emit_expr(expr.get(1)?, output, 0, ctx, context)?;
                 output.push_str("), 0})");
             }
             output.push_str(")");

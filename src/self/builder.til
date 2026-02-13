@@ -533,19 +533,53 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
         _ := fs_mkdir_p(bin_parent_dir)
     }
 
-    // Build command with extra args for target
+    // Issue #135: Compile ext.c separately to ext.o for cross-compilation support.
+    // Check for precompiled ext.o first (e.g., lib/ext-linux-x64.o), fall back to compiling.
+    target_str := target_to_str(target)
+    precompiled_ext_o := concat("lib/ext-", target_str).concat(".o")
+    gen_ext_o := concat("gen/", LANG_NAME_141).concat("/ext.o")
+
+    mut ext_o_path := ""
+    if not(file_mtime(precompiled_ext_o).lt(0)) {
+        ext_o_path = precompiled_ext_o
+    } else {
+        // Compile ext.c on the fly
+        ext_o_dir := concat("gen/", LANG_NAME_141)
+        _ := fs_mkdir_p(ext_o_dir)
+        mut ext_cmd_args := Vec.new(Str)
+        ext_cmd_args.push("-c")
+        ext_cmd_args.push("src/ext.c")
+        extra_args_ext := toolchain_extra_args(target, lang, compiler)
+        for extra_arg: Str in extra_args_ext {
+            ext_cmd_args.push(extra_arg.clone())
+        }
+        ext_cmd_args.push("-o")
+        ext_cmd_args.push(gen_ext_o.clone())
+        mut ext_full_cmd := compiler
+        for arg: Str in ext_cmd_args {
+            ext_full_cmd = ext_full_cmd.concat(" ").concat(arg)
+        }
+        ext_full_cmd = ext_full_cmd.concat(" 2>&1")
+        mut ext_output := ""
+        ext_exit_code := ext_output.run_cmd("bash", "-c", ext_full_cmd)
+        if not(ext_exit_code.eq(0)) {
+            throw compiler.concat(" failed compiling ext.c: ").concat(ext_output)
+        }
+        ext_o_path = gen_ext_o
+    }
+
+    // Build command: compile generated C and link with ext.o
     mut cmd_args := Vec.new(Str)
-    cmd_args.push(own "-I")
-    cmd_args.push(own "src")
     extra_args := toolchain_extra_args(target, lang, compiler)
     for extra_arg: Str in extra_args {
         cmd_args.push(own extra_arg.clone())
     }
     cmd_args.push(own source_output_path.clone())
+    cmd_args.push(own ext_o_path)
     cmd_args.push(own "-o")
     cmd_args.push(own exe_path_str.clone())
 
-    // Build full command string with stderr redirected to stdout (like Rust's cmd.output())?
+    // Build full command string with stderr redirected to stdout (like Rust's cmd.output())
     mut full_cmd := compiler
     for arg: Str in cmd_args {
         full_cmd = full_cmd.concat(" ").concat(arg)
