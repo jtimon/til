@@ -1,0 +1,166 @@
+* Memory Report (HeapState)
+** rs_compiled
+- src/test/introspections.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug47.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/til.til help :: HEAP_STATE: leaked 1 allocations, 56 bytes
+- src/test/bug55.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug56.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug52.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug57.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/arenas.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/arrays.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug43.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/args.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug157.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug159.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/c_mem.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/cross_file_forward.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/empty.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/deterministic.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug162.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/hello_cli.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/hello_lib.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/hello_liba.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/hello_pure.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/hello_script.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/hello_pura.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/hello_test.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/lolalalo.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/arithmetics.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/branchless.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug41.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/bug46.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/boolean.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/circular_test.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/comparisons.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/constfold.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/clone.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/editor_mode_test.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/eval.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/fibonacci.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/errors.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/forward_declarations.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/flow.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/function_pointers.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/func_purity.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/enums.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/intro.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/literals.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/macros.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/loops.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/lists.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/memcmp_str.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/mut_test.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/namespaces.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/optional_args.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/return_value_usage.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/pointers.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/parallel_cmd.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/scope_isolation.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/modes.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/sets.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/syscalls.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/structs.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/u8.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/strings.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/underscore.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/maps.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/ufcs.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/variadic.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/test_lexer.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/test/vecs.til :: HEAP_STATE: leaked 0 allocations, 0 bytes
+- src/examples/music.til jonio do :: HEAP_STATE: leaked 508 allocations, 8851 bytes
+- src/examples/music.til frigio mi :: HEAP_STATE: leaked 452 allocations, 7959 bytes
+- src/examples/music.til dorico re :: HEAP_STATE: leaked 480 allocations, 8393 bytes
+- src/examples/music.til -lang=pt lidio fax :: HEAP_STATE: leaked 630 allocations, 8699 bytes
+- src/examples/music.til -lang=pt mixolidio sol :: HEAP_STATE: leaked 492 allocations, 8511 bytes
+- src/examples/music.til -lang=pt eolio lab :: HEAP_STATE: leaked 718 allocations, 9675 bytes
+- src/examples/music.til -lang=en locrian six :: HEAP_STATE: leaked 762 allocations, 10115 bytes
+- src/examples/music.til -lang=en aeolian la :: HEAP_STATE: leaked 510 allocations, 8947 bytes
+- src/examples/music.til -lang=es jonico mib :: HEAP_STATE: leaked 542 allocations, 8378 bytes
+- src/examples/music.til -lang=en ionian solx :: HEAP_STATE: leaked 708 allocations, 9330 bytes
+- src/examples/music.til -lang=es locrio rex :: HEAP_STATE: leaked 602 allocations, 8897 bytes
+- src/examples/music.til -lang=es eolico sib :: HEAP_STATE: leaked 706 allocations, 9951 bytes
+- src/examples/music.til -notation=american ionian C :: HEAP_STATE: leaked 420 allocations, 8850 bytes
+- src/examples/music.til -notation=american phrygian G :: HEAP_STATE: leaked 473 allocations, 8680 bytes
+** til_compiled
+- src/test/bug55.til :: HEAP_STATE: leaked 324989 allocations, 36544856 bytes
+- src/test/bug56.til :: HEAP_STATE: leaked 325195 allocations, 36468954 bytes
+- src/test/bug52.til :: HEAP_STATE: leaked 329078 allocations, 36938885 bytes
+- src/test/bug57.til :: HEAP_STATE: leaked 330865 allocations, 37284150 bytes
+- src/test/arenas.til :: HEAP_STATE: leaked 341195 allocations, 38025045 bytes
+- src/test/arrays.til :: HEAP_STATE: leaked 343280 allocations, 38350258 bytes
+- src/test/bug43.til :: HEAP_STATE: leaked 364517 allocations, 39977666 bytes
+- src/test/args.til :: HEAP_STATE: leaked 396043 allocations, 42578676 bytes
+- src/test/bug157.til :: HEAP_STATE: leaked 324114 allocations, 36427728 bytes
+- src/test/bug159.til :: HEAP_STATE: leaked 325831 allocations, 36618578 bytes
+- src/test/c_mem.til :: HEAP_STATE: leaked 338518 allocations, 37795558 bytes
+- src/test/cross_file_forward.til :: HEAP_STATE: leaked 334209 allocations, 37194980 bytes
+- src/examples/empty.til :: HEAP_STATE: leaked 314988 allocations, 35915865 bytes
+- src/test/deterministic.til :: HEAP_STATE: leaked 333929 allocations, 37234945 bytes
+- src/test/bug162.til :: HEAP_STATE: leaked 374291 allocations, 40720468 bytes
+- src/examples/hello_cli.til :: HEAP_STATE: leaked 315252 allocations, 35932940 bytes
+- src/examples/hello_lib.til :: HEAP_STATE: leaked 315266 allocations, 35933094 bytes
+- src/examples/hello_liba.til :: HEAP_STATE: leaked 315660 allocations, 35944758 bytes
+- src/examples/hello_pure.til :: HEAP_STATE: leaked 315258 allocations, 35928942 bytes
+- src/examples/hello_script.til :: HEAP_STATE: leaked 315154 allocations, 35926550 bytes
+- src/examples/hello_pura.til :: HEAP_STATE: leaked 315660 allocations, 35944758 bytes
+- src/examples/hello_test.til :: HEAP_STATE: leaked 323608 allocations, 36413080 bytes
+- src/examples/lolalalo.til :: HEAP_STATE: leaked 335182 allocations, 37750392 bytes
+- src/test/arithmetics.til :: HEAP_STATE: leaked 358865 allocations, 40474374 bytes
+- src/test/branchless.til :: HEAP_STATE: leaked 325305 allocations, 36645524 bytes
+- src/test/bug41.til :: HEAP_STATE: leaked 324073 allocations, 36396467 bytes
+- src/test/bug46.til :: HEAP_STATE: leaked 325975 allocations, 36582280 bytes
+- src/test/boolean.til :: HEAP_STATE: leaked 372070 allocations, 41285875 bytes
+- src/test/circular_test.til :: HEAP_STATE: leaked 325789 allocations, 36590831 bytes
+- src/test/comparisons.til :: HEAP_STATE: leaked 331752 allocations, 37375439 bytes
+- src/test/constfold.til :: HEAP_STATE: leaked 335602 allocations, 37526424 bytes
+- src/test/clone.til :: HEAP_STATE: leaked 412380 allocations, 44472486 bytes
+- src/test/editor_mode_test.til :: HEAP_STATE: leaked 322443 allocations, 36285579 bytes
+- src/test/eval.til :: HEAP_STATE: leaked 323285 allocations, 36336616 bytes
+- src/test/fibonacci.til :: HEAP_STATE: leaked 330001 allocations, 36991058 bytes
+- src/test/errors.til :: HEAP_STATE: leaked 381264 allocations, 40224834 bytes
+- src/test/forward_declarations.til :: HEAP_STATE: leaked 336008 allocations, 37206729 bytes
+- src/test/flow.til :: HEAP_STATE: leaked 356661 allocations, 39460178 bytes
+- src/test/function_pointers.til :: HEAP_STATE: leaked 324717 allocations, 36290179 bytes
+- src/test/func_purity.til :: HEAP_STATE: leaked 326125 allocations, 36521047 bytes
+- src/test/enums.til :: HEAP_STATE: leaked 449131 allocations, 46416980 bytes
+- src/test/intro.til :: HEAP_STATE: leaked 334037 allocations, 37042626 bytes
+- src/test/literals.til :: HEAP_STATE: leaked 324868 allocations, 36554716 bytes
+- src/test/macros.til :: HEAP_STATE: leaked 335225 allocations, 37527715 bytes
+- src/test/loops.til :: HEAP_STATE: leaked 345176 allocations, 38383273 bytes
+- src/test/lists.til :: HEAP_STATE: leaked 404248 allocations, 43839129 bytes
+- src/test/memcmp_str.til :: HEAP_STATE: leaked 325171 allocations, 36487415 bytes
+- src/test/mut_test.til :: HEAP_STATE: leaked 328592 allocations, 36927036 bytes
+- src/test/namespaces.til :: HEAP_STATE: leaked 326768 allocations, 36523298 bytes
+- src/test/optional_args.til :: HEAP_STATE: leaked 331223 allocations, 37095398 bytes
+- src/test/return_value_usage.til :: HEAP_STATE: leaked 326206 allocations, 36561512 bytes
+- src/test/pointers.til :: HEAP_STATE: leaked 329692 allocations, 36985948 bytes
+- src/test/parallel_cmd.til :: HEAP_STATE: leaked 348848 allocations, 38065506 bytes
+- src/test/scope_isolation.til :: HEAP_STATE: leaked 337837 allocations, 37482012 bytes
+- src/test/modes.til :: HEAP_STATE: leaked 498685 allocations, 52372870 bytes
+- src/test/sets.til :: HEAP_STATE: leaked 373879 allocations, 41596915 bytes
+- src/test/syscalls.til :: HEAP_STATE: leaked 353573 allocations, 38394155 bytes
+- src/test/structs.til :: HEAP_STATE: leaked 362652 allocations, 39879567 bytes
+- src/test/u8.til :: HEAP_STATE: leaked 326096 allocations, 36665008 bytes
+- src/test/strings.til :: HEAP_STATE: leaked 384500 allocations, 42618540 bytes
+- src/test/underscore.til :: HEAP_STATE: leaked 325311 allocations, 36455982 bytes
+- src/test/maps.til :: HEAP_STATE: leaked 559362 allocations, 58726054 bytes
+- src/test/ufcs.til :: HEAP_STATE: leaked 380597 allocations, 42317959 bytes
+- src/test/variadic.til :: HEAP_STATE: leaked 333982 allocations, 37407168 bytes
+- src/test/test_lexer.til :: HEAP_STATE: leaked 495052 allocations, 51926605 bytes
+- src/test/vecs.til :: HEAP_STATE: leaked 443046 allocations, 48175665 bytes
+- src/examples/music.til jonio do :: HEAP_STATE: leaked 435797 allocations, 46909635 bytes
+- src/examples/music.til frigio mi :: HEAP_STATE: leaked 435797 allocations, 46909639 bytes
+- src/examples/music.til dorico re :: HEAP_STATE: leaked 435797 allocations, 46909639 bytes
+- src/examples/music.til -lang=pt lidio fax :: HEAP_STATE: leaked 435800 allocations, 46909906 bytes
+- src/examples/music.til -lang=pt mixolidio sol :: HEAP_STATE: leaked 435800 allocations, 46909922 bytes
+- src/examples/music.til -lang=pt eolio lab :: HEAP_STATE: leaked 435800 allocations, 46909906 bytes
+- src/examples/music.til -lang=en locrian six :: HEAP_STATE: leaked 435800 allocations, 46909914 bytes
+- src/examples/music.til -lang=en aeolian la :: HEAP_STATE: leaked 435800 allocations, 46909912 bytes
+- src/examples/music.til -lang=es jonico mib :: HEAP_STATE: leaked 435800 allocations, 46909910 bytes
+- src/examples/music.til -lang=en ionian solx :: HEAP_STATE: leaked 435800 allocations, 46909912 bytes
+- src/examples/music.til -lang=es locrio rex :: HEAP_STATE: leaked 435800 allocations, 46909910 bytes
+- src/examples/music.til -lang=es eolico sib :: HEAP_STATE: leaked 435800 allocations, 46909910 bytes
+- src/examples/music.til -notation=american ionian C :: HEAP_STATE: leaked 435800 allocations, 46909966 bytes
+- src/examples/music.til -notation=american phrygian G :: HEAP_STATE: leaked 435800 allocations, 46909974 bytes

@@ -18,6 +18,10 @@ mut g_cc := ""
 // Global flag: enable heap memory profiling in compiled tests (set by --mem-report arg)
 mut g_mem_report := false
 
+// Global accumulators for per-test mem reports (only populated when g_mem_report=true)
+mut g_mem_rs_compiled := ""
+mut g_mem_til_compiled := ""
+
 // tests.til - TIL test runner
 // Runs compiled tests and compares output against .out files
 
@@ -49,6 +53,7 @@ RunningTest := struct {
     mut current_phase: I64 = 0      // Index into phases vec (0, 1, ...)
     mut phase_times: Vec = Vec.new(I64)    // Times for completed phases
     mut phase_maxrss: Vec = Vec.new(I64)   // Max RSS (KB) for completed phases
+    mut phase_mem_reports: Vec = Vec.new(Str)  // HeapState reports for completed phases
 }
 
 // Helper to add music.til tests to a Vec
@@ -277,7 +282,9 @@ test_with_cmd := proc(entry: TestEntry, cmd_prefix: Str, fail_label: Str, out_mo
     mut run_maxrss := 0
     mut cmd := cmd_prefix
     cmd = cmd.concat(entry.path)
-    if g_mem_report {
+    // Only add --mem-report for compiled modes with expected_status=0
+    // Error-status tests fail at compile time, no HeapState data to collect
+    if g_mem_report.and(cmd_prefix.find(" run ").gt(sub(0, 1))).and(entry.expected_status.eq(0)) {
         cmd = cmd.concat(" --mem-report")
     }
     if not(entry.cmd_args.eq("")) {
@@ -380,11 +387,9 @@ spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns Run
     if not(g_cc.is_empty()) {
         cc_flag = concat(" --cc=", g_cc)
     }
-    mut mem_flag := ""
-    if g_mem_report {
-        mem_flag = " --mem-report"
-    }
-    mut cmd := format("./bin/rs/test_runner test ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path, cc_flag, mem_flag)
+    // Don't pass --mem-report to test_runner itself (flag file handles detection)
+    // Passing it would enable HeapState in test_runner's C runtime, adding noise
+    mut cmd := format("./bin/rs/test_runner test ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path, cc_flag)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -398,6 +403,7 @@ spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns Run
     mut rt := RunningTest(pid=pid, entry=entry, actual_file=result_file, current_phase=0)
     rt.phase_times = Vec.new(I64)
     rt.phase_maxrss = Vec.new(I64)
+    rt.phase_mem_reports = Vec.new(Str)
     return rt
 }
 
@@ -405,11 +411,11 @@ spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns Run
 // On success: "PASS <time_ms> <maxrss_kb>"
 // On failure: error output (and exit code was non-zero)
 // Returns true if passed, false if failed
-parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, mut maxrss_kb: I64, mut error_output: Str) returns Bool throws IndexOutOfBoundsError, ReadError {
+parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, mut maxrss_kb: I64, mut error_output: Str, mut mem_report_line: Str) returns Bool throws IndexOutOfBoundsError, ReadError {
     output := readfile(result_file)?
 
     if exit_status.eq(0) {
-        // Success - parse "PASS <time_ms> <maxrss_kb>"
+        // Success - parse "PASS <time_ms> <maxrss_kb> [mem_report_line]"
         if output.starts_with("PASS ") {
             rest := get_substr(output, 5, output.len())?.replace("\n", "")
             space_pos := rest.find(" ")
@@ -417,7 +423,15 @@ parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, 
                 time_str := get_substr(rest, 0, space_pos)?
                 rss_str := get_substr(rest, space_pos.add(1), rest.len())?
                 time_ms = time_str.to_i64()
-                maxrss_kb = rss_str.to_i64()
+                // rss_str may contain "456 HEAP_STATE: leaked 42 allocations, 12345 bytes"
+                second_space := rss_str.find(" ")
+                if second_space.gt(0) {
+                    actual_rss := get_substr(rss_str, 0, second_space)?
+                    mem_report_line = get_substr(rss_str, second_space.add(1), rss_str.len())?
+                    maxrss_kb = actual_rss.to_i64()
+                } else {
+                    maxrss_kb = rss_str.to_i64()
+                }
             } else {
                 time_ms = rest.to_i64()
                 maxrss_kb = 0
@@ -569,11 +583,13 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                 mut time_ms := 0
                 mut maxrss_kb := 0
                 mut error_output := ""
-                passed := parse_test_result(current.actual_file, status, time_ms, maxrss_kb, error_output)?
+                mut mem_report_line := ""
+                passed := parse_test_result(current.actual_file, status, time_ms, maxrss_kb, error_output, mem_report_line)?
 
-                // Record time and maxrss for this phase
+                // Record time, maxrss, and mem report for this phase
                 current.phase_times.push(time_ms.clone())
                 current.phase_maxrss.push(maxrss_kb.clone())
+                current.phase_mem_reports.push(mem_report_line)
 
                 // Accumulate to phase total (time: sum, maxrss: keep max)
                 mut old_total := 0
@@ -626,6 +642,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         if not(g_cc.is_empty()) {
                             cc_flag = concat(" --cc=", g_cc)
                         }
+                        // Don't pass --mem-report to test_runner (flag file handles detection)
                         mut cmd := format("./bin/rs/test_runner test ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path, cc_flag)
                         if current.entry.cmd_args.len().gt(0) {
                             cmd = cmd.concat(" ").concat(current.entry.cmd_args)
@@ -768,6 +785,28 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         // CSV row: test,args,section,rs_interp_ms,rs_interp_kb,rs_comp_ms,rs_comp_kb,til_interp_ms,til_interp_kb,til_comp_ms,til_comp_kb
                         csv_row := format(current.entry.path, ",", current.entry.cmd_args, ",", section_name, ",", csv_rs_interp_ms, ",", csv_rs_interp_kb, ",", csv_rs_comp_ms, ",", csv_rs_comp_kb, ",", csv_til_interp_ms, ",", csv_til_interp_kb, ",", csv_til_comp_ms, ",", csv_til_comp_kb, "\n")
                         benchmark_content = benchmark_content.concat(csv_row)
+
+                        // Accumulate mem reports to globals
+                        if g_mem_report {
+                            for p_idx2 in 0..num_phases {
+                                mut p2 := TestPhase()
+                                phases.get(p_idx2, p2)?
+                                mut mem_line := ""
+                                current.phase_mem_reports.get(p_idx2, mem_line)?
+                                if mem_line.len().gt(0) {
+                                    mut entry_line := concat("- ", current.entry.path)
+                                    if current.entry.cmd_args.len().gt(0) {
+                                        entry_line = entry_line.concat(" ").concat(current.entry.cmd_args)
+                                    }
+                                    entry_line = entry_line.concat(" :: ").concat(mem_line).concat("\n")
+                                    if p2.test_mode.eq("rs_compiled") {
+                                        g_mem_rs_compiled = g_mem_rs_compiled.concat(entry_line)
+                                    } else if p2.test_mode.eq("til_compiled") {
+                                        g_mem_til_compiled = g_mem_til_compiled.concat(entry_line)
+                                    }
+                                }
+                            }
+                        }
 
                         // Remove from running
                         success_last_idx := running.len().sub(1)
@@ -1043,6 +1082,13 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     totals = totals.concat("- Total :: ").concat(format_time(total_all)).concat("\n")
     writefile("gen/totals.org", totals)?
 
+    if g_mem_report {
+        mut mem_totals := "* Memory Report (HeapState)\n"
+        mem_totals = mem_totals.concat("** rs_compiled\n").concat(g_mem_rs_compiled)
+        mem_totals = mem_totals.concat("** til_compiled\n").concat(g_mem_til_compiled)
+        writefile("gen/totals_mem.org", mem_totals)?
+    }
+
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     catch (err: WriteError) { panic(loc(), err.msg) }
 
@@ -1260,6 +1306,12 @@ main := proc(args: ..Str) {
         } else {
             remaining_args.push(arg)
         }
+    }
+
+    // Check flag file for --mem-report (C runtime strips --mem-report from argv
+    // before TIL main sees it, so make.til writes this flag file instead)
+    if file_mtime("tmp/.mem_report_flag").gt(sub(0, 1)) {
+        g_mem_report = true
     }
 
     // rs_interpreted: tests that pass with rstil interpret only

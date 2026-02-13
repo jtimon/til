@@ -197,7 +197,9 @@ do_regen := proc(test_mode: Str, out_mode: Str, file: Str, cmd_args: Str) {
         panic(loc(), format("Unknown mode '", test_mode, "'"))
     }
     mut cmd := cmd_prefix.concat(file)
-    if g_mem_report {
+    // Only add --mem-report for compiled modes (interpreted has no C runtime to handle it)
+    neg_one := sub(0, 1)
+    if g_mem_report.and(test_mode.find("compiled").gt(neg_one)) {
         cmd = cmd.concat(" --mem-report")
     }
     if cmd_args.len().gt(0) {
@@ -230,7 +232,10 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
         panic(loc(), format("Unknown mode '", test_mode, "'"))
     }
     mut cmd := cmd_prefix.concat(file)
-    if g_mem_report {
+    // Only add --mem-report for compiled modes with expected_status=0
+    // Error-status tests fail at compile time, no HeapState data to collect
+    neg_one := sub(0, 1)
+    if g_mem_report.and(test_mode.find("compiled").gt(neg_one)).and(expected_status.eq(0)) {
         cmd = cmd.concat(" --mem-report")
     }
     if cmd_args.len().gt(0) {
@@ -403,6 +408,12 @@ main := proc(args: ..Str) {
             }
             cmd_args = cmd_args.concat(arg)
         }
+    }
+
+    // Check flag file for --mem-report (C runtime strips --mem-report from argv
+    // before TIL main sees it, so make.til writes this flag file instead)
+    if file_mtime("tmp/.mem_report_flag").gt(sub(0, 1)) {
+        g_mem_report = true
     }
 
     switch command {

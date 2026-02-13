@@ -192,6 +192,31 @@ run_benchmark := proc() {
     println("Benchmark saved to doc/totals.org, can be committed")
 }
 
+run_mem_report := proc() {
+    build_tests()
+    cc_flag := get_cc_flag()
+    // Write flag file so compiled tests/test_runner can detect --mem-report
+    // Don't pass --mem-report on command line - it would enable HeapState in
+    // tests/test_runner themselves (C runtime strips it). Flag file is sufficient.
+    writefile("tmp/.mem_report_flag", "1")?
+    mut flags := ""
+    if g_compiler_changed {
+        flags = " --force-rebuild"
+    }
+    status := run_stream_cmd(format("./bin/rs/tests", flags, cc_flag))
+    // Clean up flag file
+    mut rm_out := ""
+    _ := rm_out.run_cmd("rm", "-f", "tmp/.mem_report_flag")
+    if status.eq(0).not() {
+        exit(1)
+    }
+    _ := run_stream_cmd("cp gen/totals.org doc/totals.org")
+    _ := run_stream_cmd("cp gen/totals_mem.org doc/totals_mem.org")
+    println("Memory report saved to doc/totals_mem.org")
+
+    catch (err: WriteError) { panic(loc(), err.msg) }
+}
+
 run_test_cross := proc() {
     mut status := 0
     println("=== Cross-compilation tests ===")
@@ -235,7 +260,7 @@ run_diff := proc(file_path: Str) {
 main := proc(args: ..Str) {
     if args.len().eq(0) {
         println("Usage: make.til <target> [options]")
-        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff <file>")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, mem-report, test-cross, diff <file>")
         println("Options: --cc=COMPILER (e.g., --cc=clang)")
         exit(1)
     }
@@ -275,6 +300,8 @@ main := proc(args: ..Str) {
         run_regen()
     case "benchmark":
         run_benchmark()
+    case "mem-report":
+        run_mem_report()
     case "test-cross":
         run_test_cross()
     case "diff":
@@ -288,7 +315,7 @@ main := proc(args: ..Str) {
         run_diff(file_path)
     case:
         println("Unknown target: ", target)
-        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff <file>")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, mem-report, test-cross, diff <file>")
         exit(1)
     }
 }
