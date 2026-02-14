@@ -1236,7 +1236,7 @@ creates a shared-pointer alias. Both ~Str.delete(elem_type)~ and
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Semantic divergence between interpreter and compiled code; root cause of memory leak gap
-:STATUS: Partially done -- Commit 1 on master, rest on failed168 branch
+:STATUS: Partial -- commits 1/1b/2 on master, commit 3 (non-throwing out-ptr) reverted
 :RELATED: Bug #159 (shallow copies), Bug #165 (memory leak), Bug #80 (ccodegen divergence), Issue #117 (ASAP destruction)
 :END:
 
@@ -1264,12 +1264,12 @@ to throw values and out params.
   much memory to run =make diff til.til=
 - #100 (self-hosting) is blocked by #80 which is blocked by this
 
-*** Inventory (from Bug #159 section 1)
-- =*_ret = value;= -- callee struct assignment
-- =var = _ret_X;= -- call site receives shallow copy
-- Every function returning a struct creates a shallow copy at the call site
-- throw values -- same pattern
-- out params -- same pattern
+*** Inventory -- all ccodegen shallow copies
+- =*_ret = value;= -- callee struct return (696 remaining, was 976)
+- =return value;= -- non-throwing by-value return (485), implicit memcpy at call site
+- =create_alias= -- emits =memcpy(&var, (void*)addr, sizeof(type))= where
+  interpreter does =insert_var(name, addr)= (pure offset binding, zero copy)
+- =enum_get_payload= -- shallow memcpy of enum payload data
 
 *** Implementation
 
@@ -1292,23 +1292,64 @@ Added =build_dest_ptr_expr= helper. Modified =emit_throwing_call_propagate=
 and =emit_throwing_call_with_goto= to skip temp, use dest ptr, skip copy.
 Ported to ccodegen.til. On master at 639c1741.
 
-**** Commit 2+3: Out-pointer + placement construction -- FAILED (branch: failed168)
+**** Commit 1b: Catch-block variant of commit 1 -- DONE
 
-Attempted to switch non-throwing struct returns to out-pointer (=void func(Type* _ret, ...)=)
-as infrastructure for "placement construction" (constructing directly into =*_ret=
-instead of a local, eliminating the unreachable delete after return).
+Same call-site direct-write optimization for throwing calls with local catch
+blocks (=emit_throwing_call_with_goto=). On master at 7c383c6f.
 
-Commit 2 (out-pointer conversion) worked but added significant complexity to
-ccodegen for zero performance gain on its own. Benchmark times increased.
-Commit 3 (placement construction) was planned but not completed.
+**** Commit 2: Callee-side placement via ret_var_alias -- DONE
 
-The approach was shelved because:
-- Commit 2 alone was pure overhead (more complex codegen, slower benchmarks)
-- Placement construction requires deep changes to how every function emits code
-- The complexity-to-benefit ratio was poor
-- Better to find a simpler approach to the memory leak problem
+=find_ret_var_for_placement= detects when all return paths use the same variable.
+That variable is aliased to =(*_ret)= so construction writes directly to the
+out-pointer, eliminating the callee-side =*_ret = local_var;= copy.
 
-Code preserved on =failed168= branch for reference.
+Safety checks: variable not reassigned, not a parameter, no parameter shares
+the return type. =has_declaration_of= prevents global constants (true/false)
+from being treated as ret_var_alias candidates.
+
+On master at 7e698d7a.
+
+**** Result
+
+=*_ret == copies in bootstrap/til.c: 976 -> 696 (280 eliminated, 29% reduction).
+
+**** What remains
+
+- 696 =*_ret == copies in throwing functions where =find_ret_var_for_placement=
+  can't optimize (multiple return variables, reassignment, etc.)
+- 485 non-throwing =return til_*= statements (by-value return = implicit memcpy
+  at call site)
+- =create_alias= emits memcpy instead of pointer alias (see below)
+- =enum_get_payload= shallow memcpy of payload
+
+**** Next: create_alias should use pointer, not memcpy
+
+The interpreter handles =create_alias= by binding the variable name to the source
+address (=insert_var(name, addr)=). Zero copy. ccodegen emits =memcpy=, creating
+a shallow copy. The C equivalent of offset binding is a pointer cast:
+
+#+begin_src c
+// CURRENT (shallow copy):
+til_MyStruct elem;
+memcpy(&elem, (void*)addr, sizeof(til_MyStruct));
+
+// CORRECT (true alias, matches interpreter):
+til_MyStruct* elem = (til_MyStruct*)addr;
+#+end_src
+
+This requires ccodegen to track that =elem= is a pointer-alias and emit =elem->field=
+instead of =elem.field=. Similar to how by-ref parameters are already handled.
+
+**** Failed attempt: non-throwing out-ptr (reverted)
+
+Extended out-pointer convention to non-throwing struct-returning functions:
+=void func(Type* _ret, ...)= instead of =Type func(args)=.
+
+- Added 963 lines to ccodegen.til, 610 lines to ccodegen.rs
+- bootstrap/til.c grew by ~27k lines
+- Build slowed 30% (730s -> 949s), primarily til_interpreted (+35%)
+- Expression-position calls required temp vars no better than by-value return
+- Reverted: cost far exceeded benefit
 
 ** Issue #115: Owned struct fields and auto-generated methods
 :PROPERTIES:

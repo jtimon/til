@@ -355,7 +355,7 @@ deletion strategy risks double-free on aliased heap pointers.
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, prevents ASAP deletion, root cause of memory leaks
-:STATUS: Open -- clone-after-get for container out-params, shallow copies remain elsewhere
+:STATUS: Open -- interpreter copy_fields removed; ccodegen shallow copies remain (see #168); container copies handled by dont_delete (leak, don't crash)
 :RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak)
 :END:
 
@@ -388,10 +388,10 @@ Test: src/test/bug159.til (passes all 4 modes)
 The interpreter fix only addressed =copy_fields=. Shallow copies remain throughout
 the codebase via memcpy in generated C code and core library operations.
 
-**** 1. ccodegen -- Function return values
-- =*_ret = value;= (struct assignment = implicit memcpy in C)
-- =var = _ret_X;= (call site receives shallow copy of return value)
-- Every function returning a struct creates a shallow copy at the call site
+**** 1. ccodegen -- Function return values (partially addressed by Bug #168)
+- =*_ret = value;= -- 696 remaining (was 976, commits 1/1b/2 eliminated 280)
+- Non-throwing by-value returns: 485 =return til_*= statements
+- See Bug #168 in pre.org for full details and commit history
 
 **** 2. src/core/ptr.til -- Raw memcpy operations
 - =copy_to_dynamic= (line 108): =memcpy(to_ptr(dest), self.data, size)=
@@ -402,35 +402,25 @@ the codebase via memcpy in generated C code and core library operations.
 - =Ptr.clone= (line 72): copies struct bytes, shared heap pointer
 
 **** 3. src/core/vec.til -- Collection operations using copy_to/from_dynamic
-- =get= (line 127): =src.copy_to_dynamic(T, self.type_size)= -- out-param
-- =push= (line 112): =dest.copy_from_dynamic(value, self.type_size)=
-- =set= (line 150): =dest.copy_from_dynamic(value, self.type_size)=
-- =clone= (line 189): =cloned.ptr.copy_from(self.ptr, ...)= -- byte copy of all elements
-- =extend= (line 225): =dest.copy_from(src, self.type_size)=
-- =extend_with= (line 258): =dest.copy_from_dynamic(value, self.type_size)=
-- =contains= (lines 272/274): =src.copy_to_dynamic= + =memcpy= for comparison
-- =remove= (line 299): =dest.copy_from(src, ...)= -- shift elements left
-- =insert_at= (lines 340/346): shift + =dest.copy_from_dynamic(value, ...)=
-- =to_str= (line 362): =src.copy_to_dynamic(elem, ...)= for string building
-- =split_off= (line 391): =result.ptr.copy_from(src, ...)=
-- =pop= (line 161): via =self.get(...)= -- shallow copy
+Handled by =dont_delete= in garbager: the shallow copies still happen, but the
+aliased data is not double-freed. The copies still leak memory (root cause of #165).
+- =get=, =push=, =set=, =clone=, =extend=, =extend_with=, =contains=, =remove=,
+  =insert_at=, =to_str=, =split_off=, =pop= -- all use copy_to/from_dynamic
 
-**** 4. src/core/set.til -- Uses Vec internally
-- =insert= (lines 42/44): copy_to_dynamic for comparison
-- =remove= (lines 78/80/97): copy_to_dynamic for comparison
-- =contains= (lines 120/122): copy_to_dynamic for comparison
-- =get= (line 152): copy_to_dynamic for retrieval
+**** 4. src/core/set.til -- Uses Vec internally, same dont_delete protection
+- =insert=, =remove=, =contains=, =get= -- copy_to_dynamic for comparison/retrieval
 
-**** 5. src/core/array.til -- Direct memcpy
-- =get= (line 54): =src.copy_to_dynamic(dest, self.type_size)=
-- =set= (line 80): =dest.copy_from_dynamic(value, self.type_size)=
-- =clone= (line 99): =cloned_ptr.copy_from(self.ptr, ...)=
+**** 5. src/core/array.til -- Direct memcpy, same dont_delete protection
+- =get=, =set=, =clone= -- copy_to/from_dynamic
 
 **** 6. ccodegen -- enum_get_payload
 - Shallow memcpy of enum payload data
 
 **** 7. ccodegen -- create_alias directive
-- Intentional shallow copy (aliases by design, dont_delete protects it)
+- Emits =memcpy(&var, (void*)addr, sizeof(type))= -- shallow copy
+- Interpreter handles this as =insert_var(name, addr)= -- zero copy, pure offset binding
+- The C equivalent would be a pointer cast: =Type* var = (Type*)addr;=
+- Tracked under Bug #168 as next actionable item
 
 *** Step 9: Clone-after-get for container out-params (2026-02-11)
 Container =get()= and =pop()= methods extract elements via =copy_to_dynamic=
