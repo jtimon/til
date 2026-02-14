@@ -1,0 +1,278 @@
+* Copy Analysis - All .get() sites in the TIL codebase
+  Date: 2026-02-14
+
+** Summary
+
+| Metric              | Count |
+|---------------------+-------|
+| Total .get() calls  |  1225 |
+| params.get() calls  |   290 |
+| Total for-in loops  |   392 |
+| Forward range loops |    45 |
+| Reverse range loops |    14 |
+
+Every .get() call performs a shallow memcpy copy. The for-in loops
+(392 total) are already zero-copy after Bug #144.
+
+** Categories of .get() calls
+
+*** Category A: params.get(i, expr) -- 290 calls
+
+These access child nodes of an Expr AST node. The copied type is
+usually Expr (a large struct with heap pointers). Every compiler
+phase uses these extensively.
+
+| File                       | Count |
+|----------------------------+-------|
+| src/self/ccodegen.til      |   128 |
+| src/self/typer.til         |    42 |
+| src/self/desugarer.til     |    27 |
+| src/self/parser.til        |    18 |
+| src/self/garbager.til      |    16 |
+| src/self/interpreter.til   |    12 |
+| src/self/ufcs.til          |    11 |
+| src/self/precomp.til       |    11 |
+| src/self/init.til          |    10 |
+| src/self/preinit.til       |     7 |
+| src/self/builder.til       |     5 |
+| src/test/ufcs.til          |     2 |
+| src/test/test_parser.til   |     1 |
+
+These are Expr.params (a Vec of Expr). Could be converted to
+get_by_ref if Vec supports it, but the alias semantics need care.
+
+*** Category B: e.get(N)? shorthand -- ~200 calls
+
+These use the Expr helper method e.get(N) which returns an Expr
+by value. Found extensively in:
+
+| File                       | Approx |
+|----------------------------+--------|
+| src/self/ext.til           |    ~80 |
+| src/self/typer.til         |    ~40 |
+| src/self/interpreter.til   |    ~30 |
+| src/self/init.til          |    ~20 |
+| src/self/desugarer.til     |    ~15 |
+| src/self/scavenger.til     |    ~15 |
+
+Same as params.get() but via a convenience method. Same fix applies.
+
+*** Category C: self.frames.get(i, frame) -- ScopeStack lookups -- ~35 calls
+
+All in src/self/init.til. These copy entire ScopeFrame structs
+(which contain Maps of symbols, funcs, enums, structs, heap_index).
+
+14 reverse loops (innermost-first for shadowing):
+- lookup_var (line 163)
+- lookup_symbol (line 184)
+- lookup_type (line 212)
+- lookup_func (line 352)
+- lookup_enum (line 410)
+- lookup_struct (line 444)
+- has_var (line 466)
+- has_symbol (line 480)
+- has_func (line 494)
+- has_enum (line 508)
+- has_struct (line 522)
+- lookup_method (line 580)
+- lookup_or_infer (line 633)
+- lookup_visible_symbols (line 658)
+
+1 forward loop:
+- dump_scope (line 391) -- debug only
+
+~20 direct frame access (get last frame, etc.):
+- current_frame (line 155)
+- declare_* functions (lines 254, 275, 288, 315, 340, 374, 432)
+- lookup_struct_for_member_access (lines 597, 758)
+
+These are Bug #114. Cannot convert to for-in because they iterate
+in reverse. Would need either:
+1. get_by_ref for Vec (return pointer, no copy)
+2. Reversed for-in iteration
+3. Restructure to avoid frame iteration entirely
+
+*** Category D: Map.get(key, val) -- ~100 calls
+
+Map lookups that copy the value. Found in:
+
+ScopeFrame map lookups (inside the loops from Category C):
+- frame.heap_index.get(name, offset) -- copies I64 (cheap)
+- frame.symbols.get(name, symbol) -- copies SymbolInfo
+- frame.funcs.get(name, func_def) -- copies FuncDef (large!)
+- frame.enums.get(name, enum_def) -- copies SEnumDef (large!)
+- frame.structs.get(name, struct_def) -- copies SStructDef (large!)
+
+Struct/enum default value lookups:
+- struct_def.default_values.get(name, expr) -- copies Expr
+  Found in: init.til, preinit.til, typer.til, garbager.til,
+  scavenger.til, precomp.til, ccodegen.til, ufcs.til, desugarer.til
+
+Other map lookups:
+- ctx.nested_func_names.get() -- copies Str (ccodegen.til)
+- ctx.func_variadic_args.get() -- copies VariadicFCallInfo (ccodegen.til)
+- ctx.local_catch_labels.get() -- copies CatchLabelInfo (ccodegen.til)
+- context.imported_asts.get() -- copies Expr (init.til, typer.til, builder.til)
+- g_heap.default_instances.get() -- copies I64 (cheap, eval_heap.til)
+- local_types.get() -- copies Str (garbager.til)
+
+*** Category E: Vec.get(i, val) on non-params Vecs -- ~200 calls
+
+These copy elements from various Vec collections:
+
+Struct/enum member iteration:
+- enum_def.variants.get(i, ev) -- copies EnumVariant
+  Found in: typer.til, parser.til, eval_heap.til, desugarer.til
+- struct_def.members.get(i, member) -- copies Declaration
+  Found in: garbager.til, preinit.til, eval_heap.til
+- func_def.args.get(i, arg) -- copies Declaration
+  Found in: typer.til, garbager.til, ufcs.til, precomp.til
+- func_def.return_types.get(0, rt) -- copies ValueType
+  Found in: ccodegen.til, interpreter.til, init.til, scavenger.til, parser.til
+- func_def.throw_types.get(i, tt) -- copies ValueType
+  Found in: typer.til, ccodegen.til, scavenger.til
+- func_def.body.get(i, stmt) -- copies Expr
+  Found in: preinit.til, desugarer.til, typer.til
+
+Data structure internals:
+- self.tokens.get(i, t) -- copies Token (lexer.til)
+- parts.get(i, part) -- copies Str
+- self._heap_bases.get(i, base) -- copies I64 (cheap, eval_heap.til)
+
+Ccodegen-specific:
+- nested_arg_strings.get(i, s) -- copies Str
+- arg_strings.get(i, s) -- copies Str
+- arg_temps.get(i, s) -- copies Str
+- already_hoisted.get(i, s) -- copies Str
+- field_values.get(name, s) -- copies Str
+
+Test runner / tests.til:
+- Various .get() on Vec of I64/Str for test results (~64 calls)
+  Mostly copying I64 and Str (phase times, maxrss, paths)
+
+*** Category F: g_heap.get(offset, size) -- raw heap reads -- ~25 calls
+
+All in src/self/eval_heap.til and src/self/interpreter.til.
+These are raw byte reads from the heap, not struct copies.
+They return raw pointer data via memcpy. Different from the
+struct-level .get() -- these are low-level memory operations
+and cannot be converted to get_by_ref.
+
+*** Category G: Collection internals -- ~10 calls
+
+- hashmap.til: self.buckets.get(), self.nexts.get() -- copies I64 (cheap)
+- list.til: self.type_sizes.get(), self.type_names.get() -- copies I64/Str
+- vec.til: self.get(), v.get() -- copies element
+- str.til: copies U8 (cheap)
+
+These are inside the collection implementations themselves.
+
+** Forward range loops (45 total, could convert to for-in)
+
+Many of these use .get() inside the loop body and could potentially
+be converted to for-in to avoid the copy.
+
+*** Already convertible (forward, iterate full collection):
+
+src/self/parser.til (8 loops):
+- variants iteration (lines 65, 86, 97) -- over Vec of EnumVariant
+- members iteration (line 260) -- over Vec of Declaration
+- params iteration (lines 474, 522, 1173, 1256, 1349, 1522, 1859) -- over Vec of Expr
+
+src/self/typer.til (9 loops):
+- enum_def.variants (line 99) -- over Vec of EnumVariant
+- e.params (lines 161, 482, 551, 1410, 3129) -- over Vec of Expr
+- func_def.args (lines 410, 1230) -- over Vec of Declaration
+- get_func.throw_types (line 684) -- over Vec of ValueType
+
+src/self/desugarer.til (5 loops):
+- e.params (lines 215, 239, 273, 290) -- over Vec of Expr
+- transformed_body.params (line 1535) -- over Vec of Expr
+
+src/self/garbager.til (3 loops):
+- cand_vars (line 132) -- over Vec of Str
+- func_def.args (lines 775, 1005) -- over Vec of Declaration
+
+src/self/ccodegen.til (1 loop):
+- func_def.throw_types (line 4339) -- over Vec of ValueType
+
+src/self/interpreter.til (2 loops):
+- statements (line 1623) -- over Vec of Expr
+- e.params (line 3049) -- over Vec of Expr
+
+src/self/init.til (2 loops):
+- self.frames (line 391) -- over Vec of ScopeFrame (debug only)
+- parts (line 2324) -- over Vec of Str
+
+src/self/eval_heap.til (1 loop):
+- self._heap_bases (line 110) -- over Vec of I64
+
+src/self/ext.til (1 loop):
+- e.params (line 879) -- over Vec of Expr
+
+src/tests.til (1 loop):
+- remaining_args (line 1456) -- over Vec of Str
+
+src/test_runner.til (2 loops):
+- file_path chars (line 179) -- over Str chars
+- args (line 398) -- over Vec of Str
+
+src/std/sys.til (1 loop):
+- pattern chars (line 199) -- over Str chars
+
+src/til_diff.til (1 loop):
+- base_name chars (line 18) -- over Str chars
+
+src/core/heap_state.til (2 loops):
+- g_entries (lines 36, 58) -- over Vec of HeapEntry
+
+src/core/str.til (3 loops):
+- from chars (line 260) -- char-level iteration
+- delimiter chars (line 468) -- char-level iteration
+- args (line 687) -- over Vec of Str
+
+*** Need index for non-iteration purpose:
+
+Some forward loops use `i` for more than just indexing -- they use
+it for position-dependent logic (e.g., skip first element, compare
+adjacent elements). These need the index and can't trivially convert.
+
+src/self/typer.til:482 -- `for i in 1..e.params.len()` (starts at 1)
+src/self/typer.til:3129 -- `for i in 1..e.params.len()` (starts at 1)
+src/self/desugarer.til:273 -- `for i in 1..e.params.len()` (starts at 1)
+src/self/ext.til:879 -- `for i in 3..e.params.len()` (starts at 3)
+src/tests.til:1456 -- `for i in 3..remaining_args.len()` (starts at 3)
+src/test_runner.til:398 -- `for i in 5..args.len()` (starts at 5)
+
+These would need either a .skip(N) method or manual handling.
+
+** Reverse range loops (14 total, all in src/self/init.til)
+
+All use pattern: `for i in self.frames.len().sub(1)..sub(0, 1)`
+All copy ScopeFrame via `self.frames.get(i, frame)`
+
+These CANNOT be converted to for-in without reverse iteration support.
+Options:
+1. Add get_by_ref to Vec (return Ptr, no copy)
+2. Add reversed for-in (.rev() or similar)
+3. Cache lookups to avoid repeated frame iteration
+
+** Priority for optimization
+
+1. **params.get() / e.get()** -- 490 calls copying Expr
+   Highest impact. Every compiler pass copies Expr nodes constantly.
+   Fix: Add get_by_ref to Expr.params (Vec of Expr)
+
+2. **ScopeStack frame iteration** -- 35 calls copying ScopeFrame
+   Each lookup iterates all frames and copies ScopeFrame (huge struct).
+   Fix: get_by_ref for Vec, or restructured scope lookup
+
+3. **Map.get() for struct defs** -- ~40 calls copying FuncDef/SEnumDef/SStructDef
+   Fix: Add get_by_ref to Map (return Ptr, no copy)
+
+4. **Struct member/variant iteration** -- ~30 calls
+   Copies Declaration, EnumVariant in loops.
+   Fix: Convert to for-in (already zero-copy)
+
+5. **Everything else** -- copies of Str, I64, ValueType
+   Low priority, small types, cheap copies.

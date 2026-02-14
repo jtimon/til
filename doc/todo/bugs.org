@@ -786,16 +786,16 @@ Files: src/rs/typer.rs, src/self/typer.til
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Memory leak in self-hosted interpreter, grows with scope depth and lookup frequency
-:STATUS: Partial - Option C implemented, ScopeFrame copy remains (see Bug #144)
+:STATUS: Open - Option C (has_*) implemented but still copies ScopeFrame internally
 :END:
 
 *** Description
 TIL's ScopeStack lookup functions (lookup_var, lookup_symbol, lookup_func, lookup_enum,
-lookup_struct, is_closure_capture, all_structs, etc.) copy entire ScopeFrame objects
-when iterating through frames:
+lookup_struct, has_var, has_symbol, has_func, has_enum, has_struct, etc.) copy entire
+ScopeFrame objects when iterating through frames:
 
 #+BEGIN_SRC til
-// Current pattern (leaks memory)
+// Current pattern (leaks memory) - ALL lookup/has functions use this
 for i in self.frames.len().sub(1)..sub(0, 1) {
     mut frame := ScopeFrame()   // Allocates new ScopeFrame
     self.frames.get(i, frame)   // Copies ALL fields including 5 Maps
@@ -811,6 +811,17 @@ ScopeFrame contains 5 Maps (arena_index, symbols, funcs, enums, structs). Each c
 duplicates the Map struct which holds pointers to heap-allocated Vec data. When the
 copied frame goes out of scope, those Map copies leak because TIL has no automatic
 destructor/drop mechanism.
+
+*** Why Bug #144 (for-in by-ref) doesn't fix this
+These functions use ~for i in range~ + ~self.frames.get(i, frame)~ (manual
+index loops), NOT ~for frame: ScopeFrame in self.frames~ (for-in loops).
+They must iterate in reverse (innermost scope first), and for-in has no
+reverse iteration support. The manual ~.get()~ call always copies.
+
+Fix requires either:
+- Manual ~get_by_ref~ usage: ~frame_ptr := self.frames.get_by_ref(i)~ then
+  pointer cast (like create_alias does), but awkward without language support
+- Reverse for-in: ~for frame: ScopeFrame in self.frames.reverse()~
 
 *** Why Rust Doesn't Have This Problem
 Rust iterates by reference, not by copy:
@@ -921,9 +932,10 @@ and fixes ~40 call sites. For long-term, evaluate:
 Added has_var, has_symbol, has_func, has_enum, has_struct methods to ScopeStack.
 Updated all call sites using lookup_*.is_some() pattern to use has_* instead.
 
-Note: The has_* methods still copy ScopeFrame in the for-in loop, which is
-Bug #144's problem (for-in iterates by copy). Option C avoids copying the
-*definition* objects (VarDef, FuncDef, etc.) but not the ScopeFrame itself.
+Note: The has_* methods still copy ScopeFrame via manual ~.get()~ calls.
+Bug #144 (now fixed) only helps ~for item: Type in collection~ loops, not
+manual index loops. Option C avoids copying the *definition* objects
+(VarDef, FuncDef, etc.) but not the ScopeFrame itself.
 
 *** Related Work
 - Branch ~claude/detect-ccodegen-translation-diffs-A08OT~ attempted Option B
