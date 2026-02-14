@@ -1955,61 +1955,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         return format("(", TIL_PREFIX, "I64)&", inner_str)
     }
 
-    // Bug #144: create_alias(var, type, addr) - compound directive
-    // Declares variable, then emits: memcpy(&var, (void*)addr, sizeof(type))
-    if orig_func_name.eq("create_alias") {
-        if arg.params.len().lt(4) {
-            throw arg.lang_error(context.path, "ccodegen", "create_alias requires 3 arguments")
-        }
-        mut ca_var_arg := Expr()
-        arg.params.get(1, ca_var_arg)?
-        mut ca_type_arg := Expr()
-        arg.params.get(2, ca_type_arg)?
-        mut ca_addr_arg := Expr()
-        arg.params.get(3, ca_addr_arg)?
-        mut ca_var_name := ""
-        switch ca_var_arg.node_type {
-        case NodeType.Identifier(name):
-            ca_var_name = name
-        case:
-            throw arg.lang_error(context.path, "ccodegen", "create_alias: first argument must be an identifier")
-        }
-        mut ca_type_name := ""
-        switch ca_type_arg.node_type {
-        case NodeType.Identifier(name):
-            ca_type_name = name
-        case:
-            throw arg.lang_error(context.path, "ccodegen", "create_alias: second argument must be an identifier")
-        }
-        ca_var_type := ValueType.TCustom(ca_type_name)
-        // Declare variable in ccodegen's scope_stack
-        context.scope_stack.declare_symbol(
-            ca_var_name,
-            SymbolInfo(
-                value_type=ca_var_type,
-                is_mut=true,
-                is_copy=false,
-                is_own=false,
-                is_comptime_const=false
-            )
-        )?
-        ca_c_var_name := til_var_name_from_context(ca_var_name, context)
-        ca_c_type_name := value_type_to_c_name(ca_var_type)?
-        // Emit C variable declaration if not already declared
-        if not(ctx.declared_vars.contains(ca_c_var_name)) {
-            ca_c_type := til_type_to_c(ca_var_type)?
-            hoist_output.push_str(ca_c_type)
-            hoist_output.push_str(" ")
-            hoist_output.push_str(ca_c_var_name)
-            hoist_output.push_str(";\n")
-            _ := ctx.declared_vars.insert(ca_c_var_name)
-            catch (err: Str) {
-                // til_type_to_c failed - skip declaration
-            }
-        }
-        ca_addr_str := emit_arg_string(ca_addr_arg, Ptr(), false, hoist_output, indent, ctx, context)?
-        return format("memcpy(&", ca_c_var_name, ", (void*)", ca_addr_str, ", sizeof(", ca_c_type_name, "))")
-    }
+    // Bug #144: create_alias is handled in emit_fcall only (standalone statement, never an expression)
 
     if orig_func_name.eq("size_of") {
         // size_of: generates til_size_of(&Str), with special Str handling
@@ -5025,10 +4971,12 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                             // the catch body don't try to jump to catches - catches shouldn't catch
                             // errors from their own body, only from code before them
                             saved_catch_labels := ctx.local_catch_labels.clone()
+                            saved_ref_params := ctx.current_ref_params.clone()
                             ctx.local_catch_labels.clear()
                             mut catch_body_expr := Expr()
                             stmt.params.get(2, catch_body_expr)?
                             emit_expr(catch_body_expr, output, indent.add(1), ctx, context)?
+                            ctx.current_ref_params = saved_ref_params
                             ctx.local_catch_labels = saved_catch_labels
 
                             // Close the if(0) block - execution falls through to code after
@@ -7864,7 +7812,10 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
 
     // Don't save/restore declared_vars - TIL has function-level scoping
     // Variables declared in if branches stay declared for the rest of the function
+    // Bug #144: Save/restore current_ref_params to scope pointer semantics from create_alias
+    saved_ref_params := ctx.current_ref_params.clone()
     emit_body(then_body, output, indent.add(1), ctx, context)?
+    ctx.current_ref_params = saved_ref_params
 
     output.push_str(indent_str)
     output.push_str("}")
@@ -7879,12 +7830,16 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
             // Always wrap else-if in braces to ensure hoisted temp vars
             // from nested if conditions have proper scope
             output.push_str(" else {\n")
+            saved_ref_params2 := ctx.current_ref_params.clone()
             emit_if(emit_else_body, output, indent.add(1), ctx, context)?
+            ctx.current_ref_params = saved_ref_params2
             output.push_str(indent_str)
             output.push_str("}\n")
         case:
             output.push_str(" else {\n")
+            saved_ref_params3 := ctx.current_ref_params.clone()
             emit_body(emit_else_body, output, indent.add(1), ctx, context)?
+            ctx.current_ref_params = saved_ref_params3
             output.push_str(indent_str)
             output.push_str("}\n")
         }
@@ -7997,7 +7952,10 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Don't save/restore declared_vars - TIL has function-level scoping
     // Variables declared in loops stay declared for the rest of the function
+    // Bug #144: Save/restore current_ref_params to scope pointer semantics from create_alias
+    saved_ref_params := ctx.current_ref_params.clone()
     emit_body(body, output, indent.add(1), ctx, context)?
+    ctx.current_ref_params = saved_ref_params
 
     output.push_str(indent_str)
     output.push_str("}\n")
@@ -8134,54 +8092,6 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
             mut catch_body := Expr()
             expr.params.get(2, catch_body)?
             collect_declarations_recursive(catch_body, decls, collected, context)?
-        }
-    // Bug #144: create_alias(var, type, addr) is a compound directive that declares a variable
-    case NodeType.FCall(_):
-        if expr.params.len().gteq(4) {
-            mut ca_name_expr := Expr()
-            expr.params.get(0, ca_name_expr)?
-            mut ca_f_name := ""
-            switch ca_name_expr.node_type {
-            case NodeType.Identifier(name):
-                ca_f_name = name
-            case:
-            }
-            if ca_f_name.eq("create_alias") {
-                mut ca_var_expr := Expr()
-                expr.params.get(1, ca_var_expr)?
-                mut ca_type_expr := Expr()
-                expr.params.get(2, ca_type_expr)?
-                mut ca_var_name := ""
-                switch ca_var_expr.node_type {
-                case NodeType.Identifier(name):
-                    ca_var_name = name
-                case:
-                }
-                mut ca_type_name := ""
-                switch ca_type_expr.node_type {
-                case NodeType.Identifier(name):
-                    ca_type_name = name
-                case:
-                }
-                if ca_var_name.len().gt(0).and(ca_type_name.len().gt(0)) {
-                    ca_value_type := ValueType.TCustom(ca_type_name)
-                    collected.set(ca_var_name.clone(), ca_value_type.clone())
-                    context.scope_stack.declare_symbol(
-                        ca_var_name.clone(),
-                        SymbolInfo(
-                            value_type=ca_value_type,
-                            is_mut=true,
-                            is_copy=false,
-                            is_own=false,
-                            is_comptime_const=false
-                        )
-                    )?
-                    mut ca_collected_decl := CollectedDeclaration()
-                    ca_collected_decl.name = ca_var_name
-                    ca_collected_decl.value_type = ca_value_type
-                    decls.push(ca_collected_decl)
-                }
-            }
         }
     case:
         // REM: other node types don't contain declarations
@@ -8705,27 +8615,23 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         )?
         ca_c_var_name2 := til_var_name_from_context(ca_var_name2, context)
         ca_c_type_name2 := value_type_to_c_name(ca_var_type2)?
-        // Emit C variable declaration if not already declared
-        if not(ctx.declared_vars.contains(ca_c_var_name2)) {
-            ca_c_type2 := til_type_to_c(ca_var_type2)?
-            output.push_str(indent_str)
-            output.push_str(ca_c_type2)
-            output.push_str(" ")
-            output.push_str(ca_c_var_name2)
-            output.push_str(";\n")
-            _ := ctx.declared_vars.insert(ca_c_var_name2)
-            catch (err: Str) {
-                // til_type_to_c failed - skip declaration
-            }
-        }
+        // Emit C variable declaration (inline, uses C99 block scoping to shadow hoisted value-type)
+        ca_c_type2 := til_type_to_c(ca_var_type2)?
         output.push_str(indent_str)
-        output.push_str("memcpy(&")
+        output.push_str(ca_c_type2)
+        output.push_str("* ")
         output.push_str(ca_c_var_name2)
-        output.push_str(", (void*)")
-        emit_expr(ca_addr_arg2, output, 0, ctx, context)?
-        output.push_str(", sizeof(")
+        output.push_str(";\n")
+        catch (err: Str) {
+            // til_type_to_c failed - skip declaration
+        }
+        _ := ctx.current_ref_params.insert(ca_var_name2)
+        output.push_str(indent_str)
+        output.push_str(ca_c_var_name2)
+        output.push_str(" = (")
         output.push_str(ca_c_type_name2)
-        output.push_str("))")
+        output.push_str("*)")
+        emit_expr(ca_addr_arg2, output, 0, ctx, context)?
         output.push_str(";\n")
         return
     }

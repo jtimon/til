@@ -388,7 +388,6 @@ void til_panic(const til_Str* til_Str_loc_str, const til_Str* til_Str_msg, til_A
     til_single_print(til_Str_msg);
     til_I64 _for_i_panic_0 = 0;
     til_Ptr _ref_forin_panic_0;
-    til_Str til_Str_extra_msg;
     while (1) {
         til_I64 _tmp_panic_0 = til_Array_len(til_Array_extra_msgs);
         if (!(til_I64_lt(&_for_i_panic_0, &_tmp_panic_0).data)) break;
@@ -408,8 +407,9 @@ void til_panic(const til_Str* til_Str_loc_str, const til_Str* til_Str_msg, til_A
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/exit.til:13:5:", 1, 0, 0, 0}), 23, 0}), &_err_forin_0.msg, &_tmp_panic_3);
             til_Array_delete(&_tmp_panic_3);
         }
-        memcpy(&til_Str_extra_msg, (void*)_ref_forin_panic_0.data, sizeof(til_Str));
-        til_single_print(&til_Str_extra_msg);
+        til_Str* til_Str_extra_msg;
+        til_Str_extra_msg = (til_Str*)_ref_forin_panic_0.data;
+        til_single_print(til_Str_extra_msg);
         til_I64 _tmp_panic_7 = 1;
         _for_i_panic_0 = til_I64_add(&_for_i_panic_0, &_tmp_panic_7);
     }
@@ -447,7 +447,6 @@ void til_assertm(const til_Str* til_Str_loc_str, const til_Bool* til_Bool_cond, 
 void til_println(til_Array* til_Array_args) {
     til_I64 _for_i_println_0 = 0;
     til_Ptr _ref_forin_println_0;
-    til_Str til_Str_print_arg;
     while (1) {
         til_I64 _tmp_println_0 = til_Array_len(til_Array_args);
         if (!(til_I64_lt(&_for_i_println_0, &_tmp_println_0).data)) break;
@@ -467,8 +466,9 @@ void til_println(til_Array* til_Array_args) {
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/print.til:16:5:", 1, 0, 0, 0}), 24, 0}), &_err_forin_0.msg, &_tmp_println_3);
             til_Array_delete(&_tmp_println_3);
         }
-        memcpy(&til_Str_print_arg, (void*)_ref_forin_println_0.data, sizeof(til_Str));
-        til_single_print(&til_Str_print_arg);
+        til_Str* til_Str_print_arg;
+        til_Str_print_arg = (til_Str*)_ref_forin_println_0.data;
+        til_single_print(til_Str_print_arg);
         til_I64 _tmp_println_7 = 1;
         _for_i_println_0 = til_I64_add(&_for_i_println_0, &_tmp_println_7);
     }
@@ -687,7 +687,6 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
     til_I64_fmt_offset = til_Str_prefix->_len;
     til_I64 _for_i_format_0 = 0;
     til_Ptr _ref_forin_format_0;
-    til_Str til_Str_s;
     while (1) {
         til_I64 _tmp_format_17 = til_Array_len(til_Array_args);
         if (!(til_I64_lt(&_for_i_format_0, &_tmp_format_17).data)) break;
@@ -707,10 +706,11 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:704:5:", 1, 0, 0, 0}), 23, 0}), &_err_forin_0.msg, &_tmp_format_20);
             til_Array_delete(&_tmp_format_20);
         }
-        memcpy(&til_Str_s, (void*)_ref_forin_format_0.data, sizeof(til_Str));
+        til_Str* til_Str_s;
+        til_Str_s = (til_Str*)_ref_forin_format_0.data;
         til_I64 _tmp_format_24 = til_Ptr_offset(&til_Str_result.c_string, &til_I64_fmt_offset).data;
-        til_memcpy(&_tmp_format_24, &til_Str_s.c_string.data, &til_Str_s._len);
-        til_I64_fmt_offset = til_I64_add(&til_I64_fmt_offset, &til_Str_s._len);
+        til_memcpy(&_tmp_format_24, &til_Str_s->c_string.data, &til_Str_s->_len);
+        til_I64_fmt_offset = til_I64_add(&til_I64_fmt_offset, &til_Str_s->_len);
         til_I64 _tmp_format_25 = 1;
         _for_i_format_0 = til_I64_add(&_for_i_format_0, &_tmp_format_25);
     }
@@ -1016,7 +1016,6 @@ til_Array til_Array_clone(const til_Array* til_Array_self) {
 til_Bool til_Array_contains(const til_Array* til_Array_self, const til_Str* til_Str_value) {
     til_I64 _for_i_0 = 0;
     til_Ptr _ref_forin_0;
-    til_Str til_Str_elem;
     while (1) {
         til_I64 _tmp_til_Array_contains_0 = til_Array_len(til_Array_self);
         if (!(til_I64_lt(&_for_i_0, &_tmp_til_Array_contains_0).data)) break;
@@ -1036,8 +1035,9 @@ til_Bool til_Array_contains(const til_Array* til_Array_self, const til_Str* til_
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/array.til:105:9:", 1, 0, 0, 0}), 25, 0}), &_err_forin_0.msg, &_tmp_til_Array_contains_3);
             til_Array_delete(&_tmp_til_Array_contains_3);
         }
-        memcpy(&til_Str_elem, (void*)_ref_forin_0.data, sizeof(til_Str));
-        if (til_Str_eq(&til_Str_elem, til_Str_value).data) {
+        til_Str* til_Str_elem;
+        til_Str_elem = (til_Str*)_ref_forin_0.data;
+        if (til_Str_eq(til_Str_elem, til_Str_value).data) {
             return true;
         }
         til_I64 _tmp_til_Array_contains_7 = 1;
@@ -3888,7 +3888,7 @@ til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self) {
 
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
-    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 110740008033776, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
+    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 103902403905792, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
     til_Ptr _tmp_1 = (til_Ptr){.data = 0, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0};
     til_Vec_g_entries = (til_Vec){.type_name = _tmp_0, .type_size = 0, .ptr = _tmp_1, ._len = 0, .cap = 0};
     til_Bool_g_enabled = til_Bool_clone(&false);

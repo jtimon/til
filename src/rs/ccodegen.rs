@@ -1559,50 +1559,6 @@ fn emit_fcall_arg_string(
             return Ok(format!("({}I64)&{}", TIL_PREFIX, inner_str));
         },
 
-        // Bug #144: create_alias(var, type, addr) - compound directive
-        // Declares variable, then emits: memcpy(&var, (void*)addr, sizeof(type))
-        "create_alias" => {
-            if arg.params.len() < 4 {
-                return Err(arg.lang_error(&context.path, "ccodegen", "create_alias requires 3 arguments"));
-            }
-            let var_arg = &arg.params[1];
-            let type_arg = &arg.params[2];
-            let addr_arg = &arg.params[3];
-            let var_name = if let NodeType::Identifier(name) = &var_arg.node_type {
-                name.clone()
-            } else {
-                return Err(arg.lang_error(&context.path, "ccodegen", "create_alias: first argument must be an identifier"));
-            };
-            let type_name = if let NodeType::Identifier(name) = &type_arg.node_type {
-                name.clone()
-            } else {
-                return Err(arg.lang_error(&context.path, "ccodegen", "create_alias: second argument must be an identifier"));
-            };
-            let var_type = ValueType::TCustom(type_name.clone());
-            // Declare variable in ccodegen's scope_stack
-            context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                value_type: var_type.clone(),
-                is_mut: true,
-                is_copy: false,
-                is_own: false,
-                is_comptime_const: false,
-            });
-            let c_var_name = til_var_name_from_context(&var_name, context);
-            let c_type_name = value_type_to_c_name(&var_type)?;
-            // Emit C variable declaration if not already declared
-            if !ctx.declared_vars.contains(&c_var_name) {
-                if let Ok(c_type) = til_type_to_c(&var_type) {
-                    hoist_output.push_str(&c_type);
-                    hoist_output.push_str(" ");
-                    hoist_output.push_str(&c_var_name);
-                    hoist_output.push_str(";\n");
-                    ctx.declared_vars.insert(c_var_name.clone());
-                }
-            }
-            let addr_str = emit_arg_string(addr_arg, None, false, hoist_output, indent, ctx, context)?;
-            return Ok(format!("memcpy(&{}, (void*){}, sizeof({}))", c_var_name, addr_str, c_type_name));
-        },
-
         // size_of: generates til_size_of(&Str), with special Str handling
         "size_of" => {
             if arg.params.len() < 2 {
@@ -4075,7 +4031,9 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                             // the catch body don't try to jump to catches - catches shouldn't catch
                             // errors from their own body, only from code before them
                             let saved_catch_labels = std::mem::take(&mut ctx.local_catch_labels);
+                            let saved_ref_params = ctx.current_ref_params.clone();
                             emit_expr(&stmt.params[2], output, indent + 1, ctx, context)?;
+                            ctx.current_ref_params = saved_ref_params;
                             ctx.local_catch_labels = saved_catch_labels;
 
                             // Close the if(0) block - execution falls through to code after
@@ -6329,7 +6287,10 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
 
     // Don't save/restore declared_vars - TIL has function-level scoping
     // Variables declared in if branches stay declared for the rest of the function
+    // Bug #144: Save/restore current_ref_params to scope pointer semantics from create_alias
+    let saved_ref_params = ctx.current_ref_params.clone();
     emit_body(&expr.params[1], output, indent + 1, ctx, context)?;
+    ctx.current_ref_params = saved_ref_params;
 
     output.push_str(&indent_str);
     output.push_str("}");
@@ -6341,12 +6302,16 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
             // Always wrap else-if in braces to ensure hoisted temp vars
             // from nested if conditions have proper scope
             output.push_str(" else {\n");
+            let saved_ref_params = ctx.current_ref_params.clone();
             emit_if(&expr.params[2], output, indent + 1, ctx, context)?;
+            ctx.current_ref_params = saved_ref_params;
             output.push_str(&indent_str);
             output.push_str("}\n");
         } else {
             output.push_str(" else {\n");
+            let saved_ref_params = ctx.current_ref_params.clone();
             emit_body(&expr.params[2], output, indent + 1, ctx, context)?;
+            ctx.current_ref_params = saved_ref_params;
             output.push_str(&indent_str);
             output.push_str("}\n");
         }
@@ -6433,7 +6398,10 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     // Don't save/restore declared_vars - TIL has function-level scoping
     // Variables declared in loops stay declared for the rest of the function
+    // Bug #144: Save/restore current_ref_params to scope pointer semantics from create_alias
+    let saved_ref_params = ctx.current_ref_params.clone();
     emit_body(&expr.params[1], output, indent + 1, ctx, context)?;
+    ctx.current_ref_params = saved_ref_params;
 
     output.push_str(&indent_str);
     output.push_str("}\n");
@@ -6537,29 +6505,6 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclarat
                 is_comptime_const: false,
             });
             decls.push(CollectedDeclaration { name: decl.name.clone(), value_type });
-        }
-        // Bug #144: create_alias(var, type, addr) is a compound directive that declares a variable
-        NodeType::FCall(_) => {
-            if let Some(name_expr) = expr.params.first() {
-                if let NodeType::Identifier(f_name) = &name_expr.node_type {
-                    if f_name == "create_alias" && expr.params.len() >= 4 {
-                        if let NodeType::Identifier(var_name) = &expr.params[1].node_type {
-                            if let NodeType::Identifier(type_name) = &expr.params[2].node_type {
-                                let value_type = ValueType::TCustom(type_name.clone());
-                                collected.insert(var_name.clone(), value_type.clone());
-                                context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                                    value_type: value_type.clone(),
-                                    is_mut: true,
-                                    is_copy: false,
-                                    is_own: false,
-                                    is_comptime_const: false,
-                                });
-                                decls.push(CollectedDeclaration { name: var_name.clone(), value_type });
-                            }
-                        }
-                    }
-                }
-            }
         }
         NodeType::Body => {
             for stmt in &expr.params {
@@ -6978,26 +6923,22 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             });
             let c_var_name = til_var_name_from_context(&var_name, context);
             let c_type_name = value_type_to_c_name(&var_type)?;
-            // Emit C variable declaration if not already declared
-            if !ctx.declared_vars.contains(&c_var_name) {
-                if let Ok(c_type) = til_type_to_c(&var_type) {
-                    output.push_str(&indent_str);
-                    output.push_str(&c_type);
-                    output.push_str(" ");
-                    output.push_str(&c_var_name);
-                    output.push_str(";\n");
-                    ctx.declared_vars.insert(c_var_name.clone());
-                }
+            // Emit C variable declaration (inline, uses C99 block scoping to shadow hoisted value-type)
+            if let Ok(c_type) = til_type_to_c(&var_type) {
+                output.push_str(&indent_str);
+                output.push_str(&c_type);
+                output.push_str("* ");
+                output.push_str(&c_var_name);
+                output.push_str(";\n");
             }
+            ctx.current_ref_params.insert(var_name.clone());
             output.push_str(&indent_str);
-            output.push_str("memcpy(&");
             output.push_str(&c_var_name);
-            output.push_str(", (void*)");
-            // Emit addr expression directly - don't use arg_strings which may add & prefix
-            emit_expr(addr_arg, output, 0, ctx, context)?;
-            output.push_str(", sizeof(");
+            output.push_str(" = (");
             output.push_str(&c_type_name);
-            output.push_str("));\n");
+            output.push_str("*)");
+            emit_expr(addr_arg, output, 0, ctx, context)?;
+            output.push_str(";\n");
             Ok(())
         },
         // User-defined function call
