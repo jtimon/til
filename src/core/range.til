@@ -32,4 +32,17 @@ namespace I64Range {
             out = self.start.sub(index)  // Reverse: 10..0 -> 10,9,8...
         }
     }
+
+    get_by_ref := proc(self: I64Range, index: I64) returns Ptr throws IndexOutOfBoundsError {
+        if index.gteq(self.len()) {
+            throw IndexOutOfBoundsError(msg="I64Range.get_by_ref: index out of bounds")
+        }
+        mut p := Ptr.new_by_size(8)
+        if self.end.gteq(self.start) {
+            p.copy_from_dynamic(self.start.add(index), 8)
+        } else {
+            p.copy_from_dynamic(self.start.sub(index), 8)
+        }
+        return p
+    }
 }

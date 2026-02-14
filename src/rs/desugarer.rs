@@ -197,10 +197,6 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     let len_call = make_call("len", vec![collection_expr.clone()], line, col);
     let cond_expr = make_call("lt", vec![make_id(&index_var_name, line, col), len_call], line, col);
 
-    // Bug #144: Check if element type is primitive - primitives use get() (copy),
-    // non-primitives use get_by_ref + create_alias (zero-copy alias via compound directive)
-    let is_primitive = matches!(var_type_name, "I64" | "U8" | "Bool");
-
     // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
     // Bug #97: Use unique name to avoid shadowing loop variable if it's also named "err"
     let catch_err_var = format!("_err_forin_{}", forin_id);
@@ -217,60 +213,24 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Build: _for_i = add(_for_i, 1)
     let inc_stmt = make_assign(&index_var_name, make_call("add", vec![make_id(&index_var_name, line, col), make_num("1", line, col)], line, col), line, col);
 
-    // Build while body depending on primitive vs non-primitive element type
-    let mut while_body_params;
-    if is_primitive {
-        // Primitive: get() copy pattern - needs var_decl + get() + catch
-        // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
-        // Bug #33: for-in loops don't work with enum collections
-        let type_call = if let Some(enum_def) = context.scope_stack.lookup_enum(var_type_name) {
-            if let Some(first_v) = enum_def.variants.first() {
-                let enum_id = Expr::new_explicit(
-                    NodeType::Identifier(var_type_name.to_string()),
-                    vec![make_id(&first_v.name, line, col)],
-                    line, col,
-                );
-                if let Some(payload_vt) = &first_v.payload_type {
-                    let default_arg = build_default_value(context, payload_vt, line, col);
-                    Expr::new_explicit(NodeType::FCall(false), vec![enum_id, default_arg], line, col)
-                } else {
-                    enum_id
-                }
-            } else {
-                Expr::new_explicit(NodeType::FCall(false), vec![make_id(var_type_name, line, col)], line, col)
-            }
-        } else {
-            Expr::new_explicit(NodeType::FCall(false), vec![make_id(var_type_name, line, col)], line, col)
-        };
-        let var_decl_expr = make_decl(&var_name, ValueType::TCustom(var_type_name.to_string()), true, type_call, line, col);
+    // Bug #144: All types use get_by_ref + create_alias (zero-copy for all types)
+    // Build: _ref_forin_N := get_by_ref(collection, _for_i)
+    let ref_var_name = make_temp_name("_ref_forin", func_name, forin_id);
+    let get_by_ref_call = make_call("get_by_ref", vec![
+        collection_expr.clone(),
+        make_id(&index_var_name, line, col),
+    ], line, col);
+    let ref_decl = make_decl(&ref_var_name, ValueType::TCustom("Ptr".to_string()), false, get_by_ref_call, line, col);
 
-        // Build: get(collection, _for_i, VAR)
-        let get_call = make_call("get", vec![
-            collection_expr.clone(),
-            make_id(&index_var_name, line, col),
-            make_id(&var_name, line, col),
-        ], line, col);
-        while_body_params = vec![var_decl_expr, get_call, catch_expr];
-    } else {
-        // Bug #144: Non-primitive: get_by_ref + 3-arg create_alias (compound directive)
-        // Build: _ref_forin_N := get_by_ref(collection, _for_i)
-        let ref_var_name = make_temp_name("_ref_forin", func_name, forin_id);
-        let get_by_ref_call = make_call("get_by_ref", vec![
-            collection_expr.clone(),
-            make_id(&index_var_name, line, col),
-        ], line, col);
-        let ref_decl = make_decl(&ref_var_name, ValueType::TCustom("Ptr".to_string()), false, get_by_ref_call, line, col);
+    // Build: create_alias(item, Type, _ref_forin_N.data)
+    // 3-arg compound directive: declares var + aliases + skips auto-delete
+    let alias_call = make_call("create_alias", vec![
+        make_id(&var_name, line, col),
+        make_id(var_type_name, line, col),
+        make_field_access(&ref_var_name, vec!["data"], line, col),
+    ], line, col);
 
-        // Build: create_alias(item, MyStruct, _ref_forin_N.data)
-        // 3-arg compound directive: declares var + aliases + skips auto-delete
-        let alias_call = make_call("create_alias", vec![
-            make_id(&var_name, line, col),
-            make_id(var_type_name, line, col),
-            make_field_access(&ref_var_name, vec!["data"], line, col),
-        ], line, col);
-
-        while_body_params = vec![ref_decl, catch_expr, alias_call];
-    }
+    let mut while_body_params = vec![ref_decl, catch_expr, alias_call];
 
     // Bug #57 fix: Transform continue statements to include increment before continue
     let transformed_body = transform_continue_with_step(&body_expr, &inc_stmt);

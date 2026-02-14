@@ -1463,10 +1463,6 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     cond_args.push(len_call_expr)
     cond_expr := make_call("lt", cond_args, e.line, e.col)
 
-    // Bug #144: Check if element type is primitive - primitives use get() (copy),
-    // non-primitives use get_by_ref + create_alias (zero-copy alias via compound directive)
-    is_primitive := var_type_name.eq("I64").or(var_type_name.eq("U8")).or(var_type_name.eq("Bool"))
-
     // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
     // Bug #97: Use unique name to avoid shadowing loop variable if it's also named "err"
     catch_err_var := format("_err_forin_", I64.to_str(forin_id))
@@ -1506,89 +1502,30 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
 
     inc_stmt := make_assign(index_var_name, add_call, e.line, e.col)
 
-    // Build while body depending on primitive vs non-primitive element type
+    // Bug #144: All types use get_by_ref + create_alias (zero-copy for all types)
+    // Build: _ref_forin_N := get_by_ref(collection, _for_i)
+    ref_var_name := make_temp_name("_ref_forin", context.current_precomp_func, forin_id)
+    mut get_by_ref_args := Vec.new(Expr)
+    get_by_ref_args.push(collection_expr.clone())
+    get_by_ref_args.push(make_id(index_var_name, e.line, e.col))
+    get_by_ref_call := make_call("get_by_ref", get_by_ref_args, e.line, e.col)
+    ref_decl := make_decl(ref_var_name, ValueType.TCustom("Ptr"), false, get_by_ref_call, e.line, e.col)
+
+    // Build: create_alias(item, Type, _ref_forin_N.data)
+    // 3-arg compound directive: declares var + aliases + skips auto-delete
+    mut data_fields := Vec.new(Str)
+    data_fields.push("data")
+    ref_data_expr := make_field_access(ref_var_name, data_fields, e.line, e.col)
+    mut alias_args := Vec.new(Expr)
+    alias_args.push(make_id(var_name, e.line, e.col))
+    alias_args.push(make_id(var_type_name, e.line, e.col))
+    alias_args.push(ref_data_expr)
+    alias_call := make_call("create_alias", alias_args, e.line, e.col)
+
     mut while_body_params := Vec.new(Expr)
-    if is_primitive {
-        // Primitive: get() copy pattern - needs var_decl + get() + catch
-        // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
-        // Bug #33: for-in loops don't work with enum collections
-        mut type_call := Expr()
-        mut is_enum := false
-        mut enum_def := context.scope_stack.lookup_enum(var_type_name)?
-        is_enum = true
-        catch (err: KeyNotFoundError) {
-            // Not an enum
-        }
-
-        if is_enum {
-            if enum_def.variants.len().gt(0) {
-                mut first_v := EnumVariant()
-                enum_def.variants.get(0, first_v)?
-                first_variant := first_v.name
-                payload_type_ptr := first_v.payload_type
-                catch (err: IndexOutOfBoundsError) {
-                    // Shouldn't happen since we checked len > 0
-                }
-                mut variant_id_params := Vec.new(Expr)
-                variant_id_params.push(make_id(first_variant, e.line, e.col))
-                enum_id := Expr.new_explicit(NodeType.Identifier(var_type_name), variant_id_params, e.line, e.col)
-                if not(NULL.eq(payload_type_ptr.data)) {
-                    mut payload_vt := ValueType.TCustom("")
-                    memcpy(to_ptr(payload_vt), payload_type_ptr.data, size_of(ValueType))
-                    default_arg := build_default_value(context, payload_vt, e.line, e.col)
-                    mut enum_fcall_args := Vec.new(Expr)
-                    enum_fcall_args.push(enum_id)
-                    enum_fcall_args.push(default_arg)
-                    type_call = Expr.new_explicit(NodeType.FCall(false), enum_fcall_args, e.line, e.col)
-                } else {
-                    type_call = enum_id
-                }
-            } else {
-                mut empty_args := Vec.new(Expr)
-                empty_args.push(make_id(var_type_name, e.line, e.col))
-                type_call = Expr.new_explicit(NodeType.FCall(false), empty_args, e.line, e.col)
-            }
-        } else {
-            mut struct_args := Vec.new(Expr)
-            struct_args.push(make_id(var_type_name, e.line, e.col))
-            type_call = Expr.new_explicit(NodeType.FCall(false), struct_args, e.line, e.col)
-        }
-        var_decl_expr := make_decl(var_name, ValueType.TCustom(var_type_name), true, type_call, e.line, e.col)
-
-        // Build: get(collection, _for_i, VAR)
-        mut get_args := Vec.new(Expr)
-        get_args.push(collection_expr.clone())
-        get_args.push(make_id(index_var_name, e.line, e.col))
-        get_args.push(make_id(var_name, e.line, e.col))
-        get_call := make_call("get", get_args, e.line, e.col)
-        while_body_params.push(var_decl_expr)
-        while_body_params.push(get_call)
-        while_body_params.push(catch_expr)
-    } else {
-        // Bug #144: Non-primitive: get_by_ref + 3-arg create_alias (compound directive)
-        // Build: _ref_forin_N := get_by_ref(collection, _for_i)
-        ref_var_name := make_temp_name("_ref_forin", context.current_precomp_func, forin_id)
-        mut get_by_ref_args := Vec.new(Expr)
-        get_by_ref_args.push(collection_expr.clone())
-        get_by_ref_args.push(make_id(index_var_name, e.line, e.col))
-        get_by_ref_call := make_call("get_by_ref", get_by_ref_args, e.line, e.col)
-        ref_decl := make_decl(ref_var_name, ValueType.TCustom("Ptr"), false, get_by_ref_call, e.line, e.col)
-
-        // Build: create_alias(item, MyStruct, _ref_forin_N.data)
-        // 3-arg compound directive: declares var + aliases + skips auto-delete
-        mut data_fields := Vec.new(Str)
-        data_fields.push("data")
-        ref_data_expr := make_field_access(ref_var_name, data_fields, e.line, e.col)
-        mut alias_args := Vec.new(Expr)
-        alias_args.push(make_id(var_name, e.line, e.col))
-        alias_args.push(make_id(var_type_name, e.line, e.col))
-        alias_args.push(ref_data_expr)
-        alias_call := make_call("create_alias", alias_args, e.line, e.col)
-
-        while_body_params.push(ref_decl)
-        while_body_params.push(catch_expr)
-        while_body_params.push(alias_call)
-    }
+    while_body_params.push(ref_decl)
+    while_body_params.push(catch_expr)
+    while_body_params.push(alias_call)
 
     // Bug #57 fix: Transform continue statements to include increment before continue
     transformed_body := transform_continue_with_step(body_expr, inc_stmt)?
