@@ -458,8 +458,8 @@ namespace Expr {
 
     get := func(self: Expr, i: I64) returns Expr throws Str {
         if i.lt(self.params.len()) {
-            mut result := Expr()
-            self.params.get(i, result)?
+            expr_ref := self.params.get_by_ref(i)?
+            create_alias(result, Expr, expr_ref.data)
             return result
         }
         catch (err: IndexOutOfBoundsError) {
