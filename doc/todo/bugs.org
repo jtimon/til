@@ -786,8 +786,22 @@ Files: src/rs/typer.rs, src/self/typer.til
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Memory leak in self-hosted interpreter, grows with scope depth and lookup frequency
-:STATUS: Open - Option C (has_*) implemented but still copies ScopeFrame internally
+:STATUS: Open - params.get/e.get done (zero-copy Expr.get), ScopeStack frame copies remain
 :END:
+
+*** Progress: Zero-copy Expr.get() (2026-02-14)
+
+Categories A+B from copies.org (490 calls copying Expr) are now zero-copy:
+- Replaced ~.params.get(i, var)~ with ~.get(i)~ + ~dont_delete(var)~ across
+  all 11 TIL self-hosted files. Uses get_by_ref + create_alias (no copy).
+- Garbager updated to collect dont_delete vars recursively from nested
+  Body/If/While/Catch nodes, and strip dont_delete calls from Body handlers.
+- Fixed double-free in ccodegen save/restore pattern (~saved_ref_params~,
+  ~saved_catch_labels~): after restoring to ctx fields, the local aliases
+  the field's heap data. Added dont_delete for these locals.
+
+Remaining: ScopeStack frame iteration (Category C, 35 calls copying ScopeFrame),
+Map.get (Category D), Vec.get on non-params Vecs (Category E).
 
 *** Description
 TIL's ScopeStack lookup functions (lookup_var, lookup_symbol, lookup_func, lookup_enum,

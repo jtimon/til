@@ -354,8 +354,8 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         return eval_identifier_expr(name, context, e)?
     case NodeType.If:
         _ := validate_conditional_params(context.path, e, "if", 2, 3)
-        mut cond_expr := Expr()
-        e.params.get(0, cond_expr)?
+        cond_expr := e.get(0)?
+        dont_delete(cond_expr)
         mut result_cond := eval_expr(context, cond_expr)?
         if result_cond.is_throw {
             return result_cond
@@ -369,8 +369,8 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         }
     case NodeType.While:
         _ := validate_conditional_params(context.path, e, "while", 2, 2)
-        mut while_cond_expr := Expr()
-        e.params.get(0, while_cond_expr)?
+        mut while_cond_expr := e.get(0)?
+        dont_delete(while_cond_expr)
         mut while_result_cond := eval_expr(context, while_cond_expr)?
         if while_result_cond.is_throw {
             return while_result_cond
@@ -433,7 +433,6 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -470,8 +469,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
             // Check if this is a struct literal (has named args) or default constructor
             mut has_named_args := false
             for check_i in 1..e.params.len() {
-                mut check_arg := Expr()
-                e.params.get(check_i, check_arg)?
+                check_arg := e.get(check_i)?
+                dont_delete(check_arg)
                 switch check_arg.node_type {
                 case NodeType.NamedArg(_):
                     has_named_args = true
@@ -494,8 +493,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
                 // Process named arguments to override field values
                 for named_j in 1..e.params.len() {
-                    mut named_arg := Expr()
-                    e.params.get(named_j, named_arg)?
+                    named_arg := e.get(named_j)?
+                    dont_delete(named_arg)
                     mut field_name := ""
                     mut is_named_arg := false
                     switch named_arg.node_type {
@@ -988,8 +987,8 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 }
                 if is_fcall {
                     if inner_e.params.len().eq(1) {
-                        mut first_param := Expr()
-                        inner_e.params.get(0, first_param)?
+                        first_param := inner_e.get(0)?
+                        dont_delete(first_param)
                         switch first_param.node_type {
                         case NodeType.Identifier(potentially_struct_name):
                             if first_param.params.len().eq(0) {
@@ -1416,8 +1415,8 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         if e.params.len().eq(0) {
             throw e.lang_error(context.path, "eval", "eval_custom_expr: Expected at least one parameter")
         }
-        mut last_inner_e := Expr()
-        e.params.get(e.params.len().sub(1), last_inner_e)?
+        last_inner_e := e.get(e.params.len().sub(1))?
+        dont_delete(last_inner_e)
 
         switch current_type {
         case ValueType.TCustom(curr_type_name):
@@ -1469,7 +1468,6 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
     case:
         throw e.lang_error(context.path, "eval", format("'", name, "' of type: '", custom_type_name, "': custom types are supposed to be struct or enum, found '", value_type_to_str(custom_symbol.value_type), "'."))
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: BadAlloc) { panic(loc(), "eval_custom_expr: buy more ram") }
     return EvalResult.new("")
 }
@@ -1637,8 +1635,8 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                     // params[0]: error variable name (e.g., "err")
                     // params[1]: error type (e.g., "AllocError")
                     // params[2]: body
-                    mut var_expr := Expr()
-                    stmt.params.get(0, var_expr)?
+                    var_expr := stmt.get(0)?
+                    dont_delete(var_expr)
                     mut var_name := ""
                     switch var_expr.node_type {
                     case NodeType.Identifier(name):
@@ -1646,8 +1644,8 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                     case:
                         throw stmt.lang_error(context.path, "eval", "Catch variable must be an identifier")
                     }
-                    mut type_expr := Expr()
-                    stmt.params.get(1, type_expr)?
+                    type_expr := stmt.get(1)?
+                    dont_delete(type_expr)
                     mut type_name := ""
                     switch type_expr.node_type {
                     case NodeType.Identifier(name):
@@ -1761,8 +1759,8 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 }
                             }
 
-                            mut body_expr := Expr()
-                            stmt.params.get(2, body_expr)?
+                            body_expr := stmt.get(2)?
+                            dont_delete(body_expr)
                             catch_body_result := eval_body(context, body_expr.params)?
 
                             // Clean up the error variable binding after the catch block
@@ -1874,8 +1872,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 // Handle variadic args
                 mut values := Vec.new(Str)
                 for vi in param_index..e.params.len() {
-                    mut expr := Expr()
-                    e.params.get(vi, expr)?
+                    expr := e.get(vi)?
+                    dont_delete(expr)
                     arg_result := eval_expr(context, expr)?
                     if arg_result.is_throw {
                         return arg_result
@@ -2144,8 +2142,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     case NodeType.Identifier(base_id):
                                         full_path = base_id.clone()
                                         for struct_pi in 0..current_arg.params.len() {
-                                            mut struct_param := Expr()
-                                            current_arg.params.get(struct_pi, struct_param)?
+                                            struct_param := current_arg.get(struct_pi)?
+                                            dont_delete(struct_param)
                                             switch struct_param.node_type {
                                             case NodeType.Identifier(struct_field_name):
                                                 full_path = format(full_path, ".", struct_field_name)
@@ -2904,7 +2902,7 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
     }
 
     // Preinit phase: auto-generate delete/clone methods
-    e = preinit_expr(e)
+    e = preinit_expr(e)?
 
     // Skip init and type checking if this is Phase 2 of a two-phase import
     if not(skip_init_and_typecheck) {

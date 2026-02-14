@@ -537,8 +537,8 @@ ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     context.scope_stack.declare_symbol(var_name, sym)?
 
     // Transform the catch body (params[2])
-    mut body_expr := Expr()
-    e.params.get(2, body_expr)?
+    body_expr := e.get(2)?
+    dont_delete(body_expr)
     new_body := ufcs_expr(context, body_expr)?
 
     // Pop the scope frame
@@ -598,10 +598,10 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         // Bug #144: create_alias declares a variable - register it in scope for UFCS resolution
         if combined_name.eq("create_alias").and(new_e.params.len().gteq(4)) {
-            mut alias_var_expr := Expr()
-            new_e.params.get(1, alias_var_expr)?
-            mut alias_type_expr := Expr()
-            new_e.params.get(2, alias_type_expr)?
+            alias_var_expr := new_e.get(1)?
+            dont_delete(alias_var_expr)
+            alias_type_expr := new_e.get(2)?
+            dont_delete(alias_type_expr)
             switch alias_var_expr.node_type {
             case NodeType.Identifier(var_name):
                 switch alias_type_expr.node_type {
@@ -625,8 +625,8 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // Associated methods take priority over standalone functions (checked below)
         // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
         if new_e.params.len().gteq(2) {
-            mut first_arg := Expr()
-            new_e.params.get(1, first_arg)?
+            first_arg := new_e.get(1)?
+            dont_delete(first_arg)
             mut got_type := true
             mut target_type := get_value_type(context, first_arg)?
             catch (err: Str) {
@@ -669,8 +669,8 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                         // Add remaining args from outer new_e (the transformed FCall)
                         mut j := 1
                         while j.lt(new_e.params.len()) {
-                            mut arg := Expr()
-                            new_e.params.get(j, arg)?
+                            arg := new_e.get(j)?
+                            dont_delete(arg)
                             new_args.push(arg)
                             j.inc()
                         }
@@ -698,8 +698,8 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         // UFCS with dot notation (e.g., a.method(b) or a.field.method())
         if func_expr.params.len().gt(0) {
-            mut func_name_expr := Expr()
-            func_expr.params.get(func_expr.params.len().sub(1), func_name_expr)?
+            func_name_expr := func_expr.get(func_expr.params.len().sub(1))?
+            dont_delete(func_name_expr)
 
             switch func_name_expr.node_type {
             case NodeType.Identifier(ufcs_func_name):
@@ -752,8 +752,8 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             // Add remaining args from outer new_e
                             mut assoc_j := 1
                             while assoc_j.lt(new_e.params.len()) {
-                                mut assoc_arg := Expr()
-                                new_e.params.get(assoc_j, assoc_arg)?
+                                assoc_arg := new_e.get(assoc_j)?
+                                dont_delete(assoc_arg)
                                 assoc_new_args.push(assoc_arg)
                                 assoc_j.inc()
                             }
@@ -777,8 +777,8 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     // Add remaining args from outer new_e
                     mut standalone_j := 1
                     while standalone_j.lt(new_e.params.len()) {
-                        mut standalone_arg := Expr()
-                        new_e.params.get(standalone_j, standalone_arg)?
+                        standalone_arg := new_e.get(standalone_j)?
+                        dont_delete(standalone_arg)
                         standalone_new_args.push(standalone_arg)
                         standalone_j.inc()
                     }

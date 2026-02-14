@@ -132,13 +132,13 @@ get_case_variant_info := func(expr: Expr) returns VariantInfo throws Str {
     case NodeType.FCall(_):
         // FCall for Type.Variant (without payload extraction)
         if expr.params.len().gt(0) {
-            mut first_param := Expr()
-            expr.params.get(0, first_param)?
+            first_param := expr.get(0)?
+            dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.Identifier(type_name):
                 if first_param.params.len().gt(0) {
-                    mut nested_param := Expr()
-                    first_param.params.get(0, nested_param)?
+                    nested_param := first_param.get(0)?
+                    dont_delete(nested_param)
                     switch nested_param.node_type {
                     case NodeType.Identifier(variant_name):
                         return VariantInfo(type_name=type_name, variant_name=variant_name)
@@ -152,8 +152,8 @@ get_case_variant_info := func(expr: Expr) returns VariantInfo throws Str {
     case NodeType.Identifier(name):
         // Identifier with nested params: Type.Variant
         if expr.params.len().gt(0) {
-            mut first_param := Expr()
-            expr.params.get(0, first_param)?
+            first_param := expr.get(0)?
+            dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.Identifier(variant_name):
                 return VariantInfo(type_name=name, variant_name=variant_name)
@@ -166,9 +166,6 @@ get_case_variant_info := func(expr: Expr) returns VariantInfo throws Str {
         return VariantInfo(type_name="", variant_name="")
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("get_case_variant_info: ", err.msg)
-    }
 }
 
 /// Get the payload type from an enum definition for a given variant
@@ -213,8 +210,8 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
                 // The FCall's arguments COULD contain variable references
                 mut new_params := Vec.new(Expr)
                 for i in 0..e.params.len() {
-                    mut p := Expr()
-                    e.params.get(i, p)?
+                    p := e.get(i)?
+                    dont_delete(p)
                     // Only recurse into non-Identifier params (like FCall, etc.)
                     // Direct Identifier children of an Identifier are field names
                     mut is_id := false
@@ -237,8 +234,8 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
             // Assignment to the variable - rename it
             mut new_params := Vec.new(Expr)
             for i in 0..e.params.len() {
-                mut p := Expr()
-                e.params.get(i, p)?
+                p := e.get(i)?
+                dont_delete(p)
                 new_params.push(rename_identifier_in_expr(p, old_name, new_name)?)
             }
             return Expr.new_clone(
@@ -265,14 +262,14 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
             } else {
                 // Only rename in the initializer (first param), not in nested bodies
                 mut new_params := Vec.new(Expr)
-                mut first := Expr()
-                e.params.get(0, first)?
+                first := e.get(0)?
+                dont_delete(first)
                 // The initializer is evaluated before the declaration, so rename in it
                 new_params.push(rename_identifier_in_expr(first, old_name, new_name)?)
                 // Any remaining params (shouldn't exist for Declaration) - don't rename
                 for i in 1..e.params.len() {
-                    mut p := Expr()
-                    e.params.get(i, p)?
+                    p := e.get(i)?
+                    dont_delete(p)
                     new_params.push(p.clone())
                 }
                 return Expr.new_clone(e.node_type, e, new_params)
@@ -288,16 +285,13 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
     } else {
         mut new_params := Vec.new(Expr)
         for i in 0..e.params.len() {
-            mut p := Expr()
-            e.params.get(i, p)?
+            p := e.get(i)?
+            dont_delete(p)
             new_params.push(rename_identifier_in_expr(p, old_name, new_name)?)
         }
         return Expr.new_clone(e.node_type, e, new_params)
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("rename_identifier_in_expr: ", err.msg)
-    }
 }
 
 /// Search all enums in scope to find which one contains a variant with the given name
@@ -336,8 +330,7 @@ detect_enum_switch_from_cases := func(context: Context, e: Expr) returns Variant
     // Look at case patterns (params[1], params[3], params[5], ...)
     mut i := 1
     while i.lt(e.params.len()) {
-        mut case_pattern := Expr()
-        e.params.get(i, case_pattern)?
+        case_pattern := e.get(i)?
         switch case_pattern.node_type {
         case NodeType.DefaultCase:
             // Skip default case
@@ -353,8 +346,8 @@ detect_enum_switch_from_cases := func(context: Context, e: Expr) returns Variant
         case NodeType.Identifier(name):
             // Identifier with nested params like Type.Variant
             if case_pattern.params.len().gt(0) {
-                mut first_param := Expr()
-                case_pattern.params.get(0, first_param)?
+                first_param := case_pattern.get(0)?
+                dont_delete(first_param)
                 switch first_param.node_type {
                 case NodeType.Identifier(_variant_name):
                     // This looks like Type.Variant - check if Type is an enum
@@ -409,9 +402,6 @@ detect_enum_switch_from_cases := func(context: Context, e: Expr) returns Variant
         i = i.add(2) // Skip body to get next case pattern
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("detect_enum_switch_from_cases: ", err.msg)
-    }
 
     return VariantInfo(type_name="", variant_name="")
 }
@@ -425,8 +415,8 @@ infer_switch_type_from_cases := func(e: Expr) returns Ptr throws Str {
     // Look at case patterns (params[1], params[3], params[5], ...)
     mut i := 1
     while i.lt(e.params.len()) {
-        mut case_pattern := Expr()
-        e.params.get(i, case_pattern)?
+        case_pattern := e.get(i)?
+        dont_delete(case_pattern)
         switch case_pattern.node_type {
         case NodeType.DefaultCase:
             // Skip default case
@@ -448,8 +438,8 @@ infer_switch_type_from_cases := func(e: Expr) returns Ptr throws Str {
         case NodeType.Range:
             // Check range bounds for type
             if case_pattern.params.len().gt(0) {
-                mut first := Expr()
-                case_pattern.params.get(0, first)?
+                first := case_pattern.get(0)?
+                dont_delete(first)
                 switch first.node_type {
                 case NodeType.LLiteral(lit):
                     switch lit {
@@ -502,9 +492,6 @@ infer_switch_type_from_cases := func(e: Expr) returns Ptr throws Str {
         i = i.add(2) // Skip body to get next case pattern
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("infer_switch_type_from_cases: ", err.msg)
-    }
 
     return Ptr() // NULL - couldn't infer
 }
@@ -704,8 +691,8 @@ build_case_condition := proc(
 
             // Check for nested enum patterns - e.g., ValueType.TType(TTypeDef.TEnumDef)
             if case_pattern.params.len().gt(1) {
-                mut inner_pattern := Expr()
-                case_pattern.params.get(1, inner_pattern)?
+                inner_pattern := case_pattern.get(1)?
+                dont_delete(inner_pattern)
                 // Check if the inner pattern is also an enum variant pattern (not a binding variable)
                 inner_info := get_case_variant_info(inner_pattern)?
                 if inner_info.variant_name.len().gt(0) {
@@ -846,8 +833,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         throw e.lang_error(context.path, "desugar", "Switch requires expression")
     }
 
-    mut switch_expr := Expr()
-    e.params.get(0, switch_expr)?
+    switch_expr := e.get(0)?
+    dont_delete(switch_expr)
     line := e.line
     col := e.col
 
@@ -1042,8 +1029,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         case NodeType.FCall(_):
             info := get_case_variant_info(case_pattern)?
             if is_enum_switch.and(info.variant_name.len().gt(0)).and(case_pattern.params.len().gt(1)) {
-                mut inner_pattern := Expr()
-                case_pattern.params.get(1, inner_pattern)?
+                inner_pattern := case_pattern.get(1)?
+                dont_delete(inner_pattern)
                 inner_info := get_case_variant_info(inner_pattern)?
                 if inner_info.variant_name.len().gt(0) {
                     has_nested_pattern = true
@@ -1137,8 +1124,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 switch renamed_case_body.node_type {
                 case NodeType.Body:
                     for bi in 0..renamed_case_body.params.len() {
-                        mut bp := Expr()
-                        renamed_case_body.params.get(bi, bp)?
+                        bp := renamed_case_body.get(bi)?
+                        dont_delete(bp)
                         inner_body_params.push(bp.clone())
                     }
                 case:
@@ -1173,8 +1160,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     switch renamed_case_body.node_type {
                     case NodeType.Body:
                         for bi in 0..renamed_case_body.params.len() {
-                            mut bp := Expr()
-                            renamed_case_body.params.get(bi, bp)?
+                            bp := renamed_case_body.get(bi)?
+                            dont_delete(bp)
                             full_body_params.push(bp.clone())
                         }
                     case:
@@ -1189,8 +1176,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     switch renamed_case_body.node_type {
                     case NodeType.Body:
                         for bi in 0..renamed_case_body.params.len() {
-                            mut bp := Expr()
-                            renamed_case_body.params.get(bi, bp)?
+                            bp := renamed_case_body.get(bi)?
+                            dont_delete(bp)
                             full_body_params.push(bp.clone())
                         }
                     case:
@@ -1297,8 +1284,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
             switch renamed_case_body.node_type {
             case NodeType.Body:
                 for bi in 0..renamed_case_body.params.len() {
-                    mut bp := Expr()
-                    renamed_case_body.params.get(bi, bp)?
+                    bp := renamed_case_body.get(bi)?
+                    dont_delete(bp)
                     full_body_params.push(bp.clone())
                 }
             case:
@@ -1533,8 +1520,8 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     switch transformed_body.node_type {
     case NodeType.Body:
         for i in 0..transformed_body.params.len() {
-            mut p := Expr()
-            transformed_body.params.get(i, p)?
+            p := transformed_body.get(i)?
+            dont_delete(p)
             while_body_params.push(p.clone())
         }
     case:
@@ -1554,9 +1541,6 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     outer_body_params.push(index_decl_expr)
     outer_body_params.push(while_expr)
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("desugar_forin: ", err.msg)
-    }
 
     return make_body(outer_body_params, e.line, e.col)
 }
@@ -1652,8 +1636,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // desugaring generates variable names with proper function prefixes
         mut is_func_decl := false
         if e.params.len().gt(0) {
-            mut first_param := Expr()
-            e.params.get(0, first_param)?
+            first_param := e.get(0)?
+            dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(_func_def):
                 is_func_decl = true
@@ -1669,8 +1653,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut new_params := Vec.new(Expr)
         if e.params.len().gt(0) {
             for pi in 0..e.params.len() {
-                mut p := Expr()
-                e.params.get(pi, p)?
+                p := e.get(pi)?
+                dont_delete(p)
                 new_params.push(desugar_expr(context, p)?)
             }
         }
@@ -1700,8 +1684,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         } else {
             mut new_params := Vec.new(Expr)
             for param_i in 0..e.params.len() {
-                mut p := Expr()
-                e.params.get(param_i, p)?
+                p := e.get(param_i)?
+                dont_delete(p)
                 new_params.push(desugar_expr(context, p)?)
             }
             return Expr.new_clone(e.node_type, e, new_params)

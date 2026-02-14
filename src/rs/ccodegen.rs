@@ -2311,6 +2311,7 @@ fn is_global_declaration(expr: &Expr) -> bool {
 
 // Emit a global declaration as a static variable at file scope (type only, no initializer)
 // The initializer will be emitted in main()
+// TODO: don't fallback to "int", just propagate the error instead
 fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {

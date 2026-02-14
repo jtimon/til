@@ -16,7 +16,11 @@ Every .get() call performs a shallow memcpy copy. The for-in loops
 
 ** Categories of .get() calls
 
-*** Category A: params.get(i, expr) -- 290 calls
+*** Category A: params.get(i, expr) -- 290 calls -- DONE (2026-02-14)
+
+*CONVERTED to zero-copy*: Replaced with ~e.get(i)~ + ~dont_delete(var)~
+across all 11 TIL self-hosted files. Uses get_by_ref + create_alias
+(zero-copy pointer into collection storage, no memcpy).
 
 These access child nodes of an Expr AST node. The copied type is
 usually Expr (a large struct with heap pointers). Every compiler
@@ -38,10 +42,11 @@ phase uses these extensively.
 | src/test/ufcs.til          |     2 |
 | src/test/test_parser.til   |     1 |
 
-These are Expr.params (a Vec of Expr). Could be converted to
-get_by_ref if Vec supports it, but the alias semantics need care.
+*** Category B: e.get(N)? shorthand -- ~200 calls -- DONE (2026-02-14)
 
-*** Category B: e.get(N)? shorthand -- ~200 calls
+*CONVERTED to zero-copy*: Same as Category A. ~e.get(N)~ now uses
+get_by_ref + create_alias internally. All call sites have
+~dont_delete(var)~ to prevent the garbager from freeing the alias.
 
 These use the Expr helper method e.get(N) which returns an Expr
 by value. Found extensively in:
@@ -54,8 +59,6 @@ by value. Found extensively in:
 | src/self/init.til          |    ~20 |
 | src/self/desugarer.til     |    ~15 |
 | src/self/scavenger.til     |    ~15 |
-
-Same as params.get() but via a convenience method. Same fix applies.
 
 *** Category C: self.frames.get(i, frame) -- ScopeStack lookups -- ~35 calls
 
@@ -259,9 +262,8 @@ Options:
 
 ** Priority for optimization
 
-1. **params.get() / e.get()** -- 490 calls copying Expr
-   Highest impact. Every compiler pass copies Expr nodes constantly.
-   Fix: Add get_by_ref to Expr.params (Vec of Expr)
+1. *DONE* **params.get() / e.get()** -- 490 calls copying Expr
+   Converted to zero-copy via get_by_ref + create_alias (2026-02-14).
 
 2. **ScopeStack frame iteration** -- 35 calls copying ScopeFrame
    Each lookup iterates all frames and copies ScopeFrame (huge struct).

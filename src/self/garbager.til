@@ -18,17 +18,15 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
     // Recurse into FuncDef bodies
     case NodeType.FuncDef(func_def):
         // Step 1: Strip dont_delete calls, collect protected var names
+        // Pre-scan entire body tree recursively for dont_delete var names
+        mut dont_delete_vars := garb_collect_dont_delete_vars_recursive(func_def.body)?
         mut new_body := Vec.new(Expr)
-        mut dont_delete_vars := Vec.new(Str)
         for stmt: Expr in func_def.body {
-            if is_dont_delete_call(stmt) {
-                dd_var := get_dont_delete_var(stmt)
-                if dd_var.len().gt(0) {
-                    dont_delete_vars.push(dd_var)
-                }
+            if is_dont_delete_call(stmt)? {
+                // already collected above, just skip
             } else {
                 // Step 2: Collect create_alias var names
-                alias_var := get_create_alias_var(stmt)
+                alias_var := get_create_alias_var(stmt)?
                 if alias_var.len().gt(0) {
                     dont_delete_vars.push(alias_var)
                 }
@@ -41,8 +39,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             switch catch_stmt.node_type {
             case NodeType.Catch:
                 if catch_stmt.params.len().gt(0) {
-                    mut catch_name_expr := Expr()
-                    catch_stmt.params.get(0, catch_name_expr)?
+                    catch_name_expr := catch_stmt.get(0)?
+                    dont_delete(catch_name_expr)
                     switch catch_name_expr.node_type {
                     case NodeType.Identifier(err_var_name):
                         dont_delete_vars.push(err_var_name)
@@ -373,9 +371,9 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             new_params.push(garbager_recursive(context, param)?)
         }
         // Transform copy params: wrap struct identifier args in Type.clone()
-        transform_fcall_copy_params(context, e, new_params)
+        transform_fcall_copy_params(context, e, new_params)?
         // Issue #159 Step 5: Transform struct literal fields
-        transform_struct_literal_fields(context, e, new_params)
+        transform_struct_literal_fields(context, e, new_params)?
         return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
 
     // Issue #159 Step 6: Transform assignments with struct type where RHS is an identifier
@@ -434,13 +432,27 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         // No transformation needed
         return Expr.new_explicit(e.node_type, assign_new_params, e.line, e.col)
 
-    // Body: recurse into children
+    // Body: recurse into children, stripping dont_delete calls
     case NodeType.Body:
         mut body_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            body_new_params.push(garbager_recursive(context, param)?)
+            if is_dont_delete_call(param)? {
+                // strip dont_delete from nested bodies
+            } else {
+                body_new_params.push(garbager_recursive(context, param)?)
+            }
         }
         return Expr.new_explicit(e.node_type, body_new_params, e.line, e.col)
+
+    // Desugared-away node types: reject with lang_error
+    case NodeType.Switch:
+        throw e.lang_error(context.path, "garbager", "Switch should have been desugared to if/else by desugarer phase")
+    case NodeType.DefaultCase:
+        throw e.lang_error(context.path, "garbager", "DefaultCase should have been desugared with Switch")
+    case NodeType.Pattern(_):
+        throw e.lang_error(context.path, "garbager", "Pattern should have been desugared with Switch")
+    case NodeType.ForIn(_):
+        throw e.lang_error(context.path, "garbager", "ForIn should have been desugared before garbager phase")
 
     // Default: recurse into children
     case:
@@ -565,7 +577,7 @@ detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Cont
         return false
     }
     mut chain := Vec.new(Str)
-    get_fcall_identifier_chain(stmt, chain)
+    get_fcall_identifier_chain(stmt, chain)?
     if chain.len().eq(0) {
         return false
     }
@@ -631,11 +643,8 @@ detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Cont
     }
 
     // Check if call-site param is a bare identifier
-    mut param_expr := Expr()
-    stmt.params.get(param_idx, param_expr)?
-    catch (err: IndexOutOfBoundsError) {
-        return false
-    }
+    param_expr := stmt.get(param_idx)?
+    dont_delete(param_expr)
     switch param_expr.node_type {
     case NodeType.Identifier(var_name):
         if param_expr.params.len().eq(0) {
@@ -694,24 +703,18 @@ process_stmt_for_clone_after_get := proc(e: Expr, local_types: Map, context: Con
 
 /// Extract function name from FCall's first param (the name expression).
 /// Returns "foo" for foo(x) or "Type.method" for Type.method(x).
-get_func_name := func(e: Expr) returns Str {
+get_func_name := func(e: Expr) returns Str throws Str {
     if e.params.len().eq(0) {
         return ""
     }
-    mut name_expr := Expr()
-    e.params.get(0, name_expr)?
-    catch (err: IndexOutOfBoundsError) {
-        return ""
-    }
+    name_expr := e.get(0)?
+    dont_delete(name_expr)
     switch name_expr.node_type {
     case NodeType.Identifier(name):
         // Check for Type.method pattern: Identifier("Type") with child Identifier("method")
         if name_expr.params.len().gt(0) {
-            mut first_child := Expr()
-            name_expr.params.get(0, first_child)?
-            catch (err: IndexOutOfBoundsError) {
-                return name
-            }
+            first_child := name_expr.get(0)?
+            dont_delete(first_child)
             switch first_child.node_type {
             case NodeType.Identifier(method):
                 return format(name, ".", method)
@@ -736,8 +739,8 @@ is_identifier_expr := func(e: Expr) returns Bool {
 
 /// Transform FCall copy params: for each arg that is_copy, struct-typed, and an identifier,
 /// wrap in Type.clone().
-transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: Vec) {
-    func_name := get_func_name(e)
+transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: Vec) throws Str {
+    func_name := get_func_name(e)?
     if func_name.eq("") {
         return
     }
@@ -805,10 +808,10 @@ transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: V
 }
 
 /// Check if an expression is an FCall to `dont_delete`.
-is_dont_delete_call := func(e: Expr) returns Bool {
+is_dont_delete_call := func(e: Expr) returns Bool throws Str {
     switch e.node_type {
     case NodeType.FCall(_):
-        func_name := get_func_name(e)
+        func_name := get_func_name(e)?
         return func_name.eq("dont_delete")
     case:
         return false
@@ -817,15 +820,12 @@ is_dont_delete_call := func(e: Expr) returns Bool {
 
 /// Extract variable name from dont_delete(var) call.
 /// The variable is params[1] (params[0] is the function name).
-get_dont_delete_var := func(e: Expr) returns Str {
+get_dont_delete_var := func(e: Expr) returns Str throws Str {
     if e.params.len().lt(2) {
         return ""
     }
-    mut param1 := Expr()
-    e.params.get(1, param1)?
-    catch (err: IndexOutOfBoundsError) {
-        return ""
-    }
+    param1 := e.get(1)?
+    dont_delete(param1)
     switch param1.node_type {
     case NodeType.Identifier(var_name):
         return var_name
@@ -835,16 +835,13 @@ get_dont_delete_var := func(e: Expr) returns Str {
 }
 
 /// Extract variable name from create_alias(var, type, addr) call.
-get_create_alias_var := func(e: Expr) returns Str {
+get_create_alias_var := func(e: Expr) returns Str throws Str {
     switch e.node_type {
     case NodeType.FCall(_):
-        func_name := get_func_name(e)
+        func_name := get_func_name(e)?
         if func_name.eq("create_alias").and(e.params.len().gteq(3)) {
-            mut param1 := Expr()
-            e.params.get(1, param1)?
-            catch (err: IndexOutOfBoundsError) {
-                return ""
-            }
+            param1 := e.get(1)?
+            dont_delete(param1)
             switch param1.node_type {
             case NodeType.Identifier(var_name):
                 return var_name
@@ -862,22 +859,49 @@ ResolvedFCall := struct {
     mut is_ufcs: Bool = false
 }
 
+/// Recursively collect dont_delete var names from the entire body tree.
+/// Walks into Body, If, While, Catch children but not into nested FuncDef bodies.
+garb_collect_dont_delete_vars_recursive := func(stmts: Vec) returns Vec throws Str {
+    mut result := Vec.new(Str)
+    for stmt: Expr in stmts {
+        garb_collect_dont_delete_vars_recursive_inner(stmt, result)?
+    }
+    return result
+}
+
+garb_collect_dont_delete_vars_recursive_inner := func(e: Expr, mut result: Vec) throws Str {
+    if is_dont_delete_call(e)? {
+        dd_var := get_dont_delete_var(e)?
+        if dd_var.len().gt(0) {
+            result.push(dd_var)
+        }
+        return
+    }
+    // Recurse into params (covers Body, If, While, Catch children)
+    // but NOT into nested FuncDef bodies (separate scope)
+    switch e.node_type {
+    case NodeType.FuncDef(_):
+        return
+    case:
+    }
+    for param: Expr in e.params {
+        garb_collect_dont_delete_vars_recursive_inner(param, result)?
+    }
+}
+
 /// Walk an FCall's name expression to extract the full identifier chain.
 /// e.g., for `self.frames.push(frame)`, returns ["self", "frames", "push"]
-get_fcall_identifier_chain := proc(e: Expr, mut chain: Vec) {
+get_fcall_identifier_chain := proc(e: Expr, mut chain: Vec) throws Str {
     switch e.node_type {
     case NodeType.FCall(_):
         if e.params.len().gt(0) {
-            mut first := Expr()
-            e.params.get(0, first)?
+            first := e.get(0)?
+            dont_delete(first)
             collect_identifier_chain(first, chain)
         }
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        // REM: empty params, no chain to extract
-    }
 }
 
 collect_identifier_chain := proc(e: Expr, mut chain: Vec) {
@@ -982,7 +1006,7 @@ collect_own_transfers_recursive := proc(e: Expr, context: Context, local_types: 
     switch e.node_type {
     case NodeType.FCall(_):
         mut chain := Vec.new(Str)
-        get_fcall_identifier_chain(e, chain)
+        get_fcall_identifier_chain(e, chain)?
         if chain.len().gt(0) {
             mut last := ""
             chain.get(chain.len().sub(1), last)?
@@ -1013,8 +1037,8 @@ collect_own_transfers_recursive := proc(e: Expr, context: Context, local_types: 
                                 param_idx = i.add(1)
                             }
                             if param_idx.lt(e.params.len()).and(arg_def.is_own) {
-                                mut param_expr := Expr()
-                                e.params.get(param_idx, param_expr)?
+                                param_expr := e.get(param_idx)?
+                                dont_delete(param_expr)
                                 switch param_expr.node_type {
                                 case NodeType.Identifier(var_name):
                                     if param_expr.params.len().eq(0) {
@@ -1051,9 +1075,9 @@ collect_own_transfers_recursive := proc(e: Expr, context: Context, local_types: 
 /// Issue #159 Step 5: Transform struct literal fields.
 /// For struct literal constructors like Point(inner=some_var), if a NamedArg value
 /// is an identifier pointing to a struct type, wrap it in Type.clone().
-transform_struct_literal_fields := proc(context: Context, e: Expr, mut new_params: Vec) {
+transform_struct_literal_fields := proc(context: Context, e: Expr, mut new_params: Vec) throws Str {
     // Extract the struct name from the original FCall (before child transforms)
-    struct_name := get_func_name(e)
+    struct_name := get_func_name(e)?
     if struct_name.eq("") {
         return
     }
@@ -1098,9 +1122,8 @@ transform_struct_literal_fields := proc(context: Context, e: Expr, mut new_param
                     if is_deletable_type(type_name, context) {
                         // Check if the NamedArg's value (params[0]) is an identifier
                         if param.params.len().gt(0) {
-                            mut value_expr := Expr()
-                            param.params.get(0, value_expr)?
-                            catch (err: IndexOutOfBoundsError) { }
+                            value_expr := param.get(0)?
+                            dont_delete(value_expr)
                             if is_identifier_expr(value_expr) {
                                 arg_expr := value_expr.clone()
                                 clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)

@@ -264,15 +264,14 @@ generate_enum_clone_method := func(enum_name: Str, line: I64, col: I64) returns 
 
 /// Collect all methods defined in namespace blocks.
 /// Returns a Set of "TypeName.methodName" strings.
-collect_namespace_methods := func(ast: Expr) returns Set {
+collect_namespace_methods := func(ast: Expr) returns Set throws Str {
     mut methods := Set.new(Str)
 
     switch ast.node_type {
     case NodeType.Body:
         for ci in 0..ast.params.len() {
-            mut child := Expr()
-            ast.params.get(ci, child)?
-            catch (err: IndexOutOfBoundsError) {}
+            child := ast.get(ci)?
+            dont_delete(child)
 
             switch child.node_type {
             case NodeType.NamespaceDef(ns_def):
@@ -302,22 +301,20 @@ StructNeedingMethods := struct {
 }
 
 /// Collect all structs that need auto-generated methods.
-collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) returns Vec {
+collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) returns Vec throws Str {
     mut structs := Vec.new(StructNeedingMethods)
 
     switch ast.node_type {
     case NodeType.Body:
         for ci in 0..ast.params.len() {
-            mut child := Expr()
-            ast.params.get(ci, child)?
-            catch (err: IndexOutOfBoundsError) {}
+            child := ast.get(ci)?
+            dont_delete(child)
 
             switch child.node_type {
             case NodeType.Declaration(decl):
                 if child.params.len().gt(0) {
-                    mut value_expr := Expr()
-                    child.params.get(0, value_expr)?
-                    catch (err: IndexOutOfBoundsError) {}
+                    value_expr := child.get(0)?
+                    dont_delete(value_expr)
 
                     switch value_expr.node_type {
                     case NodeType.StructDef(struct_def):
@@ -418,7 +415,7 @@ generate_namespace_block := func(struct_name: Str, struct_def: SStructDef, line:
 }
 
 /// Recursively process expression (for nested function bodies, etc.)
-preinit_expr_inner := func(e: Expr) returns Expr {
+preinit_expr_inner := func(e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.FuncDef(func_def):
         mut new_body := Vec.new(Expr)
@@ -426,7 +423,7 @@ preinit_expr_inner := func(e: Expr) returns Expr {
             mut stmt := Expr()
             func_def.body.get(fi, stmt)?
             catch (err: IndexOutOfBoundsError) {}
-            new_body.push(preinit_expr_inner(stmt))
+            new_body.push(preinit_expr_inner(stmt)?)
         }
         new_func_def := SFuncDef(
             function_type=func_def.function_type,
@@ -449,7 +446,7 @@ preinit_expr_inner := func(e: Expr) returns Expr {
             mut sd_value_expr := Expr()
             struct_def.default_values.get(sd_name, sd_value_expr)?
             catch (err: KeyNotFoundError) {}
-            new_default_values.set(sd_name, preinit_expr_inner(sd_value_expr))
+            new_default_values.set(sd_name, preinit_expr_inner(sd_value_expr)?)
             sdi.inc()
         }
         new_struct_def := SStructDef(
@@ -461,9 +458,8 @@ preinit_expr_inner := func(e: Expr) returns Expr {
     case NodeType.Declaration(decl):
         // For enum definitions, still add delete/clone directly (enums don't use namespace blocks yet)
         if e.params.len().gt(0) {
-            mut value_expr := Expr()
-            e.params.get(0, value_expr)?
-            catch (err: IndexOutOfBoundsError) {}
+            value_expr := e.get(0)?
+            dont_delete(value_expr)
 
             switch value_expr.node_type {
             case NodeType.EnumDef(enum_def):
@@ -511,10 +507,9 @@ preinit_expr_inner := func(e: Expr) returns Expr {
         // Default: recurse into params
         mut new_params := Vec.new(Expr)
         for pi in 0..e.params.len() {
-            mut p := Expr()
-            e.params.get(pi, p)?
-            catch (err: IndexOutOfBoundsError) {}
-            new_params.push(preinit_expr_inner(p))
+            p := e.get(pi)?
+            dont_delete(p)
+            new_params.push(preinit_expr_inner(p)?)
         }
         return Expr.new_clone(e.node_type, e, new_params)
 
@@ -524,10 +519,9 @@ preinit_expr_inner := func(e: Expr) returns Expr {
         } else {
             mut new_params := Vec.new(Expr)
             for opi in 0..e.params.len() {
-                mut op := Expr()
-                e.params.get(opi, op)?
-                catch (err: IndexOutOfBoundsError) {}
-                new_params.push(preinit_expr_inner(op))
+                op := e.get(opi)?
+                dont_delete(op)
+                new_params.push(preinit_expr_inner(op)?)
             }
             return Expr.new_clone(e.node_type, e, new_params)
         }
@@ -537,23 +531,22 @@ preinit_expr_inner := func(e: Expr) returns Expr {
 /// Preinit phase entry point.
 /// For structs: generates namespace blocks with delete/clone methods.
 /// For enums: adds delete/clone directly to the enum definition.
-preinit_expr := func(e: Expr) returns Expr {
+preinit_expr := func(e: Expr) returns Expr throws Str {
     // For Body nodes (the AST root), do the two-pass approach
     switch e.node_type {
     case NodeType.Body:
         // Pass 1: Collect namespace-defined methods
-        namespace_methods := collect_namespace_methods(e)
+        namespace_methods := collect_namespace_methods(e)?
 
         // Pass 2: Find structs that need auto-generated methods
-        structs_needing := collect_structs_needing_methods(e, namespace_methods)
+        structs_needing := collect_structs_needing_methods(e, namespace_methods)?
 
         // Pass 3: Process all children and generate namespace blocks
         mut new_params := Vec.new(Expr)
         for ci in 0..e.params.len() {
-            mut child := Expr()
-            e.params.get(ci, child)?
-            catch (err: IndexOutOfBoundsError) {}
-            new_params.push(preinit_expr_inner(child))
+            child := e.get(ci)?
+            dont_delete(child)
+            new_params.push(preinit_expr_inner(child)?)
         }
 
         // Append generated namespace blocks for structs that need them
@@ -575,6 +568,6 @@ preinit_expr := func(e: Expr) returns Expr {
         return Expr.new_clone(e.node_type, e, new_params)
     case:
         // For non-Body nodes, just recurse
-        return preinit_expr_inner(e)
+        return preinit_expr_inner(e)?
     }
 }

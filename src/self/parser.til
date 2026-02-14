@@ -472,11 +472,11 @@ namespace Expr {
         // Deep clone: clone node_type and each element in params
         mut cloned_params := Vec.new(Expr)
         for i in 0..self.params.len() {
-            mut e := Expr()
-            self.params.get(i, e)?
+            e := self.get(i)?
+            dont_delete(e)
             cloned_params.push(e.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        catch (err: Str) { panic(loc(), err) }
         return Expr(node_type=node_type_clone(self.node_type), params=cloned_params, line=self.line, col=self.col)
     }
 
@@ -520,11 +520,10 @@ namespace Expr {
     params_clone := func(self: Expr) returns Vec throws Str {
         mut cloned := Vec.new(Expr)
         for i in 0..self.params.len() {
-            mut elem := Expr()
-            self.params.get(i, elem)?
+            elem := self.get(i)?
+            dont_delete(elem)
             cloned.push(elem)
         }
-        catch (err: IndexOutOfBoundsError) { throw concat("Expr.params_clone: ", err.msg) }
         return cloned
     }
 }
@@ -1171,8 +1170,8 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     mut default_values := Map.new(Str, Expr)  // Map<Str, Expr>
 
     for i in 0..body.params.len() {
-        mut p := Expr()
-        body.params.get(i, p)?
+        p := body.get(i)?
+        dont_delete(p)
         nt := p.node_type
 
         switch nt {
@@ -1180,8 +1179,8 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
             members.push(decl.clone())
 
             if p.params.len().eq(1) {
-                mut val := Expr()
-                p.params.get(0, val)?
+                val := p.get(0)?
+                dont_delete(val)
                 default_values.set(decl.name.clone(), val.clone())
             } else {
                 // TODO allow not setting default values in struct members
@@ -1190,8 +1189,8 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
         case NodeType.Assignment(name):
             // Handle const := value inside structs (methods like eq := func(...))
             if p.params.len().eq(1) {
-                mut assign_val := Expr()
-                p.params.get(0, assign_val)?
+                assign_val := p.get(0)?
+                dont_delete(assign_val)
                 // Create a Declaration for the method
                 mut assign_decl := Declaration()
                 assign_decl.name = name.clone()
@@ -1254,8 +1253,8 @@ parse_namespace_definition := func(mut lexer: Lexer) returns Expr throws Str {
     mut default_values := Map.new(Str, Expr)
 
     for i in 0..body.params.len() {
-        mut p := Expr()
-        body.params.get(i, p)?
+        p := body.get(i)?
+        dont_delete(p)
         nt := p.node_type
 
         switch nt {
@@ -1263,8 +1262,8 @@ parse_namespace_definition := func(mut lexer: Lexer) returns Expr throws Str {
             members.push(decl.clone())
 
             if p.params.len().eq(1) {
-                mut val := Expr()
-                p.params.get(0, val)?
+                val := p.get(0)?
+                dont_delete(val)
                 default_values.set(decl.name.clone(), val.clone())
             } else {
                 throw t.error(lexer.path, "all declarations inside namespace blocks must have a value")
@@ -1272,8 +1271,8 @@ parse_namespace_definition := func(mut lexer: Lexer) returns Expr throws Str {
         case NodeType.Assignment(name):
             // Handle const := value inside namespace (methods like eq := func(...))
             if p.params.len().eq(1) {
-                mut assign_val := Expr()
-                p.params.get(0, assign_val)?
+                assign_val := p.get(0)?
+                dont_delete(assign_val)
                 mut assign_decl := Declaration()
                 assign_decl.name = name.clone()
                 assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
@@ -1347,8 +1346,8 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
         mut fcall_params := Vec.new(Expr)
         fcall_params.push(e)
         for i in 0..arg_list.params.len() {
-            mut arg := Expr()
-            arg_list.params.get(i, arg)?
+            arg := arg_list.get(i)?
+            dont_delete(arg)
             fcall_params.push(arg)
         }
         initial_token2 := lexer.get_token(initial_current)?.clone()
@@ -1397,8 +1396,8 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                         new_params.push(method_id)
                         new_params.push(result.clone())  // Previous call result becomes first argument
                         for j in 0..method_args.params.len() {
-                            mut method_arg := Expr()
-                            method_args.params.get(j, method_arg)?
+                            method_arg := method_args.get(j)?
+                            dont_delete(method_arg)
                             new_params.push(method_arg)
                         }
 
@@ -1455,8 +1454,8 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                                         new_params2.push(method_id2)
                                         new_params2.push(field_access)
                                         for k in 0..method_args2.params.len() {
-                                            mut method_arg2 := Expr()
-                                            method_args2.params.get(k, method_arg2)?
+                                            method_arg2 := method_args2.get(k)?
+                                            dont_delete(method_arg2)
                                             new_params2.push(method_arg2)
                                         }
 
@@ -1520,8 +1519,8 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
     }
 
     for i in 0..e.params.len() {
-        mut p := Expr()
-        e.params.get(i, p)?
+        p := e.get(i)?
+        dont_delete(p)
         pnt := p.node_type
         switch pnt {
             case NodeType.Identifier(id_str):
@@ -1839,7 +1838,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 // Bug #57 fix: Transform continue statements to include the step expression before continue.
 // This ensures the loop variable is incremented/decremented even when continue is used.
 // Transforms: continue -> { step_expr; continue }
-transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws IndexOutOfBoundsError {
+transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws Str {
     switch expr.node_type {
     case NodeType.Continue:
         // Replace continue with { step_expr; continue }
@@ -1857,8 +1856,8 @@ transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr t
         // Recurse into other nodes
         mut new_params := Vec.new(Expr)
         for i in 0..expr.params.len() {
-            mut p := Expr()
-            expr.params.get(i, p)?
+            p := expr.get(i)?
+            dont_delete(p)
             new_params.push(transform_continue_with_step(p, step_expr)?)
         }
         return Expr(node_type=expr.node_type, params=new_params, line=expr.line, col=expr.col)
@@ -1933,7 +1932,6 @@ desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, e
         while_params.push(cond)
         while_params.push(while_body)
 
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
 
@@ -1966,7 +1964,6 @@ desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, e
         while_params.push(cond)
         while_params.push(while_body)
 
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
 
@@ -2120,8 +2117,8 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str {
             // Check if this is a dotted name: Identifier with params
             // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
             if e.params.len().eq(1) {
-                mut p0 := Expr()
-                e.params.get(0, p0)?
+                p0 := e.get(0)?
+                dont_delete(p0)
                 p0nt := p0.node_type
                 switch p0nt {
                     case NodeType.Identifier(param_name):
@@ -2132,13 +2129,12 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str {
         case NodeType.FCall(_):
             if e.params.len().gteq(1) {
                 // For FCall, try to extract the function name
-                mut p0_fcall := Expr()
-                e.params.get(0, p0_fcall)?
+                p0_fcall := e.get(0)?
+                dont_delete(p0_fcall)
                 result = get_full_identifier_name(p0_fcall)?
             }
         case:
     }
-    catch (err: IndexOutOfBoundsError) { throw concat("get_full_identifier_name: ", err.msg) }
     return result
 }
 
@@ -2172,12 +2168,12 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
             // represented as an FCall itself (for the dot access)
 
             // Get the full variant name (handling dotted names)
-            mut p0 := Expr()
-            left.params.get(0, p0)?
+            p0 := left.get(0)?
+            dont_delete(p0)
             variant_name := get_full_identifier_name(p0)?
 
-                mut p1 := Expr()
-                left.params.get(1, p1)?
+                p1 := left.get(1)?
+                dont_delete(p1)
                 p1nt := p1.node_type
 
                 // Check if p1 is an Identifier using switch (tag() doesn't exist in TIL)

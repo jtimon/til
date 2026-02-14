@@ -24,13 +24,11 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         // Recurse into FuncDef bodies
         NodeType::FuncDef(func_def) => {
             // Step 1: Strip dont_delete calls, collect protected var names
+            // Pre-scan entire body tree recursively for dont_delete var names
+            let mut dont_delete_vars: HashSet<String> = collect_dont_delete_vars_recursive(&func_def.body);
             let mut new_body = Vec::new();
-            let mut dont_delete_vars: HashSet<String> = HashSet::new();
             for stmt in &func_def.body {
                 if is_dont_delete_call(stmt) {
-                    if let Some(var_name) = get_dont_delete_var(stmt) {
-                        dont_delete_vars.insert(var_name);
-                    }
                     continue;
                 }
                 // Step 2: Collect create_alias var names
@@ -305,14 +303,22 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             // No transformation needed
             Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
         }
-        // Body: recurse into children
+        // Body: recurse into children, stripping dont_delete calls
         NodeType::Body => {
             let mut new_params = Vec::new();
             for param in &e.params {
+                if is_dont_delete_call(param) {
+                    continue;
+                }
                 new_params.push(garbager_recursive(context, param)?);
             }
             Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
         }
+        // Desugared-away node types: reject with lang_error
+        NodeType::Switch => Err(e.lang_error(&context.path, "garbager", "Switch should have been desugared to if/else by desugarer phase")),
+        NodeType::DefaultCase => Err(e.lang_error(&context.path, "garbager", "DefaultCase should have been desugared with Switch")),
+        NodeType::Pattern(_) => Err(e.lang_error(&context.path, "garbager", "Pattern should have been desugared with Switch")),
+        NodeType::ForIn(_) => Err(e.lang_error(&context.path, "garbager", "ForIn should have been desugared before garbager phase")),
         // Default: recurse into children
         _ => {
             let mut new_params = Vec::new();
@@ -616,6 +622,33 @@ fn get_create_alias_var(e: &Expr) -> Option<String> {
         }
     }
     None
+}
+
+/// Recursively collect dont_delete var names from the entire body tree.
+/// Walks into Body, If, While, Catch children but not into nested FuncDef bodies.
+fn collect_dont_delete_vars_recursive(stmts: &[Expr]) -> HashSet<String> {
+    let mut result = HashSet::new();
+    for stmt in stmts {
+        collect_dont_delete_vars_recursive_inner(stmt, &mut result);
+    }
+    result
+}
+
+fn collect_dont_delete_vars_recursive_inner(e: &Expr, result: &mut HashSet<String>) {
+    if is_dont_delete_call(e) {
+        if let Some(var_name) = get_dont_delete_var(e) {
+            result.insert(var_name);
+        }
+        return;
+    }
+    // Recurse into params (covers Body, If, While, Catch children)
+    // but NOT into nested FuncDef bodies (separate scope)
+    if let NodeType::FuncDef(_) = &e.node_type {
+        return;
+    }
+    for param in &e.params {
+        collect_dont_delete_vars_recursive_inner(param, result);
+    }
 }
 
 /// Walk an FCall's name expression to extract the full identifier chain.

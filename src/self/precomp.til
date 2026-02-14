@@ -31,7 +31,7 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         is_macro_call := is_macro_fcall(context, const_folded)
         if at_global_scope.and(is_macro_call) {
             // Macros require all arguments to be compile-time evaluable
-            if not(is_comptime_evaluable(context, const_folded)) {
+            if not(is_comptime_evaluable(context, const_folded)?) {
                 f_name := get_func_name_in_call(const_folded)?
                 throw const_folded.error(context.path, "precomp",
                     format("Macro '", f_name, "' requires all arguments to be compile-time constants"))
@@ -41,7 +41,7 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             return const_folded
         }
 
-        if at_global_scope.and(is_comptime_evaluable(context, const_folded)) {
+        if at_global_scope.and(is_comptime_evaluable(context, const_folded)?) {
             const_folded = eval_comptime(context, const_folded)?
         }
         return const_folded
@@ -168,7 +168,7 @@ is_macro_fcall := proc(context: Context, e: Expr) returns Bool {
 
 /// Check if an expression can be evaluated at compile time.
 /// Currently only handles literals and pure function calls with literal arguments.
-is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
+is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool throws Str {
     switch e.node_type {
     case NodeType.LLiteral:
         return true
@@ -224,11 +224,8 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 // It's a struct constructor - check all args are comptime
                 mut struct_j := 1
                 while struct_j.lt(e.params.len()) {
-                    mut struct_arg := Expr()
-                    e.params.get(struct_j, struct_arg)?
-                    catch (err4: IndexOutOfBoundsError) {
-                        return false
-                    }
+                    struct_arg := e.get(struct_j)?
+                    dont_delete(struct_arg)
                     // Handle named args - check the value inside
                     mut arg_to_check := struct_arg
                     switch struct_arg.node_type {
@@ -241,7 +238,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                         }
                     case:
                     }
-                    if not(is_comptime_evaluable(context, arg_to_check)) {
+                    if not(is_comptime_evaluable(context, arg_to_check)?) {
                         return false
                     }
                     struct_j.inc()
@@ -253,12 +250,9 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 // It's an enum constructor - check all args are comptime
                 mut k := 1
                 while k.lt(e.params.len()) {
-                    mut arg := Expr()
-                    e.params.get(k, arg)?
-                    catch (err_arg: IndexOutOfBoundsError) {
-                        return false
-                    }
-                    if not(is_comptime_evaluable(context, arg)) {
+                    arg := e.get(k)?
+                    dont_delete(arg)
+                    if not(is_comptime_evaluable(context, arg)?) {
                         return false
                     }
                     k.inc()
@@ -286,12 +280,9 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         // All arguments must be comptime-evaluable
         mut fcall_i := 1
         while fcall_i.lt(e.params.len()) {
-            mut fcall_arg := Expr()
-            e.params.get(fcall_i, fcall_arg)?
-            catch (err: IndexOutOfBoundsError) {
-                return false
-            }
-            if not(is_comptime_evaluable(context, fcall_arg)) {
+            fcall_arg := e.get(fcall_i)?
+            dont_delete(fcall_arg)
+            if not(is_comptime_evaluable(context, fcall_arg)?) {
                 return false
             }
             fcall_i.inc()
@@ -577,7 +568,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     mut first_param := Expr()
     new_params.get(0, first_param)?
     is_comptime_const := not(decl.is_mut)
-        .and(is_comptime_evaluable(context, first_param))
+        .and(is_comptime_evaluable(context, first_param)?)
 
     // Register the declared variable in scope
     sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=is_comptime_const)
@@ -609,7 +600,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         switch value_type {
         case ValueType.TCustom(custom_type_name):
             if custom_type_name.eq("I64").or(custom_type_name.eq("U8")).or(custom_type_name.eq("Str")) {
-                if is_comptime_evaluable(context, first_param) {
+                if is_comptime_evaluable(context, first_param)? {
                     result := eval_expr(context, first_param)?
                     if not(result.is_throw) {
                         EvalHeap.insert_primitive(context, decl.name, value_type, result.value, e)?
@@ -623,7 +614,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
     // run eval_declaration to store the instance in EvalHeap so ccodegen can find it.
     // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
-    if at_global_scope.and(not(decl.is_mut)).and(not(decl.is_copy)).and(not(decl.is_own)).and(is_comptime_evaluable(context, first_param)) {
+    if at_global_scope.and(not(decl.is_mut)).and(not(decl.is_copy)).and(not(decl.is_own)).and(is_comptime_evaluable(context, first_param)?) {
         switch value_type {
         case ValueType.TCustom(custom_type_name):
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
@@ -704,8 +695,8 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     context.scope_stack.declare_symbol(var_name, sym)?
 
     // Transform the catch body (params[2])
-    mut body_expr := Expr()
-    e.params.get(2, body_expr)?
+    body_expr := e.get(2)?
+    dont_delete(body_expr)
     new_body := precomp_expr(context, body_expr)?
 
     // Pop the scope frame
@@ -749,10 +740,10 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // Bug #144: create_alias declares a variable - register it in scope
     if combined_name.eq("create_alias").and(e.params.len().gteq(4)) {
-        mut ca_var_expr := Expr()
-        e.params.get(1, ca_var_expr)?
-        mut ca_type_expr := Expr()
-        e.params.get(2, ca_type_expr)?
+        ca_var_expr := e.get(1)?
+        dont_delete(ca_var_expr)
+        ca_type_expr := e.get(2)?
+        dont_delete(ca_type_expr)
         switch ca_var_expr.node_type {
         case NodeType.Identifier(var_name):
             switch ca_type_expr.node_type {

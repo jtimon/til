@@ -51,7 +51,7 @@ parse_file := proc(path: Str) returns ParseFileResult throws Str {
     }
 
     // Preinit phase: auto-generate delete/clone methods
-    ast = preinit_expr(ast)
+    ast = preinit_expr(ast)?
 
     mut result := ParseFileResult()
     result.ast = ast
@@ -71,13 +71,13 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
             switch child.node_type {
             case NodeType.FCall(_):
                 if not(child.params.is_empty()) {
-                    mut first_param := Expr()
-                    child.params.get(0, first_param)?
+                    first_param := child.get(0)?
+                    dont_delete(first_param)
                     switch first_param.node_type {
                     case NodeType.Identifier(name):
                         if name.eq("import").and(child.params.len().gt(1)) {
-                            mut second_param := Expr()
-                            child.params.get(1, second_param)?
+                            second_param := child.get(1)?
+                            dont_delete(second_param)
                             switch second_param.node_type {
                             case NodeType.LLiteral(lit)?:
                                 switch lit {
@@ -127,9 +127,6 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
         // REM: not a Body
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
 }
 
 // Merge multiple ASTs into one, filtering out import statements
@@ -142,7 +139,7 @@ merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr {
         case NodeType.Body:
             for child: Expr in dep.params {
                 // Skip import statements
-                if not(is_import_call(child)) {
+                if not(is_import_call(child)?) {
                     all_params.push(child.clone())
                 }
             }
@@ -155,7 +152,7 @@ merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr {
     switch main_ast.node_type {
     case NodeType.Body:
         for child: Expr in main_ast.params {
-            if not(is_import_call(child)) {
+            if not(is_import_call(child)?) {
                 all_params.push(child.clone())
             }
         }
@@ -172,19 +169,16 @@ merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr {
     return result
 }
 
-is_import_call := func(expr: Expr) returns Bool {
+is_import_call := func(expr: Expr) returns Bool throws Str {
     switch expr.node_type {
     case NodeType.FCall(_):
         if not(expr.params.is_empty()) {
-            mut first_param := Expr()
-            expr.params.get(0, first_param)?
+            first_param := expr.get(0)?
+            dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.Identifier(name)?:
                 return name.eq("import")
             case:
-                return false
-            }
-            catch (err: IndexOutOfBoundsError) {
                 return false
             }
         }
@@ -195,20 +189,20 @@ is_import_call := func(expr: Expr) returns Bool {
 }
 
 // Collect import paths from an AST without precompilation (lightweight for deps checking)
-collect_import_paths := proc(ast: Expr, mut collected: Set) {
+collect_import_paths := proc(ast: Expr, mut collected: Set) throws Str {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
             switch child.node_type {
             case NodeType.FCall(_):
                 if not(child.params.is_empty()) {
-                    mut first_param := Expr()
-                    child.params.get(0, first_param)?
+                    first_param := child.get(0)?
+                    dont_delete(first_param)
                     switch first_param.node_type {
                     case NodeType.Identifier(name):
                         if name.eq("import").and(child.params.len().gt(1)) {
-                            mut second_param := Expr()
-                            child.params.get(1, second_param)?
+                            second_param := child.get(1)?
+                            dont_delete(second_param)
                             switch second_param.node_type {
                             case NodeType.LLiteral(lit)?:
                                 switch lit {
@@ -218,7 +212,7 @@ collect_import_paths := proc(ast: Expr, mut collected: Set) {
                                         _ := collected.insert(file_path.clone())
                                         // Recursively collect imports from this dependency
                                         dep_result := parse_file(file_path)?
-                                        collect_import_paths(dep_result.ast, collected)
+                                        collect_import_paths(dep_result.ast, collected)?
                                         catch (err: Str) {
                                             // Ignore parse errors for deps checking
                                         }
@@ -242,9 +236,6 @@ collect_import_paths := proc(ast: Expr, mut collected: Set) {
         // REM: not a Body
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        // Ignore index errors for deps checking
-    }
 }
 
 // Collect all dependencies for a TIL source file (for rebuild checking)
@@ -267,7 +258,7 @@ collect_all_deps := proc(path: Str) returns Vec throws Str {
     if not(path.eq(core_path)) {
         _ := deps.insert(core_path.clone())
         core_result := parse_file(core_path)?
-        collect_import_paths(core_result.ast, deps)
+        collect_import_paths(core_result.ast, deps)?
     }
 
     // Add mode-specific imports
@@ -276,7 +267,7 @@ collect_all_deps := proc(path: Str) returns Vec throws Str {
         if not(deps.contains(file_path)) {
             _ := deps.insert(file_path.clone())
             mode_result := parse_file(file_path)?
-            collect_import_paths(mode_result.ast, deps)
+            collect_import_paths(mode_result.ast, deps)?
             catch (err: Str) {
                 // Ignore parse errors for deps checking
             }
@@ -284,7 +275,7 @@ collect_all_deps := proc(path: Str) returns Vec throws Str {
     }
 
     // Collect main file's imports
-    collect_import_paths(main_result.ast, deps)
+    collect_import_paths(main_result.ast, deps)?
 
     // Convert Set to Vec
     mut result := Vec.new(Str)
