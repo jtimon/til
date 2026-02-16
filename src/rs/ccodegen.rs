@@ -5322,7 +5322,7 @@ fn emit_throwing_call_with_goto(
 fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
     if !expr.params.is_empty() {
-        if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
+        if let NodeType::FuncDef(func_def) = &expr.get(0)?.node_type {
             if func_def.is_ext() {
                 return Ok(());
             }
@@ -5458,18 +5458,18 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     // This handles builtins (to_ptr, size_of, etc.), throwing calls, by-ref params, and Dynamic params properly
     // Bug #157: Also handle field access on throwing calls (e.g., get_wrapper()?.value)
     let rhs_string: Option<String> = if !expr.params.is_empty() {
-        let rhs = &expr.params[0];
+        let rhs = expr.get(0)?;
         if let NodeType::FCall(_) = &rhs.node_type {
             Some(emit_arg_string(rhs, None, false, output, indent, ctx, context)?)
         } else if let NodeType::Identifier(name) = &rhs.node_type {
             // Bug #157: Check for UFCS field access on throwing call
             // Pattern: Identifier("_") with params[0] = throwing FCall, params[1..] = field chain
             if name == "_" && !rhs.params.is_empty() {
-                if let NodeType::FCall(_) = &rhs.params[0].node_type {
-                    if let Some(fd) = get_fcall_func_def(context, &rhs.params[0]) {
+                if let NodeType::FCall(_) = &rhs.get(0)?.node_type {
+                    if let Some(fd) = get_fcall_func_def(context, rhs.get(0)?) {
                         if !fd.throw_types.is_empty() {
                             // Hoist the throwing call
-                            let base_temp = emit_arg_string(&rhs.params[0], None, false, output, indent, ctx, context)?;
+                            let base_temp = emit_arg_string(rhs.get(0)?, None, false, output, indent, ctx, context)?;
                             // Append field chain: temp.field1.field2...
                             let mut result = base_temp;
                             for field_expr in &rhs.params[1..] {
@@ -5505,11 +5505,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             output.push_str(&indent_str);
             // FCall at statement level (indent > 0) adds ";\n" itself
             // Other expressions need semicolon added explicitly
-            let is_fcall = matches!(&expr.params[0].node_type, NodeType::FCall(_));
+            let is_fcall = matches!(&expr.get(0)?.node_type, NodeType::FCall(_));
             if is_fcall {
-                emit_expr(&expr.params[0], output, indent, ctx, context)?;
+                emit_expr(expr.get(0)?, output, indent, ctx, context)?;
             } else {
-                emit_expr(&expr.params[0], output, 0, ctx, context)?;
+                emit_expr(expr.get(0)?, output, 0, ctx, context)?;
                 output.push_str(";\n");
             }
         }
@@ -5521,14 +5521,14 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     // Check if this is a struct construction (TypeName())
     let struct_type = if !expr.params.is_empty() {
-        get_struct_construction_type(&expr.params[0], context)
+        get_struct_construction_type(expr.get(0)?, context)
     } else {
         None
     };
 
     // Check if this is an enum construction (Type.Variant or Type.Variant(value))
     let enum_type = if !expr.params.is_empty() {
-        get_enum_construction_type(&expr.params[0], context)
+        get_enum_construction_type(expr.get(0)?, context)
     } else {
         None
     };
@@ -5543,7 +5543,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     } else if matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE) {
         // INFER_TYPE: need to infer from RHS
         if !expr.params.is_empty() {
-            get_value_type(context, &expr.params[0]).ok()
+            get_value_type(context, expr.get(0)?).ok()
                 .unwrap_or_else(|| decl.value_type.clone())
         } else {
             decl.value_type.clone()
@@ -5584,7 +5584,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // Build map of named arg values from struct literal
         let mut named_values: std::collections::HashMap<String, &Expr> = std::collections::HashMap::new();
         if !expr.params.is_empty() {
-            for arg in expr.params[0].params.iter().skip(1) {
+            for arg in expr.get(0)?.params.iter().skip(1) {
                 if let NodeType::NamedArg(field_name) = &arg.node_type {
                     if let Some(value_expr) = arg.params.first() {
                         named_values.insert(field_name.clone(), value_expr);
@@ -5719,7 +5719,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         if let Some(ref call_str) = rhs_string {
             output.push_str(call_str);
         } else {
-            emit_expr(&expr.params[0], output, 0, ctx, context)?;
+            emit_expr(expr.get(0)?, output, 0, ctx, context)?;
         }
         output.push_str(";\n");
     } else if is_mut {
@@ -5743,7 +5743,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             if let Some(ref call_str) = rhs_string {
                 output.push_str(call_str);
             } else {
-                emit_expr(&expr.params[0], output, 0, ctx, context)?;
+                emit_expr(expr.get(0)?, output, 0, ctx, context)?;
             }
         }
         output.push_str(";\n");
@@ -5771,7 +5771,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             if let Some(ref call_str) = rhs_string {
                 output.push_str(call_str);
             } else {
-                emit_expr(&expr.params[0], output, 0, ctx, context)?;
+                emit_expr(expr.get(0)?, output, 0, ctx, context)?;
             }
         }
         output.push_str(";\n");
@@ -6545,13 +6545,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 
     // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
-    let mut func_name = match get_func_name_string(&expr.params[0]) {
+    let mut func_name = match get_func_name_string(expr.get(0)?) {
         Some(name) => name,
         None => return Err("ccodegen: FCall first param not Identifier".to_string()),
     };
 
     // For builtins, we need the original name with dots
-    let orig_func_name = get_til_func_name_string(&expr.params[0])
+    let orig_func_name = get_til_func_name_string(expr.get(0)?)
         .unwrap_or_else(|| func_name.clone());
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
@@ -6675,7 +6675,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 return Err("ccodegen: type_as_str requires 1 argument".to_string());
             }
             // Get the type name from the argument
-            if let NodeType::Identifier(type_name) = &expr.params[1].node_type {
+            if let NodeType::Identifier(type_name) = &expr.get(1)?.node_type {
                 // Check if this is a Type variable or a literal type name
                 // Type variables are declared with value_type TCustom("Type")
                 let is_type_var = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
@@ -6713,7 +6713,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             if expr.params.len() < 2 {
                 return Err("ccodegen: enum_to_str requires 1 argument".to_string());
             }
-            let arg = &expr.params[1];
+            let arg = expr.get(1)?;
             // Get the enum type from the argument
             let value_type = get_value_type(context, arg)?;
             if let ValueType::TCustom(enum_type_name) = value_type {
@@ -6753,9 +6753,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             if expr.params.len() < 4 {
                 return Err("ccodegen: enum_get_payload requires 3 arguments".to_string());
             }
-            let payload_enum_arg = &expr.params[1];
-            let payload_type_arg = &expr.params[2];
-            let payload_out_arg = &expr.params[3];
+            let payload_enum_arg = expr.get(1)?;
+            let payload_type_arg = expr.get(2)?;
+            let payload_out_arg = expr.get(3)?;
 
             output.push_str(TIL_PREFIX);
             output.push_str("enum_get_payload((");
@@ -6802,7 +6802,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             output.push_str("size_of(&");  // Bug #60: til_size_of now takes const til_Str*
             // If it's a literal type name, emit compound literal
             // If it's a variable, the variable already holds a Type (which is const char*)
-            if let NodeType::Identifier(type_name) = &expr.params[1].node_type {
+            if let NodeType::Identifier(type_name) = &expr.get(1)?.node_type {
                 // Check if this is a Type variable or a literal type name
                 // Type variables are declared with value_type TCustom("Type")
                 let is_type_var = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
@@ -6827,9 +6827,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Bug #60: emit_expr will dereference Type params via (*til_name)
                 // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                 output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64)", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
-                emit_expr(&expr.params[1], output, 0, ctx, context)?;
+                emit_expr(expr.get(1)?, output, 0, ctx, context)?;
                 output.push_str(", 1, 0, 0, 0}), strlen(");
-                emit_expr(&expr.params[1], output, 0, ctx, context)?;
+                emit_expr(expr.get(1)?, output, 0, ctx, context)?;
                 output.push_str("), 0})");
             }
             output.push_str(")");
@@ -6841,7 +6841,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             if expr.params.len() < 2 {
                 return Err("ccodegen: to_ptr requires 1 argument".to_string());
             }
-            let arg = &expr.params[1];
+            let arg = expr.get(1)?;
             // Check if arg is a Dynamic parameter (void*) - just use the pointer directly
             let is_dynamic_param = if let NodeType::Identifier(name) = &arg.node_type {
                 if arg.params.is_empty() {
@@ -6900,9 +6900,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             if expr.params.len() < 4 {
                 return Err("ccodegen: create_alias requires 3 arguments".to_string());
             }
-            let var_arg = &expr.params[1];
-            let type_arg = &expr.params[2];
-            let addr_arg = &expr.params[3];
+            let var_arg = expr.get(1)?;
+            let type_arg = expr.get(2)?;
+            let addr_arg = expr.get(3)?;
             let var_name = if let NodeType::Identifier(name) = &var_arg.node_type {
                 name.clone()
             } else {
@@ -6950,10 +6950,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // This happens for chained method calls like delimiter.len().eq(0)
             // Parser produces: FCall { params: [Identifier("eq"), FCall { ... }, LLiteral(0)] }
             // Only check this for simple func names (no nested identifiers)
-            if expr.params[0].params.is_empty() && expr.params.len() >= 2 {
-                if let NodeType::FCall(_) = &expr.params[1].node_type {
+            if expr.get(0)?.params.is_empty() && expr.params.len() >= 2 {
+                if let NodeType::FCall(_) = &expr.get(1)?.node_type {
                     // The second param is an FCall result - use get_value_type to get its return type
-                    if let Ok(fcall_ret_type) = get_value_type(context, &expr.params[1]) {
+                    if let Ok(fcall_ret_type) = get_value_type(context, expr.get(1)?) {
                         if let ValueType::TCustom(type_name) = &fcall_ret_type {
                             let candidate = format!("{}.{}", type_name, orig_func_name);
                             if context.scope_stack.has_func(&candidate) {
@@ -6964,7 +6964,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                                 output.push_str(&orig_func_name);
                                 output.push_str("(");
                                 // First arg is the fcall result
-                                emit_expr(&expr.params[1], output, 0, ctx, context)?;
+                                emit_expr(expr.get(1)?, output, 0, ctx, context)?;
                                 // Remaining args
                                 for arg in expr.params.iter().skip(2) {
                                     output.push_str(", ");
