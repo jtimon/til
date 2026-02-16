@@ -2585,7 +2585,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
     // Skip init and type checking if this is Phase 2 of a two-phase import
     // (declarations already registered in Phase 1)
     if !skip_init_and_typecheck {
-        let mut errors = crate::rs::init::init_context(context, &e);
+        let mut errors = crate::rs::init::init_context(context, &e)?;
         if errors.len() > 0 {
             for err in &errors {
                 println!("{}", err);

@@ -1160,7 +1160,7 @@ pub fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str
 
     // Run init_context to extract declarations
     // This will recursively handle any imports in the imported file
-    let errors = init_context(context, &imported_ast);
+    let errors = init_context(context, &imported_ast)?;
     if errors.len() > 0 {
         context.mode_def = previous_mode;
         let orig_path_clone = original_path.clone();
@@ -1184,12 +1184,12 @@ pub fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str
 }
 
 // aka "context priming" or "declaration indexing"
-pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
+pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, String> {
     let mut errors : Vec<String> = Vec::new();
     match &e.node_type {
         NodeType::Body => {
             for se in &e.params {
-                errors.extend(init_context(context, &se));
+                errors.extend(init_context(context, &se)?);
             }
         },
         NodeType::FCall(_) => {
@@ -1200,7 +1200,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     Ok(import_path_expr_) => import_path_expr_,
                     Err(err) => {
                         errors.push(e.exit_error("import", &format!("{}:{}", context.path, err)));
-                        return errors
+                        return Ok(errors)
                     },
                 };
                 let import_path = match &import_path_expr.node_type {
@@ -1209,14 +1209,14 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                         literal_type => {
                             errors.push(import_path_expr.exit_error("import", &format!("Expected literal 'Str' for import, found literal '{:?}'",
                                                                                        literal_type)));
-                            return errors
+                            return Ok(errors)
                         },
 
                     },
                     import_node_type => {
                         errors.push(import_path_expr.exit_error("import", &format!("Expected literal Str for import, found '{:?}'",
                                                                                    import_node_type)));
-                        return errors
+                        return Ok(errors)
                     },
                 };
 
@@ -1225,15 +1225,15 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     Ok(_) => {},
                     Err(err) => {
                         errors.push(err);
-                        return errors;
+                        return Ok(errors);
                     },
                 }
             } else if f_name == "create_alias" {
                 // Bug #144: 3-arg create_alias(var_name, type_name, addr) is a compound directive
                 // that declares a variable. Register it in scope_stack so subsequent phases see it.
                 if e.params.len() >= 3 {
-                    if let NodeType::Identifier(var_name) = &e.params[1].node_type {
-                        if let NodeType::Identifier(type_name) = &e.params[2].node_type {
+                    if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
+                        if let NodeType::Identifier(type_name) = &e.get(2)?.node_type {
                             context.scope_stack.declare_symbol(
                                 var_name.clone(),
                                 SymbolInfo {
@@ -1256,20 +1256,20 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             }
             if e.params.len() != 1 {
                 errors.push(e.exit_error("init", &format!("in init_context, while declaring {}, declarations must take exactly one value.", decl.name)));
-                return errors
+                return Ok(errors)
             }
             let inner_e = match e.get(0) {
                 Ok(inner_e_) => inner_e_,
                 Err(error_str) => {
                     errors.push(error_str);
-                    return errors
+                    return Ok(errors)
                 },
             };
             let mut value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
                     errors.push(error_string);
-                    return errors;
+                    return Ok(errors);
                 },
             };
             if decl.value_type != str_to_value_type(INFER_TYPE) {
@@ -1292,7 +1292,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             },
                             _ => {
                                 errors.push(e.lang_error(&context.path, "init", &format!("{}s should have definitions", value_type_to_str(&value_type))));
-                                return errors;
+                                return Ok(errors);
                             },
                         }
                     }
@@ -1302,7 +1302,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     if inner_e.params.len() != 0 {
                         errors.push(e.exit_error("init", &format!("while declaring {}: enum declarations don't have any parameters in the tree.",
                                                                   decl.name)));
-                        return errors
+                        return Ok(errors)
                     }
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
@@ -1321,7 +1321,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                         },
                         _ => {
                             errors.push(e.lang_error(&context.path, "init", "enums should have definitions."));
-                            return errors;
+                            return Ok(errors);
                         },
                     }
                 },
@@ -1330,7 +1330,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     if inner_e.params.len() != 0 {
                         errors.push(e.exit_error("init", &format!("while declaring {}, struct declarations must have exactly 0 params.",
                                                                   decl.name)));
-                        return errors
+                        return Ok(errors)
                     }
                     match &inner_e.node_type {
                         NodeType::StructDef(struct_def) => {
@@ -1342,7 +1342,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                             "recursive type '{}' has infinite size\n  --> field '{}' is recursive without indirection\nhelp: insert some indirection (e.g., a Ptr or Vec) to break the cycle",
                                             decl.name, member_decl.name
                                         )));
-                                        return errors;
+                                        return Ok(errors);
                                     }
                                 }
                             }
@@ -1364,7 +1364,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                         },
                         _ => {
                             errors.push(e.lang_error(&context.path, "init", "struct declarations should have definitions."));
-                            return errors;
+                            return Ok(errors);
                         },
                     }
                 }
@@ -1386,7 +1386,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     errors.push(e.error(&context.path, "init", &format!(
                         "namespace block for '{}': type not found (must be declared before namespace block)",
                         ns_def.type_name)));
-                    return errors;
+                    return Ok(errors);
                 }
             };
 
@@ -1450,7 +1450,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
     }
-    errors
+    Ok(errors)
 }
 
 /// Temporary storage for enum payload data during construction

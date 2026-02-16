@@ -242,7 +242,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
     let core_path = "src/core/core.til";
     if path != core_path {
         let (core_ast, _) = parse_file(core_path)?;
-        errors = crate::rs::init::init_context(&mut context, &core_ast);
+        errors = crate::rs::init::init_context(&mut context, &core_ast)?;
         if !errors.is_empty() {
             for err in &errors {
                 println!("{}", err);
@@ -291,7 +291,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
 
     // Run init + typer on the main file (this handles its imports internally)
     errors.clear();
-    let mut tmp_errors = crate::rs::init::init_context(&mut context, &main_ast);
+    let mut tmp_errors = crate::rs::init::init_context(&mut context, &main_ast)?;
     errors.extend(tmp_errors);
     if !errors.is_empty() {
         for err in &errors {
