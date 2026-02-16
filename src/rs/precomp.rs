@@ -41,7 +41,7 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             let is_macro_call = is_macro_fcall(context, &const_folded);
             if at_global_scope && is_macro_call {
                 // Macros require all arguments to be compile-time evaluable
-                if !is_comptime_evaluable(context, &const_folded) {
+                if !is_comptime_evaluable(context, &const_folded)? {
                     let f_name = get_func_name_in_call(&const_folded);
                     return Err(const_folded.error(&context.path, "precomp",
                         &format!("Macro '{}' requires all arguments to be compile-time constants", f_name)));
@@ -51,7 +51,7 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 return Ok(const_folded);
             }
 
-            if at_global_scope && is_comptime_evaluable(context, &const_folded) {
+            if at_global_scope && is_comptime_evaluable(context, &const_folded)? {
                 const_folded = eval_comptime(context, &const_folded)?;
             }
             return Ok(const_folded);
@@ -104,34 +104,34 @@ fn is_macro_fcall(context: &Context, e: &Expr) -> bool {
 
 /// Check if an expression can be evaluated at compile time.
 /// Currently only handles literals and pure function calls with literal arguments.
-fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
+fn is_comptime_evaluable(context: &Context, e: &Expr) -> Result<bool, String> {
     match &e.node_type {
-        NodeType::LLiteral(_) => true,
+        NodeType::LLiteral(_) => Ok(true),
         // Type definitions and function definitions are static metadata - always comptime
-        NodeType::StructDef(_) => true,
-        NodeType::EnumDef(_) => true,
-        NodeType::FuncDef(_) => true,
+        NodeType::StructDef(_) => Ok(true),
+        NodeType::EnumDef(_) => Ok(true),
+        NodeType::FuncDef(_) => Ok(true),
         NodeType::Identifier(name) => {
             // Check if this is a simple identifier (no field access chain)
             if !e.params.is_empty() {
-                return false;  // Field access chains not supported
+                return Ok(false);  // Field access chains not supported
             }
             // Look up the symbol and check if it's a comptime const
             if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
-                return symbol.is_comptime_const;
+                return Ok(symbol.is_comptime_const);
             }
-            false
+            Ok(false)
         }
         NodeType::FCall(_) => {
             let f_name = get_func_name_in_call(e);
             // Special case: exit terminates the program
             if f_name == "exit" {
-                return false;
+                return Ok(false);
             }
             // TODO: Properly detect ext_funcs and functions with side effects.
             // For now, hardcode malloc exclusion since it's an ext_func with side effects.
             if f_name == "malloc" {
-                return false;
+                return Ok(false);
             }
             // Use get_func_def_for_fcall_with_expr like interpreter does
             let mut e_clone = e.clone();
@@ -144,54 +144,54 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
                         // It's a struct constructor - check all args are comptime
                         for i in 1..e.params.len() {
                             // Handle named args - check the value inside
-                            let arg = &e.params[i];
+                            let arg = e.get(i)?;
                             let arg_to_check = if let NodeType::NamedArg(_) = &arg.node_type {
                                 arg.params.first().unwrap_or(arg)
                             } else {
                                 arg
                             };
-                            if !is_comptime_evaluable(context, arg_to_check) {
-                                return false;
+                            if !is_comptime_evaluable(context, arg_to_check)? {
+                                return Ok(false);
                             }
                         }
-                        return true; // Struct constructor with all comptime args
+                        return Ok(true); // Struct constructor with all comptime args
                     }
                     // Check if it's an enum constructor (e.g., Color.Green(true))
                     if context.scope_stack.is_enum_constructor(&combined_name) {
                         // It's an enum constructor - check all args are comptime
                         for i in 1..e.params.len() {
-                            if !is_comptime_evaluable(context, &e.params[i]) {
-                                return false;
+                            if !is_comptime_evaluable(context, e.get(i)?)? {
+                                return Ok(false);
                             }
                         }
-                        return true;
+                        return Ok(true);
                     }
-                    return false;
+                    return Ok(false);
                 },
                 Err(_) => {
-                    return false; // Unknown function
+                    return Ok(false); // Unknown function
                 }
             };
             // Must be pure function (not proc) that returns a value
             if func_def.is_proc() {
-                return false;
+                return Ok(false);
             }
             // Funcs with no return type can't be folded (nothing to fold to)
             if func_def.return_types.is_empty() {
-                return false;
+                return Ok(false);
             }
             // Functions that can throw are allowed - if they actually throw,
             // we'll report the error in eval_comptime.
             // All arguments must be comptime-evaluable
             for i in 1..e.params.len() {
-                if !is_comptime_evaluable(context, &e.params[i]) {
-                    return false;
+                if !is_comptime_evaluable(context, e.get(i)?)? {
+                    return Ok(false);
                 }
             }
-            true
+            Ok(true)
         },
         // Future: handle constant identifiers (true, false, user constants)
-        _ => false,
+        _ => Ok(false),
     }
 }
 
@@ -401,7 +401,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
 
     // Bug #40 fix: For function declarations, set the function name and reset counter
     // BEFORE processing the body so for-in loops get deterministic names
-    let is_func_decl = !e.params.is_empty() && matches!(&e.params[0].node_type, NodeType::FuncDef(_));
+    let is_func_decl = !e.params.is_empty() && matches!(&e.get(0)?.node_type, NodeType::FuncDef(_));
     let saved_func = context.current_precomp_func.clone();
     let saved_counter = context.precomp_forin_counter;
     if is_func_decl {
@@ -436,7 +436,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     // Only mut matters for constantness - copy/own are about ownership, orthogonal to comptime.
     // Any type can be comptime - the type doesn't matter, only how the value is computed.
     let is_comptime_const = !decl.is_mut
-        && is_comptime_evaluable(context, &new_params[0]);
+        && is_comptime_evaluable(context, &new_params[0])?;
 
     // Register the declared variable in scope
     context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
@@ -465,7 +465,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         if let ValueType::TCustom(ref custom_type_name) = &value_type {
             match custom_type_name.as_str() {
                 "I64" | "U8" | "Str" => {
-                    if is_comptime_evaluable(context, &new_params[0]) {
+                    if is_comptime_evaluable(context, &new_params[0])? {
                         let inner_e = &new_params[0];
                         let result = eval_expr(context, inner_e)?;
                         if !result.is_throw {
@@ -481,7 +481,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
     // run eval_declaration to store the instance in EvalHeap so ccodegen can find it.
     // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
-    if at_global_scope && !decl.is_mut && !decl.is_copy && !decl.is_own && !new_params.is_empty() && is_comptime_evaluable(context, &new_params[0]) {
+    if at_global_scope && !decl.is_mut && !decl.is_copy && !decl.is_own && !new_params.is_empty() && is_comptime_evaluable(context, &new_params[0])? {
         if let ValueType::TCustom(ref custom_type_name) = &value_type {
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
             if custom_type_name != "I64" && custom_type_name != "U8" && custom_type_name != "Str" {
