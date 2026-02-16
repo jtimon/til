@@ -906,8 +906,8 @@ fn emit_arg_string(
         } else if let NodeType::Identifier(name) = &arg.node_type {
             // Handle UFCS chain: _[FCall, field...] - process FCall with emit_arg_string, append fields
             if name == "_" && !arg.params.is_empty() {
-                if let NodeType::FCall(_) = &arg.params[0].node_type {
-                    let base_str = emit_arg_string(&arg.params[0], None, false, hoist_output, indent, ctx, context)?;
+                if let NodeType::FCall(_) = &arg.get(0)?.node_type {
+                    let base_str = emit_arg_string(arg.get(0)?, None, false, hoist_output, indent, ctx, context)?;
                     let mut result = base_str;
                     for field_param in arg.params.iter().skip(1) {
                         if let NodeType::Identifier(field) = &field_param.node_type {
@@ -953,9 +953,9 @@ fn emit_arg_string(
     // We need to process the inner FCall with emit_arg_string to handle nested by-ref args
     if let NodeType::Identifier(name) = &arg.node_type {
         if name == "_" && !arg.params.is_empty() {
-            if let NodeType::FCall(_) = &arg.params[0].node_type {
+            if let NodeType::FCall(_) = &arg.get(0)?.node_type {
                 // Process the inner FCall properly
-                let base_str = emit_arg_string(&arg.params[0], None, false, hoist_output, indent, ctx, context)?;
+                let base_str = emit_arg_string(arg.get(0)?, None, false, hoist_output, indent, ctx, context)?;
                 // Append field access chain
                 let mut result = base_str;
                 for field_param in arg.params.iter().skip(1) {
@@ -1060,9 +1060,9 @@ fn emit_throwing_arg_string(
     hoist_output.push_str(" = ");
 
     // Get function name
-    let func_name = get_func_name_string(&arg.params[0])
+    let func_name = get_func_name_string(arg.get(0)?)
         .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
-    let orig_func_name = get_til_func_name_string(&arg.params[0]).unwrap_or_else(|| func_name.clone());
+    let orig_func_name = get_til_func_name_string(arg.get(0)?).unwrap_or_else(|| func_name.clone());
     let mangled_name = ctx.nested_func_names.get(&orig_func_name).cloned().unwrap_or(func_name.clone());
 
     // Emit function name
@@ -1305,9 +1305,9 @@ fn emit_variadic_arg_string(
     hoist_output.push_str(" = ");
 
     // Get function name
-    let func_name = get_func_name_string(&arg.params[0])
+    let func_name = get_func_name_string(arg.get(0)?)
         .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
-    let orig_func_name = get_til_func_name_string(&arg.params[0]).unwrap_or_else(|| func_name.clone());
+    let orig_func_name = get_til_func_name_string(arg.get(0)?).unwrap_or_else(|| func_name.clone());
     let mangled_name = ctx.nested_func_names.get(&orig_func_name).cloned().unwrap_or(func_name.clone());
 
     hoist_output.push_str(&til_func_name(&mangled_name));
@@ -1468,7 +1468,7 @@ fn emit_fcall_arg_string(
 ) -> Result<String, String> {
     // Check if this is a struct constructor - emit directly via emit_expr
     // (emit_expr handles struct constructors properly as compound literals)
-    let func_name = get_func_name_string(&arg.params[0])
+    let func_name = get_func_name_string(arg.get(0)?)
         .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
 
     // Struct constructors should be emitted as compound literals
@@ -1524,7 +1524,7 @@ fn emit_fcall_arg_string(
         return Ok(result);
     }
 
-    let orig_func_name = get_til_func_name_string(&arg.params[0]).unwrap_or_else(|| func_name.clone());
+    let orig_func_name = get_til_func_name_string(arg.get(0)?).unwrap_or_else(|| func_name.clone());
 
     // Handle builtins that have inline codegen (don't use til_func_name prefix)
     match orig_func_name.as_str() {
@@ -1533,7 +1533,7 @@ fn emit_fcall_arg_string(
             if arg.params.len() < 2 {
                 return Err(arg.lang_error(&context.path, "ccodegen", "to_ptr requires 1 argument"));
             }
-            let inner_arg = &arg.params[1];
+            let inner_arg = arg.get(1)?;
             // Check if arg is a Dynamic parameter (already void*)
             let is_dynamic_param = if let NodeType::Identifier(name) = &inner_arg.node_type {
                 if inner_arg.params.is_empty() {
@@ -1564,7 +1564,7 @@ fn emit_fcall_arg_string(
             if arg.params.len() < 2 {
                 return Err(arg.lang_error(&context.path, "ccodegen", "size_of requires 1 argument"));
             }
-            let type_arg = &arg.params[1];
+            let type_arg = arg.get(1)?;
             let mut result = String::new();
             result.push_str(TIL_PREFIX);
             result.push_str("size_of(&");
@@ -1596,7 +1596,7 @@ fn emit_fcall_arg_string(
             if arg.params.len() < 2 {
                 return Err(arg.lang_error(&context.path, "ccodegen", "enum_to_str requires 1 argument"));
             }
-            let inner_arg = &arg.params[1];
+            let inner_arg = arg.get(1)?;
             let value_type = get_value_type(context, inner_arg)?;
             if let ValueType::TCustom(enum_type_name) = value_type {
                 if context.scope_stack.has_enum(&enum_type_name) {
@@ -1626,9 +1626,9 @@ fn emit_fcall_arg_string(
             if arg.params.len() < 4 {
                 return Err(arg.lang_error(&context.path, "ccodegen", "enum_get_payload_type requires 3 arguments"));
             }
-            let enum_arg = &arg.params[1];
-            let variant_arg = &arg.params[2];
-            let payload_type_arg = &arg.params[3];
+            let enum_arg = arg.get(1)?;
+            let variant_arg = arg.get(2)?;
+            let payload_type_arg = arg.get(3)?;
 
             // Get variant name
             let variant_name = if let NodeType::Identifier(name) = &variant_arg.node_type {
@@ -1658,7 +1658,7 @@ fn emit_fcall_arg_string(
             if arg.params.len() < 2 {
                 return Err(arg.lang_error(&context.path, "ccodegen", "type_as_str requires 1 argument"));
             }
-            let type_arg = &arg.params[1];
+            let type_arg = arg.get(1)?;
             if let NodeType::Identifier(type_name) = &type_arg.node_type {
                 // Check if this is a Type variable or a literal type name
                 let is_type_var = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
@@ -2230,7 +2230,7 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut Codegen
             };
 
             // Handle literal constants (numbers, strings)
-            if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
+            if let NodeType::LLiteral(lit) = &expr.get(0)?.node_type {
                 let has_str = context.scope_stack.has_struct("Str");
                 // Use the declaration's explicit type if available, otherwise infer from literal
                 let c_type = match lit {
@@ -2260,7 +2260,7 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut Codegen
                 output.push_str(";\n");
             }
             // Handle Bool constants (true/false identifiers)
-            else if let NodeType::Identifier(name) = &expr.params[0].node_type {
+            else if let NodeType::Identifier(name) = &expr.get(0)?.node_type {
                 if name == "true" || name == "false" {
                     if !decl.is_mut {
                         output.push_str("const ");
@@ -2325,7 +2325,7 @@ fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
             };
 
             // Determine the type from the initializer expression using get_value_type
-            let c_type = match get_value_type(context, &expr.params[0]) {
+            let c_type = match get_value_type(context, expr.get(0)?) {
                 Ok(vt) => til_type_to_c(&vt).unwrap_or("int".to_string()),
                 Err(_) => til_type_to_c(&decl.value_type).unwrap_or("int".to_string()),
             };
@@ -2380,7 +2380,7 @@ fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, context: &Con
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             if !expr.params.is_empty() {
-                if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
+                if let NodeType::FuncDef(func_def) = &expr.get(0)?.node_type {
                     if let Some(parent) = parent_func_name {
                         // This is a nested function - record it for hoisting
                         let mangled_name = format!("{}_{}", parent, decl.name);
@@ -2414,16 +2414,16 @@ fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, context: &Con
         NodeType::If => {
             // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
             if expr.params.len() > 1 {
-                collect_nested_func_info(&expr.params[1], ctx, context, parent_func_name)?;
+                collect_nested_func_info(expr.get(1)?, ctx, context, parent_func_name)?;
             }
             if expr.params.len() > 2 {
-                collect_nested_func_info(&expr.params[2], ctx, context, parent_func_name)?;
+                collect_nested_func_info(expr.get(2)?, ctx, context, parent_func_name)?;
             }
         },
         NodeType::While => {
             // Check loop body (params[0] = condition, params[1] = body)
             if expr.params.len() > 1 {
-                collect_nested_func_info(&expr.params[1], ctx, context, parent_func_name)?;
+                collect_nested_func_info(expr.get(1)?, ctx, context, parent_func_name)?;
             }
         },
         _ => {
@@ -2446,7 +2446,7 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
             return Ok(());
         }
         if !expr.params.is_empty() {
-            if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
+            if let NodeType::StructDef(struct_def) = &expr.get(0)?.node_type {
                 output.push_str("struct ");
                 output.push_str(&til_name(&decl.name));
                 output.push_str(" {\n");
@@ -2476,7 +2476,7 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
 fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
+            if let NodeType::StructDef(struct_def) = &expr.get(0)?.node_type {
                 let struct_name = til_name(&decl.name);
                 for member in &struct_def.members {
                     // Only emit non-mut, non-function fields as constants
@@ -2520,7 +2520,7 @@ fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
 fn emit_enum_size_of_constant(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::EnumDef(_) = &expr.params[0].node_type {
+            if let NodeType::EnumDef(_) = &expr.get(0)?.node_type {
                 let enum_name = til_name(&decl.name);
                 output.push_str("const ");
                 output.push_str(TIL_PREFIX);
@@ -3143,7 +3143,7 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
 fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+            if let NodeType::EnumDef(enum_def) = &expr.get(0)?.node_type {
                 let enum_name = til_name(&decl.name);
 
                 if enum_has_payloads(enum_def) {
@@ -3271,7 +3271,7 @@ fn emit_enum_to_str_for_declaration(
 fn emit_enum_method_prototypes(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+            if let NodeType::EnumDef(enum_def) = &expr.get(0)?.node_type {
                 let enum_name = til_name(&decl.name);
                 for (method_name, method_expr) in &enum_def.methods {
                     if let NodeType::FuncDef(func_def) = &method_expr.node_type {
@@ -3291,7 +3291,7 @@ fn emit_enum_method_prototypes(expr: &Expr, context: &Context, output: &mut Stri
 fn emit_enum_method_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+            if let NodeType::EnumDef(enum_def) = &expr.get(0)?.node_type {
                 let enum_name = til_name(&decl.name);
                 for (method_name, method_expr) in &enum_def.methods {
                     if let NodeType::FuncDef(func_def) = &method_expr.node_type {
@@ -3606,7 +3606,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, 
 fn emit_func_prototype(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
+            if let NodeType::FuncDef(func_def) = &expr.get(0)?.node_type {
                 // Skip external functions (ext_proc/ext_func) - they're just declarations
                 if func_def.is_ext() {
                     return Ok(());
@@ -3638,7 +3638,7 @@ fn is_func_declaration(expr: &Expr) -> bool {
 fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
+            if let NodeType::FuncDef(func_def) = &expr.get(0)?.node_type {
                 // Skip external functions (ext_proc/ext_func) - they're just declarations
                 if func_def.is_ext() {
                     return Ok(());
