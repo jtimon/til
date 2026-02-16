@@ -250,8 +250,8 @@ namespace ScopeStack {
         }
 
         mut last_idx := self.frames.len().sub(1)
-        mut current_frame := ScopeFrame()
-        self.frames.get(last_idx, current_frame)?
+        frame_ref := self.frames.get_by_ref(last_idx)?
+        create_alias(current_frame, ScopeFrame, frame_ref.data)
 
         // Check for redeclaration in current scope only
         // Bug #35: Skip check for "_" - it's special for discarding return values
@@ -261,7 +261,6 @@ namespace ScopeStack {
 
         current_frame.heap_index.set(name.clone(), offset)
         current_frame.symbols.set(name, symbol)
-        self.frames.set(last_idx, current_frame)?
 
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -271,10 +270,9 @@ namespace ScopeStack {
     declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)?
+            frame_ref := self.frames.get_by_ref(last_idx)?
+            create_alias(current_frame, ScopeFrame, frame_ref.data)
             current_frame.symbols.set(name, symbol)
-            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -284,8 +282,8 @@ namespace ScopeStack {
     remove_symbol := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)?
+            frame_ref := self.frames.get_by_ref(last_idx)?
+            create_alias(current_frame, ScopeFrame, frame_ref.data)
             if current_frame.symbols.contains_key(name) {
                 if self.removal_tracking_depth.gt(0) {
                     mut info := SymbolInfo()
@@ -296,7 +294,6 @@ namespace ScopeStack {
                     }
                 }
                 current_frame.symbols.remove(name)
-                self.frames.set(last_idx, current_frame)?
                 mut ptr := Ptr()
                 ptr.data = 1  // Non-NULL to indicate found and removed
                 return ptr
@@ -311,13 +308,12 @@ namespace ScopeStack {
     remove_var := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)?
+            frame_ref := self.frames.get_by_ref(last_idx)?
+            create_alias(current_frame, ScopeFrame, frame_ref.data)
             if current_frame.heap_index.contains_key(name) {
                 mut offset := 0
                 current_frame.heap_index.get(name, offset)?
                 current_frame.heap_index.remove(name)
-                self.frames.set(last_idx, current_frame)?
                 mut ptr := Ptr()
                 ptr.data = offset
                 return ptr
@@ -336,10 +332,9 @@ namespace ScopeStack {
     insert_var := proc(mut self: ScopeStack, name: Str, offset: I64) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)?
+            frame_ref := self.frames.get_by_ref(last_idx)?
+            create_alias(current_frame, ScopeFrame, frame_ref.data)
             current_frame.heap_index.set(name, offset)
-            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -370,14 +365,13 @@ namespace ScopeStack {
     declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)?
+            frame_ref := self.frames.get_by_ref(last_idx)?
+            create_alias(current_frame, ScopeFrame, frame_ref.data)
             // Use set() instead of insert() to allow overwriting existing funcs
             // This matches Rust's HashMap.insert behavior which overwrites.
             // Needed because init phase stores original func_def, then eval phase
             // stores precomp'd func_def with desugared for-in loops.
             current_frame.funcs.set(name, func_def)
-            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -389,11 +383,10 @@ namespace ScopeStack {
     /// where the func was originally declared and updates it there.
     update_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws Str {
         for i in 0..self.frames.len() {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
             if frame.funcs.contains_key(name) {
                 frame.funcs.set(name, func_def)
-                self.frames.set(i, frame)?
                 return
             }
         }
@@ -428,10 +421,9 @@ namespace ScopeStack {
     declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)?
+            frame_ref := self.frames.get_by_ref(last_idx)?
+            create_alias(current_frame, ScopeFrame, frame_ref.data)
             current_frame.enums.set(name, enum_def)
-            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -593,10 +585,9 @@ namespace ScopeStack {
     declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)?
+            frame_ref := self.frames.get_by_ref(last_idx)?
+            create_alias(current_frame, ScopeFrame, frame_ref.data)
             current_frame.structs.set(name, struct_def)
-            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -754,14 +745,13 @@ namespace ScopeStack {
     restore_removed := proc(mut self: ScopeStack, removed: Vec) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            mut frame := ScopeFrame()
-            self.frames.get(last_idx, frame)?
+            frame_ref := self.frames.get_by_ref(last_idx)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
             for entry: RemovedSymbol in removed {
                 if not(frame.symbols.contains_key(entry.name)) {
                     frame.symbols.set(entry.name.clone(), entry.info.clone())
                 }
             }
-            self.frames.set(last_idx, frame)?
         }
 
         catch (err: IndexOutOfBoundsError) {
