@@ -104,12 +104,38 @@ Possible fixes:
 
 Map lookups that copy the value. Found in:
 
-ScopeFrame map lookups (inside the loops from Category C):
-- frame.heap_index.get(name, offset) -- copies I64 (cheap)
-- frame.symbols.get(name, symbol) -- copies SymbolInfo
-- frame.funcs.get(name, func_def) -- copies FuncDef (large!)
-- frame.enums.get(name, enum_def) -- copies SEnumDef (large!)
-- frame.structs.get(name, struct_def) -- copies SStructDef (large!)
+**** ScopeFrame map lookups -- NOT YET CONVERTED (same problem as last_frame)
+
+- frame.symbols.get(name, symbol) -- copies SymbolInfo (lookup_symbol, lookup_symbol_in_enclosing_scope, remove_symbol)
+- frame.funcs.get(name, func_def) -- copies SFuncDef (lookup_func)
+- frame.enums.get(name, enum_def) -- copies SEnumDef (lookup_enum)
+- frame.structs.get(name, struct_def) -- copies SStructDef (lookup_struct)
+- frame.heap_index.get(name, offset) -- copies I64 (cheap, not worth converting)
+
+These are inside lookup_symbol/lookup_func/lookup_enum/lookup_struct which all
+RETURN the struct. Same ret_var_alias problem as last_frame: converting the
+internal Map.get to get_by_ref + create_alias and returning the alias still
+generates *_ret = (*alias_ptr) in C -- a full struct copy. The copy moves from
+Map.get to the return statement, net savings zero.
+
+Attempted 2026-02-16: converted all 6, added has_create_alias_of to
+find_ret_var_for_placement (fix 1). Compiled and passed all 92 tests, but no
+performance improvement. Reverted.
+
+Same three fixes apply as for last_frame:
+1. has_create_alias_of (fix 1) -- compiles but still copies via *_ret.
+2. Inline: callers use frame.symbols.get_by_ref directly instead of calling
+   lookup_symbol -- true zero-copy but duplicates lookup logic at every call site.
+3. Codegen: generate pointer-typed caller variables when the returned value
+   comes from create_alias (avoids even the *_ret copy).
+
+Additional detail discovered during the attempt:
+- Init phase (init.rs) can't resolve create_alias variables in declaration RHS.
+  val_ref := frame.symbols.get_by_ref(name)? fails with "Undefined symbol 'frame'"
+  because get_value_type (called for declarations) does lookup_symbol which doesn't
+  find create_alias variables. Workaround: pre-declare mut val_ref := Ptr() then
+  assign val_ref = frame.symbols.get_by_ref(name)? as a statement (not declaration).
+  Statements don't go through get_value_type so the alias is found normally.
 
 Struct/enum default value lookups:
 - struct_def.default_values.get(name, expr) -- copies Expr
