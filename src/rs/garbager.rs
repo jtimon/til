@@ -25,14 +25,15 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::FuncDef(func_def) => {
             // Step 1: Strip dont_delete calls, collect protected var names
             // Pre-scan entire body tree recursively for dont_delete var names
-            let mut dont_delete_vars: HashSet<String> = collect_dont_delete_vars_recursive(&func_def.body);
+            let mut dont_delete_vars: HashSet<String> = collect_dont_delete_vars_recursive(&func_def.body)?;
             let mut new_body = Vec::new();
             for stmt in &func_def.body {
-                if is_dont_delete_call(stmt) {
+                if is_dont_delete_call(stmt)? {
                     continue;
                 }
                 // Step 2: Collect create_alias var names
-                if let Some(alias_var) = get_create_alias_var(stmt) {
+                let alias_var = get_create_alias_var(stmt)?;
+                if !alias_var.is_empty() {
                     dont_delete_vars.insert(alias_var);
                 }
                 new_body.push(garbager_recursive(context, stmt)?);
@@ -65,7 +66,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
 
             // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
-            let new_body = insert_clone_after_get(&new_body, &local_types, context);
+            let new_body = insert_clone_after_get(&new_body, &local_types, context)?;
 
             // Step 3: Collect delete candidates
             let mut candidates: Vec<(String, String)> = Vec::new();
@@ -100,7 +101,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
 
             // Step 4: Remove dont_delete_vars, own-transferred vars, and wildcards
-            let own_transfers = collect_own_transfers(&new_body, context, &local_types);
+            let own_transfers = collect_own_transfers(&new_body, context, &local_types)?;
             candidates.retain(|(var_name, _)| {
                 var_name != "_"
                     && !dont_delete_vars.contains(var_name)
@@ -261,9 +262,9 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 new_params.push(garbager_recursive(context, param)?);
             }
             // Transform copy params: wrap struct identifier args in Type.clone()
-            transform_fcall_copy_params(context, e, &mut new_params);
+            transform_fcall_copy_params(context, e, &mut new_params)?;
             // Issue #159 Step 5: Transform struct literal fields
-            transform_struct_literal_fields(context, e, &mut new_params);
+            transform_struct_literal_fields(context, e, &mut new_params)?;
             Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
         }
         // Issue #159 Step 6: Transform assignments with struct type where RHS is an identifier
@@ -307,7 +308,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Body => {
             let mut new_params = Vec::new();
             for param in &e.params {
-                if is_dont_delete_call(param) {
+                if is_dont_delete_call(param)? {
                     continue;
                 }
                 new_params.push(garbager_recursive(context, param)?);
@@ -421,24 +422,27 @@ fn build_clone_assignment_expr(type_name: &str, var_name: &str, line: usize, col
 
 /// Check if stmt is a container get/pop call with a shallow-copy out-param.
 /// Returns (var_name, type_name) if the out-param is a local with deletable type.
-fn detect_shallow_copy_outparam(stmt: &Expr, local_types: &HashMap<String, String>, context: &Context) -> Option<(String, String)> {
+fn detect_shallow_copy_outparam(stmt: &Expr, local_types: &HashMap<String, String>, context: &Context) -> Result<Option<(String, String)>, String> {
     if !matches!(&stmt.node_type, NodeType::FCall(_)) {
-        return None;
+        return Ok(None);
     }
     let chain = get_fcall_identifier_chain(stmt);
     if chain.is_empty() {
-        return None;
+        return Ok(None);
     }
-    let resolved = resolve_fcall_from_chain(&chain, local_types, context)?;
+    let resolved = match resolve_fcall_from_chain(&chain, local_types, context) {
+        Some(r) => r,
+        None => return Ok(None),
+    };
     let func_def = &resolved.func_def;
 
     // Build "Type.method" name from resolved func_def's first arg type
     if func_def.args.is_empty() {
-        return None;
+        return Ok(None);
     }
     let self_type = match &func_def.args[0].value_type {
         ValueType::TCustom(t) => t.clone(),
-        _ => return None,
+        _ => return Ok(None),
     };
     let method_name = &chain[chain.len() - 1];
     let qualified = format!("{}.{}", self_type, method_name);
@@ -449,89 +453,89 @@ fn detect_shallow_copy_outparam(stmt: &Expr, local_types: &HashMap<String, Strin
         "Map.get", "HashMap.get", "List.get", "List.pop",
     ];
     if !whitelist.contains(&qualified.as_str()) {
-        return None;
+        return Ok(None);
     }
 
     // Find last mut arg (the out-param)
     let last_arg_idx = func_def.args.len() - 1;
     if !func_def.args[last_arg_idx].is_mut {
-        return None;
+        return Ok(None);
     }
 
     // Map to call-site param index
     let param_idx = if resolved.is_ufcs { last_arg_idx } else { last_arg_idx + 1 };
     if param_idx >= stmt.params.len() {
-        return None;
+        return Ok(None);
     }
 
     // Check if call-site param is a bare identifier
-    let param_expr = &stmt.params[param_idx];
+    let param_expr = stmt.get(param_idx)?;
     if let NodeType::Identifier(var_name) = &param_expr.node_type {
         if param_expr.params.is_empty() {
             // Look up type in local_types
             if let Some(type_name) = local_types.get(var_name) {
                 if is_deletable_type(type_name, context) {
-                    return Some((var_name.clone(), type_name.clone()));
+                    return Ok(Some((var_name.clone(), type_name.clone())));
                 }
             }
         }
     }
-    None
+    Ok(None)
 }
 
 /// Insert clone assignments after container get/pop calls in a statement list.
 /// Recurses into nested Body nodes but not into FuncDef bodies.
-fn insert_clone_after_get(stmts: &[Expr], local_types: &HashMap<String, String>, context: &Context) -> Vec<Expr> {
+fn insert_clone_after_get(stmts: &[Expr], local_types: &HashMap<String, String>, context: &Context) -> Result<Vec<Expr>, String> {
     let mut result = Vec::new();
     for stmt in stmts {
         // Recurse into nested bodies within this statement
-        let processed = process_stmt_for_clone_after_get(stmt, local_types, context);
+        let processed = process_stmt_for_clone_after_get(stmt, local_types, context)?;
         result.push(processed.clone());
         // Check if this statement itself is a get/pop call
-        if let Some((var_name, type_name)) = detect_shallow_copy_outparam(&processed, local_types, context) {
+        if let Some((var_name, type_name)) = detect_shallow_copy_outparam(&processed, local_types, context)? {
             result.push(build_clone_assignment_expr(&type_name, &var_name, processed.line, processed.col));
         }
     }
-    result
+    Ok(result)
 }
 
 /// Process a single statement: recurse into Body children, leave FuncDef alone.
-fn process_stmt_for_clone_after_get(e: &Expr, local_types: &HashMap<String, String>, context: &Context) -> Expr {
+fn process_stmt_for_clone_after_get(e: &Expr, local_types: &HashMap<String, String>, context: &Context) -> Result<Expr, String> {
     match &e.node_type {
-        NodeType::FuncDef(_) => e.clone(), // separate scope, don't touch
+        NodeType::FuncDef(_) => Ok(e.clone()), // separate scope, don't touch
         NodeType::Body => {
-            let new_children = insert_clone_after_get(&e.params, local_types, context);
-            Expr::new_explicit(e.node_type.clone(), new_children, e.line, e.col)
+            let new_children = insert_clone_after_get(&e.params, local_types, context)?;
+            Ok(Expr::new_explicit(e.node_type.clone(), new_children, e.line, e.col))
         }
         _ => {
             // Recurse into params (covers if/while/for/switch which store bodies as params)
             let mut new_params = Vec::new();
             for param in &e.params {
-                new_params.push(process_stmt_for_clone_after_get(param, local_types, context));
+                new_params.push(process_stmt_for_clone_after_get(param, local_types, context)?);
             }
-            Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col)
+            Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
         }
     }
 }
 
 /// Extract function name from FCall's first param (the name expression).
 /// Returns "foo" for foo(x) or "Type.method" for Type.method(x).
-fn get_func_name(e: &Expr) -> Option<String> {
+fn get_func_name(e: &Expr) -> Result<String, String> {
     if e.params.is_empty() {
-        return None;
+        return Ok(String::new());
     }
-    let name_expr = &e.params[0];
+    let name_expr = e.get(0)?;
     match &name_expr.node_type {
         NodeType::Identifier(name) => {
             // Check for Type.method pattern: Identifier("Type") with child Identifier("method")
             if !name_expr.params.is_empty() {
-                if let NodeType::Identifier(method) = &name_expr.params[0].node_type {
-                    return Some(format!("{}.{}", name, method));
+                if let NodeType::Identifier(method) = &name_expr.get(0)?.node_type {
+                    return Ok(format!("{}.{}", name, method));
                 }
             }
-            Some(name.clone())
+            Ok(name.clone())
         }
-        _ => None,
+        _ => Ok(String::new()),
     }
 }
 
@@ -542,27 +546,27 @@ fn is_identifier_expr(e: &Expr) -> bool {
 
 /// Transform FCall copy params: for each arg that is_copy, struct-typed, and an identifier,
 /// wrap in Type.clone().
-fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec<Expr>) {
-    let func_name = match get_func_name(e) {
-        Some(name) => name,
-        None => return,
-    };
+fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec<Expr>) -> Result<(), String> {
+    let func_name = get_func_name(e)?;
+    if func_name.is_empty() {
+        return Ok(());
+    }
 
     // Skip .clone and .delete calls to avoid infinite recursion / double-free
     if func_name.ends_with(".clone") || func_name.ends_with(".delete") {
-        return;
+        return Ok(());
     }
 
     // Early out: check if any args (params[1..]) are identifiers
     let has_identifier_arg = new_params.iter().skip(1).any(|p| is_identifier_expr(p));
     if !has_identifier_arg {
-        return;
+        return Ok(());
     }
 
     // Look up function definition to get arg metadata
     let func_def = match context.scope_stack.lookup_func(&func_name) {
         Some(fd) => fd,
-        None => return,
+        None => return Ok(()),
     };
 
     // For each arg: if is_copy AND struct type AND identifier, wrap in Type.clone()
@@ -586,69 +590,74 @@ fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec
             }
         }
     }
+    Ok(())
 }
 
 /// Check if an expression is an FCall to `dont_delete`.
-fn is_dont_delete_call(e: &Expr) -> bool {
+fn is_dont_delete_call(e: &Expr) -> Result<bool, String> {
     if let NodeType::FCall(_) = &e.node_type {
-        if let Some(name) = get_func_name(e) {
-            return name == "dont_delete";
+        let name = get_func_name(e)?;
+        if !name.is_empty() {
+            return Ok(name == "dont_delete");
         }
     }
-    false
+    Ok(false)
 }
 
 /// Extract variable name from dont_delete(var) call.
 /// The variable is params[1] (params[0] is the function name).
-fn get_dont_delete_var(e: &Expr) -> Option<String> {
+fn get_dont_delete_var(e: &Expr) -> Result<String, String> {
     if e.params.len() < 2 {
-        return None;
+        return Ok(String::new());
     }
-    if let NodeType::Identifier(var_name) = &e.params[1].node_type {
-        return Some(var_name.clone());
+    if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
+        return Ok(var_name.clone());
     }
-    None
+    Ok(String::new())
 }
 
 /// Extract variable name from create_alias(var, type, addr) call.
-fn get_create_alias_var(e: &Expr) -> Option<String> {
+fn get_create_alias_var(e: &Expr) -> Result<String, String> {
     if let NodeType::FCall(_) = &e.node_type {
-        if let Some(name) = get_func_name(e) {
+        let name = get_func_name(e)?;
+        if !name.is_empty() {
             if name == "create_alias" && e.params.len() >= 3 {
-                if let NodeType::Identifier(var_name) = &e.params[1].node_type {
-                    return Some(var_name.clone());
+                if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
+                    return Ok(var_name.clone());
                 }
             }
         }
     }
-    None
+    Ok(String::new())
 }
 
 /// Recursively collect dont_delete var names from the entire body tree.
 /// Walks into Body, If, While, Catch children but not into nested FuncDef bodies.
-fn collect_dont_delete_vars_recursive(stmts: &[Expr]) -> HashSet<String> {
+fn collect_dont_delete_vars_recursive(stmts: &[Expr]) -> Result<HashSet<String>, String> {
     let mut result = HashSet::new();
     for stmt in stmts {
-        collect_dont_delete_vars_recursive_inner(stmt, &mut result);
+        collect_dont_delete_vars_recursive_inner(stmt, &mut result)?;
     }
-    result
+    Ok(result)
 }
 
-fn collect_dont_delete_vars_recursive_inner(e: &Expr, result: &mut HashSet<String>) {
-    if is_dont_delete_call(e) {
-        if let Some(var_name) = get_dont_delete_var(e) {
+fn collect_dont_delete_vars_recursive_inner(e: &Expr, result: &mut HashSet<String>) -> Result<(), String> {
+    if is_dont_delete_call(e)? {
+        let var_name = get_dont_delete_var(e)?;
+        if !var_name.is_empty() {
             result.insert(var_name);
         }
-        return;
+        return Ok(());
     }
     // Recurse into params (covers Body, If, While, Catch children)
     // but NOT into nested FuncDef bodies (separate scope)
     if let NodeType::FuncDef(_) = &e.node_type {
-        return;
+        return Ok(());
     }
     for param in &e.params {
-        collect_dont_delete_vars_recursive_inner(param, result);
+        collect_dont_delete_vars_recursive_inner(param, result)?;
     }
+    Ok(())
 }
 
 /// Walk an FCall's name expression to extract the full identifier chain.
@@ -720,15 +729,15 @@ fn resolve_fcall_from_chain(chain: &[String], local_types: &HashMap<String, Stri
 }
 
 /// Scan statements for variables passed as `own` args to function calls.
-fn collect_own_transfers(stmts: &[Expr], context: &Context, local_types: &HashMap<String, String>) -> HashSet<String> {
+fn collect_own_transfers(stmts: &[Expr], context: &Context, local_types: &HashMap<String, String>) -> Result<HashSet<String>, String> {
     let mut result = HashSet::new();
     for stmt in stmts {
-        collect_own_transfers_recursive(stmt, context, local_types, &mut result);
+        collect_own_transfers_recursive(stmt, context, local_types, &mut result)?;
     }
-    result
+    Ok(result)
 }
 
-fn collect_own_transfers_recursive(e: &Expr, context: &Context, local_types: &HashMap<String, String>, result: &mut HashSet<String>) {
+fn collect_own_transfers_recursive(e: &Expr, context: &Context, local_types: &HashMap<String, String>, result: &mut HashSet<String>) -> Result<(), String> {
     if let NodeType::FCall(_) = &e.node_type {
         let chain = get_fcall_identifier_chain(e);
         if !chain.is_empty() {
@@ -745,8 +754,8 @@ fn collect_own_transfers_recursive(e: &Expr, context: &Context, local_types: &Ha
                         if i < arg_start { continue; }
                         let param_idx = if is_ufcs { i } else { i + 1 };
                         if param_idx < e.params.len() && arg_def.is_own {
-                            if let NodeType::Identifier(var_name) = &e.params[param_idx].node_type {
-                                if e.params[param_idx].params.is_empty() {
+                            if let NodeType::Identifier(var_name) = &e.get(param_idx)?.node_type {
+                                if e.get(param_idx)?.params.is_empty() {
                                     result.insert(var_name.clone());
                                 }
                             }
@@ -757,34 +766,35 @@ fn collect_own_transfers_recursive(e: &Expr, context: &Context, local_types: &Ha
         }
     }
     for param in &e.params {
-        collect_own_transfers_recursive(param, context, local_types, result);
+        collect_own_transfers_recursive(param, context, local_types, result)?;
     }
     if let NodeType::FuncDef(func_def) = &e.node_type {
         for stmt in &func_def.body {
-            collect_own_transfers_recursive(stmt, context, local_types, result);
+            collect_own_transfers_recursive(stmt, context, local_types, result)?;
         }
     }
+    Ok(())
 }
 
 /// Issue #159 Step 5: Transform struct literal fields.
 /// For struct literal constructors like Point(inner=some_var), if a NamedArg value
 /// is an identifier pointing to a struct type, wrap it in Type.clone().
-fn transform_struct_literal_fields(context: &Context, e: &Expr, new_params: &mut Vec<Expr>) {
+fn transform_struct_literal_fields(context: &Context, e: &Expr, new_params: &mut Vec<Expr>) -> Result<(), String> {
     // Extract the struct name from the original FCall (before child transforms)
-    let struct_name = match get_func_name(e) {
-        Some(name) => name,
-        None => return,
-    };
+    let struct_name = get_func_name(e)?;
+    if struct_name.is_empty() {
+        return Ok(());
+    }
 
     // Must be a plain struct name (no dots - not a method call)
     if struct_name.contains('.') {
-        return;
+        return Ok(());
     }
 
     // Check if it's a struct
     let struct_def = match context.scope_stack.lookup_struct(&struct_name) {
         Some(sd) => sd.clone(),
-        None => return,
+        None => return Ok(()),
     };
 
     // For each child in new_params[1..] that is a NamedArg
@@ -801,12 +811,13 @@ fn transform_struct_literal_fields(context: &Context, e: &Expr, new_params: &mut
                     continue;
                 }
                 // Check if the NamedArg's value (params[0]) is an identifier
-                if !new_params[param_idx].params.is_empty() && is_identifier_expr(&new_params[param_idx].params[0]) {
-                    let arg_expr = new_params[param_idx].params[0].clone();
+                if !new_params[param_idx].params.is_empty() && is_identifier_expr(new_params[param_idx].get(0)?) {
+                    let arg_expr = new_params[param_idx].get(0)?.clone();
                     let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
                     new_params[param_idx].params[0] = clone_call;
                 }
             }
         }
     }
+    Ok(())
 }
