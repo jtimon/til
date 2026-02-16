@@ -137,10 +137,19 @@ Additional detail discovered during the attempt:
   assign val_ref = frame.symbols.get_by_ref(name)? as a statement (not declaration).
   Statements don't go through get_value_type so the alias is found normally.
 
-Struct/enum default value lookups:
+**** Struct/enum default value lookups -- IN PROGRESS (2026-02-16)
+
 - struct_def.default_values.get(name, expr) -- copies Expr
-  Found in: init.til, preinit.til, typer.til, garbager.til,
-  scavenger.til, precomp.til, ccodegen.til, ufcs.til, desugarer.til
+- ns_def.default_values.get(name, expr) -- copies Expr
+
+These are used IN-PLACE (not returned), so get_by_ref + create_alias genuinely
+eliminates the copy. No ret_var_alias problem.
+
+Converted: garbager.til (2 calls, commit ae117ca2)
+Remaining: typer.til (5), ccodegen.til (7), interpreter.til (2),
+  desugarer.til (2), scavenger.til (4), precomp.til (2), ufcs.til (2),
+  preinit.til (1)
+Not converting: init.til (~5 calls in register methods need ownership for switch)
 
 Other map lookups:
 - ctx.nested_func_names.get() -- copies Str (ccodegen.til)
@@ -301,8 +310,9 @@ Options:
    24/25 .get() + 10 .set() converted to get_by_ref + create_alias (2026-02-16).
    1 remaining: last_frame blocked by Bug #168 ret_var_alias.
 
-3. **Map.get() for struct defs** -- ~40 calls copying FuncDef/SEnumDef/SStructDef
-   Fix: Add get_by_ref to Map (return Ptr, no copy)
+3. *IN PROGRESS* **Map.get() for default_values** -- ~27 calls copying Expr (in-place)
+   Converted 2/27 in garbager.til (2026-02-16). Uses get_by_ref + create_alias.
+   ScopeFrame map lookups (~6 calls) BLOCKED by ret_var_alias (same as last_frame).
 
 4. *DONE* **Struct member/variant iteration** -- 15 loops converted (2026-02-16)
    Converted to for-in (zero-copy) in typer, preinit, garbager, eval_heap,

@@ -273,8 +273,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
     case NodeType.StructDef(struct_def):
         mut new_default_values := Map.new(Str, Expr)
         for name: Str in struct_def.default_values.keys {
-            mut value_expr := Expr()
-            struct_def.default_values.get(name, value_expr)?
+            val_ref := struct_def.default_values.get_by_ref(name)?
+            create_alias(value_expr, Expr, val_ref.data)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
             }
@@ -294,8 +294,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
     case NodeType.NamespaceDef(ns_def):
         mut new_default_values := Map.new(Str, Expr)
         for name: Str in ns_def.default_values.keys {
-            mut value_expr := Expr()
-            ns_def.default_values.get(name, value_expr)?
+            val_ref := ns_def.default_values.get_by_ref(name)?
+            create_alias(value_expr, Expr, val_ref.data)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
             }
