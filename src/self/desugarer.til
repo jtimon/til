@@ -1577,9 +1577,7 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
 
         mut new_body := Vec.new(Expr)
-        for func_i in 0..func_def.body.len() {
-            mut stmt := Expr()
-            func_def.body.get(func_i, stmt)?
+        for stmt: Expr in func_def.body {
             new_body.push(desugar_expr(context, stmt)?)
         }
 

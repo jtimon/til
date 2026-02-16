@@ -128,19 +128,20 @@ Other map lookups:
 
 These copy elements from various Vec collections:
 
-Struct/enum member iteration:
+Struct/enum member iteration (MOSTLY CONVERTED to for-in, 2026-02-16):
 - enum_def.variants.get(i, ev) -- copies EnumVariant
-  Found in: typer.til, parser.til, eval_heap.til, desugarer.til
+  Converted in: typer.til. Remaining: parser.til, eval_heap.til, desugarer.til
 - struct_def.members.get(i, member) -- copies Declaration
-  Found in: garbager.til, preinit.til, eval_heap.til
+  Converted in: garbager.til, preinit.til, eval_heap.til. None remaining.
 - func_def.args.get(i, arg) -- copies Declaration
-  Found in: typer.til, garbager.til, ufcs.til, precomp.til
+  Converted in: typer.til (validate_func_arg_count). Remaining: garbager.til, ufcs.til, precomp.til (use index)
 - func_def.return_types.get(0, rt) -- copies ValueType
+  Not converted (single element access, not a loop pattern).
   Found in: ccodegen.til, interpreter.til, init.til, scavenger.til, parser.til
 - func_def.throw_types.get(i, tt) -- copies ValueType
-  Found in: typer.til, ccodegen.til, scavenger.til
+  Converted in: scavenger.til. Remaining: ccodegen.til (uses index for numbering)
 - func_def.body.get(i, stmt) -- copies Expr
-  Found in: preinit.til, desugarer.til, typer.til
+  Converted in: preinit.til, desugarer.til, typer.til. None remaining.
 
 Data structure internals:
 - self.tokens.get(i, t) -- copies Token (lexer.til)
@@ -270,16 +271,17 @@ Options:
 1. *DONE* **params.get() / e.get()** -- 490 calls copying Expr
    Converted to zero-copy via get_by_ref + create_alias (2026-02-14).
 
-2. **ScopeStack frame iteration** -- 35 calls copying ScopeFrame
-   Each lookup iterates all frames and copies ScopeFrame (huge struct).
-   Fix: get_by_ref for Vec, or restructured scope lookup
+2. *MOSTLY DONE* **ScopeStack frame iteration** -- 35 calls copying ScopeFrame
+   24/25 .get() + 10 .set() converted to get_by_ref + create_alias (2026-02-16).
+   1 remaining: last_frame blocked by Bug #168 ret_var_alias.
 
 3. **Map.get() for struct defs** -- ~40 calls copying FuncDef/SEnumDef/SStructDef
    Fix: Add get_by_ref to Map (return Ptr, no copy)
 
-4. **Struct member/variant iteration** -- ~30 calls
-   Copies Declaration, EnumVariant in loops.
-   Fix: Convert to for-in (already zero-copy)
+4. *DONE* **Struct member/variant iteration** -- 15 loops converted (2026-02-16)
+   Converted to for-in (zero-copy) in typer, preinit, garbager, eval_heap,
+   scavenger, desugarer. Commit c47c3ea0.
+   ~15 remaining loops use index for non-.get() purposes (skipped).
 
 5. **Everything else** -- copies of Str, I64, ValueType
    Low priority, small types, cheap copies.

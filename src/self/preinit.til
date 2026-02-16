@@ -126,11 +126,7 @@ generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I6
 
     mut named_args := Vec.new(Expr)
 
-    for member_i in 0..struct_def.members.len() {
-        mut member := Declaration()
-        struct_def.members.get(member_i, member)?
-        catch (err: IndexOutOfBoundsError) { }
-
+    for member: Declaration in struct_def.members {
         if member.is_mut {
             // For primitive types, just copy the value directly: self.field_name
             // For other types, call clone: self.field_name.clone()
@@ -320,10 +316,7 @@ collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) retur
                     case NodeType.StructDef(struct_def):
                         // Check if struct has any mutable fields
                         mut has_mut_fields := false
-                        for mfi in 0..struct_def.members.len() {
-                            mut mf := Declaration()
-                            struct_def.members.get(mfi, mf)?
-                            catch (err: IndexOutOfBoundsError) {}
+                        for mf: Declaration in struct_def.members {
                             if mf.is_mut {
                                 has_mut_fields = true
                             }
@@ -333,10 +326,7 @@ collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) retur
                         } else {
                             // Check if delete/clone are already defined (in struct or namespace)
                             mut has_delete_inline := false
-                            for di in 0..struct_def.members.len() {
-                                mut dm := Declaration()
-                                struct_def.members.get(di, dm)?
-                                catch (err: IndexOutOfBoundsError) {}
+                            for dm: Declaration in struct_def.members {
                                 if dm.name.eq("delete") {
                                     has_delete_inline = true
                                 }
@@ -348,10 +338,7 @@ collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) retur
                             has_delete := has_delete_inline.or(has_delete_namespace)
 
                             mut has_clone_inline := false
-                            for cli in 0..struct_def.members.len() {
-                                mut clm := Declaration()
-                                struct_def.members.get(cli, clm)?
-                                catch (err: IndexOutOfBoundsError) {}
+                            for clm: Declaration in struct_def.members {
                                 if clm.name.eq("clone") {
                                     has_clone_inline = true
                                 }
@@ -419,10 +406,7 @@ preinit_expr_inner := func(e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.FuncDef(func_def):
         mut new_body := Vec.new(Expr)
-        for fi in 0..func_def.body.len() {
-            mut stmt := Expr()
-            func_def.body.get(fi, stmt)?
-            catch (err: IndexOutOfBoundsError) {}
+        for stmt: Expr in func_def.body {
             new_body.push(preinit_expr_inner(stmt)?)
         }
         new_func_def := SFuncDef(

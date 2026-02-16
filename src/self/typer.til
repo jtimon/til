@@ -88,7 +88,7 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
     return result.errors
 }
 
-check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Vec throws Str {
+check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Vec {
     mut errors := Vec.new(Str)
     if not(e.params.len().eq(0)) {
         e.exit_error("type", "in check_enum_def(): enum declarations don't have any parameters in the tree.")
@@ -96,9 +96,7 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
     }
 
     // Bug #38 fix: Iterate over variants Vec
-    for i in 0..enum_def.variants.len() {
-        mut ev := EnumVariant()
-        enum_def.variants.get(i, ev)?
+    for ev: EnumVariant in enum_def.variants {
         enum_val_name := ev.name
         payload_ptr := ev.payload_type
 
@@ -140,9 +138,6 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
         }
         // else: NULL means None (no payload), nothing to check
     }
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     return errors
 }
 
@@ -164,7 +159,7 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
             errors.extend(check_types_with_context(context, p, ExprContext.ValueDiscarded)?)
         }
     case NodeType.EnumDef(enum_def):
-        errors.extend(check_enum_def(context, e, enum_def)?)
+        errors.extend(check_enum_def(context, e, enum_def))
     case NodeType.StructDef(struct_def):
         errors.extend(check_struct_def(context, e, struct_def))
     case NodeType.If:
@@ -399,19 +394,14 @@ validate_conditional_params := proc(_path: Str, e: Expr, stmt_type: Str, min: I6
 
 // Helper function to validate function/procedure argument counts
 // Returns empty string if OK, error message if validation fails
-validate_func_arg_count := func(path: Str, e: Expr, f_name: Str, func_def: SFuncDef) returns Str throws Str {
+validate_func_arg_count := func(path: Str, e: Expr, f_name: Str, func_def: SFuncDef) returns Str {
     provided_args := e.params.len().sub(1)
 
     // Count required args (those without default values)
     mut required_args := 0
-    for i in 0..func_def.args.len() {
-        mut arg_decl := Declaration()
-        func_def.args.get(i, arg_decl)?
+    for arg_decl: Declaration in func_def.args {
         if NULL.eq(arg_decl.default_value.data) {
             required_args.inc()
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw format("validate_func_arg_count: ", err.msg)
         }
     }
 
@@ -844,7 +834,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
         errors.push(e_clone.error(context.path, "type", format("Function '", f_name, "' does not throw, remove the '?' from the call")))
     }
 
-    err := validate_func_arg_count(context.path, e_clone, f_name, func_def)?
+    err := validate_func_arg_count(context.path, e_clone, f_name, func_def)
     if not(err.eq("")) {
         errors.push(err)
         return errors
@@ -2473,9 +2463,7 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
 
         if not(default_found) {
             // Bug #38 fix: use variants Vec
-            for vi in 0..exh_enum_def.variants.len() {
-                mut ev := EnumVariant()
-                exh_enum_def.variants.get(vi, ev)?
+            for ev: EnumVariant in exh_enum_def.variants {
                 if not(matched_variants.contains(ev.name)) {
                     errors.push(e.error(context.path, "type", format("Switch is missing case for variant '", ev.name, "'")))
                 }
@@ -3492,10 +3480,7 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
 
         // Then, resolve INFER_TYPE in member declarations
         mut new_members := Vec.new(Declaration)
-        for member_idx in 0..struct_def.members.len() {
-            mut member := Declaration()
-            struct_def.members.get(member_idx, member)?
-
+        for member: Declaration in struct_def.members {
             mut member_type_name := ""
             switch member.value_type {
             case ValueType.TCustom(name):
@@ -3731,9 +3716,7 @@ resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) retur
 
     // Recurse into body statements
     mut new_body := Vec.new(Expr)
-    for stmt_idx in 0..func_def.body.len() {
-        mut stmt := Expr()
-        func_def.body.get(stmt_idx, stmt)?
+    for stmt: Expr in func_def.body {
         new_body.push(resolve_inferred_types(context, stmt)?)
     }
 

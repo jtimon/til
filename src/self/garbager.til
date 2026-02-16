@@ -488,9 +488,7 @@ is_deletable_type := func(type_name: Str, context: Context) returns Bool {
     }
     mut struct_def := context.scope_stack.lookup_struct(type_name)?
     mut has_mut_fields := false
-    for mi in 0..struct_def.members.len() {
-        mut m := Declaration()
-        struct_def.members.get(mi, m)?
+    for m: Declaration in struct_def.members {
         if m.is_mut {
             has_mut_fields = true
         }
@@ -499,9 +497,6 @@ is_deletable_type := func(type_name: Str, context: Context) returns Bool {
 
     catch (err: KeyNotFoundError) {
         return false
-    }
-    catch (err: IndexOutOfBoundsError) {
-        panic(loc(), "IndexOutOfBoundsError in is_deletable_type: ", err.msg)
     }
 }
 

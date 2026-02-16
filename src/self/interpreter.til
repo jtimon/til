@@ -1855,7 +1855,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
     mut function_frame := ScopeFrame(scope_type=ScopeType.Function)
     saved_path := context.path
-    _ := validate_func_arg_count(context.path, e, name, func_def)?
+    _ := validate_func_arg_count(context.path, e, name, func_def)
 
     mut param_index := 1
     mut mut_args := Vec.new(MutArgEntry)

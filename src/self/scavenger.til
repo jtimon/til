@@ -87,9 +87,7 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
         }
     }
     // Collect from throw types
-    for throw_i in 0..func_def.throw_types.len() {
-        mut throw_type := ValueType.TCustom("")
-        func_def.throw_types.get(throw_i, throw_type)?
+    for throw_type: ValueType in func_def.throw_types {
         throw_type_name := extract_type_name(throw_type)
         if throw_type_name.len().gt(0) {
             _ := used_types.insert(throw_type_name)

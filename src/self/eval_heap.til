@@ -1566,12 +1566,7 @@ namespace EvalHeap {
         catch (err: KeyNotFoundError) {
             return false
         }
-        for member_idx in 0..struct_def.members.len() {
-            mut member := Declaration()
-            struct_def.members.get(member_idx, member)?
-            catch (err: IndexOutOfBoundsError) {
-                return false
-            }
+        for member: Declaration in struct_def.members {
             if member.is_mut {
                 switch member.value_type {
                 case ValueType.TCustom(field_type):
