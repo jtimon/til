@@ -300,7 +300,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
         return Err(format!("Compiler errors: {} init errors found", errors.len()));
     }
 
-    tmp_errors = basic_mode_checks(&context, &main_ast);
+    tmp_errors = basic_mode_checks(&context, &main_ast)?;
     errors.extend(tmp_errors);
     // Bug #128: type_check does both validation and INFER_TYPE resolution
     // Save resolved_main_ast for precomp later

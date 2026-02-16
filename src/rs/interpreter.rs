@@ -2592,7 +2592,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
             }
             return Err(format!("Compiler errors: {} declaration errors found", errors.len()));
         }
-        errors.extend(basic_mode_checks(&context, &e));
+        errors.extend(basic_mode_checks(&context, &e)?);
 
         // For modes that require a main proc, add an implicit call to main
         if context.mode_def.needs_main_proc {
@@ -2611,7 +2611,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         let func_def = SFuncDef{args: vec![], body: vec![], function_type: FunctionType::FTProc, return_types: vec![], throw_types: vec![], source_path: path.clone()};
         let mut thrown_types: Vec<ThrownType> = vec![];
         let mut return_found = false;
-        errors.extend(check_body_returns_throws(context, &resolved_e, &func_def, resolved_e.params.as_slice(), &mut thrown_types, &mut return_found));
+        errors.extend(check_body_returns_throws(context, &resolved_e, &func_def, resolved_e.params.as_slice(), &mut thrown_types, &mut return_found)?);
 
         if return_found {
             errors.push(resolved_e.error(&path, "type", "Cannot return from the root of the file"));
