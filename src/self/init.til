@@ -159,8 +159,8 @@ namespace ScopeStack {
     lookup_var := func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError {
         // Walk up the stack from innermost to outermost
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
 
             if frame.heap_index.contains_key(name) {
                 mut offset := 0
@@ -180,8 +180,8 @@ namespace ScopeStack {
 
     lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
 
             if frame.symbols.contains_key(name) {
                 mut symbol := SymbolInfo()
@@ -208,8 +208,8 @@ namespace ScopeStack {
 
         // Walk from innermost to outermost scope
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
 
             // Track when we enter/exit function scopes
             switch frame.scope_type {
@@ -348,8 +348,8 @@ namespace ScopeStack {
 
     lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
 
             if frame.funcs.contains_key(name) {
                 mut func_def := SFuncDef()
@@ -406,8 +406,8 @@ namespace ScopeStack {
 
     lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
 
             if frame.enums.contains_key(name) {
                 mut enum_def := SEnumDef()
@@ -440,8 +440,8 @@ namespace ScopeStack {
 
     lookup_struct := func(self: ScopeStack, name: Str) returns SStructDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
 
             if frame.structs.contains_key(name) {
                 mut struct_def := SStructDef()
@@ -462,8 +462,8 @@ namespace ScopeStack {
     // Existence check methods - avoid full struct retrieval when only checking presence
     has_var := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
             if frame.heap_index.contains_key(name) {
                 return true
             }
@@ -476,8 +476,8 @@ namespace ScopeStack {
 
     has_symbol := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
             if frame.symbols.contains_key(name) {
                 return true
             }
@@ -490,8 +490,8 @@ namespace ScopeStack {
 
     has_func := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
             if frame.funcs.contains_key(name) {
                 return true
             }
@@ -504,8 +504,8 @@ namespace ScopeStack {
 
     has_enum := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
             if frame.enums.contains_key(name) {
                 return true
             }
@@ -518,8 +518,8 @@ namespace ScopeStack {
 
     has_struct := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
             if frame.structs.contains_key(name) {
                 return true
             }
@@ -576,8 +576,8 @@ namespace ScopeStack {
     all_structs := func(self: ScopeStack) returns Vec throws Str {
         mut result := Vec.new(SStructDef)
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
 
             for struct_def: SStructDef in frame.structs.values {
                 result.push(struct_def)
@@ -629,8 +629,8 @@ namespace ScopeStack {
     // Bug #97: Check if we're currently inside a function (not at global scope).
     is_inside_function := func(self: ScopeStack) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
             switch frame.scope_type {
             case ScopeType.Function:
                 return true
@@ -654,8 +654,8 @@ namespace ScopeStack {
                 skipped_first = true
                 continue
             }
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)?
+            frame_ref := self.frames.get_by_ref(i)?
+            create_alias(frame, ScopeFrame, frame_ref.data)
 
             if frame.symbols.contains_key(name) {
                 mut symbol := SymbolInfo()
