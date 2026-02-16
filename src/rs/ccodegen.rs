@@ -3762,10 +3762,10 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
             // then params[1..] are the field chain
             if name == "_" && !expr.params.is_empty() {
                 // Emit the base expression (params[0])
-                emit_expr(&expr.params[0], output, indent, ctx, context)?;
+                emit_expr(expr.get(0)?, output, indent, ctx, context)?;
                 // Then emit the field chain
                 for i in 1..expr.params.len() {
-                    if let NodeType::Identifier(field) = &expr.params[i].node_type {
+                    if let NodeType::Identifier(field) = &expr.get(i)?.node_type {
                         output.push_str(".");
                         output.push_str(field);
                     }
@@ -3775,7 +3775,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
 
             // Check for type-qualified access (Type.field or Type.Variant)
             if !expr.params.is_empty() {
-                if let NodeType::Identifier(field) = &expr.params[0].node_type {
+                if let NodeType::Identifier(field) = &expr.get(0)?.node_type {
                     // Check if this is an enum variant by looking up in context
                     if let Some(enum_def) = context.scope_stack.lookup_enum(name) {
                         if enum_def.contains_key(field) {
@@ -3882,8 +3882,8 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         if catch_block.params.len() >= 3 {
             // Temporarily add the catch error variable to scope for type inference
             // catch (err: ErrType) { body } -> err_var=params[0], err_type=params[1], body=params[2]
-            if let NodeType::Identifier(err_var_name) = &catch_block.params[0].node_type {
-                if let NodeType::Identifier(err_type_name) = &catch_block.params[1].node_type {
+            if let NodeType::Identifier(err_var_name) = &catch_block.get(0)?.node_type {
+                if let NodeType::Identifier(err_type_name) = &catch_block.get(1)?.node_type {
                     context.scope_stack.declare_symbol(
                         err_var_name.clone(),
                         SymbolInfo {
@@ -3898,7 +3898,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             }
 
             // Bug #97: Use type-mangled names for shadowing support
-            let catch_body = &catch_block.params[2];
+            let catch_body = catch_block.get(2)?;
             let decls = collect_declarations_in_body(catch_body, context);
             for decl in decls {
                 let type_prefix = value_type_to_c_prefix(&decl.value_type);
@@ -3931,7 +3931,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
     for (scan_idx, scan_stmt) in stmts.iter().enumerate() {
         if let NodeType::Catch = scan_stmt.node_type {
             if scan_stmt.params.len() >= 3 {
-                if let NodeType::Identifier(err_type_name) = &scan_stmt.params[1].node_type {
+                if let NodeType::Identifier(err_type_name) = &scan_stmt.get(1)?.node_type {
                     let catch_suffix = next_mangled(ctx); // Unique suffix for EACH catch
                     all_catch_info.push(CatchLabelInfoEntry {
                         stmt_index: scan_idx,
@@ -3980,7 +3980,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         if let NodeType::Catch = stmt.node_type {
             // Get the error type this catch handles
             if stmt.params.len() >= 3 {
-                if let NodeType::Identifier(err_type_name) = &stmt.params[1].node_type {
+                if let NodeType::Identifier(err_type_name) = &stmt.get(1)?.node_type {
                     // Look up this specific catch's label from all_catch_info by statement index
                     let mut catch_entry_opt: Option<&CatchLabelInfoEntry> = None;
                     for e in &all_catch_info {
@@ -4003,7 +4003,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                             output.push_str(":;\n");
 
                             // Bind error variable
-                            if let NodeType::Identifier(err_var_name) = &stmt.params[0].node_type {
+                            if let NodeType::Identifier(err_var_name) = &stmt.get(0)?.node_type {
                                 let inner_indent = "    ".repeat(indent + 1);
                                 output.push_str(&inner_indent);
                                 output.push_str(&til_name(err_type_name));
@@ -4033,7 +4033,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                             // errors from their own body, only from code before them
                             let saved_catch_labels = std::mem::take(&mut ctx.local_catch_labels);
                             let saved_ref_params = ctx.current_ref_params.clone();
-                            emit_expr(&stmt.params[2], output, indent + 1, ctx, context)?;
+                            emit_expr(stmt.get(2)?, output, indent + 1, ctx, context)?;
                             ctx.current_ref_params = saved_ref_params;
                             ctx.local_catch_labels = saved_catch_labels;
 
@@ -4061,8 +4061,8 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             NodeType::Declaration(decl) => {
                 // Check if declaration has an FCall as initializer
                 if !stmt.params.is_empty() {
-                    if let NodeType::FCall(_) = stmt.params[0].node_type {
-                        (Some(&stmt.params[0]), Some(decl.name.clone()), None)
+                    if let NodeType::FCall(_) = stmt.get(0)?.node_type {
+                        (Some(stmt.get(0)?), Some(decl.name.clone()), None)
                     } else {
                         (None, None, None)
                     }
@@ -4073,8 +4073,8 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             NodeType::Assignment(name) => {
                 // Check if assignment has an FCall as RHS
                 if !stmt.params.is_empty() {
-                    if let NodeType::FCall(_) = stmt.params[0].node_type {
-                        (Some(&stmt.params[0]), None, Some(name.clone()))
+                    if let NodeType::FCall(_) = stmt.get(0)?.node_type {
+                        (Some(stmt.get(0)?), None, Some(name.clone()))
                     } else {
                         (None, None, None)
                     }
@@ -4087,7 +4087,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
         if let Some(fcall) = maybe_fcall {
             // eval functions from std.meta are only available in interpret mode
-            if let Some(func_name) = get_til_func_name_string(&fcall.params[0]) {
+            if let Some(func_name) = get_til_func_name_string(fcall.get(0)?) {
                 if func_name == "eval_file" || func_name == "eval_to_str" || func_name == "eval_to_ast_str" || func_name == "eval_to_expr" {
                     return Err(fcall.error(&context.path, "ccodegen", &format!("{}() is only available in interpret mode, not in build/run", func_name)));
                 }
@@ -4625,7 +4625,7 @@ fn emit_throwing_call(
     for catch_block in catch_blocks {
         if catch_block.params.len() >= 3 {
             // Get error type name from catch block
-            if let NodeType::Identifier(err_type_name) = &catch_block.params[1].node_type {
+            if let NodeType::Identifier(err_type_name) = &catch_block.get(1)?.node_type {
                 // Find index of this error type
                 let mut err_idx: Option<usize> = None;
                 for (i, vt) in throw_types.iter().enumerate() {
@@ -4645,7 +4645,7 @@ fn emit_throwing_call(
                     output.push_str(") {\n");
 
                     // Bind error variable and add to scope for type resolution
-                    if let NodeType::Identifier(err_var_name) = &catch_block.params[0].node_type {
+                    if let NodeType::Identifier(err_var_name) = &catch_block.get(0)?.node_type {
                         let inner_indent = "    ".repeat(indent + 1);
                         output.push_str(&inner_indent);
                         output.push_str(&til_name(err_type_name));
@@ -4677,7 +4677,7 @@ fn emit_throwing_call(
                     }
 
                     // Emit catch body
-                    emit_expr(&catch_block.params[2], output, indent + 1, ctx, context)?;
+                    emit_expr(catch_block.get(2)?, output, indent + 1, ctx, context)?;
 
                     output.push_str(&indent_str);
                     output.push_str("}");
@@ -5862,7 +5862,7 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
 
     // Bug #143: Use emit_arg_string to handle RHS hoisting
     let rhs_str: Option<String> = if !expr.params.is_empty() {
-        let rhs_expr = &expr.params[0];
+        let rhs_expr = expr.get(0)?;
 
         // Check if RHS is a call to a throwing function
         if let NodeType::FCall(_) = rhs_expr.node_type {
@@ -5934,7 +5934,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     if is_throwing {
         // Throwing function: store value through _ret pointer and return 0 (success)
         if !expr.params.is_empty() {
-            let return_expr = &expr.params[0];
+            let return_expr = expr.get(0)?;
 
             // Check if return expression is a call to a throwing function
             if let NodeType::FCall(_) = return_expr.node_type {
@@ -5976,7 +5976,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         // Non-throwing function: normal return
         // Check if return expression is a variadic function call
         if !expr.params.is_empty() {
-            let return_expr = &expr.params[0];
+            let return_expr = expr.get(0)?;
             if let NodeType::FCall(_) = return_expr.node_type {
                 if let Some(variadic_fcall_info) = detect_variadic_fcall(return_expr, ctx) {
                     // Variadic call in return - need to hoist it
@@ -6013,7 +6013,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str(&temp_var);
                     output.push_str(" = ");
                     // Emit the function call
-                    if let NodeType::Identifier(func_name) = &return_expr.params[0].node_type {
+                    if let NodeType::Identifier(func_name) = &return_expr.get(0)?.node_type {
                         output.push_str(&til_func_name(func_name));
                     }
                     output.push_str("(");
@@ -6051,7 +6051,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 
         // Bug #143: Use emit_arg_string to handle hoisting
         let return_str = if !expr.params.is_empty() {
-            Some(emit_arg_string(&expr.params[0], None, false, output, indent, ctx, context)?)
+            Some(emit_arg_string(expr.get(0)?, None, false, output, indent, ctx, context)?)
         } else {
             None
         };
@@ -6075,7 +6075,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 
     let indent_str = "    ".repeat(indent);
-    let thrown_expr = &expr.params[0];
+    let thrown_expr = expr.get(0)?;
 
     // Bug #143: Use emit_arg_string to handle hoisting of thrown expression
     let thrown_str = emit_arg_string(thrown_expr, None, false, output, indent, ctx, context)?;
@@ -6087,7 +6087,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     let nh_thrown_type_name = match &thrown_expr.node_type {
         NodeType::FCall(_) => {
             if !thrown_expr.params.is_empty() {
-                if let NodeType::Identifier(name) = &thrown_expr.params[0].node_type {
+                if let NodeType::Identifier(name) = &thrown_expr.get(0)?.node_type {
                     // Check if this is a constructor (struct/enum) or a function call
                     // If it's a function that returns a type, use the return type
                     if let Some(func_def) = get_fcall_func_def(context, thrown_expr) {
@@ -6224,7 +6224,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     // Hoist declarations from both branches to before the if statement
     // (TIL has function-level scoping, not block-level scoping)
     // Bug #97: Use type-mangled names for shadowing support
-    let then_decls = collect_declarations_in_body(&expr.params[1], context);
+    let then_decls = collect_declarations_in_body(expr.get(1)?, context);
     for decl in then_decls {
         let type_prefix = value_type_to_c_prefix(&decl.value_type);
         let c_var_name = til_var_name(&decl.name, &type_prefix);
@@ -6248,7 +6248,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
         }
     }
     if expr.params.len() > 2 {
-        let hoist_else_decls = collect_declarations_in_body(&expr.params[2], context);
+        let hoist_else_decls = collect_declarations_in_body(expr.get(2)?, context);
         for else_decl in hoist_else_decls {
             let else_type_prefix = value_type_to_c_prefix(&else_decl.value_type);
             let else_c_var_name = til_var_name(&else_decl.name, &else_type_prefix);
@@ -6274,12 +6274,12 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     }
 
     // Bug #143: Use emit_arg_string to handle hoisting in condition
-    let cond_str = emit_arg_string(&expr.params[0], None, false, output, indent, ctx, context)?;
+    let cond_str = emit_arg_string(expr.get(0)?, None, false, output, indent, ctx, context)?;
     output.push_str(&indent_str);
     output.push_str("if (");
     output.push_str(&cond_str);
     // Bool is a struct with .data field - extract for C truthiness
-    if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
+    if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, expr.get(0)?) {
         if type_name == "Bool" {
             output.push_str(".data");
         }
@@ -6290,7 +6290,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     // Variables declared in if branches stay declared for the rest of the function
     // Bug #144: Save/restore current_ref_params to scope pointer semantics from create_alias
     let saved_ref_params = ctx.current_ref_params.clone();
-    emit_body(&expr.params[1], output, indent + 1, ctx, context)?;
+    emit_body(expr.get(1)?, output, indent + 1, ctx, context)?;
     ctx.current_ref_params = saved_ref_params;
 
     output.push_str(&indent_str);
@@ -6299,19 +6299,19 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     // Else branch (optional)
     if expr.params.len() > 2 {
         // Check if it's an else-if (nested If) or else block
-        if let NodeType::If = &expr.params[2].node_type {
+        if let NodeType::If = &expr.get(2)?.node_type {
             // Always wrap else-if in braces to ensure hoisted temp vars
             // from nested if conditions have proper scope
             output.push_str(" else {\n");
             let saved_ref_params = ctx.current_ref_params.clone();
-            emit_if(&expr.params[2], output, indent + 1, ctx, context)?;
+            emit_if(expr.get(2)?, output, indent + 1, ctx, context)?;
             ctx.current_ref_params = saved_ref_params;
             output.push_str(&indent_str);
             output.push_str("}\n");
         } else {
             output.push_str(" else {\n");
             let saved_ref_params = ctx.current_ref_params.clone();
-            emit_body(&expr.params[2], output, indent + 1, ctx, context)?;
+            emit_body(expr.get(2)?, output, indent + 1, ctx, context)?;
             ctx.current_ref_params = saved_ref_params;
             output.push_str(&indent_str);
             output.push_str("}\n");
@@ -6334,7 +6334,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // Hoist declarations from loop body to before the while statement
     // (TIL has function-level scoping, not block-level scoping)
     // Bug #97: Use type-mangled names for shadowing support
-    let body_decls = collect_declarations_in_body(&expr.params[1], context);
+    let body_decls = collect_declarations_in_body(expr.get(1)?, context);
     for decl in body_decls {
         let type_prefix = value_type_to_c_prefix(&decl.value_type);
         let c_var_name = til_var_name(&decl.name, &type_prefix);
@@ -6361,7 +6361,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // Bug #143: Use emit_arg_string to process condition (handles hoisting for by-ref/throwing)
     // Emit hoisting to a separate buffer first to detect if needed
     let mut hoist_buffer = String::new();
-    let cond_str = emit_arg_string(&expr.params[0], None, false, &mut hoist_buffer, indent + 1, ctx, context)?;
+    let cond_str = emit_arg_string(expr.get(0)?, None, false, &mut hoist_buffer, indent + 1, ctx, context)?;
 
     if hoist_buffer.is_empty() {
         // No hoisting needed - use simple while
@@ -6369,7 +6369,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         output.push_str("while (");
         output.push_str(&cond_str);
         // Bool is a struct with .data field - extract for C truthiness
-        if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
+        if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, expr.get(0)?) {
             if type_name == "Bool" {
                 output.push_str(".data");
             }
@@ -6389,7 +6389,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         output.push_str("if (!(");
         output.push_str(&cond_str);
         // Bool is a struct with .data field - extract for C truthiness
-        if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
+        if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, expr.get(0)?) {
             if type_name == "Bool" {
                 output.push_str(".data");
             }
@@ -6401,7 +6401,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // Variables declared in loops stay declared for the rest of the function
     // Bug #144: Save/restore current_ref_params to scope pointer semantics from create_alias
     let saved_ref_params = ctx.current_ref_params.clone();
-    emit_body(&expr.params[1], output, indent + 1, ctx, context)?;
+    emit_body(expr.get(1)?, output, indent + 1, ctx, context)?;
     ctx.current_ref_params = saved_ref_params;
 
     output.push_str(&indent_str);
