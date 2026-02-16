@@ -99,7 +99,7 @@ fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Ve
 }
 
 // Merge multiple ASTs into one, filtering out import statements
-fn merge_asts(main_ast: Expr, dep_asts: Vec<Expr>) -> Expr {
+fn merge_asts(main_ast: Expr, dep_asts: Vec<Expr>) -> Result<Expr, String> {
     let mut all_params = Vec::new();
 
     // Add dependencies first (in order they were collected)
@@ -107,7 +107,7 @@ fn merge_asts(main_ast: Expr, dep_asts: Vec<Expr>) -> Expr {
         if let NodeType::Body = &dep.node_type {
             for child in dep.params {
                 // Skip import statements
-                if !is_import_call(&child) {
+                if !is_import_call(&child)? {
                     all_params.push(child);
                 }
             }
@@ -117,46 +117,46 @@ fn merge_asts(main_ast: Expr, dep_asts: Vec<Expr>) -> Expr {
     // Add main file contents (skip imports)
     if let NodeType::Body = &main_ast.node_type {
         for child in main_ast.params {
-            if !is_import_call(&child) {
+            if !is_import_call(&child)? {
                 all_params.push(child);
             }
         }
     }
 
-    Expr {
+    Ok(Expr {
         node_type: NodeType::Body,
         params: all_params,
         line: main_ast.line,
         col: main_ast.col,
-    }
+    })
 }
 
-fn is_import_call(expr: &Expr) -> bool {
+fn is_import_call(expr: &Expr) -> Result<bool, String> {
     if let NodeType::FCall(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::Identifier(name) = &expr.params[0].node_type {
-                return name == "import";
+            if let NodeType::Identifier(name) = &expr.get(0)?.node_type {
+                return Ok(name == "import");
             }
         }
     }
-    false
+    Ok(false)
 }
 
 // Collect import paths from an AST without precompilation (lightweight for deps checking)
-fn collect_import_paths(ast: &Expr, collected: &mut HashSet<String>) {
+fn collect_import_paths(ast: &Expr, collected: &mut HashSet<String>) -> Result<(), String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if let NodeType::FCall(_) = &child.node_type {
                 if !child.params.is_empty() {
-                    if let NodeType::Identifier(name) = &child.params[0].node_type {
+                    if let NodeType::Identifier(name) = &child.get(0)?.node_type {
                         if name == "import" && child.params.len() > 1 {
-                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.params[1].node_type {
+                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.get(1)?.node_type {
                                 let file_path = import_path_to_file_path(import_path);
                                 if !collected.contains(&file_path) {
                                     collected.insert(file_path.clone());
                                     // Recursively collect imports from this dependency
                                     if let Ok((dep_ast, _)) = parse_file(&file_path) {
-                                        collect_import_paths(&dep_ast, collected);
+                                        collect_import_paths(&dep_ast, collected)?;
                                     }
                                 }
                             }
@@ -166,6 +166,7 @@ fn collect_import_paths(ast: &Expr, collected: &mut HashSet<String>) {
             }
         }
     }
+    Ok(())
 }
 
 // Collect all dependencies for a TIL source file (for rebuild checking)
@@ -188,7 +189,7 @@ pub fn collect_all_deps(path: &str) -> Result<Vec<String>, String> {
     if path != core_path {
         deps.insert(core_path.to_string());
         let (core_ast, _) = parse_file(core_path)?;
-        collect_import_paths(&core_ast, &mut deps);
+        collect_import_paths(&core_ast, &mut deps)?;
     }
 
     // Add mode-specific imports
@@ -197,13 +198,13 @@ pub fn collect_all_deps(path: &str) -> Result<Vec<String>, String> {
         if !deps.contains(&file_path) {
             deps.insert(file_path.clone());
             if let Ok((mode_ast, _)) = parse_file(&file_path) {
-                collect_import_paths(&mode_ast, &mut deps);
+                collect_import_paths(&mode_ast, &mut deps)?;
             }
         }
     }
 
     // Collect main file's imports
-    collect_import_paths(&main_ast, &mut deps);
+    collect_import_paths(&main_ast, &mut deps)?;
 
     Ok(deps.into_iter().collect())
 }
@@ -368,7 +369,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
     let main_ast = crate::rs::precomp::precomp_expr(&mut context, &main_ast)?;
 
     // Merge all precompiled ASTs for codegen
-    let merged_ast = merge_asts(main_ast, dep_asts);
+    let merged_ast = merge_asts(main_ast, dep_asts)?;
 
     // Scavenger phase: Remove unused function declarations
     let merged_ast = crate::rs::scavenger::scavenger_expr(&mut context, &merged_ast)?;

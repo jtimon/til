@@ -3888,7 +3888,7 @@ til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self) {
 
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
-    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 105072743741008, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
+    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 98775505398432, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
     til_Ptr _tmp_1 = (til_Ptr){.data = 0, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0};
     til_Vec_g_entries = (til_Vec){.type_name = _tmp_0, .type_size = 0, .ptr = _tmp_1, ._len = 0, .cap = 0};
     til_Bool_g_enabled = til_Bool_clone(&false);
