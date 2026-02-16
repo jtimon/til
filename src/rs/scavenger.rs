@@ -28,7 +28,7 @@ fn extract_type_name(vt: &ValueType) -> Option<String> {
 
 /// Collect all type names used in an expression (declarations, constructors, etc.)
 /// Uses context to look up whether names refer to structs/enums.
-fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut HashSet<String>) {
+fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut HashSet<String>) -> Result<(), String> {
     match &e.node_type {
         NodeType::Declaration(decl) => {
             if let Some(type_name) = extract_type_name(&decl.value_type) {
@@ -38,7 +38,7 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
         NodeType::FCall(_) => {
             // Constructor calls - check if the function name is a known struct
             if !e.params.is_empty() {
-                let name = get_combined_name_from_identifier(&e.params[0]);
+                let name = get_combined_name_from_identifier(e.get(0)?);
                 if !name.is_empty() && !name.contains('.') {
                     // Check if this is a struct constructor
                     if context.scope_stack.has_struct(&name) {
@@ -60,12 +60,13 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
     }
     // Recurse into all params
     for param in &e.params {
-        collect_used_types_from_expr(context, param, used_types);
+        collect_used_types_from_expr(context, param, used_types)?;
     }
+    Ok(())
 }
 
 /// Collect all type names from a function definition (args, return types, throw types, body)
-fn collect_used_types_from_func(context: &Context, func_def: &crate::rs::parser::SFuncDef, used_types: &mut HashSet<String>) {
+fn collect_used_types_from_func(context: &Context, func_def: &crate::rs::parser::SFuncDef, used_types: &mut HashSet<String>) -> Result<(), String> {
     // Collect from arguments
     for arg in &func_def.args {
         if let Some(type_name) = extract_type_name(&arg.value_type) {
@@ -86,8 +87,9 @@ fn collect_used_types_from_func(context: &Context, func_def: &crate::rs::parser:
     }
     // Collect from body
     for stmt in &func_def.body {
-        collect_used_types_from_expr(context, stmt, used_types);
+        collect_used_types_from_expr(context, stmt, used_types)?;
     }
+    Ok(())
 }
 
 // ---------- Helper functions
@@ -183,41 +185,42 @@ fn rebuild_namespace_without_unreachable_methods(ns_def: &crate::rs::parser::SNa
 }
 
 /// Recursively collect all function names called within an expression.
-fn collect_called_functions(e: &Expr, called: &mut HashSet<String>) {
+fn collect_called_functions(e: &Expr, called: &mut HashSet<String>) -> Result<(), String> {
     match &e.node_type {
         NodeType::FCall(_) => {
             // After precomp, function calls have params[0] as Identifier(function_name)
             if !e.params.is_empty() {
-                let full_name = get_combined_name_from_identifier(&e.params[0]);
+                let full_name = get_combined_name_from_identifier(e.get(0)?);
                 if !full_name.is_empty() {
                     called.insert(full_name);
                 }
             }
             // Recurse into arguments
             for param in &e.params[1..] {
-                collect_called_functions(param, called);
+                collect_called_functions(param, called)?;
             }
         }
         NodeType::FuncDef(func_def) => {
             // Recurse into function body
             for stmt in &func_def.body {
-                collect_called_functions(stmt, called);
+                collect_called_functions(stmt, called)?;
             }
         }
         NodeType::Catch => {
             // Catch has params[0]=name, params[1]=type, params[2]=body
             // Only recurse into body - type is not a function call
             if e.params.len() >= 3 {
-                collect_called_functions(&e.params[2], called);
+                collect_called_functions(e.get(2)?, called)?;
             }
         }
         _ => {
             // Recurse into all params
             for param in &e.params {
-                collect_called_functions(param, called);
+                collect_called_functions(param, called)?;
             }
         }
     }
+    Ok(())
 }
 
 /// Get combined name from an identifier expression (handles a.b.c chains)
@@ -256,34 +259,39 @@ fn mark_reachable(
 
 /// Recursively register all functions and structs from the AST into context.scope_stack.
 /// This mirrors what the interpreter does - it registers declarations as it walks the AST.
-fn register_declarations_recursive(context: &mut Context, e: &Expr) {
+fn register_declarations_recursive(context: &mut Context, e: &Expr) -> Result<(), String> {
     match &e.node_type {
         NodeType::Declaration(decl) => {
             if !e.params.is_empty() {
-                if let NodeType::FuncDef(func_def) = &e.params[0].node_type {
-                    // Function declaration
-                    context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
-                    // Recurse into function body for local declarations
-                    for stmt in &func_def.body {
-                        register_declarations_recursive(context, stmt);
+                let inner = e.get(0)?;
+                match &inner.node_type {
+                    NodeType::FuncDef(func_def) => {
+                        // Function declaration
+                        context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
+                        // Recurse into function body for local declarations
+                        for stmt in &func_def.body {
+                            register_declarations_recursive(context, stmt)?;
+                        }
                     }
-                } else if let NodeType::StructDef(struct_def) = &e.params[0].node_type {
-                    // Struct declaration
-                    // Issue #108: Don't overwrite if struct already exists with merged namespace members
-                    if context.scope_stack.lookup_struct(&decl.name).is_none() {
-                        context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
-                    }
-                    // Struct methods
-                    for (member_name, default_expr) in &struct_def.default_values {
-                        if let NodeType::FuncDef(func_def) = &default_expr.node_type {
-                            let full_name = format!("{}.{}", decl.name, member_name);
-                            context.scope_stack.declare_func(full_name, func_def.clone());
-                            // Recurse into method body for local declarations
-                            for stmt in &func_def.body {
-                                register_declarations_recursive(context, stmt);
+                    NodeType::StructDef(struct_def) => {
+                        // Struct declaration
+                        // Issue #108: Don't overwrite if struct already exists with merged namespace members
+                        if context.scope_stack.lookup_struct(&decl.name).is_none() {
+                            context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+                        }
+                        // Struct methods
+                        for (member_name, default_expr) in &struct_def.default_values {
+                            if let NodeType::FuncDef(func_def) = &default_expr.node_type {
+                                let full_name = format!("{}.{}", decl.name, member_name);
+                                context.scope_stack.declare_func(full_name, func_def.clone());
+                                // Recurse into method body for local declarations
+                                for stmt in &func_def.body {
+                                    register_declarations_recursive(context, stmt)?;
+                                }
                             }
                         }
                     }
+                    _ => {}
                 }
             }
         }
@@ -295,7 +303,7 @@ fn register_declarations_recursive(context: &mut Context, e: &Expr) {
                     context.scope_stack.declare_func(full_name, func_def.clone());
                     // Recurse into method body for local declarations
                     for stmt in &func_def.body {
-                        register_declarations_recursive(context, stmt);
+                        register_declarations_recursive(context, stmt)?;
                     }
                 }
             }
@@ -303,20 +311,21 @@ fn register_declarations_recursive(context: &mut Context, e: &Expr) {
         NodeType::FuncDef(func_def) => {
             // Anonymous function - recurse into body
             for stmt in &func_def.body {
-                register_declarations_recursive(context, stmt);
+                register_declarations_recursive(context, stmt)?;
             }
         }
         _ => {}
     }
     // Recurse into all params
     for param in &e.params {
-        register_declarations_recursive(context, param);
+        register_declarations_recursive(context, param)?;
     }
+    Ok(())
 }
 
 /// Register all functions and structs from the AST into context.scope_stack.
-fn register_declarations(context: &mut Context, e: &Expr) {
-    register_declarations_recursive(context, e);
+fn register_declarations(context: &mut Context, e: &Expr) -> Result<(), String> {
+    register_declarations_recursive(context, e)
 }
 
 /// Compute the transitive closure of reachable functions starting from roots.
@@ -341,7 +350,7 @@ fn compute_reachable(
         // Find what this function calls using scope_stack
         if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
             // Collect types used by this function
-            collect_used_types_from_func(context, &func_def, &mut used_types);
+            collect_used_types_from_func(context, &func_def, &mut used_types)?;
 
             // Check if this function has variadic parameters (TMulti)
             for arg in &func_def.args {
@@ -357,7 +366,7 @@ fn compute_reachable(
             }
             let mut called: HashSet<String> = HashSet::new();
             for stmt in &func_def.body {
-                collect_called_functions(stmt, &mut called);
+                collect_called_functions(stmt, &mut called)?;
             }
             // Add newly discovered functions
             for called_func in called {
@@ -374,7 +383,7 @@ fn compute_reachable(
                     // Skip methods - they're handled separately via their qualified names
                     continue;
                 }
-                collect_called_functions(default_expr, &mut struct_called);
+                collect_called_functions(default_expr, &mut struct_called)?;
             }
             for called_func in struct_called {
                 mark_reachable(called_func, &mut reachable, &mut worklist);
@@ -500,7 +509,7 @@ fn compute_reachable(
     // Process any newly added eq methods and namespace methods
     while let Some(func_name) = worklist.pop() {
         if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
-            collect_used_types_from_func(context, &func_def, &mut used_types);
+            collect_used_types_from_func(context, &func_def, &mut used_types)?;
 
             // Issue #108: Also check for variadic params in second loop
             for arg in &func_def.args {
@@ -515,7 +524,7 @@ fn compute_reachable(
             }
             let mut called: HashSet<String> = HashSet::new();
             for stmt in &func_def.body {
-                collect_called_functions(stmt, &mut called);
+                collect_called_functions(stmt, &mut called)?;
             }
             for called_func in called {
                 mark_reachable(called_func, &mut reachable, &mut worklist);
@@ -564,7 +573,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     if let NodeType::Body = &e.node_type {
         // Step 0: Register all functions and structs from the transformed AST into scope_stack
         // This mirrors what the interpreter does - it builds scope_stack as it walks the AST
-        register_declarations(context, e);
+        register_declarations(context, e)?;
 
         // Step 1: Determine root functions based on mode
         let mut roots: HashSet<String> = HashSet::new();
@@ -576,11 +585,15 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for stmt in &e.params {
                 if let NodeType::Declaration(_decl) = &stmt.node_type {
                     if !stmt.params.is_empty() {
-                        if let NodeType::FuncDef(_) = &stmt.params[0].node_type {
-                            // Skip function declarations
-                        } else {
-                            // Non-function declaration initializer - collect calls from it
-                            collect_called_functions(&stmt.params[0], &mut roots);
+                        let inner = stmt.get(0)?;
+                        match &inner.node_type {
+                            NodeType::FuncDef(_) => {
+                                // Skip function declarations
+                            }
+                            _ => {
+                                // Non-function declaration initializer - collect calls from it
+                                collect_called_functions(inner, &mut roots)?;
+                            }
                         }
                     }
                 }
@@ -593,17 +606,21 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     NodeType::Declaration(_decl) => {
                         // Skip declarations - only their initializers matter if not functions
                         if !stmt.params.is_empty() {
-                            if let NodeType::FuncDef(_) = &stmt.params[0].node_type {
-                                // Skip function declarations - they're not roots themselves
-                            } else {
-                                // Non-function declaration initializer - collect calls from it
-                                collect_called_functions(&stmt.params[0], &mut roots);
+                            let inner = stmt.get(0)?;
+                            match &inner.node_type {
+                                NodeType::FuncDef(_) => {
+                                    // Skip function declarations - they're not roots themselves
+                                }
+                                _ => {
+                                    // Non-function declaration initializer - collect calls from it
+                                    collect_called_functions(inner, &mut roots)?;
+                                }
                             }
                         }
                     }
                     _ => {
                         // Non-declaration statement (function call, assignment, etc.)
-                        collect_called_functions(stmt, &mut roots);
+                        collect_called_functions(stmt, &mut roots)?;
                     }
                 }
             }
@@ -612,11 +629,15 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for stmt in &e.params {
                 if let NodeType::Declaration(_decl) = &stmt.node_type {
                     if !stmt.params.is_empty() {
-                        if let NodeType::FuncDef(_) = &stmt.params[0].node_type {
-                            // Skip function declarations
-                        } else {
-                            // Non-function declaration initializer - collect calls from it
-                            collect_called_functions(&stmt.params[0], &mut roots);
+                        let inner = stmt.get(0)?;
+                        match &inner.node_type {
+                            NodeType::FuncDef(_) => {
+                                // Skip function declarations
+                            }
+                            _ => {
+                                // Non-function declaration initializer - collect calls from it
+                                collect_called_functions(inner, &mut roots)?;
+                            }
                         }
                     }
                 }
@@ -658,7 +679,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         for stmt in &e.params {
             if let NodeType::Declaration(_) = &stmt.node_type {
                 if !stmt.params.is_empty() {
-                    if let NodeType::EnumDef(enum_def) = &stmt.params[0].node_type {
+                    if let NodeType::EnumDef(enum_def) = &stmt.get(0)?.node_type {
                         for variant in &enum_def.variants {
                             if let Some(payload_type) = &variant.payload_type {
                                 if let Some(payload_type_name) = extract_type_name(payload_type) {
@@ -697,20 +718,25 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             match &stmt.node_type {
                 NodeType::Declaration(decl) => {
                     if !stmt.params.is_empty() {
-                        if let NodeType::FuncDef(func_def) = &stmt.params[0].node_type {
-                            // Function declaration - keep if reachable or external
-                            if func_def.is_ext() || reachable.contains(&decl.name) {
+                        let inner = stmt.get(0)?;
+                        match &inner.node_type {
+                            NodeType::FuncDef(func_def) => {
+                                // Function declaration - keep if reachable or external
+                                if func_def.is_ext() || reachable.contains(&decl.name) {
+                                    new_params.push(stmt.clone());
+                                }
+                            }
+                            NodeType::StructDef(struct_def) => {
+                                // Struct - only keep if type is used, rebuild without unreachable methods
+                                if used_types.contains(&decl.name) {
+                                    let new_struct = rebuild_struct_without_unreachable_methods(decl, struct_def, &reachable);
+                                    new_params.push(new_struct);
+                                }
+                            }
+                            _ => {
+                                // Non-function, non-struct declaration (including enums) - always keep
                                 new_params.push(stmt.clone());
                             }
-                        } else if let NodeType::StructDef(struct_def) = &stmt.params[0].node_type {
-                            // Struct - only keep if type is used, rebuild without unreachable methods
-                            if used_types.contains(&decl.name) {
-                                let new_struct = rebuild_struct_without_unreachable_methods(decl, struct_def, &reachable);
-                                new_params.push(new_struct);
-                            }
-                        } else {
-                            // Non-function, non-struct declaration (including enums) - always keep
-                            new_params.push(stmt.clone());
                         }
                     } else {
                         // Declaration without initializer - always keep
