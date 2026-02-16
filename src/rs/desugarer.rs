@@ -266,38 +266,39 @@ fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
 }
 
 /// Extract variant info from a case pattern expression (Identifier with nested params)
-fn get_case_variant_info(expr: &Expr) -> VariantInfo {
+fn get_case_variant_info(expr: &Expr) -> Result<VariantInfo, String> {
     match &expr.node_type {
         NodeType::FCall(_) => {
             // FCall for Type.Variant (without payload extraction)
             if !expr.params.is_empty() {
-                if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
-                    if !expr.params[0].params.is_empty() {
-                        if let NodeType::Identifier(variant_name) = &expr.params[0].params[0].node_type {
-                            return VariantInfo {
+                let first = expr.get(0)?;
+                if let NodeType::Identifier(type_name) = &first.node_type {
+                    if !first.params.is_empty() {
+                        if let NodeType::Identifier(variant_name) = &first.get(0)?.node_type {
+                            return Ok(VariantInfo {
                                 type_name: type_name.clone(),
                                 variant_name: variant_name.clone(),
-                            };
+                            });
                         }
                     }
                 }
             }
-            VariantInfo { type_name: String::new(), variant_name: String::new() }
+            Ok(VariantInfo { type_name: String::new(), variant_name: String::new() })
         },
         NodeType::Identifier(name) => {
             // Identifier with nested params: Type.Variant
             if !expr.params.is_empty() {
-                if let NodeType::Identifier(variant_name) = &expr.params[0].node_type {
-                    return VariantInfo {
+                if let NodeType::Identifier(variant_name) = &expr.get(0)?.node_type {
+                    return Ok(VariantInfo {
                         type_name: name.clone(),
                         variant_name: variant_name.clone(),
-                    };
+                    });
                 }
             }
             // Plain identifier without nested params - NOT an enum variant pattern
-            VariantInfo { type_name: String::new(), variant_name: String::new() }
+            Ok(VariantInfo { type_name: String::new(), variant_name: String::new() })
         },
-        _ => VariantInfo { type_name: String::new(), variant_name: String::new() },
+        _ => Ok(VariantInfo { type_name: String::new(), variant_name: String::new() }),
     }
 }
 
@@ -318,24 +319,24 @@ fn get_payload_type_for_variant(context: &Context, enum_name: &str, variant_name
 /// Used to rename payload binding variables to unique names to avoid conflicts
 /// Stops at shadowing constructs (inner Patterns, Declarations with same name)
 /// IMPORTANT: Does NOT rename inside an Identifier's params - those are field names, not variable refs
-fn rename_identifier_in_expr(e: &Expr, old_name: &str, new_name: &str) -> Expr {
+fn rename_identifier_in_expr(e: &Expr, old_name: &str, new_name: &str) -> Result<Expr, String> {
     match &e.node_type {
         NodeType::Identifier(name) if name == old_name => {
             // Identifier reference - rename it but DON'T recurse into params
             // Params of an Identifier are field names (e.g., x.field) or method calls,
             // NOT variable references. Renaming them would break field access.
-            Expr::new_clone(
+            Ok(Expr::new_clone(
                 NodeType::Identifier(new_name.to_string()),
                 e,
                 e.params.clone(), // Keep params unchanged - they're field names
-            )
+            ))
         },
         NodeType::Identifier(_) => {
             // Different identifier - recurse into params to find nested expressions
             // But be careful: direct children that are Identifiers are likely field names
             // We need to check if params contain expressions that use the old_name
             if e.params.is_empty() {
-                e.clone()
+                Ok(e.clone())
             } else {
                 // For field access like x.field.subfield, params are [Identifier("field"), Identifier("subfield")]
                 // These are field names, not variable references, so we should NOT rename them
@@ -346,60 +347,60 @@ fn rename_identifier_in_expr(e: &Expr, old_name: &str, new_name: &str) -> Expr {
                         // Only recurse into non-Identifier params (like FCall, etc.)
                         // Direct Identifier children of an Identifier are field names
                         if matches!(p.node_type, NodeType::Identifier(_)) {
-                            p.clone()
+                            Ok(p.clone())
                         } else {
                             rename_identifier_in_expr(p, old_name, new_name)
                         }
                     })
-                    .collect();
-                Expr::new_clone(e.node_type.clone(), e, new_params)
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
             }
         },
         NodeType::Assignment(name) if name == old_name => {
             // Assignment to the variable - rename it
             let new_params: Vec<Expr> = e.params.iter()
                 .map(|p| rename_identifier_in_expr(p, old_name, new_name))
-                .collect();
-            Expr::new_clone(
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Expr::new_clone(
                 NodeType::Assignment(new_name.to_string()),
                 e,
                 new_params,
-            )
+            ))
         },
         NodeType::Pattern(pattern_info) if pattern_info.binding_var == old_name => {
             // Inner Pattern with same binding name - this shadows our variable
             // Don't rename anything inside (the body after this Pattern will use the new binding)
-            e.clone()
+            Ok(e.clone())
         },
         NodeType::Declaration(decl) if decl.name == old_name => {
             // Declaration shadows our variable - stop renaming in this scope
             // But we still need to rename in the initializer (params[0]) since it runs
             // BEFORE the declaration takes effect
             if e.params.is_empty() {
-                e.clone()
+                Ok(e.clone())
             } else {
                 // Only rename in the initializer (first param), not in nested bodies
                 let mut new_params = Vec::new();
                 if !e.params.is_empty() {
                     // The initializer is evaluated before the declaration, so rename in it
-                    new_params.push(rename_identifier_in_expr(&e.params[0], old_name, new_name));
+                    new_params.push(rename_identifier_in_expr(e.get(0)?, old_name, new_name)?);
                     // Any remaining params (shouldn't exist for Declaration) - don't rename
                     for p in e.params.iter().skip(1) {
                         new_params.push(p.clone());
                     }
                 }
-                Expr::new_clone(e.node_type.clone(), e, new_params)
+                Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
             }
         },
         _ => {
             // Recurse into params
             if e.params.is_empty() {
-                e.clone()
+                Ok(e.clone())
             } else {
                 let new_params: Vec<Expr> = e.params.iter()
                     .map(|p| rename_identifier_in_expr(p, old_name, new_name))
-                    .collect();
-                Expr::new_clone(e.node_type.clone(), e, new_params)
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
             }
         }
     }
@@ -425,11 +426,11 @@ fn find_enum_for_variant(context: &Context, variant_name: &str) -> String {
 
 /// Detect if a switch is an enum switch by looking at case patterns
 /// Returns (is_enum, enum_type_name) if we can determine it from patterns
-fn detect_enum_switch_from_cases(context: &Context, e: &Expr) -> (bool, String) {
+fn detect_enum_switch_from_cases(context: &Context, e: &Expr) -> Result<(bool, String), String> {
     // Look at case patterns (params[1], params[3], params[5], ...)
     let mut i = 1;
     while i < e.params.len() {
-        let case_pattern = &e.params[i];
+        let case_pattern = e.get(i)?;
         match &case_pattern.node_type {
             NodeType::DefaultCase => {
                 // Skip default case
@@ -438,19 +439,19 @@ fn detect_enum_switch_from_cases(context: &Context, e: &Expr) -> (bool, String) 
                 // Pattern with payload binding is definitely enum
                 let info = parse_pattern_variant_name(&pattern_info.variant_name);
                 if !info.type_name.is_empty() {
-                    return (true, info.type_name);
+                    return Ok((true, info.type_name));
                 }
                 // Shorthand pattern (just variant name) - search all enums for this variant
                 let found_type = find_enum_for_variant(context, &info.variant_name);
-                return (true, found_type);
+                return Ok((true, found_type));
             },
             NodeType::Identifier(name) => {
                 // Identifier with nested params like Type.Variant
                 if !case_pattern.params.is_empty() {
-                    if let NodeType::Identifier(_variant_name) = &case_pattern.params[0].node_type {
+                    if let NodeType::Identifier(_variant_name) = &case_pattern.get(0)?.node_type {
                         // This looks like Type.Variant - check if Type is an enum
                         if context.scope_stack.lookup_enum(name.as_str()).is_some() {
-                            return (true, name.clone());
+                            return Ok((true, name.clone()));
                         }
                     }
                 } else {
@@ -459,7 +460,7 @@ fn detect_enum_switch_from_cases(context: &Context, e: &Expr) -> (bool, String) 
                     if let Some(symbol_info) = context.scope_stack.lookup_symbol(name) {
                         if let ValueType::TCustom(type_name) = &symbol_info.value_type {
                             if context.scope_stack.lookup_enum(type_name.as_str()).is_some() {
-                                return (true, type_name.clone());
+                                return Ok((true, type_name.clone()));
                             }
                         }
                     }
@@ -467,10 +468,10 @@ fn detect_enum_switch_from_cases(context: &Context, e: &Expr) -> (bool, String) 
             },
             NodeType::FCall(_) => {
                 // FCall pattern might be Type.Variant(...) for enum with payload
-                let info = get_case_variant_info(case_pattern);
+                let info = get_case_variant_info(case_pattern)?;
                 if !info.type_name.is_empty() {
                     if context.scope_stack.lookup_enum(&info.type_name).is_some() {
-                        return (true, info.type_name);
+                        return Ok((true, info.type_name));
                     }
                 }
             },
@@ -478,36 +479,36 @@ fn detect_enum_switch_from_cases(context: &Context, e: &Expr) -> (bool, String) 
         }
         i += 2; // Skip body to get next case pattern
     }
-    (false, String::new())
+    Ok((false, String::new()))
 }
 
 /// Infer the type of a switch expression from its case patterns
 /// This is used as a fallback when get_value_type fails
 /// For non-enum switches, returns the type based on literals (I64, Str, Bool)
 /// For enum switches, returns None (caller should use enum_type_name from detect_enum_switch_from_cases)
-fn infer_switch_type_from_cases(e: &Expr) -> Option<ValueType> {
+fn infer_switch_type_from_cases(e: &Expr) -> Result<Option<ValueType>, String> {
     // Look at case patterns (params[1], params[3], params[5], ...)
     let mut i = 1;
     while i < e.params.len() {
-        let case_pattern = &e.params[i];
+        let case_pattern = e.get(i)?;
         match &case_pattern.node_type {
             NodeType::DefaultCase => {
                 // Skip default case
             },
             NodeType::LLiteral(lit) => {
                 match lit {
-                    Literal::Number(_) => return Some(ValueType::TCustom("I64".to_string())),
-                    Literal::Str(_) => return Some(ValueType::TCustom("Str".to_string())),
+                    Literal::Number(_) => return Ok(Some(ValueType::TCustom("I64".to_string()))),
+                    Literal::Str(_) => return Ok(Some(ValueType::TCustom("Str".to_string()))),
                     _ => {},
                 }
             },
             NodeType::Range => {
                 // Check range bounds for type
                 if !case_pattern.params.is_empty() {
-                    if let NodeType::LLiteral(lit) = &case_pattern.params[0].node_type {
+                    if let NodeType::LLiteral(lit) = &case_pattern.get(0)?.node_type {
                         match lit {
-                            Literal::Number(_) => return Some(ValueType::TCustom("I64".to_string())),
-                            Literal::Str(_) => return Some(ValueType::TCustom("Str".to_string())),
+                            Literal::Number(_) => return Ok(Some(ValueType::TCustom("I64".to_string()))),
+                            Literal::Str(_) => return Ok(Some(ValueType::TCustom("Str".to_string()))),
                             _ => {},
                         }
                     }
@@ -517,20 +518,20 @@ fn infer_switch_type_from_cases(e: &Expr) -> Option<ValueType> {
                 // Could be a variable or enum variant
                 // If it's "true" or "false", it's Bool
                 if name == "true" || name == "false" {
-                    return Some(ValueType::TCustom("Bool".to_string()));
+                    return Ok(Some(ValueType::TCustom("Bool".to_string())));
                 }
                 // If it has nested params (Type.Variant), it's an enum
                 // Return the enum type name directly
                 if !case_pattern.params.is_empty() {
                     // name is the enum type name (e.g., "TokenType" in "TokenType.Eof")
-                    return Some(ValueType::TCustom(name.clone()));
+                    return Ok(Some(ValueType::TCustom(name.clone())));
                 }
             },
             NodeType::Pattern(pattern_info) => {
                 // Pattern is always enum - try to get the enum type from the variant name
                 let info = parse_pattern_variant_name(&pattern_info.variant_name);
                 if !info.type_name.is_empty() {
-                    return Some(ValueType::TCustom(info.type_name));
+                    return Ok(Some(ValueType::TCustom(info.type_name)));
                 }
                 // Shorthand pattern - can't infer type here (no context available)
                 // Keep searching other case patterns
@@ -539,7 +540,7 @@ fn infer_switch_type_from_cases(e: &Expr) -> Option<ValueType> {
         }
         i += 2; // Skip body to get next case pattern
     }
-    None
+    Ok(None)
 }
 
 /// Desugar a Switch statement to an if/else chain
@@ -582,7 +583,7 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
     // If get_value_type failed, try to detect enum switch from case patterns
     if !is_enum_switch && switch_type.is_none() {
-        let (detected_enum, detected_type) = detect_enum_switch_from_cases(context, e);
+        let (detected_enum, detected_type) = detect_enum_switch_from_cases(context, e)?;
         if detected_enum {
             is_enum_switch = true;
             enum_type_name = detected_type;
@@ -634,7 +635,7 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 ValueType::TCustom(enum_type_name.clone())
             } else {
                 // Try to infer type from case patterns
-                match infer_switch_type_from_cases(e) {
+                match infer_switch_type_from_cases(e)? {
                     Some(vt) => vt,
                     None => str_to_value_type("I64"), // Default to I64 if all inference fails
                 }
@@ -726,7 +727,7 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
         let (condition, body_prefix, rename_pair, _inner_condition) = cond_result;
         let renamed_case_body = match &rename_pair {
-            Some((old_name, new_name)) => rename_identifier_in_expr(&case_body, old_name, new_name),
+            Some((old_name, new_name)) => rename_identifier_in_expr(&case_body, old_name, new_name)?,
             None => case_body,
         };
 
@@ -846,7 +847,7 @@ fn build_case_condition(
         },
         NodeType::Identifier(_) | NodeType::LLiteral(_) => {
             // Simple value case or enum variant without payload
-            let info = get_case_variant_info(case_pattern);
+            let info = get_case_variant_info(case_pattern)?;
 
             if is_enum_switch && !info.variant_name.is_empty() {
                 let actual_type_name = if info.type_name.is_empty() { enum_type_name.to_string() } else { info.type_name.clone() };
@@ -863,7 +864,7 @@ fn build_case_condition(
         },
         NodeType::FCall(_) => {
             // FCall pattern: Type.Variant() or Type.Variant(InnerEnum.Variant) or computed value
-            let info = get_case_variant_info(case_pattern);
+            let info = get_case_variant_info(case_pattern)?;
 
             if is_enum_switch && !info.variant_name.is_empty() {
                 // Enum variant - check outer tag
@@ -874,7 +875,7 @@ fn build_case_condition(
                 // Check for nested enum patterns - e.g., ValueType.TType(TTypeDef.TEnumDef)
                 if case_pattern.params.len() > 1 {
                     let inner_pattern = case_pattern.get(1)?;
-                    let inner_info = get_case_variant_info(inner_pattern);
+                    let inner_info = get_case_variant_info(inner_pattern)?;
                     if !inner_info.variant_name.is_empty() {
                         // Nested enum pattern - use enum_get_payload_type for combined condition
                         let payload_type = get_payload_type_for_variant(context, &actual_type_name, &info.variant_name);
@@ -1015,7 +1016,7 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Declaration(decl) => {
             // Issue #110: Set current_precomp_func for function declarations so switch
             // desugaring generates variable names with proper function prefixes
-            let is_func_decl = !e.params.is_empty() && matches!(&e.params[0].node_type, NodeType::FuncDef(_));
+            let is_func_decl = !e.params.is_empty() && matches!(&e.get(0)?.node_type, NodeType::FuncDef(_));
             let saved_func = context.current_precomp_func.clone();
             if is_func_decl {
                 context.current_precomp_func = decl.name.clone();
