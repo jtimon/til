@@ -60,40 +60,45 @@ by value. Found extensively in:
 | src/self/desugarer.til     |    ~15 |
 | src/self/scavenger.til     |    ~15 |
 
-*** Category C: self.frames.get(i, frame) -- ScopeStack lookups -- ~35 calls
+*** Category C: self.frames.get(i, frame) -- ScopeStack lookups -- MOSTLY DONE (2026-02-16)
 
-All in src/self/init.til. These copy entire ScopeFrame structs
-(which contain Maps of symbols, funcs, enums, structs, heap_index).
+*CONVERTED to zero-copy*: 24 of 25 .get() calls + all 10 .set() calls converted
+to get_by_ref + create_alias. Commits 40d2a579, 0cd9e119.
 
-14 reverse loops (innermost-first for shadowing):
-- lookup_var (line 163)
-- lookup_symbol (line 184)
-- lookup_type (line 212)
-- lookup_func (line 352)
-- lookup_enum (line 410)
-- lookup_struct (line 444)
-- has_var (line 466)
-- has_symbol (line 480)
-- has_func (line 494)
-- has_enum (line 508)
-- has_struct (line 522)
-- lookup_method (line 580)
-- lookup_or_infer (line 633)
-- lookup_visible_symbols (line 658)
+14 reverse loops: get_by_ref + create_alias (zero-copy pointer into Vec storage).
+10 mutating last-frame operations: get_by_ref + create_alias, removed .set() copy-back.
+1 forward loop (update_func): get_by_ref + create_alias, removed .set() copy-back.
 
-1 forward loop:
-- dump_scope (line 391) -- debug only
+**** last_frame (line 153) -- NOT YET CONVERTED
 
-~20 direct frame access (get last frame, etc.):
-- current_frame (line 155)
-- declare_* functions (lines 254, 275, 288, 315, 340, 374, 432)
-- lookup_struct_for_member_access (lines 597, 758)
+last_frame returns a ScopeFrame by value. The old generated C is very wasteful:
+1. 5x Map_new() for default ScopeFrame constructor (all thrown away by Vec.get)
+2. Vec_get memcpy into out
+3. ScopeFrame_clone() deep clone (garbager-inserted)
+4. *_ret = out shallow copy to caller
 
-These are Bug #114. Cannot convert to for-in because they iterate
-in reverse. Would need either:
-1. get_by_ref for Vec (return pointer, no copy)
-2. Reversed for-in iteration
-3. Restructure to avoid frame iteration entirely
+Converting to get_by_ref + create_alias should eliminate all of that, but is
+blocked by the Bug #168 ret_var_alias optimization. The optimization maps the
+return variable to _ret, but create_alias declares a separate pointer variable.
+Result: _ret is never written (verified in gen/rs/c/til.c).
+
+Why Expr.get (parser.til:459) works with the same pattern: self: Expr matches
+return type Expr, disabling ret_var_alias via the "no parameter with same type
+as return" check. For last_frame, self: ScopeStack != ScopeFrame, so ret_var_alias
+activates. In the old code, the garbager's clone insertion was a reassignment that
+disabled ret_var_alias; create_alias suppresses the clone (dont_delete_vars), so
+nothing blocks the optimization.
+
+Callers (all 7 in interpreter.til) only read heap_index.len() or iterate
+heap_index.keys -- they never modify the frame. A borrowed view would suffice.
+
+Possible fixes:
+1. Add has_create_alias_of check to find_ret_var_for_placement (disables ret_var_alias
+   when return var is a create_alias target). Still does a shallow copy via *_ret.
+2. Change callers to use get_by_ref + create_alias directly on
+   context.scope_stack.frames, bypassing last_frame entirely (true zero-copy).
+3. Change ccodegen to generate pointer-typed caller variables when the returned
+   value comes from create_alias + dont_delete (avoids even the shallow copy).
 
 *** Category D: Map.get(key, val) -- ~100 calls
 
