@@ -1739,9 +1739,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         function_frame.symbols.insert(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
         match &arg.value_type {
             ValueType::TMulti(ref multi_value_type) => {
-                let variadic_args = &e.params[param_index..];
                 let mut values = Vec::new();
-                for expr in variadic_args {
+                for vi in param_index..e.params.len() {
+                    let expr = e.get(vi)?;
                     let result = eval_expr(context, expr)?;
                     if result.is_throw {
                         return Ok(result); // CLEANUP SITE 1: Propagate throw from variadic args
