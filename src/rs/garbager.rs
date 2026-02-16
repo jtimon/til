@@ -42,7 +42,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for stmt in &new_body {
                 if let NodeType::Catch = &stmt.node_type {
                     if !stmt.params.is_empty() {
-                        if let NodeType::Identifier(err_var_name) = &stmt.params[0].node_type {
+                        if let NodeType::Identifier(err_var_name) = &stmt.get(0)?.node_type {
                             dont_delete_vars.insert(err_var_name.clone());
                         }
                     }

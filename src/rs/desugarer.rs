@@ -566,7 +566,7 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         return Err(e.lang_error(&context.path, "desugar", "Switch requires expression"));
     }
 
-    let switch_expr = &e.params[0];
+    let switch_expr = e.get(0)?;
     let line = e.line;
     let col = e.col;
 
@@ -659,8 +659,8 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
     let mut i = 1;
     while i + 1 < e.params.len() {
-        let case_pattern = &e.params[i];
-        let case_body = &e.params[i + 1];
+        let case_pattern = e.get(i)?;
+        let case_body = e.get(i + 1)?;
 
         // If the case pattern has a payload binding, declare it in scope before desugaring body
         // This allows nested switches in the body to see the payload variable's type
@@ -835,8 +835,8 @@ fn build_case_condition(
             if case_pattern.params.len() < 2 {
                 return Err("desugar: Range case requires start and end values".to_string());
             }
-            let low = &case_pattern.params[0];
-            let high = &case_pattern.params[1];
+            let low = case_pattern.get(0)?;
+            let high = case_pattern.get(1)?;
 
             let gteq_call = make_call("gteq", vec![make_id(switch_var_name, line, col), low.clone()], line, col);
             let lteq_call = make_call("lteq", vec![make_id(switch_var_name, line, col), high.clone()], line, col);
@@ -873,7 +873,7 @@ fn build_case_condition(
 
                 // Check for nested enum patterns - e.g., ValueType.TType(TTypeDef.TEnumDef)
                 if case_pattern.params.len() > 1 {
-                    let inner_pattern = &case_pattern.params[1];
+                    let inner_pattern = case_pattern.get(1)?;
                     let inner_info = get_case_variant_info(inner_pattern);
                     if !inner_info.variant_name.is_empty() {
                         // Nested enum pattern - use enum_get_payload_type for combined condition

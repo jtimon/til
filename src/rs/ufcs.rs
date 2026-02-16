@@ -52,7 +52,7 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
         return Ok(e.clone());
     }
 
-    let mut result = vec![e.params[0].clone()]; // Keep function identifier
+    let mut result = vec![e.get(0)?.clone()]; // Keep function identifier
 
     // Bug #61: Handle variadic functions with optional args before the variadic
     // Need to insert defaults for skipped optional args, then include all provided args
@@ -150,7 +150,7 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
                     if arg.params.is_empty() {
                         return Err(arg.error(&context.path, "ufcs", &format!("Named argument '{}' has no value", arg_name)));
                     }
-                    final_args[idx] = Some(arg.params[0].clone());
+                    final_args[idx] = Some(arg.get(0)?.clone());
                 },
                 None => {
                     return Err(arg.error(&context.path, "ufcs", &format!("Unknown parameter name '{}'", arg_name)));
@@ -384,11 +384,11 @@ fn ufcs_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     }
 
     // Get the catch variable name and type
-    let var_name = match &e.params[0].node_type {
+    let var_name = match &e.get(0)?.node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => return ufcs_params(context, e), // Not a simple identifier, use default handling
     };
-    let type_name = match &e.params[1].node_type {
+    let type_name = match &e.get(1)?.node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => return ufcs_params(context, e), // Not a simple type, use default handling
     };
@@ -406,7 +406,7 @@ fn ufcs_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     });
 
     // Transform the catch body (params[2])
-    let new_body = ufcs_expr(context, &e.params[2])?;
+    let new_body = ufcs_expr(context, e.get(2)?)?;
 
     // Pop the scope frame
     let _ = context.scope_stack.pop();
@@ -415,7 +415,7 @@ fn ufcs_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     Ok(Expr::new_clone(
         NodeType::Catch,
         e,
-        vec![e.params[0].clone(), e.params[1].clone(), new_body],
+        vec![e.get(0)?.clone(), e.get(1)?.clone(), new_body],
     ))
 }
 
@@ -439,8 +439,8 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
         // Bug #144: create_alias declares a variable - register it in scope for UFCS resolution
         if combined_name == "create_alias" && e.params.len() >= 4 {
-            if let NodeType::Identifier(var_name) = &e.params[1].node_type {
-                if let NodeType::Identifier(type_name) = &e.params[2].node_type {
+            if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
+                if let NodeType::Identifier(type_name) = &e.get(2)?.node_type {
                     context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
                         value_type: ValueType::TCustom(type_name.clone()),
                         is_mut: true,

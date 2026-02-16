@@ -1634,13 +1634,15 @@ fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
         // represented as an FCall itself (for the dot access)
 
         // Get the full variant name (handling dotted names)
-        let variant_name = get_full_identifier_name(&left.params[0]);
+        let p0 = left.get(0)?;
+        let variant_name = get_full_identifier_name(p0);
 
-        match &left.params[1].node_type {
+        let p1 = left.get(1)?;
+        match &p1.node_type {
             NodeType::Identifier(binding_var) => {
                 // Only treat as a binding variable if it's a simple identifier
                 // (no nested params like TTypeDef.TEnumDef)
-                if left.params[1].params.is_empty() {
+                if p1.params.is_empty() {
                     // Convert FCall to Pattern
                     let pattern_info = PatternInfo {
                         variant_name: variant_name,

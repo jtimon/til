@@ -58,9 +58,9 @@ fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Ve
         for child in &ast.params {
             if let NodeType::FCall(_) = &child.node_type {
                 if !child.params.is_empty() {
-                    if let NodeType::Identifier(name) = &child.params[0].node_type {
+                    if let NodeType::Identifier(name) = &child.get(0)?.node_type {
                         if name == "import" && child.params.len() > 1 {
-                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.params[1].node_type {
+                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.get(1)?.node_type {
                                 let file_path = import_path_to_file_path(import_path);
                                 if !imported.contains(&file_path) {
                                     imported.insert(file_path.clone());

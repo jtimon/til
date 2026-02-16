@@ -1046,8 +1046,9 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                     } else if custom_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                         // Special case for instantiation
                         if matches!(inner_e.node_type, NodeType::FCall(_)) && inner_e.params.len() == 1 {
-                            if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
-                                if inner_e.params[0].params.is_empty() {
+                            let first_param = inner_e.get(0)?;
+                            if let NodeType::Identifier(potentially_struct_name) = &first_param.node_type {
+                                if first_param.params.is_empty() {
                                     if context.scope_stack.has_struct(potentially_struct_name) {
                                         insert_struct_instance(context, &declaration.name, custom_type_name, e)?;
                                         return Ok(EvalResult::new(""))
@@ -1554,12 +1555,12 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                     // params[0]: error variable name (e.g., "err")
                     // params[1]: error type (e.g., "AllocError")
                     // params[2]: body
-                    let var_expr = &stmt.params[0];
+                    let var_expr = stmt.get(0)?;
                     let var_name = match &var_expr.node_type {
                         NodeType::Identifier(name) => name,
                         _ => return Err(stmt.lang_error(&context.path, "eval", "Catch variable must be an identifier")),
                     };
-                    let type_expr = &stmt.params[1];
+                    let type_expr = stmt.get(1)?;
                     let type_name = match &type_expr.node_type {
                         NodeType::Identifier(name) => name,
                         _ => return Err(stmt.lang_error(&context.path, "eval", "Catch type must be an identifier")),
@@ -1641,7 +1642,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 }
                             }
 
-                            let body_expr = &stmt.params[2];
+                            let body_expr = stmt.get(2)?;
                             let result = eval_body(&mut context, &body_expr.params)?;
 
                             // Clean up the error variable binding after the catch block

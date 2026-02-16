@@ -520,11 +520,11 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     }
 
     // Get the catch variable name and type
-    let var_name = match &e.params[0].node_type {
+    let var_name = match &e.get(0)?.node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => return precomp_params(context, e), // Not a simple identifier, use default handling
     };
-    let type_name = match &e.params[1].node_type {
+    let type_name = match &e.get(1)?.node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => return precomp_params(context, e), // Not a simple type, use default handling
     };
@@ -542,7 +542,7 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     });
 
     // Transform the catch body (params[2])
-    let new_body = precomp_expr(context, &e.params[2])?;
+    let new_body = precomp_expr(context, e.get(2)?)?;
 
     // Pop the scope frame
     let _ = context.scope_stack.pop();
@@ -551,7 +551,7 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     Ok(Expr::new_clone(
         NodeType::Catch,
         e,
-        vec![e.params[0].clone(), e.params[1].clone(), new_body],
+        vec![e.get(0)?.clone(), e.get(1)?.clone(), new_body],
     ))
 }
 
@@ -577,8 +577,8 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
     // Bug #144: create_alias declares a variable - register it in scope
     if combined_name == "create_alias" && e.params.len() >= 4 {
-        if let NodeType::Identifier(var_name) = &e.params[1].node_type {
-            if let NodeType::Identifier(type_name) = &e.params[2].node_type {
+        if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
+            if let NodeType::Identifier(type_name) = &e.get(2)?.node_type {
                 context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
                     value_type: ValueType::TCustom(type_name.clone()),
                     is_mut: true,

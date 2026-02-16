@@ -2726,7 +2726,7 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
             // Process case/body pairs (params[1..] are case, body, case, body, ...)
             let mut i = 1;
             while i < e.params.len() {
-                let case_expr = &e.params[i];
+                let case_expr = e.get(i)?;
                 new_params.push(resolve_inferred_types(context, case_expr)?);
                 i += 1;
 
@@ -2734,7 +2734,7 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                     break;
                 }
 
-                let body_expr = &e.params[i];
+                let body_expr = e.get(i)?;
 
                 // For pattern matching, add binding variable to scope
                 if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case_expr.node_type {
@@ -2785,9 +2785,9 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 return Err(e.lang_error(&context.path, "resolve_types", "Catch node must have three parameters: variable, type, and body."));
             }
 
-            let err_var_expr = &e.params[0];
-            let err_type_expr = &e.params[1];
-            let body_expr = &e.params[2];
+            let err_var_expr = e.get(0)?;
+            let err_type_expr = e.get(1)?;
+            let body_expr = e.get(2)?;
 
             let var_name = match &err_var_expr.node_type {
                 NodeType::Identifier(name) => name.clone(),
