@@ -184,16 +184,16 @@ fn has_reassignment_of(stmts: &[Expr], var_name: &str) -> bool {
 // - All Return nodes return the same simple Identifier
 // - That variable is NOT a function parameter
 // - That variable is NOT reassigned (RVO aliasing makes reassignment unsafe)
-fn find_ret_var_for_placement(func_def: &SFuncDef) -> Option<String> {
+fn find_ret_var_for_placement(func_def: &SFuncDef) -> Result<String, String> {
     // Must be a throwing function with struct/enum return type
     if func_def.throw_types.is_empty() {
-        return None;
+        return Ok(String::new());
     }
     if func_def.return_types.is_empty() {
-        return None;
+        return Ok(String::new());
     }
     if !matches!(&func_def.return_types[0], ValueType::TCustom(_)) {
-        return None;
+        return Ok(String::new());
     }
 
     // Collect all return expressions
@@ -201,39 +201,42 @@ fn find_ret_var_for_placement(func_def: &SFuncDef) -> Option<String> {
     collect_return_exprs(&func_def.body, &mut returns);
 
     if returns.is_empty() {
-        return None;
+        return Ok(String::new());
     }
 
     // Check that all returns use the same simple Identifier
     let mut ret_var_name: Option<String> = None;
     for ret_expr in &returns {
         if ret_expr.params.is_empty() {
-            return None; // bare return with no value
+            return Ok(String::new()); // bare return with no value
         }
-        let value = &ret_expr.params[0];
+        let value = ret_expr.get(0)?;
         if let NodeType::Identifier(name) = &value.node_type {
             if !value.params.is_empty() {
-                return None; // field access like result.field
+                return Ok(String::new()); // field access like result.field
             }
             match &ret_var_name {
                 None => ret_var_name = Some(name.clone()),
                 Some(existing) => {
                     if existing != name {
-                        return None; // different return variables
+                        return Ok(String::new()); // different return variables
                     }
                 }
             }
         } else {
-            return None; // not a simple identifier (e.g. FCall)
+            return Ok(String::new()); // not a simple identifier (e.g. FCall)
         }
     }
 
-    let var_name = ret_var_name?;
+    let var_name = match ret_var_name {
+        Some(v) => v,
+        None => return Ok(String::new()),
+    };
 
     // Must not be a function parameter (params have their own storage)
     for arg in &func_def.args {
         if arg.name == var_name {
-            return None;
+            return Ok(String::new());
         }
     }
 
@@ -241,7 +244,7 @@ fn find_ret_var_for_placement(func_def: &SFuncDef) -> Option<String> {
     // *_ret = func(_ret, ...) unsafe - the C compiler may construct the
     // return value directly in *_ret, destroying the input argument)
     if has_reassignment_of(&func_def.body, &var_name) {
-        return None;
+        return Ok(String::new());
     }
 
     // Must not have any parameter with the same type as the return type.
@@ -251,11 +254,11 @@ fn find_ret_var_for_placement(func_def: &SFuncDef) -> Option<String> {
     let ret_type = &func_def.return_types[0];
     for arg in &func_def.args {
         if &arg.value_type == ret_type {
-            return None;
+            return Ok(String::new());
         }
     }
 
-    Some(var_name)
+    Ok(var_name)
 }
 
 // Bug #97: Convert a ValueType to a short string for use in variable name mangling
@@ -419,11 +422,11 @@ fn get_field_type_dependency(value_type: &ValueType) -> Option<String> {
 }
 
 /// Get struct dependencies (other struct types used as fields)
-fn get_struct_dependencies(expr: &Expr) -> Vec<String> {
+fn get_struct_dependencies(expr: &Expr) -> Result<Vec<String>, String> {
     let mut deps = Vec::new();
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
+            if let NodeType::StructDef(struct_def) = &expr.get(0)?.node_type {
                 for member in &struct_def.members {
                     if member.is_mut {
                         if let Some(dep) = get_field_type_dependency(&member.value_type) {
@@ -434,27 +437,27 @@ fn get_struct_dependencies(expr: &Expr) -> Vec<String> {
             }
         }
     }
-    deps
+    Ok(deps)
 }
 
 /// Get struct name from a struct declaration expression
-fn get_struct_name(expr: &Expr) -> Option<String> {
+fn get_struct_name(expr: &Expr) -> Result<String, String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::StructDef(_) = &expr.params[0].node_type {
-                return Some(decl.name.clone());
+            if let NodeType::StructDef(_) = &expr.get(0)?.node_type {
+                return Ok(decl.name.clone());
             }
         }
     }
-    None
+    Ok(String::new())
 }
 
 /// Get enum dependencies (types used in payloads) as a Vec
-fn get_enum_dependencies(expr: &Expr) -> Vec<String> {
+fn get_enum_dependencies(expr: &Expr) -> Result<Vec<String>, String> {
     let mut deps = Vec::new();
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+            if let NodeType::EnumDef(enum_def) = &expr.get(0)?.node_type {
                 for v in &enum_def.variants {
                     if let Some(pt) = &v.payload_type {
                         if let ValueType::TCustom(type_name) = pt {
@@ -469,50 +472,51 @@ fn get_enum_dependencies(expr: &Expr) -> Vec<String> {
             }
         }
     }
-    deps
+    Ok(deps)
 }
 
 /// Get enum name from an enum-with-payloads declaration expression
-fn get_enum_name(expr: &Expr) -> Option<String> {
+fn get_enum_name(expr: &Expr) -> Result<String, String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::EnumDef(_) = &expr.params[0].node_type {
-                return Some(decl.name.clone());
+            if let NodeType::EnumDef(_) = &expr.get(0)?.node_type {
+                return Ok(decl.name.clone());
             }
         }
     }
-    None
+    Ok(String::new())
 }
 
 /// Get dependencies for a type (struct or enum-with-payloads)
-fn get_type_dependencies(expr: &Expr) -> Vec<String> {
-    if is_struct_declaration(expr) {
+fn get_type_dependencies(expr: &Expr) -> Result<Vec<String>, String> {
+    if is_struct_declaration(expr)? {
         get_struct_dependencies(expr)
-    } else if is_enum_declaration(expr) && is_enum_with_payloads(expr) {
+    } else if is_enum_declaration(expr)? && is_enum_with_payloads(expr)? {
         get_enum_dependencies(expr)
     } else {
-        Vec::new()
+        Ok(Vec::new())
     }
 }
 
 /// Get name for a type (struct or enum-with-payloads)
-fn get_type_name(expr: &Expr) -> Option<String> {
-    if is_struct_declaration(expr) {
+fn get_type_name(expr: &Expr) -> Result<String, String> {
+    if is_struct_declaration(expr)? {
         get_struct_name(expr)
-    } else if is_enum_declaration(expr) && is_enum_with_payloads(expr) {
+    } else if is_enum_declaration(expr)? && is_enum_with_payloads(expr)? {
         get_enum_name(expr)
     } else {
-        None
+        Ok(String::new())
     }
 }
 
 /// Topologically sort type declarations (structs and enums-with-payloads) by their dependencies
 /// Returns indices into the original vector in sorted order
-fn topological_sort_types(types: &[&Expr]) -> Vec<usize> {
+fn topological_sort_types(types: &[&Expr]) -> Result<Vec<usize>, String> {
     // Build name -> index map
     let mut name_to_idx: HashMap<String, usize> = HashMap::new();
     for (idx, expr) in types.iter().enumerate() {
-        if let Some(name) = get_type_name(expr) {
+        let name = get_type_name(expr)?;
+        if !name.is_empty() {
             name_to_idx.insert(name, idx);
         }
     }
@@ -520,7 +524,7 @@ fn topological_sort_types(types: &[&Expr]) -> Vec<usize> {
     // Build adjacency list (dependencies)
     let mut deps: Vec<Vec<usize>> = vec![Vec::new(); types.len()];
     for (idx, dep_expr) in types.iter().enumerate() {
-        for dep_name in get_type_dependencies(dep_expr) {
+        for dep_name in get_type_dependencies(dep_expr)? {
             if let Some(&dep_idx) = name_to_idx.get(&dep_name) {
                 if dep_idx != idx {
                     deps[idx].push(dep_idx);
@@ -573,7 +577,7 @@ fn topological_sort_types(types: &[&Expr]) -> Vec<usize> {
         }
     }
 
-    result
+    Ok(result)
 }
 
 /// Hoist variadic arguments into a til_Array
@@ -733,16 +737,19 @@ fn hoist_variadic_args(
 fn detect_variadic_fcall(
     expr: &Expr,
     ctx: &CodegenContext,
-) -> Option<VariadicFCallInfo> {
+) -> Result<Option<VariadicFCallInfo>, String> {
     if expr.params.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     // Get original TIL function name (with dots) for variadic map lookup
-    let orig_func_name = get_til_func_name_string(&expr.params[0])?;
+    let orig_func_name = match get_til_func_name_string(expr.get(0)?) {
+        Some(name) => name,
+        None => return Ok(None),
+    };
 
-    ctx.func_variadic_args.get(&orig_func_name)
-        .map(|info| VariadicFCallInfo { elem_type: info.elem_type.clone(), regular_count: info.regular_count })
+    Ok(ctx.func_variadic_args.get(&orig_func_name)
+        .map(|info| VariadicFCallInfo { elem_type: info.elem_type.clone(), regular_count: info.regular_count }))
 }
 
 /// Process an arg for use in a function call, returning the string to emit.
@@ -813,7 +820,7 @@ fn emit_arg_string(
 
     // Check if this is a variadic FCall (even if not throwing) - needs hoisting
     if let NodeType::FCall(_) = &arg.node_type {
-        if let Some(vi) = detect_variadic_fcall(arg, ctx) {
+        if let Some(vi) = detect_variadic_fcall(arg, ctx)? {
             return emit_variadic_arg_string(arg, &vi, param_type, param_by_ref, hoist_output, indent, ctx, context);
         }
     }
@@ -989,7 +996,7 @@ fn emit_throwing_arg_string(
     let indent_str = "    ".repeat(indent);
 
     // Check for variadic EARLY so we can use by_ref=false for variadic args
-    let variadic_info = detect_variadic_fcall(arg, ctx);
+    let variadic_info = detect_variadic_fcall(arg, ctx)?;
     let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
     // First, recursively process this call's arguments
@@ -1879,7 +1886,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            collect_func_info(child, &mut ctx);
+            collect_func_info(child, &mut ctx)?;
         }
     }
 
@@ -1895,7 +1902,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_struct_declaration(child) {
+            if is_struct_declaration(child)? {
                 if let NodeType::Declaration(decl) = &child.node_type {
                     if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool"
                         || decl.name == "Dynamic" || decl.name == "Type" {
@@ -1910,7 +1917,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
                 }
             }
             // Also forward-declare enums with payloads (they're implemented as structs)
-            if is_enum_declaration(child) && is_enum_with_payloads(child) {
+            if is_enum_declaration(child)? && is_enum_with_payloads(child)? {
                 if let NodeType::Declaration(decl) = &child.node_type {
                     let enum_name = til_name(&decl.name);
                     output.push_str("typedef struct ");
@@ -1927,7 +1934,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Pass 1a: emit simple enums (no payloads) - safe to emit early, structs may use them as fields
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_enum_declaration(child) && !is_enum_with_payloads(child) {
+            if is_enum_declaration(child)? && !is_enum_with_payloads(child)? {
                 emit_enum_declaration(child, &mut output)?;
             }
         }
@@ -1938,14 +1945,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         let type_decls: Vec<&Expr> = ast.params.iter()
             .filter(|child| {
-                is_struct_declaration(child) ||
-                (is_enum_declaration(child) && is_enum_with_payloads(child))
+                is_struct_declaration(child).unwrap_or(false) ||
+                (is_enum_declaration(child).unwrap_or(false) && is_enum_with_payloads(child).unwrap_or(false))
             })
             .collect();
-        let sorted_indices = topological_sort_types(&type_decls);
+        let sorted_indices = topological_sort_types(&type_decls)?;
         for idx in sorted_indices {
             let child = type_decls[idx];
-            if is_struct_declaration(child) {
+            if is_struct_declaration(child)? {
                 emit_struct_declaration(child, &mut output)?;
             } else {
                 emit_enum_declaration(child, &mut output)?;
@@ -1957,7 +1964,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // 2a: top-level functions
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_func_declaration(child) {
+            if is_func_declaration(child)? {
                 emit_func_prototype(child, context, &mut output)?;
             }
         }
@@ -1965,7 +1972,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // 2b1: Issue #108 - enum methods (delete/clone)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_enum_declaration(child) {
+            if is_enum_declaration(child)? {
                 emit_enum_method_prototypes(child, context, &mut output)?;
             }
         }
@@ -1996,7 +2003,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Also emits size_of constants for each struct
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_struct_declaration(child) {
+            if is_struct_declaration(child)? {
                 emit_struct_constants(child, &mut output, &mut ctx, context)?;
             }
         }
@@ -2005,7 +2012,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Pass 4a: emit size_of constants for enums
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_enum_declaration(child) {
+            if is_enum_declaration(child)? {
                 emit_enum_size_of_constant(child, &mut output, &mut ctx)?;
             }
         }
@@ -2015,7 +2022,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // This must come after structs are defined (Str is needed for return type)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_enum_declaration(child) {
+            if is_enum_declaration(child)? {
                 emit_enum_to_str_for_declaration(child, &mut output, context)?;
             }
         }
@@ -2024,7 +2031,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Pass 4b: emit top-level constants (non-mut declarations with literal values)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_constant_declaration(child) {
+            if is_constant_declaration(child)? {
                 emit_constant_declaration(child, &mut output, &mut ctx, context)?;
             }
         }
@@ -2034,7 +2041,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // These need to be file-scope statics so functions can access them
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_global_declaration(child) {
+            if is_global_declaration(child)? {
                 emit_global_declaration(child, &mut output, &mut ctx, context)?;
             }
         }
@@ -2053,7 +2060,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // 5a: top-level functions
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_func_declaration(child) {
+            if is_func_declaration(child)? {
                 emit_func_declaration(child, &mut output, &mut ctx, context)?;
             }
         }
@@ -2061,7 +2068,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // 5b1: Issue #108 - enum methods (delete/clone)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_enum_declaration(child) {
+            if is_enum_declaration(child)? {
                 emit_enum_method_bodies(child, &mut output, &mut ctx, context)?;
             }
         }
@@ -2106,7 +2113,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // This ensures global declarations emit only assignments in main(), not redeclarations
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_global_declaration(child) {
+            if is_global_declaration(child)? {
                 if let NodeType::Declaration(decl) = &child.node_type {
                     // Bug #97: Use type-mangled name
                     let type_prefix = value_type_to_c_prefix(&decl.value_type);
@@ -2128,7 +2135,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
                         return false;
                     }
                 }
-                !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child)
+                !is_func_declaration(child).unwrap_or(true) && !is_struct_declaration(child).unwrap_or(true) && !is_enum_declaration(child).unwrap_or(true) && !is_constant_declaration(child).unwrap_or(true)
             })
             .cloned()
             .collect();
@@ -2170,50 +2177,50 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
 }
 
 // Check if an expression is a struct declaration (Name := struct {...})
-fn is_struct_declaration(expr: &Expr) -> bool {
+fn is_struct_declaration(expr: &Expr) -> Result<bool, String> {
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::StructDef(_) = &expr.params[0].node_type {
-                return true;
+            if let NodeType::StructDef(_) = &expr.get(0)?.node_type {
+                return Ok(true);
             }
         }
     }
-    false
+    Ok(false)
 }
 
 // Check if an expression is an enum declaration (Name := enum {...})
-fn is_enum_declaration(expr: &Expr) -> bool {
+fn is_enum_declaration(expr: &Expr) -> Result<bool, String> {
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::EnumDef(_) = &expr.params[0].node_type {
-                return true;
+            if let NodeType::EnumDef(_) = &expr.get(0)?.node_type {
+                return Ok(true);
             }
         }
     }
-    false
+    Ok(false)
 }
 
 // Check if an expression is a top-level constant declaration (name := literal)
 // Constants are non-mut declarations with literal values (numbers, strings, bools)
-fn is_constant_declaration(expr: &Expr) -> bool {
+fn is_constant_declaration(expr: &Expr) -> Result<bool, String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         // Must not be mutable
         if decl.is_mut {
-            return false;
+            return Ok(false);
         }
         if !expr.params.is_empty() {
-            match &expr.params[0].node_type {
+            match &expr.get(0)?.node_type {
                 // Literal values are constants
-                NodeType::LLiteral(_) => return true,
+                NodeType::LLiteral(_) => return Ok(true),
                 // Bool identifiers (true/false) are constants
-                NodeType::Identifier(name) if name == "true" || name == "false" => return true,
+                NodeType::Identifier(name) if name == "true" || name == "false" => return Ok(true),
                 // Skip struct, enum, and function definitions
-                NodeType::StructDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return false,
-                _ => return false,
+                NodeType::StructDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return Ok(false),
+                _ => return Ok(false),
             }
         }
     }
-    false
+    Ok(false)
 }
 
 // Emit a top-level constant declaration at file scope
@@ -2285,28 +2292,28 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut Codegen
 // Check if an expression is a non-constant top-level declaration that needs to be a global
 // These are declarations that are NOT: functions, structs, enums, or literal constants
 // but are still non-mut and could be referenced from function bodies
-fn is_global_declaration(expr: &Expr) -> bool {
+fn is_global_declaration(expr: &Expr) -> Result<bool, String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         // Skip true/false declarations - they're handled specially
         if decl.name == "true" || decl.name == "false" {
-            return false;
+            return Ok(false);
         }
         if !expr.params.is_empty() {
-            match &expr.params[0].node_type {
+            match &expr.get(0)?.node_type {
                 // Skip these - they have their own handling
-                NodeType::StructDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return false,
+                NodeType::StructDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return Ok(false),
                 // Skip literal constants - they're handled by is_constant_declaration
                 // (only non-mut literals are constants)
-                NodeType::LLiteral(_) if !decl.is_mut => return false,
+                NodeType::LLiteral(_) if !decl.is_mut => return Ok(false),
                 // Skip true/false RHS - they're handled by is_constant_declaration
                 // (only non-mut booleans are constants)
-                NodeType::Identifier(name) if (name == "true" || name == "false") && !decl.is_mut => return false,
+                NodeType::Identifier(name) if (name == "true" || name == "false") && !decl.is_mut => return Ok(false),
                 // Everything else (function calls like EvalHeap.new(), etc.) is a global
-                _ => return true,
+                _ => return Ok(true),
             }
         }
     }
-    false
+    Ok(false)
 }
 
 // Emit a global declaration as a static variable at file scope (type only, no initializer)
@@ -2346,11 +2353,11 @@ fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
 
 // Collect function info (throw types, return types, names) from AST into context
 // Handles both top-level functions and struct methods
-fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
+fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) -> Result<(), String> {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             if !expr.params.is_empty() {
-                match &expr.params[0].node_type {
+                match &expr.get(0)?.node_type {
                     NodeType::FuncDef(func_def) => {
                         // Top-level function - check for variadic args (TMulti)
                         for (idx, func_def_arg) in func_def.args.iter().enumerate() {
@@ -2372,6 +2379,7 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
         },
         _ => {}
     }
+    Ok(())
 }
 
 // Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
@@ -3015,15 +3023,15 @@ fn enum_has_payloads(enum_def: &SEnumDef) -> bool {
 }
 
 // Check if an expression is an enum declaration with payloads
-fn is_enum_with_payloads(expr: &Expr) -> bool {
+fn is_enum_with_payloads(expr: &Expr) -> Result<bool, String> {
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
-                return enum_has_payloads(enum_def);
+            if let NodeType::EnumDef(enum_def) = &expr.get(0)?.node_type {
+                return Ok(enum_has_payloads(enum_def));
             }
         }
     }
-    false
+    Ok(false)
 }
 
 // Emit an enum with payloads as a tagged union
@@ -3384,7 +3392,8 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     }
 
     // Bug #168: Pre-scan for return variable placement optimization
-    ctx.ret_var_alias = find_ret_var_for_placement(func_def);
+    let ret_var = find_ret_var_for_placement(func_def)?;
+    ctx.ret_var_alias = if ret_var.is_empty() { None } else { Some(ret_var) };
     if let Some(ref alias) = ctx.ret_var_alias {
         ctx.current_ref_params.insert(alias.clone());
     }
@@ -3623,15 +3632,15 @@ fn emit_func_prototype(expr: &Expr, context: &Context, output: &mut String) -> R
 }
 
 // Check if an expression is a function declaration (name := proc/func)
-fn is_func_declaration(expr: &Expr) -> bool {
+fn is_func_declaration(expr: &Expr) -> Result<bool, String> {
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::FuncDef(_) = &expr.params[0].node_type {
-                return true;
+            if let NodeType::FuncDef(_) = &expr.get(0)?.node_type {
+                return Ok(true);
             }
         }
     }
-    false
+    Ok(false)
 }
 
 // Emit a function declaration as a C function
@@ -3713,7 +3722,8 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 }
 
                 // Bug #168: Pre-scan for return variable placement optimization
-                ctx.ret_var_alias = find_ret_var_for_placement(func_def);
+                let ret_var = find_ret_var_for_placement(func_def)?;
+                ctx.ret_var_alias = if ret_var.is_empty() { None } else { Some(ret_var) };
                 if let Some(ref alias) = ctx.ret_var_alias {
                     ctx.current_ref_params.insert(alias.clone());
                 }
@@ -3899,7 +3909,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
             // Bug #97: Use type-mangled names for shadowing support
             let catch_body = catch_block.get(2)?;
-            let decls = collect_declarations_in_body(catch_body, context);
+            let decls = collect_declarations_in_body(catch_body, context)?;
             for decl in decls {
                 let type_prefix = value_type_to_c_prefix(&decl.value_type);
                 let c_var_name = til_var_name(&decl.name, &type_prefix);
@@ -4164,7 +4174,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         // Check for non-throwing variadic calls in declarations/assignments
         // These need special handling because variadic array must be constructed first
         if let Some(fcall) = maybe_fcall {
-            if let Some(variadic_fcall_info) = detect_variadic_fcall(fcall, ctx) {
+            if let Some(variadic_fcall_info) = detect_variadic_fcall(fcall, ctx)? {
                 // Check that this is NOT a throwing function (those are handled above)
                 let is_throwing = get_fcall_func_def(context, fcall)
                     .map(|fd| !fd.throw_types.is_empty())
@@ -4401,7 +4411,7 @@ fn emit_throwing_call(
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
     // Check if this is a variadic function call
-    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    let variadic_info = detect_variadic_fcall(fcall, ctx)?;
     let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
     // Bug #143: Use emit_arg_string for each arg
@@ -4772,7 +4782,7 @@ fn emit_throwing_call_propagate(
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
     // Check if this is a variadic function call
-    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    let variadic_info = detect_variadic_fcall(fcall, ctx)?;
     let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
     // Bug #143: Use emit_arg_string for each arg
@@ -5056,7 +5066,7 @@ fn emit_throwing_call_with_goto(
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
     // Check if this is a variadic function call
-    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    let variadic_info = detect_variadic_fcall(fcall, ctx)?;
     let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
     // Bug #143: Use emit_arg_string for each arg
@@ -5411,7 +5421,8 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 }
 
                 // Bug #168: Pre-scan for return variable placement optimization
-                ctx.ret_var_alias = find_ret_var_for_placement(func_def);
+                let ret_var = find_ret_var_for_placement(func_def)?;
+                ctx.ret_var_alias = if ret_var.is_empty() { None } else { Some(ret_var) };
                 if let Some(ref alias) = ctx.ret_var_alias {
                     ctx.current_ref_params.insert(alias.clone());
                 }
@@ -5521,14 +5532,16 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     // Check if this is a struct construction (TypeName())
     let struct_type = if !expr.params.is_empty() {
-        get_struct_construction_type(expr.get(0)?, context)
+        let s = get_struct_construction_type(expr.get(0)?, context)?;
+        if s.is_empty() { None } else { Some(s) }
     } else {
         None
     };
 
     // Check if this is an enum construction (Type.Variant or Type.Variant(value))
     let enum_type = if !expr.params.is_empty() {
-        get_enum_construction_type(expr.get(0)?, context)
+        let s = get_enum_construction_type(expr.get(0)?, context)?;
+        if s.is_empty() { None } else { Some(s) }
     } else {
         None
     };
@@ -5781,42 +5794,44 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
 // Check if an expression is a struct construction call (TypeName() or TypeName(x=1, y=2))
 // Returns the type name if it is, None otherwise
-fn get_struct_construction_type(expr: &Expr, context: &Context) -> Option<String> {
+fn get_struct_construction_type(expr: &Expr, context: &Context) -> Result<String, String> {
     if let NodeType::FCall(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::Identifier(name) = &expr.params[0].node_type {
+            let first = expr.get(0)?;
+            if let NodeType::Identifier(name) = &first.node_type {
                 // Use lookup_struct to check if this is a known struct type
-                if expr.params[0].params.is_empty()
+                if first.params.is_empty()
                     && context.scope_stack.has_struct(name) {
                     let only_named_args = expr.params.len() == 1 ||
                         expr.params.iter().skip(1).all(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
                     if only_named_args {
-                        return Some(name.clone());
+                        return Ok(name.clone());
                     }
                 }
             }
         }
     }
-    None
+    Ok(String::new())
 }
 
 // Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
 // Returns the type name if it is, None otherwise
 // AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
 // AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
-fn get_enum_construction_type(expr: &Expr, context: &Context) -> Option<String> {
+fn get_enum_construction_type(expr: &Expr, context: &Context) -> Result<String, String> {
     // Check FCall case: Type.Variant(value) or Type.Variant()
     if let NodeType::FCall(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
+            let first = expr.get(0)?;
+            if let NodeType::Identifier(type_name) = &first.node_type {
                 // Use lookup_enum to check if this is a known enum type
                 if let Some(enum_def) = context.scope_stack.lookup_enum(type_name) {
                     // Check if there's a nested identifier (the variant)
-                    if !expr.params[0].params.is_empty() {
-                        if let NodeType::Identifier(variant_name) = &expr.params[0].params[0].node_type {
+                    if !first.params.is_empty() {
+                        if let NodeType::Identifier(variant_name) = &first.get(0)?.node_type {
                             // Verify the variant exists in the enum
                             if enum_def.contains_key(variant_name) {
-                                return Some(type_name.clone());
+                                return Ok(type_name.clone());
                             }
                         }
                     }
@@ -5830,17 +5845,17 @@ fn get_enum_construction_type(expr: &Expr, context: &Context) -> Option<String> 
         // Use lookup_enum to check if this is a known enum type
         if let Some(enum_def) = context.scope_stack.lookup_enum(type_name) {
             if !expr.params.is_empty() {
-                if let NodeType::Identifier(variant_name) = &expr.params[0].node_type {
+                if let NodeType::Identifier(variant_name) = &expr.get(0)?.node_type {
                     // Verify the variant exists in the enum
                     if enum_def.contains_key(variant_name) {
-                        return Some(type_name.clone());
+                        return Ok(type_name.clone());
                     }
                 }
             }
         }
     }
 
-    None
+    Ok(String::new())
 }
 
 fn emit_funcdef(_func_def: &SFuncDef, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
@@ -5978,7 +5993,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         if !expr.params.is_empty() {
             let return_expr = expr.get(0)?;
             if let NodeType::FCall(_) = return_expr.node_type {
-                if let Some(variadic_fcall_info) = detect_variadic_fcall(return_expr, ctx) {
+                if let Some(variadic_fcall_info) = detect_variadic_fcall(return_expr, ctx)? {
                     // Variadic call in return - need to hoist it
                     // Bug #143: Use emit_arg_string for regular args, pass empty map to hoist_variadic_args
                     // (hoist_variadic_args already uses emit_arg_string internally)
@@ -6224,7 +6239,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     // Hoist declarations from both branches to before the if statement
     // (TIL has function-level scoping, not block-level scoping)
     // Bug #97: Use type-mangled names for shadowing support
-    let then_decls = collect_declarations_in_body(expr.get(1)?, context);
+    let then_decls = collect_declarations_in_body(expr.get(1)?, context)?;
     for decl in then_decls {
         let type_prefix = value_type_to_c_prefix(&decl.value_type);
         let c_var_name = til_var_name(&decl.name, &type_prefix);
@@ -6248,7 +6263,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
         }
     }
     if expr.params.len() > 2 {
-        let hoist_else_decls = collect_declarations_in_body(expr.get(2)?, context);
+        let hoist_else_decls = collect_declarations_in_body(expr.get(2)?, context)?;
         for else_decl in hoist_else_decls {
             let else_type_prefix = value_type_to_c_prefix(&else_decl.value_type);
             let else_c_var_name = til_var_name(&else_decl.name, &else_type_prefix);
@@ -6334,7 +6349,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // Hoist declarations from loop body to before the while statement
     // (TIL has function-level scoping, not block-level scoping)
     // Bug #97: Use type-mangled names for shadowing support
-    let body_decls = collect_declarations_in_body(expr.get(1)?, context);
+    let body_decls = collect_declarations_in_body(expr.get(1)?, context)?;
     for decl in body_decls {
         let type_prefix = value_type_to_c_prefix(&decl.value_type);
         let c_var_name = til_var_name(&decl.name, &type_prefix);
@@ -6469,23 +6484,23 @@ struct VariadicFCallInfo {
 
 /// Collect all variable declarations in a body (recursively) for hoisting
 /// Returns Vec of CollectedDeclaration structs
-fn collect_declarations_in_body(body: &Expr, context: &mut Context) -> Vec<CollectedDeclaration> {
+fn collect_declarations_in_body(body: &Expr, context: &mut Context) -> Result<Vec<CollectedDeclaration>, String> {
     let mut decls = Vec::new();
     // Track collected declarations for lookups during type inference
     let mut collected: std::collections::HashMap<String, ValueType> = std::collections::HashMap::new();
 
     if let NodeType::Body = &body.node_type {
         for stmt in &body.params {
-            collect_declarations_recursive(stmt, &mut decls, &mut collected, context);
+            collect_declarations_recursive(stmt, &mut decls, &mut collected, context)?;
         }
     } else {
-        collect_declarations_recursive(body, &mut decls, &mut collected, context);
+        collect_declarations_recursive(body, &mut decls, &mut collected, context)?;
     }
 
-    decls
+    Ok(decls)
 }
 
-fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclaration>, collected: &mut std::collections::HashMap<String, ValueType>, context: &mut Context) {
+fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclaration>, collected: &mut std::collections::HashMap<String, ValueType>, context: &mut Context) -> Result<(), String> {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             // INFER_TYPE should have been resolved by typer
@@ -6509,33 +6524,34 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclarat
         }
         NodeType::Body => {
             for stmt in &expr.params {
-                collect_declarations_recursive(stmt, decls, collected, context);
+                collect_declarations_recursive(stmt, decls, collected, context)?;
             }
         }
         NodeType::If => {
             // Recurse into if branches
             if expr.params.len() >= 2 {
-                collect_declarations_recursive(&expr.params[1], decls, collected, context);
+                collect_declarations_recursive(expr.get(1)?, decls, collected, context)?;
             }
             if expr.params.len() >= 3 {
-                collect_declarations_recursive(&expr.params[2], decls, collected, context);
+                collect_declarations_recursive(expr.get(2)?, decls, collected, context)?;
             }
         }
         NodeType::While => {
             // Recurse into while body
             if expr.params.len() >= 2 {
-                collect_declarations_recursive(&expr.params[1], decls, collected, context);
+                collect_declarations_recursive(expr.get(1)?, decls, collected, context)?;
             }
         }
         NodeType::Catch => {
             // Recurse into catch body (params[2] is catch body)
             // params[0] = err_var, params[1] = err_type, params[2] = body
             if expr.params.len() >= 3 {
-                collect_declarations_recursive(&expr.params[2], decls, collected, context);
+                collect_declarations_recursive(expr.get(2)?, decls, collected, context)?;
             }
         }
         _ => {}
     }
+    Ok(())
 }
 
 fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
