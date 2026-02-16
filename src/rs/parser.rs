@@ -1593,26 +1593,26 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
 
 // Helper function to extract full identifier name from an expression
 // Handles both simple identifiers and dotted names (represented as FCall)
-fn get_full_identifier_name(expr: &Expr) -> String {
+fn get_full_identifier_name(expr: &Expr) -> Result<String, String> {
     match &expr.node_type {
         NodeType::Identifier(name) => {
             // Check if this is a dotted name: Identifier with params
             // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
             if expr.params.len() == 1 {
-                match &expr.params[0].node_type {
+                match &expr.get(0)?.node_type {
                     NodeType::Identifier(param_name) => {
-                        return format!("{}.{}", name, param_name);
+                        return Ok(format!("{}.{}", name, param_name));
                     },
                     _ => {}
                 }
             }
-            name.clone()
+            Ok(name.clone())
         }
         NodeType::FCall(_) if expr.params.len() >= 1 => {
             // For FCall, try to extract the function name
-            get_full_identifier_name(&expr.params[0])
+            get_full_identifier_name(expr.get(0)?)
         }
-        _ => String::new(),
+        _ => Ok(String::new()),
     }
 }
 
@@ -1635,7 +1635,7 @@ fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
 
         // Get the full variant name (handling dotted names)
         let p0 = left.get(0)?;
-        let variant_name = get_full_identifier_name(p0);
+        let variant_name = get_full_identifier_name(p0)?;
 
         let p1 = left.get(1)?;
         match &p1.node_type {
