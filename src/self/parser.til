@@ -62,12 +62,9 @@ namespace SEnumDef {
     clone := func(self: SEnumDef) returns SEnumDef {
         mut result := SEnumDef()
         // Deep clone: iterate and clone each element
-        for i in 0..self.variants.len() {
-            mut v := EnumVariant()
-            self.variants.get(i, v)?
+        for v: EnumVariant in self.variants {
             result.variants.push(v.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         // Clone methods map
         result.methods = self.methods.clone()
         return result

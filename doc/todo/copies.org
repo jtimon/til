@@ -242,6 +242,39 @@ These are inside the collection implementations themselves.
 Many of these use .get() inside the loop body and could potentially
 be converted to for-in to avoid the copy.
 
+*** Converted (2026-02-17)
+
+2 Vec.get() loops converted to for-in (genuine copy savings):
+- interpreter.til: eval_body statements iteration (Vec.get -> for-in)
+- parser.til: SEnumDef.clone variants iteration (Vec.get -> for-in)
+
+*** NOT converted -- segfault in compiled TIL binary (2026-02-17)
+
+3 parser.til Vec.get() loops caused SIGSEGV in all 88 til_interpreted tests:
+- SEnumDef.get() variants iteration
+- SEnumDef.contains_key() variants iteration
+- SStructDef.get_member() members iteration
+
+These also triggered cascading throws/catch signature changes
+(removing IndexOutOfBoundsError/Str from throws, removing ? from callers,
+removing dead catch blocks in eval_heap.til, init.til, ccodegen.til,
+desugarer.til). The segfault occurred even with just these 3 conversions
++ the cascading changes -- no Category 2 changes needed to reproduce.
+
+Root cause unknown. The for-in generates correct-looking C code (pointer
+alias via get_by_ref into Vec storage). Needs investigation -- possibly
+related to how the compiled TIL binary uses these functions during
+initialization/parsing of core types.
+
+*** NOT attempted -- blocked by above segfault
+
+12 Expr.get() loops (Category 2, cleanup only, no copy savings since
+Expr.get() already uses get_by_ref + create_alias internally):
+- parser.til: 7 loops (clone, params_clone, parse_struct body,
+  parse_namespace body, arg_list args, get_combined_name, transform_continue_with_step)
+- typer.til: 1 loop (check body params)
+- desugarer.til: 4 loops (3x rename_identifier_in_expr, 1x transformed_body)
+
 *** Already convertible (forward, iterate full collection):
 
 src/self/parser.til (8 loops):

@@ -1618,10 +1618,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
     mut pending_throw := EvalResult()
     mut has_pending_throw := false
 
-    for i in 0..statements.len() {
-        mut stmt := Expr()
-        statements.get(i, stmt)?
-
+    for stmt: Expr in statements {
         if has_pending_throw {
             throw_result := pending_throw
             mut is_catch := false
