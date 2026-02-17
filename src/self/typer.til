@@ -48,8 +48,8 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
     _ := context.imports_typer_done.insert(path.clone())
 
     // Get stored AST from init phase
-    mut ast := Expr()
-    context.imported_asts.get(path, ast)?
+    val_ref := context.imported_asts.get_by_ref(path)?
+    create_alias(ast, Expr, val_ref.data)
     catch (err: KeyNotFoundError) {
         // This shouldn't happen - init phase should have stored the AST
         errors.push(format("typer: Import ", path, " not found in stored ASTs - init phase should have stored it"))

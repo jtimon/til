@@ -166,11 +166,22 @@ Not converted (10 calls) -- call methods (.clone/.error/.is_ext) on aliased vari
   variable declarations in generated C (undeclared _tmp vars in gcc).
 - init.til: 1 call (register namespace members) -- calls ns_func_def.clone()
 
-Other map lookups:
+**** Other map lookups -- MOSTLY DONE (2026-02-17)
+
+Converted 1/4:
+- context.imported_asts.get() -- typer.til: converted (read-only use)
+
+Not converted (3 calls):
+- context.imported_asts.get() -- interpreter.til: reassigns ast = desugar_expr(ast),
+  can't reassign a create_alias pointer variable with a new value
+- context.imported_asts.get() -- builder.til: catch block reassigns dep_resolved
+  from a different source, type conflict (Expr value vs pointer)
+- symbols.get() -- interpreter.til x2 (lines ~2075, ~2218): call .clone() on result
+
+Not worth converting (cheap types):
 - ctx.nested_func_names.get() -- copies Str (ccodegen.til)
 - ctx.func_variadic_args.get() -- copies VariadicFCallInfo (ccodegen.til)
 - ctx.local_catch_labels.get() -- copies CatchLabelInfo (ccodegen.til)
-- context.imported_asts.get() -- copies Expr (init.til, typer.til, builder.til)
 - g_heap.default_instances.get() -- copies I64 (cheap, eval_heap.til)
 - local_types.get() -- copies Str (garbager.til)
 
