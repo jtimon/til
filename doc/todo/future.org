@@ -1010,19 +1010,45 @@ Consider implementing post-self-hosting:
 ** Issue #105: First-Class Structs
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
-:IMPACT: Language feature, anonymous data structures
-:STATUS: Open
+:IMPACT: Language feature, anonymous data structures, templates
+:STATUS: Partial
 :RELATED: Issue #91 (First-Class Functions), Issue #106 (First-Class Enums)
 :END:
 
 *** Description
-Allow anonymous struct type definitions to be passed as arguments:
+Allow macros to return struct definitions via ~returns struct~. Enables
+template-like patterns where macros generate typed structs at compile time.
 
+*** Completed (2026-02-17)
+- [X] Parser: ~struct~ as return type keyword in func/proc returns
+- [X] Init: defer struct registration for macro FCall RHS to precomp
+- [X] Interpreter: StructDef eval registers anonymous struct in global frame
+- [X] Precomp: ~expand_struct_macros()~ expands macro calls between init and
+  typer, resolves INFER_TYPE in members, registers struct, generates
+  delete/clone methods
+- [X] Preinit: ~generate_struct_methods~ extracted as public API
+- [X] Builder: calls ~expand_struct_macros~ before type checking
+- [X] All changes ported to both Rust and TIL
+- [X] Tests in src/test/structs.til (basic macros, mixed types, field override)
+
+*** Working
 #+BEGIN_SRC til
-some_function(struct {x := 0, y := 0})
+make_point := macro() returns struct {
+    return struct { mut x: I64 = 0, mut y: I64 = 0 }
+}
+Point := make_point()
+p := Point(x=10, y=20)  // works
 #+END_SRC
 
-Similar in spirit to Issue #91 (first-class functions) but for structs.
+*** Not yet working
+1. *Macro parameters in struct defaults*: init type-checks the struct literal
+   inside the macro body before macro expansion, so macro params are
+   "undefined symbol". This blocks the template use case:
+   ~make_typed(T: Type) returns struct { ... Vec.new(T) ... }~
+2. *Namespace blocks on macro-defined structs*: init processes namespaces
+   before macro expansion, so the struct isn't registered yet
+3. *Immutable-only fields in compiled mode*: codegen doesn't emit constants
+   for macro-expanded structs (only mutable fields work)
 
 ** Issue #106: First-Class Enums
 :PROPERTIES:

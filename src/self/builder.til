@@ -304,7 +304,7 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
     }
 
     // Parse main file
-    main_result := parse_file(path)?
+    mut main_result := parse_file(path)?
 
     // Create context with "lib" mode first (like interpreter does at interpreter.rs:2713)
     // This ensures core.til is typechecked with lib mode, not the main file's mode
@@ -317,7 +317,7 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
     // This runs init + typer on core.til and all its imports with lib mode
     core_path := "src/core/core.til"
     if not(path.eq(core_path)) {
-        core_result := parse_file(core_path)?
+        mut core_result := parse_file(core_path)?
         errors = init_context(context, core_result.ast)?
         if not(errors.is_empty()) {
             for err: Str in errors {
@@ -325,6 +325,8 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
             }
             throw concat("Compiler errors: ", errors.len().to_str()).concat(" init errors in core.til")
         }
+        // Issue #105: Expand struct-returning macros before type checking
+        core_result.ast = expand_struct_macros(context, core_result.ast)?
         errors = check_types(context, core_result.ast)?
         if not(errors.is_empty()) {
             for err: Str in errors {
@@ -395,6 +397,8 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
     for err: Str in tmp_errors {
         errors.push(err.clone())
     }
+    // Issue #105: Expand struct-returning macros before type checking
+    main_result.ast = expand_struct_macros(context, main_result.ast)?
     tmp_errors = check_types(context, main_result.ast)?
     for err: Str in tmp_errors {
         errors.push(err.clone())

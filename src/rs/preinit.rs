@@ -335,6 +335,31 @@ fn collect_structs_needing_methods(
     structs
 }
 
+/// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
+/// Returns Some(namespace_block_expr) if the struct needs auto-generated methods, None otherwise.
+pub fn generate_struct_methods(struct_name: &str, struct_def: &SStructDef, line: usize, col: usize) -> Option<Expr> {
+    // Check if struct has any mutable fields
+    let has_mut_fields = struct_def.members.iter().any(|m| m.is_mut);
+    if !has_mut_fields {
+        return None;
+    }
+
+    // Check if delete/clone are already defined inline
+    let has_delete = struct_def.members.iter().any(|m| m.name == "delete")
+        || struct_def.default_values.contains_key("delete");
+    let has_clone = struct_def.members.iter().any(|m| m.name == "clone")
+        || struct_def.default_values.contains_key("clone");
+
+    let needs_delete = !has_delete;
+    let needs_clone = !has_clone;
+
+    if needs_delete || needs_clone {
+        Some(generate_namespace_block(struct_name, struct_def, line, col, needs_delete, needs_clone))
+    } else {
+        None
+    }
+}
+
 /// Generate a namespace block with auto-generated methods for a struct.
 fn generate_namespace_block(
     struct_name: &str,

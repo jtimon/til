@@ -8,6 +8,118 @@ import("self.precomp_ext")
 // and handles struct/enum constructors and import().
 // This phase runs after ufcs, before interpreter/builder.
 
+// ---------- Issue #105: Early struct macro expansion
+
+/// Issue #105: Expand struct-returning macros before type checking.
+/// Runs between init and typer to make struct definitions available for type checking.
+/// Only expands macros at the top-level body that return struct definitions.
+expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    switch e.node_type {
+    case NodeType.Body:
+    case:
+        return e.clone()
+    }
+
+    mut new_params := Vec.new(Expr)
+    mut modified := false
+
+    for p: Expr in e.params {
+        mut handled := false
+        switch p.node_type {
+        case NodeType.Declaration(decl):
+            if p.params.len().gt(0) {
+                inner_e := p.get(0)?
+                switch inner_e.node_type {
+                case NodeType.FCall(_):
+                    // Check if the function is a macro returning struct
+                    f_name := get_func_name_in_call(inner_e)?
+                    mut found_func := false
+                    mut func_def := SFuncDef()
+                    func_def = context.scope_stack.lookup_func(f_name)?
+                    found_func = true
+                    catch (_err: KeyNotFoundError) {}
+                    if found_func {
+                        if func_def.is_macro() {
+                            if func_def.return_types.len().gt(0) {
+                                mut ret_type := ValueType.TCustom("")
+                                func_def.return_types.get(0, ret_type)?
+                                catch (_err: IndexOutOfBoundsError) {}
+                                switch ret_type {
+                                case ValueType.TType(TTypeDef.TStructDef):
+                                    // Expand the macro
+                                    expanded := eval_comptime(context, inner_e)?
+                                    switch expanded.node_type {
+                                    case NodeType.StructDef(struct_def):
+                                        // Resolve INFER_TYPE in struct members from default values
+                                        mut resolved_members := Vec.new(Declaration)
+                                        for member_decl: Declaration in struct_def.members {
+                                            mut resolved := false
+                                            switch member_decl.value_type {
+                                            case ValueType.TCustom(type_name):
+                                                if type_name.eq(INFER_TYPE) {
+                                                    mut default_value := Expr()
+                                                    mut has_default := false
+                                                    struct_def.default_values.get(member_decl.name, default_value)?
+                                                    has_default = true
+                                                    catch (_err: KeyNotFoundError) {}
+                                                    if has_default {
+                                                        mut resolved_type := get_value_type(context, default_value)?
+                                                        catch (_err: Str) {}
+                                                        resolved_member := Declaration(name=member_decl.name, value_type=resolved_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own)
+                                                        resolved_members.push(resolved_member)
+                                                        resolved = true
+                                                    }
+                                                }
+                                            case:
+                                            }
+                                            if not(resolved) {
+                                                resolved_members.push(member_decl)
+                                            }
+                                        }
+                                        resolved_struct := SStructDef(members=resolved_members, default_values=struct_def.default_values.clone())
+                                        resolved_expanded := Expr.new_clone(NodeType.StructDef(resolved_struct.clone()), expanded, Vec.new(Expr))
+                                        // Register the struct in context
+                                        context.scope_stack.declare_struct(decl.name, resolved_struct.clone())?
+                                        // Replace the FCall with the StructDef in the AST
+                                        mut expanded_params := Vec.new(Expr)
+                                        expanded_params.push(resolved_expanded)
+                                        new_p := Expr.new_clone(p.node_type, p, expanded_params)
+                                        new_params.push(new_p)
+                                        // Generate delete/clone methods (preinit ran before macro expansion)
+                                        methods_result := generate_struct_methods(decl.name, resolved_struct, p.line, p.col)
+                                        if methods_result.needs_methods {
+                                            // Run init on the namespace block to register the methods
+                                            mut ns_body_params := Vec.new(Expr)
+                                            ns_body_params.push(methods_result.ns_block.clone())
+                                            ns_body := Expr.new_clone(NodeType.Body, p, ns_body_params)
+                                            _ := init_context(context, ns_body)?
+                                            new_params.push(methods_result.ns_block)
+                                        }
+                                        modified = true
+                                        handled = true
+                                    case:
+                                    }
+                                case:
+                                }
+                            }
+                        }
+                    }
+                case:
+                }
+            }
+        case:
+        }
+        if not(handled) {
+            new_params.push(p)
+        }
+    }
+
+    if modified {
+        return Expr.new_clone(e.node_type, e, new_params)
+    }
+    return e.clone()
+}
+
 // ---------- Main entry point
 
 /// Precomputation phase: Perform compile-time constant folding and handle
@@ -341,6 +453,14 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
             return e.clone()
         }
         return struct_literal
+    case ValueType.TType(TTypeDef.TStructDef):
+        // Issue #105: First-class structs - macro returning a struct definition
+        struct_name := result.value
+        sd := context.scope_stack.lookup_struct(struct_name)?
+        catch (err: KeyNotFoundError) {
+            throw e.error(context.path, "precomp", format("Macro returned struct type but definition '", struct_name, "' not found"))
+        }
+        return Expr.new_clone(NodeType.StructDef(sd.clone()), e, Vec.new(Expr))
     case:
         // For other types, eval was done (errors caught), return original (no folding)
         return e.clone()
@@ -525,6 +645,11 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case:
     }
 
+    // Issue #105: If inner_e is an FCall (e.g. macro call returning struct), we need to
+    // process it through precomp_expr first, then check if the result is a StructDef.
+    // The struct registration for literal StructDef RHS already happened above.
+    // For macro-expanded StructDefs, we do it after new_params processing below.
+
     // Bug #40 fix: For function declarations, set the function name and reset counter
     // BEFORE processing the body so for-in loops get deterministic names
     mut is_func_decl := false
@@ -560,6 +685,28 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     // so new_params should never be empty.
     if not(e.params.len().eq(1)) {
         throw e.lang_error(context.path, "precomp", "Declarations can have only one child expression")
+    }
+
+    // Issue #105: After macro expansion, check if the result is a StructDef
+    // and register it (the pre-expansion check above only handles literal StructDef RHS)
+    switch value_type {
+    case ValueType.TType(TTypeDef.TStructDef):
+        if new_params.len().gt(0) {
+            mut expanded_param := Expr()
+            new_params.get(0, expanded_param)?
+            switch expanded_param.node_type {
+            case NodeType.StructDef(expanded_struct_def):
+                if not(context.scope_stack.has_struct(decl.name)) {
+                    context.scope_stack.declare_struct(decl.name, expanded_struct_def.clone())?
+                    new_e := Expr.new_clone(e.node_type, e, new_params.clone())
+                    expanded_saved_path := context.path
+                    _ := eval_declaration(decl, context, new_e)?
+                    context.path = expanded_saved_path
+                }
+            case:
+            }
+        }
+    case:
     }
 
     // Determine if this is a compile-time constant

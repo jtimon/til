@@ -627,6 +627,16 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
                 lexer.advance(1)?;
                 t = lexer.peek();
             },
+            // Issue #105: Allow 'struct' as a return type for first-class structs
+            TokenType::Struct => {
+                if expect_comma {
+                    return Err(t.error(&lexer.path, &format!("Expected ',', found '{:?}'.", t.token_type)));
+                }
+                return_types.push(str_to_value_type("struct"));
+                expect_comma = true;
+                lexer.advance(1)?;
+                t = lexer.peek();
+            },
             _ => {
                 return Err(t.error(&lexer.path, &format!("Unexpected '{:?}' in func/proc returns.", t.token_type)));
             },

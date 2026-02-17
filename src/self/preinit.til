@@ -375,6 +375,65 @@ collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) retur
     return structs
 }
 
+/// Issue #105: Result struct for generate_struct_methods
+StructMethodsResult := struct {
+    mut needs_methods: Bool = false
+    mut ns_block: Expr = Expr()
+}
+
+/// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
+/// Returns StructMethodsResult with needs_methods=true and ns_block set if methods needed.
+generate_struct_methods := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns StructMethodsResult {
+    // Check if struct has any mutable fields
+    mut has_mut_fields := false
+    for member: Declaration in struct_def.members {
+        if member.is_mut {
+            has_mut_fields = true
+        }
+    }
+    if not(has_mut_fields) {
+        return StructMethodsResult()
+    }
+
+    // Check if delete/clone are already defined inline
+    mut has_delete := false
+    mut has_clone := false
+    for member: Declaration in struct_def.members {
+        if member.name.eq("delete") {
+            has_delete = true
+        }
+        if member.name.eq("clone") {
+            has_clone = true
+        }
+    }
+    mut has_delete_dv := false
+    mut _dv := Expr()
+    struct_def.default_values.get("delete", _dv)?
+    has_delete_dv = true
+    catch (_err: KeyNotFoundError) {}
+    if has_delete_dv {
+        has_delete = true
+    }
+    mut has_clone_dv := false
+    struct_def.default_values.get("clone", _dv)?
+    has_clone_dv = true
+    catch (_err: KeyNotFoundError) {}
+    if has_clone_dv {
+        has_clone = true
+    }
+
+    needs_delete := not(has_delete)
+    needs_clone := not(has_clone)
+
+    if needs_delete.or(needs_clone) {
+        mut result := StructMethodsResult()
+        result.needs_methods = true
+        result.ns_block = generate_namespace_block(struct_name, struct_def, line, col, needs_delete, needs_clone)
+        return result
+    }
+    return StructMethodsResult()
+}
+
 /// Generate a namespace block with auto-generated methods for a struct.
 generate_namespace_block := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64, needs_delete: Bool, needs_clone: Bool) returns Expr {
     mut members := Vec.new(Declaration)

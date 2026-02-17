@@ -430,6 +430,13 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     // Issue #108: NamespaceDef already processed by init - members merged into type
     case NodeType.NamespaceDef(_ns_def):
         return EvalResult.new("")
+    case NodeType.StructDef(struct_def):
+        // Issue #105: First-class structs - register as anonymous struct and return the name
+        // Register in global frame so it survives function scope pops (e.g. macro returns)
+        temp_name := format("__anon_struct_", I64.to_str(context.anon_struct_counter))
+        context.anon_struct_counter.inc()
+        context.scope_stack.declare_struct_global(temp_name, struct_def.clone())?
+        return EvalResult.new(temp_name)
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }
@@ -2937,6 +2944,9 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
 
             e.params.push(main_call_expr)
         }
+
+        // Issue #105: Expand struct-returning macros before type checking
+        e = expand_struct_macros(context, e)?
 
         // Bug #128: Unified type checking - runs check_types and resolves INFER_TYPE in one call
         type_result := type_check(context, e)?

@@ -532,6 +532,8 @@ fn value_type_func_proc(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -
         1 => {
             match func_def.return_types.get(0) {
                 Some(ValueType::TCustom(type_str)) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
+                // Issue #105: Allow struct as a return type for first-class structs
+                Some(ValueType::TType(TTypeDef::TStructDef)) => Ok(ValueType::TType(TTypeDef::TStructDef)),
                 Some(other) => Err(e.error(path, "init", &format!("func '{}' returns unsupported type {}", name, value_type_to_str(other)))),
                 None => Err(e.lang_error(path, "init", &format!("func '{}' has inconsistent return type info", name))),
             }
@@ -1327,13 +1329,13 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                 },
 
                 ValueType::TType(TTypeDef::TStructDef) => {
-                    if inner_e.params.len() != 0 {
-                        errors.push(e.exit_error("init", &format!("while declaring {}, struct declarations must have exactly 0 params.",
-                                                                  decl.name)));
-                        return Ok(errors)
-                    }
                     match &inner_e.node_type {
                         NodeType::StructDef(struct_def) => {
+                            if inner_e.params.len() != 0 {
+                                errors.push(e.exit_error("init", &format!("while declaring {}, struct declarations must have exactly 0 params.",
+                                                                          decl.name)));
+                                return Ok(errors)
+                            }
                             // Check for directly recursive struct (infinite size)
                             for member_decl in &struct_def.members {
                                 if let ValueType::TCustom(ref member_type_name) = member_decl.value_type {
@@ -1361,6 +1363,11 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                     }
                                 }
                             }
+                        },
+                        NodeType::FCall(_) => {
+                            // Issue #105: First-class struct - macro/function returning a struct definition
+                            // Struct registration deferred to precomp after macro expansion
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                         },
                         _ => {
                             errors.push(e.lang_error(&context.path, "init", "struct declarations should have definitions."));
@@ -1494,6 +1501,8 @@ pub struct Context {
     pub precomp_forin_counter: usize,
     // Bug #133 fix: Track precomputed heap values for static array serialization
     pub precomputed_heap_values: Vec<PrecomputedHeapValue>,
+    // Issue #105: Counter for anonymous struct definitions (first-class structs)
+    pub anon_struct_counter: usize,
 }
 
 impl Context {
@@ -1525,6 +1534,8 @@ impl Context {
             precomp_forin_counter: 0,
             // Bug #133 fix: Initialize precomputed heap values list
             precomputed_heap_values: Vec::new(),
+            // Issue #105: Initialize anonymous struct counter
+            anon_struct_counter: 0,
         });
     }
 

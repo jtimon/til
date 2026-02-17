@@ -355,3 +355,111 @@ test_chained_field_access := proc() {
     test(loc(), result2, "chained field then method should work")
 }
 test_chained_field_access()
+
+// === Issue #105: First-class structs (macro-returned struct definitions) ===
+
+// Macro that returns a simple struct definition
+make_point := macro() returns struct {
+    return struct {
+        mut x: I64 = 0
+        mut y: I64 = 0
+    }
+}
+
+Point := make_point()
+
+// Macro returning a struct with mixed field types
+make_config := macro() returns struct {
+    return struct {
+        mut width: I64 = 800
+        mut height: I64 = 600
+        mut title: Str = "untitled"
+    }
+}
+
+Config := make_config()
+
+// TODO #105: Immutable-only fields from macro fail in compiled mode
+// Codegen doesn't emit constants for macro-expanded structs
+// make_constants := macro() returns struct {
+//     return struct {
+//         pi_approx: I64 = 3
+//         e_approx: I64 = 2
+//     }
+// }
+// MathConsts := make_constants()
+
+// TODO #105: Macro parameters in struct defaults fail
+// Init type-checks struct literal inside macro body before macro expansion,
+// so macro params are "undefined symbol"
+// make_pair_with_default := macro(default_val: I64) returns struct {
+//     return struct {
+//         mut first: I64 = default_val
+//         mut second: I64 = default_val
+//     }
+// }
+// DefaultPair := make_pair_with_default(42)
+
+// TODO #105: Namespace blocks on macro-defined structs fail
+// Init processes namespaces before macro expansion, so struct isn't registered yet
+// make_vec2 := macro() returns struct {
+//     return struct {
+//         mut x: I64 = 0
+//         mut y: I64 = 0
+//     }
+// }
+// MyVec2 := make_vec2()
+// namespace MyVec2 {
+//     sum := func(self: MyVec2) returns I64 {
+//         return self.x.add(self.y)
+//     }
+// }
+
+test_first_class_structs := proc() {
+    // Basic: macro-defined struct works like a normal struct
+    p := Point()
+    assert_eq(loc(), 0, p.x)
+    assert_eq(loc(), 0, p.y)
+
+    // Struct literal with named fields
+    p2 := Point(x=10, y=20)
+    assert_eq(loc(), 10, p2.x)
+    assert_eq(loc(), 20, p2.y)
+
+    // Partial struct literal
+    p3 := Point(y=42)
+    assert_eq(loc(), 0, p3.x)
+    assert_eq(loc(), 42, p3.y)
+
+    // Macro with mixed field types
+    c := Config()
+    assert_eq(loc(), 800, c.width)
+    assert_eq(loc(), 600, c.height)
+    assert_eq_str(loc(), "untitled", c.title)
+
+    // Override defaults
+    c2 := Config(width=1920, height=1080, title="my app")
+    assert_eq(loc(), 1920, c2.width)
+    assert_eq(loc(), 1080, c2.height)
+    assert_eq_str(loc(), "my app", c2.title)
+
+    // TODO #105: re-enable when immutable-only fields work in compiled mode
+    // assert_eq(loc(), 3, MathConsts.pi_approx)
+    // assert_eq(loc(), 2, MathConsts.e_approx)
+
+    // Mutable fields: assignment works
+    mut p4 := Point(x=1, y=2)
+    p4.x = 100
+    assert_eq(loc(), 100, p4.x)
+    assert_eq(loc(), 2, p4.y)
+
+    // TODO #105: re-enable when macro params in struct defaults work
+    // p5 := DefaultPair()
+    // assert_eq(loc(), 42, p5.first)
+    // assert_eq(loc(), 42, p5.second)
+
+    // TODO #105: re-enable when namespace blocks on macro-defined structs work
+    // v := MyVec2(x=3, y=4)
+    // assert_eq(loc(), 7, v.sum())
+}
+test_first_class_structs()

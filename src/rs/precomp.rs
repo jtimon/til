@@ -12,6 +12,86 @@ use crate::rs::parser::{
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
 use crate::rs::eval_heap::EvalHeap;
 use crate::rs::precomp_ext::try_replace_comptime_intrinsic;
+use crate::rs::preinit::generate_struct_methods;
+
+// ---------- Issue #105: Early struct macro expansion
+
+/// Issue #105: Expand struct-returning macros before type checking.
+/// Runs between init and typer to make struct definitions available for type checking.
+/// Only expands macros at the top-level body that return struct definitions.
+pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, String> {
+    if !matches!(&e.node_type, NodeType::Body) {
+        return Ok(e.clone());
+    }
+
+    let mut new_params = Vec::new();
+    let mut modified = false;
+
+    for p in &e.params {
+        if let NodeType::Declaration(decl) = &p.node_type {
+            if !p.params.is_empty() {
+                let inner_e = &p.params[0];
+                if matches!(&inner_e.node_type, NodeType::FCall(_)) {
+                    // Check if the function is a macro returning struct
+                    let f_name = get_func_name_in_call(inner_e);
+                    if let Some(func_def) = context.scope_stack.lookup_func(&f_name) {
+                        if func_def.is_macro() && !func_def.return_types.is_empty() {
+                            if func_def.return_types[0] == ValueType::TType(TTypeDef::TStructDef) {
+                                // Expand the macro
+                                let expanded = eval_comptime(context, inner_e)?;
+                                if let NodeType::StructDef(struct_def) = &expanded.node_type {
+                                    // Resolve INFER_TYPE in struct members from default values
+                                    let mut resolved_members = Vec::new();
+                                    for member_decl in &struct_def.members {
+                                        if member_decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
+                                            if let Some(default_value) = struct_def.default_values.get(&member_decl.name) {
+                                                if let Ok(resolved_type) = get_value_type(context, default_value) {
+                                                    let mut resolved_member = member_decl.clone();
+                                                    resolved_member.value_type = resolved_type;
+                                                    resolved_members.push(resolved_member);
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        resolved_members.push(member_decl.clone());
+                                    }
+                                    let resolved_struct = SStructDef {
+                                        members: resolved_members,
+                                        default_values: struct_def.default_values.clone(),
+                                    };
+                                    let resolved_expanded = Expr::new_clone(NodeType::StructDef(resolved_struct.clone()), &expanded, vec![]);
+                                    // Register the struct in context
+                                    context.scope_stack.declare_struct(decl.name.clone(), resolved_struct.clone());
+                                    // Replace the FCall with the StructDef in the AST
+                                    let new_p = Expr::new_clone(p.node_type.clone(), p, vec![resolved_expanded]);
+                                    new_params.push(new_p);
+                                    // Generate delete/clone methods (preinit ran before macro expansion)
+                                    if let Some(ns_block) = generate_struct_methods(&decl.name, &resolved_struct, p.line, p.col) {
+                                        // Run init on the namespace block to register the methods
+                                        let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, p, vec![ns_block.clone()]))?;
+                                        if !ns_errors.is_empty() {
+                                            return Err(ns_errors.join("\n"));
+                                        }
+                                        new_params.push(ns_block);
+                                    }
+                                    modified = true;
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        new_params.push(p.clone());
+    }
+
+    if modified {
+        Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+    } else {
+        Ok(e.clone())
+    }
+}
 
 // ---------- Main entry point
 
@@ -234,6 +314,18 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             // but we can't convert the result back to AST literal, so return original
             Ok(e.clone())
         },
+        // Issue #105: First-class structs - macro returning a struct definition
+        ValueType::TType(TTypeDef::TStructDef) => {
+            let struct_name = &result.value;
+            match context.scope_stack.lookup_struct(struct_name) {
+                Some(struct_def) => {
+                    let sd = struct_def.clone();
+                    Ok(Expr::new_clone(NodeType::StructDef(sd), e, vec![]))
+                },
+                None => Err(e.error(&context.path, "precomp",
+                    &format!("Macro returned struct type but definition '{}' not found", struct_name)))
+            }
+        },
         // For other types, eval was done (errors caught), return original (no folding)
         _ => Ok(e.clone()),
     }
@@ -399,6 +491,11 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         }
     }
 
+    // Issue #105: If inner_e is an FCall (e.g. macro call returning struct), we need to
+    // process it through precomp_expr first, then check if the result is a StructDef.
+    // The struct registration for literal StructDef RHS already happened above.
+    // For macro-expanded StructDefs, we do it after new_params processing below.
+
     // Bug #40 fix: For function declarations, set the function name and reset counter
     // BEFORE processing the body so for-in loops get deterministic names
     let is_func_decl = !e.params.is_empty() && matches!(&e.get(0)?.node_type, NodeType::FuncDef(_));
@@ -430,6 +527,22 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     // so new_params should never be empty.
     if e.params.len() != 1 {
         return Err(e.lang_error(&context.path, "precomp", "Declarations can have only one child expression"));
+    }
+
+    // Issue #105: After macro expansion, check if the result is a StructDef
+    // and register it (the pre-expansion check above only handles literal StructDef RHS)
+    if let ValueType::TType(TTypeDef::TStructDef) = &value_type {
+        if !new_params.is_empty() {
+            if let NodeType::StructDef(struct_def) = &new_params[0].node_type {
+                if context.scope_stack.lookup_struct(&decl.name).is_none() {
+                    context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+                    let new_e = Expr::new_clone(e.node_type.clone(), e, new_params.clone());
+                    let saved_path = context.path.clone();
+                    eval_declaration(decl, context, &new_e)?;
+                    context.path = saved_path;
+                }
+            }
+        }
     }
 
     // Determine if this is a compile-time constant

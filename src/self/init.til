@@ -594,6 +594,19 @@ namespace ScopeStack {
         }
     }
 
+    // Issue #105: Register struct in global frame (survives function scope pops)
+    declare_struct_global := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws Str {
+        if self.frames.len().gt(0) {
+            mut global_frame := ScopeFrame()
+            self.frames.get(0, global_frame)?
+            global_frame.structs.set(name, struct_def)
+            self.frames.set(0, global_frame)?
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+    }
+
     get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec {
         // Collect all keys from all scopes that start with the given prefix
         mut keys := Vec.new(Str)
@@ -818,6 +831,9 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
         }
         switch return_type {
         case ValueType.TCustom(custom_type_str):
+            return return_type
+        // Issue #105: Allow struct as a return type for first-class structs
+        case ValueType.TType(TTypeDef.TStructDef):
             return return_type
         case:
             throw e.error(path, "init", format("func '", name, "' returns unsupported type ", value_type_to_str(return_type)))
@@ -1837,12 +1853,12 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
 
         case ValueType.TType(TTypeDef.TStructDef):
-            if not(inner_e.params.len().eq(0)) {
-                errors.push(e.lang_error(context.path, "init", format("while declaring ", decl.name, ", struct declarations must have exactly 0 params.")))
-                return errors
-            }
             switch inner_e.node_type {
             case NodeType.StructDef(struct_def):
+                if not(inner_e.params.len().eq(0)) {
+                    errors.push(e.lang_error(context.path, "init", format("while declaring ", decl.name, ", struct declarations must have exactly 0 params.")))
+                    return errors
+                }
                 # Register the struct itself
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                 context.scope_stack.declare_struct(decl.name, struct_def.clone())?
@@ -1870,6 +1886,10 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                         }
                     }
                 }
+            case NodeType.FCall(_):
+                # Issue #105: First-class struct - macro/function returning a struct definition
+                # Struct registration deferred to precomp after macro expansion
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
             case:
                 errors.push(e.lang_error(context.path, "init", "struct declarations should have definitions."))
                 return errors
@@ -2035,6 +2055,8 @@ Context := struct {
     mut precomp_forin_counter: I64 = 0
     # Bug #133 fix: Track precomputed heap values for static array serialization
     mut precomputed_heap_values: Vec = Vec.new(PrecomputedHeapValue)
+    # Issue #105: Counter for anonymous struct definitions (first-class structs)
+    mut anon_struct_counter: I64 = 0
 }
 
 namespace Context {

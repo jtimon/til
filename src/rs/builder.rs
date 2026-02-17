@@ -249,6 +249,8 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
             }
             return Err(format!("Compiler errors: {} init errors in core.til", errors.len()));
         }
+        // Issue #105: Expand struct-returning macros before type checking
+        let core_ast = crate::rs::precomp::expand_struct_macros(&mut context, &core_ast)?;
         // Bug #128: type_check does both validation and INFER_TYPE resolution
         // We discard the resolved AST here since core.til is re-parsed later for codegen
         let (_, type_errors) = type_check(&mut context, &core_ast)?;
@@ -302,6 +304,8 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
 
     tmp_errors = basic_mode_checks(&context, &main_ast)?;
     errors.extend(tmp_errors);
+    // Issue #105: Expand struct-returning macros before type checking
+    let main_ast = crate::rs::precomp::expand_struct_macros(&mut context, &main_ast)?;
     // Bug #128: type_check does both validation and INFER_TYPE resolution
     // Save resolved_main_ast for precomp later
     let (resolved_main_ast, type_errors) = type_check(&mut context, &main_ast)?;

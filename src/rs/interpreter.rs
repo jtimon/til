@@ -489,7 +489,16 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         // Definition types are handled during registration, not evaluation
         NodeType::FuncDef(_) => Ok(EvalResult::new("")),
         NodeType::EnumDef(_) => Ok(EvalResult::new("")),
-        NodeType::StructDef(_) => Ok(EvalResult::new("")),
+        NodeType::StructDef(struct_def) => {
+            // Issue #105: First-class structs - register as anonymous struct and return the name
+            // Register in global frame so it survives function scope pops (e.g. macro returns)
+            let temp_name = format!("__anon_struct_{}", context.anon_struct_counter);
+            context.anon_struct_counter += 1;
+            if let Some(global_frame) = context.scope_stack.frames.first_mut() {
+                global_frame.structs.insert(temp_name.clone(), struct_def.clone());
+            }
+            Ok(EvalResult::new(&temp_name))
+        },
         // Issue #108: NamespaceDef already processed by init - members merged into type
         NodeType::NamespaceDef(_ns_def) => Ok(EvalResult::new("")),
         // NamedArg is handled inside FCall processing
@@ -2603,6 +2612,9 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
             }
             e.params.push(Expr{node_type: NodeType::FCall(false), line: 0, col: 0, params: main_params});
         }
+        // Issue #105: Expand struct-returning macros before type checking
+        e = crate::rs::precomp::expand_struct_macros(context, &e)?;
+
         // Bug #128: Unified type checking - runs check_types and resolves INFER_TYPE in one call
         let (resolved_e, type_errors) = type_check(context, &e)?;
         errors.extend(type_errors);
