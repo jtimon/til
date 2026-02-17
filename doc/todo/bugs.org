@@ -355,8 +355,8 @@ deletion strategy risks double-free on aliased heap pointers.
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, prevents ASAP deletion, root cause of memory leaks
-:STATUS: Open -- interpreter copy_fields removed; ccodegen shallow copies remain (see #168); container copies handled by dont_delete (leak, don't crash)
-:RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak)
+:STATUS: Open -- interpreter copy_fields removed; ccodegen shallow copies remain; deep Vec.clone/delete blocked on Issue #91 (function pointers); .get() elimination in progress
+:RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak), Bug #170 (scope-exit deletion blocked by this), Issue #91 (function pointers needed for deep clone/delete)
 :END:
 
 *** Description
@@ -453,6 +453,93 @@ All 92 tests pass in all 4 modes.
 | =mut=     | By reference - share offset                    |
 | =own=     | Ownership transfer - share offset, remove src  |
 | =copy=    | Deep copy - garbager inserts clone, bind result |
+
+*** Step 3b attempts -- local deletion (2026-02-17, FAILED)
+
+Multiple attempts to enable ASAP deletion for local variables at function end.
+All reverted. This is the key step needed to actually FREE the cloned data.
+
+**** Attempt 1: ASAP deletion for locals (89/92 fail, free(): invalid pointer)
+Shallow-copy aliasing via Vec.get(), field access etc. creates aliases to
+local's heap data. Deleting local ASAP frees data still referenced through aliases.
+
+**** Attempt 2: Inner-scope collection to function-end (69/92 fail, SIGSEGV)
+Variables declared inside if/while/for may never be initialized. Unconditional
+delete at function end crashes when scope was skipped.
+
+**** Attempt 3: Garbager clone gaps + step 3b (88/92 SIGSEGV)
+- Fix A: Clone ALL Identifier-init declarations (removed is_mut check)
+- Fix B: Clone field-access assignments (removed params.is_empty check)
+- Fix C: Remove has_any_catch restriction, zero-init hoisted locals
+
+Fixes A+B alone pass 92/92 but are net-negative on memory (more clones, no deletes).
+Step 3b crashes because cloned locals get embedded in returned data via by-ref
+function calls. Root cause: functions like =Expr.new_explicit= take params by-ref
+(not =own=), so =collect_own_transfers= doesn't detect that the caller's variable
+was consumed. The variable becomes a deletion candidate, gets deleted at function
+end, and corrupts the returned Expr that shares the same data buffer.
+
+*** Root cause analysis (2026-02-17)
+
+The fundamental problem is that TIL/C has no ownership tracking. Every struct
+assignment is a shallow memcpy. The garbager inserts clones for some patterns,
+but many sources of shallow copies remain:
+
+1. *ccodegen return values*: =*_ret = var= is a shallow copy. The returned local
+   and =*_ret= share heap pointers. (Bug #168)
+2. *Vec.clone*: byte-wise copy of buffer. Element heap pointers are shared.
+3. *Vec.delete*: frees only the buffer, not element heap data.
+4. *Consuming functions*: =Expr.new_explicit=, =build_clone_call_expr= etc. take
+   struct params by-ref instead of =own=. The garbager can't detect ownership transfer.
+5. *Collection .get()*: copy_to_dynamic memcpy creates aliases. Partially mitigated
+   by clone-after-get (Step 9), but the .get() method itself is the wrong API --
+   should use get_by_ref + create_alias (zero-copy pointer into collection storage).
+
+*** Remediation plan
+
+**** Phase 1: Eliminate .get() from all collections (no dependencies)
+Replace all .get() callers with get_by_ref + create_alias + dont_delete.
+Then delete the .get() method from Vec, Map, Array, Set.
+Add get_by_ref to List (currently missing).
+One commit per collection type. Independent of all other fixes.
+
+**** Phase 2: Function pointer builtins (Issue #91, minimal scope)
+Deep Vec.clone/delete requires calling Type.clone()/Type.delete() on type-erased
+Dynamic elements. TIL has no function pointer support (Issue #91). Minimal fix:
+4 new builtins that work with raw I64 function pointer values:
+- =delete_fn_of(T: Type) returns I64= -- returns address of =til_T_delete=
+- =clone_fn_of(T: Type) returns I64= -- returns address of =til_T_clone=
+- =call_delete_fn(fn_ptr: I64, elem: Ptr)= -- casts I64 to fn ptr and calls it
+- =call_clone_fn(fn_ptr: I64, src: Ptr, dst: Ptr)= -- same for clone
+
+Vec gets two new fields: =delete_fn: I64= and =clone_fn: I64=, set at Vec.new(T)
+time when T is still concrete. Vec.delete iterates elements calling delete_fn.
+Vec.clone iterates elements calling clone_fn. Map/Set/Array cascade through Vec.
+
+**** Phase 3: =own= params on consuming functions
+Functions that embed their parameter data (Expr.new_explicit, build_clone_call_expr,
+etc.) must take =own= + =dont_delete= internally. This lets =collect_own_transfers=
+exclude caller variables from deletion candidates. Vec.push/set/insert_at already
+use this pattern correctly.
+
+**** Phase 4: Ccodegen return move semantics
+After =*_ret = var;=, emit =memset(&var, 0, sizeof(Type));= to zero the source.
+Turns shallow copy into move. Only for simple local variables (not ref params,
+not ret_var_alias, not field access).
+
+**** Phase 5: Garbager clone gaps
+- Clone ALL Identifier-init declarations (not just mut)
+- Clone field-access assignments (remove params.is_empty check)
+
+**** Phase 6: Enable step 3b (local deletion)
+With Phases 2-5 complete, local deletion is safe:
+- =own= params -> collect_own_transfers excludes consumed variables
+- Deep Vec.clone/delete -> no shared element data
+- Return move -> returned locals zeroed, deletion is no-op
+- Clone gaps -> all declarations/assignments produce owned data
+
+Changes: remove has_any_catch restriction, zero-init hoisted locals,
+add delete-before-return (exclude returned var).
 
 ** Issue #152: Migrate doc/todo files to numbered issue system
 :PROPERTIES:
