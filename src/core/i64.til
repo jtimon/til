@@ -204,5 +204,6 @@ namespace I64 {
 }
 
 // Constants defined after struct so I64.sub is available
-MIN_I64   := I64.sub(0, 922337203)
-MAX_I64   := 9223372036854775807
+I64_MINUS1 := I64.sub(0, 1)
+MIN_I64    := I64.sub(0, 922337203)
+MAX_I64    := 9223372036854775807

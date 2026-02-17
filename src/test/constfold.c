@@ -281,6 +281,7 @@ const til_I64 til_size_of_CfVec2 = sizeof(til_CfVec2);
 const til_I64 til_size_of_CfRect = sizeof(til_CfRect);
 const til_I64 til_I64_NULL = 0;
 const til_I64 til_I64_I64_SIZE = 8;
+const til_I64 til_I64_I64_MINUS1 = -1;
 const til_I64 til_I64_MIN_I64 = -922337203;
 const til_I64 til_I64_MAX_I64 = 9223372036854775807;
 const til_I64 til_I64_U8_SIZE = 1;
@@ -3888,7 +3889,7 @@ til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self) {
 
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
-    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 103971565920368, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
+    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 110395507318144, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
     til_Ptr _tmp_1 = (til_Ptr){.data = 0, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0};
     til_Vec_g_entries = (til_Vec){.type_name = _tmp_0, .type_size = 0, .ptr = _tmp_1, ._len = 0, .cap = 0};
     til_Bool_g_enabled = til_Bool_clone(&false);

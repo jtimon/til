@@ -7,10 +7,6 @@ import("std.io")
 import("std.sys")
 import("core.vec")
 
-// Global flag: set to true when compiler (bin/rstil) changed
-// Used to pass --force-rebuild to tests
-mut g_compiler_changed := false
-
 // Global flag: --cc=COMPILER override (Issue #131)
 // Empty string means use default
 mut g_cc := ""
@@ -53,8 +49,7 @@ run_repl := proc() {
  */
 needs_rebuild := proc(target: Str, deps: Vec) returns Bool {
     target_mtime := file_mtime(target)
-    neg_one := sub(0, 1)
-    if target_mtime.eq(neg_one) {
+    if target_mtime.eq(I64_MINUS1) {
         return true  // target doesn't exist
     }
     for dep: Str in deps {
@@ -99,8 +94,6 @@ build_rstil_til := proc() {
     cc_flag := get_cc_flag()
     if needs_rebuild("bin/rs/til", deps) {
         // Compiler changed - force rebuild (automatic tracking wouldn't catch this)
-        // Also set global flag so tests know to force rebuild
-        g_compiler_changed = true
         status = run_stream_cmd(concat("./bin/rstil build src/til.til --force-rebuild", cc_flag))
     } else {
         // Compiler unchanged - let automatic .til dep tracking decide
@@ -150,16 +143,10 @@ build_tests := proc() {
 run_tests := proc() {
     build_tests()
     mut status := 0
-    // Pass --force-rebuild to tests if compiler changed
-    // This ensures tests rebuild when rstil changed, even if test .til files didn't
-    // Bug #141: rstil outputs to bin/rs/ and gen/rs/c/
     // Issue #131: Pass --cc flag to tests
+    // test_runner.til calls rstil/til build per test, which has needs_rebuild logic
     cc_flag := get_cc_flag()
-    if g_compiler_changed {
-        status = run_stream_cmd(concat("./bin/rs/tests --force-rebuild", cc_flag))
-    } else {
-        status = run_stream_cmd(concat("./bin/rs/tests", cc_flag))
-    }
+    status = run_stream_cmd(concat("./bin/rs/tests", cc_flag))
     tests_status := status
     status = run_stream_cmd("cp gen/rs/c/test/constfold.c src/test/constfold.c")
     println("Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c")
@@ -171,15 +158,9 @@ run_tests := proc() {
 run_regen := proc() {
     build_tests()
     mut status := 0
-    // Pass --force-rebuild to regen if compiler changed
-    // Bug #141: rstil outputs to bin/rs/
     // Issue #131: Pass --cc flag to tests
     cc_flag := get_cc_flag()
-    if g_compiler_changed {
-        status = run_stream_cmd(concat("./bin/rs/tests --force-rebuild", cc_flag).concat(" regen"))
-    } else {
-        status = run_stream_cmd(concat("./bin/rs/tests", cc_flag).concat(" regen"))
-    }
+    status = run_stream_cmd(concat("./bin/rs/tests", cc_flag).concat(" regen"))
     println("Regenerated all test outputs")
     if status.eq(0).not() {
         exit(1)
@@ -199,11 +180,7 @@ run_mem_report := proc() {
     // Don't pass --mem-report on command line - it would enable HeapState in
     // tests/test_runner themselves (C runtime strips it). Flag file is sufficient.
     writefile("tmp/.mem_report_flag", "1")?
-    mut flags := ""
-    if g_compiler_changed {
-        flags = " --force-rebuild"
-    }
-    status := run_stream_cmd(format("./bin/rs/tests", flags, cc_flag))
+    status := run_stream_cmd(format("./bin/rs/tests", cc_flag))
     // Clean up flag file
     mut rm_out := ""
     _ := rm_out.run_cmd("rm", "-f", "tmp/.mem_report_flag")
