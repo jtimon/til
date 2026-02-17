@@ -2916,6 +2916,31 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
             Ok(Expr::new_explicit(NodeType::NamespaceDef(new_ns_def), e.params.clone(), e.line, e.col))
         }
 
+        // Bug #144: create_alias declares a variable - register it in scope for resolve pass
+        // Check directly via params[0] identifier to avoid String allocation from get_func_name_in_call
+        NodeType::FCall(_) if e.params.len() >= 4 && matches!(e.params.first(), Some(p) if matches!(&p.node_type, NodeType::Identifier(n) if n == "create_alias")) => {
+            if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
+                if let NodeType::Identifier(type_name) = &e.get(2)?.node_type {
+                    context.scope_stack.declare_symbol(
+                        var_name.clone(),
+                        SymbolInfo {
+                            value_type: ValueType::TCustom(type_name.clone()),
+                            is_mut: true,
+                            is_copy: false,
+                            is_own: false,
+                            is_comptime_const: false,
+                        },
+                    );
+                }
+            }
+            // Recurse into params
+            let mut new_params = Vec::with_capacity(e.params.len());
+            for p in &e.params {
+                new_params.push(resolve_inferred_types(context, p)?);
+            }
+            Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+        }
+
         // Default: recurse into all params
         _ => {
             if e.params.is_empty() {

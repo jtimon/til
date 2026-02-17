@@ -3631,6 +3631,44 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         catch_params.push(resolved_catch_body)
         return Expr.new_explicit(e.node_type, catch_params, e.line, e.col)
 
+    case NodeType.FCall(does_throw):
+        // Bug #144: create_alias declares a variable - register it in scope for resolve pass
+        // Check directly via params[0] identifier to avoid Str allocation from get_func_name_in_call
+        if e.params.len().gteq(4) {
+            func_expr_ref := e.params.get_by_ref(0)?
+            create_alias(func_expr, Expr, func_expr_ref.data)
+            mut is_create_alias := false
+            switch func_expr.node_type {
+            case NodeType.Identifier(f_name):
+                is_create_alias = f_name.eq("create_alias")
+            case:
+            }
+            if is_create_alias {
+                alias_var_expr := e.get(1)?
+                dont_delete(alias_var_expr)
+                alias_type_expr := e.get(2)?
+                dont_delete(alias_type_expr)
+                switch alias_var_expr.node_type {
+                case NodeType.Identifier(var_name):
+                    switch alias_type_expr.node_type {
+                    case NodeType.Identifier(type_name):
+                        context.scope_stack.declare_symbol(var_name, SymbolInfo(
+                            value_type=ValueType.TCustom(type_name),
+                            is_mut=true,
+                            is_copy=false,
+                            is_own=false,
+                            is_comptime_const=false
+                        ))?
+                    case:
+                    }
+                case:
+                }
+            }
+        }
+        // Recurse into params
+        fcall_params := resolve_params(context, e)?
+        return Expr.new_clone(e.node_type, e, fcall_params)
+
     case:
         // Default: recurse into all params
         if e.params.is_empty() {

@@ -558,9 +558,7 @@ main := proc(args: ..Str) {
     file_ref := args.get_by_ref(4)?
     create_alias(file, Str, file_ref.data)
 
-    // Workaround: create_alias vars can't be used in declaration initializers (init phase limitation)
-    mut expected_status := 0
-    expected_status = expected_status_str.to_i64()
+    expected_status := expected_status_str.to_i64()
 
     // Collect extra args into single string, filtering out --cc= (Issue #131)
     mut cmd_args := ""
