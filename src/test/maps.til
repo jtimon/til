@@ -476,13 +476,15 @@ test_hashmap_str_to_i64 := proc() {
     ages.insert("Bob", 25)?
     ages.insert("Charlie", 35)?
 
-    mut age := 0
-    ages.get("Alice", age)?
-    test(loc(), age.eq(30), "HashMap: Alice should be 30")
-    ages.get("Bob", age)?
-    test(loc(), age.eq(25), "HashMap: Bob should be 25")
-    ages.get("Charlie", age)?
-    test(loc(), age.eq(35), "HashMap: Charlie should be 35")
+    alice_ref := ages.get_by_ref("Alice")?
+    create_alias(alice_age, I64, alice_ref.data)
+    test(loc(), alice_age.eq(30), "HashMap: Alice should be 30")
+    bob_ref := ages.get_by_ref("Bob")?
+    create_alias(bob_age, I64, bob_ref.data)
+    test(loc(), bob_age.eq(25), "HashMap: Bob should be 25")
+    charlie_ref := ages.get_by_ref("Charlie")?
+    create_alias(charlie_age, I64, charlie_ref.data)
+    test(loc(), charlie_age.eq(35), "HashMap: Charlie should be 35")
 
     test(loc(), ages.len().eq(3), "HashMap should have 3 entries")
 
@@ -506,11 +508,12 @@ test_hashmap_i64_to_i64 := proc() {
     ages.insert(100, 30)?
     ages.insert(200, 25)?
 
-    mut age := 0
-    ages.get(100, age)?
-    test(loc(), age.eq(30), "HashMap: ID 100 should map to 30")
-    ages.get(200, age)?
-    test(loc(), age.eq(25), "HashMap: ID 200 should map to 25")
+    age0_ref := ages.get_by_ref(100)?
+    create_alias(age0, I64, age0_ref.data)
+    test(loc(), age0.eq(30), "HashMap: ID 100 should map to 30")
+    age1_ref := ages.get_by_ref(200)?
+    create_alias(age1, I64, age1_ref.data)
+    test(loc(), age1.eq(25), "HashMap: ID 200 should map to 25")
 
     ages.delete()
 
@@ -534,13 +537,14 @@ test_hashmap_str_to_vec2 := proc() {
     mut enemy_pos := Vec2(x=30, y=40)
     positions.insert("enemy", enemy_pos)?
 
-    mut pos := Vec2()
-    positions.get("player", pos)?
-    test(loc(), pos.x.eq(10), "HashMap: player.x should be 10")
-    test(loc(), pos.y.eq(20), "HashMap: player.y should be 20")
-    positions.get("enemy", pos)?
-    test(loc(), pos.x.eq(30), "HashMap: enemy.x should be 30")
-    test(loc(), pos.y.eq(40), "HashMap: enemy.y should be 40")
+    player_ref := positions.get_by_ref("player")?
+    create_alias(player, Vec2, player_ref.data)
+    test(loc(), player.x.eq(10), "HashMap: player.x should be 10")
+    test(loc(), player.y.eq(20), "HashMap: player.y should be 20")
+    enemy_ref := positions.get_by_ref("enemy")?
+    create_alias(enemy, Vec2, enemy_ref.data)
+    test(loc(), enemy.x.eq(30), "HashMap: enemy.x should be 30")
+    test(loc(), enemy.y.eq(40), "HashMap: enemy.y should be 40")
 
     positions.delete()
 
@@ -573,8 +577,8 @@ test_hashmap_set := proc() {
     ages.set("Alice", 35)
     test(loc(), ages.len().eq(1), "HashMap: Size should still be 1 after set update")
 
-    mut age := 0
-    ages.get("Alice", age)?
+    age_ref := ages.get_by_ref("Alice")?
+    create_alias(age, I64, age_ref.data)
     test(loc(), age.eq(35), "HashMap: Expected age 35 after update")
 
     ages.delete()
@@ -586,13 +590,13 @@ test_hashmap_set := proc() {
     }
 }
 
-// Test HashMap get() with non-existent key
+// Test HashMap get_by_ref() with non-existent key
 test_hashmap_get_missing := proc() {
     mut ages := HashMap.new(Str, I64)
     ages.insert("Alice", 30)?
 
-    mut age := 0
-    ages.get("Charlie", age)?
+    age_ref := ages.get_by_ref("Charlie")?
+    create_alias(age, I64, age_ref.data)
     panic(loc(), "Expected KeyNotFoundError for non-existent key")
     catch (err: KeyNotFoundError) {}
     ages.delete()
@@ -648,13 +652,15 @@ test_hashmap_growth := proc() {
     test(loc(), ages.len().eq(20), "HashMap should have 20 entries after growth")
 
     // Verify all values are still correct after resize
-    mut val := 0
-    ages.get(0, val)?
-    test(loc(), val.eq(0), "HashMap: First element should still be 0")
-    ages.get(10, val)?
-    test(loc(), val.eq(1000), "HashMap: Middle element should be 1000")
-    ages.get(19, val)?
-    test(loc(), val.eq(1900), "HashMap: Last element should be 1900")
+    val0_ref := ages.get_by_ref(0)?
+    create_alias(val0, I64, val0_ref.data)
+    test(loc(), val0.eq(0), "HashMap: First element should still be 0")
+    val10_ref := ages.get_by_ref(10)?
+    create_alias(val10, I64, val10_ref.data)
+    test(loc(), val10.eq(1000), "HashMap: Middle element should be 1000")
+    val19_ref := ages.get_by_ref(19)?
+    create_alias(val19, I64, val19_ref.data)
+    test(loc(), val19.eq(1900), "HashMap: Last element should be 1900")
 
     // Verify contains_key still works after resize
     test(loc(), ages.contains_key(5), "HashMap: Should contain key 5 after growth")
@@ -737,17 +743,19 @@ test_hashmap_multiple_overwrites := proc() {
     mut m := HashMap.new(Str, I64)
 
     m.set("key", 1)
-    mut val := 0
-    m.get("key", val)?
-    test(loc(), val.eq(1), "HashMap: First set should store 1")
+    val1_ref := m.get_by_ref("key")?
+    create_alias(val1, I64, val1_ref.data)
+    test(loc(), val1.eq(1), "HashMap: First set should store 1")
 
     m.set("key", 2)
-    m.get("key", val)?
-    test(loc(), val.eq(2), "HashMap: Second set should overwrite to 2")
+    val2_ref := m.get_by_ref("key")?
+    create_alias(val2, I64, val2_ref.data)
+    test(loc(), val2.eq(2), "HashMap: Second set should overwrite to 2")
 
     m.set("key", 3)
-    m.get("key", val)?
-    test(loc(), val.eq(3), "HashMap: Third set should overwrite to 3")
+    val3_ref := m.get_by_ref("key")?
+    create_alias(val3, I64, val3_ref.data)
+    test(loc(), val3.eq(3), "HashMap: Third set should overwrite to 3")
 
     test(loc(), m.len().eq(1), "HashMap: Multiple overwrites should keep len at 1")
 
@@ -775,13 +783,15 @@ test_hashmap_many_strings := proc() {
     test(loc(), m.len().eq(50), "HashMap should have 50 entries")
 
     // Verify lookups work for various keys
-    mut val := 0
-    m.get("key_0", val)?
-    test(loc(), val.eq(0), "HashMap: key_0 should be 0")
-    m.get("key_25", val)?
-    test(loc(), val.eq(25), "HashMap: key_25 should be 25")
-    m.get("key_49", val)?
-    test(loc(), val.eq(49), "HashMap: key_49 should be 49")
+    val0_ref := m.get_by_ref("key_0")?
+    create_alias(val0, I64, val0_ref.data)
+    test(loc(), val0.eq(0), "HashMap: key_0 should be 0")
+    val25_ref := m.get_by_ref("key_25")?
+    create_alias(val25, I64, val25_ref.data)
+    test(loc(), val25.eq(25), "HashMap: key_25 should be 25")
+    val49_ref := m.get_by_ref("key_49")?
+    create_alias(val49, I64, val49_ref.data)
+    test(loc(), val49.eq(49), "HashMap: key_49 should be 49")
 
     // Verify non-existent keys
     test(loc(), not(m.contains_key("key_50")), "HashMap: Should not contain key_50")
@@ -820,11 +830,12 @@ test_hashmap_remove := proc() {
     test(loc(), m.contains_key("charlie"), "HashMap should still contain charlie")
 
     // Verify remaining values are correct
-    mut val := 0
-    m.get("alice", val)?
-    test(loc(), val.eq(30), "HashMap alice should still be 30")
-    m.get("charlie", val)?
-    test(loc(), val.eq(35), "HashMap charlie should still be 35")
+    alice_ref := m.get_by_ref("alice")?
+    create_alias(alice_val, I64, alice_ref.data)
+    test(loc(), alice_val.eq(30), "HashMap alice should still be 30")
+    charlie_ref := m.get_by_ref("charlie")?
+    create_alias(charlie_val, I64, charlie_ref.data)
+    test(loc(), charlie_val.eq(35), "HashMap charlie should still be 35")
 
     // Remove non-existent key (should be no-op)
     m.remove("nonexistent")
