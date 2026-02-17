@@ -95,36 +95,17 @@ namespace List {
         self._len = add(self._len, 1)
     }
 
-    /** Get element at index. */
-    get := proc(self: List, index: I64, mut dest: Dynamic) throws IndexOutOfBoundsError {
+    /** Get reference to element at index. */
+    get_by_ref := proc(self: List, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if gteq(index, self._len) {
-            throw IndexOutOfBoundsError(msg=format("List.get: index ",
+            throw IndexOutOfBoundsError(msg=format("List.get_by_ref: index ",
                 format(index.to_str(), format(" >= len ", self._len.to_str()))))
         }
-
         if lt(index, 0) {
-            throw IndexOutOfBoundsError(msg=format("List.get: negative index ", index.to_str()))
+            throw IndexOutOfBoundsError(msg=format("List.get_by_ref: negative index ", index.to_str()))
         }
-
-        // Get type info for validation
-        mut stored_type := ""
-        self.type_names.get(index, stored_type)?
-
-        mut _dest_type := type_as_str(dest)
-
-        // TODO FIX type checking when Dynamic type checking is enabled
-        // if not(Str.eq(stored_type, dest_type)) {
-        //     throw TypeMismatchError(...)
-        // }
-
-        // Calculate offset and size
-        mut offset := self.calc_offset(index)?
-        mut size := 0
-        self.type_sizes.get(index, size)?
-
-        // Copy data to destination
-        src := self.data.offset(offset)
-        src.copy_to_dynamic(dest, size)
+        offset := self.calc_offset(index)?
+        return self.data.offset(offset)
     }
 
     /** Set element at index.

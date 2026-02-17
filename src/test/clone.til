@@ -89,16 +89,16 @@ test_list_clone := proc() {
 
     assert_eq(loc(), 3, cloned.len())
 
-    mut val0 := 0
-    cloned.get(0, val0)?
+    val0_ref := cloned.get_by_ref(0)?
+    create_alias(val0, I64, val0_ref.data)
     assert_eq(loc(), 42, val0)
 
-    mut val1 := ""
-    cloned.get(1, val1)?
+    val1_ref := cloned.get_by_ref(1)?
+    create_alias(val1, Str, val1_ref.data)
     assert_eq_str(loc(), "hello", val1)
 
-    mut val2 := false
-    cloned.get(2, val2)?
+    val2_ref := cloned.get_by_ref(2)?
+    create_alias(val2, Bool, val2_ref.data)
     if not(val2) {
         panic(loc(), "Expected true, got false")
     }

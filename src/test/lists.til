@@ -58,34 +58,25 @@ test_list_get := proc() {
     list.push(Bool, false)?
 
     // Get I64 at index 0
-    mut val0 := 0
-    list.get(0, val0)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+    val0_ref := list.get_by_ref(0)?
+    create_alias(val0, I64, val0_ref.data)
     test(loc(), val0.eq(100), "Value at index 0")
 
     // Get Str at index 1
-    mut val1 := ""
-    list.get(1, val1)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+    val1_ref := list.get_by_ref(1)?
+    create_alias(val1, Str, val1_ref.data)
     test(loc(), val1.eq("world"), "Value at index 1")
 
     // Get Bool at index 2
-    mut val2 := true
-    list.get(2, val2)?
+    val2_ref := list.get_by_ref(2)?
+    create_alias(val2, Bool, val2_ref.data)
+    test(loc(), val2.eq(false), "Value at index 2")
+
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
         exit(1)
     }
-    test(loc(), val2.eq(false), "Value at index 2")
 
     list.delete()
 }
@@ -107,14 +98,15 @@ test_list_set_same_size := proc() {
         exit(1)
     }
 
-    mut val := 0
-    list.get(1, val)?
+    val_ref := list.get_by_ref(1)?
+    create_alias(val, I64, val_ref.data)
+    test(loc(), val.eq(999), "Set and get index 1")
+
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
         exit(1)
     }
-    test(loc(), val.eq(999), "Set and get index 1")
 
     list.delete()
 }
@@ -137,24 +129,20 @@ test_list_set_different_size := proc() {
     }
 
     // Verify element at index 1 is now Str
-    mut val := ""
-    list.get(1, val)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+    val_ref := list.get_by_ref(1)?
+    create_alias(val, Str, val_ref.data)
     test(loc(), val.eq("replaced"), "Set different size at index 1")
 
     // Verify element at index 2 is still correct
-    mut val2 := 0
-    list.get(2, val2)?
+    val2_ref := list.get_by_ref(2)?
+    create_alias(val2, I64, val2_ref.data)
+    test(loc(), val2.eq(3), "Element at index 2 after set")
+
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
         exit(1)
     }
-    test(loc(), val2.eq(3), "Element at index 2 after set")
 
     list.delete()
 }
@@ -180,25 +168,21 @@ test_list_with_struct := proc() {
     assert_eq(loc(), 3, list.len())
 
     // Get Vec2 at index 0
-    mut result := Vec2()
-    list.get(0, result)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+    result_ref := list.get_by_ref(0)?
+    create_alias(result, Vec2, result_ref.data)
     test(loc(), result.x.eq(10), "Vec2.x at index 0")
     test(loc(), result.y.eq(20), "Vec2.y at index 0")
 
     // Get I64 at index 1
-    mut num := 0
-    list.get(1, num)?
+    num_ref := list.get_by_ref(1)?
+    create_alias(num, I64, num_ref.data)
+    test(loc(), num.eq(42), "I64 at index 1")
+
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
         exit(1)
     }
-    test(loc(), num.eq(42), "I64 at index 1")
 
     list.delete()
 }
@@ -231,8 +215,8 @@ test_list_out_of_bounds := proc() {
 
     list.push(I64, 10)?
 
-    mut val := 0
-    list.get(5, val)?
+    val_ref := list.get_by_ref(5)?
+    create_alias(val, I64, val_ref.data)
     panic(loc(), "Expected IndexOutOfBoundsError")
 
     catch (err: IndexOutOfBoundsError) {
@@ -260,22 +244,19 @@ test_list_multiple_pushes := proc() {
     test(loc(), list.len().eq(10), "List holds 10 elements")
 
     // Verify values are correct
-    mut val := 0
-    list.get(0, val)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    test(loc(), val.eq(0), "First element")
+    val0_ref := list.get_by_ref(0)?
+    create_alias(val0, I64, val0_ref.data)
+    test(loc(), val0.eq(0), "First element")
 
-    list.get(9, val)?
+    val9_ref := list.get_by_ref(9)?
+    create_alias(val9, I64, val9_ref.data)
+    test(loc(), val9.eq(9), "Last element")
+
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
         exit(1)
     }
-    test(loc(), val.eq(9), "Last element")
 
     list.delete()
 }
@@ -295,40 +276,23 @@ test_nested_lists := proc() {
 
     assert_eq(loc(), 2, outer.len())
 
-    // Get the nested list
-    mut retrieved_inner := List.new()
-
-    outer.get(0, retrieved_inner)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+    // Get the nested list (zero-copy reference into outer's data buffer)
+    inner_ref := outer.get_by_ref(0)?
+    create_alias(retrieved_inner, List, inner_ref.data)
 
     test(loc(), retrieved_inner.len().eq(2), "Nested list length")
 
     // Get value from nested list
-    mut nested_val := 0
-    retrieved_inner.get(0, nested_val)?
+    nested_val_ref := retrieved_inner.get_by_ref(0)?
+    create_alias(nested_val, I64, nested_val_ref.data)
+    test(loc(), nested_val.eq(1), "Value from nested list")
+
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
         exit(1)
     }
-    test(loc(), nested_val.eq(1), "Value from nested list")
 
-    // NOTE: Don't delete retrieved_inner - it's a shallow copy that shares
-    // memory with inner. List.get does memcpy which copies the List struct
-    // including its internal data pointer. Deleting both would double-free.
-    //
-    // This is a fundamental design choice: TIL's List stores elements in a
-    // contiguous buffer (like a C array), so nested Lists share memory after get.
-    // Alternative: Lisp-style cons cells where each element is a pointer,
-    // making "copies" just reference the same data without ownership issues.
-    // Other options: deep copy on get, reference counting, or ownership semantics.
-    //
-    // The interpreter doesn't actually free on .delete() which masks this issue.
-    // retrieved_inner.delete()  // Would cause double-free in compiled code
     // inner was transferred to outer via push(own), so outer owns it now
     outer.delete()
 }
