@@ -168,7 +168,7 @@ run_timed := proc(mut output: Str, mut time_ms: I64, mut maxrss_kb: I64, cmd: St
     // Build wrapped command based on OS
     mut wrapped := ""
     if g_is_linux {
-        wrapped = format("LC_ALL=C /usr/bin/time -v bash -c '", cmd, "' 2>&1")
+        wrapped = format("LC_ALL=C time -v bash -c '", cmd, "' 2>&1")
     } else {
         // Group braces + 2>&1 needed so bash time stderr output gets captured
         wrapped = format("{ TIMEFORMAT=%3R; time bash -c '", cmd, "'; } 2>&1")
