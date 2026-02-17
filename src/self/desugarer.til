@@ -1599,8 +1599,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         while struct_i.lt(struct_def.default_values.keys.len()) {
             mut name := ""
             struct_def.default_values.keys.get(struct_i, name)?
-            mut value_expr := Expr()
-            struct_def.default_values.get(name, value_expr)?
+            val_ref := struct_def.default_values.get_by_ref(name)?
+            create_alias(value_expr, Expr, val_ref.data)
             new_default_values.set(name, desugar_expr(context, value_expr)?)
             struct_i.inc()
         }
@@ -1616,8 +1616,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         while ns_i.lt(ns_def.default_values.keys.len()) {
             mut name := ""
             ns_def.default_values.keys.get(ns_i, name)?
-            mut value_expr := Expr()
-            ns_def.default_values.get(name, value_expr)?
+            val_ref := ns_def.default_values.get_by_ref(name)?
+            create_alias(value_expr, Expr, val_ref.data)
             new_default_values.set(name, desugar_expr(context, value_expr)?)
             ns_i.inc()
         }

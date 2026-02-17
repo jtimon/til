@@ -1004,8 +1004,8 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if not(found_member) {
                 throw e.error(context.path, "init", format("Struct '", f_name, "' has no member '", after_dot_name, "'"))
             }
-            mut member_default_value := Expr()  # Default init, will be overwritten by get()
-            struct_def.default_values.get(after_dot_name, member_default_value)?
+            val_ref := struct_def.default_values.get_by_ref(after_dot_name)?
+            create_alias(member_default_value, Expr, val_ref.data)
             catch (key_err: KeyNotFoundError) {
                 throw e.error(context.path, "init", format("struct '", f_name, "' has no member '", after_dot_name, "' b"))
             }
@@ -1232,8 +1232,8 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     return direct_ufcs_result
                 }
 
-                mut direct_member_default_value := Expr()  # Default init, will be overwritten by get()
-                custom_struct_def.default_values.get(struct_after_dot_name, direct_member_default_value)?
+                val_ref := custom_struct_def.default_values.get_by_ref(struct_after_dot_name)?
+                create_alias(direct_member_default_value, Expr, val_ref.data)
                 catch (key_err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no member '", struct_after_dot_name, "' d"))
                 }
@@ -1276,8 +1276,8 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     return variadic_ufcs_result
                 }
 
-                mut variadic_member_default_value := Expr()  # Default init, will be overwritten by get()
-                variadic_struct_def.default_values.get(variadic_after_dot_name, variadic_member_default_value)?
+                val_ref := variadic_struct_def.default_values.get_by_ref(variadic_after_dot_name)?
+                create_alias(variadic_member_default_value, Expr, val_ref.data)
                 catch (key_err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("struct '", variadic_type_name, "' has no member '", variadic_after_dot_name, "' (variadic default)"))
                 }
@@ -1852,8 +1852,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                         # Skip instance fields - only process non-mut fields
                         # Try to find a default_value (required for funcs/consts)
                         mut has_default_value := false
-                        mut member_expr := Expr()
-                        struct_def.default_values.get(member_decl.name, member_expr)?
+                        val_ref := struct_def.default_values.get_by_ref(member_decl.name)?
+                        create_alias(member_expr, Expr, val_ref.data)
                         has_default_value = true
                         catch (key_err: KeyNotFoundError) {
                             # No default value, skip this member

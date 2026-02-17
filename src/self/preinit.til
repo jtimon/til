@@ -427,8 +427,8 @@ preinit_expr_inner := func(e: Expr) returns Expr throws Str {
             mut sd_name := ""
             struct_def.default_values.keys.get(sdi, sd_name)?
             catch (err: IndexOutOfBoundsError) {}
-            mut sd_value_expr := Expr()
-            struct_def.default_values.get(sd_name, sd_value_expr)?
+            val_ref := struct_def.default_values.get_by_ref(sd_name)?
+            create_alias(sd_value_expr, Expr, val_ref.data)
             catch (err: KeyNotFoundError) {}
             new_default_values.set(sd_name, preinit_expr_inner(sd_value_expr)?)
             sdi.inc()

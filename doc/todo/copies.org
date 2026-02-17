@@ -137,7 +137,7 @@ Additional detail discovered during the attempt:
   assign val_ref = frame.symbols.get_by_ref(name)? as a statement (not declaration).
   Statements don't go through get_value_type so the alias is found normally.
 
-**** Struct/enum default value lookups -- IN PROGRESS (2026-02-16)
+**** Struct/enum default value lookups -- MOSTLY DONE (2026-02-17)
 
 - struct_def.default_values.get(name, expr) -- copies Expr
 - ns_def.default_values.get(name, expr) -- copies Expr
@@ -145,11 +145,26 @@ Additional detail discovered during the attempt:
 These are used IN-PLACE (not returned), so get_by_ref + create_alias genuinely
 eliminates the copy. No ret_var_alias problem.
 
-Converted: garbager.til (2 calls, commit ae117ca2)
-Remaining: typer.til (5), ccodegen.til (7), interpreter.til (2),
-  desugarer.til (2), scavenger.til (4), precomp.til (2), ufcs.til (2),
-  preinit.til (1)
-Not converting: init.til (~5 calls in register methods need ownership for switch)
+Converted 25/35 calls:
+- garbager.til: 2 calls (StructDef, NamespaceDef in garbager_recursive)
+- typer.til: 5 calls (check_namespace_def, is_expr_calling_procs, resolve_inferred_types x3)
+- ccodegen.til: 5 calls (emit_struct_default_constants, emit_namespace_func_prototypes,
+  emit_namespace_func_bodies, emit_expr x2)
+- interpreter.til: 2 calls (eval_static_init, eval_struct_init)
+- desugarer.til: 2 calls (StructDef, NamespaceDef)
+- precomp.til: 2 calls (NamespaceDef, StructDef)
+- ufcs.til: 2 calls (StructDef, NamespaceDef)
+- preinit.til: 1 call (StructDef)
+- init.til: 4 calls (3x member dot-access resolution, 1x register struct members)
+
+Not converted (10 calls) -- call methods (.clone/.error/.is_ext) on aliased variable:
+- scavenger.til: 5 calls -- all call default_expr.clone() or func_def.is_ext().
+  The typer can't resolve methods on pointer-typed create_alias variables.
+- typer.til: 1 call (check_struct_def) -- calls inner_e.error()
+- ccodegen.til: 3 calls (emit_struct_def, emit_struct_init_expr x2) -- emit_arg_string
+  or emit_expr with create_alias inside a mut-declared variable causes missing temp
+  variable declarations in generated C (undeclared _tmp vars in gcc).
+- init.til: 1 call (register namespace members) -- calls ns_func_def.clone()
 
 Other map lookups:
 - ctx.nested_func_names.get() -- copies Str (ccodegen.til)
@@ -310,8 +325,9 @@ Options:
    24/25 .get() + 10 .set() converted to get_by_ref + create_alias (2026-02-16).
    1 remaining: last_frame blocked by Bug #168 ret_var_alias.
 
-3. *IN PROGRESS* **Map.get() for default_values** -- ~27 calls copying Expr (in-place)
-   Converted 2/27 in garbager.til (2026-02-16). Uses get_by_ref + create_alias.
+3. *MOSTLY DONE* **Map.get() for default_values** -- 25/35 calls converted (2026-02-17)
+   Uses get_by_ref + create_alias. 10 remaining call methods on aliased variable
+   (typer can't resolve methods on pointer-typed create_alias variables).
    ScopeFrame map lookups (~6 calls) BLOCKED by ret_var_alias (same as last_frame).
 
 4. *DONE* **Struct member/variant iteration** -- 15 loops converted (2026-02-16)

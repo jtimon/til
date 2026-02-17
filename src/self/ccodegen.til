@@ -3089,8 +3089,8 @@ emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
 
                         if c_type_valid {
                             mut default_val_valid := false
-                            mut default_val := Expr()
-                            struct_def.default_values.get(member.name, default_val)?
+                            val_ref := struct_def.default_values.get_by_ref(member.name)?
+                            create_alias(default_val, Expr, val_ref.data)
                             default_val_valid = true
                             catch (err: KeyNotFoundError) {
                                 // REM: Rust's None case - member has no default value, skip
@@ -4151,8 +4151,8 @@ emit_namespace_func_prototypes := proc(expr: Expr, context: Context, mut output:
     case NodeType.NamespaceDef(ns_def):
         type_name := til_name(ns_def.type_name)
         for member: Declaration in ns_def.members {
-            mut func_expr := Expr()
-            ns_def.default_values.get(member.name, func_expr)?
+            val_ref := ns_def.default_values.get_by_ref(member.name)?
+            create_alias(func_expr, Expr, val_ref.data)
             catch (err: KeyNotFoundError) {
                 // member has no default value, skip
             }
@@ -4174,8 +4174,8 @@ emit_namespace_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: Codegen
     case NodeType.NamespaceDef(ns_def):
         type_name := til_name(ns_def.type_name)
         for member: Declaration in ns_def.members {
-            mut func_expr := Expr()
-            ns_def.default_values.get(member.name, func_expr)?
+            val_ref := ns_def.default_values.get_by_ref(member.name)?
+            create_alias(func_expr, Expr, val_ref.data)
             catch (err: KeyNotFoundError) {
                 // member has no default value, skip
             }
@@ -8099,8 +8099,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                         named_values.get(member.name, member_value_expr)?
                         emit_expr(member_value_expr, output, 0, ctx, context)?
                     } else {
-                        mut default_expr := Expr()
-                        struct_def.default_values.get(member.name, default_expr)?
+                        val_ref := struct_def.default_values.get_by_ref(member.name)?
+                        create_alias(default_expr, Expr, val_ref.data)
                         emit_expr(default_expr, output, 0, ctx, context)?
                         catch (err: KeyNotFoundError) {
                             output.push_str("0")
@@ -8628,8 +8628,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(".")
                 output.push_str(member.name)
                 output.push_str(" = ")
-                mut out_default_expr := Expr()
-                struct_def_opt.default_values.get(member.name, out_default_expr)?
+                val_ref := struct_def_opt.default_values.get_by_ref(member.name)?
+                create_alias(out_default_expr, Expr, val_ref.data)
                 // Bug #143: At expression level, use emit_expr - caller handles hoisting via emit_arg_string
                 emit_expr(out_default_expr, output, 0, ctx, context)?
                 catch (err: KeyNotFoundError) {

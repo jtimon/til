@@ -189,8 +189,8 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
         if decl.is_mut {
             // Check if default_values has this field
             if struct_def.default_values.contains_key(decl.name) {
-                mut default_expr := Expr()
-                struct_def.default_values.get(decl.name, default_expr)?
+                val_ref := struct_def.default_values.get_by_ref(decl.name)?
+                create_alias(default_expr, Expr, val_ref.data)
 
                 // For nested struct types, eagerly create template BEFORE evaluating default
                 // This handles forward references: Inner1's template is created before Inner1() is evaluated
@@ -1061,8 +1061,8 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             for member_decl: Declaration in struct_def.members {
                 if not(member_decl.is_mut) {
                     combined_name := format(declaration.name, ".", member_decl.name)
-                    mut default_value := Expr()
-                    struct_def.default_values.get(member_decl.name, default_value)?
+                    val_ref := struct_def.default_values.get_by_ref(member_decl.name)?
+                    create_alias(default_value, Expr, val_ref.data)
                     catch (err: KeyNotFoundError) {
                         throw e.lang_error(context.path, "eval", format("Struct member '", declaration.name, ".", member_decl.name, "' expected to have default value."))
                     }

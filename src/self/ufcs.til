@@ -347,8 +347,8 @@ ufcs_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) r
     while i.lt(struct_def.default_values.keys.len()) {
         mut name := ""
         struct_def.default_values.keys.get(i, name)?
-        mut value_expr := Expr()
-        struct_def.default_values.get(name, value_expr)?
+        val_ref := struct_def.default_values.get_by_ref(name)?
+        create_alias(value_expr, Expr, val_ref.data)
         new_default_values.set(name, ufcs_expr(context, value_expr)?)
         i.inc()
     }
@@ -561,8 +561,8 @@ ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 ufcs_namespace_def := proc(mut context: Context, e: Expr, ns_def: SNamespaceDef) returns Expr throws Str {
     mut new_default_values := Map.new(Str, Expr)
     for name: Str in ns_def.default_values.keys {
-        mut value_expr := Expr()
-        ns_def.default_values.get(name, value_expr)?
+        val_ref := ns_def.default_values.get_by_ref(name)?
+        create_alias(value_expr, Expr, val_ref.data)
         new_default_values.set(name, ufcs_expr(context, value_expr)?)
     }
     mut new_ns_def := SNamespaceDef()

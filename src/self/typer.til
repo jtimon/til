@@ -1173,8 +1173,8 @@ check_namespace_def := proc(mut context: Context, _e: Expr, ns_def: SNamespaceDe
 
     for member_decl: Declaration in ns_def.members {
         if ns_def.default_values.contains_key(member_decl.name) {
-            mut inner_e := Expr()
-            ns_def.default_values.get(member_decl.name, inner_e)?
+            val_ref := ns_def.default_values.get_by_ref(member_decl.name)?
+            create_alias(inner_e, Expr, val_ref.data)
 
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
@@ -3046,8 +3046,8 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
     case NodeType.StructDef(struct_def):
         // Check if any default values call procs
         for key: Str in struct_def.default_values.keys {
-            mut default_expr := Expr()
-            struct_def.default_values.get(key, default_expr)?
+            val_ref := struct_def.default_values.get_by_ref(key)?
+            create_alias(default_expr, Expr, val_ref.data)
             if is_expr_calling_procs(context, default_expr)? {
                 return true
             }
@@ -3470,8 +3470,8 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         // First, resolve types and recurse into default_values
         mut new_default_values := Map.new(Str, Expr)
         for name: Str in struct_def.default_values.keys {
-            mut value_expr := Expr()
-            struct_def.default_values.get(name, value_expr)?
+            val_ref := struct_def.default_values.get_by_ref(name)?
+            create_alias(value_expr, Expr, val_ref.data)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
             }
@@ -3492,9 +3492,9 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
             mut resolved_type := member.value_type
             if member_type_name.eq(INFER_TYPE) {
                 // Get resolved default_value for this member
-                mut default_value := Expr()
                 mut has_default := true
-                new_default_values.get(member.name, default_value)?
+                val_ref := new_default_values.get_by_ref(member.name)?
+                create_alias(default_value, Expr, val_ref.data)
                 catch (err: KeyNotFoundError) {
                     has_default = false
                 }
@@ -3522,8 +3522,8 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
     case NodeType.NamespaceDef(ns_def):
         mut new_default_values := Map.new(Str, Expr)
         for name: Str in ns_def.default_values.keys {
-            mut value_expr := Expr()
-            ns_def.default_values.get(name, value_expr)?
+            val_ref := ns_def.default_values.get_by_ref(name)?
+            create_alias(value_expr, Expr, val_ref.data)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
             }
