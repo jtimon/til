@@ -471,7 +471,7 @@ can finally be idiomatic Til instead of "Til that looks like Rust."
 - [ ] Bug #64: Custom main args in mode cli don't work properly
 - [ ] Bug #78: TIL scavenger/ccodegen divergence from Rust
 - [ ] Bug #80: ccodegen.til must generate identical C code to ccodegen.rs
-- [ ] Issue #82: make.til - Replace Makefile with TIL
+- [-] Issue #82: make.til - Replace Makefile with TIL (partial: make.til works, go_build_yourself added, Makefile reduced to bootstrap only)
 - [ ] Bug #83: No spread/splat operator for variadic argument forwarding
 - [ ] Bug #84: run_cmd output capture broken in compiled mode
 - [ ] Bug #85: Typer accepts struct literal with non-existent field name

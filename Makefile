@@ -12,17 +12,16 @@ bin/rstil: $(RSTIL_SRCS)
 	@mkdir -p bin
 	rustc -D warnings src/rstil.rs -o bin/rstil
 
-# Compiled make.til for faster builds
+# Bootstrap make.til (first build only)
+# After this, go_build_yourself() in make.til handles .til dependency tracking
 # Bug #141: rstil outputs to bin/rs/
-MAKE_TIL_DEPS := make.til $(wildcard src/std/*.til) $(wildcard src/core/*.til)
-
-bin/rs/make: bin/rstil $(MAKE_TIL_DEPS)
+bin/rs/make: bin/rstil
 	./bin/rstil build make.til
 
 # Prevent .rs, .til files and Makefile from matching the % pattern.
 # The % pattern below delegates unknown targets to compiled make.til, but:
 # - .rs files would create circular deps (bin/rstil depends on them)
-# - .til files would create circular deps (bin/rs/make depends on them)
+# - .til files should not be treated as make targets
 # - Makefile gets checked by Make's automatic remaking feature
 %.rs:
 %.til:

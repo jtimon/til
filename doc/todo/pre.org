@@ -1470,7 +1470,7 @@ Move all OS-specific code into ~ext.c~ and precompile it for each target:
 :PROPERTIES:
 :DISCOVERED: 2026-01-03
 :IMPACT: Build system, dogfooding, portability
-:STATUS: Open
+:STATUS: Partial
 :RELATED: Issue #81 (rs2til.til - another tool in TIL)
 :END:
 
@@ -1495,22 +1495,54 @@ with shebang would:
    - Track which targets depend on which sources
    - Only rebuild what's needed
 
-*** Example Structure
-#+begin_src til
-#!/usr/bin/env til interpret
-mode make
+*** Completed (2026-02-17)
 
-// Makefile content in TIL syntax
+- [X] ~mode make~ implemented
+- [X] ~file_mtime(path: Str) returns I64~ implemented in src/std/sys.til
+- [X] ~glob_files(pattern: Str) returns Vec~ implemented in src/std/sys.til
+- [X] ~needs_rebuild(target, deps)~ implemented in make.til
+- [X] All build targets in make.til: clean, rstil, repl, rstil_til, til_til,
+  til_debug, tests, regen, benchmark, mem-report, test-cross, diff
+- [X] ~go_build_yourself()~ - make.til detects when its own source or deps
+  change, rebuilds itself via ~./bin/rstil build make.til~, and re-execs
+  with the same args. Makefile only bootstraps the first build after clean.
+
+*** Remaining: eliminate the Makefile
+
+The Makefile still does:
+1. *Rust bootstrap* (~rustc src/rstil.rs -o bin/rstil~) - irreducible,
+   need a compiler before TIL can run at all
+2. *First-time make.til compilation* (~./bin/rstil build make.til~) -
+   only after clean, then go_build_yourself handles subsequent rebuilds
+3. *Entry point delegation* (~./bin/rs/make $(MAKECMDGOALS)~) - so users
+   can type ~make benchmark~ instead of ~./bin/rs/make benchmark~
+4. *Clean* (~rm -rf bin/* gen/*~) - could move to make.til
+5. *Pattern guards* (~%.rs:~, ~%.til:~, ~Makefile:~) - prevent Make from
+   treating source files as targets
+
+To fully replace the Makefile, need to solve:
+- Rust bootstrap: make.til can't compile rstil because rstil is needed
+  to run make.til. Could use a checked-in bootstrap binary, or a tiny
+  shell script, or keep a minimal Makefile just for ~bin/rstil~.
+- Entry point: users type ~make X~ today. Alternative: ~./make.til X~
+  (shebang already exists) or a shell alias.
+
+*** Endgame: C bootstrap, no Makefile
+
+~bootstrap/til.c~ is already checked in (snapshot of self-hosted compiler).
+Once it's trustworthy as the primary bootstrap, the entire build becomes:
+
+#+begin_src sh
+gcc bootstrap/til.c -o bin/til -lm
+./make.til benchmark
 #+end_src
 
-*** Implementation Notes
-
-File stat would need new builtins:
-- ~file_mtime(path: Str) returns I64~ - modification time as epoch
-- Or ~file_newer(a: Str, b: Str) returns Bool~ - simpler comparison
+No Makefile, no Rust, no rustc. The shebang (~#!/usr/bin/env -S ./bin/til run~)
+means ~./make.til benchmark~ works directly. ~go_build_yourself()~ handles
+rebuilding make.til when its deps change. The C bootstrap replaces the Rust
+bootstrap as the chicken-and-egg solution.
 
 *** Open Questions
 - How to handle parallel builds?
-- Should it support general make-like syntax or be TIL-native?
-- Bootstrap problem: how to build til before make.til can run?
+- When is bootstrap/til.c trustworthy enough to be the primary bootstrap? (see Issue #100)
 
