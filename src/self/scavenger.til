@@ -836,7 +836,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             mut array_methods := Vec.new(Str)
             array_methods.push("Array.new")
             array_methods.push("Array.set")
-            array_methods.push("Array.get")
+            array_methods.push("Array.get_by_ref")
             array_methods.push("Array.delete")
             array_methods.push("Array.len")
             for method: Str in array_methods {

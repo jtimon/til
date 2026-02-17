@@ -684,9 +684,7 @@ format := func(prefix: Str, args: ..Str) returns Str {
     mut result := Str()
     result._len = prefix._len
 
-    for i in 0..args.len() {
-        mut arg := ""
-        args.get(i, arg)?
+    for arg: Str in args {
         result._len = result._len.add(arg._len)
         if result._len.lt(arg._len) {
             panic(loc(), "format: integer overflow while summing cap")
@@ -709,10 +707,6 @@ format := func(prefix: Str, args: ..Str) returns Str {
     // Null-terminate the string
     zero : U8 = 0
     memset(result.c_string.offset(result._len).data, zero, 1)
-
-    catch (err: IndexOutOfBoundsError) {
-        panic(loc(), err.msg)
-    }
 
     return result
 }

@@ -25,23 +25,23 @@ test_array_clone := proc() {
     mut cloned := original.clone()
 
     // Check values in clone
-    mut val0 := 0
-    cloned.get(0, val0)?
+    val0_ref := cloned.get_by_ref(0)?
+    create_alias(val0, I64, val0_ref.data)
     assert_eq(loc(), 10, val0)
 
-    mut val1 := 0
-    cloned.get(1, val1)?
+    val1_ref := cloned.get_by_ref(1)?
+    create_alias(val1, I64, val1_ref.data)
     assert_eq(loc(), 20, val1)
 
-    mut val2 := 0
-    cloned.get(2, val2)?
+    val2_ref := cloned.get_by_ref(2)?
+    create_alias(val2, I64, val2_ref.data)
     assert_eq(loc(), 30, val2)
 
     // Modify clone, original should be unchanged
     cloned.set(0, 999)?
 
-    mut orig_val := 0
-    original.get(0, orig_val)?
+    orig_val_ref := original.get_by_ref(0)?
+    create_alias(orig_val, I64, orig_val_ref.data)
     assert_eq(loc(), 10, orig_val)
 
     catch(err: IndexOutOfBoundsError) {

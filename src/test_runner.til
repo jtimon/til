@@ -547,24 +547,26 @@ main := proc(args: ..Str) {
     }
 
     // Extract required args
-    mut command := ""
-    mut test_mode := ""
-    mut out_mode := ""
-    mut expected_status_str := ""
-    mut file := ""
-    args.get(0, command)?
-    args.get(1, test_mode)?
-    args.get(2, out_mode)?
-    args.get(3, expected_status_str)?
-    args.get(4, file)?
+    command_ref := args.get_by_ref(0)?
+    create_alias(command, Str, command_ref.data)
+    test_mode_ref := args.get_by_ref(1)?
+    create_alias(test_mode, Str, test_mode_ref.data)
+    out_mode_ref := args.get_by_ref(2)?
+    create_alias(out_mode, Str, out_mode_ref.data)
+    expected_status_str_ref := args.get_by_ref(3)?
+    create_alias(expected_status_str, Str, expected_status_str_ref.data)
+    file_ref := args.get_by_ref(4)?
+    create_alias(file, Str, file_ref.data)
 
-    expected_status := expected_status_str.to_i64()
+    // Workaround: create_alias vars can't be used in declaration initializers (init phase limitation)
+    mut expected_status := 0
+    expected_status = expected_status_str.to_i64()
 
     // Collect extra args into single string, filtering out --cc= (Issue #131)
     mut cmd_args := ""
     for i in 5..args.len() {
-        mut arg := ""
-        args.get(i, arg)?
+        arg_ref := args.get_by_ref(i)?
+        create_alias(arg, Str, arg_ref.data)
         if arg.starts_with("--cc=") {
             g_cc = arg.get_substr(5, arg.len())?
         } else if arg.eq("--mem-report") {

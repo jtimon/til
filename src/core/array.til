@@ -39,21 +39,6 @@ namespace Array {
         return arr
     }
 
-    /** Get element at index. */
-    get := proc(self: Array, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
-        if index.gteq(self._len) {
-            throw IndexOutOfBoundsError(msg=format(loc(), "Array.get: index out of bounds"))
-        }
-
-        // if not(Str.eq(type_as_str(T), self.type_name)) { // TODO FIX
-        //     throw format(loc(), format("Array.get: destination type mismatch: expected '", self.type_name, "' found '", type_as_str(T), "'"))
-        // }
-
-        src := add(self.ptr, mul(index, self.type_size))
-        mut dest := to_ptr(T)
-        memcpy(dest, src, self.type_size)
-    }
-
     /** Get borrowed Ptr to element at index. No copy - points into array memory. */
     get_by_ref := proc(self: Array, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if index.gteq(self._len) {

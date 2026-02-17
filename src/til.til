@@ -212,34 +212,31 @@ main := proc(args: ..Str) {
     // args already collected by TIL runtime
 
     if args.len().gt(1) {
-        mut command := ""
-        args.get(0, command)?
-        catch (err: IndexOutOfBoundsError) { }
+        command_ref := args.get_by_ref(0)?
+        create_alias(command, Str, command_ref.data)
 
         mut remaining_args := Vec.new(Str)
         mut i := 1
         while i.lt(args.len()) {
-            mut arg := ""
-            args.get(i, arg)?
+            arg_ref := args.get_by_ref(i)?
+            create_alias(arg, Str, arg_ref.data)
             remaining_args.push(arg)
             i.inc()
         }
-        catch (err: IndexOutOfBoundsError) { }
 
         if command.eq("interpret") {
             // interpret doesn't use build options, just pass remaining args
-            mut path := ""
-            args.get(1, path)?
+            path_ref := args.get_by_ref(1)?
+            create_alias(path, Str, path_ref.data)
             mut main_args := Vec.new(Str)
             mut j := 2
             while j.lt(args.len()) {
-                mut interp_arg := ""
-                args.get(j, interp_arg)?
+                interp_arg_ref := args.get_by_ref(j)?
+                create_alias(interp_arg, Str, interp_arg_ref.data)
                 main_args.push(interp_arg)
                 j.inc()
             }
             interpret_file_or_exit(path, main_args)
-            catch (err: IndexOutOfBoundsError) { }
             return
         } else if command.eq("build") {
             // Parse build options from remaining args
@@ -316,9 +313,8 @@ main := proc(args: ..Str) {
             exit(1)
         }
     } else if args.len().gt(0) {
-        mut first_arg := ""
-        args.get(0, first_arg)?
-        catch (err: IndexOutOfBoundsError) { }
+        first_arg_ref := args.get_by_ref(0)?
+        create_alias(first_arg, Str, first_arg_ref.data)
         switch first_arg {
         case "repl":
             interpret_file_or_exit(REPL_PATH, Vec.new(Str))
@@ -350,4 +346,8 @@ main := proc(args: ..Str) {
 
     // If no arguments, then repl/interactive "mode"
     interpret_file_or_exit(REPL_PATH, Vec.new(Str))
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), err.msg)
+    }
 }
