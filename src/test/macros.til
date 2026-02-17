@@ -102,6 +102,42 @@ test_fibonacci := proc() {
     assert_eq(loc(), 55, fib(10))
 }
 
+// Issue #105: Parameterized struct template via macro
+make_vec3 := macro(T: Type) returns struct {
+    return struct {
+        mut x: T = T()
+        mut y: T = T()
+        mut z: T = T()
+    }
+}
+
+I64Vec3 := make_vec3(I64)
+U8Vec3 := make_vec3(U8)
+
+test_i64_vec3 := proc() {
+    v := I64Vec3(x=1, y=2, z=3)
+    assert_eq(loc(), 1, v.x)
+    assert_eq(loc(), 2, v.y)
+    assert_eq(loc(), 3, v.z)
+
+    v2 := I64Vec3()
+    assert_eq(loc(), 0, v2.x)
+    assert_eq(loc(), 0, v2.y)
+    assert_eq(loc(), 0, v2.z)
+}
+
+test_u8_vec3 := proc() {
+    v := U8Vec3(x=10, y=20, z=30)
+    assert_eq(loc(), 10, U8.to_i64(v.x))
+    assert_eq(loc(), 20, U8.to_i64(v.y))
+    assert_eq(loc(), 30, U8.to_i64(v.z))
+
+    v2 := U8Vec3()
+    assert_eq(loc(), 0, U8.to_i64(v2.x))
+    assert_eq(loc(), 0, U8.to_i64(v2.y))
+    assert_eq(loc(), 0, U8.to_i64(v2.z))
+}
+
 test_basic_macro()
 test_nested_macro()
 test_multi_arg_macro()
@@ -109,3 +145,5 @@ test_macro_in_expression()
 test_macro_inside_function()
 test_factorial()
 test_fibonacci()
+test_i64_vec3()
+test_u8_vec3()

@@ -955,6 +955,17 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
         return Ok(errors);
     }
 
+    // Skip body type-checking for macros with Type parameters.
+    // These bodies contain placeholder types (T) that only resolve at expansion time.
+    // The expanded result is type-checked separately.
+    if func_def.is_macro() && func_def.args.iter().any(|a|
+        matches!(&a.value_type, ValueType::TCustom(t) if t == "Type" || t == "Dynamic"))
+    {
+        context.scope_stack.function_locals = saved_function_locals;
+        context.scope_stack.used_symbols = saved_used_symbols;
+        return Ok(errors);
+    }
+
     // TODO should macros be allowed to call procs?
     if !func_def.is_proc() {
         for se in &func_def.body {
@@ -2633,6 +2644,13 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
 
         // FuncDef - push function scope and recurse into body
         NodeType::FuncDef(func_def) => {
+            // Skip body resolution for macros with Type parameters
+            if func_def.is_macro() && func_def.args.iter().any(|a|
+                matches!(&a.value_type, ValueType::TCustom(t) if t == "Type" || t == "Dynamic"))
+            {
+                return Ok(e.clone());
+            }
+
             context.scope_stack.push(ScopeType::Function);
 
             // Register function parameters in scope

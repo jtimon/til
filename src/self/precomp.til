@@ -10,6 +10,95 @@ import("self.precomp_ext")
 
 // ---------- Issue #105: Early struct macro expansion
 
+/// Build a substitution map from macro Type/Dynamic parameters to actual type names.
+/// For `make_vec3(I64)` where `make_vec3` takes `T: Type`, returns {"T": "I64"}.
+build_type_param_subs := func(func_def: SFuncDef, fcall: Expr) returns Map throws Str {
+    mut subs := Map.new(Str, Str)
+    for i in 0..func_def.args.len() {
+        mut arg := Declaration()
+        func_def.args.get(i, arg)?
+        switch arg.value_type {
+        case ValueType.TCustom(type_name):
+            if type_name.eq("Type").or(type_name.eq("Dynamic")) {
+                // FCall params: [0] = function name identifier, [1..] = arguments
+                if fcall.params.len().gt(i.add(1)) {
+                    mut actual_arg := Expr()
+                    fcall.params.get(i.add(1), actual_arg)?
+                    switch actual_arg.node_type {
+                    case NodeType.Identifier(actual_type_name):
+                        subs.set(arg.name, actual_type_name)
+                    case:
+                    }
+                }
+            }
+        case:
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("build_type_param_subs: ", err.msg)
+    }
+
+    return subs
+}
+
+/// Recursively replace Identifier nodes matching type param names with concrete types.
+substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
+    switch e.node_type {
+    case NodeType.Identifier(name):
+        mut new_name := name
+        mut found := false
+        mut sub_val := ""
+        subs.get(name, sub_val)?
+        new_name = sub_val
+        found = true
+        catch (_err: KeyNotFoundError) {}
+        mut new_params := Vec.new(Expr)
+        for p: Expr in e.params {
+            new_params.push(substitute_type_params_in_expr(p, subs))
+        }
+        return Expr.new_clone(NodeType.Identifier(new_name), e, new_params)
+    case:
+        mut new_params := Vec.new(Expr)
+        for p: Expr in e.params {
+            new_params.push(substitute_type_params_in_expr(p, subs))
+        }
+        return Expr.new_clone(e.node_type, e, new_params)
+    }
+}
+
+/// Apply type param substitution to a struct definition's member types and default values.
+substitute_type_params_in_struct := func(struct_def: SStructDef, subs: Map) returns SStructDef {
+    mut new_members := Vec.new(Declaration)
+    for member: Declaration in struct_def.members {
+        mut substituted := false
+        switch member.value_type {
+        case ValueType.TCustom(type_name):
+            mut concrete_type := ""
+            subs.get(type_name, concrete_type)?
+            new_members.push(Declaration(name=member.name, value_type=ValueType.TCustom(concrete_type), is_mut=member.is_mut, is_copy=member.is_copy, is_own=member.is_own))
+            substituted = true
+            catch (_err: KeyNotFoundError) {}
+        case:
+        }
+        if not(substituted) {
+            new_members.push(member)
+        }
+    }
+
+    mut new_defaults := Map.new(Str, Expr)
+    for name: Str in struct_def.default_values.keys {
+        val_ref := struct_def.default_values.get_by_ref(name)?
+        create_alias(expr, Expr, val_ref.data)
+        catch (err: KeyNotFoundError) {
+            panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
+        }
+        new_defaults.set(name, substitute_type_params_in_expr(expr, subs))
+    }
+
+    return SStructDef(members=new_members, default_values=new_defaults)
+}
+
 /// Issue #105: Expand struct-returning macros before type checking.
 /// Runs between init and typer to make struct definitions available for type checking.
 /// Only expands macros at the top-level body that return struct definitions.
@@ -47,19 +136,25 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                 switch ret_type {
                                 case ValueType.TType(TTypeDef.TStructDef):
                                     // Expand the macro
+                                    type_subs := build_type_param_subs(func_def, inner_e)?
                                     expanded := eval_comptime(context, inner_e)?
                                     switch expanded.node_type {
                                     case NodeType.StructDef(struct_def):
+                                        // Substitute type params (e.g. T -> I64) in member types and defaults
+                                        mut substituted := struct_def.clone()
+                                        if type_subs.keys.len().gt(0) {
+                                            substituted = substitute_type_params_in_struct(struct_def, type_subs)
+                                        }
                                         // Resolve INFER_TYPE in struct members from default values
                                         mut resolved_members := Vec.new(Declaration)
-                                        for member_decl: Declaration in struct_def.members {
+                                        for member_decl: Declaration in substituted.members {
                                             mut resolved := false
                                             switch member_decl.value_type {
                                             case ValueType.TCustom(type_name):
                                                 if type_name.eq(INFER_TYPE) {
                                                     mut default_value := Expr()
                                                     mut has_default := false
-                                                    struct_def.default_values.get(member_decl.name, default_value)?
+                                                    substituted.default_values.get(member_decl.name, default_value)?
                                                     has_default = true
                                                     catch (_err: KeyNotFoundError) {}
                                                     if has_default {
@@ -76,7 +171,7 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                                 resolved_members.push(member_decl)
                                             }
                                         }
-                                        resolved_struct := SStructDef(members=resolved_members, default_values=struct_def.default_values.clone())
+                                        resolved_struct := SStructDef(members=resolved_members, default_values=substituted.default_values.clone())
                                         resolved_expanded := Expr.new_clone(NodeType.StructDef(resolved_struct.clone()), expanded, Vec.new(Expr))
                                         // Register the struct in context
                                         context.scope_stack.declare_struct(decl.name, resolved_struct.clone())?

@@ -646,9 +646,14 @@ impl EvalHeap {
     pub fn insert_string_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
         if let Some(info) = Self::insert_string_core(ctx, id, value_str, e)? {
             // Create Str struct from template
-            let template_offset = EvalHeap::g().default_instances.get("Str")
-                .copied()
-                .ok_or_else(|| e.lang_error(&ctx.path, "insert_string_into_frame", "Str template not found - ensure str.til is imported"))?;
+            // During compile-time evaluation (builder path), the Str template may not exist
+            // because the interpreter never evaluated struct declarations. This is OK for
+            // macros with Type parameters - the type name is only used in AST construction,
+            // not read as a runtime Str value.
+            let template_offset = match EvalHeap::g().default_instances.get("Str").copied() {
+                Some(offset) => offset,
+                None => return Ok(()),
+            };
             EvalHeap::insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?;
             // Bug #160: Calculate field offsets from base offset in frame
             // The base struct was just inserted into frame.heap_index

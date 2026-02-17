@@ -1195,6 +1195,19 @@ check_namespace_def := proc(mut context: Context, _e: Expr, ns_def: SNamespaceDe
     return errors
 }
 
+has_type_params := func(func_def: SFuncDef) returns Bool {
+    for arg: Declaration in func_def.args {
+        switch arg.value_type {
+        case ValueType.TCustom(type_name):
+            if type_name.eq("Type").or(type_name.eq("Dynamic")) {
+                return true
+            }
+        case:
+        }
+    }
+    return false
+}
+
 check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
     // Bug #101: Save outer function's tracking state for nested function support
@@ -1274,6 +1287,17 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
         context.scope_stack.function_locals = saved_function_locals
         context.scope_stack.used_symbols = saved_used_symbols
         return errors
+    }
+
+    // Skip body type-checking for macros with Type parameters.
+    // These bodies contain placeholder types (T) that only resolve at expansion time.
+    // The expanded result is type-checked separately.
+    if func_def.is_macro() {
+        if has_type_params(func_def) {
+            context.scope_stack.function_locals = saved_function_locals
+            context.scope_stack.used_symbols = saved_used_symbols
+            return errors
+        }
     }
 
     // TODO should macros be allowed to call procs?
@@ -3698,6 +3722,12 @@ resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
 
 // Helper: resolve FuncDef node
 resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
+    // Skip body resolution for macros with Type parameters
+    if func_def.is_macro() {
+        if has_type_params(func_def) {
+            return e.clone()
+        }
+    }
     // FuncDef - push function scope and recurse into body
     context.scope_stack.push(ScopeType.Function)
 

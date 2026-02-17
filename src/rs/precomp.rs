@@ -16,6 +16,60 @@ use crate::rs::preinit::generate_struct_methods;
 
 // ---------- Issue #105: Early struct macro expansion
 
+/// Build a substitution map from macro Type/Dynamic parameters to actual type names.
+/// For `make_vec3(I64)` where `make_vec3` takes `T: Type`, returns {"T": "I64"}.
+fn build_type_param_subs(func_def: &SFuncDef, fcall: &Expr) -> HashMap<String, String> {
+    let mut subs = HashMap::new();
+    for (i, arg) in func_def.args.iter().enumerate() {
+        if let ValueType::TCustom(ref type_name) = arg.value_type {
+            if type_name == "Type" || type_name == "Dynamic" {
+                // FCall params: [0] = function name identifier, [1..] = arguments
+                if let Some(actual_arg) = fcall.params.get(i + 1) {
+                    if let NodeType::Identifier(ref actual_type_name) = &actual_arg.node_type {
+                        subs.insert(arg.name.clone(), actual_type_name.clone());
+                    }
+                }
+            }
+        }
+    }
+    subs
+}
+
+/// Recursively replace Identifier nodes matching type param names with concrete types.
+fn substitute_type_params_in_expr(e: &Expr, subs: &HashMap<String, String>) -> Expr {
+    match &e.node_type {
+        NodeType::Identifier(name) => {
+            let new_name = subs.get(name).unwrap_or(name);
+            let new_params: Vec<Expr> = e.params.iter().map(|p| substitute_type_params_in_expr(p, subs)).collect();
+            Expr::new_clone(NodeType::Identifier(new_name.clone()), e, new_params)
+        }
+        _ => {
+            let new_params: Vec<Expr> = e.params.iter().map(|p| substitute_type_params_in_expr(p, subs)).collect();
+            Expr::new_clone(e.node_type.clone(), e, new_params)
+        }
+    }
+}
+
+/// Apply type param substitution to a struct definition's member types and default values.
+fn substitute_type_params_in_struct(struct_def: &SStructDef, subs: &HashMap<String, String>) -> SStructDef {
+    let new_members = struct_def.members.iter().map(|m| {
+        if let ValueType::TCustom(ref type_name) = m.value_type {
+            if let Some(concrete_type) = subs.get(type_name) {
+                let mut new_m = m.clone();
+                new_m.value_type = ValueType::TCustom(concrete_type.clone());
+                return new_m;
+            }
+        }
+        m.clone()
+    }).collect();
+
+    let new_defaults = struct_def.default_values.iter().map(|(name, expr)| {
+        (name.clone(), substitute_type_params_in_expr(expr, subs))
+    }).collect();
+
+    SStructDef { members: new_members, default_values: new_defaults }
+}
+
 /// Issue #105: Expand struct-returning macros before type checking.
 /// Runs between init and typer to make struct definitions available for type checking.
 /// Only expands macros at the top-level body that return struct definitions.
@@ -38,13 +92,20 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                         if func_def.is_macro() && !func_def.return_types.is_empty() {
                             if func_def.return_types[0] == ValueType::TType(TTypeDef::TStructDef) {
                                 // Expand the macro
+                                let type_subs = build_type_param_subs(&func_def, inner_e);
                                 let expanded = eval_comptime(context, inner_e)?;
                                 if let NodeType::StructDef(struct_def) = &expanded.node_type {
+                                    // Substitute type params (e.g. T -> I64) in member types and defaults
+                                    let substituted = if type_subs.is_empty() {
+                                        struct_def.clone()
+                                    } else {
+                                        substitute_type_params_in_struct(struct_def, &type_subs)
+                                    };
                                     // Resolve INFER_TYPE in struct members from default values
                                     let mut resolved_members = Vec::new();
-                                    for member_decl in &struct_def.members {
+                                    for member_decl in &substituted.members {
                                         if member_decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
-                                            if let Some(default_value) = struct_def.default_values.get(&member_decl.name) {
+                                            if let Some(default_value) = substituted.default_values.get(&member_decl.name) {
                                                 if let Ok(resolved_type) = get_value_type(context, default_value) {
                                                     let mut resolved_member = member_decl.clone();
                                                     resolved_member.value_type = resolved_type;
@@ -57,7 +118,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                     }
                                     let resolved_struct = SStructDef {
                                         members: resolved_members,
-                                        default_values: struct_def.default_values.clone(),
+                                        default_values: substituted.default_values.clone(),
                                     };
                                     let resolved_expanded = Expr::new_clone(NodeType::StructDef(resolved_struct.clone()), &expanded, vec![]);
                                     // Register the struct in context
