@@ -836,7 +836,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
 
 // ============ End parallel execution ============
 
-run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til_interpreted: Vec, til_compiled: Vec, til_common: Vec, all_common: Vec, parallelism: I64) {
+run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til_interpreted: Vec, til_compiled: Vec, til_common: Vec, all_common: Vec, parallelism: I64, start_epoch: I64) {
     mut errors_found := 0
     total_tests := til_interpreted.len().add(til_compiled.len()).add(til_common.len()).add(rs_interpreted.len()).add(rs_compiled.len()).add(rs_common.len()).add(all_common.len())
     mut benchmark_content := "test,args,section,rs_interp_ms,rs_interp_kb,rs_built_ms,rs_comp_ms,rs_comp_kb,til_interp_ms,til_interp_kb,til_built_ms,til_comp_ms,til_comp_kb\n"
@@ -1097,6 +1097,14 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     println("Total:                   ", format_time(total_all))
     println("Failed:                  ", errors_found.to_str(), "/", total_tests.to_str())
 
+    // Wall-clock elapsed time
+    mut end_time_str := ""
+    _ := end_time_str.run_cmd("date", "+%s")
+    end_time_str = end_time_str.replace("\n", "")
+    end_epoch := I64.from_str(end_time_str)
+    wall_clock_ms := end_epoch.sub(start_epoch).mul(1000)
+    println("Wall-clock:              ", format_time(wall_clock_ms))
+
     writefile("gen/benchmark.csv", benchmark_content)?
 
     // Totals in separate org file for easy git history tracking
@@ -1108,6 +1116,7 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     totals = totals.concat("- Total til built :: ").concat(format_time(total_til_built)).concat("\n")
     totals = totals.concat("- Total til compiled :: ").concat(format_time(total_til_compile)).concat(", max ").concat(format_maxrss(maxrss_til_compile)).concat("\n")
     totals = totals.concat("- Total :: ").concat(format_time(total_all)).concat("\n")
+    totals = totals.concat("- Wall-clock :: ").concat(format_time(wall_clock_ms)).concat("\n")
     writefile("gen/totals.org", totals)?
 
     if g_mem_report {
@@ -1305,6 +1314,12 @@ usage := proc() {
 main := proc(args: ..Str) {
     detect_os()
 
+    // Capture wall-clock start time
+    mut start_time_str := ""
+    _ := start_time_str.run_cmd("date", "+%s")
+    start_time_str = start_time_str.replace("\n", "")
+    start_epoch := I64.from_str(start_time_str)
+
     // Parse options first (before other args processing)
     // -jN: parallelism (e.g., -j8, -j32) - like make
     // Issue #117: use quarter the threads to reduce memory pressure
@@ -1461,14 +1476,14 @@ main := proc(args: ..Str) {
     // Parse remaining args (after -j was extracted)
     if remaining_args.len().eq(0) {
         // Default: run tests
-        run_all_tests(rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common, parallelism)
+        run_all_tests(rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common, parallelism, start_epoch)
     } else {
         mut cmd := ""
         remaining_args.get(0, cmd)?
         switch cmd {
         case "test":
             if remaining_args.len().eq(1) {
-                run_all_tests(rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common, parallelism)
+                run_all_tests(rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common, parallelism, start_epoch)
             } else if remaining_args.len().lt(3) {
                 println("Error: test requires <mode> and <file>")
                 usage()
