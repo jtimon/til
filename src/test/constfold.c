@@ -1,12 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 typedef unsigned char til_U8;
 typedef long long til_I64;
 typedef struct til_Bool { til_U8 data; } til_Bool;
 typedef void* til_Dynamic;
 typedef const char* til_Type;
+#define true ((til_Bool){1})
+#define false ((til_Bool){0})
 
 typedef struct til_IndexOutOfBoundsError til_IndexOutOfBoundsError;
 typedef struct til_BadAlloc til_BadAlloc;
@@ -257,7 +255,58 @@ til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self);
 void til_CfRect_delete(til_CfRect* til_CfRect_self);
 til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self);
 
-#include <ext.c>
+
+// ext.c function declarations (resolved at link time)
+extern void til_single_print(const til_Str* s);
+extern void til_print_flush(void);
+extern til_I64 til_to_ptr(til_I64* p);
+extern void til_enum_get_payload(til_Dynamic* enum_ptr, const til_Str* payload_type, til_Dynamic* out_ptr);
+extern til_I64 til_u8_to_i64(const til_U8* v);
+extern til_U8 til_i64_to_u8(const til_I64* v);
+extern til_U8 til_u8_add(const til_U8* a, const til_U8* b);
+extern til_U8 til_u8_sub(const til_U8* a, const til_U8* b);
+extern til_U8 til_u8_mul(const til_U8* a, const til_U8* b);
+extern til_U8 til_u8_div(const til_U8* a, const til_U8* b);
+extern til_U8 til_u8_mod(const til_U8* a, const til_U8* b);
+extern til_U8 til_u8_xor(const til_U8* a, const til_U8* b);
+extern til_U8 til_u8_and(const til_U8* a, const til_U8* b);
+extern til_U8 til_u8_or(const til_U8* a, const til_U8* b);
+extern til_Bool til_i64_lt(const til_I64* a, const til_I64* b);
+extern til_Bool til_i64_gt(const til_I64* a, const til_I64* b);
+extern til_Bool til_u8_lt(const til_U8* a, const til_U8* b);
+extern til_Bool til_u8_gt(const til_U8* a, const til_U8* b);
+extern til_I64 til_i64_add(const til_I64* a, const til_I64* b);
+extern til_I64 til_i64_sub(const til_I64* a, const til_I64* b);
+extern til_I64 til_i64_mul(const til_I64* a, const til_I64* b);
+extern til_I64 til_i64_div(const til_I64* a, const til_I64* b);
+extern til_I64 til_i64_mod(const til_I64* a, const til_I64* b);
+extern til_I64 til_i64_xor(const til_I64* a, const til_I64* b);
+extern til_I64 til_i64_and(const til_I64* a, const til_I64* b);
+extern til_I64 til_i64_or(const til_I64* a, const til_I64* b);
+extern int til_malloc(til_I64* _ret, const til_I64* size);
+extern void til_free(const til_I64* ptr);
+extern void til_memcpy(const til_I64* dest, const til_I64* src, const til_I64* n);
+extern void til_memset(const til_I64* ptr, const til_U8* value, const til_I64* n);
+extern void til_exit(const til_I64* code);
+extern til_Str til_i64_to_str(const til_I64* v);
+extern til_I64 til_str_to_i64(const til_Str* s);
+extern int til_input_read_line(til_Str* _ret, void* _err_v, const til_Str* prompt);
+extern int til_readfile(til_Str* _ret, void* _err_v, const til_Str* path);
+extern int til_writefile(void* _err_v, const til_Str* path, const til_Str* contents);
+extern til_I64 til_run_cmd(til_Str* output_str, struct til_Array* args);
+extern void til_eval_file(const til_Str* path);
+extern int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd);
+extern til_I64 til_check_cmd_status(const til_I64* handle);
+extern int til_sleep(void* _err_v, const til_I64* ms);
+extern til_I64 til_get_thread_count(void);
+extern til_I64 til_file_mtime(const til_Str* path);
+extern int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* path);
+extern til_Str til_fs_parent_dir(const til_Str* path);
+extern til_I64 til_fs_mkdir_p(const til_Str* path);
+extern void til_raw_memcpy(void* dest, const void* src, long long n);
+extern long long til_raw_strlen(const char* s);
+extern int til_raw_strcmp(const char* s1, const char* s2);
+extern void til_size_of_error(const char* type_name);
 
 const til_I64 til_size_of_IndexOutOfBoundsError = sizeof(til_IndexOutOfBoundsError);
 const til_I64 til_size_of_BadAlloc = sizeof(til_BadAlloc);
@@ -291,27 +340,27 @@ const til_U8 til_U8_ZERO_U8 = 0;
 static til_Vec til_Vec_g_entries;
 static til_Bool til_Bool_g_enabled;
 
-static inline til_I64 til_size_of(const til_Str* type_name) {
-    if (strcmp((char*)type_name->c_string.data, "IndexOutOfBoundsError") == 0) return til_size_of_IndexOutOfBoundsError;
-    if (strcmp((char*)type_name->c_string.data, "BadAlloc") == 0) return til_size_of_BadAlloc;
-    if (strcmp((char*)type_name->c_string.data, "Array") == 0) return til_size_of_Array;
-    if (strcmp((char*)type_name->c_string.data, "Bool") == 0) return til_size_of_Bool;
-    if (strcmp((char*)type_name->c_string.data, "I64_Overflow") == 0) return til_size_of_I64_Overflow;
-    if (strcmp((char*)type_name->c_string.data, "DivideByZero") == 0) return til_size_of_DivideByZero;
-    if (strcmp((char*)type_name->c_string.data, "I64") == 0) return til_size_of_I64;
-    if (strcmp((char*)type_name->c_string.data, "Ptr") == 0) return til_size_of_Ptr;
-    if (strcmp((char*)type_name->c_string.data, "Vec") == 0) return til_size_of_Vec;
-    if (strcmp((char*)type_name->c_string.data, "Str") == 0) return til_size_of_Str;
-    if (strcmp((char*)type_name->c_string.data, "U8_Overflow") == 0) return til_size_of_U8_Overflow;
-    if (strcmp((char*)type_name->c_string.data, "U8") == 0) return til_size_of_U8;
-    if (strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) return til_size_of_HeapEntry;
-    if (strcmp((char*)type_name->c_string.data, "HeapState") == 0) return til_size_of_HeapState;
-    if (strcmp((char*)type_name->c_string.data, "Dynamic") == 0) return til_size_of_Dynamic;
-    if (strcmp((char*)type_name->c_string.data, "Type") == 0) return til_size_of_Type;
-    if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) return til_size_of_CfVec2;
-    if (strcmp((char*)type_name->c_string.data, "CfRect") == 0) return til_size_of_CfRect;
-    fprintf(stderr, "size_of: unknown type %s\n", (char*)type_name->c_string.data);
-    exit(1);
+til_I64 til_size_of(const til_Str* type_name) {
+    if (til_raw_strcmp((char*)type_name->c_string.data, "IndexOutOfBoundsError") == 0) return til_size_of_IndexOutOfBoundsError;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "BadAlloc") == 0) return til_size_of_BadAlloc;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "Array") == 0) return til_size_of_Array;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "Bool") == 0) return til_size_of_Bool;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "I64_Overflow") == 0) return til_size_of_I64_Overflow;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "DivideByZero") == 0) return til_size_of_DivideByZero;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "I64") == 0) return til_size_of_I64;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "Ptr") == 0) return til_size_of_Ptr;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "Vec") == 0) return til_size_of_Vec;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "Str") == 0) return til_size_of_Str;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "U8_Overflow") == 0) return til_size_of_U8_Overflow;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "U8") == 0) return til_size_of_U8;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) return til_size_of_HeapEntry;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "HeapState") == 0) return til_size_of_HeapState;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "Dynamic") == 0) return til_size_of_Dynamic;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "Type") == 0) return til_size_of_Type;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "CfVec2") == 0) return til_size_of_CfVec2;
+    if (til_raw_strcmp((char*)type_name->c_string.data, "CfRect") == 0) return til_size_of_CfRect;
+    til_size_of_error((char*)type_name->c_string.data);
+    return 0; // unreachable
 }
 
 til_I64 til_memcmp(const til_I64* til_I64_ptr1, const til_I64* til_I64_ptr2, const til_I64* til_I64_size) {
@@ -887,8 +936,8 @@ til_I64 til_Array_size(const til_Array* til_Array_self) {
 til_Array til_Array_new(til_Type til_Type_T, const til_I64* til_I64_capacity) {
     til_BadAlloc _thrown_BadAlloc__tmp_til_Array_new_0;
     til_Array til_Array_arr = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}), .type_size = 0, .ptr = 0, ._len = 0};
-    til_Array_arr.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0});
-    til_Array_arr.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    til_Array_arr.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0});
+    til_Array_arr.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0}));
     const til_I64 til_I64_size_bytes = til_I64_mul(til_I64_capacity, &til_Array_arr.type_size);
     int __attribute__((unused)) _status__tmp_til_Array_new_1 = til_malloc(&(til_Array_arr.ptr), &til_I64_size_bytes);
     if (_status__tmp_til_Array_new_1 == 1) { goto _catch_BadAlloc__tmp_til_Array_new_0; }
@@ -1455,15 +1504,15 @@ til_Ptr til_Ptr_new_by_size(const til_I64* til_I64_size) {
 }
 
 til_Ptr til_Ptr_new(til_Type til_Type_T) {
-    til_I64 _tmp_til_Ptr_new_0 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    til_I64 _tmp_til_Ptr_new_0 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0}));
     til_Ptr til_Ptr_p = til_Ptr_new_by_size(&_tmp_til_Ptr_new_0);
-    til_Ptr_p.elem_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    til_Ptr_p.elem_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0}));
     return til_Ptr_p;
     return (til_Ptr){0};
 }
 
 til_Ptr til_Ptr_new_array(til_Type til_Type_T, const til_I64* til_I64_count) {
-    const til_I64 til_I64_elem_sz = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    const til_I64 til_I64_elem_sz = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0}));
     const til_I64 til_I64_total = til_I64_mul(&til_I64_elem_sz, til_I64_count);
     til_Ptr til_Ptr_p = til_Ptr_new_by_size(&til_I64_total);
     til_Ptr_p.elem_size = til_I64_elem_sz;
@@ -1537,7 +1586,7 @@ void til_Ptr_copy_to_dynamic(const til_Ptr* til_Ptr_self, til_Dynamic* til_Dynam
 
 void til_Ptr_dereference(const til_Ptr* til_Ptr_self, til_Type til_Type_T, til_Dynamic* til_Dynamic_dest) {
     til_I64 _tmp_til_Ptr_dereference_0 = (til_I64)til_Dynamic_dest;
-    til_I64 _tmp_til_Ptr_dereference_1 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    til_I64 _tmp_til_Ptr_dereference_1 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0}));
     til_memcpy(&_tmp_til_Ptr_dereference_0, &til_Ptr_self->data, &_tmp_til_Ptr_dereference_1);
 }
 
@@ -1564,8 +1613,8 @@ til_I64 til_Vec_size(const til_Vec* til_Vec_self) {
 til_Vec til_Vec_new(til_Type til_Type_T) {
     til_Ptr _tmp_til_Vec_new_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Vec til_Vec_vec = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}), .type_size = 0, .ptr = _tmp_til_Vec_new_0, ._len = 0, .cap = 0};
-    til_Vec_vec.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0});
-    til_Vec_vec.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    til_Vec_vec.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0});
+    til_Vec_vec.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0}));
     til_Vec_vec.ptr = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Vec_vec._len = 0;
     til_Vec_vec.cap = 0;
@@ -1599,8 +1648,8 @@ til_Ptr til_Vec__alloc_ptr(til_Vec* til_Vec_self, const til_I64* til_I64_capacit
 til_Vec til_Vec_with_capacity(til_Type til_Type_T, const til_I64* til_I64_capacity) {
     til_Ptr _tmp_til_Vec_with_capacity_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Vec til_Vec_vec = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}), .type_size = 0, .ptr = _tmp_til_Vec_with_capacity_0, ._len = 0, .cap = 0};
-    til_Vec_vec.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0});
-    til_Vec_vec.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
+    til_Vec_vec.type_name = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0});
+    til_Vec_vec.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), til_raw_strlen(til_Type_T), 0}));
     til_Vec_vec._len = 0;
     til_Vec_vec.cap = (*til_I64_capacity);
     til_I64 _tmp_til_Vec_with_capacity_1 = 0;
@@ -3903,7 +3952,7 @@ int main(int argc, char** argv) {
     til_test_struct_fold_values();
     til_test_struct_fold_nested();
     for (int _i = 1; _i < argc; _i++) {
-        if (strcmp(argv[_i], "--mem-report") == 0) {
+        if (til_raw_strcmp(argv[_i], "--mem-report") == 0) {
             til_HeapState_enable();
             for (int _j = _i; _j < argc - 1; _j++) argv[_j] = argv[_j + 1];
             argc--; _i--;
