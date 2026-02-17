@@ -234,7 +234,52 @@ run_diff := proc(file_path: Str) {
     }
 }
 
+go_build_yourself := proc(args: Vec) {
+    mut deps := Vec.new(Str)
+    deps.push("make.til")
+    deps.push("bin/rstil")
+    std_files := glob_files("src/std/*.til")?
+    for f: Str in std_files { deps.push(f) }
+    core_files := glob_files("src/core/*.til")?
+    for f: Str in core_files { deps.push(f) }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: IOError) { panic(loc(), err.msg) }
+
+    if needs_rebuild("bin/rs/make", deps).not() {
+        return  // up to date
+    }
+
+    // Rebuild
+    println("make.til: rebuilding myself...")
+    status := run_stream_cmd("./bin/rstil build make.til")
+    if status.eq(0).not() {
+        println("make.til: rebuild failed")
+        exit(1)
+    }
+
+    // Re-exec with same args
+    mut cmd := "./bin/rs/make"
+    for arg: Str in args {
+        cmd = cmd.concat(" ").concat(arg)
+    }
+    pid := spawn_cmd(cmd)?
+    exit_code := wait_cmd(pid)
+
+    catch (err: SpawnError) {
+        println("make.til: re-exec failed: ", err.msg)
+        exit(1)
+    }
+
+    exit(exit_code)
+}
+
 main := proc(args: ..Str) {
+    // Self-rebuild check (before any arg parsing)
+    mut args_vec := Vec.new(Str)
+    for arg: Str in args { args_vec.push(arg) }
+    go_build_yourself(args_vec)
+
     if args.len().eq(0) {
         println("Usage: make.til <target> [options]")
         println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, mem-report, test-cross, diff <file>")
