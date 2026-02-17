@@ -449,7 +449,7 @@ fn detect_shallow_copy_outparam(stmt: &Expr, local_types: &HashMap<String, Strin
 
     // Check against whitelist
     let whitelist = [
-        "Vec.get", "Vec.pop", "Array.get", "Set.get",
+        "Vec.get", "Vec.pop", "Array.get",
         "Map.get", "HashMap.get", "List.get", "List.pop",
     ];
     if !whitelist.contains(&qualified.as_str()) {
