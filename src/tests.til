@@ -164,64 +164,107 @@ format_maxrss := func(kb: I64) returns Str {
 
 // Run a command with timing, returns exit code and stores time/maxrss
 // Output goes to mut output param, time goes to mut time_ms param
-// Uses /usr/bin/time -v for wall-clock time and max RSS
+// Linux: /usr/bin/time -v for wall-clock time and max RSS
+// macOS: bash builtin time with TIMEFORMAT for wall-clock time (no RSS)
 run_timed := proc(mut output: Str, mut time_ms: I64, mut maxrss_kb: I64, cmd: Str) returns I64 {
-    // Wrap command to capture both output and timing
-    // Uses /usr/bin/time -v for wall-clock time and max RSS
-    mut wrapped := "LC_ALL=C /usr/bin/time -v bash -c '"
-    wrapped = wrapped.concat(cmd).concat("' 2>&1")
+    // Build wrapped command based on OS
+    mut wrapped := ""
+    if g_is_linux {
+        wrapped = format("LC_ALL=C /usr/bin/time -v bash -c '", cmd, "' 2>&1")
+    } else {
+        // Group braces + 2>&1 needed so bash time stderr output gets captured
+        wrapped = format("{ TIMEFORMAT=%3R; time bash -c '", cmd, "'; } 2>&1")
+    }
     mut full_output := ""
     exit_code := full_output.run_cmd("bash", "-c", wrapped)
 
-    // Truncate huge outputs (e.g., gcc errors) to prevent hangs
-    // Str.find() is O(n*m) and slow in interpreter for large strings
-    // Keep the END of output since timing info is at the end
-    // /usr/bin/time -v output is ~1000 chars, so keep more of the tail
-    max_output := 2000
-    mut truncated := full_output
-    if truncated.len().gt(max_output) {
-        start_pos := truncated.len().sub(max_output)
-        truncated = get_substr(truncated, start_pos, truncated.len())?
-    }
-
-    // Find the start of /usr/bin/time -v output block
-    // "Command being timed" is always present (prefixed by \t)
-    // "Command exited with non-zero" appears before it on non-zero exit (no \t prefix)
-    time_pos := truncated.find("Command being timed")
-    exit_pos := truncated.find("Command exited with non-zero")
-
-    // Use the earlier marker for output splitting
-    mut output_split := time_pos
-    mut backup := 1  // back up past \t before "Command being timed"
-    if exit_pos.gt(sub(0, 1)) {
-        if output_split.lt(0).or(exit_pos.lt(output_split)) {
-            output_split = exit_pos
-            backup = 0  // "Command exited" has no \t prefix, just \n before it
+    if g_is_linux {
+        // Linux: parse GNU time output using markers
+        // Truncate huge outputs (e.g., gcc errors) to prevent hangs
+        max_output := 2000
+        mut truncated := full_output
+        if truncated.len().gt(max_output) {
+            start_pos := truncated.len().sub(max_output)
+            truncated = get_substr(truncated, start_pos, truncated.len())?
         }
-    }
 
-    if output_split.gt(sub(0, 1)) {
-        mut output_end_in_truncated := output_split.sub(backup)
-        if output_end_in_truncated.lt(0) {
-            output_end_in_truncated = 0
+        time_pos := truncated.find("Command being timed")
+        exit_pos := truncated.find("Command exited with non-zero")
+
+        mut output_split := time_pos
+        mut backup := 1  // back up past \t before "Command being timed"
+        if exit_pos.gt(sub(0, 1)) {
+            if output_split.lt(0).or(exit_pos.lt(output_split)) {
+                output_split = exit_pos
+                backup = 0  // "Command exited" has no \t prefix, just \n before it
+            }
         }
-        output_end_in_full := full_output.len().sub(truncated.len()).add(output_end_in_truncated)
-        if output_end_in_full.gt(0) {
-            output = get_substr(full_output, 0, output_end_in_full)?
+
+        if output_split.gt(sub(0, 1)) {
+            mut output_end_in_truncated := output_split.sub(backup)
+            if output_end_in_truncated.lt(0) {
+                output_end_in_truncated = 0
+            }
+            output_end_in_full := full_output.len().sub(truncated.len()).add(output_end_in_truncated)
+            if output_end_in_full.gt(0) {
+                output = get_substr(full_output, 0, output_end_in_full)?
+            } else {
+                output = ""
+            }
+            if time_pos.gt(sub(0, 1)) {
+                time_output := get_substr(truncated, time_pos, truncated.len())?
+                time_ms = parse_time_ms(time_output)?
+                maxrss_kb = parse_maxrss_kb(time_output)?
+            }
         } else {
-            output = ""
-        }
-        // Parse time/maxrss from "Command being timed" block
-        if time_pos.gt(sub(0, 1)) {
-            time_output := get_substr(truncated, time_pos, truncated.len())?
-            time_ms = parse_time_ms(time_output)?
-            maxrss_kb = parse_maxrss_kb(time_output)?
+            output = full_output
+            time_ms = sub(0, 1)
+            maxrss_kb = sub(0, 1)
         }
     } else {
-        // Couldn't find time marker
-        output = full_output
-        time_ms = sub(0, 1)
+        // macOS: last line is time value (e.g., "0.042"), no RSS available
         maxrss_kb = sub(0, 1)
+        // Strip trailing newline
+        mut trimmed := full_output
+        if trimmed.len().gt(0) {
+            if trimmed.get_char(trimmed.len().sub(1))?.eq("\n") {
+                trimmed = get_substr(trimmed, 0, trimmed.len().sub(1))?
+            }
+        }
+        // Find last newline by scanning from end
+        mut last_nl := sub(0, 1)
+        mut ci := trimmed.len().sub(1)
+        while ci.gt(sub(0, 1)) {
+            if trimmed.get_char(ci)?.eq("\n") {
+                last_nl = ci
+                break
+            }
+            ci = ci.sub(1)
+        }
+        if last_nl.gt(sub(0, 1)) {
+            output = get_substr(full_output, 0, last_nl.add(1))?
+            time_line := get_substr(trimmed, last_nl.add(1), trimmed.len())?.replace("\r", "")
+            // Parse "N.NNN" as milliseconds
+            dot_pos := time_line.find(".")
+            if dot_pos.gt(sub(0, 1)) {
+                sec_str := get_substr(time_line, 0, dot_pos)?
+                frac_str := get_substr(time_line, dot_pos.add(1), time_line.len())?
+                mut frac := frac_str
+                while frac.len().lt(3) {
+                    frac = frac.concat("0")
+                }
+                if frac.len().gt(3) {
+                    frac = get_substr(frac, 0, 3)?
+                }
+                time_ms = sec_str.to_i64().mul(1000).add(frac.to_i64())
+            } else {
+                time_ms = sub(0, 1)
+            }
+        } else {
+            // No newline found - no program output, just time (or can't parse)
+            output = ""
+            time_ms = sub(0, 1)
+        }
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -1275,6 +1318,8 @@ usage := proc() {
 }
 
 main := proc(args: ..Str) {
+    detect_os()
+
     // Parse options first (before other args processing)
     // -jN: parallelism (e.g., -j8, -j32) - like make
     // --force-rebuild: force recompilation for compiled tests

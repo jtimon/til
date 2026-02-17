@@ -1,5 +1,17 @@
 mode lib
 
+// Global flag: true on Linux, false on macOS (Darwin)
+mut g_is_linux := true
+
+// Detect OS at startup - call from main() before using g_is_linux
+detect_os := proc() {
+    mut uname_out := ""
+    _ := uname_out.run_cmd("uname")
+    if uname_out.find("Darwin").gt(sub(0, 1)) {
+        g_is_linux = false
+    }
+}
+
 // Error types for system operations
 SpawnError := struct {
     mut msg: Str = ""
