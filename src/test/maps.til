@@ -15,11 +15,12 @@ test_map_i64_to_i64 := proc() {
     ages.insert(100, 30)?
     ages.insert(200, 25)?
 
-    mut age := 0
-    ages.get(100, age)?
-    test(loc(), age.eq(30), "ID 100 should map to 30")
-    ages.get(200, age)?
-    test(loc(), age.eq(25), "ID 200 should map to 25")
+    age0_ref := ages.get_by_ref(100)?
+    create_alias(age0, I64, age0_ref.data)
+    test(loc(), age0.eq(30), "ID 100 should map to 30")
+    age1_ref := ages.get_by_ref(200)?
+    create_alias(age1, I64, age1_ref.data)
+    test(loc(), age1.eq(25), "ID 200 should map to 25")
 
     ages.delete()
 
@@ -46,16 +47,18 @@ test_map_str_to_vec2 := proc() {
     mut item_pos := Vec2(x=50, y=60)
     positions.insert("item", item_pos)?
 
-    mut pos := Vec2()
-    positions.get("player", pos)?
-    test(loc(), pos.x.eq(10), "player.x should be 10")
-    test(loc(), pos.y.eq(20), "player.y should be 20")
-    positions.get("enemy", pos)?
-    test(loc(), pos.x.eq(30), "enemy.x should be 30")
-    test(loc(), pos.y.eq(40), "enemy.y should be 40")
-    positions.get("item", pos)?
-    test(loc(), pos.x.eq(50), "item.x should be 50")
-    test(loc(), pos.y.eq(60), "item.y should be 60")
+    player_ref := positions.get_by_ref("player")?
+    create_alias(player, Vec2, player_ref.data)
+    test(loc(), player.x.eq(10), "player.x should be 10")
+    test(loc(), player.y.eq(20), "player.y should be 20")
+    enemy_ref := positions.get_by_ref("enemy")?
+    create_alias(enemy, Vec2, enemy_ref.data)
+    test(loc(), enemy.x.eq(30), "enemy.x should be 30")
+    test(loc(), enemy.y.eq(40), "enemy.y should be 40")
+    item_ref := positions.get_by_ref("item")?
+    create_alias(item, Vec2, item_ref.data)
+    test(loc(), item.x.eq(50), "item.x should be 50")
+    test(loc(), item.y.eq(60), "item.y should be 60")
 
     positions.delete()
     catch (err: DuplicatedKeyError) {
@@ -86,16 +89,17 @@ test_map_str_to_vec_str := proc() {
     colors.push("blue")
     lists.insert("colors", colors)?
 
-    mut retrieved := Vec()
-    lists.get("fruits", retrieved)?
-    test(loc(), retrieved.len().eq(3), "fruits vec should have 3 elements")
+    fruits_ref := lists.get_by_ref("fruits")?
+    create_alias(fruits_vec, Vec, fruits_ref.data)
+    test(loc(), fruits_vec.len().eq(3), "fruits vec should have 3 elements")
     mut item := ""
-    retrieved.get(0, item)?
+    fruits_vec.get(0, item)?
     test(loc(), item.eq("apple"), "fruits[0] should be apple")
 
-    lists.get("colors", retrieved)?
-    test(loc(), retrieved.len().eq(3), "colors vec should have 3 elements")
-    retrieved.get(0, item)?
+    colors_ref := lists.get_by_ref("colors")?
+    create_alias(colors_vec, Vec, colors_ref.data)
+    test(loc(), colors_vec.len().eq(3), "colors vec should have 3 elements")
+    colors_vec.get(0, item)?
     test(loc(), item.eq("red"), "colors[0] should be red")
 
     // fruits and colors were transferred to lists via insert(own), so lists owns them
@@ -124,13 +128,15 @@ test_map_u8_to_bool := proc() {
     flags.insert(U8.from_i64(20)?, false)?
     flags.insert(U8.from_i64(30)?, true)?
 
-    mut flag := false
-    flags.get(U8.from_i64(10)?, flag)?
-    test(loc(), flag.eq(true), "key 10 should be true")
-    flags.get(U8.from_i64(20)?, flag)?
-    test(loc(), flag.eq(false), "key 20 should be false")
-    flags.get(U8.from_i64(30)?, flag)?
-    test(loc(), flag.eq(true), "key 30 should be true")
+    flag0_ref := flags.get_by_ref(U8.from_i64(10)?)?
+    create_alias(flag0, Bool, flag0_ref.data)
+    test(loc(), flag0.eq(true), "key 10 should be true")
+    flag1_ref := flags.get_by_ref(U8.from_i64(20)?)?
+    create_alias(flag1, Bool, flag1_ref.data)
+    test(loc(), flag1.eq(false), "key 20 should be false")
+    flag2_ref := flags.get_by_ref(U8.from_i64(30)?)?
+    create_alias(flag2, Bool, flag2_ref.data)
+    test(loc(), flag2.eq(true), "key 30 should be true")
 
     flags.delete()
     catch (err: DuplicatedKeyError) {
@@ -140,6 +146,11 @@ test_map_u8_to_bool := proc() {
     }
     catch (err: KeyNotFoundError) {
         println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: U8_Overflow) {
+        println("ERROR:", loc(), "Unexpected U8_Overflow")
         println(err.msg)
         exit(1)
     }
@@ -162,8 +173,8 @@ test_map_set := proc() {
     ages.set("Alice", 35)
     test(loc(), ages.len().eq(1), "Size should still be 1 after set update")
 
-    mut age := 0
-    ages.get("Alice", age)?
+    age_ref := ages.get_by_ref("Alice")?
+    create_alias(age, I64, age_ref.data)
     test(loc(), age.eq(35), "Expected age 35 after update")
 
     ages.delete()
@@ -179,8 +190,8 @@ test_map_get_missing := proc() {
     mut ages := Map.new(Str, I64)
     ages.insert("Alice", 30)?
 
-    mut age := 0
-    ages.get("Charlie", age)?
+    age_ref := ages.get_by_ref("Charlie")?
+    create_alias(age, I64, age_ref.data)
     panic(loc(), "Expected KeyNotFoundError for non-existent key")
     catch (err: KeyNotFoundError) {}
     ages.delete()
@@ -258,13 +269,15 @@ test_map_growth := proc() {
     test(loc(), ages.len().eq(20), "Map should have 20 entries after growth")
 
     // Verify all values are still correct after reallocation
-    mut val := 0
-    ages.get(0, val)?
-    test(loc(), val.eq(0), "First element should still be 0")
-    ages.get(10, val)?
-    test(loc(), val.eq(1000), "Middle element should be 1000")
-    ages.get(19, val)?
-    test(loc(), val.eq(1900), "Last element should be 1900")
+    val0_ref := ages.get_by_ref(0)?
+    create_alias(val0, I64, val0_ref.data)
+    test(loc(), val0.eq(0), "First element should still be 0")
+    val10_ref := ages.get_by_ref(10)?
+    create_alias(val10, I64, val10_ref.data)
+    test(loc(), val10.eq(1000), "Middle element should be 1000")
+    val19_ref := ages.get_by_ref(19)?
+    create_alias(val19, I64, val19_ref.data)
+    test(loc(), val19.eq(1900), "Last element should be 1900")
 
     // Verify contains_key still works after reallocation
     test(loc(), ages.contains_key(5), "Should contain key 5 after growth")
@@ -337,17 +350,19 @@ test_map_multiple_overwrites := proc() {
     mut m := Map.new(Str, I64)
 
     m.set("key", 1)
-    mut val := 0
-    m.get("key", val)?
-    test(loc(), val.eq(1), "First set should store 1")
+    val1_ref := m.get_by_ref("key")?
+    create_alias(val1, I64, val1_ref.data)
+    test(loc(), val1.eq(1), "First set should store 1")
 
     m.set("key", 2)
-    m.get("key", val)?
-    test(loc(), val.eq(2), "Second set should overwrite to 2")
+    val2_ref := m.get_by_ref("key")?
+    create_alias(val2, I64, val2_ref.data)
+    test(loc(), val2.eq(2), "Second set should overwrite to 2")
 
     m.set("key", 3)
-    m.get("key", val)?
-    test(loc(), val.eq(3), "Third set should overwrite to 3")
+    val3_ref := m.get_by_ref("key")?
+    create_alias(val3, I64, val3_ref.data)
+    test(loc(), val3.eq(3), "Third set should overwrite to 3")
 
     test(loc(), m.len().eq(1), "Multiple overwrites should keep len at 1")
 
@@ -435,11 +450,12 @@ test_map_remove := proc() {
     test(loc(), m.contains_key("charlie"), "Map should still contain charlie")
 
     // Verify remaining values are correct
-    mut val := 0
-    m.get("alice", val)?
-    test(loc(), val.eq(30), "alice should still be 30")
-    m.get("charlie", val)?
-    test(loc(), val.eq(35), "charlie should still be 35")
+    alice_ref := m.get_by_ref("alice")?
+    create_alias(alice_val, I64, alice_ref.data)
+    test(loc(), alice_val.eq(30), "alice should still be 30")
+    charlie_ref := m.get_by_ref("charlie")?
+    create_alias(charlie_val, I64, charlie_ref.data)
+    test(loc(), charlie_val.eq(35), "charlie should still be 35")
 
     // Remove non-existent key (should be no-op)
     m.remove("nonexistent")

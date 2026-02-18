@@ -103,11 +103,12 @@ test_ufcs_before_own_consumption := proc() {
     m1.set(name.clone(), 42)
     m2.set(name, 99)
 
-    mut val := 0
-    m1.get("hello", val)?
-    assert_eq(loc(), 42, val)
-    m2.get("hello", val)?
-    assert_eq(loc(), 99, val)
+    val1_ref := m1.get_by_ref("hello")?
+    create_alias(val1, I64, val1_ref.data)
+    assert_eq(loc(), 42, val1)
+    val2_ref := m2.get_by_ref("hello")?
+    create_alias(val2, I64, val2_ref.data)
+    assert_eq(loc(), 99, val2)
     println("PASS: UFCS before own consumption")
 
     catch (err: KeyNotFoundError) {
@@ -127,11 +128,12 @@ test_inline_clone_to_own := proc() {
     m1.set(name.clone(), 100)
     m2.set(name, 200)
 
-    mut val := 0
-    m1.get("world", val)?
-    assert_eq(loc(), 100, val)
-    m2.get("world", val)?
-    assert_eq(loc(), 200, val)
+    val1_ref := m1.get_by_ref("world")?
+    create_alias(val1, I64, val1_ref.data)
+    assert_eq(loc(), 100, val1)
+    val2_ref := m2.get_by_ref("world")?
+    create_alias(val2, I64, val2_ref.data)
+    assert_eq(loc(), 200, val2)
     println("PASS: inline clone to own param")
 
     catch (err: KeyNotFoundError) {
