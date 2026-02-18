@@ -246,8 +246,8 @@ main := proc(args: ..Str) {
                 usage()
                 exit(1)
             }
-            mut build_first_path := ""
-            build_opts.remaining.get(0, build_first_path)?
+            build_first_path_ref := build_opts.remaining.get_by_ref(0)?
+            create_alias(build_first_path, Str, build_first_path_ref.data)
             translate_only := build_opts.translate_only
             build_file_or_exit(build_first_path, build_opts.target, build_opts.lang, build_opts.cc, translate_only, build_opts.force_rebuild)
             catch (err: Str) {
@@ -264,8 +264,8 @@ main := proc(args: ..Str) {
                 usage()
                 exit(1)
             }
-            mut translate_first_path := ""
-            translate_opts.remaining.get(0, translate_first_path)?
+            translate_first_path_ref := translate_opts.remaining.get_by_ref(0)?
+            create_alias(translate_first_path, Str, translate_first_path_ref.data)
             build_file_or_exit(translate_first_path, translate_opts.target, translate_opts.lang, translate_opts.cc, true, translate_opts.force_rebuild)
             catch (err: Str) {
                 println("Error: ", err)
@@ -281,8 +281,8 @@ main := proc(args: ..Str) {
                 usage()
                 exit(1)
             }
-            mut run_first_path := ""
-            run_opts.remaining.get(0, run_first_path)?
+            run_first_path_ref := run_opts.remaining.get_by_ref(0)?
+            create_alias(run_first_path, Str, run_first_path_ref.data)
             // Pass remaining paths as arguments to the compiled program
             mut extra_args := Vec.new(Str)
             if run_opts.mem_report {
@@ -291,8 +291,8 @@ main := proc(args: ..Str) {
             if run_opts.remaining.len().gt(1) {
                 mut k := 1
                 while k.lt(run_opts.remaining.len()) {
-                    mut run_arg := ""
-                    run_opts.remaining.get(k, run_arg)?
+                    run_arg_ref := run_opts.remaining.get_by_ref(k)?
+                    create_alias(run_arg, Str, run_arg_ref.data)
                     extra_args.push(run_arg)
                     k.inc()
                 }
