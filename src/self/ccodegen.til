@@ -1503,8 +1503,8 @@ emit_error_handling := proc(throw_types: Vec, temp_suffix: Str, mut output: Str,
             switch throw_type {
             case ValueType.TCustom(type_name):
                 if ctx.local_catch_labels.contains_key(type_name) {
-                    mut catch_info := CatchLabelInfo()
-                    ctx.local_catch_labels.get(type_name, catch_info)?
+                    ci_ref := ctx.local_catch_labels.get_by_ref(type_name)?
+                    create_alias(catch_info, CatchLabelInfo, ci_ref.data)
                     output.push_str(indent_str)
                     output.push_str("if (_status_")
                     output.push_str(temp_suffix)
@@ -1870,12 +1870,12 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
             result.push_str(member.name)
             result.push_str(" = ")
             if field_values.contains_key(member.name) {
-                mut field_val := ""
-                field_values.get(member.name, field_val)?
+                fv_ref := field_values.get_by_ref(member.name)?
+                create_alias(field_val, Str, fv_ref.data)
                 result.push_str(field_val)
             } else if struct_def.default_values.contains_key(member.name) {
-                mut default_expr := Expr()
-                struct_def.default_values.get(member.name, default_expr)?
+                dv_ref := struct_def.default_values.get_by_ref(member.name)?
+                create_alias(default_expr, Expr, dv_ref.data)
                 // Use emit_arg_string for defaults too (may contain variadic/throwing calls)
                 mut member_type := Ptr()
                 member_type.data = to_ptr(member.value_type)
@@ -6900,16 +6900,16 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 output.push_str(" = ")
                 // Use hoisted temp if available, otherwise emit inline
                 if hoisted_values.contains_key(member.name) {
-                    mut temp_var := ""
-                    hoisted_values.get(member.name, temp_var)?
+                    hv_ref := hoisted_values.get_by_ref(member.name)?
+                    create_alias(temp_var, Str, hv_ref.data)
                     output.push_str(temp_var)
                 } else if named_values.contains_key(member.name) {
-                    mut value_expr := Expr()
-                    named_values.get(member.name, value_expr)?
+                    nv_ref := named_values.get_by_ref(member.name)?
+                    create_alias(value_expr, Expr, nv_ref.data)
                     emit_expr(value_expr, output, 0, ctx, context)?
                 } else {
-                    mut member_default_expr := Expr()
-                    struct_def.default_values.get(member.name, member_default_expr)?
+                    dv_ref := struct_def.default_values.get_by_ref(member.name)?
+                    create_alias(member_default_expr, Expr, dv_ref.data)
                     emit_expr(member_default_expr, output, 0, ctx, context)?
                     catch (err: KeyNotFoundError) {
                         // No default - use zero
@@ -8095,8 +8095,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     // Use named arg value if provided, otherwise use default
                     // Bug #143: At expression level, use emit_expr - caller should have used emit_arg_string for hoisting
                     if named_values.contains_key(member.name) {
-                        mut member_value_expr := Expr()
-                        named_values.get(member.name, member_value_expr)?
+                        nv_ref := named_values.get_by_ref(member.name)?
+                        create_alias(member_value_expr, Expr, nv_ref.data)
                         emit_expr(member_value_expr, output, 0, ctx, context)?
                     } else {
                         val_ref := struct_def.default_values.get_by_ref(member.name)?

@@ -162,8 +162,8 @@ read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type
                     mut nested_values := read_struct_primitive_fields(ctx, field_id, type_name, nested_key, e)?
                     // Copy nested values to values map
                     for k: Str in nested_values.keys {
-                        mut v := ""
-                        nested_values.get(k, v)?
+                        nv_ref := nested_values.get_by_ref(k)?
+                        create_alias(v, Str, nv_ref.data)
                         values.set(k, v)
                     }
                     catch (err: KeyNotFoundError) {
@@ -251,8 +251,8 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                             nested = eval_struct_defaults(ctx, type_name, e)?
                             // Iterate nested map and insert with prefix
                             for k: Str in nested.keys {
-                                mut v := ""
-                                nested.get(k, v)?
+                                nv_ref := nested.get_by_ref(k)?
+                                create_alias(v, Str, nv_ref.data)
                                 defaults.set(format(decl.name, ".", k), v)
                             }
 
@@ -261,8 +261,8 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                             instance_id := res.value
                             mut primitive_values := read_struct_primitive_fields(ctx, instance_id, type_name, decl.name, e)?
                             for prim_k: Str in primitive_values.keys {
-                                mut prim_v := ""
-                                primitive_values.get(prim_k, prim_v)?
+                                pv_ref := primitive_values.get_by_ref(prim_k)?
+                                create_alias(prim_v, Str, pv_ref.data)
                                 defaults.set(prim_k, prim_v)
                             }
 
@@ -285,8 +285,8 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
 create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) returns I64 throws Str {
     // Check if template already exists (e.g., from a previous import)
     if g_heap.default_instances.contains_key(struct_type) {
-        mut offset := 0
-        g_heap.default_instances.get(struct_type, offset)?
+        di_ref := g_heap.default_instances.get_by_ref(struct_type)?
+        create_alias(offset, I64, di_ref.data)
         catch (err: KeyNotFoundError) { throw err.msg }
         return offset
     }
@@ -324,8 +324,8 @@ insert_struct_instance := proc(mut ctx: Context, id: Str, type_name: Str, e: Exp
     if not(g_heap.default_instances.contains_key(type_name)) {
         throw e.lang_error(ctx.path, "insert_struct_instance", format("template for '", type_name, "' not found"))
     }
-    mut template_offset := 0
-    g_heap.default_instances.get(type_name, template_offset)?
+    di_ref := g_heap.default_instances.get_by_ref(type_name)?
+    create_alias(template_offset, I64, di_ref.data)
     catch (err: KeyNotFoundError) { throw err.msg }
     EvalHeap.insert_struct(ctx, id, type_name, template_offset, e)?
 }
@@ -3084,12 +3084,12 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     _ := context.imports_eval_done.insert(path.clone())
 
     // Get stored AST from init phase
-    mut ast := Expr()
     if not(context.imported_asts.contains_key(path)) {
         throw e.error(context.path, "eval", format(
             "Import ", path, " not found in stored ASTs - init phase should have stored it"))
     }
-    context.imported_asts.get(path, ast)?
+    ast_ref := context.imported_asts.get_by_ref(path)?
+    create_alias(ast, Expr, ast_ref.data)
     catch (err: KeyNotFoundError) {
         throw e.error(context.path, "eval", format(
             "Import ", path, " not found in stored ASTs - init phase should have stored it"))

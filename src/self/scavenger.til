@@ -634,8 +634,8 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
             case NodeType.NamespaceDef(ns_def):
                 if ns_def.type_name.eq(eq_type_name) {
                     for method_name: Str in ns_def.default_values.keys {
-                        mut method_expr := Expr()
-                        ns_def.default_values.get(method_name, method_expr)?
+                        me_ref := ns_def.default_values.get_by_ref(method_name)?
+                        create_alias(method_expr, Expr, me_ref.data)
                         catch (err: KeyNotFoundError) {
                             panic(loc(), "scavenger: KeyNotFoundError iterating default_values.keys: ", err.msg)
                         }

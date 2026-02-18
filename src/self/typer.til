@@ -57,8 +57,8 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
     }
 
     // Get stored mode from init phase (Bug #41 fix)
-    mut file_mode := ModeDef()
-    context.imported_modes.get(path, file_mode)?
+    fm_ref := context.imported_modes.get_by_ref(path)?
+    create_alias(file_mode, ModeDef, fm_ref.data)
     catch (err: KeyNotFoundError) {
         // This shouldn't happen - init phase should have stored the mode
         errors.push(format("typer: Import ", path, " not found in stored modes - init phase should have stored it"))

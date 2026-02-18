@@ -643,8 +643,8 @@ detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Cont
     switch param_expr.node_type {
     case NodeType.Identifier(var_name):
         if param_expr.params.len().eq(0) {
-            mut type_name := ""
-            local_types.get(var_name, type_name)?
+            lt_ref := local_types.get_by_ref(var_name)?
+            create_alias(type_name, Str, lt_ref.data)
             catch (err: KeyNotFoundError) {
                 return false
             }

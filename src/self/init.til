@@ -286,8 +286,8 @@ namespace ScopeStack {
             create_alias(current_frame, ScopeFrame, frame_ref.data)
             if current_frame.symbols.contains_key(name) {
                 if self.removal_tracking_depth.gt(0) {
-                    mut info := SymbolInfo()
-                    current_frame.symbols.get(name, info)?
+                    si_ref := current_frame.symbols.get_by_ref(name)?
+                    create_alias(info, SymbolInfo, si_ref.data)
                     self.removed_log.push(RemovedSymbol(name=name.clone(), info=info))
                     catch (err: KeyNotFoundError) {
                         throw err.msg
@@ -311,8 +311,8 @@ namespace ScopeStack {
             frame_ref := self.frames.get_by_ref(last_idx)?
             create_alias(current_frame, ScopeFrame, frame_ref.data)
             if current_frame.heap_index.contains_key(name) {
-                mut offset := 0
-                current_frame.heap_index.get(name, offset)?
+                hi_ref := current_frame.heap_index.get_by_ref(name)?
+                create_alias(offset, I64, hi_ref.data)
                 current_frame.heap_index.remove(name)
                 mut ptr := Ptr()
                 ptr.data = offset

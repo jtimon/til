@@ -739,8 +739,8 @@ namespace EvalHeap {
             return
         }
         // Create Str struct from template
-        mut template_offset := 0
-        g_heap.default_instances.get("Str", template_offset)?
+        di_ref := g_heap.default_instances.get_by_ref("Str")?
+        create_alias(template_offset, I64, di_ref.data)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string", "Str template not found - ensure str.til is imported")
         }
@@ -769,16 +769,16 @@ namespace EvalHeap {
         // because the interpreter never evaluated struct declarations. This is OK for
         // macros with Type parameters - the type name is only used in AST construction,
         // not read as a runtime Str value.
-        mut template_offset := 0
-        g_heap.default_instances.get("Str", template_offset)?
+        di_ref := g_heap.default_instances.get_by_ref("Str")?
+        create_alias(template_offset, I64, di_ref.data)
         catch (err: KeyNotFoundError) {
             return
         }
         EvalHeap.insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?
         // Bug #160: Calculate field offsets from base offset in frame
         // The base struct was just inserted into frame.heap_index
-        mut base_offset := 0
-        frame.heap_index.get(id, base_offset)?
+        hi_ref := frame.heap_index.get_by_ref(id)?
+        create_alias(base_offset, I64, hi_ref.data)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string_into_frame", format("missing '", id, "' in frame"))
         }
@@ -1225,8 +1225,8 @@ namespace EvalHeap {
      *  Uses insert_struct_into_frame internally. */
     insert_array_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, name: Str, elem_type: Str, values: Vec, e: Expr) throws Str {
         // Create Array struct using template
-        mut template_offset := 0
-        g_heap.default_instances.get("Array", template_offset)?
+        di_ref := g_heap.default_instances.get_by_ref("Array")?
+        create_alias(template_offset, I64, di_ref.data)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "Array template not found - ensure array.til is imported")
         }
@@ -1260,8 +1260,8 @@ namespace EvalHeap {
 
                 EvalHeap.insert_string_into_frame(ctx, frame, temp_id, val, e)?
 
-                mut str_offset := 0
-                frame.heap_index.get(temp_id, str_offset)?
+                so_ref := frame.heap_index.get_by_ref(temp_id)?
+                create_alias(str_offset, I64, so_ref.data)
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("missing Str offset for '", temp_id, "'"))
                 }
@@ -1280,8 +1280,8 @@ namespace EvalHeap {
         }
 
         // Bug #160: Calculate field offsets from base offset in frame
-        mut base_offset := 0
-        frame.heap_index.get(name, base_offset)?
+        bo_ref := frame.heap_index.get_by_ref(name)?
+        create_alias(base_offset, I64, bo_ref.data)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", format("missing base offset for '", name, "'"))
         }
@@ -1338,8 +1338,8 @@ namespace EvalHeap {
 
         EvalHeap.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)?
 
-        mut temp_str_offset := 0
-        frame.heap_index.get(temp_type_name_id, temp_str_offset)?
+        tso_ref := frame.heap_index.get_by_ref(temp_type_name_id)?
+        create_alias(temp_str_offset, I64, tso_ref.data)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", "missing type_name temp Str offset")
         }
