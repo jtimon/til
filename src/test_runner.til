@@ -67,9 +67,9 @@ parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError
                     second_colon := after_first.find(":")
                     if second_colon.gt(0) {
                         hour_str := get_substr(time_str, 0, colon_pos)?
-                        min_str := get_substr(after_first, 0, second_colon)?
-                        sec_str := get_substr(after_first, second_colon.add(1), after_first.len())?
-                        return hour_str.to_i64().mul(3600000).add(min_str.to_i64().mul(60000)).add(sec_str.to_i64().mul(1000))
+                        hms_min_str := get_substr(after_first, 0, second_colon)?
+                        hms_sec_str := get_substr(after_first, second_colon.add(1), after_first.len())?
+                        return hour_str.to_i64().mul(3600000).add(hms_min_str.to_i64().mul(60000)).add(hms_sec_str.to_i64().mul(1000))
                     }
                 }
             }

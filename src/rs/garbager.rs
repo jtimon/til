@@ -154,9 +154,9 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
             // Build final_body: original statements with ASAP deletes interleaved
             let mut final_body: Vec<Expr> = Vec::new();
-            for i in 0..body_len {
-                final_body.push(new_body[i].clone());
-                if let Some(delete_calls) = inserts.get(&(i + 1)) {
+            for bi in 0..body_len {
+                final_body.push(new_body[bi].clone());
+                if let Some(delete_calls) = inserts.get(&(bi + 1)) {
                     for dc in delete_calls {
                         final_body.push(dc.clone());
                     }
@@ -196,54 +196,54 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 members: struct_def.members.clone(),
                 default_values: new_default_values,
             };
-            let mut new_params = Vec::new();
+            let mut struct_new_params = Vec::new();
             for param in &e.params {
-                new_params.push(garbager_recursive(context, param)?);
+                struct_new_params.push(garbager_recursive(context, param)?);
             }
-            Ok(Expr::new_explicit(NodeType::StructDef(new_struct_def), new_params, e.line, e.col))
+            Ok(Expr::new_explicit(NodeType::StructDef(new_struct_def), struct_new_params, e.line, e.col))
         }
         // Recurse into NamespaceDef default values
         NodeType::NamespaceDef(ns_def) => {
-            let mut new_default_values = HashMap::new();
+            let mut ns_new_default_values = HashMap::new();
             for (name, value_expr) in &ns_def.default_values {
-                new_default_values.insert(name.clone(), garbager_recursive(context, value_expr)?);
+                ns_new_default_values.insert(name.clone(), garbager_recursive(context, value_expr)?);
             }
             let new_ns_def = SNamespaceDef {
                 type_name: ns_def.type_name.clone(),
                 members: ns_def.members.clone(),
-                default_values: new_default_values,
+                default_values: ns_new_default_values,
             };
-            let mut new_params = Vec::new();
+            let mut ns_new_params = Vec::new();
             for param in &e.params {
-                new_params.push(garbager_recursive(context, param)?);
+                ns_new_params.push(garbager_recursive(context, param)?);
             }
-            Ok(Expr::new_explicit(NodeType::NamespaceDef(new_ns_def), new_params, e.line, e.col))
+            Ok(Expr::new_explicit(NodeType::NamespaceDef(new_ns_def), ns_new_params, e.line, e.col))
         }
         // Issue #159: Transform mut declarations with struct type where RHS is an identifier
         NodeType::Declaration(decl) => {
             // First, recursively transform children
-            let mut new_params = Vec::new();
+            let mut decl_new_params = Vec::new();
             for param in &e.params {
-                new_params.push(garbager_recursive(context, param)?);
+                decl_new_params.push(garbager_recursive(context, param)?);
             }
 
             // Check if this is a mut declaration with struct type and identifier RHS
             // Identifier can have field access (x.y.z), we clone any identifier-based RHS
-            if decl.is_mut && !new_params.is_empty() {
-                if let NodeType::Identifier(_) = &new_params[0].node_type {
+            if decl.is_mut && !decl_new_params.is_empty() {
+                if let NodeType::Identifier(_) = &decl_new_params[0].node_type {
                     if let ValueType::TCustom(type_name) = &decl.value_type {
                         // Exclude true primitive types - they don't need deep cloning
                         // Note: Bool is NOT excluded because true/false are global constants
                         // that would be corrupted if we just share offsets
                         if is_deletable_type(type_name, context) {
                             // Build clone call: Type.clone(rhs_expr)
-                            let rhs_expr = new_params[0].clone();
-                            let clone_call = build_clone_call_expr(type_name, rhs_expr, e.line, e.col);
-                            let mut transformed_params = vec![clone_call];
-                            transformed_params.extend(new_params.into_iter().skip(1));
+                            let decl_rhs_expr = decl_new_params[0].clone();
+                            let decl_clone_call = build_clone_call_expr(type_name, decl_rhs_expr, e.line, e.col);
+                            let mut decl_transformed_params = vec![decl_clone_call];
+                            decl_transformed_params.extend(decl_new_params.into_iter().skip(1));
                             return Ok(Expr::new_explicit(
                                 e.node_type.clone(),
-                                transformed_params,
+                                decl_transformed_params,
                                 e.line,
                                 e.col,
                             ));
@@ -252,46 +252,46 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 }
             }
             // No transformation needed
-            Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
+            Ok(Expr::new_explicit(e.node_type.clone(), decl_new_params, e.line, e.col))
         }
         // Issue #159: Transform FCall copy params with struct type where arg is an identifier
         NodeType::FCall(_) => {
             // First, recursively transform children
-            let mut new_params = Vec::new();
+            let mut fcall_new_params = Vec::new();
             for param in &e.params {
-                new_params.push(garbager_recursive(context, param)?);
+                fcall_new_params.push(garbager_recursive(context, param)?);
             }
             // Transform copy params: wrap struct identifier args in Type.clone()
-            transform_fcall_copy_params(context, e, &mut new_params)?;
+            transform_fcall_copy_params(context, e, &mut fcall_new_params)?;
             // Issue #159 Step 5: Transform struct literal fields
-            transform_struct_literal_fields(context, e, &mut new_params)?;
-            Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
+            transform_struct_literal_fields(context, e, &mut fcall_new_params)?;
+            Ok(Expr::new_explicit(e.node_type.clone(), fcall_new_params, e.line, e.col))
         }
         // Issue #159 Step 6: Transform assignments with struct type where RHS is an identifier
         NodeType::Assignment(_var_name) => {
             // First, recursively transform children
-            let mut new_params = Vec::new();
+            let mut assign_new_params = Vec::new();
             for param in &e.params {
-                new_params.push(garbager_recursive(context, param)?);
+                assign_new_params.push(garbager_recursive(context, param)?);
             }
 
             // Check if RHS is a bare identifier (no field access children)
             // Field access expressions (x.y.z) are skipped - they read from memory directly
-            if !new_params.is_empty() {
-                if let NodeType::Identifier(rhs_name) = &new_params[0].node_type {
-                    if new_params[0].params.is_empty() {
+            if !assign_new_params.is_empty() {
+                if let NodeType::Identifier(rhs_name) = &assign_new_params[0].node_type {
+                    if assign_new_params[0].params.is_empty() {
                         // Look up identifier's symbol type
                         if let Some(sym) = context.scope_stack.lookup_symbol(rhs_name) {
                             if let ValueType::TCustom(type_name) = &sym.value_type {
                                 if is_deletable_type(type_name, context) {
                                     // Build clone call: Type.clone(rhs_expr)
-                                    let rhs_expr = new_params[0].clone();
-                                    let clone_call = build_clone_call_expr(type_name, rhs_expr, e.line, e.col);
-                                    let mut transformed_params = vec![clone_call];
-                                    transformed_params.extend(new_params.into_iter().skip(1));
+                                    let assign_rhs_expr = assign_new_params[0].clone();
+                                    let assign_clone_call = build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col);
+                                    let mut assign_transformed_params = vec![assign_clone_call];
+                                    assign_transformed_params.extend(assign_new_params.into_iter().skip(1));
                                     return Ok(Expr::new_explicit(
                                         e.node_type.clone(),
-                                        transformed_params,
+                                        assign_transformed_params,
                                         e.line,
                                         e.col,
                                     ));
@@ -302,18 +302,18 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 }
             }
             // No transformation needed
-            Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
+            Ok(Expr::new_explicit(e.node_type.clone(), assign_new_params, e.line, e.col))
         }
         // Body: recurse into children, stripping dont_delete calls
         NodeType::Body => {
-            let mut new_params = Vec::new();
+            let mut body_new_params = Vec::new();
             for param in &e.params {
                 if is_dont_delete_call(param)? {
                     continue;
                 }
-                new_params.push(garbager_recursive(context, param)?);
+                body_new_params.push(garbager_recursive(context, param)?);
             }
-            Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
+            Ok(Expr::new_explicit(e.node_type.clone(), body_new_params, e.line, e.col))
         }
         // Desugared-away node types: reject with lang_error
         NodeType::Switch => Err(e.lang_error(&context.path, "garbager", "Switch should have been desugared to if/else by desugarer phase")),
@@ -322,11 +322,11 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::ForIn(_) => Err(e.lang_error(&context.path, "garbager", "ForIn should have been desugared before garbager phase")),
         // Default: recurse into children
         _ => {
-            let mut new_params = Vec::new();
+            let mut default_new_params = Vec::new();
             for param in &e.params {
-                new_params.push(garbager_recursive(context, param)?);
+                default_new_params.push(garbager_recursive(context, param)?);
             }
-            Ok(Expr::new_explicit(e.node_type.clone(), new_params, e.line, e.col))
+            Ok(Expr::new_explicit(e.node_type.clone(), default_new_params, e.line, e.col))
         }
     }
 }

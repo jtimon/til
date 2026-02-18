@@ -726,7 +726,7 @@ val: I64 = vec.get(0)  // direct return
 :RESOLVED: 2026-01-30
 :IMPACT: Language design, Rust/TIL parity, developer experience
 :STATUS: Resolved - Bug #97 implemented option 1 (allow full shadowing)
-:RELATED: Bug #65 (specific shadowing divergence), Bug #97 (fix via name mangling)
+:RELATED: Bug #65 (specific shadowing divergence), Bug #97 (fix via name mangling), Bug #173 (Rust typer missing shadowing check)
 :END:
 
 *** Background

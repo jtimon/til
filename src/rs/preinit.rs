@@ -468,21 +468,21 @@ fn preinit_expr_inner(e: &Expr) -> Result<Expr, String> {
             }
 
             // Default: recurse into params
-            let mut new_params = Vec::new();
+            let mut decl_new_params = Vec::new();
             for p in &e.params {
-                new_params.push(preinit_expr_inner(p)?);
+                decl_new_params.push(preinit_expr_inner(p)?);
             }
-            Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+            Ok(Expr::new_clone(e.node_type.clone(), e, decl_new_params))
         },
         _ => {
             if e.params.is_empty() {
                 Ok(e.clone())
             } else {
-                let mut new_params = Vec::new();
+                let mut default_new_params = Vec::new();
                 for p in &e.params {
-                    new_params.push(preinit_expr_inner(p)?);
+                    default_new_params.push(preinit_expr_inner(p)?);
                 }
-                Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+                Ok(Expr::new_clone(e.node_type.clone(), e, default_new_params))
             }
         }
     }

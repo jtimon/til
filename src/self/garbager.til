@@ -213,14 +213,14 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
 
         // Build final_body: original statements with ASAP deletes interleaved
         mut final_body := Vec.new(Expr)
-        for i in 0..body_len {
-            body_stmt_ref := new_body.get_by_ref(i)?
+        for bi in 0..body_len {
+            body_stmt_ref := new_body.get_by_ref(bi)?
             create_alias(body_stmt, Expr, body_stmt_ref.data)
             final_body.push(body_stmt)
             for di in 0..insert_positions.len() {
                 mut dpos := 0
                 insert_positions.get(di, dpos)?
-                if dpos.eq(i.add(1)) {
+                if dpos.eq(bi.add(1)) {
                     dc_ref := insert_del_calls.get_by_ref(di)?
                     create_alias(dc, Expr, dc_ref.data)
                     final_body.push(dc)
@@ -232,10 +232,10 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         mut last_line := e.line
         mut last_col := e.col
         if final_body.len().gt(0) {
-            last_s_ref := final_body.get_by_ref(final_body.len().sub(1))?
-            create_alias(last_s, Expr, last_s_ref.data)
-            last_line = last_s.line
-            last_col = last_s.col
+            final_last_s_ref := final_body.get_by_ref(final_body.len().sub(1))?
+            create_alias(final_last_s, Expr, final_last_s_ref.data)
+            last_line = final_last_s.line
+            last_col = final_last_s.col
         }
         mut eri := end_vars.len()
         while eri.gt(0) {
@@ -282,47 +282,47 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             members=struct_def.members.clone(),
             default_values=new_default_values
         )
-        mut new_params := Vec.new(Expr)
+        mut struct_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            new_params.push(garbager_recursive(context, param)?)
+            struct_new_params.push(garbager_recursive(context, param)?)
         }
-        return Expr.new_explicit(NodeType.StructDef(new_struct_def), new_params, e.line, e.col)
+        return Expr.new_explicit(NodeType.StructDef(new_struct_def), struct_new_params, e.line, e.col)
 
     // Recurse into NamespaceDef default values
     case NodeType.NamespaceDef(ns_def):
-        mut new_default_values := Map.new(Str, Expr)
+        mut ns_new_default_values := Map.new(Str, Expr)
         for name: Str in ns_def.default_values.keys {
-            val_ref := ns_def.default_values.get_by_ref(name)?
-            create_alias(value_expr, Expr, val_ref.data)
+            ns_val_ref := ns_def.default_values.get_by_ref(name)?
+            create_alias(value_expr, Expr, ns_val_ref.data)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
             }
-            new_default_values.set(name.clone(), garbager_recursive(context, value_expr)?)
+            ns_new_default_values.set(name.clone(), garbager_recursive(context, value_expr)?)
         }
         new_ns_def := SNamespaceDef(
             type_name=ns_def.type_name,
             members=ns_def.members.clone(),
-            default_values=new_default_values
+            default_values=ns_new_default_values
         )
-        mut new_params := Vec.new(Expr)
+        mut ns_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            new_params.push(garbager_recursive(context, param)?)
+            ns_new_params.push(garbager_recursive(context, param)?)
         }
-        return Expr.new_explicit(NodeType.NamespaceDef(new_ns_def), new_params, e.line, e.col)
+        return Expr.new_explicit(NodeType.NamespaceDef(new_ns_def), ns_new_params, e.line, e.col)
 
     // Issue #159: Transform mut declarations with struct type where RHS is an identifier
     case NodeType.Declaration(decl):
         // First, recursively transform children
-        mut new_params := Vec.new(Expr)
+        mut decl_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            new_params.push(garbager_recursive(context, param)?)
+            decl_new_params.push(garbager_recursive(context, param)?)
         }
 
         // Check if this is a mut declaration with struct type and identifier RHS
         // Identifier can have field access (x.y.z), we clone any identifier-based RHS
-        if decl.is_mut.and(new_params.len().gt(0)) {
+        if decl.is_mut.and(decl_new_params.len().gt(0)) {
             mut first_param := Expr()
-            new_params.get(0, first_param)?
+            decl_new_params.get(0, first_param)?
             catch (err: IndexOutOfBoundsError) {
                 throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
             }
@@ -335,21 +335,21 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
                     // that would be corrupted if we just share offsets
                     if is_deletable_type(type_name, context) {
                         // Build clone call: Type.clone(rhs_expr)
-                        rhs_expr := first_param.clone()
-                        clone_call := build_clone_call_expr(type_name, rhs_expr, e.line, e.col)
-                        mut transformed_params := Vec.new(Expr)
-                        transformed_params.push(clone_call)
-                        mut i := 1
-                        while i.lt(new_params.len()) {
-                            mut param := Expr()
-                            new_params.get(i, param)?
+                        decl_rhs_expr := first_param.clone()
+                        decl_clone_call := build_clone_call_expr(type_name, decl_rhs_expr, e.line, e.col)
+                        mut decl_transformed_params := Vec.new(Expr)
+                        decl_transformed_params.push(decl_clone_call)
+                        mut decl_i := 1
+                        while decl_i.lt(decl_new_params.len()) {
+                            mut decl_param := Expr()
+                            decl_new_params.get(decl_i, decl_param)?
                             catch (err: IndexOutOfBoundsError) {
                                 throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
                             }
-                            transformed_params.push(param)
-                            i = i.add(1)
+                            decl_transformed_params.push(decl_param)
+                            decl_i = decl_i.add(1)
                         }
-                        return Expr.new_explicit(e.node_type, transformed_params, e.line, e.col)
+                        return Expr.new_explicit(e.node_type, decl_transformed_params, e.line, e.col)
                     }
                 case:
                     // Not a TCustom type
@@ -359,20 +359,20 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             }
         }
         // No transformation needed
-        return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
+        return Expr.new_explicit(e.node_type, decl_new_params, e.line, e.col)
 
     // Issue #159: Transform FCall copy params with struct type where arg is an identifier
     case NodeType.FCall(_):
         // First, recursively transform children
-        mut new_params := Vec.new(Expr)
+        mut fcall_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            new_params.push(garbager_recursive(context, param)?)
+            fcall_new_params.push(garbager_recursive(context, param)?)
         }
         // Transform copy params: wrap struct identifier args in Type.clone()
-        transform_fcall_copy_params(context, e, new_params)?
+        transform_fcall_copy_params(context, e, fcall_new_params)?
         // Issue #159 Step 5: Transform struct literal fields
-        transform_struct_literal_fields(context, e, new_params)?
-        return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
+        transform_struct_literal_fields(context, e, fcall_new_params)?
+        return Expr.new_explicit(e.node_type, fcall_new_params, e.line, e.col)
 
     // Issue #159 Step 6: Transform assignments with struct type where RHS is an identifier
     case NodeType.Assignment(var_name):
@@ -403,21 +403,21 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
                 case ValueType.TCustom(type_name):
                     if is_deletable_type(type_name, context) {
                         // Build clone call: Type.clone(rhs_expr)
-                        rhs_expr := assign_first_param.clone()
-                        clone_call := build_clone_call_expr(type_name, rhs_expr, e.line, e.col)
-                        mut transformed_params := Vec.new(Expr)
-                        transformed_params.push(clone_call)
-                        mut i := 1
-                        while i.lt(assign_new_params.len()) {
-                            mut param := Expr()
-                            assign_new_params.get(i, param)?
+                        assign_rhs_expr := assign_first_param.clone()
+                        assign_clone_call := build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col)
+                        mut assign_transformed_params := Vec.new(Expr)
+                        assign_transformed_params.push(assign_clone_call)
+                        mut assign_i := 1
+                        while assign_i.lt(assign_new_params.len()) {
+                            mut assign_param := Expr()
+                            assign_new_params.get(assign_i, assign_param)?
                             catch (err: IndexOutOfBoundsError) {
                                 throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
                             }
-                            transformed_params.push(param)
-                            i = i.add(1)
+                            assign_transformed_params.push(assign_param)
+                            assign_i = assign_i.add(1)
                         }
-                        return Expr.new_explicit(e.node_type, transformed_params, e.line, e.col)
+                        return Expr.new_explicit(e.node_type, assign_transformed_params, e.line, e.col)
                     }
                 case:
                     // Not a TCustom type
@@ -454,11 +454,11 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
 
     // Default: recurse into children
     case:
-        mut new_params := Vec.new(Expr)
+        mut default_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            new_params.push(garbager_recursive(context, param)?)
+            default_new_params.push(garbager_recursive(context, param)?)
         }
-        return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
+        return Expr.new_explicit(e.node_type, default_new_params, e.line, e.col)
     }
 }
 

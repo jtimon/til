@@ -660,8 +660,8 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         };
                         match &member_default_value.node_type {
                             NodeType::FuncDef(func_def) => {
-                                let combined_name = format!("{}.{}", f_name, after_dot_name);
-                                return value_type_func_proc(&context.path, &e, &combined_name, &func_def);
+                                let member_combined_name = format!("{}.{}", f_name, after_dot_name);
+                                return value_type_func_proc(&context.path, &e, &member_combined_name, &func_def);
                             },
                             _  => {
                                 return Err(e.error(&context.path, "init", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
@@ -1357,9 +1357,9 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                     // Try to find a default_value (required for funcs/consts)
                                     if let Some(member_expr) = struct_def.default_values.get(&member_decl.name) {
                                         let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
-                                        let full_name = format!("{}.{}", decl.name, member_decl.name); // Note: using '.' not '::'
+                                        let member_full_name = format!("{}.{}", decl.name, member_decl.name); // Note: using '.' not '::'
                                         // Register in symbols (constants only - functions now go in namespace blocks)
-                                        context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false });
+                                        context.scope_stack.declare_symbol(member_full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false });
                                     }
                                 }
                             }

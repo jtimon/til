@@ -7,6 +7,42 @@
 
 * Fixed Bugs
 
+** Bug #173: Rust typer missing variable shadowing check (ccodegen =*_ret= assignment bug)
+:PROPERTIES:
+:DISCOVERED: 2026-02-18
+:FIXED: 2026-02-18
+:IMPACT: Compiler error (-Werror=unused-parameter) in generated C; wrong codegen for shadowed variables
+:STATUS: Fixed
+:RELATED: Bug #168 (ccodegen return copies), Issue #66 (variable shadowing policy)
+:END:
+
+*** Root cause
+TIL's typer rejects same-named variables in different scopes within a function
+("Variable 'p' already declared in this function (shadowing not allowed)") via
+=is_shadowing_in_function= at typer.til:2092-2103. The Rust typer never had this
+check, allowing shadowing through to ccodegen where =find_ret_var_for_placement=
+confuses two different variables with the same name.
+
+*** Fix
+1. Added shadowing check to =check_declaration= in =src/rs/typer.rs=, porting
+   the existing TIL check. Uses =is_shadowing_in_function=, =is_already_processed=,
+   and =register_function_local= (all already existed in init.rs).
+
+2. Fixed all shadowing errors across the entire codebase (both TIL and Rust):
+   - src/self/preinit.til + src/rs/preinit.rs
+   - src/self/scavenger.til + src/rs/scavenger.rs
+   - src/self/eval_heap.til
+   - src/self/init.til + src/rs/init.rs
+   - src/self/interpreter.til + src/rs/interpreter.rs
+   - src/self/precomp.til + src/rs/precomp.rs
+   - src/self/typer.til + src/rs/typer.rs
+   - src/self/garbager.til + src/rs/garbager.rs
+   - src/self/desugarer.til + src/rs/desugarer.rs
+   - src/self/ccodegen.til + src/rs/ccodegen.rs
+   - src/test_runner.til, src/tests.til
+
+*** Test
+=src/test/bug173.til= - all_common with expected_status=1 (both typers reject it).
 
 ** Bug #164: List has no capacity tracking - heap overrun on cloned List push
 :PROPERTIES:

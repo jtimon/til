@@ -1632,9 +1632,9 @@ fn emit_fcall_arg_string(
             if arg.params.len() < 4 {
                 return Err(arg.lang_error(&context.path, "ccodegen", "enum_get_payload_type requires 3 arguments"));
             }
-            let enum_arg = arg.get(1)?;
+            let ept_enum_arg = arg.get(1)?;
             let variant_arg = arg.get(2)?;
-            let payload_type_arg = arg.get(3)?;
+            let ept_payload_type_arg = arg.get(3)?;
 
             // Get variant name
             let variant_name = if let NodeType::Identifier(name) = &variant_arg.node_type {
@@ -1644,7 +1644,7 @@ fn emit_fcall_arg_string(
             };
 
             // Get payload type name
-            let payload_type_name = if let NodeType::Identifier(name) = &payload_type_arg.node_type {
+            let payload_type_name = if let NodeType::Identifier(name) = &ept_payload_type_arg.node_type {
                 name.clone()
             } else {
                 return Err(arg.lang_error(&context.path, "ccodegen", "enum_get_payload_type: payload type must be identifier"));
@@ -1652,7 +1652,7 @@ fn emit_fcall_arg_string(
 
             // Emit enum expression
             let mut enum_str = String::new();
-            emit_expr(enum_arg, &mut enum_str, 0, ctx, context)?;
+            emit_expr(ept_enum_arg, &mut enum_str, 0, ctx, context)?;
 
             // Generate: PayloadType_to_str(&enum_expr.payload.VariantName)
             return Ok(format!("{}_to_str(&{}.payload.{})",
@@ -2690,11 +2690,11 @@ fn emit_precomputed_vec_recursive(
         output.push_str("[");
         output.push_str(&elem_count.to_string());
         output.push_str("] = {");
-        for (i, bytes) in contents.element_bytes.iter().enumerate() {
-            if i > 0 {
+        for (u8_i, u8_bytes) in contents.element_bytes.iter().enumerate() {
+            if u8_i > 0 {
                 output.push_str(", ");
             }
-            let val: u8 = bytes.first().copied().unwrap_or(0);
+            let val: u8 = u8_bytes.first().copied().unwrap_or(0);
             output.push_str(&val.to_string());
         }
         output.push_str("};\n");
@@ -2804,32 +2804,32 @@ fn emit_precomputed_nested_vec_static(
     output.push_str(&elem_count.to_string());
     output.push_str("] = {\n");
 
-    for (idx, elem_bytes) in contents.element_bytes.iter().enumerate() {
+    for (outer_idx, outer_elem_bytes) in contents.element_bytes.iter().enumerate() {
         if elem_type == "Vec" {
             // Emit Vec struct with patched pointers
             // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
-            let str_size = context.get_type_size("Str")?;
-            let ptr_size = context.get_type_size("Ptr")?;
+            let outer_str_size = context.get_type_size("Str")?;
+            let outer_ptr_size = context.get_type_size("Ptr")?;
 
             // Extract type_size
-            let type_size_bytes: [u8; 8] = elem_bytes[str_size..str_size+8].try_into()
+            let type_size_bytes: [u8; 8] = outer_elem_bytes[outer_str_size..outer_str_size+8].try_into()
                 .map_err(|_| "emit_precomputed_nested_vec_static: failed to read type_size")?;
             let type_size = i64::from_ne_bytes(type_size_bytes);
 
             // Extract _len
-            let len_offset = str_size + 8 + ptr_size;
-            let len_bytes: [u8; 8] = elem_bytes[len_offset..len_offset+8].try_into()
+            let outer_len_offset = outer_str_size + 8 + outer_ptr_size;
+            let len_bytes: [u8; 8] = outer_elem_bytes[outer_len_offset..outer_len_offset+8].try_into()
                 .map_err(|_| "emit_precomputed_nested_vec_static: failed to read _len")?;
             let len = i64::from_ne_bytes(len_bytes);
 
             // Extract cap
-            let cap_offset = len_offset + 8;
-            let cap_bytes: [u8; 8] = elem_bytes[cap_offset..cap_offset+8].try_into()
+            let cap_offset = outer_len_offset + 8;
+            let cap_bytes: [u8; 8] = outer_elem_bytes[cap_offset..cap_offset+8].try_into()
                 .map_err(|_| "emit_precomputed_nested_vec_static: failed to read cap")?;
             let cap = i64::from_ne_bytes(cap_bytes);
 
             // Get inner type name
-            let inner_type_name = EvalHeap::extract_str_from_bytes(context, elem_bytes)?;
+            let outer_inner_type_name = EvalHeap::extract_str_from_bytes(context, outer_elem_bytes)?;
 
             output.push_str("    {.type_name = (");
             output.push_str(TIL_PREFIX);
@@ -2838,9 +2838,9 @@ fn emit_precomputed_nested_vec_static(
             output.push_str("Ptr){(");
             output.push_str(TIL_PREFIX);
             output.push_str("I64)\"");
-            output.push_str(&inner_type_name);
+            output.push_str(&outer_inner_type_name);
             output.push_str("\", 1, 0, 0, 0}, ._len =");
-            output.push_str(&inner_type_name.len().to_string());
+            output.push_str(&outer_inner_type_name.len().to_string());
             output.push_str(", .cap = 0}, .type_size = ");
             output.push_str(&type_size.to_string());
             output.push_str(", .ptr = (");
@@ -2848,7 +2848,7 @@ fn emit_precomputed_nested_vec_static(
             output.push_str("Ptr){(");
             output.push_str(TIL_PREFIX);
             output.push_str("I64)");
-            output.push_str(&inner_data_names[idx]);
+            output.push_str(&inner_data_names[outer_idx]);
             output.push_str(", 1, 0, 0, 0}, ._len =");
             output.push_str(&len.to_string());
             output.push_str(", .cap = ");
@@ -2857,7 +2857,7 @@ fn emit_precomputed_nested_vec_static(
         }
         // TODO: Handle List and other nested types
 
-        if idx + 1 < elem_count {
+        if outer_idx + 1 < elem_count {
             output.push_str(",");
         }
         output.push_str("\n");
@@ -4671,8 +4671,8 @@ fn build_dest_ptr_expr(
                 return Some("_ret".to_string());
             }
         }
-        let c_name = til_var_name_from_context(var_name, context);
-        return Some(format!("&{}", c_name));
+        let decl_c_name = til_var_name_from_context(var_name, context);
+        return Some(format!("&{}", decl_c_name));
     }
     if let Some(var_name) = assign_name {
         if var_name.starts_with('*') {
@@ -4693,8 +4693,8 @@ fn build_dest_ptr_expr(
             // Ref param: already a pointer
             return Some(resolve_var_name(var_name, ctx, context));
         }
-        let c_name = til_var_name_from_context(var_name, context);
-        return Some(format!("&{}", c_name));
+        let assign_c_name = til_var_name_from_context(var_name, context);
+        return Some(format!("&{}", assign_c_name));
     }
     None
 }
@@ -5604,12 +5604,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                             let call_str = emit_arg_string(value_expr, Some(&member.value_type), false, output, indent, ctx, context)?;
                             // Now hoist the call result to a temp var
                             let temp_var = next_mangled(ctx);
-                            let value_type = get_value_type(context, value_expr)
+                            let hoisted_value_type = get_value_type(context, value_expr)
                                 .unwrap_or(member.value_type.clone());
-                            let c_type = til_type_to_c(&value_type)
+                            let hoisted_c_type = til_type_to_c(&hoisted_value_type)
                                 .map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
                             output.push_str(&indent_str);
-                            output.push_str(&c_type);
+                            output.push_str(&hoisted_c_type);
                             output.push_str(" ");
                             output.push_str(&temp_var);
                             output.push_str(" = ");

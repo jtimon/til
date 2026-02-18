@@ -1108,9 +1108,6 @@ namespace EvalHeap {
 
         // Bug #38 fix: Always allocate the maximum enum size to support memcpy of any variant
         max_enum_size := ctx.get_type_size(enum_type)?
-        payload_size := payload_data.len()
-        actual_size := add(8, payload_size)  // tag + current payload
-
         mut result := EnumInsertResult()
         result.has_mapping = false
 
@@ -1542,12 +1539,12 @@ namespace EvalHeap {
         // Read _len (I64) - after c_string Ptr
         mut len := 0
         mut multiplier2 := 1
-        for i in 0..8 {
-            idx := ptr_size.add(i)
+        for i2 in 0..8 {
+            idx := ptr_size.add(i2)
             if idx.lt(str_bytes.len()) {
-                mut b : U8 = 0
-                str_bytes.get(idx, b)?
-                len = len.add(b.to_i64().mul(multiplier2))
+                mut b2 : U8 = 0
+                str_bytes.get(idx, b2)?
+                len = len.add(b2.to_i64().mul(multiplier2))
                 multiplier2 = multiplier2.mul(256)
             }
             catch (err: IndexOutOfBoundsError) { }
@@ -1558,8 +1555,8 @@ namespace EvalHeap {
             return ""
         }
         mut result := ""
-        for i in 0..len {
-            byte_ptr := g_heap.get(c_string_ptr.add(i), 1)
+        for i3 in 0..len {
+            byte_ptr := g_heap.get(c_string_ptr.add(i3), 1)
             mut byte_val : U8 = 0
             Ptr(data=byte_ptr).dereference(U8, byte_val)
             result = concat(result, Str.from_byte(byte_val))

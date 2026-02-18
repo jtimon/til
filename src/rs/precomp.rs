@@ -44,8 +44,8 @@ fn substitute_type_params_in_expr(e: &Expr, subs: &HashMap<String, String>) -> E
             Expr::new_clone(NodeType::Identifier(new_name.clone()), e, new_params)
         }
         _ => {
-            let new_params: Vec<Expr> = e.params.iter().map(|p| substitute_type_params_in_expr(p, subs)).collect();
-            Expr::new_clone(e.node_type.clone(), e, new_params)
+            let default_new_params: Vec<Expr> = e.params.iter().map(|p| substitute_type_params_in_expr(p, subs)).collect();
+            Expr::new_clone(e.node_type.clone(), e, default_new_params)
         }
     }
 }
@@ -779,29 +779,29 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
         }
         // Transform arguments for struct constructor
-        let mut transformed_params = Vec::new();
+        let mut struct_params = Vec::new();
         for p in &e.params {
-            transformed_params.push(precomp_expr(context, p)?);
+            struct_params.push(precomp_expr(context, p)?);
         }
-        return Ok(Expr::new_clone(e.node_type.clone(), &e, transformed_params));
+        return Ok(Expr::new_clone(e.node_type.clone(), &e, struct_params));
     }
 
     // 3. Enum constructor (e.g., Color.Green(true)) - before arg transform
     if context.scope_stack.is_enum_constructor(&combined_name) {
         // Transform arguments for enum constructor
-        let mut transformed_params = Vec::new();
+        let mut enum_params = Vec::new();
         for p in &e.params {
-            transformed_params.push(precomp_expr(context, p)?);
+            enum_params.push(precomp_expr(context, p)?);
         }
-        return Ok(Expr::new_clone(e.node_type.clone(), &e, transformed_params));
+        return Ok(Expr::new_clone(e.node_type.clone(), &e, enum_params));
     }
 
     // 4. Transform all arguments
-    let mut transformed_params = Vec::new();
+    let mut all_transformed_params = Vec::new();
     for p in &e.params {
-        transformed_params.push(precomp_expr(context, p)?);
+        all_transformed_params.push(precomp_expr(context, p)?);
     }
-    let e = Expr::new_clone(e.node_type.clone(), &e, transformed_params);
+    let e = Expr::new_clone(e.node_type.clone(), &e, all_transformed_params);
 
     // Get func_expr again from transformed expression
     let func_expr = match e.params.first() {

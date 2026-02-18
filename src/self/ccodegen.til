@@ -3326,13 +3326,13 @@ emit_precomputed_vec_recursive := proc(mut output: Str, mut ctx: CodegenContext,
         output.push_str("[")
         output.push_str(elem_count.to_str())
         output.push_str("] = {")
-        for i in 0..elem_count {
-            if i.gt(0) {
+        for u8_i in 0..elem_count {
+            if u8_i.gt(0) {
                 output.push_str(", ")
             }
-            bytes_ref := contents.element_bytes.get_by_ref(i)?
-            create_alias(bytes, Vec, bytes_ref.data)
-            byte_val_ref := bytes.get_by_ref(0)?
+            u8_bytes_ref := contents.element_bytes.get_by_ref(u8_i)?
+            create_alias(u8_bytes, Vec, u8_bytes_ref.data)
+            byte_val_ref := u8_bytes.get_by_ref(0)?
             create_alias(byte_val, U8, byte_val_ref.data)
             output.push_str(byte_val.to_str())
         }
@@ -3444,31 +3444,31 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
     output.push_str(elem_count.to_str())
     output.push_str("] = {\n")
 
-    for idx in 0..elem_count {
-        elem_bytes_ref_1 := contents.element_bytes.get_by_ref(idx)?
-        create_alias(elem_bytes, Vec, elem_bytes_ref_1.data)
+    for outer_idx in 0..elem_count {
+        outer_elem_bytes_ref := contents.element_bytes.get_by_ref(outer_idx)?
+        create_alias(outer_elem_bytes, Vec, outer_elem_bytes_ref.data)
 
         if elem_type.eq("Vec") {
             // Emit Vec struct with patched pointers
             // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
-            str_size := context.get_type_size("Str")?
-            ptr_size := context.get_type_size("Ptr")?
+            outer_str_size := context.get_type_size("Str")?
+            outer_ptr_size := context.get_type_size("Ptr")?
 
             // Extract type_size
-            type_size := bytes_to_i64_from_offset(elem_bytes, str_size)
+            type_size := bytes_to_i64_from_offset(outer_elem_bytes, outer_str_size)
 
             // Extract _len
-            len_offset := str_size.add(8).add(ptr_size)
-            len := bytes_to_i64_from_offset(elem_bytes, len_offset)
+            outer_len_offset := outer_str_size.add(8).add(outer_ptr_size)
+            len := bytes_to_i64_from_offset(outer_elem_bytes, outer_len_offset)
 
             // Extract cap
-            cap_offset := len_offset.add(8)
-            cap := bytes_to_i64_from_offset(elem_bytes, cap_offset)
+            cap_offset := outer_len_offset.add(8)
+            cap := bytes_to_i64_from_offset(outer_elem_bytes, cap_offset)
 
             // Get inner type name
-            inner_type_name := EvalHeap.extract_str_from_bytes(context, elem_bytes)?
+            outer_inner_type_name := EvalHeap.extract_str_from_bytes(context, outer_elem_bytes)?
 
-            inner_data_name_str_ref := inner_data_names.get_by_ref(idx)?
+            inner_data_name_str_ref := inner_data_names.get_by_ref(outer_idx)?
             create_alias(inner_data_name_str, Str, inner_data_name_str_ref.data)
 
             output.push_str("    {.type_name = (")
@@ -3478,9 +3478,9 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
             output.push_str("Ptr){(")
             output.push_str(TIL_PREFIX)
             output.push_str("I64)\"")
-            output.push_str(inner_type_name)
+            output.push_str(outer_inner_type_name)
             output.push_str("\", 1, 0, 0, 0}, ._len =")
-            output.push_str(inner_type_name.len().to_str())
+            output.push_str(outer_inner_type_name.len().to_str())
             output.push_str(", .cap = 0}, .type_size = ")
             output.push_str(type_size.to_str())
             output.push_str(", .ptr = (")
@@ -3497,7 +3497,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
         }
         // TODO: Handle List and other nested types
 
-        if idx.add(1).lt(elem_count) {
+        if outer_idx.add(1).lt(elem_count) {
             output.push_str(",")
         }
         output.push_str("\n")
@@ -5710,8 +5710,8 @@ build_dest_ptr_expr := func(decl_name: Str, assign_name: Str, ctx: CodegenContex
                 return "_ret"
             }
         }
-        c_name := til_var_name_from_context(decl_name, context)
-        return format("&", c_name)
+        decl_c_name := til_var_name_from_context(decl_name, context)
+        return format("&", decl_c_name)
     }
     if not(assign_name.eq("")) {
         if assign_name.starts_with("*") {
@@ -5733,8 +5733,8 @@ build_dest_ptr_expr := func(decl_name: Str, assign_name: Str, ctx: CodegenContex
             // Ref param: already a pointer
             return resolve_var_name(assign_name, ctx, context)
         }
-        c_name := til_var_name_from_context(assign_name, context)
-        return format("&", c_name)
+        assign_c_name := til_var_name_from_context(assign_name, context)
+        return format("&", assign_c_name)
     }
     return ""
 
@@ -6575,20 +6575,20 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             // Bug #157: Check for UFCS field access on throwing call
             // Pattern: Identifier("_") with params[0] = throwing FCall, params[1..] = field chain
             if name.eq("_").and(not(rhs.params.is_empty())) {
-                first_param := rhs.get(0)?
-                dont_delete(first_param)
-                switch first_param.node_type {
+                rhs_first_param := rhs.get(0)?
+                dont_delete(rhs_first_param)
+                switch rhs_first_param.node_type {
                 case NodeType.FCall(_):
                     mut fd := SFuncDef()
                     mut found_fd := false
-                    fd = get_fcall_func_def(context, first_param)?
+                    fd = get_fcall_func_def(context, rhs_first_param)?
                     found_fd = true
                     catch (err: KeyNotFoundError) {
                         // Not a function call we can look up
                     }
                     if found_fd.and(not(fd.throw_types.is_empty())) {
                         // Hoist the throwing call
-                        base_temp := emit_arg_string(first_param, Ptr(), false, output, indent, ctx, context)?
+                        base_temp := emit_arg_string(rhs_first_param, Ptr(), false, output, indent, ctx, context)?
                         // Append field chain: temp.field1.field2...
                         mut result := base_temp
                         for field_idx in 1..rhs.params.len() {
@@ -6820,10 +6820,10 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         call_str := emit_arg_string(value_expr, member_type_ptr, false, output, indent, ctx, context)?
                         // Now hoist the call result to a temp var
                         temp_var := next_mangled(ctx)
-                        value_type := get_value_type(context, value_expr)?
-                        c_type := til_type_to_c(value_type)?
+                        hoisted_value_type := get_value_type(context, value_expr)?
+                        hoisted_c_type := til_type_to_c(hoisted_value_type)?
                         output.push_str(indent_str)
-                        output.push_str(c_type)
+                        output.push_str(hoisted_c_type)
                         output.push_str(" ")
                         output.push_str(temp_var)
                         output.push_str(" = ")
@@ -6939,9 +6939,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 if has_rhs_string {
                     output.push_str(rhs_string)
                 } else {
-                    rhs_first_param := expr.get(0)?
-                    dont_delete(rhs_first_param)
-                    emit_expr(rhs_first_param, output, 0, ctx, context)?
+                    init_first_param := expr.get(0)?
+                    dont_delete(init_first_param)
+                    emit_expr(init_first_param, output, 0, ctx, context)?
                 }
             }
             output.push_str(";\n")
@@ -8300,12 +8300,12 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         if expr.params.len().lt(4) {
             throw arg.lang_error(context.path, "ccodegen", "enum_get_payload_type requires 3 arguments")
         }
-        enum_arg := expr.get(1)?
-        dont_delete(enum_arg)
+        ept_enum_arg := expr.get(1)?
+        dont_delete(ept_enum_arg)
         variant_arg := expr.get(2)?
         dont_delete(variant_arg)
-        payload_type_arg := expr.get(3)?
-        dont_delete(payload_type_arg)
+        ept_payload_type_arg := expr.get(3)?
+        dont_delete(ept_payload_type_arg)
 
         // Get variant name
         mut variant_name := ""
@@ -8318,7 +8318,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
         // Get payload type name
         mut payload_type_name := ""
-        switch payload_type_arg.node_type {
+        switch ept_payload_type_arg.node_type {
         case NodeType.Identifier(name):
             payload_type_name = name
         case:
@@ -8327,7 +8327,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
         // Emit enum expression
         mut enum_str := Str()
-        emit_expr(enum_arg, enum_str, 0, ctx, context)?
+        emit_expr(ept_enum_arg, enum_str, 0, ctx, context)?
 
         // Generate: PayloadType_to_str(&enum_expr.payload.VariantName)
         output.push_str(til_name(payload_type_name))
@@ -8591,8 +8591,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(".")
                 output.push_str(member.name)
                 output.push_str(" = ")
-                val_ref := struct_def_opt.default_values.get_by_ref(member.name)?
-                create_alias(out_default_expr, Expr, val_ref.data)
+                out_val_ref := struct_def_opt.default_values.get_by_ref(member.name)?
+                create_alias(out_default_expr, Expr, out_val_ref.data)
                 // Bug #143: At expression level, use emit_expr - caller handles hoisting via emit_arg_string
                 emit_expr(out_default_expr, output, 0, ctx, context)?
                 catch (err: KeyNotFoundError) {

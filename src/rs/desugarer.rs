@@ -358,13 +358,13 @@ fn rename_identifier_in_expr(e: &Expr, old_name: &str, new_name: &str) -> Result
         },
         NodeType::Assignment(name) if name == old_name => {
             // Assignment to the variable - rename it
-            let new_params: Vec<Expr> = e.params.iter()
+            let assign_new_params: Vec<Expr> = e.params.iter()
                 .map(|p| rename_identifier_in_expr(p, old_name, new_name))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(Expr::new_clone(
                 NodeType::Assignment(new_name.to_string()),
                 e,
-                new_params,
+                assign_new_params,
             ))
         },
         NodeType::Pattern(pattern_info) if pattern_info.binding_var == old_name => {
@@ -380,16 +380,16 @@ fn rename_identifier_in_expr(e: &Expr, old_name: &str, new_name: &str) -> Result
                 Ok(e.clone())
             } else {
                 // Only rename in the initializer (first param), not in nested bodies
-                let mut new_params = Vec::new();
+                let mut decl_new_params = Vec::new();
                 if !e.params.is_empty() {
                     // The initializer is evaluated before the declaration, so rename in it
-                    new_params.push(rename_identifier_in_expr(e.get(0)?, old_name, new_name)?);
+                    decl_new_params.push(rename_identifier_in_expr(e.get(0)?, old_name, new_name)?);
                     // Any remaining params (shouldn't exist for Declaration) - don't rename
                     for p in e.params.iter().skip(1) {
-                        new_params.push(p.clone());
+                        decl_new_params.push(p.clone());
                     }
                 }
-                Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+                Ok(Expr::new_clone(e.node_type.clone(), e, decl_new_params))
             }
         },
         _ => {
@@ -397,10 +397,10 @@ fn rename_identifier_in_expr(e: &Expr, old_name: &str, new_name: &str) -> Result
             if e.params.is_empty() {
                 Ok(e.clone())
             } else {
-                let new_params: Vec<Expr> = e.params.iter()
+                let default_new_params: Vec<Expr> = e.params.iter()
                     .map(|p| rename_identifier_in_expr(p, old_name, new_name))
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+                Ok(Expr::new_clone(e.node_type.clone(), e, default_new_params))
             }
         }
     }
@@ -468,10 +468,10 @@ fn detect_enum_switch_from_cases(context: &Context, e: &Expr) -> Result<(bool, S
             },
             NodeType::FCall(_) => {
                 // FCall pattern might be Type.Variant(...) for enum with payload
-                let info = get_case_variant_info(case_pattern)?;
-                if !info.type_name.is_empty() {
-                    if context.scope_stack.lookup_enum(&info.type_name).is_some() {
-                        return Ok((true, info.type_name));
+                let fcall_info = get_case_variant_info(case_pattern)?;
+                if !fcall_info.type_name.is_empty() {
+                    if context.scope_stack.lookup_enum(&fcall_info.type_name).is_some() {
+                        return Ok((true, fcall_info.type_name));
                     }
                 }
             },
@@ -529,9 +529,9 @@ fn infer_switch_type_from_cases(e: &Expr) -> Result<Option<ValueType>, String> {
             },
             NodeType::Pattern(pattern_info) => {
                 // Pattern is always enum - try to get the enum type from the variant name
-                let info = parse_pattern_variant_name(&pattern_info.variant_name);
-                if !info.type_name.is_empty() {
-                    return Ok(Some(ValueType::TCustom(info.type_name)));
+                let pattern_info2 = parse_pattern_variant_name(&pattern_info.variant_name);
+                if !pattern_info2.type_name.is_empty() {
+                    return Ok(Some(ValueType::TCustom(pattern_info2.type_name)));
                 }
                 // Shorthand pattern - can't infer type here (no context available)
                 // Keep searching other case patterns
@@ -718,37 +718,37 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     let total_cases = cases.len();
     let mut result_expr = default_expr;
 
-    for (idx, (case_pattern, case_body)) in cases.into_iter().rev().enumerate() {
-        let case_index = total_cases - 1 - idx;
+    for (idx, (rev_case_pattern, rev_case_body)) in cases.into_iter().rev().enumerate() {
+        let rev_ci = total_cases - 1 - idx;
         let cond_result = build_case_condition(
-            context, &case_pattern, &switch_var_name, is_enum_switch, &enum_type_name,
-            &switch_expr_var_name, switch_id, case_index, &func_name, line, col,
+            context, &rev_case_pattern, &switch_var_name, is_enum_switch, &enum_type_name,
+            &switch_expr_var_name, switch_id, rev_ci, &func_name, line, col,
         )?;
 
-        let (condition, body_prefix, rename_pair, _inner_condition) = cond_result;
-        let renamed_case_body = match &rename_pair {
-            Some((old_name, new_name)) => rename_identifier_in_expr(&case_body, old_name, new_name)?,
-            None => case_body,
+        let (rev_condition, rev_body_prefix, rename_pair, _inner_condition) = cond_result;
+        let rev_renamed_case_body = match &rename_pair {
+            Some((old_name, new_name)) => rename_identifier_in_expr(&rev_case_body, old_name, new_name)?,
+            None => rev_case_body,
         };
 
-        let full_case_body = if body_prefix.is_empty() {
-            renamed_case_body
+        let full_case_body = if rev_body_prefix.is_empty() {
+            rev_renamed_case_body
         } else {
-            let mut body_params = body_prefix;
-            match &renamed_case_body.node_type {
-                NodeType::Body => body_params.extend(renamed_case_body.params.clone()),
-                _ => body_params.push(renamed_case_body),
+            let mut rev_full_body_params = rev_body_prefix;
+            match &rev_renamed_case_body.node_type {
+                NodeType::Body => rev_full_body_params.extend(rev_renamed_case_body.params.clone()),
+                _ => rev_full_body_params.push(rev_renamed_case_body),
             }
-            make_body(body_params, line, col)
+            make_body(rev_full_body_params, line, col)
         };
 
-        result_expr = make_if(condition, full_case_body, Some(result_expr), line, col);
+        result_expr = make_if(rev_condition, full_case_body, Some(result_expr), line, col);
     }
 
     // Wrap in outer body with declarations and if/else chain
-    let mut body_params = decl_exprs;
-    body_params.push(result_expr);
-    Ok(make_body(body_params, line, col
+    let mut rev_body_params = decl_exprs;
+    rev_body_params.push(result_expr);
+    Ok(make_body(rev_body_params, line, col
     ))
 }
 
@@ -847,12 +847,12 @@ fn build_case_condition(
         },
         NodeType::Identifier(_) | NodeType::LLiteral(_) => {
             // Simple value case or enum variant without payload
-            let info = get_case_variant_info(case_pattern)?;
+            let ident_info = get_case_variant_info(case_pattern)?;
 
-            if is_enum_switch && !info.variant_name.is_empty() {
-                let actual_type_name = if info.type_name.is_empty() { enum_type_name.to_string() } else { info.type_name.clone() };
-                let variant_str = format!("{}.{}", actual_type_name, info.variant_name);
-                Ok((build_str_eq_call(switch_var_name, &variant_str, line, col), vec![], None, None))
+            if is_enum_switch && !ident_info.variant_name.is_empty() {
+                let ident_actual_type_name = if ident_info.type_name.is_empty() { enum_type_name.to_string() } else { ident_info.type_name.clone() };
+                let ident_variant_str = format!("{}.{}", ident_actual_type_name, ident_info.variant_name);
+                Ok((build_str_eq_call(switch_var_name, &ident_variant_str, line, col), vec![], None, None))
             } else {
                 let condition = if is_enum_switch {
                     build_enum_eq_condition(switch_var_name, case_pattern, line, col)
@@ -864,13 +864,13 @@ fn build_case_condition(
         },
         NodeType::FCall(_) => {
             // FCall pattern: Type.Variant() or Type.Variant(InnerEnum.Variant) or computed value
-            let info = get_case_variant_info(case_pattern)?;
+            let fcall_info = get_case_variant_info(case_pattern)?;
 
-            if is_enum_switch && !info.variant_name.is_empty() {
+            if is_enum_switch && !fcall_info.variant_name.is_empty() {
                 // Enum variant - check outer tag
-                let actual_type_name = if info.type_name.is_empty() { enum_type_name.to_string() } else { info.type_name.clone() };
-                let variant_str = format!("{}.{}", actual_type_name, info.variant_name);
-                let outer_condition = build_str_eq_call(switch_var_name, &variant_str, line, col);
+                let fcall_actual_type_name = if fcall_info.type_name.is_empty() { enum_type_name.to_string() } else { fcall_info.type_name.clone() };
+                let fcall_variant_str = format!("{}.{}", fcall_actual_type_name, fcall_info.variant_name);
+                let outer_condition = build_str_eq_call(switch_var_name, &fcall_variant_str, line, col);
 
                 // Check for nested enum patterns - e.g., ValueType.TType(TTypeDef.TEnumDef)
                 if case_pattern.params.len() > 1 {
@@ -878,7 +878,7 @@ fn build_case_condition(
                     let inner_info = get_case_variant_info(inner_pattern)?;
                     if !inner_info.variant_name.is_empty() {
                         // Nested enum pattern - use enum_get_payload_type for combined condition
-                        let payload_type = get_payload_type_for_variant(context, &actual_type_name, &info.variant_name);
+                        let payload_type = get_payload_type_for_variant(context, &fcall_actual_type_name, &fcall_info.variant_name);
 
                         if let Some(vt) = payload_type {
                             let inner_type_name = match &vt {
@@ -891,7 +891,7 @@ fn build_case_condition(
                             let inner_variant_str = format!("{}.{}", inner_actual_type, inner_info.variant_name);
                             let payload_type_call = make_call("enum_get_payload_type", vec![
                                 make_id(switch_expr_var_name, line, col),
-                                make_id(&info.variant_name, line, col),
+                                make_id(&fcall_info.variant_name, line, col),
                                 make_id(&inner_type_name, line, col),
                             ], line, col);
                             let inner_condition = build_str_eq_call_expr(payload_type_call, &inner_variant_str, line, col);
@@ -900,7 +900,7 @@ fn build_case_condition(
                             let combined_condition = make_call("and", vec![outer_condition, inner_condition], line, col);
                             return Ok((combined_condition, vec![], None, None));
                         } else {
-                            return Err(format!("Nested pattern: could not find payload type for {}.{}", actual_type_name, info.variant_name));
+                            return Err(format!("Nested pattern: could not find payload type for {}.{}", fcall_actual_type_name, fcall_info.variant_name));
                         }
                     }
                 }
@@ -1000,14 +1000,14 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         },
         // Issue #108: Recurse into NamespaceDef default values (which may contain function defs)
         NodeType::NamespaceDef(ns_def) => {
-            let mut new_default_values = std::collections::HashMap::new();
+            let mut ns_new_default_values = std::collections::HashMap::new();
             for (name, value_expr) in &ns_def.default_values {
-                new_default_values.insert(name.clone(), desugar_expr(context, value_expr)?);
+                ns_new_default_values.insert(name.clone(), desugar_expr(context, value_expr)?);
             }
             let new_ns_def = SNamespaceDef {
                 type_name: ns_def.type_name.clone(),
                 members: ns_def.members.clone(),
-                default_values: new_default_values,
+                default_values: ns_new_default_values,
             };
             Ok(Expr::new_clone(NodeType::NamespaceDef(new_ns_def), e, vec![]))
         },
@@ -1057,11 +1057,11 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             if e.params.is_empty() {
                 Ok(e.clone())
             } else {
-                let mut new_params = Vec::new();
+                let mut default_new_params = Vec::new();
                 for p in &e.params {
-                    new_params.push(desugar_expr(context, p)?);
+                    default_new_params.push(desugar_expr(context, p)?);
                 }
-                Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+                Ok(Expr::new_clone(e.node_type.clone(), e, default_new_params))
             }
         }
     }

@@ -527,30 +527,30 @@ preinit_expr_inner := func(e: Expr) returns Expr throws Str {
                         value_expr.params
                     )
 
-                    mut new_params := Vec.new(Expr)
-                    new_params.push(new_enum_expr)
-                    return Expr.new_clone(NodeType.Declaration(decl), e, new_params)
+                    mut enum_new_params := Vec.new(Expr)
+                    enum_new_params.push(new_enum_expr)
+                    return Expr.new_clone(NodeType.Declaration(decl), e, enum_new_params)
                 }
             case:
             }
         }
 
         // Default: recurse into params
-        mut new_params := Vec.new(Expr)
+        mut decl_new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            new_params.push(preinit_expr_inner(p)?)
+            decl_new_params.push(preinit_expr_inner(p)?)
         }
-        return Expr.new_clone(e.node_type, e, new_params)
+        return Expr.new_clone(e.node_type, e, decl_new_params)
 
     case:
         if e.params.len().eq(0) {
             return e.clone()
         } else {
-            mut new_params := Vec.new(Expr)
+            mut default_new_params := Vec.new(Expr)
             for op: Expr in e.params {
-                new_params.push(preinit_expr_inner(op)?)
+                default_new_params.push(preinit_expr_inner(op)?)
             }
-            return Expr.new_clone(e.node_type, e, new_params)
+            return Expr.new_clone(e.node_type, e, default_new_params)
         }
     }
 }

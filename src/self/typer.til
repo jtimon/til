@@ -777,8 +777,8 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
                             case:
                             }
                             if not(value_type_to_str(actual_type).eq(value_type_to_str(expected_type))).and(not(is_u8_i64_coercion)) {
-                                mut err_msg := format("Field '", field_name, "' expects type '", value_type_to_str(expected_type), "' but got '", value_type_to_str(actual_type), "'")
-                                errors.push(struct_arg.error(context.path, "type", err_msg))
+                                mut type_err_msg := format("Field '", field_name, "' expects type '", value_type_to_str(expected_type), "' but got '", value_type_to_str(actual_type), "'")
+                                errors.push(struct_arg.error(context.path, "type", type_err_msg))
                             }
                             catch (err: Str) {
                                 // get_value_type failed
@@ -949,10 +949,10 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
         }
 
         // Get expected type
-        mut expected_type := arg.value_type
+        mut arg_expected_type := arg.value_type
         switch arg.value_type {
         case ValueType.TMulti(inner_type_name):
-            expected_type = str_to_value_type(inner_type_name)
+            arg_expected_type = str_to_value_type(inner_type_name)
         case:
             // Keep as-is
         }
@@ -1044,8 +1044,8 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
 
         // Note: found_type was already computed at start of loop for Bug #61 skip logic
         // Bug #124: Allow I64 literals to be passed as U8 arguments
-        mut is_u8_i64_coercion := false
-        switch expected_type {
+        mut arg_is_u8_i64_coercion := false
+        switch arg_expected_type {
         case ValueType.TCustom(expected_tn):
             if expected_tn.eq("U8") {
                 switch found_type {
@@ -1055,7 +1055,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
                         case NodeType.LLiteral(literal):
                             switch literal {
                             case Literal.Number(_):
-                                is_u8_i64_coercion = true
+                                arg_is_u8_i64_coercion = true
                             case:
                             }
                         case:
@@ -1067,7 +1067,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
         case:
         }
         // Check type compatibility
-        switch expected_type {
+        switch arg_expected_type {
         case ValueType.TCustom(tn):
             if tn.eq("Dynamic").or(tn.eq("Type")) {
                 // Accept any type for Dynamic/Type-typed argument
@@ -1077,17 +1077,17 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
                 )))
             } else {
                 // Check type match
-                if not(value_type_to_str(expected_type).eq(value_type_to_str(found_type))).and(not(is_u8_i64_coercion)) {
+                if not(value_type_to_str(arg_expected_type).eq(value_type_to_str(found_type))).and(not(arg_is_u8_i64_coercion)) {
                     errors.push(e_clone.error(context.path, "type", format(
-                        "calling function '", f_name, "' expects '", value_type_to_str(expected_type), "' for arg '", arg.name, "', but '", value_type_to_str(found_type), "' was provided."
+                        "calling function '", f_name, "' expects '", value_type_to_str(arg_expected_type), "' for arg '", arg.name, "', but '", value_type_to_str(found_type), "' was provided."
                     )))
                 }
             }
         case:
             // Check type match
-            if not(value_type_to_str(expected_type).eq(value_type_to_str(found_type))).and(not(is_u8_i64_coercion)) {
+            if not(value_type_to_str(arg_expected_type).eq(value_type_to_str(found_type))).and(not(arg_is_u8_i64_coercion)) {
                 errors.push(e_clone.error(context.path, "type", format(
-                    "calling function '", f_name, "' expects '", value_type_to_str(expected_type), "' for arg '", arg.name, "', but '", value_type_to_str(found_type), "' was provided."
+                    "calling function '", f_name, "' expects '", value_type_to_str(arg_expected_type), "' for arg '", arg.name, "', but '", value_type_to_str(found_type), "' was provided."
                 )))
             }
         }
@@ -3511,8 +3511,8 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
             if member_type_name.eq(INFER_TYPE) {
                 // Get resolved default_value for this member
                 mut has_default := true
-                val_ref := new_default_values.get_by_ref(member.name)?
-                create_alias(default_value, Expr, val_ref.data)
+                member_val_ref := new_default_values.get_by_ref(member.name)?
+                create_alias(default_value, Expr, member_val_ref.data)
                 catch (err: KeyNotFoundError) {
                     has_default = false
                 }
@@ -3538,10 +3538,10 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
 
     // Issue #108: NamespaceDef - recurse into default_values (function bodies)
     case NodeType.NamespaceDef(ns_def):
-        mut new_default_values := Map.new(Str, Expr)
+        mut ns_new_default_values := Map.new(Str, Expr)
         for name: Str in ns_def.default_values.keys {
-            val_ref := ns_def.default_values.get_by_ref(name)?
-            create_alias(value_expr, Expr, val_ref.data)
+            ns_val_ref := ns_def.default_values.get_by_ref(name)?
+            create_alias(value_expr, Expr, ns_val_ref.data)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
             }
@@ -3555,12 +3555,12 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
             case:
                 // Not a function, nothing to register
             }
-            new_default_values.set(name, resolved_expr)
+            ns_new_default_values.set(name, resolved_expr)
         }
         new_ns_def := SNamespaceDef(
             type_name=ns_def.type_name,
             members=ns_def.members,
-            default_values=new_default_values
+            default_values=ns_new_default_values
         )
         return Expr.new_explicit(NodeType.NamespaceDef(new_ns_def), e.params, e.line, e.col)
 

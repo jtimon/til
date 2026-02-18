@@ -297,10 +297,10 @@ fn register_declarations_recursive(context: &mut Context, e: &Expr) -> Result<()
         }
         // Issue #108: Handle namespace definitions - register their functions
         NodeType::NamespaceDef(ns_def) => {
-            for (member_name, default_expr) in &ns_def.default_values {
-                if let NodeType::FuncDef(func_def) = &default_expr.node_type {
-                    let full_name = format!("{}.{}", ns_def.type_name, member_name);
-                    context.scope_stack.declare_func(full_name, func_def.clone());
+            for (member_name, ns_default_expr) in &ns_def.default_values {
+                if let NodeType::FuncDef(func_def) = &ns_default_expr.node_type {
+                    let ns_full_name = format!("{}.{}", ns_def.type_name, member_name);
+                    context.scope_stack.declare_func(ns_full_name, func_def.clone());
                     // Recurse into method body for local declarations
                     for stmt in &func_def.body {
                         register_declarations_recursive(context, stmt)?;

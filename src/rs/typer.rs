@@ -717,7 +717,7 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
                 return Ok(errors);
             }
         };
-        let expected_type = &match &arg.value_type {
+        let arg_expected_type = &match &arg.value_type {
             ValueType::TMulti(inner_type_name) => str_to_value_type(&inner_type_name.clone()),
             _ => arg.value_type.clone(),
         };
@@ -796,10 +796,10 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
 
         // Note: found_type was already computed at start of loop for Bug #61 skip logic
         // Bug #124: Allow I64 literals to be passed as U8 arguments
-        let is_u8_i64_coercion = matches!(expected_type, ValueType::TCustom(tn) if tn == "U8")
+        let arg_is_u8_i64_coercion = matches!(arg_expected_type, ValueType::TCustom(tn) if tn == "U8")
             && matches!(&found_type, ValueType::TCustom(ft) if ft == "I64")
             && matches!(&arg_expr.node_type, NodeType::LLiteral(Literal::Number(_)));
-        match expected_type {
+        match arg_expected_type {
             ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type-typed argument
             ValueType::TCustom(tn) if tn == INFER_TYPE => {
                 errors.push(e.error(&context.path, "type", &format!(
@@ -810,10 +810,10 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
                     f_name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, arg.name,
                 )));
             },
-            _ if expected_type != &found_type && !is_u8_i64_coercion => {
+            _ if arg_expected_type != &found_type && !arg_is_u8_i64_coercion => {
                 errors.push(e.error(&context.path, "type", &format!(
                     "calling function '{}' expects '{}' for arg '{}', but '{}' was provided.",
-                    f_name, value_type_to_str(expected_type), arg.name, value_type_to_str(&found_type)
+                    f_name, value_type_to_str(arg_expected_type), arg.name, value_type_to_str(&found_type)
                 )));
             },
             _ => {} // types match or U8/I64 coercion; no error
@@ -1704,6 +1704,24 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Res
             return Ok(errors)
         },
     };
+
+    // Bug #97: Disallow variable shadowing within a function
+    // Only check when inside a function (not at global scope).
+    // Track declarations by (name, line, col) to handle AST duplication from transformations
+    // like for-in desugaring, while still catching actual shadowing.
+    if decl.name != "_" && context.scope_stack.is_inside_function() {
+        if context.scope_stack.is_already_processed(&decl.name, e.line, e.col) {
+            // Same declaration visited again due to AST duplication - skip
+        } else if context.scope_stack.is_shadowing_in_function(&decl.name, e.line, e.col) {
+            // Same name at different location - actual shadowing
+            errors.push(e.lang_error(&context.path, "type", &format!(
+                "Variable '{}' already declared in this function (shadowing not allowed)", decl.name)));
+            return Ok(errors);
+        } else {
+            // New declaration - register it
+            context.scope_stack.register_function_local(&decl.name, e.line, e.col);
+        }
+    }
 
     // Bug #97: Always register the declaration (allow shadowing/overwriting)
     // Previous code only registered if lookup_symbol returned None, which prevented
@@ -2897,7 +2915,7 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
 
         // Issue #108: NamespaceDef - recurse into default_values (function bodies)
         NodeType::NamespaceDef(ns_def) => {
-            let mut new_default_values = HashMap::new();
+            let mut ns_new_default_values = HashMap::new();
             for (name, value_expr) in &ns_def.default_values {
                 let resolved_expr = resolve_inferred_types(context, value_expr)?;
                 // Re-register resolved func_defs in scope_stack so interpreter uses resolved types
@@ -2906,12 +2924,12 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                     // Use update_func to update at original declaration site, not current scope
                     context.scope_stack.update_func(&full_name, func_def.clone());
                 }
-                new_default_values.insert(name.clone(), resolved_expr);
+                ns_new_default_values.insert(name.clone(), resolved_expr);
             }
             let new_ns_def = SNamespaceDef {
                 type_name: ns_def.type_name.clone(),
                 members: ns_def.members.clone(),
-                default_values: new_default_values,
+                default_values: ns_new_default_values,
             };
             Ok(Expr::new_explicit(NodeType::NamespaceDef(new_ns_def), e.params.clone(), e.line, e.col))
         }

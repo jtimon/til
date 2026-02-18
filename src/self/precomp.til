@@ -59,11 +59,11 @@ substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
         }
         return Expr.new_clone(NodeType.Identifier(new_name), e, new_params)
     case:
-        mut new_params := Vec.new(Expr)
+        mut default_new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            new_params.push(substitute_type_params_in_expr(p, subs))
+            default_new_params.push(substitute_type_params_in_expr(p, subs))
         }
-        return Expr.new_clone(e.node_type, e, new_params)
+        return Expr.new_clone(e.node_type, e, default_new_params)
     }
 }
 
@@ -1046,11 +1046,11 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     }
 
     // 5. Transform all arguments
-    mut transformed_params := Vec.new(Expr)
+    mut all_transformed_params := Vec.new(Expr)
     for p: Expr in e.params {
-        transformed_params.push(precomp_expr(context, p)?)
+        all_transformed_params.push(precomp_expr(context, p)?)
     }
-    mut new_e := Expr.new_clone(e.node_type, e, transformed_params)
+    mut new_e := Expr.new_clone(e.node_type, e, all_transformed_params)
 
     // Get func_expr again from transformed expression
     if new_e.params.len().eq(0) {

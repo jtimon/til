@@ -633,12 +633,12 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 // Default constructor: Vec2()
                 // Bug #160 fix: Create temp instance instead of using type name
                 // This ensures field access via get_field_offset works correctly
-                let temp_id = EvalHeap::g().temp_id_counter;
+                let default_temp_id = EvalHeap::g().temp_id_counter;
                 EvalHeap::g().temp_id_counter += 1;
-                let temp_name = format!("{}{}", RETURN_INSTANCE_NAME, temp_id);
+                let default_temp_name = format!("{}{}", RETURN_INSTANCE_NAME, default_temp_id);
 
                 // Declare temp symbol
-                context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
+                context.scope_stack.declare_symbol(default_temp_name.clone(), SymbolInfo {
                     value_type: ValueType::TCustom(name.to_string()),
                     is_mut: true,
                     is_copy: false,
@@ -646,11 +646,11 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                     is_comptime_const: false,
                 });
 
-                insert_struct_instance(context, &temp_name, &name, e)?;
+                insert_struct_instance(context, &default_temp_name, &name, e)?;
                 return Ok(EvalResult::new(match &name[..] {
                     "U8" | "I64" => "0",
                     "Str" => "",
-                    _ => &temp_name,
+                    _ => &default_temp_name,
                 }))
             }
         }
@@ -1179,35 +1179,35 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                             // Garbager inserts clone for identifiers; fresh constructors are already new.
                             if var_name.contains('.') {
                                 // Field path: memcpy into field slot
-                                let src_offset = if EvalHeap::is_instance_field(context, &expr_result_str) {
+                                let assign_src_offset = if EvalHeap::is_instance_field(context, &expr_result_str) {
                                     context.get_field_offset(&expr_result_str)?
                                 } else {
                                     context.scope_stack.lookup_var(&expr_result_str)
                                         .ok_or_else(|| inner_e.lang_error(&context.path, "eval",
                                             &format!("Undefined variable '{}' for assignment to '{}'", expr_result_str, var_name)))?
                                 };
-                                let dest_offset = context.get_field_offset(var_name)?;
-                                let type_size = context.get_type_size(custom_type_name)?;
-                                let data = EvalHeap::g().get(src_offset, type_size).to_vec();
-                                EvalHeap::g().set(dest_offset, &data)?;
+                                let assign_dest_offset = context.get_field_offset(var_name)?;
+                                let assign_type_size = context.get_type_size(custom_type_name)?;
+                                let data = EvalHeap::g().get(assign_src_offset, assign_type_size).to_vec();
+                                EvalHeap::g().set(assign_dest_offset, &data)?;
                             } else {
                                 // Simple var: memcpy into existing slot
                                 // Must use memcpy (not offset rebinding) because the variable
                                 // may live in an outer scope frame. Offset rebinding would only
                                 // update the current frame, leaving the outer frame stale.
-                                let src_offset = if EvalHeap::is_instance_field(context, &expr_result_str) {
+                                let simple_assign_src_offset = if EvalHeap::is_instance_field(context, &expr_result_str) {
                                     context.get_field_offset(&expr_result_str)?
                                 } else {
                                     context.scope_stack.lookup_var(&expr_result_str)
                                         .ok_or_else(|| inner_e.lang_error(&context.path, "eval",
                                             &format!("Could not find heap index for '{}'", expr_result_str)))?
                                 };
-                                let dest_offset = context.scope_stack.lookup_var(var_name)
+                                let simple_assign_dest_offset = context.scope_stack.lookup_var(var_name)
                                     .ok_or_else(|| inner_e.lang_error(&context.path, "eval",
                                         &format!("Could not find heap index for '{}'", var_name)))?;
-                                let type_size = context.get_type_size(custom_type_name)?;
-                                let data = EvalHeap::g().get(src_offset, type_size).to_vec();
-                                EvalHeap::g().set(dest_offset, &data)?;
+                                let simple_assign_type_size = context.get_type_size(custom_type_name)?;
+                                let data = EvalHeap::g().get(simple_assign_src_offset, simple_assign_type_size).to_vec();
+                                EvalHeap::g().set(simple_assign_dest_offset, &data)?;
                             }
                         },
                         other_value_type => {

@@ -578,15 +578,15 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                 // Default constructor: Vec2()
                 // Bug #160 fix: Create temp instance instead of using type name
                 // This ensures field access via get_field_offset works correctly
-                temp_id := g_heap.temp_id_counter
+                default_temp_id := g_heap.temp_id_counter
                 g_heap.temp_id_counter = g_heap.temp_id_counter.add(1)
-                temp_name := format(RETURN_INSTANCE_NAME, I64.to_str(temp_id))
+                default_temp_name := format(RETURN_INSTANCE_NAME, I64.to_str(default_temp_id))
 
                 // Declare temp symbol
-                context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo(value_type=ValueType.TCustom(name.clone()), is_mut=true))?
+                context.scope_stack.declare_symbol(default_temp_name.clone(), SymbolInfo(value_type=ValueType.TCustom(name.clone()), is_mut=true))?
 
-                insert_struct_instance(context, temp_name.clone(), name, e)?
-                mut result_val := temp_name
+                insert_struct_instance(context, default_temp_name.clone(), name, e)?
+                mut result_val := default_temp_name
                 if name.eq("U8") {
                     result_val = "0"
                 } else if name.eq("I64") {
@@ -1254,25 +1254,25 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                     // Must use memcpy (not offset rebinding) because the variable
                     // may live in an outer scope frame. Offset rebinding would only
                     // update the current frame, leaving the outer frame stale.
-                    mut assign_src_offset := 0
-                    mut assign_src_found := false
-                    assign_src_offset = context.scope_stack.lookup_var(assign_struct_expr_result_str)?
-                    assign_src_found = true
+                    mut simple_assign_src_offset := 0
+                    mut simple_assign_src_found := false
+                    simple_assign_src_offset = context.scope_stack.lookup_var(assign_struct_expr_result_str)?
+                    simple_assign_src_found = true
                     catch (err: KeyNotFoundError) {
                         if assign_struct_expr_result_str.contains(".") {
-                            assign_src_offset = context.get_field_offset(assign_struct_expr_result_str)?
-                            assign_src_found = true
+                            simple_assign_src_offset = context.get_field_offset(assign_struct_expr_result_str)?
+                            simple_assign_src_found = true
                         }
                     }
-                    if not(assign_src_found) {
+                    if not(simple_assign_src_found) {
                         throw inner_e.lang_error(context.path, "eval", format("Could not find heap index for '", assign_struct_expr_result_str, "'"))
                     }
-                    assign_dest_offset := context.scope_stack.lookup_var(var_name)?
+                    simple_assign_dest_offset := context.scope_stack.lookup_var(var_name)?
                     catch (err: KeyNotFoundError) {
                         throw inner_e.lang_error(context.path, "eval", format("Could not find heap index for '", var_name, "'"))
                     }
-                    assign_type_size := context.get_type_size(assign_custom_type_name)?
-                    g_heap.set(assign_dest_offset, g_heap.get(assign_src_offset, assign_type_size), assign_type_size)
+                    simple_assign_type_size := context.get_type_size(assign_custom_type_name)?
+                    g_heap.set(simple_assign_dest_offset, g_heap.get(simple_assign_src_offset, simple_assign_type_size), simple_assign_type_size)
                 }
             case:
                 throw inner_e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of custom type '", assign_custom_type_name, "' of value type '", value_type_to_str(assign_custom_symbol_info.value_type), "'."))
