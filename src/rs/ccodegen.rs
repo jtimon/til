@@ -2321,6 +2321,11 @@ fn is_global_declaration(expr: &Expr) -> Result<bool, String> {
 fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
+            // Skip precomputed globals - they get initialized declarations in emit_precomputed_vec_static
+            if context.precomputed_heap_values.iter().any(|phv| phv.var_name == decl.name) {
+                return Ok(());
+            }
+
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
             // Bug #97: Use type-mangled names for shadowing support
             let var_name = if decl.name == "_" {
@@ -2578,8 +2583,64 @@ fn emit_precomputed_vec_static(
 
     let var_name = &phv.var_name;
 
-    // Use recursive helper to emit static arrays
+    // Use recursive helper to emit static data arrays
     emit_precomputed_vec_recursive(output, ctx, context, var_name, &contents)?;
+
+    // Emit initialized static declaration (instead of bare declaration + assignment in main)
+    let c_var_name = til_var_name(var_name, "Vec");
+    let elem_type = &contents.element_type_name;
+    let elem_count = contents.element_bytes.len();
+    let type_size = contents.type_size;
+    let data_array_name = &ctx.precomputed_static_arrays.get(var_name)
+        .unwrap_or_else(|| panic!("emit_precomputed_vec_static: no static info for '{}'", var_name))
+        .data_array_name.clone();
+
+    output.push_str("static ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Vec ");
+    output.push_str(&c_var_name);
+    output.push_str(" = {\n");
+
+    // type_name field
+    output.push_str("    .type_name = (");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str){(");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Ptr){(");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64)\"");
+    output.push_str(elem_type);
+    output.push_str("\", 1, 0, 0, 0}, ");
+    output.push_str(&elem_type.len().to_string());
+    output.push_str(", 0},\n");
+
+    // type_size field
+    output.push_str("    .type_size = ");
+    output.push_str(&type_size.to_string());
+    output.push_str(",\n");
+
+    // ptr field - point to static data array
+    output.push_str("    .ptr = (");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Ptr){(");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64)");
+    output.push_str(data_array_name);
+    output.push_str(", 1, 0, 0, 0},\n");
+
+    // _len field
+    output.push_str("    ._len = ");
+    output.push_str(&elem_count.to_string());
+    output.push_str(",\n");
+
+    // cap field
+    output.push_str("    .cap = ");
+    output.push_str(&elem_count.to_string());
+    output.push_str("\n");
+
+    output.push_str("};\n");
+
+    ctx.declared_vars.insert(c_var_name);
 
     Ok(())
 }
@@ -2876,87 +2937,6 @@ fn emit_precomputed_vec_str_static(
 }
 
 // Bug #133 fix: Emit assignment for a precomputed Vec with patched Ptr fields
-fn emit_precomputed_vec_assignment(
-    var_name: &str,
-    static_info: &PrecomputedStaticInfo,
-    output: &mut String,
-    indent: usize,
-    ctx: &mut CodegenContext,
-    context: &Context,
-) -> Result<(), String> {
-    let indent_str = "    ".repeat(indent);
-    // Bug #133: Use type-mangled name (til_Vec_data, not til_data)
-    let c_var_name = til_var_name(var_name, "Vec");
-    let already_declared = ctx.declared_vars.contains(&c_var_name);
-
-    // Extract Vec contents to get element count and type info
-    let contents = EvalHeap::extract_vec_contents(context, var_name)
-        .map_err(|e| format!("emit_precomputed_vec_assignment: {}", e))?;
-
-    let elem_count = contents.element_bytes.len() as i64;
-    let type_size = contents.type_size as i64;
-    let elem_type = &contents.element_type_name;
-
-    output.push_str(&indent_str);
-    if !already_declared {
-        // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
-        output.push_str(TIL_PREFIX);
-        output.push_str("Vec ");
-        ctx.declared_vars.insert(c_var_name.clone());
-    }
-    output.push_str(&c_var_name);
-    output.push_str(" = (");
-    output.push_str(TIL_PREFIX);
-    output.push_str("Vec){\n");
-
-    // type_name field - inline string literal
-    output.push_str(&indent_str);
-    output.push_str("    .type_name = (");
-    output.push_str(TIL_PREFIX);
-    output.push_str("Str){(");
-    output.push_str(TIL_PREFIX);
-    output.push_str("Ptr){(");
-    output.push_str(TIL_PREFIX);
-    output.push_str("I64)\"");
-    output.push_str(elem_type);
-    output.push_str("\", 1, 0, 0, 0}, ");  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0
-    output.push_str(&elem_type.len().to_string());
-    output.push_str(", 0},\n");
-
-    // type_size field
-    output.push_str(&indent_str);
-    output.push_str("    .type_size = ");
-    output.push_str(&type_size.to_string());
-    output.push_str(",\n");
-
-    // ptr field - point to static data array
-    output.push_str(&indent_str);
-    output.push_str("    .ptr = (");
-    output.push_str(TIL_PREFIX);
-    output.push_str("Ptr){(");
-    output.push_str(TIL_PREFIX);
-    output.push_str("I64)");
-    output.push_str(&static_info.data_array_name);
-    output.push_str(", 1, 0, 0, 0},\n");  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0 (static data, don't free)
-
-    // _len field
-    output.push_str(&indent_str);
-    output.push_str("    ._len = ");
-    output.push_str(&elem_count.to_string());
-    output.push_str(",\n");
-
-    // cap field
-    output.push_str(&indent_str);
-    output.push_str("    .cap = ");
-    output.push_str(&elem_count.to_string());
-    output.push_str("\n");
-
-    output.push_str(&indent_str);
-    output.push_str("};\n");
-
-    Ok(())
-}
-
 // Emit til_size_of function for runtime type size lookup
 fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
     output.push_str("\n");
@@ -5430,9 +5410,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
     }
 
-    // Bug #133 fix: Check if this is a precomputed heap value that needs patching
-    if let Some(static_info) = ctx.precomputed_static_arrays.get(&decl.name).cloned() {
-        return emit_precomputed_vec_assignment(&decl.name, &static_info, output, indent, ctx, context);
+    // Bug #133: Precomputed globals are initialized at declaration site, skip in main()
+    if ctx.precomputed_static_arrays.contains_key(&decl.name) {
+        return Ok(());
     }
 
     let indent_str = "    ".repeat(indent);

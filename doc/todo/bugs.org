@@ -784,6 +784,16 @@ TIL port complete (2026-01-30). Files modified:
 - til_interpreted: PASS (Bug #145 resolved)
 - til_compiled: PASS (TIL port complete)
 
+*** Simplification (2026-02-18)
+Two improvements to the generated C output:
+1. Inline all string literals directly in struct initializers instead of emitting
+   intermediate ~static const char~ variables. C string literals already have
+   static storage duration -- no need for named variables.
+2. Move Vec initialization from assignment in ~main()~ to the static declaration
+   site. All values are compile-time constants (string literal addresses, static
+   array addresses, integers), so this is valid as a C static initializer.
+   Removed ~emit_precomputed_vec_assignment~ (both .rs and .til).
+
 **** What works now (both rs_compiled and til_compiled):
 - ~Vec<I64>~ - emits static I64 array
 - ~Vec<U8>~ - emits static U8 array
@@ -807,14 +817,21 @@ Serialize heap contents to static C arrays and patch pointers to reference them.
 til_chromatic = (til_Vec){.ptr = (til_Ptr){3615}, ._len = 12, ...};  // 3615 is garbage
 #+END_SRC
 
-**** After (working):
+**** After (working, simplified 2026-02-18):
 #+BEGIN_SRC c
+// Static data array with inline string literals (no intermediate variables):
 static til_Str _precomp_chromatic_data[12] = {
-    {.c_string = (til_Ptr){(til_I64)"do"}, .cap = 2},
-    {.c_string = (til_Ptr){(til_I64)"do#"}, .cap = 3},
+    {.c_string = (til_Ptr){(til_I64)"do", 1, 0, 0, 0}, ._len =2, .cap = 0},
+    {.c_string = (til_Ptr){(til_I64)"do#", 1, 0, 0, 0}, ._len =3, .cap = 0},
     // ...
 };
-til_chromatic = (til_Vec){.ptr = (til_Ptr){(til_I64)_precomp_chromatic_data}, ._len = 12, ...};
+// Initialized at declaration site (not assigned in main):
+static til_Vec til_Vec_chromatic = {
+    .type_name = (til_Str){(til_Ptr){(til_I64)"Str", 1, 0, 0, 0}, 3, 0},
+    .type_size = 56,
+    .ptr = (til_Ptr){(til_I64)_precomp_chromatic_data, 1, 0, 0, 0},
+    ._len = 12, .cap = 12
+};
 #+END_SRC
 
 **** Step 1: Add Vec/Str extraction to eval_arena.rs [DONE]

@@ -2878,6 +2878,17 @@ emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
+            // Skip precomputed globals - they get initialized declarations in emit_precomputed_vec_static
+            mut is_precomputed := false
+            for phv: PrecomputedHeapValue in context.precomputed_heap_values {
+                if phv.var_name.eq(decl.name) {
+                    is_precomputed = true
+                }
+            }
+            if is_precomputed {
+                return
+            }
+
             // Bug #97: Use type-mangled name for global declarations
             // Note: decl.value_type should be resolved by typer (not INFER_TYPE)
             mut var_name := ""
@@ -3209,8 +3220,68 @@ emit_precomputed_vec_static := proc(mut output: Str, mut ctx: CodegenContext, co
 
     var_name := phv.var_name
 
-    // Use recursive helper to emit static arrays
+    // Use recursive helper to emit static data arrays
     emit_precomputed_vec_recursive(output, ctx, context, var_name, contents)?
+
+    // Emit initialized static declaration (instead of bare declaration + assignment in main)
+    c_var_name := til_var_name(var_name, "Vec")
+    elem_type := contents.element_type_name
+    dont_delete(elem_type) // alias of contents.element_type_name
+    elem_count := contents.element_bytes.len()
+    type_size := contents.type_size
+    mut static_info := PrecomputedStaticInfo()
+    ctx.precomputed_static_arrays.get(var_name, static_info)?
+    catch (err: KeyNotFoundError) {
+        panic(loc(), "emit_precomputed_vec_static: no static info for '", var_name, "'")
+    }
+    data_array_name := static_info.data_array_name
+
+    output.push_str("static ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Vec ")
+    output.push_str(c_var_name)
+    output.push_str(" = {\n")
+
+    // type_name field
+    output.push_str("    .type_name = (")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str){(")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Ptr){(")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64)\"")
+    output.push_str(elem_type)
+    output.push_str("\", 1, 0, 0, 0}, ")
+    output.push_str(elem_type.len().to_str())
+    output.push_str(", 0},\n")
+
+    // type_size field
+    output.push_str("    .type_size = ")
+    output.push_str(type_size.to_str())
+    output.push_str(",\n")
+
+    // ptr field - point to static data array
+    output.push_str("    .ptr = (")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Ptr){(")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64)")
+    output.push_str(data_array_name)
+    output.push_str(", 1, 0, 0, 0},\n")
+
+    // _len field
+    output.push_str("    ._len = ")
+    output.push_str(elem_count.to_str())
+    output.push_str(",\n")
+
+    // cap field
+    output.push_str("    .cap = ")
+    output.push_str(elem_count.to_str())
+    output.push_str("\n")
+
+    output.push_str("};\n")
+
+    _ := ctx.declared_vars.insert(c_var_name)
 }
 
 // Recursive helper to emit static arrays for Vec contents
@@ -3562,78 +3633,6 @@ hex_byte := func(b: U8) returns Str {
 }
 
 // Bug #133 fix: Emit assignment for a precomputed Vec with patched Ptr fields
-emit_precomputed_vec_assignment := proc(var_name: Str, static_info: PrecomputedStaticInfo, mut output: Str, indent: I64, mut ctx: CodegenContext, context: Context) throws Str {
-    indent_str := repeat("    ", indent)
-    // Bug #133: Use type-mangled name (til_Vec_data, not til_data)
-    c_var_name := til_var_name(var_name, "Vec")
-    already_declared := ctx.declared_vars.contains(c_var_name)
-
-    // Extract Vec contents to get element count and type info
-    contents := EvalHeap.extract_vec_contents(context, var_name)?
-
-    elem_count := contents.element_bytes.len()
-    type_size := contents.type_size
-    elem_type := contents.element_type_name
-    dont_delete(elem_type) // alias of contents.element_type_name
-
-    output.push_str(indent_str)
-    if not(already_declared) {
-        // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
-        output.push_str(TIL_PREFIX)
-        output.push_str("Vec ")
-        _ := ctx.declared_vars.insert(c_var_name.clone())
-    }
-    output.push_str(c_var_name)
-    output.push_str(" = (")
-    output.push_str(TIL_PREFIX)
-    output.push_str("Vec){\n")
-
-    // type_name field - inline string literal
-    output.push_str(indent_str)
-    output.push_str("    .type_name = (")
-    output.push_str(TIL_PREFIX)
-    output.push_str("Str){(")
-    output.push_str(TIL_PREFIX)
-    output.push_str("Ptr){(")
-    output.push_str(TIL_PREFIX)
-    output.push_str("I64)\"")
-    output.push_str(elem_type)
-    output.push_str("\", 1, 0, 0, 0}, ")  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0
-    output.push_str(elem_type.len().to_str())
-    output.push_str(", 0},\n")
-
-    // type_size field
-    output.push_str(indent_str)
-    output.push_str("    .type_size = ")
-    output.push_str(type_size.to_str())
-    output.push_str(",\n")
-
-    // ptr field - point to static data array
-    output.push_str(indent_str)
-    output.push_str("    .ptr = (")
-    output.push_str(TIL_PREFIX)
-    output.push_str("Ptr){(")
-    output.push_str(TIL_PREFIX)
-    output.push_str("I64)")
-    output.push_str(static_info.data_array_name)
-    output.push_str(", 1, 0, 0, 0},\n")  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0 (static data, don't free)
-
-    // _len field
-    output.push_str(indent_str)
-    output.push_str("    ._len = ")
-    output.push_str(elem_count.to_str())
-    output.push_str(",\n")
-
-    // cap field
-    output.push_str(indent_str)
-    output.push_str("    .cap = ")
-    output.push_str(elem_count.to_str())
-    output.push_str("\n")
-
-    output.push_str(indent_str)
-    output.push_str("};\n")
-}
-
 // Check if an enum has any payloads
 enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
     for v: EnumVariant in enum_def.variants {
@@ -6632,7 +6631,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         return
     }
 
-    // Bug #133 fix: Check if this is a precomputed heap value that needs patching
+    // Bug #133: Precomputed globals are initialized at declaration site, skip in main()
     mut have_static_info := true
     mut static_info := PrecomputedStaticInfo()
     ctx.precomputed_static_arrays.get(decl.name, static_info)?
@@ -6640,7 +6639,6 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         have_static_info = false
     }
     if have_static_info {
-        emit_precomputed_vec_assignment(decl.name, static_info, output, indent, ctx, context)?
         return
     }
 
