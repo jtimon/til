@@ -52,7 +52,6 @@ struct CodegenContext {
 #[derive(Clone, Debug)]
 struct PrecomputedStaticInfo {
     data_array_name: String,      // Name of the static array (e.g., "_precomp_chromatic_data")
-    type_name_array_name: String, // Name of the type_name string (e.g., "_precomp_chromatic_type_name")
 }
 
 impl CodegenContext {
@@ -2597,16 +2596,8 @@ fn emit_precomputed_vec_recursive(
     let elem_type = &contents.element_type_name;
     let elem_count = contents.element_bytes.len();
 
-    // Generate static array names
+    // Generate static array name
     let data_array_name = format!("_precomp_{}_data", var_name);
-    let type_name_array_name = format!("_precomp_{}_type_name", var_name);
-
-    // Emit type_name string literal
-    output.push_str("static const char ");
-    output.push_str(&type_name_array_name);
-    output.push_str("[] = \"");
-    output.push_str(elem_type);
-    output.push_str("\";\n");
 
     // Handle different element types
     if elem_type == "Str" {
@@ -2674,7 +2665,6 @@ fn emit_precomputed_vec_recursive(
     // Store info for later use when emitting assignments in main()
     ctx.precomputed_static_arrays.insert(var_name.to_string(), PrecomputedStaticInfo {
         data_array_name,
-        type_name_array_name,
     });
 
     Ok(())
@@ -2694,7 +2684,6 @@ fn emit_precomputed_nested_vec_static(
 
     // First pass: recursively emit static arrays for each inner element
     let mut inner_data_names: Vec<String> = Vec::new();
-    let mut inner_type_names: Vec<String> = Vec::new();
 
     for (idx, elem_bytes) in contents.element_bytes.iter().enumerate() {
         let inner_var_name = format!("{}_{}", var_name, idx);
@@ -2741,7 +2730,6 @@ fn emit_precomputed_nested_vec_static(
         // TODO: Handle List and other nested types
 
         inner_data_names.push(format!("_precomp_{}_data", inner_var_name));
-        inner_type_names.push(format!("_precomp_{}_type_name", inner_var_name));
     }
 
     // Second pass: emit the outer array of structs with patched pointers
@@ -2779,17 +2767,18 @@ fn emit_precomputed_nested_vec_static(
                 .map_err(|_| "emit_precomputed_nested_vec_static: failed to read cap")?;
             let cap = i64::from_ne_bytes(cap_bytes);
 
+            // Get inner type name
+            let inner_type_name = EvalHeap::extract_str_from_bytes(context, elem_bytes)?;
+
             output.push_str("    {.type_name = (");
             output.push_str(TIL_PREFIX);
             output.push_str("Str){.c_string = (");
             output.push_str(TIL_PREFIX);
             output.push_str("Ptr){(");
             output.push_str(TIL_PREFIX);
-            output.push_str("I64)");
-            output.push_str(&inner_type_names[idx]);
-            output.push_str(", 1, 0, 0, 0}, ._len =");
-            // Get inner type name length
-            let inner_type_name = EvalHeap::extract_str_from_bytes(context, elem_bytes)?;
+            output.push_str("I64)\"");
+            output.push_str(&inner_type_name);
+            output.push_str("\", 1, 0, 0, 0}, ._len =");
             output.push_str(&inner_type_name.len().to_string());
             output.push_str(", .cap = 0}, .type_size = ");
             output.push_str(&type_size.to_string());
@@ -2829,28 +2818,36 @@ fn emit_precomputed_vec_str_static(
     let elem_count = contents.element_bytes.len();
     let ptr_size = context.get_type_size("Ptr")?;
 
-    // First, emit the individual string literals
+    // Emit Str struct array with inline string literals
+    let data_array_name = format!("_precomp_{}_data", var_name);
+    output.push_str("static ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(&data_array_name);
+    output.push_str("[");
+    output.push_str(&elem_count.to_string());
+    output.push_str("] = {\n");
+
     for (idx, bytes) in contents.element_bytes.iter().enumerate() {
         // Extract string data from Str struct bytes
-        // Str layout: c_string (Ptr with data+is_borrowed), _len (I64), cap (I64)
-        // We need to read c_string.data (ptr to string) and _len
+        // Str layout: c_string (Ptr), _len (I64), cap (I64)
         let c_string_ptr = i64::from_ne_bytes(bytes[..8].try_into().unwrap_or([0; 8])) as usize;
-        let len = i64::from_ne_bytes(bytes[ptr_size..ptr_size+8].try_into().unwrap_or([0; 8])) as usize;
+        let len = i64::from_ne_bytes(bytes[ptr_size..ptr_size+8].try_into().unwrap_or([0; 8]));
 
         // Read the actual string bytes from heap
         let string_bytes = if c_string_ptr > 0 && len > 0 {
-            EvalHeap::g().get(c_string_ptr, len)
+            EvalHeap::g().get(c_string_ptr, len as usize)
         } else {
             &[]
         };
         let string_data = String::from_utf8_lossy(string_bytes);
 
-        output.push_str("static const char _precomp_");
-        output.push_str(var_name);
-        output.push_str("_str_");
-        output.push_str(&idx.to_string());
-        output.push_str("[] = \"");
-        // Escape special characters in the string
+        output.push_str("    {.c_string = (");
+        output.push_str(TIL_PREFIX);
+        output.push_str("Ptr){(");
+        output.push_str(TIL_PREFIX);
+        output.push_str("I64)\"");
+        // Escape special characters
         for ch in string_data.chars() {
             match ch {
                 '"' => output.push_str("\\\""),
@@ -2864,32 +2861,7 @@ fn emit_precomputed_vec_str_static(
                 c => output.push(c),
             }
         }
-        output.push_str("\";\n");
-    }
-
-    // Now emit the Str struct array
-    let data_array_name = format!("_precomp_{}_data", var_name);
-    output.push_str("static ");
-    output.push_str(TIL_PREFIX);
-    output.push_str("Str ");
-    output.push_str(&data_array_name);
-    output.push_str("[");
-    output.push_str(&elem_count.to_string());
-    output.push_str("] = {\n");
-
-    for (idx, bytes) in contents.element_bytes.iter().enumerate() {
-        // Extract _len from Str struct bytes
-        let len = i64::from_ne_bytes(bytes[ptr_size..ptr_size+8].try_into().unwrap_or([0; 8]));
-
-        output.push_str("    {.c_string = (");
-        output.push_str(TIL_PREFIX);
-        output.push_str("Ptr){(");
-        output.push_str(TIL_PREFIX);
-        output.push_str("I64)_precomp_");
-        output.push_str(var_name);
-        output.push_str("_str_");
-        output.push_str(&idx.to_string());
-        output.push_str(", 1, 0, 0, 0}, ._len =");  // is_borrowed = 1 (static string)
+        output.push_str("\", 1, 0, 0, 0}, ._len =");
         output.push_str(&len.to_string());
         output.push_str(", .cap = 0}");
         if idx + 1 < elem_count {
@@ -2937,7 +2909,7 @@ fn emit_precomputed_vec_assignment(
     output.push_str(TIL_PREFIX);
     output.push_str("Vec){\n");
 
-    // type_name field - point to static string
+    // type_name field - inline string literal
     output.push_str(&indent_str);
     output.push_str("    .type_name = (");
     output.push_str(TIL_PREFIX);
@@ -2945,9 +2917,9 @@ fn emit_precomputed_vec_assignment(
     output.push_str(TIL_PREFIX);
     output.push_str("Ptr){(");
     output.push_str(TIL_PREFIX);
-    output.push_str("I64)");
-    output.push_str(&static_info.type_name_array_name);
-    output.push_str(", 1, 0, 0, 0}, ");  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0
+    output.push_str("I64)\"");
+    output.push_str(elem_type);
+    output.push_str("\", 1, 0, 0, 0}, ");  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0
     output.push_str(&elem_type.len().to_string());
     output.push_str(", 0},\n");
 
