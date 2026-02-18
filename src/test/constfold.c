@@ -1711,9 +1711,9 @@ int til_Vec_pop(til_IndexOutOfBoundsError* _err1, til_Vec* til_Vec_self, til_Dyn
     }
     til_I64 _tmp_til_Vec_pop_8 = 1;
     til_I64 til_I64_last_index = til_I64_sub(&til_Vec_self->_len, &_tmp_til_Vec_pop_8);
-    til_IndexOutOfBoundsError _err0__tmp_til_Vec_pop_9 = {};
-    int __attribute__((unused)) _status__tmp_til_Vec_pop_9 = til_Vec_get(&_err0__tmp_til_Vec_pop_9, til_Vec_self, &til_I64_last_index, (til_Dynamic*)til_Dynamic_dest);
-    if (_status__tmp_til_Vec_pop_9 == 1) { *_err1 = _err0__tmp_til_Vec_pop_9; return 1; }
+    til_I64 _tmp_til_Vec_pop_9 = til_I64_mul(&til_I64_last_index, &til_Vec_self->type_size);
+    til_Ptr til_Ptr_src = til_Ptr_offset(&til_Vec_self->ptr, &_tmp_til_Vec_pop_9);
+    til_Ptr_copy_to_dynamic(&til_Ptr_src, (til_Dynamic*)til_Dynamic_dest, &til_Vec_self->type_size);
     til_Vec_self->_len = til_I64_last_index;
     return 0;
 }
@@ -1775,7 +1775,7 @@ void til_Vec_extend(til_Vec* til_Vec_self, const til_Vec* til_Vec_other) {
                 til_I64 _tmp_til_Vec_extend_7 = 0;
                 _tmp_til_Vec_extend_4 = til_Array_new(_tmp_til_Vec_extend_6, &_tmp_til_Vec_extend_7);
                 int __attribute__((unused)) _arr_status__tmp_til_Vec_extend_5;
-                til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:211:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 41, 0}), &_tmp_til_Vec_extend_4);
+                til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:212:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 41, 0}), &_tmp_til_Vec_extend_4);
                 til_Array_delete(&_tmp_til_Vec_extend_4);
             }
             til_Ptr_new_ptr = til_Vec__alloc_ptr(til_Vec_self, &til_I64_new_cap);
@@ -1824,7 +1824,7 @@ void til_Vec_extend_with(til_Vec* til_Vec_self, til_Dynamic* til_Dynamic_value, 
                     til_I64 _tmp_til_Vec_extend_with_7 = 0;
                     _tmp_til_Vec_extend_with_4 = til_Array_new(_tmp_til_Vec_extend_with_6, &_tmp_til_Vec_extend_with_7);
                     int __attribute__((unused)) _arr_status__tmp_til_Vec_extend_with_5;
-                    til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:243:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend_with: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 46, 0}), &_tmp_til_Vec_extend_with_4);
+                    til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:244:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend_with: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 46, 0}), &_tmp_til_Vec_extend_with_4);
                     til_Array_delete(&_tmp_til_Vec_extend_with_4);
                 }
                 til_Ptr_new_ptr = til_Vec__alloc_ptr(til_Vec_self, &til_I64_new_cap);
@@ -1864,7 +1864,7 @@ void til_Vec_extend_with(til_Vec* til_Vec_self, til_Dynamic* til_Dynamic_value, 
                     til_I64 _tmp_til_Vec_extend_with_19 = 0;
                     _tmp_til_Vec_extend_with_16 = til_Array_new(_tmp_til_Vec_extend_with_18, &_tmp_til_Vec_extend_with_19);
                     int __attribute__((unused)) _arr_status__tmp_til_Vec_extend_with_17;
-                    til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:243:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend_with: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 46, 0}), &_tmp_til_Vec_extend_with_16);
+                    til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:244:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend_with: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 46, 0}), &_tmp_til_Vec_extend_with_16);
                     til_Array_delete(&_tmp_til_Vec_extend_with_16);
                 }
                 til_Ptr_new_ptr = til_Vec__alloc_ptr(til_Vec_self, &til_I64_new_cap);
@@ -1935,7 +1935,7 @@ int til_Vec_remove(til_IndexOutOfBoundsError* _err1, til_Vec* til_Vec_self, cons
         int __attribute__((unused)) _arr_status__tmp_til_Vec_remove_2;
         til_I64 _tmp_til_Vec_remove_6 = 0;
         _arr_status__tmp_til_Vec_remove_2 = til_Array_set(&_err_idx__tmp_til_Vec_remove_2, &_tmp_til_Vec_remove_1, &_tmp_til_Vec_remove_6, (til_Dynamic*)&_tmp_til_Vec_remove_3);
-        _tmp_til_Vec_remove_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:291:52:", 1, 0, 0, 0}), 24, 0}), &_tmp_til_Vec_remove_1);
+        _tmp_til_Vec_remove_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:292:52:", 1, 0, 0, 0}), 24, 0}), &_tmp_til_Vec_remove_1);
         til_Array_delete(&_tmp_til_Vec_remove_1);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Vec_remove_0};
         return 1;
@@ -1974,7 +1974,7 @@ int til_Vec_insert_at(til_IndexOutOfBoundsError* _err1, til_Vec* til_Vec_self, c
         int __attribute__((unused)) _arr_status__tmp_til_Vec_insert_at_2;
         til_I64 _tmp_til_Vec_insert_at_6 = 0;
         _arr_status__tmp_til_Vec_insert_at_2 = til_Array_set(&_err_idx__tmp_til_Vec_insert_at_2, &_tmp_til_Vec_insert_at_1, &_tmp_til_Vec_insert_at_6, (til_Dynamic*)&_tmp_til_Vec_insert_at_3);
-        _tmp_til_Vec_insert_at_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:311:52:", 1, 0, 0, 0}), 24, 0}), &_tmp_til_Vec_insert_at_1);
+        _tmp_til_Vec_insert_at_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:312:52:", 1, 0, 0, 0}), 24, 0}), &_tmp_til_Vec_insert_at_1);
         til_Array_delete(&_tmp_til_Vec_insert_at_1);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Vec_insert_at_0};
         return 1;
@@ -1996,7 +1996,7 @@ int til_Vec_insert_at(til_IndexOutOfBoundsError* _err1, til_Vec* til_Vec_self, c
             til_I64 _tmp_til_Vec_insert_at_13 = 0;
             _tmp_til_Vec_insert_at_10 = til_Array_new(_tmp_til_Vec_insert_at_12, &_tmp_til_Vec_insert_at_13);
             int __attribute__((unused)) _arr_status__tmp_til_Vec_insert_at_11;
-            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:321:23:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.insert_at: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 44, 0}), &_tmp_til_Vec_insert_at_10);
+            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:322:23:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.insert_at: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 44, 0}), &_tmp_til_Vec_insert_at_10);
             til_Array_delete(&_tmp_til_Vec_insert_at_10);
         }
         til_Ptr_new_ptr = til_Vec__alloc_ptr(til_Vec_self, &til_I64_new_cap);
@@ -2099,7 +2099,7 @@ int til_Vec_split_off(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, til_Vec* 
         int __attribute__((unused)) _arr_status__tmp_til_Vec_split_off_2;
         til_I64 _tmp_til_Vec_split_off_6 = 0;
         _arr_status__tmp_til_Vec_split_off_2 = til_Array_set(&_err_idx__tmp_til_Vec_split_off_2, &_tmp_til_Vec_split_off_1, &_tmp_til_Vec_split_off_6, (til_Dynamic*)&_tmp_til_Vec_split_off_3);
-        _tmp_til_Vec_split_off_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:380:52:", 1, 0, 0, 0}), 24, 0}), &_tmp_til_Vec_split_off_1);
+        _tmp_til_Vec_split_off_0 = til_format(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:381:52:", 1, 0, 0, 0}), 24, 0}), &_tmp_til_Vec_split_off_1);
         til_Array_delete(&_tmp_til_Vec_split_off_1);
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Vec_split_off_0};
         return 1;
@@ -3637,7 +3637,7 @@ void til_HeapState_remove(const til_I64* til_I64_ptr) {
         return;
     }
     til_I64 til_I64_i = 0;
-    til_HeapEntry til_HeapEntry_entry;
+    til_Ptr til_Ptr_entry_ref;
     til_HeapEntry til_HeapEntry_freed;
     til_I64 _tmp_til_HeapState_remove_2 = 0;
     til_I64 _tmp_til_HeapState_remove_3 = til_Vec_len(&til_Vec_g_entries);
@@ -3645,11 +3645,13 @@ void til_HeapState_remove(const til_I64* til_I64_ptr) {
         while (1) {
             til_I64 _tmp_til_HeapState_remove_4 = til_Vec_len(&til_Vec_g_entries);
             if (!(til_I64_lt(&til_I64_i, &_tmp_til_HeapState_remove_4).data)) break;
-            til_HeapEntry_entry = (til_HeapEntry){.ptr = 0, .size = 0};
+            til_Ptr til_Ptr_entry_ref;
             til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_5 = {};
-            int __attribute__((unused)) _status__tmp_til_HeapState_remove_5 = til_Vec_get(&_err0__tmp_til_HeapState_remove_5, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_entry);
-            if (til_I64_eq(&til_HeapEntry_entry.ptr, til_I64_ptr).data) {
-                til_HeapEntry_freed = (til_HeapEntry){.ptr = 0, .size = til_HeapEntry_entry.size};
+            int __attribute__((unused)) _status__tmp_til_HeapState_remove_5 = til_Vec_get_by_ref(&til_Ptr_entry_ref, &_err0__tmp_til_HeapState_remove_5, &til_Vec_g_entries, &til_I64_i);
+            til_HeapEntry* til_HeapEntry_entry;
+            til_HeapEntry_entry = (til_HeapEntry*)til_Ptr_entry_ref.data;
+            if (til_I64_eq(&til_HeapEntry_entry->ptr, til_I64_ptr).data) {
+                til_HeapEntry_freed = (til_HeapEntry){.ptr = 0, .size = til_HeapEntry_entry->size};
                 til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_6 = {};
                 int __attribute__((unused)) _status__tmp_til_HeapState_remove_6 = til_Vec_set(&_err0__tmp_til_HeapState_remove_6, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_freed);
                 return;
@@ -3660,11 +3662,13 @@ void til_HeapState_remove(const til_I64* til_I64_ptr) {
         while (1) {
             til_I64 _tmp_til_HeapState_remove_7 = til_Vec_len(&til_Vec_g_entries);
             if (!(til_I64_gt(&til_I64_i, &_tmp_til_HeapState_remove_7).data)) break;
-            til_HeapEntry_entry = (til_HeapEntry){.ptr = 0, .size = 0};
+            til_Ptr til_Ptr_entry_ref;
             til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_8 = {};
-            int __attribute__((unused)) _status__tmp_til_HeapState_remove_8 = til_Vec_get(&_err0__tmp_til_HeapState_remove_8, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_entry);
-            if (til_I64_eq(&til_HeapEntry_entry.ptr, til_I64_ptr).data) {
-                til_HeapEntry_freed = (til_HeapEntry){.ptr = 0, .size = til_HeapEntry_entry.size};
+            int __attribute__((unused)) _status__tmp_til_HeapState_remove_8 = til_Vec_get_by_ref(&til_Ptr_entry_ref, &_err0__tmp_til_HeapState_remove_8, &til_Vec_g_entries, &til_I64_i);
+            til_HeapEntry* til_HeapEntry_entry;
+            til_HeapEntry_entry = (til_HeapEntry*)til_Ptr_entry_ref.data;
+            if (til_I64_eq(&til_HeapEntry_entry->ptr, til_I64_ptr).data) {
+                til_HeapEntry_freed = (til_HeapEntry){.ptr = 0, .size = til_HeapEntry_entry->size};
                 til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_9 = {};
                 int __attribute__((unused)) _status__tmp_til_HeapState_remove_9 = til_Vec_set(&_err0__tmp_til_HeapState_remove_9, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_freed);
                 return;
@@ -3714,22 +3718,24 @@ void til_HeapState_report(void) {
     til_I64 til_I64_leaked = 0;
     til_I64 til_I64_leaked_bytes = 0;
     til_I64 til_I64_i = 0;
-    til_HeapEntry til_HeapEntry_entry;
+    til_Ptr til_Ptr_entry_ref;
     til_I64 _tmp_til_HeapState_report_1 = 0;
     til_I64 _tmp_til_HeapState_report_2 = til_Vec_len(&til_Vec_g_entries);
     if (til_I64_lt(&_tmp_til_HeapState_report_1, &_tmp_til_HeapState_report_2).data) {
         while (1) {
             til_I64 _tmp_til_HeapState_report_3 = til_Vec_len(&til_Vec_g_entries);
             if (!(til_I64_lt(&til_I64_i, &_tmp_til_HeapState_report_3).data)) break;
-            til_HeapEntry_entry = (til_HeapEntry){.ptr = 0, .size = 0};
+            til_Ptr til_Ptr_entry_ref;
             til_IndexOutOfBoundsError _err0__tmp_til_HeapState_report_4 = {};
-            int __attribute__((unused)) _status__tmp_til_HeapState_report_4 = til_Vec_get(&_err0__tmp_til_HeapState_report_4, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_entry);
+            int __attribute__((unused)) _status__tmp_til_HeapState_report_4 = til_Vec_get_by_ref(&til_Ptr_entry_ref, &_err0__tmp_til_HeapState_report_4, &til_Vec_g_entries, &til_I64_i);
+            til_HeapEntry* til_HeapEntry_entry;
+            til_HeapEntry_entry = (til_HeapEntry*)til_Ptr_entry_ref.data;
             til_I64 _tmp_til_HeapState_report_5 = 0;
-            til_Bool _tmp_til_HeapState_report_6 = til_I64_eq(&til_HeapEntry_entry.ptr, &_tmp_til_HeapState_report_5);
+            til_Bool _tmp_til_HeapState_report_6 = til_I64_eq(&til_HeapEntry_entry->ptr, &_tmp_til_HeapState_report_5);
             if (til_not(&_tmp_til_HeapState_report_6).data) {
                 til_I64 _tmp_til_HeapState_report_7 = 1;
                 til_I64_leaked = til_I64_add(&til_I64_leaked, &_tmp_til_HeapState_report_7);
-                til_I64_leaked_bytes = til_I64_add(&til_I64_leaked_bytes, &til_HeapEntry_entry.size);
+                til_I64_leaked_bytes = til_I64_add(&til_I64_leaked_bytes, &til_HeapEntry_entry->size);
             }
             til_I64_inc(&til_I64_i);
         }
@@ -3737,15 +3743,17 @@ void til_HeapState_report(void) {
         while (1) {
             til_I64 _tmp_til_HeapState_report_8 = til_Vec_len(&til_Vec_g_entries);
             if (!(til_I64_gt(&til_I64_i, &_tmp_til_HeapState_report_8).data)) break;
-            til_HeapEntry_entry = (til_HeapEntry){.ptr = 0, .size = 0};
+            til_Ptr til_Ptr_entry_ref;
             til_IndexOutOfBoundsError _err0__tmp_til_HeapState_report_9 = {};
-            int __attribute__((unused)) _status__tmp_til_HeapState_report_9 = til_Vec_get(&_err0__tmp_til_HeapState_report_9, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_entry);
+            int __attribute__((unused)) _status__tmp_til_HeapState_report_9 = til_Vec_get_by_ref(&til_Ptr_entry_ref, &_err0__tmp_til_HeapState_report_9, &til_Vec_g_entries, &til_I64_i);
+            til_HeapEntry* til_HeapEntry_entry;
+            til_HeapEntry_entry = (til_HeapEntry*)til_Ptr_entry_ref.data;
             til_I64 _tmp_til_HeapState_report_10 = 0;
-            til_Bool _tmp_til_HeapState_report_11 = til_I64_eq(&til_HeapEntry_entry.ptr, &_tmp_til_HeapState_report_10);
+            til_Bool _tmp_til_HeapState_report_11 = til_I64_eq(&til_HeapEntry_entry->ptr, &_tmp_til_HeapState_report_10);
             if (til_not(&_tmp_til_HeapState_report_11).data) {
                 til_I64 _tmp_til_HeapState_report_12 = 1;
                 til_I64_leaked = til_I64_add(&til_I64_leaked, &_tmp_til_HeapState_report_12);
-                til_I64_leaked_bytes = til_I64_add(&til_I64_leaked_bytes, &til_HeapEntry_entry.size);
+                til_I64_leaked_bytes = til_I64_add(&til_I64_leaked_bytes, &til_HeapEntry_entry->size);
             }
             til_I64_dec(&til_I64_i);
         }
@@ -3845,7 +3853,7 @@ til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self) {
 
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
-    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 105155921212896, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
+    til_Str _tmp_0 = (til_Str){.c_string = (til_Ptr){.data = 105160010372368, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0}, ._len = 0, .cap = 0};
     til_Ptr _tmp_1 = (til_Ptr){.data = 0, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0};
     til_Vec_g_entries = (til_Vec){.type_name = _tmp_0, .type_size = 0, .ptr = _tmp_1, ._len = 0, .cap = 0};
     til_Bool_g_enabled = til_Bool_clone(&false);

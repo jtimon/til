@@ -34,8 +34,8 @@ namespace HeapState {
         if not(g_enabled) { return }
         if ptr.eq(0) { return }
         for i in 0..g_entries.len() {
-            mut entry := HeapEntry()
-            g_entries.get(i, entry)?
+            entry_ref := g_entries.get_by_ref(i)?
+            create_alias(entry, HeapEntry, entry_ref.data)
             if entry.ptr.eq(ptr) {
                 mut freed := HeapEntry(ptr=0, size=entry.size)
                 g_entries.set(i, freed)?
@@ -56,8 +56,8 @@ namespace HeapState {
         mut leaked := 0
         mut leaked_bytes := 0
         for i in 0..g_entries.len() {
-            mut entry := HeapEntry()
-            g_entries.get(i, entry)?
+            entry_ref := g_entries.get_by_ref(i)?
+            create_alias(entry, HeapEntry, entry_ref.data)
             if not(entry.ptr.eq(0)) {
                 leaked = leaked.add(1)
                 leaked_bytes = leaked_bytes.add(entry.size)

@@ -158,7 +158,8 @@ namespace Vec {
 
         // Get last element
         mut last_index := sub(self._len, 1)
-        self.get(last_index, dest)?
+        src := self.ptr.offset(last_index.mul(self.type_size))
+        src.copy_to_dynamic(dest, self.type_size)
 
         // Decrement length
         self._len = last_index
@@ -409,13 +410,15 @@ sort_str_vec := proc(mut v: Vec) {
     while gt(n, 1) {
         mut new_n := 0
         for i in 1..n {
-            mut prev := ""
-            mut curr := ""
-            v.get(i.sub(1), prev)?
-            v.get(i, curr)?
+            prev_ref := v.get_by_ref(i.sub(1))?
+            create_alias(prev, Str, prev_ref.data)
+            curr_ref := v.get_by_ref(i)?
+            create_alias(curr, Str, curr_ref.data)
             if gt(prev.cmp(curr), 0) {
+                // Clone prev before swap since both alias vec storage
+                prev_clone := prev.clone()
                 v.set(i.sub(1), curr)?
-                v.set(i, prev)?
+                v.set(i, prev_clone)?
                 new_n = i
             }
             catch (err: IndexOutOfBoundsError) {

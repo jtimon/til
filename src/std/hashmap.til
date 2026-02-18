@@ -108,8 +108,9 @@ namespace HashMap {
         }
 
         bucket_idx := self.hash_key(to_ptr(key))
-        mut entry_idx := 0
-        self.buckets.get(bucket_idx, entry_idx)?
+        bucket_head_ref := self.buckets.get_by_ref(bucket_idx)?
+        create_alias(bucket_head, I64, bucket_head_ref.data)
+        mut entry_idx := bucket_head
 
         // Walk the chain
         while entry_idx.gteq(0) {
@@ -119,7 +120,9 @@ namespace HashMap {
                 return entry_idx
             }
             // Move to next in chain
-            self.nexts.get(entry_idx, entry_idx)?
+            next_ref := self.nexts.get_by_ref(entry_idx)?
+            create_alias(next_entry, I64, next_ref.data)
+            entry_idx = next_entry
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -153,8 +156,8 @@ namespace HashMap {
             bucket_idx := self.hash_key(key_ptr.data)
 
             // Get current head of bucket
-            mut head := 0
-            self.buckets.get(bucket_idx, head)?
+            head_ref := self.buckets.get_by_ref(bucket_idx)?
+            create_alias(head, I64, head_ref.data)
 
             // Insert at head of chain
             self.nexts.set(i, head)?
@@ -195,8 +198,8 @@ namespace HashMap {
         new_idx := self._size
 
         // Add to bucket chain (use pre-computed bucket_idx)
-        mut head := 0
-        self.buckets.get(bucket_idx, head)?
+        head_ref := self.buckets.get_by_ref(bucket_idx)?
+        create_alias(head, I64, head_ref.data)
 
         // New entry points to old head
         self.nexts.push(head)
@@ -238,8 +241,8 @@ namespace HashMap {
             new_idx := self._size
 
             // Add to bucket chain (use pre-computed bucket_idx)
-            mut head := 0
-            self.buckets.get(bucket_idx, head)?
+            head_ref := self.buckets.get_by_ref(bucket_idx)?
+            create_alias(head, I64, head_ref.data)
 
             // New entry points to old head
             self.nexts.push(head)
@@ -352,8 +355,8 @@ namespace HashMap {
             key_ptr := self.keys.ptr.offset(i.mul(self.keys.type_size))
             bucket_idx := self.hash_key(key_ptr.data)
 
-            mut head := 0
-            self.buckets.get(bucket_idx, head)?
+            head_ref := self.buckets.get_by_ref(bucket_idx)?
+            create_alias(head, I64, head_ref.data)
 
             self.nexts.set(i, head)?
             self.buckets.set(bucket_idx, i.clone())?
