@@ -67,6 +67,18 @@ foo := func() returns Expr throws Str {
 }
 #+end_src
 
+*** Test
+=src/test/bug173.til= reproduces this bug. The test uses the same variable name
+=p= in both the if-branch and function body, which is key to triggering the bug.
+
+- rs_interpreted: passes (expected_status=0) - interpreter handles it correctly
+- rs_compiled: fails (expected_status=1) - codegen bug, returns zeroed struct
+- TIL typer rejects the shadowed variable name entirely ("Variable 'p' already
+  declared"), so both til modes fail with a type error (til_common expected_status=1)
+
+When the Rust typer is fixed to also reject same-name variables in different
+scopes (matching TIL's behavior), move to all_common with expected_status=1.
+
 *** Discovered while
 Implementing Issue #91 (semicolons for ext_func/ext_proc). Adding an early
 return path to =parse_func_proc_definition= exposed this bug.

@@ -1,0 +1,42 @@
+// Bug #173: When the same variable name is returned from different scopes
+// (if-branch vs function body), find_ret_var_for_placement thinks it's one
+// variable and aliases it to *_ret, but the inner-scope variable is a
+// different C local. emit_return skips *_ret assignment because the name
+// matches the alias, so the return value is never written.
+
+mode test
+
+Pair := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+
+pick_pair := func(flag: I64) returns Pair throws Str {
+    if flag.eq(0) {
+        p := Pair(x=10, y=20)
+        return p
+    }
+    if flag.eq(99) {
+        throw "invalid flag"
+    }
+    p := Pair(x=30, y=40)
+    return p
+}
+
+test_bug173 := proc() {
+    p1 := pick_pair(0)?
+    assert_eq(loc(), 10, p1.x)
+    assert_eq(loc(), 20, p1.y)
+
+    p2 := pick_pair(1)?
+    assert_eq(loc(), 30, p2.x)
+    assert_eq(loc(), 40, p2.y)
+
+    println("OK")
+
+    catch (err: Str) {
+        println("ERROR:", loc(), err)
+        exit(1)
+    }
+}
+test_bug173()
