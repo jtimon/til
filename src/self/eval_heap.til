@@ -1398,6 +1398,21 @@ namespace EvalHeap {
             } else if custom_type.eq("U8") {
                 u8_val := EvalHeap.get_u8(ctx, field_id, e)?
                 result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(u8_val.to_str())), Vec.new(Expr), 0, 0)
+            } else if custom_type.eq("Str") {
+                // Str needs special handling - reading raw Ptr fields would serialize
+                // interpreter memory addresses as literal numbers (non-deterministic).
+                // Instead, extract the actual string content.
+                mut offset := 0
+                if EvalHeap.is_instance_field(ctx, field_id) {
+                    offset = ctx.get_field_offset(field_id)?
+                } else {
+                    offset = ctx.scope_stack.lookup_var(field_id)?
+                    catch (err: KeyNotFoundError) {
+                        throw e.lang_error(ctx.path, "heap", format("field_to_literal Str: '", field_id, "' not found"))
+                    }
+                }
+                str_val := EvalHeap.extract_str_at_offset(ctx, offset)?
+                result = Expr.new_explicit(NodeType.LLiteral(Literal.Str(str_val)), Vec.new(Expr), 0, 0)
             } else {
                 // Check if nested struct
                 mut is_struct := false

@@ -1135,6 +1135,22 @@ impl EvalHeap {
                 let u8_val = Self::get_u8(ctx, field_id, e)?;
                 Ok(Expr::new_explicit(NodeType::LLiteral(Literal::Number(u8_val.to_string())), vec![], 0, 0))
             },
+            ValueType::TCustom(ref t) if t == "Str" => {
+                // Str needs special handling - reading raw Ptr fields would serialize
+                // interpreter memory addresses as literal numbers (non-deterministic).
+                // Instead, extract the actual string content.
+                let offset = if Self::is_instance_field(ctx, field_id) {
+                    ctx.get_field_offset(field_id).map_err(|err| {
+                        e.lang_error(&ctx.path, "heap", &format!("field_to_literal Str: {}", err))
+                    })?
+                } else {
+                    ctx.scope_stack.lookup_var(field_id)
+                        .ok_or_else(|| e.lang_error(&ctx.path, "heap",
+                            &format!("field_to_literal Str: '{}' not found", field_id)))?
+                };
+                let str_val = Self::extract_str_at_offset(ctx, offset)?;
+                Ok(Expr::new_explicit(NodeType::LLiteral(Literal::Str(str_val)), vec![], 0, 0))
+            },
             ValueType::TCustom(ref nested_type) => {
                 // Check if nested struct
                 if ctx.scope_stack.has_struct(nested_type) {
