@@ -32,12 +32,24 @@ is no body. Previously required a semicolon as a terminator.
 Semicolons are now completely optional - skipped by the lexer as whitespace.
 ~ext_func~ and ~ext_proc~ require an empty body ~{}~ instead of a semicolon.
 
-*** Future Enhancement (deferred to post-self-hosting)
-Context-aware lookahead could allow:
+*** Step 2: Context-aware lookahead (planned for Issue #91)
+Context-aware lookahead: after parsing ~func(args) returns T throws E~,
+if the next token is NOT ~{~, treat as bodyless declaration. This removes
+the ~{}~ requirement for ext_func/ext_proc AND enables function type
+declarations for Issue #91 (first-class functions).
 #+BEGIN_SRC til
-single_print := ext_proc(s: Str)  // Just works without {}
+single_print := ext_proc(s: Str)           // Just works without {}
+BinaryOp := func(a: I64, b: I64) returns I64  // Function type declaration
 #+END_SRC
-Parser would infer end of definition from context.
+
+*** Future syntax direction (longer-term)
+Move the full function signature into the type position of declarations:
+#+BEGIN_SRC til
+my_func : func(a: I64) returns I64 = { return a.mul(2) }
+my_type : func(a: I64) returns I64        // no initializer = type only
+#+END_SRC
+This unifies function declarations with the general ~name : Type = value~
+pattern. See Issue #91 for details.
 
 ** Bug #64: Custom main args in mode cli don't work properly
 :PROPERTIES:

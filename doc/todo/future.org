@@ -914,8 +914,8 @@ Dynamic~, but could be implemented independently as a narrower feature for macro
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
 :IMPACT: Language feature, polymorphism, higher-order programming
-:STATUS: Open
-:RELATED: Bug #90 (semicolon syntax), src/test/function_pointers.til (early draft), doc/lamda.org
+:STATUS: Open - implementation plan ready (2026-02-18)
+:RELATED: Bug #90 (semicolon/body syntax), Bug #159 (needs func ptrs for deep clone/delete), src/test/function_pointers.til, doc/lamda.org
 :END:
 
 *** Background
@@ -924,33 +924,38 @@ Functions should be first-class values that can be passed as arguments,
 enabling polymorphism and higher-order programming patterns. Currently,
 ~FuncDef~ exists but functions cannot be passed around as values.
 
-*** Core Semantics (Initial Implementation)
+TIL is now self-hosting, so the earlier concern about "post-self-hosting timing"
+is resolved. Additionally, Bug #159 (shallow copy elimination) is blocked on
+function pointer support for deep Vec.clone/delete -- making this a priority.
+
+*** Core Semantics
 
 1. *Pass functions as arguments*: Functions can be passed to other functions
    and called inside them.
 
-2. *Function type syntax*: Parameter names are optional in type signatures.
+2. *Function type declarations*: A function type is a function with no body.
    #+BEGIN_SRC til
-   // Both are valid:
-   BinaryOp := func(a: I64, b: I64) returns I64 {};
-   BinaryOp := func(I64, I64) returns I64 {};
+   // Function type declaration (no body):
+   BinaryOp := func(a: I64, b: I64) returns I64
+   // With throws:
+   Parser := func(s: Str) returns Ast throws ParseError
    #+END_SRC
 
-3. *Throws are part of the signature*:
-   #+BEGIN_SRC til
-   Parser := func(Str) returns Ast throws ParseError, IOError {};
-   #+END_SRC
+3. *Throws are part of the signature*.
 
 4. *Separate func/proc types*: ~func~ and ~proc~ are distinct types.
    A ~proc~ type cannot be passed where a ~func~ is expected (and vice versa).
 
-5. *No closures initially*: Functions can only reference their own parameters
-   and globals. Capturing enclosing scope variables is post-self-hosting.
+5. *No closures*: Functions can only reference their own parameters and globals.
+   Capturing enclosing scope variables is deferred (likely harder).
+
+6. *Return functions and store in struct fields*: Include if not too much extra
+   work over the basic "pass as arguments" support.
 
 *** Example
 #+BEGIN_SRC til
-// Define a function type (needs {} until Bug #90 Step 2 is done)
-BinaryOp := func(I64, I64) returns I64 {};
+// Define a function type (no body = type declaration)
+BinaryOp := func(a: I64, b: I64) returns I64
 
 // Function that takes a function as argument
 apply := func(op: BinaryOp, a: I64, b: I64) returns I64 {
@@ -966,46 +971,180 @@ apply(add, 3, 5)  // returns 8
 apply(mul, 3, 5)  // returns 15
 #+END_SRC
 
-*** What This Avoids (for now)
+*** Syntax Decision
 
-- *Returning functions*: Not needed initially (structs/enums can't be returned either yet)
-- *Storing in collections*: Vec/Map of functions - deferred
-- *Closures*: Capturing enclosing scope variables - post-self-hosting
+**** Current approach: context-aware lookahead (no semicolons)
+After parsing ~func(args) returns T throws E~, if the next token is NOT ~{~,
+it is a bodyless declaration (function type or ext_func/ext_proc). If ~{~ follows,
+it is a function definition with a body.
 
-*** Implementation Considerations
+This resolves Bug #90 cleanly: ext_func/ext_proc no longer need the ugly ~{}~
+empty body, and function type declarations don't need semicolons.
 
-*C codegen*: Function types become C function pointer types.
-#+BEGIN_SRC c
-typedef til_I64 (*BinaryOp)(til_I64, til_I64);
+Examples:
+#+BEGIN_SRC til
+// Function type (no body, no braces needed):
+BinaryOp := func(a: I64, b: I64) returns I64
+
+// ext_func (no body, no braces needed):
+single_print := ext_proc(s: Str)
+
+// Regular function (has body):
+add := func(a: I64, b: I64) returns I64 {
+    return a.add(b)
+}
 #+END_SRC
 
-*Interpreter*: Need to resolve function parameters to actual function
-definitions and call them. Currently looks up by name - would need to handle
-"this parameter holds a function reference".
+Only "ambiguity": ~func() {}~ is always parsed as a function with empty body,
+never as a type. This is the natural interpretation and harmless.
 
-*Type checking*: Verify passed function's signature matches expected type
-(args, return types, throw types).
+**** Future syntax direction (documented, not implemented now)
+Move the full signature into the type position of the declaration:
+#+BEGIN_SRC til
+my_double : func(a: I64) returns I64 = {
+    return a.mul(2)
+}
+my_func_ptr : func(a: I64) returns I64   // no initializer = type only
+my_caller : func(a: I64, f: func(I64) returns I64) returns I64 = {
+    return f(a)
+}
+#+END_SRC
+This is more disruptive (changes all function declarations) and deferred.
+When done, parameter names in function types become optional:
+~func(I64) returns I64~ and ~func(a: I64) returns I64~ are both valid types.
+See also Bug #90.
 
-*** Timing
+*** Existing Infrastructure (as of 2026-02-18)
 
-Consider implementing post-self-hosting:
-- FuncDef size/representation is simpler when TIL can use its own structs
-- Avoids rstil/til divergence
-- Related: til's ccodegen needs fixes ported from Rust first
+What already exists (~40-50% complete):
+- ~ValueType::TFunction(FunctionType)~ -- stores func/proc/macro kind
+- ~SFuncDef~ struct -- full function definition (type, args, returns, throws, body)
+- ~ScopeFrame.funcs~ -- HashMap<String, SFuncDef> for function lookup by name
+- Parser: ~parse_func_proc_definition~ parses func/proc with body
+- Typer: recognizes ~TFunction~ declarations, calls ~declare_func~
+- Test file: ~src/test/function_pointers.til~ (draft, all commented out)
+
+What is missing:
+- Parser: bodyless function declarations (type decls) -- needs lookahead fix
+- ValueType: ~TFunction~ only stores kind, not full signature (args/returns/throws)
+- Interpreter: function calls resolved by name only, no "call through parameter"
+- Ccodegen: no C function pointer typedefs or pointer-based calls
+- Type checking: no signature compatibility verification
+
+*** C Calling Convention (critical for codegen)
+
+TIL's generated C calling convention is non-trivial:
+
+| TIL Signature                     | C Signature                                          |
+|-----------------------------------+------------------------------------------------------|
+| func() returns I64                | til_I64 f(void)                                      |
+| func(a: I64) returns I64          | til_I64 f(const til_I64* a)                          |
+| func(mut a: I64) returns I64      | til_I64 f(til_I64* a)                                |
+| func(copy a: I64) returns I64     | til_I64 f(til_I64 a)                                 |
+| proc()                            | void f(void)                                         |
+| func(a: I64) returns I64 throws E | int f(til_I64* _ret, til_E* _err1, const til_I64* a) |
+
+Function pointer typedefs must match exactly:
+#+BEGIN_SRC c
+// For: BinaryOp := func(a: I64, b: I64) returns I64
+typedef til_I64 (*til_BinaryOp)(const til_I64*, const til_I64*);
+
+// For: ThrowingParser := func(s: Str) returns Ast throws ParseError
+typedef int (*til_ThrowingParser)(til_Ast*, til_ParseError*, const til_Str*);
+#+END_SRC
+
+*** Implementation Plan (incremental)
+
+**** Step 1: Parser -- bodyless function declarations
+Modify ~parse_func_proc_definition~ in parser.rs/parser.til:
+After parsing ~func(args) returns T throws E~, check if next token is ~{~.
+If not, return a FuncDef with empty body (marks it as a type declaration).
+Also apply to ext_func/ext_proc (remove the ~{}~ requirement).
+
+Test: ~BinaryOp := func(a: I64, b: I64) returns I64~ parses without error.
+Files: src/rs/parser.rs, src/self/parser.til
+
+**** Step 2: Type system -- function types carry full signature
+Option A (simpler): Function types use ~TCustom("BinaryOp")~ and the actual
+SFuncDef is looked up from ~scope_stack.lookup_func("BinaryOp")~ when needed.
+This piggybacks on existing infrastructure -- a function type declaration stores
+an SFuncDef (with empty body) in the funcs map, and referring to "BinaryOp"
+as a type just works through ~TCustom~.
+
+Option B (proper): Extend ~ValueType::TFunction~ to carry full signature info.
+More work but cleaner long-term.
+
+Recommendation: Start with Option A. If it works for the initial feature,
+defer Option B. A function type IS stored as a FuncDef -- it just happens
+to have an empty body.
+
+Files: src/rs/typer.rs, src/self/typer.til, src/rs/init.rs, src/self/init.til
+
+**** Step 3: Interpreter -- pass functions as arguments, call through parameters
+When a function-typed parameter receives an argument:
+- The argument is a function name (identifier)
+- Store the function name as the parameter's value (just like any string variable)
+- When calling through the parameter: read the name, ~lookup_func~ by that name
+
+The key change is in ~eval_func_proc_call~ (interpreter.rs line ~396, init.rs
+line ~616): if ~lookup_func(name)~ fails AND the name is a variable holding a
+function name, do ~lookup_func(variable_value)~ instead.
+
+Test: interpreter can run ~apply(add, 3, 5)~ and get 8.
+Files: src/rs/interpreter.rs, src/self/interpreter.til,
+       src/rs/init.rs, src/self/init.til
+
+**** Step 4: Ccodegen -- function pointer typedefs and calls
+4a. Emit ~typedef~ for function type declarations:
+    ~typedef til_I64 (*til_BinaryOp)(const til_I64*, const til_I64*);~
+    Must match the exact C calling convention (see table above).
+
+4b. Function-typed parameters emit as function pointer parameters:
+    ~void til_apply(const til_I64* til_I64__ret, til_BinaryOp til_BinaryOp_op, ...)~
+
+4c. Calls through function pointers: ~*_ret = til_BinaryOp_op(...)~ instead
+    of the normal direct call.
+
+4d. Passing a function as argument: emit as ~&til_add~ (address of the function).
+
+Test: compiled mode can run ~apply(add, 3, 5)~ and get 8.
+Files: src/rs/ccodegen.rs, src/self/ccodegen.til
+
+**** Step 5: Type checking -- signature compatibility
+Verify that when a function is passed where a type is expected, signatures match:
+- Same number of args
+- Compatible arg types
+- Compatible return types
+- Compatible throw types
+- func/proc distinction respected
+
+Files: src/rs/typer.rs, src/self/typer.til
+
+**** Step 6: Tests
+Uncomment and update ~src/test/function_pointers.til~:
+- Basic: pass named function, call it
+- Multiple function types
+- Throwing functions as arguments
+- proc vs func distinction
+- Type mismatch errors (negative tests)
+
+*** Deferred Features
+
+- *Closures*: Capturing enclosing scope variables (likely harder)
+- *Anonymous inline functions*: ~numbers.map(func(x: I64) returns I64 { return x.mul(2) })~
+  Syntax already works via ~parse_func_proc_definition~ -- just needs the passing
+  infrastructure from this issue. May work for free after Step 3/4.
+- *Optional parameter names in types*: ~func(I64) returns I64~ (extra parser work)
+- *Storing in collections*: Vec/Map of function pointers
+- *Future syntax*: Move signature to type position (see Syntax Decision section)
 
 *** Key Files
 - src/rs/parser.rs / src/self/parser.til (function type parsing)
 - src/rs/typer.rs / src/self/typer.til (signature matching)
 - src/rs/ccodegen.rs / src/self/ccodegen.til (function pointer emission)
 - src/rs/interpreter.rs / src/self/interpreter.til (function reference resolution)
-- src/test/function_pointers.til (existing draft, commented out)
-
-*** Future Extensions (post-self-hosting)
-
-- Return functions from functions
-- Store functions in collections (Vec, Map)
-- Multiple return values (~x, y := some_func()~)
-- Closures (capturing enclosing scope variables)
+- src/rs/init.rs / src/self/init.til (SFuncDef, ScopeFrame, ValueType, dispatch)
+- src/test/function_pointers.til (test cases)
 
 ** Issue #105: First-Class Structs
 :PROPERTIES:
