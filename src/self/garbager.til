@@ -97,9 +97,7 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         // Skip if function has any catch blocks: throws can skip declarations,
         // making unconditional deletes at function end unsafe.
         mut has_any_catch := false
-        for catch_idx in 0..new_body.len() {
-            catch_check_stmt_ref := new_body.get_by_ref(catch_idx)?
-            create_alias(catch_check_stmt, Expr, catch_check_stmt_ref.data)
+        for catch_check_stmt: Expr in new_body {
             switch catch_check_stmt.node_type {
             case NodeType.Catch:
                 has_any_catch = true

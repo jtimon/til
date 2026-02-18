@@ -79,10 +79,8 @@ namespace SEnumDef {
     }
 
     // Helper methods for backward compatibility
-    get := func(self: SEnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError, IndexOutOfBoundsError {
-        for i in 0..self.variants.len() {
-            mut v := EnumVariant()
-            self.variants.get(i, v)?
+    get := func(self: SEnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError {
+        for v: EnumVariant in self.variants {
             if v.name.eq(variant_name) {
                 return v.payload_type
             }
@@ -90,15 +88,12 @@ namespace SEnumDef {
         throw KeyNotFoundError()
     }
 
-    contains_key := func(self: SEnumDef, variant_name: Str) returns Bool throws Str {
-        for i in 0..self.variants.len() {
-            v_ref := self.variants.get_by_ref(i)?
-            create_alias(v, EnumVariant, v_ref.data)
+    contains_key := func(self: SEnumDef, variant_name: Str) returns Bool {
+        for v: EnumVariant in self.variants {
             if v.name.eq(variant_name) {
                 return true
             }
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }  // Should never happen with 0..len()
         return false
     }
 }
@@ -163,30 +158,21 @@ namespace SFuncDef {
         mut result := SFuncDef()
         result.function_type = self.function_type
         // Deep clone args
-        for arg_idx in 0..self.args.len() {
-            mut arg := Declaration()
-            self.args.get(arg_idx, arg)?
+        for arg: Declaration in self.args {
             result.args.push(arg.clone())
         }
         // Deep clone return_types
-        for rt_idx in 0..self.return_types.len() {
-            rt_ref := self.return_types.get_by_ref(rt_idx)?
-            create_alias(rt, ValueType, rt_ref.data)
+        for rt: ValueType in self.return_types {
             result.return_types.push(value_type_clone(rt))
         }
         // Deep clone throw_types
-        for tt_idx in 0..self.throw_types.len() {
-            tt_ref := self.throw_types.get_by_ref(tt_idx)?
-            create_alias(tt, ValueType, tt_ref.data)
+        for tt: ValueType in self.throw_types {
             result.throw_types.push(value_type_clone(tt))
         }
         // Deep clone body
-        for body_idx in 0..self.body.len() {
-            mut e := Expr()
-            self.body.get(body_idx, e)?
+        for e: Expr in self.body {
             result.body.push(e.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         result.source_path = self.source_path.clone()
         return result
     }
@@ -235,9 +221,7 @@ namespace SStructDef {
     clone := func(self: SStructDef) returns SStructDef {
         mut result := SStructDef()
         // Deep clone members
-        for member_idx in 0..self.members.len() {
-            mut m := Declaration()
-            self.members.get(member_idx, m)?
+        for m: Declaration in self.members {
             result.members.push(m.clone())
         }
         // Deep clone default_values Map<Str, Expr>
@@ -288,9 +272,7 @@ namespace SNamespaceDef {
         mut result := SNamespaceDef()
         result.type_name = self.type_name.clone()
         // Deep clone members
-        for member_idx in 0..self.members.len() {
-            mut m := Declaration()
-            self.members.get(member_idx, m)?
+        for m: Declaration in self.members {
             result.members.push(m.clone())
         }
         // Deep clone default_values Map<Str, Expr>
@@ -468,12 +450,9 @@ namespace Expr {
     clone := func(self: Expr) returns Expr {
         // Deep clone: clone node_type and each element in params
         mut cloned_params := Vec.new(Expr)
-        for i in 0..self.params.len() {
-            e := self.get(i)?
-            dont_delete(e)
+        for e: Expr in self.params {
             cloned_params.push(e.clone())
         }
-        catch (err: Str) { panic(loc(), err) }
         return Expr(node_type=node_type_clone(self.node_type), params=cloned_params, line=self.line, col=self.col)
     }
 
@@ -514,11 +493,9 @@ namespace Expr {
         return prefix.concat(phase).concat(" ERROR: ").concat(msg)
     }
 
-    params_clone := func(self: Expr) returns Vec throws Str {
+    params_clone := func(self: Expr) returns Vec {
         mut cloned := Vec.new(Expr)
-        for i in 0..self.params.len() {
-            elem := self.get(i)?
-            dont_delete(elem)
+        for elem: Expr in self.params {
             cloned.push(elem)
         }
         return cloned
@@ -1175,9 +1152,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     mut members := Vec.new(Declaration)  // Vec of Declaration
     mut default_values := Map.new(Str, Expr)  // Map<Str, Expr>
 
-    for i in 0..body.params.len() {
-        p := body.get(i)?
-        dont_delete(p)
+    for p: Expr in body.params {
         nt := p.node_type
 
         switch nt {
@@ -1258,9 +1233,7 @@ parse_namespace_definition := func(mut lexer: Lexer) returns Expr throws Str {
     mut members := Vec.new(Declaration)
     mut default_values := Map.new(Str, Expr)
 
-    for i in 0..body.params.len() {
-        p := body.get(i)?
-        dont_delete(p)
+    for p: Expr in body.params {
         nt := p.node_type
 
         switch nt {
@@ -1351,9 +1324,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
         arg_list := parse_args(lexer)?
         mut fcall_params := Vec.new(Expr)
         fcall_params.push(e)
-        for i in 0..arg_list.params.len() {
-            arg := arg_list.get(i)?
-            dont_delete(arg)
+        for arg: Expr in arg_list.params {
             fcall_params.push(arg)
         }
         initial_token2 := lexer.get_token(initial_current)?.clone()
@@ -1401,9 +1372,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                         mut new_params := Vec.new(Expr)
                         new_params.push(method_id)
                         new_params.push(result.clone())  // Previous call result becomes first argument
-                        for j in 0..method_args.params.len() {
-                            method_arg := method_args.get(j)?
-                            dont_delete(method_arg)
+                        for method_arg: Expr in method_args.params {
                             new_params.push(method_arg)
                         }
 
@@ -1459,9 +1428,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                                         mut new_params2 := Vec.new(Expr)
                                         new_params2.push(method_id2)
                                         new_params2.push(field_access)
-                                        for k in 0..method_args2.params.len() {
-                                            method_arg2 := method_args2.get(k)?
-                                            dont_delete(method_arg2)
+                                        for method_arg2: Expr in method_args2.params {
                                             new_params2.push(method_arg2)
                                         }
 
@@ -1524,9 +1491,7 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
             throw e.lang_error(path, "parse", "get_combined_name() is to be called with Identifier expressions only")
     }
 
-    for i in 0..e.params.len() {
-        p := e.get(i)?
-        dont_delete(p)
+    for p: Expr in e.params {
         pnt := p.node_type
         switch pnt {
             case NodeType.Identifier(id_str):
@@ -1844,7 +1809,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 // Bug #57 fix: Transform continue statements to include the step expression before continue.
 // This ensures the loop variable is incremented/decremented even when continue is used.
 // Transforms: continue -> { step_expr; continue }
-transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws Str {
+transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr {
     switch expr.node_type {
     case NodeType.Continue:
         // Replace continue with { step_expr; continue }
@@ -1861,10 +1826,8 @@ transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr t
     case:
         // Recurse into other nodes
         mut new_params := Vec.new(Expr)
-        for i in 0..expr.params.len() {
-            p := expr.get(i)?
-            dont_delete(p)
-            new_params.push(transform_continue_with_step(p, step_expr)?)
+        for p: Expr in expr.params {
+            new_params.push(transform_continue_with_step(p, step_expr))
         }
         return Expr(node_type=expr.node_type, params=new_params, line=expr.line, col=expr.col)
     }
@@ -1872,7 +1835,7 @@ transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr t
 
 // Helper to desugar range-based for loop to while loop
 // Shared by typed (for i: I64 in 0..10) and untyped (for i in 0..10) range loops
-desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, end_expr: Expr, body_expr: Expr, initial_token: Token) returns Expr throws Str {
+desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, end_expr: Expr, body_expr: Expr, initial_token: Token) returns Expr {
     // Check if both bounds are numeric literals for compile-time direction detection
     // is_forward: 0 = unknown (runtime), 1 = forward, 2 = reverse
     mut is_forward := 0
@@ -1910,7 +1873,7 @@ desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, e
     decl_expr := Expr.new_parse(NodeType.Declaration(decl), initial_token.clone(), decl_params)
 
     // Helper to create forward while loop
-    make_fwd_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr throws Str {
+    make_fwd_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr {
         mut lt_params := Vec.new(Expr)
         lt_ident := Expr.new_parse(NodeType.Identifier("lt"), tok.clone(), Vec.new(Expr))
         lt_params.push(lt_ident)
@@ -1929,8 +1892,8 @@ desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, e
         inc := Expr.new_explicit(NodeType.FCall(false),inc_params, tok.line, tok.col)
 
         // Bug #57 fix: Transform continue statements to include increment before continue
-        transformed_body := transform_continue_with_step(body, inc)?
-        mut body_params := transformed_body.params_clone()?
+        transformed_body := transform_continue_with_step(body, inc)
+        mut body_params := transformed_body.params_clone()
         body_params.push(inc.clone())
         while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
 
@@ -1942,7 +1905,7 @@ desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, e
     }
 
     // Helper to create reverse while loop
-    make_rev_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr throws Str {
+    make_rev_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr {
         mut gt_params := Vec.new(Expr)
         gt_ident := Expr.new_parse(NodeType.Identifier("gt"), tok.clone(), Vec.new(Expr))
         gt_params.push(gt_ident)
@@ -1961,8 +1924,8 @@ desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, e
         dec := Expr.new_explicit(NodeType.FCall(false),dec_params, tok.line, tok.col)
 
         // Bug #57 fix: Transform continue statements to include decrement before continue
-        transformed_body := transform_continue_with_step(body, dec)?
-        mut body_params := transformed_body.params_clone()?
+        transformed_body := transform_continue_with_step(body, dec)
+        mut body_params := transformed_body.params_clone()
         body_params.push(dec.clone())
         while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
 
@@ -1976,15 +1939,15 @@ desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, e
     mut loop_expr := Expr()
     if is_forward.eq(1) {
         // Compile-time: forward loop only
-        loop_expr = make_fwd_while(body_expr, loop_var_name, end_expr, initial_token)?
+        loop_expr = make_fwd_while(body_expr, loop_var_name, end_expr, initial_token)
     } else {
         if is_forward.eq(2) {
             // Compile-time: reverse loop only
-            loop_expr = make_rev_while(body_expr, loop_var_name, end_expr, initial_token)?
+            loop_expr = make_rev_while(body_expr, loop_var_name, end_expr, initial_token)
         } else {
             // Runtime: if start < end { forward } else { reverse }
-            fwd_while := make_fwd_while(body_expr, loop_var_name, end_expr, initial_token)?
-            rev_while := make_rev_while(body_expr, loop_var_name, end_expr, initial_token)?
+            fwd_while := make_fwd_while(body_expr, loop_var_name, end_expr, initial_token)
+            rev_while := make_rev_while(body_expr, loop_var_name, end_expr, initial_token)
 
             mut dir_cond_params := Vec.new(Expr)
             dir_lt_ident := Expr.new_parse(NodeType.Identifier("lt"), initial_token.clone(), Vec.new(Expr))
@@ -2065,7 +2028,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
             typed_body_expr := parse_body(lexer, TokenType.RightBrace)?
 
             // Use shared helper for range desugaring with explicit type
-            return desugar_range_for(loop_var_name, var_type_name, typed_start_expr, typed_end_expr, typed_body_expr, initial_token)?
+            return desugar_range_for(loop_var_name, var_type_name, typed_start_expr, typed_end_expr, typed_body_expr, initial_token)
         }
 
         // Collection-based for: for VAR: TYPE in COLLECTION { ... }
@@ -2109,7 +2072,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     body_expr := parse_body(lexer, TokenType.RightBrace)?
 
     // Use shared helper for range desugaring with inferred type
-    return desugar_range_for(loop_var_name, INFER_TYPE, start_expr, end_expr, body_expr, initial_token)?
+    return desugar_range_for(loop_var_name, INFER_TYPE, start_expr, end_expr, body_expr, initial_token)
 }
 
 // Helper function to extract full identifier name from an expression

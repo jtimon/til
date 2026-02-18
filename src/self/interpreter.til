@@ -516,9 +516,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                         // Find the field type in the struct definition
                         mut field_type := ValueType.TCustom("")
                         mut found_field := false
-                        for named_k in 0..struct_members.len() {
-                            member_ref := struct_members.get_by_ref(named_k)?
-                            create_alias(member, Declaration, member_ref.data)
+                        for member: Declaration in struct_members {
                             if member.name.eq(field_name) {
                                 field_type = member.value_type
                                 found_field = true
@@ -816,9 +814,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                             if not(NULL.eq(enum_val.payload.data)) {
                                 mut enum_payload_vec := Vec.new(U8)
                                 memcpy(to_ptr(enum_payload_vec), enum_val.payload.data, size_of(Vec))
-                                for pi in 0..enum_payload_vec.len() {
-                                    pb_ref := enum_payload_vec.get_by_ref(pi)?
-                                    create_alias(pb, U8, pb_ref.data)
+                                for pb: U8 in enum_payload_vec {
                                     enum_bytes.push(pb)
                                 }
                             }
@@ -2143,9 +2139,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     switch current_arg.node_type {
                                     case NodeType.Identifier(base_id):
                                         full_path = base_id.clone()
-                                        for struct_pi in 0..current_arg.params.len() {
-                                            struct_param := current_arg.get(struct_pi)?
-                                            dont_delete(struct_param)
+                                        for struct_param: Expr in current_arg.params {
                                             switch struct_param.node_type {
                                             case NodeType.Identifier(struct_field_name):
                                                 full_path = format(full_path, ".", struct_field_name)
@@ -2471,14 +2465,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     // NOTE: MutArgValueType, MutArgValue, CollectedMutArg structs defined earlier
     mut collected_mut_args := Vec.new(CollectedMutArg)
 
-    for mi in 0..mut_args.len() {
-        m_ref := mut_args.get_by_ref(mi)?
-        create_alias(m, MutArgEntry, m_ref.data)
+    for m: MutArgEntry in mut_args {
         // Check if this arg was passed by ref
         mut was_passed_by_ref := false
-        for ref_check_i in 0..pass_by_ref_params.len() {
-            ref_param_ref := pass_by_ref_params.get_by_ref(ref_check_i)?
-            create_alias(ref_param, Str, ref_param_ref.data)
+        for ref_param: Str in pass_by_ref_params {
             if ref_param.eq(m.arg_name) {
                 was_passed_by_ref = true
             }
@@ -2562,9 +2552,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     context.path = saved_path.clone()
 
     // Write collected mut_args values to caller's frame (now on top)
-    for ci in 0..collected_mut_args.len() {
-        c_ref := collected_mut_args.get_by_ref(ci)?
-        create_alias(c, CollectedMutArg, c_ref.data)
+    for c: CollectedMutArg in collected_mut_args {
         switch c.value {
         case MutArgValue.I64(val):
             EvalHeap.insert_i64(context, c.source_name, I64.to_str(val), e)?

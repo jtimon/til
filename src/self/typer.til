@@ -153,9 +153,7 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
     switch e.node_type {
     case NodeType.Body:
         // Statements in Body discard return values
-        for i in 0..e.params.len() {
-            p := e.get(i)?
-            dont_delete(p)
+        for p: Expr in e.params {
             errors.extend(check_types_with_context(context, p, ExprContext.ValueDiscarded)?)
         }
     case NodeType.EnumDef(enum_def):
@@ -483,9 +481,7 @@ check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str
             create_alias(first, Vec, first_ref.data)
             for entry: RemovedSymbol in first {
                 mut consumed_in_all := true
-                for bi in 0..consumed_per_branch.len() {
-                    branch_consumed_ref := consumed_per_branch.get_by_ref(bi)?
-                    create_alias(branch_consumed, Vec, branch_consumed_ref.data)
+                for branch_consumed: Vec in consumed_per_branch {
                     mut found := false
                     for other_entry: RemovedSymbol in branch_consumed {
                         if other_entry.name.eq(entry.name) {
@@ -667,9 +663,7 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     if valid {
         // Check throws IndexOutOfBoundsError
         mut throws_index_error := false
-        for i in 0..get_func.throw_types.len() {
-            throw_type_ref := get_func.throw_types.get_by_ref(i)?
-            create_alias(throw_type, ValueType, throw_type_ref.data)
+        for throw_type: ValueType in get_func.throw_types {
             switch throw_type {
             case ValueType.TCustom(throw_name):
                 if throw_name.eq("IndexOutOfBoundsError") {
@@ -3326,11 +3320,9 @@ type_check := proc(mut context: Context, e: Expr) returns TypeCheckResult throws
 }
 
 // Helper: recurse into params and return new params vec
-resolve_params := proc(mut context: Context, e: Expr) returns Vec throws Str {
+resolve_params := proc(mut context: Context, e: Expr) returns Vec {
     mut result := Vec.new(Expr)
-    for idx in 0..e.params.len() {
-        param := e.get(idx)?
-        dont_delete(param)
+    for param: Expr in e.params {
         result.push(resolve_inferred_types(context, param)?)
     }
     return result
@@ -3354,21 +3346,21 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
     case NodeType.Body:
         // Body - push block scope
         context.scope_stack.push(ScopeType.Block)
-        resolved_params := resolve_params(context, e)?
+        resolved_params := resolve_params(context, e)
         _ := context.scope_stack.pop()?
         return Expr.new_clone(e.node_type, e, resolved_params)
 
     case NodeType.If:
         // If - push block scope
         context.scope_stack.push(ScopeType.Block)
-        if_params := resolve_params(context, e)?
+        if_params := resolve_params(context, e)
         _ := context.scope_stack.pop()?
         return Expr.new_clone(e.node_type, e, if_params)
 
     case NodeType.While:
         // While - push block scope
         context.scope_stack.push(ScopeType.Block)
-        while_params := resolve_params(context, e)?
+        while_params := resolve_params(context, e)
         _ := context.scope_stack.pop()?
         return Expr.new_clone(e.node_type, e, while_params)
 
@@ -3394,7 +3386,7 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
             }
         }
 
-        forin_params := resolve_params(context, e)?
+        forin_params := resolve_params(context, e)
 
         _ := context.scope_stack.pop()?
 
@@ -3666,7 +3658,7 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
             }
         }
         // Recurse into params
-        fcall_params := resolve_params(context, e)?
+        fcall_params := resolve_params(context, e)
         return Expr.new_clone(e.node_type, e, fcall_params)
 
     case:
@@ -3674,7 +3666,7 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         if e.params.is_empty() {
             return e
         }
-        default_params := resolve_params(context, e)?
+        default_params := resolve_params(context, e)
         return Expr.new_clone(e.node_type, e, default_params)
     }
 
@@ -3717,7 +3709,7 @@ resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     )
 
     // Recurse into params
-    decl_params := resolve_params(context, e)?
+    decl_params := resolve_params(context, e)
 
     // Register the symbol with resolved type (in case it wasn't already)
     mut already_registered := false
@@ -3772,9 +3764,7 @@ resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) retur
     context.scope_stack.push(ScopeType.Function)
 
     // Register function parameters in scope
-    for arg_idx in 0..func_def.args.len() {
-        arg_ref := func_def.args.get_by_ref(arg_idx)?
-        create_alias(arg, Declaration, arg_ref.data)
+    for arg: Declaration in func_def.args {
         context.scope_stack.declare_symbol(arg.name, SymbolInfo(
             value_type=arg.value_type,
             is_mut=arg.is_mut,

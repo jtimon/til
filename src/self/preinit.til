@@ -159,10 +159,7 @@ generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I6
 
     mut struct_literal_params := Vec.new(Expr)
     struct_literal_params.push(struct_name_id)
-    for na_i in 0..named_args.len() {
-        mut na := Expr()
-        named_args.get(na_i, na)?
-        catch (err: IndexOutOfBoundsError) {}
+    for na: Expr in named_args {
         struct_literal_params.push(na)
     }
 
@@ -260,21 +257,15 @@ generate_enum_clone_method := func(enum_name: Str, line: I64, col: I64) returns 
 
 /// Collect all methods defined in namespace blocks.
 /// Returns a Set of "TypeName.methodName" strings.
-collect_namespace_methods := func(ast: Expr) returns Set throws Str {
+collect_namespace_methods := func(ast: Expr) returns Set {
     mut methods := Set.new(Str)
 
     switch ast.node_type {
     case NodeType.Body:
-        for ci in 0..ast.params.len() {
-            child := ast.get(ci)?
-            dont_delete(child)
-
+        for child: Expr in ast.params {
             switch child.node_type {
             case NodeType.NamespaceDef(ns_def):
-                for mi in 0..ns_def.members.len() {
-                    mut member := Declaration()
-                    ns_def.members.get(mi, member)?
-                    catch (err: IndexOutOfBoundsError) {}
+                for member: Declaration in ns_def.members {
                     _ := methods.insert(format(ns_def.type_name, ".", member.name))
                 }
             case:
@@ -302,10 +293,7 @@ collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) retur
 
     switch ast.node_type {
     case NodeType.Body:
-        for ci in 0..ast.params.len() {
-            child := ast.get(ci)?
-            dont_delete(child)
-
+        for child: Expr in ast.params {
             switch child.node_type {
             case NodeType.Declaration(decl):
                 if child.params.len().gt(0) {
@@ -549,9 +537,7 @@ preinit_expr_inner := func(e: Expr) returns Expr throws Str {
 
         // Default: recurse into params
         mut new_params := Vec.new(Expr)
-        for pi in 0..e.params.len() {
-            p := e.get(pi)?
-            dont_delete(p)
+        for p: Expr in e.params {
             new_params.push(preinit_expr_inner(p)?)
         }
         return Expr.new_clone(e.node_type, e, new_params)
@@ -561,9 +547,7 @@ preinit_expr_inner := func(e: Expr) returns Expr throws Str {
             return e.clone()
         } else {
             mut new_params := Vec.new(Expr)
-            for opi in 0..e.params.len() {
-                op := e.get(opi)?
-                dont_delete(op)
+            for op: Expr in e.params {
                 new_params.push(preinit_expr_inner(op)?)
             }
             return Expr.new_clone(e.node_type, e, new_params)
@@ -579,24 +563,19 @@ preinit_expr := func(e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
         // Pass 1: Collect namespace-defined methods
-        namespace_methods := collect_namespace_methods(e)?
+        namespace_methods := collect_namespace_methods(e)
 
         // Pass 2: Find structs that need auto-generated methods
         structs_needing := collect_structs_needing_methods(e, namespace_methods)?
 
         // Pass 3: Process all children and generate namespace blocks
         mut new_params := Vec.new(Expr)
-        for ci in 0..e.params.len() {
-            child := e.get(ci)?
-            dont_delete(child)
+        for child: Expr in e.params {
             new_params.push(preinit_expr_inner(child)?)
         }
 
         // Append generated namespace blocks for structs that need them
-        for si in 0..structs_needing.len() {
-            mut info := StructNeedingMethods()
-            structs_needing.get(si, info)?
-            catch (err: IndexOutOfBoundsError) {}
+        for info: StructNeedingMethods in structs_needing {
             ns_block := generate_namespace_block(
                 info.struct_name,
                 info.struct_def,

@@ -209,9 +209,7 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
                 // But params could also contain FCall for method calls like x.method(arg)
                 // The FCall's arguments COULD contain variable references
                 mut new_params := Vec.new(Expr)
-                for i in 0..e.params.len() {
-                    p := e.get(i)?
-                    dont_delete(p)
+                for p: Expr in e.params {
                     // Only recurse into non-Identifier params (like FCall, etc.)
                     // Direct Identifier children of an Identifier are field names
                     mut is_id := false
@@ -233,9 +231,7 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
         if name.eq(old_name) {
             // Assignment to the variable - rename it
             mut new_params := Vec.new(Expr)
-            for i in 0..e.params.len() {
-                p := e.get(i)?
-                dont_delete(p)
+            for p: Expr in e.params {
                 new_params.push(rename_identifier_in_expr(p, old_name, new_name)?)
             }
             return Expr.new_clone(
@@ -284,9 +280,7 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
         return e.clone()
     } else {
         mut new_params := Vec.new(Expr)
-        for i in 0..e.params.len() {
-            p := e.get(i)?
-            dont_delete(p)
+        for p: Expr in e.params {
             new_params.push(rename_identifier_in_expr(p, old_name, new_name)?)
         }
         return Expr.new_clone(e.node_type, e, new_params)
@@ -304,7 +298,7 @@ find_enum_for_variant := func(context: Context, variant_name: Str) returns Str t
         for enum_name: Str in frame.enums.keys {
             mut enum_def := SEnumDef()
             frame.enums.get(enum_name, enum_def)?
-            if enum_def.contains_key(variant_name)? {
+            if enum_def.contains_key(variant_name) {
                 if found_type.len().eq(0) {
                     found_type = enum_name
                 }
@@ -1123,9 +1117,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 inner_body_params.push(set_matched.clone())
                 switch renamed_case_body.node_type {
                 case NodeType.Body:
-                    for bi in 0..renamed_case_body.params.len() {
-                        bp := renamed_case_body.get(bi)?
-                        dont_delete(bp)
+                    for bp: Expr in renamed_case_body.params {
                         inner_body_params.push(bp.clone())
                     }
                 case:
@@ -1136,9 +1128,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
                 // Build outer body: body_prefix + inner_if
                 mut outer_body_params := Vec.new(Expr)
-                for pi in 0..body_prefix.len() {
-                    pp_ref := body_prefix.get_by_ref(pi)?
-                    create_alias(pp, Expr, pp_ref.data)
+                for pp: Expr in body_prefix {
                     outer_body_params.push(pp)
                 }
                 outer_body_params.push(inner_if)
@@ -1159,25 +1149,19 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 if body_prefix.len().eq(0) {
                     switch renamed_case_body.node_type {
                     case NodeType.Body:
-                        for bi in 0..renamed_case_body.params.len() {
-                            bp := renamed_case_body.get(bi)?
-                            dont_delete(bp)
+                        for bp: Expr in renamed_case_body.params {
                             full_body_params.push(bp.clone())
                         }
                     case:
                         full_body_params.push(renamed_case_body)
                     }
                 } else {
-                    for pi in 0..body_prefix.len() {
-                        pp_ref := body_prefix.get_by_ref(pi)?
-                        create_alias(pp, Expr, pp_ref.data)
+                    for pp: Expr in body_prefix {
                         full_body_params.push(pp)
                     }
                     switch renamed_case_body.node_type {
                     case NodeType.Body:
-                        for bi in 0..renamed_case_body.params.len() {
-                            bp := renamed_case_body.get(bi)?
-                            dont_delete(bp)
+                        for bp: Expr in renamed_case_body.params {
                             full_body_params.push(bp.clone())
                         }
                     case:
@@ -1209,19 +1193,11 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         // Combine: declarations + match flag + guarded ifs + guarded default
         mut body_params := Vec.new(Expr)
-        for di in 0..decl_exprs.len() {
-            de_ref := decl_exprs.get_by_ref(di)?
-            create_alias(de, Expr, de_ref.data)
+        for de: Expr in decl_exprs {
             body_params.push(de)
         }
-        for si in 0..stmts.len() {
-            se_ref := stmts.get_by_ref(si)?
-            create_alias(se, Expr, se_ref.data)
+        for se: Expr in stmts {
             body_params.push(se)
-        }
-
-        catch (err: IndexOutOfBoundsError) {
-            throw format("desugar_switch (nested): ", err.msg)
         }
 
         return make_body(body_params, line, col)
@@ -1276,16 +1252,12 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut full_case_body := renamed_case_body
         if body_prefix.len().gt(0) {
             mut full_body_params := Vec.new(Expr)
-            for pi in 0..body_prefix.len() {
-                pp_ref := body_prefix.get_by_ref(pi)?
-                create_alias(pp, Expr, pp_ref.data)
+            for pp: Expr in body_prefix {
                 full_body_params.push(pp)
             }
             switch renamed_case_body.node_type {
             case NodeType.Body:
-                for bi in 0..renamed_case_body.params.len() {
-                    bp := renamed_case_body.get(bi)?
-                    dont_delete(bp)
+                for bp: Expr in renamed_case_body.params {
                     full_body_params.push(bp.clone())
                 }
             case:
@@ -1302,9 +1274,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // Wrap in outer body with declarations and if/else chain
     mut body_params := Vec.new(Expr)
-    for di in 0..decl_exprs.len() {
-        de_ref := decl_exprs.get_by_ref(di)?
-        create_alias(de, Expr, de_ref.data)
+    for de: Expr in decl_exprs {
         body_params.push(de)
     }
     body_params.push(result_expr)
@@ -1515,13 +1485,11 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     while_body_params.push(alias_call)
 
     // Bug #57 fix: Transform continue statements to include increment before continue
-    transformed_body := transform_continue_with_step(body_expr, inc_stmt)?
+    transformed_body := transform_continue_with_step(body_expr, inc_stmt)
     // Add original body statements (transformed)
     switch transformed_body.node_type {
     case NodeType.Body:
-        for i in 0..transformed_body.params.len() {
-            p := transformed_body.get(i)?
-            dont_delete(p)
+        for p: Expr in transformed_body.params {
             while_body_params.push(p.clone())
         }
     case:
@@ -1650,9 +1618,7 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // First desugar the initializer expression (if any)
         mut new_params := Vec.new(Expr)
         if e.params.len().gt(0) {
-            for pi in 0..e.params.len() {
-                p := e.get(pi)?
-                dont_delete(p)
+            for p: Expr in e.params {
                 new_params.push(desugar_expr(context, p)?)
             }
         }
@@ -1681,9 +1647,7 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             return e.clone()
         } else {
             mut new_params := Vec.new(Expr)
-            for param_i in 0..e.params.len() {
-                p := e.get(param_i)?
-                dont_delete(p)
+            for p: Expr in e.params {
                 new_params.push(desugar_expr(context, p)?)
             }
             return Expr.new_clone(e.node_type, e, new_params)

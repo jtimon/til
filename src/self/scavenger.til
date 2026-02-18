@@ -78,9 +78,7 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
         }
     }
     // Collect from return types
-    for ret_i in 0..func_def.return_types.len() {
-        ret_type_ref := func_def.return_types.get_by_ref(ret_i)?
-        create_alias(ret_type, ValueType, ret_type_ref.data)
+    for ret_type: ValueType in func_def.return_types {
         ret_type_name := extract_type_name(ret_type)
         if ret_type_name.len().gt(0) {
             _ := used_types.insert(ret_type_name)
@@ -97,7 +95,6 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
     for stmt: Expr in func_def.body {
         collect_used_types_from_expr(context, stmt, used_types)?
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
 
 // ---------- Helper functions

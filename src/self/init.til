@@ -382,9 +382,7 @@ namespace ScopeStack {
     /// Unlike declare_func (which always inserts at current scope), this finds
     /// where the func was originally declared and updates it there.
     update_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws Str {
-        for i in 0..self.frames.len() {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+        for frame: ScopeFrame in self.frames {
             if frame.funcs.contains_key(name) {
                 frame.funcs.set(name, func_def)
                 return
@@ -392,9 +390,6 @@ namespace ScopeStack {
         }
         // If not found, insert at current scope (fallback)
         self.declare_func(name, func_def)?
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
     }
 
     lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
@@ -534,10 +529,7 @@ namespace ScopeStack {
             }
             variant_name_ref := parts.get_by_ref(1)?
             create_alias(variant_name, Str, variant_name_ref.data)
-            mut result := enum_def.contains_key(variant_name)?
-            catch (err: Str) {
-                return false
-            }
+            mut result := enum_def.contains_key(variant_name)
             return result
         }
         catch (err: IndexOutOfBoundsError) {
@@ -1429,7 +1421,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
                 catch (err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("Enum '", name, "' not found"))
                 }
-                if nested_enum_def.contains_key(member_name)? {  // Bug #38 fix: use helper method
+                if nested_enum_def.contains_key(member_name) {  // Bug #38 fix: use helper method
                     return ValueType.TCustom(name)
                 }
                 throw e.error(context.path, "init", format("Enum '", name, "' has no value '", member_name, "'"))
@@ -2097,9 +2089,7 @@ namespace Context {
             }
         }
         mut names := Vec.new(Str)
-        for name_idx in 0..selfi.variants.len() {
-            name_v_ref := selfi.variants.get_by_ref(name_idx)?
-            create_alias(name_v, EnumVariant, name_v_ref.data)
+        for name_v: EnumVariant in selfi.variants {
             names.push(name_v.name)
         }
         catch (err: IndexOutOfBoundsError) {
@@ -2112,13 +2102,8 @@ namespace Context {
     variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str {
         if position.lt(0).or(position.gteq(selfi.variants.len())) {
             mut err_names := Vec.new(Str)
-            for err_idx in 0..selfi.variants.len() {
-                err_v_ref := selfi.variants.get_by_ref(err_idx)?
-                create_alias(err_v, EnumVariant, err_v_ref.data)
+            for err_v: EnumVariant in selfi.variants {
                 err_names.push(err_v.name)
-            }
-            catch (err: IndexOutOfBoundsError) {
-                throw err.msg
             }
             throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant in '", err_names.to_str(), "'."))
         }

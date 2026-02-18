@@ -2103,7 +2103,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         enum_ctor_name = func_name.get_substr(0, underscore_pos)?
         variant_ctor_name = func_name.get_substr(add(underscore_pos, 1), func_name.len())?
         enum_def := context.scope_stack.lookup_enum(enum_ctor_name)?
-        if enum_def.contains_key(variant_ctor_name)? {
+        if enum_def.contains_key(variant_ctor_name) {
             is_enum_constructor = true
         }
         catch (err: KeyNotFoundError) {
@@ -2245,7 +2245,7 @@ get_c_type_for_expr := proc(arg: Expr, context: Context) returns Str throws Str 
             case NodeType.Identifier(field_or_variant):
                 // Check enum constructor
                 enum_def := context.scope_stack.lookup_enum(name)?
-                if enum_def.contains_key(field_or_variant)? {
+                if enum_def.contains_key(field_or_variant) {
                     return til_name(name)
                 }
                 catch (err: KeyNotFoundError) {
@@ -4598,7 +4598,7 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                     type_have_enum_def = false
                 }
                 if type_have_enum_def {
-                    if type_enum_def.contains_key(type_field)? {
+                    if type_enum_def.contains_key(type_field) {
                         // Enum variant: Type.Variant -> til_Type_make_Variant()
                         output.push_str(TIL_PREFIX)
                         output.push_str(name)
@@ -7106,7 +7106,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str thr
                         switch variant_param.node_type {
                         case NodeType.Identifier(variant_name):
                             // Verify the variant exists in the enum
-                            if enum_def.contains_key(variant_name)? {
+                            if enum_def.contains_key(variant_name) {
                                 return type_name.clone()
                             }
                         case:
@@ -7129,7 +7129,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str thr
             switch ident_variant_param.node_type {
             case NodeType.Identifier(variant_name):
                 // Verify the variant exists in the enum
-                if ident_enum_def.contains_key(variant_name)? {
+                if ident_enum_def.contains_key(variant_name) {
                     return type_name.clone()
                 }
             case:
@@ -8689,7 +8689,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 ctor_have_enum_def = false
             }
             if ctor_have_enum_def {
-                if enum_def.contains_key(variant_name_part)? {
+                if enum_def.contains_key(variant_name_part) {
                     is_enum_constructor = true
                 }
             }

@@ -854,9 +854,6 @@ namespace EvalHeap {
         catch (err: KeyNotFoundError) {
             // No payload
         }
-        catch (err: IndexOutOfBoundsError) {
-            // Should never happen
-        }
 
         mut result := EnumVal()
         result.enum_type = enum_type
@@ -997,9 +994,6 @@ namespace EvalHeap {
         mut payload_ptr := enum_def.get(enum_name)?
         catch (err: KeyNotFoundError) {
             // No payload type
-        }
-        catch (err: IndexOutOfBoundsError) {
-            // Should never happen
         }
 
         mut result := EnumVal()

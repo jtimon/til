@@ -55,19 +55,12 @@ namespace HeapState {
         if not(g_enabled) { return }
         mut leaked := 0
         mut leaked_bytes := 0
-        for i in 0..g_entries.len() {
-            entry_ref := g_entries.get_by_ref(i)?
-            create_alias(entry, HeapEntry, entry_ref.data)
+        for entry: HeapEntry in g_entries {
             if not(entry.ptr.eq(0)) {
                 leaked = leaked.add(1)
                 leaked_bytes = leaked_bytes.add(entry.size)
             }
         }
         println(format("HEAP_STATE: leaked ", leaked.to_str(), " allocations, ", leaked_bytes.to_str(), " bytes"))
-
-        catch (err: IndexOutOfBoundsError) {
-            println("HEAP_STATE: unexpected index error in report")
-            exit(1)
-        }
     }
 }
