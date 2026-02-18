@@ -9,6 +9,49 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #172: Codegen bug returning for-in loop variable of same type as return type
+:PROPERTIES:
+:DISCOVERED: 2026-02-18
+:IMPACT: SIGSEGV at runtime -- generated C reads uninitialized _ret and never writes return value
+:STATUS: Open -- workaround is to use range-based loop instead
+:END:
+
+*** Problem
+When a for-in loop variable has the same type as the function's return type,
+and the loop variable is returned directly (e.g. `return member`), the C
+codegen confuses the loop variable with the return value `_ret`. Two bugs in
+the generated C:
+
+1. Field access uses `_ret->field` instead of `loop_var->field`
+2. Return statement does `return 0;` without setting `*_ret = *loop_var`
+
+*** Reproduction
+#+begin_src til
+get_member := func(self: SStructDef, member_name: Str) returns Declaration throws Str {
+    for member: Declaration in self.members {
+        if member.name.eq(member_name) {
+            return member  // BUG: codegen uses _ret->name instead of member->name
+        }
+    }
+    throw format(loc(), "Member '", member_name, "' not found")
+}
+#+end_src
+
+Generated C (wrong):
+#+begin_src c
+til_Declaration* til_Declaration_member;
+til_Declaration_member = (til_Declaration*)_ref_forin_0.data;
+if (til_Str_eq(&_ret->name, til_Str_member_name).data) {  // BUG: _ret not member
+    return 0;  // BUG: never sets *_ret
+}
+#+end_src
+
+*** Notes
+- Returning a FIELD of the loop variable works fine (e.g. `return v.payload_type`)
+- Only triggers when the loop variable type matches the function return type exactly
+- Workaround: use `for i in 0..collection.len()` with `.get(i, var)` instead
+- SStructDef.get_member left as range-based loop for this reason (commit 0e4f942b)
+
 ** Bug #171: make.til doesn't detect when it needs to rebuild itself
 :PROPERTIES:
 :DISCOVERED: 2026-02-11
