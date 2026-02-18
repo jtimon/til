@@ -426,12 +426,12 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
                 }
 
                 // Success - build failure was the expected result
-                // Format: PASS <build_ms> <run_ms> <maxrss_kb>
-                // run_ms=0 since we didn't run, maxrss from build
+                // Format: PASS <build_ms> <build_maxrss_kb> <run_ms> <run_maxrss_kb>
+                // run_ms=0 since we didn't run, run_maxrss=0
                 if g_mem_report.and(build_mem_report.len().gt(0)) {
-                    println("PASS ", build_ms.to_str(), " 0 ", build_maxrss.to_str(), " ", build_mem_report)
+                    println("PASS ", build_ms.to_str(), " ", build_maxrss.to_str(), " 0 0 ", build_mem_report)
                 } else {
-                    println("PASS ", build_ms.to_str(), " 0 ", build_maxrss.to_str())
+                    println("PASS ", build_ms.to_str(), " ", build_maxrss.to_str(), " 0 0")
                 }
                 return
             }
@@ -525,11 +525,11 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
     }
 
     // Success - print timing info for tests.til to parse
-    // Format: PASS <build_ms> <run_ms> <maxrss_kb>
+    // Format: PASS <build_ms> <build_maxrss_kb> <run_ms> <run_maxrss_kb>
     if g_mem_report.and(mem_report_line.len().gt(0)) {
-        println("PASS ", build_ms.to_str(), " ", time_ms.to_str(), " ", maxrss_kb.to_str(), " ", mem_report_line)
+        println("PASS ", build_ms.to_str(), " ", build_maxrss.to_str(), " ", time_ms.to_str(), " ", maxrss_kb.to_str(), " ", mem_report_line)
     } else {
-        println("PASS ", build_ms.to_str(), " ", time_ms.to_str(), " ", maxrss_kb.to_str())
+        println("PASS ", build_ms.to_str(), " ", build_maxrss.to_str(), " ", time_ms.to_str(), " ", maxrss_kb.to_str())
     }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
