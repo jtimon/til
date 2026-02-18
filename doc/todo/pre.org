@@ -15,6 +15,62 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Bug #173: ccodegen missing =*_ret= assignment when ret_var_alias optimization fails
+:PROPERTIES:
+:DISCOVERED: 2026-02-18
+:IMPACT: Compiler error (-Werror=unused-parameter) in generated C
+:STATUS: Open
+:RELATED: Bug #168 (ccodegen return copies)
+:END:
+
+*** Description
+When a function has multiple code paths that assign to the same return variable
+(e.g. early return inside an =if= block plus a normal return at function end),
+the =find_ret_var_for_placement= optimization from Bug #168 cannot apply because
+the variable is assigned in multiple branches.
+
+In the non-optimized fallback path, the codegen should emit:
+#+begin_src c
+*_ret = til_Expr_e;
+return 0;
+#+end_src
+
+But instead it emits just:
+#+begin_src c
+return 0;
+#+end_src
+
+The =*_ret = variable= assignment is completely missing. This causes GCC to
+report =unused parameter '_ret'= which is =-Werror=.
+
+*** How the optimization works (Bug #168 commits 1/2)
+- Commit 1 (call-site): If =e := func_call()= and the only use of =e= is
+  =return e=, the codegen passes =_ret= directly as the output pointer:
+  =func_call(_ret, ...)= instead of =func_call(&local, ...); *_ret = local;=
+- Commit 2 (callee-side): =find_ret_var_for_placement= detects when all return
+  paths use the same variable and aliases it to =*_ret=.
+
+When neither optimization applies (multiple branches assign =e=), the fallback
+should be =*_ret = local_var; return 0;= but the assignment is missing.
+
+*** Reproducer
+Any TIL function that assigns a return variable in an =if= branch and also
+at function end, where both paths do =return e=:
+#+begin_src til
+foo := func() returns Expr throws Str {
+    if some_condition {
+        e := make_expr_a()
+        return e
+    }
+    e := make_expr_b()
+    return e
+}
+#+end_src
+
+*** Discovered while
+Implementing Issue #91 (semicolons for ext_func/ext_proc). Adding an early
+return path to =parse_func_proc_definition= exposed this bug.
+
 ** Issue #161: Namespace constants, static mutables, and per-instance immutables
 :PROPERTIES:
 :DISCOVERED: 2026-02-04
