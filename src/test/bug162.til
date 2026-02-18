@@ -76,8 +76,8 @@ test_own_vec_push := proc() {
     mut v := Vec.new(I64)
     x := 42
     v.push(x)  // push takes Dynamic, but once it takes own, const should work
-    mut result := 0
-    v.get(0, result)?
+    result_ref := v.get_by_ref(0)?
+    create_alias(result, I64, result_ref.data)
     assert_eq(loc(), 42, result)
     println("PASS: own vec push works")
 

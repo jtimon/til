@@ -62,8 +62,8 @@ test_vec_clone := proc() {
 
     assert_eq(loc(), 3, cloned.len())
 
-    mut val0 := 0
-    cloned.get(0, val0)?
+    val0_ref := cloned.get_by_ref(0)?
+    create_alias(val0, I64, val0_ref.data)
     assert_eq(loc(), 10, val0)
 
     // Modify clone

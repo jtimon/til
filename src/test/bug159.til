@@ -22,10 +22,10 @@ test_shallow_copy_bug := proc() {
     cloned.items.set(0, 999)?
 
     // Read values
-    mut orig_val := 0
-    original.items.get(0, orig_val)?
-    mut clone_val := 0
-    cloned.items.get(0, clone_val)?
+    orig_val_ref := original.items.get_by_ref(0)?
+    create_alias(orig_val, I64, orig_val_ref.data)
+    clone_val_ref := cloned.items.get_by_ref(0)?
+    create_alias(clone_val, I64, clone_val_ref.data)
 
     // Clone is independent: original should be 10, cloned should be 999
     assert_eq(loc(), 10, orig_val)

@@ -92,15 +92,16 @@ test_map_str_to_vec_str := proc() {
     fruits_ref := lists.get_by_ref("fruits")?
     create_alias(fruits_vec, Vec, fruits_ref.data)
     test(loc(), fruits_vec.len().eq(3), "fruits vec should have 3 elements")
-    mut item := ""
-    fruits_vec.get(0, item)?
-    test(loc(), item.eq("apple"), "fruits[0] should be apple")
+    fruits_item_ref := fruits_vec.get_by_ref(0)?
+    create_alias(fruits_item, Str, fruits_item_ref.data)
+    test(loc(), fruits_item.eq("apple"), "fruits[0] should be apple")
 
     colors_ref := lists.get_by_ref("colors")?
     create_alias(colors_vec, Vec, colors_ref.data)
     test(loc(), colors_vec.len().eq(3), "colors vec should have 3 elements")
-    colors_vec.get(0, item)?
-    test(loc(), item.eq("red"), "colors[0] should be red")
+    colors_item_ref := colors_vec.get_by_ref(0)?
+    create_alias(colors_item, Str, colors_item_ref.data)
+    test(loc(), colors_item.eq("red"), "colors[0] should be red")
 
     // fruits and colors were transferred to lists via insert(own), so lists owns them
     lists.delete()
@@ -410,13 +411,15 @@ test_map_keys_field := proc() {
     mut keys := m.keys
     test(loc(), keys.len().eq(3), "m.keys should have 3 keys")
 
-    mut key := ""
-    keys.get(0, key)?
-    test(loc(), key.eq("alice"), "First key should be alice")
-    keys.get(1, key)?
-    test(loc(), key.eq("bob"), "Second key should be bob")
-    keys.get(2, key)?
-    test(loc(), key.eq("charlie"), "Third key should be charlie")
+    key0_ref := keys.get_by_ref(0)?
+    create_alias(key0, Str, key0_ref.data)
+    test(loc(), key0.eq("alice"), "First key should be alice")
+    key1_ref := keys.get_by_ref(1)?
+    create_alias(key1, Str, key1_ref.data)
+    test(loc(), key1.eq("bob"), "Second key should be bob")
+    key2_ref := keys.get_by_ref(2)?
+    create_alias(key2, Str, key2_ref.data)
+    test(loc(), key2.eq("charlie"), "Third key should be charlie")
 
     m.delete()
     catch (err: DuplicatedKeyError) {

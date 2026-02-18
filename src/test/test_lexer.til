@@ -9,8 +9,8 @@ test_newline_escape := proc() {
     mut source := "\"\\n\""
     mut tokens := scan_tokens(source)?
 
-    mut tok := Token()
-    tokens.get(0, tok)?
+    tok_ref := tokens.get_by_ref(0)?
+    create_alias(tok, Token, tok_ref.data)
 
     assert_eq_str(loc(), "\n", tok.token_str)
 
@@ -32,8 +32,8 @@ test_tab_escape := proc() {
     mut source := "\"\\t\""
     mut tokens := scan_tokens(source)?
 
-    mut tok := Token()
-    tokens.get(0, tok)?
+    tok_ref := tokens.get_by_ref(0)?
+    create_alias(tok, Token, tok_ref.data)
 
     assert_eq_str(loc(), "\t", tok.token_str)
 
@@ -55,8 +55,8 @@ test_carriage_return_escape := proc() {
     mut source := "\"\\r\""
     mut tokens := scan_tokens(source)?
 
-    mut tok := Token()
-    tokens.get(0, tok)?
+    tok_ref := tokens.get_by_ref(0)?
+    create_alias(tok, Token, tok_ref.data)
 
     assert_eq_str(loc(), "\r", tok.token_str)
 
@@ -78,8 +78,8 @@ test_null_escape := proc() {
     mut source := "\"\\0\""
     mut tokens := scan_tokens(source)?
 
-    mut tok := Token()
-    tokens.get(0, tok)?
+    tok_ref := tokens.get_by_ref(0)?
+    create_alias(tok, Token, tok_ref.data)
 
     assert_eq_str(loc(), "\0", tok.token_str)
 
@@ -101,8 +101,8 @@ test_multiple_escapes := proc() {
     mut source := "\"hello\\nworld\\ttab\""
     mut tokens := scan_tokens(source)?
 
-    mut tok := Token()
-    tokens.get(0, tok)?
+    tok_ref := tokens.get_by_ref(0)?
+    create_alias(tok, Token, tok_ref.data)
 
     assert_eq_str(loc(), "hello\nworld\ttab", tok.token_str)
 
@@ -125,8 +125,8 @@ test_unknown_escape := proc() {
     mut source := "\"\\x\""
     mut tokens := scan_tokens(source)?
 
-    mut tok := Token()
-    tokens.get(0, tok)?
+    tok_ref := tokens.get_by_ref(0)?
+    create_alias(tok, Token, tok_ref.data)
 
     assert_eq_str(loc(), "\\x", tok.token_str)
 
@@ -342,8 +342,8 @@ test_namespace_keyword := proc() {
     mut source := "namespace"
     mut tokens := scan_tokens(source)?
 
-    mut tok := Token()
-    tokens.get(0, tok)?
+    tok_ref := tokens.get_by_ref(0)?
+    create_alias(tok, Token, tok_ref.data)
 
     assert_eq_str(loc(), "namespace", tok.token_str)
     // Verify it's recognized as a keyword, not an identifier

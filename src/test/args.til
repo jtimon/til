@@ -236,12 +236,12 @@ test_mut_array := proc() {
     push_value(numbers, 84)
     assert_eq(loc(), 2, numbers.len())
 
-    mut val0 := 0
-    numbers.get(0, val0)?
+    val0_ref := numbers.get_by_ref(0)?
+    create_alias(val0, I64, val0_ref.data)
     assert_eq(loc(), 42, val0)
 
-    mut val1 := 0
-    numbers.get(1, val1)?
+    val1_ref := numbers.get_by_ref(1)?
+    create_alias(val1, I64, val1_ref.data)
     assert_eq(loc(), 84, val1)
 
     numbers.delete()
