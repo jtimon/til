@@ -307,8 +307,8 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
     if result.heap_mappings.len().eq(0) {
         throw e.lang_error(ctx.path, "create_default_instance", "No heap mapping for template")
     }
-    mut first_mapping := EvalHeapMapping()
-    result.heap_mappings.get(0, first_mapping)?
+    first_mapping_ref := result.heap_mappings.get_by_ref(0)?
+    create_alias(first_mapping, EvalHeapMapping, first_mapping_ref.data)
     template_offset := first_mapping.offset
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
@@ -517,8 +517,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                         mut field_type := ValueType.TCustom("")
                         mut found_field := false
                         for named_k in 0..struct_members.len() {
-                            mut member := Declaration()
-                            struct_members.get(named_k, member)?
+                            member_ref := struct_members.get_by_ref(named_k)?
+                            create_alias(member, Declaration, member_ref.data)
                             if member.name.eq(field_name) {
                                 field_type = member.value_type
                                 found_field = true
@@ -607,10 +607,10 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
     if context.scope_stack.is_enum_constructor(combined_name) {
         // Extract enum_type and variant_name
         parts := combined_name.split(".")?
-        mut enum_type := ""
-        parts.get(0, enum_type)?
-        mut variant_name := ""
-        parts.get(1, variant_name)?
+        enum_type_ref := parts.get_by_ref(0)?
+        create_alias(enum_type, Str, enum_type_ref.data)
+        variant_name_ref := parts.get_by_ref(1)?
+        create_alias(variant_name, Str, variant_name_ref.data)
 
         // Get the enum definition to check if this variant has a payload type
         enum_def := context.scope_stack.lookup_enum(enum_type)?
@@ -817,8 +817,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 mut enum_payload_vec := Vec.new(U8)
                                 memcpy(to_ptr(enum_payload_vec), enum_val.payload.data, size_of(Vec))
                                 for pi in 0..enum_payload_vec.len() {
-                                    mut pb := U8.from_i64(0)?
-                                    enum_payload_vec.get(pi, pb)?
+                                    pb_ref := enum_payload_vec.get_by_ref(pi)?
+                                    create_alias(pb, U8, pb_ref.data)
                                     enum_bytes.push(pb)
                                 }
                             }
@@ -868,17 +868,15 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
         // External/core functions are treated specially
         is_proc := func_def.is_proc()
         parts2 := combined_name.split(".")?
-        mut last_name := ""
-        if parts2.len().gt(0) {
-            parts2.get(parts2.len().sub(1), last_name)?
-        } else {
+        if parts2.len().eq(0) {
             throw e.lang_error(context.path, "eval", "Somehow function without name")
         }
+        last_name_ref := parts2.get_by_ref(parts2.len().sub(1))?
+        create_alias(last_name, Str, last_name_ref.data)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return eval_core_func_proc_call(last_name, context, new_fcall_e, is_proc)?
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: U8_Overflow) { throw err.msg }
     catch (err: BadAlloc) { panic(loc(), "eval_func_proc_call: buy more ram") }
     return eval_user_func_proc_call(func_def, combined_name, context, new_fcall_e)?
 }
@@ -2391,8 +2389,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     mut saved_return_offset := 0
     mut has_saved_return_offset := false
     if func_def.return_types.len().eq(1) {
-        mut return_type := ValueType.TCustom("")
-        func_def.return_types.get(0, return_type)?
+        return_type_ref := func_def.return_types.get_by_ref(0)?
+        create_alias(return_type, ValueType, return_type_ref.data)
         mut is_tcustom := false
         mut custom_type_name := ""
         switch return_type {
@@ -2428,8 +2426,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     mut saved_enum_value := EnumVal()
     mut has_saved_enum_value := false
     if func_def.return_types.len().eq(1) {
-        mut ret_return_type := ValueType.TCustom("")
-        func_def.return_types.get(0, ret_return_type)?
+        ret_return_type_ref := func_def.return_types.get_by_ref(0)?
+        create_alias(ret_return_type, ValueType, ret_return_type_ref.data)
         mut ret_is_tcustom := false
         mut ret_custom_type_name := ""
         switch ret_return_type {
@@ -2474,13 +2472,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     mut collected_mut_args := Vec.new(CollectedMutArg)
 
     for mi in 0..mut_args.len() {
-        mut m := MutArgEntry()
-        mut_args.get(mi, m)?
+        m_ref := mut_args.get_by_ref(mi)?
+        create_alias(m, MutArgEntry, m_ref.data)
         // Check if this arg was passed by ref
         mut was_passed_by_ref := false
         for ref_check_i in 0..pass_by_ref_params.len() {
-            mut ref_param := ""
-            pass_by_ref_params.get(ref_check_i, ref_param)?
+            ref_param_ref := pass_by_ref_params.get_by_ref(ref_check_i)?
+            create_alias(ref_param, Str, ref_param_ref.data)
             if ref_param.eq(m.arg_name) {
                 was_passed_by_ref = true
             }
@@ -2565,8 +2563,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
     // Write collected mut_args values to caller's frame (now on top)
     for ci in 0..collected_mut_args.len() {
-        mut c := CollectedMutArg()
-        collected_mut_args.get(ci, c)?
+        c_ref := collected_mut_args.get_by_ref(ci)?
+        create_alias(c, CollectedMutArg, c_ref.data)
         switch c.value {
         case MutArgValue.I64(val):
             EvalHeap.insert_i64(context, c.source_name, I64.to_str(val), e)?
@@ -2602,8 +2600,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     // If function returns a user-defined struct or enum, copy it back to caller frame as temp return val
     // NOTE: Frame already popped above, using saved_return_offset and saved_enum_value
     if func_def.return_types.len().eq(1) {
-        mut copy_ret_return_type := ValueType.TCustom("")
-        func_def.return_types.get(0, copy_ret_return_type)?
+        copy_ret_return_type_ref := func_def.return_types.get_by_ref(0)?
+        create_alias(copy_ret_return_type, ValueType, copy_ret_return_type_ref.data)
         mut copy_ret_is_tcustom := false
         mut copy_ret_custom_type_name := ""
         switch copy_ret_return_type {

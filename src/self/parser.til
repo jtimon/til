@@ -92,8 +92,8 @@ namespace SEnumDef {
 
     contains_key := func(self: SEnumDef, variant_name: Str) returns Bool throws Str {
         for i in 0..self.variants.len() {
-            mut v := EnumVariant()
-            self.variants.get(i, v)?
+            v_ref := self.variants.get_by_ref(i)?
+            create_alias(v, EnumVariant, v_ref.data)
             if v.name.eq(variant_name) {
                 return true
             }
@@ -170,14 +170,14 @@ namespace SFuncDef {
         }
         // Deep clone return_types
         for rt_idx in 0..self.return_types.len() {
-            mut rt := ValueType.TCustom("")
-            self.return_types.get(rt_idx, rt)?
+            rt_ref := self.return_types.get_by_ref(rt_idx)?
+            create_alias(rt, ValueType, rt_ref.data)
             result.return_types.push(value_type_clone(rt))
         }
         // Deep clone throw_types
         for tt_idx in 0..self.throw_types.len() {
-            mut tt := ValueType.TCustom("")
-            self.throw_types.get(tt_idx, tt)?
+            tt_ref := self.throw_types.get_by_ref(tt_idx)?
+            create_alias(tt, ValueType, tt_ref.data)
             result.throw_types.push(value_type_clone(tt))
         }
         // Deep clone body

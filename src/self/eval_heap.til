@@ -134,8 +134,8 @@ namespace EvalHeap {
             return false
         }
         parts := id.split(".")?
-        mut base := ""
-        parts.get(0, base)?
+        base_ref := parts.get_by_ref(0)?
+        create_alias(base, Str, base_ref.data)
         mut sym := ctx.scope_stack.lookup_symbol(base)?
         switch sym.value_type {
         case ValueType.TType(inner):
@@ -382,8 +382,8 @@ namespace EvalHeap {
                         if not(part0.eq(type_name)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
-                        mut variant := ""
-                        parts.get(1, variant)?
+                        variant_ref := parts.get_by_ref(1)?
+                        create_alias(variant, Str, variant_ref.data)
                         // Find variant index - Bug #38 fix: use variants Vec
                         mut index : I64 = 0
                         mut found_variant := false
@@ -1092,7 +1092,9 @@ namespace EvalHeap {
         parts := pre_normalized_enum_name.split(".")?
         mut enum_name := ""
         if parts.len().gt(0) {
-            parts.get(sub(parts.len(), 1), enum_name)?
+            enum_name_ref := parts.get_by_ref(sub(parts.len(), 1))?
+            create_alias(enum_name_alias, Str, enum_name_ref.data)
+            enum_name = enum_name_alias
         }
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "context", format("insert_enum: Invalid enum name format '", pre_normalized_enum_name, "'"))
@@ -1138,8 +1140,8 @@ namespace EvalHeap {
                     payload_offset := add(offset, 8)
                     mut pi := 0
                     while pi.lt(payload_data.len()) {
-                        mut byte_val : U8 = 0
-                        payload_data.get(pi, byte_val)?
+                        byte_val_ref := payload_data.get_by_ref(pi)?
+                        create_alias(byte_val, U8, byte_val_ref.data)
                         g_heap.set(add(payload_offset, pi), to_ptr(byte_val), 1)
                         pi = add(pi, 1)
                     }
@@ -1243,8 +1245,8 @@ namespace EvalHeap {
         mut i := 0
         while i.lt(len) {
             offset := add(ptr, mul(i, elem_size))
-            mut val := ""
-            values.get(i, val)?
+            val_ref := values.get_by_ref(i)?
+            create_alias(val, Str, val_ref.data)
 
             if Str.eq(elem_type, "U8") {
                 byte := U8.from_str(val)?

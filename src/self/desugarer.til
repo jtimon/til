@@ -299,8 +299,8 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
 find_enum_for_variant := func(context: Context, variant_name: Str) returns Str throws Str {
     mut found_type := ""
     for frame_i in context.scope_stack.frames.len().sub(1)..sub(0, 1) {
-        mut frame := ScopeFrame()
-        context.scope_stack.frames.get(frame_i, frame)?
+        frame_ref := context.scope_stack.frames.get_by_ref(frame_i)?
+        create_alias(frame, ScopeFrame, frame_ref.data)
         for enum_name: Str in frame.enums.keys {
             mut enum_def := SEnumDef()
             frame.enums.get(enum_name, enum_def)?
@@ -622,10 +622,10 @@ build_case_condition := proc(
         if case_pattern.params.len().lt(2) {
             throw "desugar: Range case requires start and end values"
         }
-        mut low := Expr()
-        mut high := Expr()
-        case_pattern.params.get(0, low)?
-        case_pattern.params.get(1, high)?
+        low_ref := case_pattern.params.get_by_ref(0)?
+        create_alias(low, Expr, low_ref.data)
+        high_ref := case_pattern.params.get_by_ref(1)?
+        create_alias(high, Expr, high_ref.data)
 
         // Build: gteq(_switch_val, low)
         mut gteq_args := Vec.new(Expr)
@@ -947,10 +947,10 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     mut i := 1
     while i.add(1).lt(e.params.len()) {
-        mut case_pattern := Expr()
-        mut case_body := Expr()
-        e.params.get(i, case_pattern)?
-        e.params.get(i.add(1), case_body)?
+        case_pattern_ref := e.params.get_by_ref(i)?
+        create_alias(case_pattern, Expr, case_pattern_ref.data)
+        case_body_ref := e.params.get_by_ref(i.add(1))?
+        create_alias(case_body, Expr, case_body_ref.data)
 
         // If the case pattern has a payload binding, declare it in scope before desugaring body
         // This allows nested switches in the body to see the payload variable's type
@@ -1023,8 +1023,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut has_nested_pattern := false
     mut case_idx := 0
     while case_idx.lt(cases.len()) {
-        mut case_pattern := Expr()
-        cases.get(case_idx, case_pattern)?
+        case_pattern_ref := cases.get_by_ref(case_idx)?
+        create_alias(case_pattern, Expr, case_pattern_ref.data)
         switch case_pattern.node_type {
         case NodeType.FCall(_):
             info := get_case_variant_info(case_pattern)?
@@ -1070,10 +1070,10 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         mut case_index := 0
         while case_index.lt(total_cases) {
-            mut case_pattern := Expr()
-            mut case_body := Expr()
-            cases.get(case_index.mul(2), case_pattern)?
-            cases.get(case_index.mul(2).add(1), case_body)?
+            case_pattern_ref := cases.get_by_ref(case_index.mul(2))?
+            create_alias(case_pattern, Expr, case_pattern_ref.data)
+            case_body_ref := cases.get_by_ref(case_index.mul(2).add(1))?
+            create_alias(case_body, Expr, case_body_ref.data)
 
             mut condition := Expr()
             mut body_prefix := Vec.new(Expr)
@@ -1137,8 +1137,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 // Build outer body: body_prefix + inner_if
                 mut outer_body_params := Vec.new(Expr)
                 for pi in 0..body_prefix.len() {
-                    mut pp := Expr()
-                    body_prefix.get(pi, pp)?
+                    pp_ref := body_prefix.get_by_ref(pi)?
+                    create_alias(pp, Expr, pp_ref.data)
                     outer_body_params.push(pp)
                 }
                 outer_body_params.push(inner_if)
@@ -1169,8 +1169,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     }
                 } else {
                     for pi in 0..body_prefix.len() {
-                        mut pp := Expr()
-                        body_prefix.get(pi, pp)?
+                        pp_ref := body_prefix.get_by_ref(pi)?
+                        create_alias(pp, Expr, pp_ref.data)
                         full_body_params.push(pp)
                     }
                     switch renamed_case_body.node_type {
@@ -1210,13 +1210,13 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // Combine: declarations + match flag + guarded ifs + guarded default
         mut body_params := Vec.new(Expr)
         for di in 0..decl_exprs.len() {
-            mut de := Expr()
-            decl_exprs.get(di, de)?
+            de_ref := decl_exprs.get_by_ref(di)?
+            create_alias(de, Expr, de_ref.data)
             body_params.push(de)
         }
         for si in 0..stmts.len() {
-            mut se := Expr()
-            stmts.get(si, se)?
+            se_ref := stmts.get_by_ref(si)?
+            create_alias(se, Expr, se_ref.data)
             body_params.push(se)
         }
 
@@ -1236,10 +1236,10 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         rev_case_index.dec()
         case_index := rev_case_index
 
-        mut case_pattern := Expr()
-        mut case_body := Expr()
-        cases.get(case_index.mul(2), case_pattern)?
-        cases.get(case_index.mul(2).add(1), case_body)?
+        case_pattern_ref := cases.get_by_ref(case_index.mul(2))?
+        create_alias(case_pattern, Expr, case_pattern_ref.data)
+        case_body_ref := cases.get_by_ref(case_index.mul(2).add(1))?
+        create_alias(case_body, Expr, case_body_ref.data)
 
         mut condition := Expr()
         mut body_prefix := Vec.new(Expr)
@@ -1277,8 +1277,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         if body_prefix.len().gt(0) {
             mut full_body_params := Vec.new(Expr)
             for pi in 0..body_prefix.len() {
-                mut pp := Expr()
-                body_prefix.get(pi, pp)?
+                pp_ref := body_prefix.get_by_ref(pi)?
+                create_alias(pp, Expr, pp_ref.data)
                 full_body_params.push(pp)
             }
             switch renamed_case_body.node_type {
@@ -1303,8 +1303,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Wrap in outer body with declarations and if/else chain
     mut body_params := Vec.new(Expr)
     for di in 0..decl_exprs.len() {
-        mut de := Expr()
-        decl_exprs.get(di, de)?
+        de_ref := decl_exprs.get_by_ref(di)?
+        create_alias(de, Expr, de_ref.data)
         body_params.push(de)
     }
     body_params.push(result_expr)
@@ -1597,8 +1597,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut new_default_values := Map.new(Str, Expr)
         mut struct_i := 0
         while struct_i.lt(struct_def.default_values.keys.len()) {
-            mut name := ""
-            struct_def.default_values.keys.get(struct_i, name)?
+            name_ref := struct_def.default_values.keys.get_by_ref(struct_i)?
+            create_alias(name, Str, name_ref.data)
             val_ref := struct_def.default_values.get_by_ref(name)?
             create_alias(value_expr, Expr, val_ref.data)
             new_default_values.set(name, desugar_expr(context, value_expr)?)
@@ -1614,8 +1614,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut new_default_values := Map.new(Str, Expr)
         mut ns_i := 0
         while ns_i.lt(ns_def.default_values.keys.len()) {
-            mut name := ""
-            ns_def.default_values.keys.get(ns_i, name)?
+            name_ref := ns_def.default_values.keys.get_by_ref(ns_i)?
+            create_alias(name, Str, name_ref.data)
             val_ref := ns_def.default_values.get_by_ref(name)?
             create_alias(value_expr, Expr, val_ref.data)
             new_default_values.set(name, desugar_expr(context, value_expr)?)

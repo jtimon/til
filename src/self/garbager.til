@@ -98,8 +98,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         // making unconditional deletes at function end unsafe.
         mut has_any_catch := false
         for catch_idx in 0..new_body.len() {
-            mut catch_check_stmt := Expr()
-            new_body.get(catch_idx, catch_check_stmt)?
+            catch_check_stmt_ref := new_body.get_by_ref(catch_idx)?
+            create_alias(catch_check_stmt, Expr, catch_check_stmt_ref.data)
             switch catch_check_stmt.node_type {
             case NodeType.Catch:
                 has_any_catch = true
@@ -130,8 +130,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         for i in 0..cand_vars.len() {
             mut var_name := ""
             cand_vars.get(i, var_name)?
-            mut type_name := ""
-            cand_types.get(i, type_name)?
+            type_name_ref := cand_types.get_by_ref(i)?
+            create_alias(type_name, Str, type_name_ref.data)
             mut excluded := var_name.eq("_")
             for dd: Str in dont_delete_vars {
                 if dd.eq(var_name) { excluded = true }
@@ -161,10 +161,10 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         mut end_vars := Vec.new(Str)
         mut end_types := Vec.new(Str)
         for ci in 0..filtered_vars.len() {
-            mut cv := ""
-            filtered_vars.get(ci, cv)?
-            mut ct := ""
-            filtered_types.get(ci, ct)?
+            cv_ref := filtered_vars.get_by_ref(ci)?
+            create_alias(cv, Str, cv_ref.data)
+            ct_ref := filtered_types.get_by_ref(ci)?
+            create_alias(ct, Str, ct_ref.data)
             mut is_param := false
             for pn: Str in param_names {
                 if pn.eq(cv) { is_param = true }
@@ -185,10 +185,10 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         mut ri := asap_vars.len()
         while ri.gt(0) {
             ri = ri.sub(1)
-            mut del_var := ""
-            asap_vars.get(ri, del_var)?
-            mut del_type := ""
-            asap_types.get(ri, del_type)?
+            del_var_ref := asap_vars.get_by_ref(ri)?
+            create_alias(del_var, Str, del_var_ref.data)
+            del_type_ref := asap_types.get_by_ref(ri)?
+            create_alias(del_type, Str, del_type_ref.data)
             last_use := find_last_use_index(new_body, del_var)
             mut insert_pos := body_len
             if last_use.gteq(0) {
@@ -197,14 +197,14 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             mut del_line := e.line
             mut del_col := e.col
             if insert_pos.gt(0).and(insert_pos.lteq(body_len)) {
-                mut prev_stmt := Expr()
-                new_body.get(insert_pos.sub(1), prev_stmt)?
+                prev_stmt_ref := new_body.get_by_ref(insert_pos.sub(1))?
+                create_alias(prev_stmt, Expr, prev_stmt_ref.data)
                 del_line = prev_stmt.line
                 del_col = prev_stmt.col
             } else {
                 if new_body.len().gt(0) {
-                    mut last_s := Expr()
-                    new_body.get(new_body.len().sub(1), last_s)?
+                    last_s_ref := new_body.get_by_ref(new_body.len().sub(1))?
+                    create_alias(last_s, Expr, last_s_ref.data)
                     del_line = last_s.line
                     del_col = last_s.col
                 }
@@ -216,15 +216,15 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         // Build final_body: original statements with ASAP deletes interleaved
         mut final_body := Vec.new(Expr)
         for i in 0..body_len {
-            mut body_stmt := Expr()
-            new_body.get(i, body_stmt)?
+            body_stmt_ref := new_body.get_by_ref(i)?
+            create_alias(body_stmt, Expr, body_stmt_ref.data)
             final_body.push(body_stmt)
             for di in 0..insert_positions.len() {
                 mut dpos := 0
                 insert_positions.get(di, dpos)?
                 if dpos.eq(i.add(1)) {
-                    mut dc := Expr()
-                    insert_del_calls.get(di, dc)?
+                    dc_ref := insert_del_calls.get_by_ref(di)?
+                    create_alias(dc, Expr, dc_ref.data)
                     final_body.push(dc)
                 }
             }
@@ -234,18 +234,18 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         mut last_line := e.line
         mut last_col := e.col
         if final_body.len().gt(0) {
-            mut last_s := Expr()
-            final_body.get(final_body.len().sub(1), last_s)?
+            last_s_ref := final_body.get_by_ref(final_body.len().sub(1))?
+            create_alias(last_s, Expr, last_s_ref.data)
             last_line = last_s.line
             last_col = last_s.col
         }
         mut eri := end_vars.len()
         while eri.gt(0) {
             eri = eri.sub(1)
-            mut ev := ""
-            end_vars.get(eri, ev)?
-            mut et := ""
-            end_types.get(eri, et)?
+            ev_ref := end_vars.get_by_ref(eri)?
+            create_alias(ev, Str, ev_ref.data)
+            et_ref := end_types.get_by_ref(eri)?
+            create_alias(et, Str, et_ref.data)
             final_body.push(build_delete_call_expr(et, ev, last_line, last_col))
         }
         new_body = final_body
@@ -527,8 +527,8 @@ expr_references_var := func(e: Expr, var_name: Str) returns Bool {
 find_last_use_index := func(body: Vec, var_name: Str) returns I64 {
     mut i := body.len().sub(1)
     while i.gteq(0) {
-        mut stmt := Expr()
-        body.get(i, stmt)?
+        stmt_ref := body.get_by_ref(i)?
+        create_alias(stmt, Expr, stmt_ref.data)
         if expr_references_var(stmt, var_name) {
             return i
         }
@@ -917,8 +917,8 @@ resolve_fcall_from_chain := proc(chain: Vec, local_types: Map, context: Context)
         throw KeyNotFoundError(msg="resolve_fcall_from_chain: empty chain")
     }
 
-    mut first := ""
-    chain.get(0, first)?
+    first_ref := chain.get_by_ref(0)?
+    create_alias(first, Str, first_ref.data)
 
     // Plain function call (no dots)
     if chain.len().eq(1) {
@@ -930,8 +930,8 @@ resolve_fcall_from_chain := proc(chain: Vec, local_types: Map, context: Context)
     // Try direct lookup of the joined name (works for Type.method)
     mut full_name := ""
     for ji in 0..chain.len() {
-        mut part := ""
-        chain.get(ji, part)?
+        part_ref := chain.get_by_ref(ji)?
+        create_alias(part, Str, part_ref.data)
         if ji.gt(0) {
             full_name = format(full_name, ".")
         }
@@ -946,8 +946,8 @@ resolve_fcall_from_chain := proc(chain: Vec, local_types: Map, context: Context)
     }
 
     // UFCS resolution: resolve type through the chain, last part is the method
-    mut method_name := ""
-    chain.get(chain.len().sub(1), method_name)?
+    method_name_ref := chain.get_by_ref(chain.len().sub(1))?
+    create_alias(method_name, Str, method_name_ref.data)
 
     // Get initial type from struct name or local_types
     mut current_type := ""
@@ -962,8 +962,8 @@ resolve_fcall_from_chain := proc(chain: Vec, local_types: Map, context: Context)
 
     // Walk intermediate parts (chain[1..n-1]) via struct field type lookups
     for wi in 1..chain.len().sub(1) {
-        mut field_name := ""
-        chain.get(wi, field_name)?
+        field_name_ref := chain.get_by_ref(wi)?
+        create_alias(field_name, Str, field_name_ref.data)
         mut struct_def := SStructDef()
         struct_def = context.scope_stack.lookup_struct(current_type)?
         catch (err: KeyNotFoundError) {
@@ -1023,8 +1023,8 @@ collect_own_transfers_recursive := proc(e: Expr, context: Context, local_types: 
                     }
                     for i in 0..resolved.func_def.args.len() {
                         if i.gteq(arg_start) {
-                            mut arg_def := Declaration()
-                            resolved.func_def.args.get(i, arg_def)?
+                            arg_def_ref := resolved.func_def.args.get_by_ref(i)?
+                            create_alias(arg_def, Declaration, arg_def_ref.data)
                             mut param_idx := 0
                             if resolved.is_ufcs {
                                 param_idx = i

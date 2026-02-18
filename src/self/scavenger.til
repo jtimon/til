@@ -79,8 +79,8 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
     }
     // Collect from return types
     for ret_i in 0..func_def.return_types.len() {
-        mut ret_type := ValueType.TCustom("")
-        func_def.return_types.get(ret_i, ret_type)?
+        ret_type_ref := func_def.return_types.get_by_ref(ret_i)?
+        create_alias(ret_type, ValueType, ret_type_ref.data)
         ret_type_name := extract_type_name(ret_type)
         if ret_type_name.len().gt(0) {
             _ := used_types.insert(ret_type_name)
@@ -254,8 +254,8 @@ get_combined_name_from_identifier := proc(e: Expr) returns Str throws Str {
             mut result := ""
             mut i := 0
             while i.lt(parts.len()) {
-                mut part := ""
-                parts.get(i, part)?
+                part_ref := parts.get_by_ref(i)?
+                create_alias(part, Str, part_ref.data)
                 if i.gt(0) {
                     result = result.concat(".")
                 }
@@ -487,13 +487,13 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                     // This happens when precomp couldn't determine the type (e.g., pattern bindings in switch)
                     // In this case, parts[0] is a variable name, not a type name
                     mut parts := func_name.split(".")?
-                    mut method_name := ""
-                    parts.get(parts.len().sub(1), method_name)? // Last part is the method name
+                    method_name_ref := parts.get_by_ref(parts.len().sub(1))?
+                    create_alias(method_name, Str, method_name_ref.data) // Last part is the method name
 
                     mut is_unresolved_ufcs := false
                     if parts.len().gteq(2) {
-                        mut maybe_var := ""
-                        parts.get(0, maybe_var)?
+                        maybe_var_ref := parts.get_by_ref(0)?
+                        create_alias(maybe_var, Str, maybe_var_ref.data)
                         // If first part is NOT a known struct/enum, it's likely a variable
                         mut found_struct_check := false
                         mut _dummy_struct := SStructDef()

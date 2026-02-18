@@ -1,9 +1,9 @@
 * Totals
-- Total rust interpreted :: 120.050s, max 122MB
-- Total rust built :: 45.860s
-- Total rust compiled :: 1.900s, max 30MB
-- Total til interpreted :: 519.290s, max 7428MB
-- Total til built :: 387.450s
-- Total til compiled :: 8.800s, max 1903MB
-- Total :: 1083.350s
-- Wall-clock :: 157.000s
+- Total rust interpreted :: 118.490s, max 122MB
+- Total rust built :: 44.600s
+- Total rust compiled :: 1.850s, max 30MB
+- Total til interpreted :: 514.490s, max 7408MB
+- Total til built :: 383.750s
+- Total til compiled :: 8.700s, max 1903MB
+- Total :: 1071.880s
+- Wall-clock :: 156.000s

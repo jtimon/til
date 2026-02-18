@@ -118,8 +118,8 @@ namespace Lexer {
         if i.gteq(self.tokens.len()) {
             return true
         }
-        mut t := Token()
-        self.tokens.get(i, t)?
+        t_ref := self.tokens.get_by_ref(i)?
+        create_alias(t, Token, t_ref.data)
         switch t.token_type {
         case TokenType.Eof:
             return true
@@ -677,13 +677,12 @@ build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str
     }
 
     if should_check {
-        mut ident_token := Token()
-        mut equals_token := Token()
-        mut value_token := Token()
-
-        tokens.get(var_index.add(1), ident_token)?
-        tokens.get(var_index.add(2), equals_token)?
-        tokens.get(var_index.add(3), value_token)?
+        ident_token_ref := tokens.get_by_ref(var_index.add(1))?
+        create_alias(ident_token, Token, ident_token_ref.data)
+        equals_token_ref := tokens.get_by_ref(var_index.add(2))?
+        create_alias(equals_token, Token, equals_token_ref.data)
+        value_token_ref := tokens.get_by_ref(var_index.add(3))?
+        create_alias(value_token, Token, value_token_ref.data)
 
         mut is_identifier := false
         switch ident_token.token_type {
@@ -716,8 +715,8 @@ print_lex_errors := proc(tokens: Vec, path: Str) returns I64 throws Str {
     mut errors_found := 0
     mut tokens_len := tokens.len()
     for i in 0..tokens_len {
-        mut t := Token()
-        tokens.get(i, t)?
+        t_ref := tokens.get_by_ref(i)?
+        create_alias(t, Token, t_ref.data)
         print_if_lex_error(path, tokens, i, t, errors_found)?
     }
     catch (err: IndexOutOfBoundsError) {
@@ -808,8 +807,8 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
         throw path.format(":1:0: compiler ERROR: End of file not found.")
     }
 
-    mut first := Token()
-    tokens.get(0, first)?
+    first_ref := tokens.get_by_ref(0)?
+    create_alias(first, Token, first_ref.data)
     switch first.token_type {
     case TokenType.Eof:
         throw path.format(":0:0: compiler ERROR: Nothing to be done")

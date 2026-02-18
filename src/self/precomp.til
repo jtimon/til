@@ -15,15 +15,15 @@ import("self.precomp_ext")
 build_type_param_subs := func(func_def: SFuncDef, fcall: Expr) returns Map throws Str {
     mut subs := Map.new(Str, Str)
     for i in 0..func_def.args.len() {
-        mut arg := Declaration()
-        func_def.args.get(i, arg)?
+        arg_ref := func_def.args.get_by_ref(i)?
+        create_alias(arg, Declaration, arg_ref.data)
         switch arg.value_type {
         case ValueType.TCustom(type_name):
             if type_name.eq("Type").or(type_name.eq("Dynamic")) {
                 // FCall params: [0] = function name identifier, [1..] = arguments
                 if fcall.params.len().gt(i.add(1)) {
-                    mut actual_arg := Expr()
-                    fcall.params.get(i.add(1), actual_arg)?
+                    actual_arg_ref := fcall.params.get_by_ref(i.add(1))?
+                    create_alias(actual_arg, Expr, actual_arg_ref.data)
                     switch actual_arg.node_type {
                     case NodeType.Identifier(actual_type_name):
                         subs.set(arg.name, actual_type_name)
@@ -590,8 +590,8 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
     mut new_default_values := Map.new(Str, Expr)
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
-        mut name := ""
-        struct_def.default_values.keys.get(i, name)?
+        name_ref := struct_def.default_values.keys.get_by_ref(i)?
+        create_alias(name, Str, name_ref.data)
         val_ref := struct_def.default_values.get_by_ref(name)?
         create_alias(value_expr, Expr, val_ref.data)
 
@@ -787,8 +787,8 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     switch value_type {
     case ValueType.TType(TTypeDef.TStructDef):
         if new_params.len().gt(0) {
-            mut expanded_param := Expr()
-            new_params.get(0, expanded_param)?
+            expanded_param_ref := new_params.get_by_ref(0)?
+            create_alias(expanded_param, Expr, expanded_param_ref.data)
             switch expanded_param.node_type {
             case NodeType.StructDef(expanded_struct_def):
                 if not(context.scope_stack.has_struct(decl.name)) {
@@ -807,8 +807,8 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     // Determine if this is a compile-time constant
     // Only mut matters for constantness - copy/own are about ownership, orthogonal to comptime.
     // Any type can be comptime - the type doesn't matter, only how the value is computed.
-    mut first_param := Expr()
-    new_params.get(0, first_param)?
+    first_param_ref := new_params.get_by_ref(0)?
+    create_alias(first_param, Expr, first_param_ref.data)
     is_comptime_const := not(decl.is_mut)
         .and(is_comptime_evaluable(context, first_param)?)
 
@@ -820,8 +820,8 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     switch value_type {
     case ValueType.TFunction:
         if new_params.len().gt(0) {
-            mut fp := Expr()
-            new_params.get(0, fp)?
+            fp_ref := new_params.get_by_ref(0)?
+            create_alias(fp, Expr, fp_ref.data)
             switch fp.node_type {
             case NodeType.FuncDef(func_def):
                 context.scope_stack.declare_func(decl.name, func_def)?
@@ -905,10 +905,10 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     }
 
     // Get the catch variable name and type
-    mut name_expr := Expr()
-    mut type_expr := Expr()
-    e.params.get(0, name_expr)?
-    e.params.get(1, type_expr)?
+    name_expr_ref := e.params.get_by_ref(0)?
+    create_alias(name_expr, Expr, name_expr_ref.data)
+    type_expr_ref := e.params.get_by_ref(1)?
+    create_alias(type_expr, Expr, type_expr_ref.data)
     mut var_name := ""
     mut type_name := ""
     switch name_expr.node_type {
@@ -1075,8 +1075,8 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             if func_def.is_ext() {
                 mut parts := combined_name.split(".")?
                 if parts.len().gt(0) {
-                    mut last_part := ""
-                    parts.get(parts.len().sub(1), last_part)?
+                    last_part_ref := parts.get_by_ref(parts.len().sub(1))?
+                    create_alias(last_part, Str, last_part_ref.data)
                     if last_part.eq("import") {
                         _ := eval_expr(context, new_e)?
                     }

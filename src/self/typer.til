@@ -175,10 +175,10 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
         }
 
         // Range operands are used
-        mut left_expr := Expr()
-        mut right_expr := Expr()
-        e.params.get(0, left_expr)?
-        e.params.get(1, right_expr)?
+        left_expr_ref := e.params.get_by_ref(0)?
+        create_alias(left_expr, Expr, left_expr_ref.data)
+        right_expr_ref := e.params.get_by_ref(1)?
+        create_alias(right_expr, Expr, right_expr_ref.data)
         errors.extend(check_types_with_context(context, left_expr, ExprContext.ValueUsed)?)
         errors.extend(check_types_with_context(context, right_expr, ExprContext.ValueUsed)?)
 
@@ -479,13 +479,13 @@ check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str
     // Remove symbols consumed in ALL branches (if there's both then and else)
     if branch_count.gteq(2) {
         if consumed_per_branch.len().gt(0) {
-            mut first := Vec.new(RemovedSymbol)
-            consumed_per_branch.get(0, first)?
+            first_ref := consumed_per_branch.get_by_ref(0)?
+            create_alias(first, Vec, first_ref.data)
             for entry: RemovedSymbol in first {
                 mut consumed_in_all := true
                 for bi in 0..consumed_per_branch.len() {
-                    mut branch_consumed := Vec.new(RemovedSymbol)
-                    consumed_per_branch.get(bi, branch_consumed)?
+                    branch_consumed_ref := consumed_per_branch.get_by_ref(bi)?
+                    create_alias(branch_consumed, Vec, branch_consumed_ref.data)
                     mut found := false
                     for other_entry: RemovedSymbol in branch_consumed {
                         if other_entry.name.eq(entry.name) {
@@ -614,8 +614,8 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     if not(len_func.return_types.len().eq(1)) {
         errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".len()' must return I64")))
     } else {
-        mut ret_type := ValueType.TCustom("")
-        len_func.return_types.get(0, ret_type)?
+        ret_type_ref := len_func.return_types.get_by_ref(0)?
+        create_alias(ret_type, ValueType, ret_type_ref.data)
         switch ret_type {
         case ValueType.TCustom(ret_name):
             if not(ret_name.eq("I64")) {
@@ -636,8 +636,8 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     // Verify signature: get_by_ref(self, I64) returns Ptr throws IndexOutOfBoundsError
     mut valid := get_func.args.len().gteq(2)
     if valid {
-        mut arg1 := Declaration()
-        get_func.args.get(1, arg1)?
+        arg1_ref := get_func.args.get_by_ref(1)?
+        create_alias(arg1, Declaration, arg1_ref.data)
         switch arg1.value_type {
         case ValueType.TCustom(arg1_name):
             if not(arg1_name.eq("I64")) {
@@ -652,8 +652,8 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         if get_func.return_types.len().eq(0) {
             valid = false
         } else {
-            mut ret_type := ValueType.TCustom("")
-            get_func.return_types.get(0, ret_type)?
+            ret_type_ref2 := get_func.return_types.get_by_ref(0)?
+            create_alias(ret_type, ValueType, ret_type_ref2.data)
             switch ret_type {
             case ValueType.TCustom(ret_name):
                 if not(ret_name.eq("Ptr")) {
@@ -668,8 +668,8 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         // Check throws IndexOutOfBoundsError
         mut throws_index_error := false
         for i in 0..get_func.throw_types.len() {
-            mut throw_type := ValueType.TCustom("")
-            get_func.throw_types.get(i, throw_type)?
+            throw_type_ref := get_func.throw_types.get_by_ref(i)?
+            create_alias(throw_type, ValueType, throw_type_ref.data)
             switch throw_type {
             case ValueType.TCustom(throw_name):
                 if throw_name.eq("IndexOutOfBoundsError") {
@@ -1224,8 +1224,8 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     }
     mut has_variadic := false
     for i in 0..func_def.args.len() {
-        mut arg := Declaration()
-        func_def.args.get(i, arg)?
+        arg_ref := func_def.args.get_by_ref(i)?
+        create_alias(arg, Declaration, arg_ref.data)
 
         if has_variadic {
             errors.push(e.error(context.path, "type", format("Variadic argument '", arg.name, "' must be the last (only one variadic argument allowed).")))
@@ -1328,8 +1328,8 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
         mut is_declared := false
         mut decl_idx := 0
         while decl_idx.lt(func_def.throw_types.len()) {
-            mut declared := ValueType.TCustom("")
-            func_def.throw_types.get(decl_idx, declared)?
+            declared_ref := func_def.throw_types.get_by_ref(decl_idx)?
+            create_alias(declared, ValueType, declared_ref.data)
             if value_type_to_str(declared).eq(te.type_str) {
                 is_declared = true
             }
@@ -1343,8 +1343,8 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     // Warn about declared throws that are never thrown
     mut decl_throw_idx := 0
     while decl_throw_idx.lt(func_def.throw_types.len()) {
-        mut declared_throw := ValueType.TCustom("")
-        func_def.throw_types.get(decl_throw_idx, declared_throw)?
+        declared_throw_ref := func_def.throw_types.get_by_ref(decl_throw_idx)?
+        create_alias(declared_throw, ValueType, declared_throw_ref.data)
         mut declared_str := value_type_to_str(declared_throw)
 
         mut is_thrown := false
@@ -2212,8 +2212,8 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
             if var_name.contains(".") {
                 mut parts := var_name.split(".")?
                 if parts.len().gt(0) {
-                    mut base_var := ""
-                    parts.get(0, base_var)?
+                    base_var_ref := parts.get_by_ref(0)?
+                    create_alias(base_var, Str, base_var_ref.data)
                     // Bug #101: Mark base variable as used
                     context.scope_stack.mark_symbol_used(base_var)
                     mut base_info := context.scope_stack.lookup_symbol(base_var)?
@@ -2229,8 +2229,8 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
             // Field access assignment where the field itself isn't registered in symbols
             // With dynamic offset calculation, we need to validate against struct definition
             mut field_parts := var_name.split(".")?
-            mut field_base_var := ""
-            field_parts.get(0, field_base_var)?
+            field_base_var_ref := field_parts.get_by_ref(0)?
+            create_alias(field_base_var, Str, field_base_var_ref.data)
             // Bug #101: Mark base variable as used
             context.scope_stack.mark_symbol_used(field_base_var)
 
@@ -2252,8 +2252,8 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
                 mut pi := 1
                 while pi.lt(field_parts.len()) {
                     if not(has_error) {
-                        mut field_name := ""
-                        field_parts.get(pi, field_name)?
+                        field_name_ref := field_parts.get_by_ref(pi)?
+                        create_alias(field_name, Str, field_name_ref.data)
                         switch current_type {
                         case ValueType.TCustom(type_name):
                             mut field_struct_def := context.scope_stack.lookup_struct(type_name)?
@@ -3742,8 +3742,8 @@ resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     switch new_decl.value_type {
     case ValueType.TFunction(_):
         if decl_params.len().gt(0) {
-            mut decl_inner_e := Expr()
-            decl_params.get(0, decl_inner_e)?
+            decl_inner_e_ref := decl_params.get_by_ref(0)?
+            create_alias(decl_inner_e, Expr, decl_inner_e_ref.data)
             switch decl_inner_e.node_type {
             case NodeType.FuncDef(func_def):
                 context.scope_stack.declare_func(new_decl.name, func_def)?
@@ -3773,8 +3773,8 @@ resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) retur
 
     // Register function parameters in scope
     for arg_idx in 0..func_def.args.len() {
-        mut arg := Declaration()
-        func_def.args.get(arg_idx, arg)?
+        arg_ref := func_def.args.get_by_ref(arg_idx)?
+        create_alias(arg, Declaration, arg_ref.data)
         context.scope_stack.declare_symbol(arg.name, SymbolInfo(
             value_type=arg.value_type,
             is_mut=arg.is_mut,
