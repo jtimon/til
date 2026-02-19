@@ -38,9 +38,9 @@ parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError
             // Extract value after last ": "
             parts := line.split(": ")?
             if parts.len().gt(1) {
-                mut time_str := ""
-                parts.get(parts.len().sub(1), time_str)?
-                time_str = time_str.replace("\r", "")
+                ts_ref := parts.get_by_ref(parts.len().sub(1))?
+                create_alias(ts, Str, ts_ref.data)
+                mut time_str := Str.replace(ts, "\r", "")
                 // Find first colon (separates minutes from seconds, or hours from minutes)
                 colon_pos := time_str.find(":")
                 if colon_pos.lt(0) {
@@ -87,9 +87,10 @@ parse_maxrss_kb := func(time_output: Str) returns I64 throws IndexOutOfBoundsErr
         if line.find("Maximum resident set size").gt(I64_MINUS1) {
             parts := line.split(": ")?
             if parts.len().gt(1) {
-                mut val_str := ""
-                parts.get(parts.len().sub(1), val_str)?
-                val_str = val_str.replace("\r", "")
+                vs_ref := parts.get_by_ref(parts.len().sub(1))?
+                create_alias(vs, Str, vs_ref.data)
+                // TODO Bug #176: UFCS workaround for create_alias
+                mut val_str := Str.replace(vs, "\r", "")
                 return val_str.to_i64()
             }
         }

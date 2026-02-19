@@ -148,9 +148,11 @@ namespace:
 
     // REM TODO Use this approach instead of the other workaround in files other than interpreter.til
     last_frame := func(self: ScopeStack) returns ScopeFrame throws IndexOutOfBoundsError {
-        mut out := ScopeFrame()
-        self.frames.get(self.frames.len().sub(1), out)?
-        return out
+        out_ref := self.frames.get_by_ref(self.frames.len().sub(1))?
+        create_alias(out, ScopeFrame, out_ref.data)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
+        // TODO Bug #176: UFCS workaround for create_alias
+        return ScopeFrame.clone(out)
     }
 
     lookup_var := func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError {
@@ -804,17 +806,21 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
         throw e.error(path, "init", format("func '", name, "' does not return anything"))
     }
     if returns_len.eq(1) {
-        mut return_type := ValueType.TCustom("")  # Dummy init, will be overwritten by get()
-        func_def.return_types.get(0, return_type)?
+        rt_ref := func_def.return_types.get_by_ref(0)?
+        create_alias(return_type, ValueType, rt_ref.data)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
         switch return_type {
         case ValueType.TCustom(custom_type_str):
-            return return_type
+            // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
+            // TODO Bug #176: UFCS workaround for create_alias
+            return ValueType.clone(return_type)
         // Issue #105: Allow struct as a return type for first-class structs
         case ValueType.TType(TTypeDef.TStructDef):
-            return return_type
+            // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
+            // TODO Bug #176: UFCS workaround for create_alias
+            return ValueType.clone(return_type)
         case:
             throw e.error(path, "init", format("func '", name, "' returns unsupported type ", value_type_to_str(return_type)))
         }

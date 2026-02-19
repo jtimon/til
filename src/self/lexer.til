@@ -142,10 +142,11 @@ namespace:
     }
 
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
-        mut t := Token()
-        self.tokens.get(self.current, t)?
-        result := t.clone()
-        return result
+        t_ref := self.tokens.get_by_ref(self.current)?
+        create_alias(t, Token, t_ref.data)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
+        // TODO Bug #176: UFCS workaround for create_alias (Token.clone instead of t.clone)
+        return Token.clone(t)
     }
 
     previous := func(self: Lexer) returns Token throws Str {
@@ -157,9 +158,11 @@ namespace:
             mut err_token2 := self.peek()?
             throw err_token2.lang_error(self.path, "Previous token is out of bounds")
         }
-        mut t := Token()
-        self.tokens.get(self.current.sub(1), t)?
-        result := t.clone()
+        t_ref := self.tokens.get_by_ref(self.current.sub(1))?
+        create_alias(t, Token, t_ref.data)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
+        // TODO Bug #176: UFCS workaround for create_alias
+        result := Token.clone(t)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -184,9 +187,11 @@ namespace:
             mut err_token := self.peek()?
             throw err_token.lang_error(self.path, format("Peek ahead by ", offset.to_str(), " from ", self.current.to_str(), " is out of bounds"))
         }
-        mut t := Token()
-        self.tokens.get(peek_idx, t)?
-        result := t.clone()
+        t_ref := self.tokens.get_by_ref(peek_idx)?
+        create_alias(t, Token, t_ref.data)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
+        // TODO Bug #176: UFCS workaround for create_alias
+        result := Token.clone(t)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
