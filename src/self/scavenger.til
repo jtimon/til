@@ -100,7 +100,7 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
 // ---------- Helper functions
 
 /// Issue #108: Rebuild a namespace definition, keeping only reachable methods
-rebuild_namespace_without_unreachable_methods := proc(ns_def: SNamespaceDef, reachable: Set) returns Expr throws Str {
+rebuild_namespace_without_unreachable_methods := proc(ns_def: SNamespaceDef, reachable: Set) returns Expr {
     type_name := ns_def.type_name
     mut new_members := Vec.new(Declaration)
     mut new_default_values := Map.new(Str, Expr)
@@ -108,28 +108,23 @@ rebuild_namespace_without_unreachable_methods := proc(ns_def: SNamespaceDef, rea
     for member_decl: Declaration in ns_def.members {
         full_name := format(type_name, ".", member_decl.name)
 
-        // Check if this member has a FuncDef default value (i.e., it's a method)
-        mut has_default := false
-        mut default_expr := Expr()
-        if ns_def.default_values.contains_key(member_decl.name) {
-            ns_def.default_values.get(member_decl.name, default_expr)?
-            has_default = true
+        dv_ref := ns_def.default_values.get_by_ref(member_decl.name)?
+        create_alias(default_expr, Expr, dv_ref.data)
+
+        switch default_expr.node_type {
+        case NodeType.FuncDef(func_def):
+            // Method - check if reachable or external
+            if SFuncDef.is_ext(func_def).or(reachable.contains(full_name)) { // TODO Bug #176: func_def.is_ext()
+                new_members.push(member_decl.clone())
+                new_default_values.set(member_decl.name.clone(), Expr.clone(default_expr)) // TODO Bug #176: default_expr.clone()
+            }
+        case:
+            // Not a FuncDef - keep it (regular constant)
+            new_members.push(member_decl.clone())
+            new_default_values.set(member_decl.name.clone(), Expr.clone(default_expr)) // TODO Bug #176: default_expr.clone()
         }
 
-        if has_default {
-            switch default_expr.node_type {
-            case NodeType.FuncDef(func_def):
-                // Method - check if reachable or external
-                if func_def.is_ext().or(reachable.contains(full_name)) {
-                    new_members.push(member_decl.clone())
-                    new_default_values.set(member_decl.name.clone(), default_expr.clone())
-                }
-            case:
-                // Not a FuncDef - keep it (regular constant)
-                new_members.push(member_decl.clone())
-                new_default_values.set(member_decl.name.clone(), default_expr.clone())
-            }
-        } else {
+        catch (err: KeyNotFoundError) {
             // No default value - keep the member
             new_members.push(member_decl.clone())
         }
@@ -140,13 +135,11 @@ rebuild_namespace_without_unreachable_methods := proc(ns_def: SNamespaceDef, rea
     new_ns_def.members = new_members
     new_ns_def.default_values = new_default_values
 
-    catch (err: KeyNotFoundError) { throw err.msg }
-
     return Expr(node_type=NodeType.NamespaceDef(new_ns_def), params=Vec.new(Expr), line=0, col=0)
 }
 
 /// Rebuild a struct without unreachable methods
-rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def: SStructDef, reachable: Set) returns Expr throws Str {
+rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def: SStructDef, reachable: Set) returns Expr {
     struct_name := decl.name
     mut new_members := Vec.new(Declaration)
     mut new_default_values := Map.new(Str, Expr)
@@ -154,28 +147,23 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
     for member_decl: Declaration in struct_def.members {
         full_name := format(struct_name, ".", member_decl.name)
 
-        // Check if this member has a FuncDef default value (i.e., it's a method)
-        mut has_default := false
-        mut default_expr := Expr()
-        if struct_def.default_values.contains_key(member_decl.name) {
-            struct_def.default_values.get(member_decl.name, default_expr)?
-            has_default = true
+        dv_ref := struct_def.default_values.get_by_ref(member_decl.name)?
+        create_alias(default_expr, Expr, dv_ref.data)
+
+        switch default_expr.node_type {
+        case NodeType.FuncDef(func_def):
+            // Method - check if reachable or external
+            if SFuncDef.is_ext(func_def).or(reachable.contains(full_name)) { // TODO Bug #176: func_def.is_ext()
+                new_members.push(member_decl.clone())
+                new_default_values.set(member_decl.name.clone(), Expr.clone(default_expr)) // TODO Bug #176: default_expr.clone()
+            }
+        case:
+            // Not a FuncDef - keep it (regular field with default value)
+            new_members.push(member_decl.clone())
+            new_default_values.set(member_decl.name.clone(), Expr.clone(default_expr)) // TODO Bug #176: default_expr.clone()
         }
 
-        if has_default {
-            switch default_expr.node_type {
-            case NodeType.FuncDef(func_def):
-                // Method - check if reachable or external
-                if func_def.is_ext().or(reachable.contains(full_name)) {
-                    new_members.push(member_decl.clone())
-                    new_default_values.set(member_decl.name.clone(), default_expr.clone())
-                }
-            case:
-                // Not a FuncDef - keep it (regular field with default value)
-                new_members.push(member_decl.clone())
-                new_default_values.set(member_decl.name.clone(), default_expr.clone())
-            }
-        } else {
+        catch (err: KeyNotFoundError) {
             // No default value - keep the member
             new_members.push(member_decl.clone())
         }
@@ -188,8 +176,6 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
 
     mut result_params := Vec.new(Expr)
     result_params.push(new_struct_expr)
-
-    catch (err: KeyNotFoundError) { throw err.msg }
 
     return Expr(node_type=NodeType.Declaration(decl.clone()), params=result_params, line=0, col=0)
 }
@@ -918,7 +904,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     case NodeType.StructDef(struct_def):
                         // Struct - only keep if type is used, rebuild without unreachable methods
                         if used_types.contains(decl.name) {
-                            new_struct := rebuild_struct_without_unreachable_methods(decl, struct_def, reachable)?
+                            new_struct := rebuild_struct_without_unreachable_methods(decl, struct_def, reachable)
                             new_params.push(new_struct)
                         }
                     case:
@@ -933,7 +919,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             case NodeType.NamespaceDef(ns_def):
                 // Check if the namespace's type is used
                 if used_types.contains(ns_def.type_name) {
-                    new_ns := rebuild_namespace_without_unreachable_methods(ns_def, reachable)?
+                    new_ns := rebuild_namespace_without_unreachable_methods(ns_def, reachable)
                     new_params.push(new_ns)
                 }
             case:
