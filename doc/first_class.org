@@ -1,0 +1,823 @@
+#+TITLE: First-Class Everything: Unified Syntax Discussion
+#+DATE: 2026-02-19
+#+RELATED: Issue #91, #105, #106, #107, #108, #161
+
+* Core Principle
+
+Everything in TIL is a value. Functions, structs, enums -- they can all be
+assigned, passed, returned, and stored. The syntax should reflect this
+uniformity.
+
+* Current vs Proposed Syntax
+
+** Current (asymmetric)
+#+BEGIN_SRC til
+// Values use :=
+x := 5
+name := "hello"
+
+// But type definitions ALSO use :=
+Point := struct { mut x: I64 = 0, mut y: I64 = 0 }
+Color := enum { Red, Green, Blue }
+add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+#+END_SRC
+
+Problem: ~:=~ means "infer the type from the right-hand side". But for
+~Point := struct { ... }~, what IS the type of Point? It's not a Point,
+it's a struct definition. The type and the value are tangled together.
+
+** Proposed: ~name : Type = Value~
+
+Separate the type annotation (~:~) from the value assignment (~=~).
+When there's no ~= value~, it's a type-only declaration.
+~:=~ remains as shorthand for "infer the type".
+
+#+BEGIN_SRC til
+// Explicit type + value
+x : I64 = 5
+name : Str = "hello"
+
+// Inferred (unchanged from today)
+x := 5
+name := "hello"
+
+// Type definitions: explicit metatype annotation
+Point : StructDef = struct { mut x: I64 = 0, mut y: I64 = 0 }
+Color : EnumDef = enum { Red, Green, Blue }
+BinaryOp : FuncSig = func(a: I64, b: I64) returns I64
+
+// Or using the general Type (accepts any type definition)
+Point : Type = struct { mut x: I64 = 0, mut y: I64 = 0 }
+
+// Inferred (metatype inferred from RHS)
+Point := struct { mut x: I64 = 0, mut y: I64 = 0 }   // infers StructDef
+Color := enum { Red, Green, Blue }                      // infers EnumDef
+BinaryOp := func(a: I64, b: I64) returns I64           // infers FuncSig
+
+// Function definitions: the type IS the signature, the value IS the body
+add : func(a: I64, b: I64) returns I64 = {
+    return a.add(b)
+}
+#+END_SRC
+
+** The Type hierarchy
+
+~Type~ is the metatype -- the type of all type definitions. It is (or could
+literally be implemented as):
+
+#+BEGIN_SRC til
+Type := enum { StructDef, EnumDef, FuncSig }
+#+END_SRC
+
+Each variant serves as both a specific metatype and a value of ~Type~:
+
+| Metatype    | Defines                 | Instance example                      |
+|-------------+-------------------------+---------------------------------------|
+| ~StructDef~ | Data layout (fields)    | ~p := Point(x=10)~ is a Point         |
+| ~EnumDef~   | Tagged union (variants) | ~c := Color.Red~ is a Color           |
+| ~FuncSig~   | Calling convention      | ~add := func(...){...}~ is a BinaryOp |
+
+A function definition is an instance of its signature, just like a struct
+value is an instance of its struct definition. This is consistent across
+all three.
+
+Function types are *structural*: two signatures with the same parameter
+types, return type, and throws are the same type regardless of name.
+~BinaryOp.eq(TwoArgFunc)~ is true if both are ~func(I64, I64) returns I64~.
+
+Collections can be specific or general:
+#+BEGIN_SRC til
+Vec.new(I64)        // Vec of I64
+Vec.new(BinaryOp)   // Vec of function definitions with the same signature (aka for the same function pointer)
+Vec.new(FuncSig)    // Vec of function signatures (different signatures)
+Vec.new(StructDef)  // Vec of struct definitions
+Vec.new(Type)       // Vec of any type definition (structs, enums, funcsigs)
+#+END_SRC
+
+** Type inference rules
+
+~:=~ infers the type from the RHS. Explicit types are always allowed but
+never required for declarations:
+
+| Declaration                         | Inferred type                                 |
+|-------------------------------------+-----------------------------------------------|
+| ~x := 5~                            | ~I64~                                         |
+| ~name := "hello"~                   | ~Str~                                         |
+| ~Point := struct { ... }~           | ~StructDef~ (or ~Type~)                       |
+| ~Color := enum { ... }~             | ~EnumDef~ (or ~Type~)                         |
+| ~BinaryOp := func(a: I64) ret I64~  | ~FuncSig~ (or ~Type~) (no body)               |
+| ~add := func(a: I64) ret I64 {...}~ | ~func(a: I64) returns I64~ (has body = value) |
+
+The only place where types are NOT inferred is function signatures.
+Parameters always require explicit types:
+#+BEGIN_SRC til
+// REQUIRED: explicit types in function parameters
+add : func(a: I64, b: I64) returns I64 = { ... }
+
+// NOT ALLOWED: inferred parameter types
+add : func(a, b) returns I64 = { ... }  // error
+#+END_SRC
+
+This is a deliberate design decision. TIL has ~Dynamic~ and ~Type~ as special
+parameter types, and inferring argument types would create ambiguity. Explicit
+parameter types also make function signatures self-documenting.
+Also, implementing type inference is simpler this way.
+
+* Functions
+
+** Function signatures (FuncSig)
+
+A FuncSig is a pure type -- parameter types, return type, throws. Parameter
+names are optional documentation, not part of the type identity:
+
+#+BEGIN_SRC til
+// These are the same FuncSig (structural equality on types only):
+BinaryOp := func(a: I64, b: I64) returns I64
+TwoArgFunc := func(x: I64, y: I64) returns I64
+BinaryOp.eq(TwoArgFunc)  // true
+
+// Names are optional in type position:
+BinaryOp := func(I64, I64) returns I64     // pure type, no names
+BinaryOp := func(a: I64, b: I64) returns I64  // same type, names are documentation
+#+END_SRC
+
+A bodyless func/proc is a *type definition* (a ~FuncSig~, which is a ~Type~).
+A bodied func/proc is a *value* (an instance of its ~FuncSig~).
+
+** Definition: normal form vs sugar
+
+The canonical (normal) form separates types from parameter names:
+
+#+BEGIN_SRC til
+// Normal form: type has no names, names are in the value with (a, b)
+add : func(I64, I64) returns I64 = (a, b) {
+    return a.add(b)
+}
+
+// Same with a named type alias:
+add : BinaryOp = (a, b) {
+    return a.add(b)
+}
+#+END_SRC
+
+But writing types and names separately is tedious for inline definitions.
+Sugar form merges names into the type position:
+
+#+BEGIN_SRC til
+// Sugar form: names merged into signature (most common, current TIL syntax)
+add : func(a: I64, b: I64) returns I64 = {
+    return a.add(b)
+}
+#+END_SRC
+
+The parser transforms the sugar form into the normal form by extracting
+parameter names from the signature and producing the ~(a, b)~ binding in
+the AST. The rest of the pipeline (typer, interpreter, ccodegen) only ever
+sees the normal form.
+
+All three forms are equivalent:
+#+BEGIN_SRC til
+// 1. Sugar: names in type position (most common)
+add : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+
+// 2. Normal form: names separated
+add : func(I64, I64) returns I64 = (a, b) { return a.add(b) }
+
+// 3. Named type alias
+add : BinaryOp = (a, b) { return a.add(b) }
+#+END_SRC
+
+Forms 2 and 3 are the same thing (with or without an alias). Form 1 is
+syntax sugar that desugars to form 2. Internally, FuncSig always stores
+just types -- parameter names live in the body binding.
+
+** More examples
+#+BEGIN_SRC til
+// With throws
+parse : func(Str) returns Ast throws ParseError = (s) {
+    // ...
+}
+// Sugar form:
+parse : func(s: Str) returns Ast throws ParseError = {
+    // ...
+}
+
+// Proc
+greet : proc(Str) = (name) {
+    println("hello", name)
+}
+// Sugar form:
+greet : proc(name: Str) = {
+    println("hello", name)
+}
+#+END_SRC
+
+** Passing as arguments
+#+BEGIN_SRC til
+apply : func(op: BinaryOp, a: I64, b: I64) returns I64 = {
+    return op(a, b)
+}
+
+// Both forms are valid: aliased function pointer or explicit signature
+apply2 : func(op: func(I64, I64) returns I64, a: I64, b: I64) returns I64 = {
+    return op(a, b)
+}
+
+apply(add, 3, 5)  // 8
+#+END_SRC
+
+** Returning from functions
+#+BEGIN_SRC til
+get_op : func(which: Str) returns BinaryOp = {
+    if which.eq("add") {
+        return add
+    }
+    return mul
+}
+#+END_SRC
+
+** Anonymous functions (inline)
+#+BEGIN_SRC til
+apply(func(a: I64, b: I64) returns I64 { return a.add(b) }, 3, 5)
+
+// Or assigned to a variable with type inference:
+double := func(a: I64) returns I64 { return a.mul(2) }
+#+END_SRC
+
+** Stored in collections
+#+BEGIN_SRC til
+ops := Vec.new(BinaryOp)
+ops.push(add)
+ops.push(mul)
+ops.get(0)(3, 5)  // 8
+#+END_SRC
+
+** Stored in struct fields
+#+BEGIN_SRC til
+Handler : struct {
+    on_click : BinaryOp
+}
+h := Handler(on_click=add)
+h.on_click(3, 5)  // 8
+#+END_SRC
+
+** Comparison with other languages
+
+| Language   | Function type syntax               | Notes                        |
+|------------+------------------------------------+------------------------------|
+| Rust       | ~fn(i64, i64) -> i64~             | No param names in type       |
+| Go         | ~func(int, int) int~              | No param names in type       |
+| TypeScript | ~(a: number, b: number) => number~ | Arrow syntax                 |
+| Swift      | ~(Int, Int) -> Int~               | No param names in type       |
+| Haskell    | ~Int -> Int -> Int~               | Curried, no parens           |
+| Zig        | ~fn (i64, i64) i64~               | No param names               |
+| TIL        | ~func(a: I64, b: I64) returns I64~ | Param names required (for now) |
+
+TIL keeps param names in the type. This is verbose but readable. Could make
+names optional in type position later: ~func(I64, I64) returns I64~.
+
+* Lambdas, Captures, and Closures
+
+** Lambda functions (anonymous inline functions)
+
+Lambda functions are anonymous function values passed directly as arguments.
+With the sugar form, they look like current TIL functions without a name:
+
+#+BEGIN_SRC til
+Transformer := func(I64) returns I64
+
+// map takes a function and applies it to each element
+map : func(v: Vec(I64), f: Transformer) returns Vec(I64) = {
+    mut result := Vec.new(I64)
+    for item in v {
+        result.push(f(item))
+    }
+    return result
+}
+
+numbers := Vec.from(1, 2, 3, 4, 5)
+
+// Lambda: anonymous function passed inline (sugar form)
+doubled := numbers.map(func(a: I64) returns I64 { return a.mul(2) })
+// [2, 4, 6, 8, 10]
+
+// Same in normal form (type separated from param name)
+doubled := numbers.map(func(I64) returns I64 = (a) { return a.mul(2) })
+
+// Named function works too, of course
+double : func(a: I64) returns I64 = { return a.mul(2) }
+doubled := numbers.map(double)
+#+END_SRC
+
+** Filter and reduce
+#+BEGIN_SRC til
+Predicate := func(I64) returns Bool
+
+// filter
+evens := numbers.filter(func(a: I64) returns Bool { return a.mod(2).eq(0) })
+// [2, 4]
+
+Reducer := func(I64, I64) returns I64
+
+// reduce
+sum := numbers.reduce(0, func(acc: I64, x: I64) returns I64 { return acc.add(x) })
+// 15
+#+END_SRC
+
+** Explicit captures (closures)
+
+Closures are functions that access variables from their enclosing scope.
+TIL requires *explicit capture lists* using ~[square brackets]~. This is
+not optional sugar -- if a function references an outer variable, it MUST
+be listed in the capture list. This makes dependencies visible and
+refactoring mechanical.
+
+Inspiration: Jai (Jonathan Blow) uses the same philosophy of explicit
+captures for the same reasons. See:
+- [[https://github.com/BSVino/JaiPrimer/blob/master/JaiPrimer.md][Jai Primer]] (capture list syntax and refactoring progression)
+- [[https://inductive.no/jai/][Jai resources]] ("Quick Lambdas" talk)
+
+#+BEGIN_SRC til
+scale := 3
+
+// Closure: captures scale from outer scope
+scaled := numbers.map(func(a: I64) returns I64 [scale] { return a.mul(scale) })
+// [3, 6, 9, 12, 15]
+
+// Normal form equivalent:
+scaled := numbers.map(func(I64) returns I64 = (a) [scale] { return a.mul(scale) })
+
+// Named closure:
+make_scaler : func(s: I64) returns Transformer = {
+    return func(a: I64) returns I64 [s] { return a.mul(s) }
+}
+triple := make_scaler(3)
+tripled := numbers.map(triple)  // [3, 6, 9, 12, 15]
+#+END_SRC
+
+** Why explicit captures
+
+Implicit captures (like Python, JavaScript, Rust) feel magical:
+
+#+BEGIN_SRC
+// Implicit capture (other languages) -- where does scale come from?
+scaled = numbers.map(lambda a: a * scale)
+#+END_SRC
+
+Problems:
+- *Reading*: you see ~scale~ and have to hunt for where it's defined.
+  Is it a global? A local three scopes up? A typo for a parameter?
+- *Refactoring*: extracting a block into a function means figuring out
+  ALL the implicit dependencies. Miss one and it breaks.
+- *Inlining*: moving a closure back inline means understanding what it
+  captures to know where it can safely go.
+
+Explicit captures solve all three:
+- *Reading*: ~[scale]~ tells you exactly what comes from outside.
+- *Refactoring*: captures become parameters. Mechanical transformation.
+- *Inlining*: captures tell you exactly what the block depends on.
+
+** Block captures (not a function, just scope restriction)
+
+Even without making a function, you can add a capture list to a bare
+code block to limit what it can see. This is an "insurance policy" that
+the block only touches specified state:
+
+#+BEGIN_SRC til
+mut total := 0
+mut count := 0
+data := Vec.from(1, 2, 3)
+
+// Only total and data are accessible inside this block
+[total, data] {
+    for item in data {
+        total = total.add(item)
+    }
+}
+// count is guaranteed untouched
+#+END_SRC
+
+This also provides a smooth refactoring path, from Jai's "maturation
+progression" idea:
+
+#+BEGIN_SRC til
+// Step 1: inline code
+total = total.add(x)
+
+// Step 2: block with captures (limit scope, verify dependencies)
+[total, x] {
+    total = total.add(x)
+}
+
+// Step 3: promote to lambda (add params, same captures)
+adder := func(a: I64) returns I64 [total] { return total.add(a) }
+
+// Step 4: promote to pure function (captures become params, no more closure)
+adder : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+#+END_SRC
+
+Each step is mechanical. The capture list tells you exactly what needs to
+become a parameter when you promote to a pure function.
+
+** Capture semantics
+
+Captures follow the same rules as function parameters:
+
+| Capture syntax | Semantics                         | Same as param mode |
+|----------------+-----------------------------------+--------------------|
+| ~[x]~          | Const by reference (default)      | ~x: T~             |
+| ~[mut x]~      | Mutable reference                 | ~mut x: T~         |
+| ~[copy x]~     | Deep copy (snapshot)              | ~copy x: T~        |
+| ~[own x]~      | Ownership transfer (moved in)     | ~own x: T~         |
+
+#+BEGIN_SRC til
+mut total := 0
+data := Vec.from(1, 2, 3)
+
+// mut capture: closure can modify total
+data.for_each(func(x: I64) [mut total] { total = total.add(x) })
+
+// copy capture: closure gets a snapshot, original unchanged
+data.map(func(x: I64) returns I64 [copy total] { return x.add(total) })
+
+// own capture: moves data into the closure, caller can't use it after
+consume := func() [own data] { data.clear() }
+#+END_SRC
+
+No new rules to learn -- captures are just arguments that come from the
+enclosing scope instead of the call site.
+
+* Structs
+
+** Declaration
+#+BEGIN_SRC til
+// Struct definition (this IS the type)
+Point : struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+
+namespace:
+    origin : func() returns Point = { return Point() }
+    add : func(self: Point, other: Point) returns Point = {
+        return Point(x=self.x.add(other.x), y=self.y.add(other.y))
+    }
+}
+#+END_SRC
+
+** Instantiation
+#+BEGIN_SRC til
+p := Point(x=10, y=20)
+Point.origin()           // Point(x=0, y=0)
+p.add(Point(x=1, y=2))  // Point(x=11, y=22) via UFCS
+#+END_SRC
+
+** Passing struct types as arguments (templates/generics)
+#+BEGIN_SRC til
+// A function that takes a struct type and returns an instance
+make_default : func(T: struct) returns T = {
+    return T()  // call default constructor
+}
+
+p := make_default(Point)  // Point(x=0, y=0)
+#+END_SRC
+
+Open question: is ~T: struct~ the right syntax for "any struct type"? Or
+should it be ~T: Type~ for any type? Rust uses generics (~<T>~), Go uses
+~any~, Zig uses ~type~.
+
+** Anonymous structs (struct literals as values)
+#+BEGIN_SRC til
+// Create a value with an anonymous struct type
+p := struct { x : I64 = 10, y : I64 = 20 }
+
+// Instantiate an anonymous struct
+p := struct{mut x := 0}(x=10)
+#+END_SRC
+
+** Returning struct types from functions (macros already do this)
+#+BEGIN_SRC til
+// Already working via macros (#105):
+make_point : macro() returns Type = {
+    return struct { mut x: I64 = 0, mut y: I64 = 0 }
+}
+Point := make_point()
+#+END_SRC
+
+With the ~namespace:~ keyword inside structs, macros can now return complete
+types with methods included:
+#+BEGIN_SRC til
+make_point : macro() returns Type = {
+    return struct {
+        mut x : I64 = 0
+        mut y : I64 = 0
+
+    namespace:
+        origin : func() returns Point = { return Point() }
+    }
+}
+#+END_SRC
+
+** Comparison
+
+| Language   | Struct literal syntax    | Anonymous structs?            |
+|------------+--------------------------+-------------------------------|
+| Rust       | ~Point { x: 10, y: 20 }~ | No (tuples only)              |
+| Go         | ~Point{X: 10, Y: 20}~    | Yes: ~struct{X int}{10}~      |
+| TypeScript | ~{ x: 10, y: 20 }~       | Yes (object literals)         |
+| Zig        | ~.{ .x = 10, .y = 20 }~  | Yes (anonymous structs)       |
+| TIL        | ~Point(x=10, y=20)~      | Yes: struct{mut x := 0}(x=10) |
+
+* Enums
+
+** Declaration
+#+BEGIN_SRC til
+Color : enum {
+    Red,
+    Green,
+    Blue,
+
+namespace:
+    default : func() returns Color = { return Color.Red }
+    is_warm : func(self: Color) returns Bool = {
+        // ...
+    }
+}
+
+// With payloads
+Shape : enum {
+    Circle(radius: I64),
+    Rect(w: I64, h: I64),
+
+namespace:
+    unit_circle : func() returns Shape = { return Shape.Circle(radius=1) }
+}
+#+END_SRC
+
+The ~namespace:~ keyword separates variants from associated items. Variants
+come first (with trailing comma on the last one), then ~namespace:~ introduces
+methods and constants. The parser knows: before ~namespace:~ = variants,
+after = associated items. No ambiguity.
+
+** Instantiation
+#+BEGIN_SRC til
+c := Color.Red
+Color.default()           // Color.Red
+c.is_warm()               // via UFCS
+
+s := Shape.Circle(radius=5)
+Shape.unit_circle()
+#+END_SRC
+
+** Passing enum types as arguments
+#+BEGIN_SRC til
+// A function that works with any enum?
+print_variants : func(E: enum) = {
+    // iterate over variants?
+}
+#+END_SRC
+
+Open question: what can you DO with a generic enum? Iterate variants?
+This is really reflection/metaprogramming territory.
+
+** Anonymous enums
+#+BEGIN_SRC til
+// Inline enum type
+result : enum { Ok(val: I64), Err(msg: Str) } = Ok(val=42)
+#+END_SRC
+
+Open question: anonymous enums are basically sum types / tagged unions.
+Useful for one-off return types. TypeScript does this with union types
+(~number | string~). Rust doesn't have anonymous enums but has ~Result<T, E>~.
+
+** Returning enums from functions
+#+BEGIN_SRC til
+// Macro that generates an enum (with methods!)
+make_result : macro(T: Type, E: Type) returns Type = {
+    return enum {
+        Ok(val: T),
+        Err(err: E),
+
+    namespace:
+        ok : func(v: T) returns MyResult = { return MyResult.Ok(val=v) }
+    }
+}
+MyResult := make_result(I64, Str)
+#+END_SRC
+
+** Comparison
+
+| Language   | Enum with data              | Anonymous sum types?        |
+|------------+-----------------------------+-----------------------------|
+| Rust       | ~enum Shape { Circle(f64) }~ | No                         |
+| Swift      | ~enum Shape { case circle(Double) }~ | No                  |
+| TypeScript | N/A (union types instead)   | Yes: ~number \vert string~ |
+| Haskell    | ~data Shape = Circle Double~ | No (but easy to define)    |
+| Zig        | ~const E = union(enum) { }~ | No                         |
+| TIL        | ~enum { Circle(radius: I64) }~ | Not yet                  |
+
+* Reunified Namespaces
+
+** Decision: ~namespace:~ keyword inside type bodies
+
+Previously, namespaces were separate blocks (#108):
+#+BEGIN_SRC til
+// OLD: separate namespace block
+Point := struct { mut x: I64 = 0, mut y: I64 = 0 }
+Point := namespace {
+    origin := func() returns Point { return Point() }
+}
+#+END_SRC
+
+New approach: ~namespace:~ is a keyword inside the struct/enum body, like
+~protected:~ or ~private:~ in C++. Everything before it is data layout,
+everything after is associated items. Indented at the same level as the
+opening brace (one level less than the fields), for visual separation:
+
+#+BEGIN_SRC til
+// NEW: namespace: keyword inside the type body
+Point : struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+
+namespace:
+    origin : func() returns Point = { return Point() }
+    add : func(self: Point, other: Point) returns Point = {
+        return Point(x=self.x.add(other.x), y=self.y.add(other.y))
+    }
+}
+#+END_SRC
+
+** Why reunify
+
+1. *Macros return complete types*: A macro returning a struct includes its
+   methods. No need to return struct + namespace separately.
+
+2. *Single declaration*: No more two declarations for the same name
+   (~Point := struct~ then ~Point := namespace~).
+
+3. *Works for both structs and enums*: Same ~namespace:~ keyword in both.
+
+4. *Parsing is unambiguous*: For enums, variants come before ~namespace:~,
+   associated items come after. The trailing comma on the last variant
+   makes the boundary clean.
+
+** What goes where
+
+| Location         | What it means                              | Syntax                              |
+|------------------+--------------------------------------------+-------------------------------------|
+| Before namespace | Per-instance field (mutable)               | ~mut x : I64 = 0~                  |
+| After namespace  | Constant (shared, immutable)               | ~PI := 3~                          |
+| After namespace  | Function/method                            | ~add : func(...) = { ... }~        |
+| After namespace  | Static mutable (shared across instances)   | ~static mut counter : I64 = 0~     |
+
+The old rule still holds: ~mut~ = per-instance, non-~mut~ after ~namespace:~
+= type-level. The ~static~ keyword is only needed for the rare case of
+shared mutable state.
+
+** Mutable function fields vs mutable associated functions
+
+With first-class functions (#91), ~mut~ function fields become interesting:
+
+#+BEGIN_SRC til
+Widget : struct {
+    // Per-instance: each Widget can have a DIFFERENT on_click
+    mut on_click : func(self: Widget) returns I64
+
+namespace:
+    // Shared: ALL Widgets use the same default_handler, but it can be
+    // reassigned dynamically to change behavior for the whole type
+    static mut default_handler : func(self: Widget) returns I64 = {
+        return 0
+    }
+
+    // Immutable associated function (normal method)
+    render : func(self: Widget) = {
+        // ...
+    }
+}
+
+// Per-instance dispatch:
+w1 := Widget(on_click=handler_a)
+w2 := Widget(on_click=handler_b)
+w1.on_click()  // calls handler_a via UFCS
+w2.on_click()  // calls handler_b via UFCS
+
+// Dynamic type-level dispatch:
+Widget.default_handler = new_handler  // changes for ALL widgets
+#+END_SRC
+
+Combined with UFCS, this gives three levels of dispatch:
+1. *Static method* (immutable, in namespace): same function, forever
+2. *Static mut method* (mutable, in namespace): same for all instances, but swappable
+3. *Instance field* (mut func field): different per instance
+
+** Standalone namespaces (utility modules)
+
+For namespaces not attached to a type, just use a struct with only a
+~namespace:~ section:
+
+#+BEGIN_SRC til
+Math : struct {
+namespace:
+    PI := 3
+    E := 2
+    add : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+}
+
+Math.PI       // 3
+Math.add(3,5) // 8
+#+END_SRC
+
+This works because a struct with no fields has zero size and no instances.
+It's just a bag of associated items -- which is exactly what a namespace is.
+
+** Issue #161 revisited
+
+With ~namespace:~ and ~static~, the #161 use cases are covered:
+
+| #161 Feature                    | Solution                              |
+|---------------------------------+---------------------------------------|
+| Associated constants            | After ~namespace:~: ~PI := 3~         |
+| Associated mutable (static)     | ~static mut counter := 0~             |
+| Per-instance immutable (frozen) | Not needed (use private + convention)  |
+| Per-instance mutable            | Before ~namespace:~: ~mut x := 0~     |
+
+The "immutable after construction" feature from #161 is deferred. If needed
+later, a ~private~ keyword or similar access control can enforce it without
+new field semantics.
+
+** Keyword name: open for discussion
+
+Using ~namespace:~ for now since we are literally moving the existing
+~namespace~ block contents inside the type body. But the name is not final.
+
+Alternatives considered:
+
+| Keyword       | Pros                                   | Cons                            |
+|---------------+----------------------------------------+---------------------------------|
+| ~namespace:~  | Familiar from current TIL, clear       | Long (10 chars)                 |
+| ~associated:~ | Precise (Swift uses "associated")      | Even longer (11 chars)          |
+| ~impl:~       | Short, Rust users know it              | Rust-specific jargon            |
+| ~methods:~    | Clear intent                           | Excludes constants              |
+| ~static:~     | Well-known from many languages         | Conflicts with ~static mut~     |
+| ~meta:~       | Short, suggests "about the type"       | Vague, overloaded term          |
+| ~type:~       | Short, clear ("type-level stuff")      | Overloaded (type declarations)  |
+| ~class:~      | Familiar from OOP languages            | TIL is not OOP                  |
+
+No decision yet. ~namespace:~ works for now.
+
+* Unified Pattern Summary
+
+| Construct  | Type declaration               | Definition (type = value)              |
+|------------+--------------------------------+----------------------------------------|
+| Variable   | ~x : I64~                      | ~x : I64 = 5~ or ~x := 5~             |
+| Function   | ~F : func(I64) returns I64~    | ~f : func(I64) returns I64 = { ... }~  |
+| Struct     | ~S : struct { ... }~           | (struct decl IS the definition)        |
+| Enum       | ~E : enum { ... }~             | (enum decl IS the definition)          |
+
+Namespaces are no longer a separate construct. They live inside structs and
+enums via the ~namespace:~ keyword. Standalone "namespaces" are just structs
+with only associated items.
+
+* Decided: Type Parameters
+
+Two-phase plan:
+
+*Phase now*: ~func(T: Type)~ -- no new syntax needed. ~Type~ is already a
+special parameter type. Macros already handle the template use case by
+executing arbitrary code at compile time (like Jai's compile-time execution system, Zig's comptime).
+
+#+BEGIN_SRC til
+// Already works: Type as a regular parameter
+swap : func(T: Type, mut a: T, mut b: T) = { ... }
+swap(I64, x, y)
+
+Pair : macro(A: Type, B: Type) returns Type = {
+    return struct { mut first: A, mut second: B }
+}
+IntStr := Pair(I64, Str)
+#+END_SRC
+
+*Phase later*: ~func<T>()~ as sugar that desugars to macro calls using
+Option A. Use ~<>~ for familiarity (Rust, C++, Java) and to avoid conflicts
+with ~[]~ (captures, arrays).
+
+#+BEGIN_SRC til
+// Sugar (later):
+swap<T> : func(mut a: T, mut b: T) = { ... }
+swap(x, y)       // T inferred
+swap<I64>(x, y)  // T explicit
+
+// Desugars to:
+swap : func(T: Type, mut a: T, mut b: T) = { ... }
+swap(I64, x, y)
+#+END_SRC
+
+The key insight: once first-class types, functions, closures, etc. are all
+implemented, macros become powerful enough that ~<T>~ generics are just
+syntactic sugar over compile-time macro execution.
+
+* Open Questions
+
+1. *~namespace:~ keyword name*: See alternatives table in the namespace
+   section. Open for bikeshedding.
