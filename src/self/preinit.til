@@ -485,17 +485,8 @@ preinit_expr_inner := func(e: Expr) returns Expr throws Str {
 
             switch value_expr.node_type {
             case NodeType.EnumDef(enum_def):
-                mut has_delete := false
-                mut dummy_del := Expr()
-                enum_def.methods.get("delete", dummy_del)?
-                has_delete = true
-                catch (err: KeyNotFoundError) {}
-
-                mut has_clone := false
-                mut dummy_cln := Expr()
-                enum_def.methods.get("clone", dummy_cln)?
-                has_clone = true
-                catch (err: KeyNotFoundError) {}
+                has_delete := enum_def.methods.contains_key("delete")
+                has_clone := enum_def.methods.contains_key("clone")
 
                 if not(has_delete).or(not(has_clone)) {
                     mut new_methods := enum_def.methods.clone()
