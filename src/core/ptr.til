@@ -10,9 +10,8 @@ Ptr := struct {
     mut alloc_size: I64 = 0   // Total bytes allocated
     mut elem_type: I64 = NULL // Ptr to null-terminated type name C string (avoids Str circular dep)
     mut elem_size: I64 = 0    // Bytes per element (0 = single value, not array)
-}
 
-namespace Ptr {
+namespace:
     new_by_size := proc(size: I64) returns Ptr {
         if size.lteq(0) {
             panic(loc(), "Ptr.new_by_size: invalid size")

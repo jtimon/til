@@ -7,9 +7,8 @@ mode lib
 I64Range := struct {
     mut start: I64 = 0
     mut end: I64 = 0
-}
 
-namespace I64Range {
+namespace:
     // Required by collection interface
     size := func(_self: I64Range) returns I64 {
         return 16  // Two I64 fields (8 bytes each)

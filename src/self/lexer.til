@@ -64,9 +64,8 @@ Token := struct {
     mut token_str: Str = ""
     mut line: I64 = 0
     mut col: I64 = 0
-}
 
-namespace Token {
+namespace:
     lang_error := func(self: Token, path: Str, msg: Str) returns Str {
         return path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str())
             .concat(": ").concat(LANG_NAME).concat(" parse ERROR: ").concat(msg).concat("\n")
@@ -99,9 +98,8 @@ Lexer := struct {
     mut path: Str = ""
     mut tokens: Vec = Vec.new(Token)
     mut current: I64 = 0
-}
 
-namespace Lexer {
+namespace:
     new := proc(source: Str) returns Lexer throws Str {
         mut l := Lexer()
         l.path = "<test>"

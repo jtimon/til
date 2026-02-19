@@ -4,9 +4,8 @@ mode script
 
 Foo := struct {
     mut x: I64 = 0
-}
 
-namespace Foo {
+namespace:
     get_x := func(self: Foo) returns I64 {
         return self.x
     }

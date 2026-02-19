@@ -16,9 +16,8 @@ Pos := struct {
 Cell := struct {
     CHAR_WIDTH  := 8  // Character width (pixels)
     LINE_HEIGHT := 16 // Character height (pixels)
-}
 
-namespace Cell {
+namespace:
     add := func(mut p: Pos, axis: Str) {
         if axis == "x" {
             p.x = p.x.add(Cell.CHAR_WIDTH)

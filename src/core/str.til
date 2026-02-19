@@ -11,9 +11,8 @@ Str := struct {
     mut c_string : Ptr = Ptr()  // Pointer to null-terminated C string
     mut _len     : I64 = 0      // Length of string (not including null terminator)
     mut cap      : I64 = 0      // Allocated capacity (0 = literal/unowned, >0 = owned)
-}
 
-namespace Str {
+namespace:
     len := func(self: Str) returns I64 {
         return self._len
     }

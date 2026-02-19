@@ -20,9 +20,8 @@ eval_file       := ext_proc(args: ..Str) {}
 
 Introspection := struct {
     // No mutable fields - this is purely a namespace
-}
 
-namespace Introspection {
+namespace:
     // Check if a type has a specific const (immutable field)
     // This includes associated functions like clone, len, size, etc.
     // Returns true if the const exists, false otherwise

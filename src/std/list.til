@@ -14,9 +14,8 @@ List := struct {
     mut cap  : I64 = 0      // Allocated capacity in bytes for data buffer
     mut type_names : Vec = Vec()  // Vec<Str> - type name per element
     mut type_sizes : Vec = Vec()  // Vec<I64> - size per element
-}
 
-namespace List {
+namespace:
     /** Get number of elements in list. */
     len := func(self: List) returns I64 {
         return self._len

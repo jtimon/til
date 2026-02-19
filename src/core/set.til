@@ -5,9 +5,8 @@ mode lib
 Set := struct {
     mut elements: Vec = Vec()         // Dynamic array of elements
     mut _size: I64 = 0                // Number of elements (internal, use len() to access)
-}
 
-namespace Set {
+namespace:
     /**
      * Create new empty set with specified element type
      * Example: Set.new(Str)

@@ -112,9 +112,8 @@ another_func := proc() throws ErrorUndeclaredInFunc { // REM proc so precomp doe
 }
 
 SomeStruct := struct {
-}
 
-namespace SomeStruct {
+namespace:
     some_method := func(_self: SomeStruct) throws ErrorUndeclaredInFunc {
         throw ErrorUndeclaredInFunc() // FIXED: the compiler now correctly tells us this error must be declared!
     }
@@ -231,7 +230,7 @@ test_rethrow_error_field := proc() {
         error_msg = err
     }
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/array.til:45:52:Array.get_by_ref: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:44:52:Array.get_by_ref: index out of bounds", error_msg)
 }
 test_rethrow_error_field()
 
@@ -261,7 +260,7 @@ test_rethrow_error_field_via_assign := proc() {
         error_msg = err
     }
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/array.til:45:52:Array.get_by_ref: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:44:52:Array.get_by_ref: index out of bounds", error_msg)
 }
 test_rethrow_error_field_via_assign()
 

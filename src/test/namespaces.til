@@ -5,9 +5,8 @@ MyNamespace := struct {
     field_static_str : Str = "hello MyNamespace.field_static_str"
     field_static_bool : Bool = true
     field_static_int : I64 = 42
-}
 
-namespace MyNamespace {
+namespace:
     proc_static := proc() {
         // Side effects (non memoizable effects) are allowed in procs
         assert_eq(loc(), 42, MyNamespace.field_static_int)

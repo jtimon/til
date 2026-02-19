@@ -43,9 +43,8 @@ VecContents := struct {
     mut element_type_name: Str = ""
     mut type_size: I64 = 0
     mut element_bytes: Vec = Vec.new(Vec)  // Vec of Vec<U8>
-}
 
-namespace VecContents {
+namespace:
     clone := func(self: VecContents) returns VecContents {
         return VecContents(element_type_name=self.element_type_name.clone(), type_size=self.type_size, element_bytes=self.element_bytes.clone())
     }
@@ -57,9 +56,8 @@ EvalHeap := struct {
     mut _heap_bases: Vec = Vec.new(I64)  // heap block base ptrs
     mut _heap_sizes: Vec = Vec.new(I64)  // heap block sizes
     mut total_heap_bytes: I64 = 0  // running total of heap bytes allocated
-}
 
-namespace EvalHeap {
+namespace:
     new := proc() returns EvalHeap {
         mut a := EvalHeap()
         return a

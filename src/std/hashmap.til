@@ -30,9 +30,8 @@ HashMap := struct {
     mut nexts: Vec = Vec()          // nexts[i] = next entry index in chain, -1 if end
     mut _size: I64 = 0              // Number of entries
     mut _num_buckets: I64 = 0       // Number of hash buckets (power of 2)
-}
 
-namespace HashMap {
+namespace:
     /** Create new empty HashMap with specified key and value types.
      *  Example: HashMap.new(Str, I64) */
     new := proc(KeyType: Type, ValueType: Type) returns HashMap {

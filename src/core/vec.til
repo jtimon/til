@@ -16,9 +16,8 @@ Vec := struct {
 
     INIT_CAP : I64 = 0
     MAX_CAP  : I64 = 1073741824  // 1G elements - safety cap
-}
 
-namespace Vec {
+namespace:
 
     /** Get number of elements in vec. */
     len := func(self: Vec) returns I64 {

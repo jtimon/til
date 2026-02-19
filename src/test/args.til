@@ -7,9 +7,8 @@ import("core.vec")
 Vec2 := struct {
     mut x : I64 = 0
     mut y : I64 = 0
-}
 
-namespace Vec2 {
+namespace:
     clone := func(self: Vec2) returns Vec2 {
         return Vec2(x=self.x, y=self.y)
     }
@@ -260,9 +259,8 @@ test_mut_array()
 Point := struct {
     mut x : I64 = 0
     mut y : I64 = 0
-}
 
-namespace Point {
+namespace:
     clone := func(self: Point) returns Point {
         return Point(x=self.x, y=self.y)
     }
@@ -271,9 +269,8 @@ namespace Point {
 Line := struct {
     mut start : Point = Point()
     mut end   : Point = Point()
-}
 
-namespace Line {
+namespace:
     clone := func(self: Line) returns Line {
         return Line(start=self.start.clone(), end=self.end.clone())
     }

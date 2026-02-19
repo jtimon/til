@@ -82,9 +82,8 @@ EmptyStruct := struct {} // NOTE: empty struct instantiations are allowed
 Vec2 := struct {
     mut x : I64 = 0
     mut y : I64 = 0
-}
 
-namespace Vec2 {
+namespace:
     add_all_coordinates := func(self: Vec2) returns I64 {
         return self.x.add(self.y)
     }
@@ -242,9 +241,8 @@ test_struct_member_types()
 // and can be called either as Type.function(instance) or instance.function()
 TestAssociatedFunctions := struct {
     mut value: I64 = 0
-}
 
-namespace TestAssociatedFunctions {
+namespace:
     // Using "self" as parameter name (conventional)
     get_value_self := func(self: TestAssociatedFunctions) returns I64 {
         return self.value

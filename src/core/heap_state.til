@@ -11,9 +11,9 @@ HeapEntry := struct {
 mut g_entries := Vec()
 mut g_enabled := false
 
-HeapState := struct {}
+HeapState := struct {
 
-namespace HeapState {
+namespace:
 
     enable := proc() {
         g_entries = Vec.new(HeapEntry)

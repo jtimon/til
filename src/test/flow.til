@@ -305,9 +305,8 @@ test_break_after_statements()
 Point136 := struct {
     mut x: I64 = 0
     mut y: I64 = 0
-}
 
-namespace Point136 {
+namespace:
     eq := func(a: Point136, b: Point136) returns Bool {
         return a.x.eq(b.x).and(a.y.eq(b.y))
     }

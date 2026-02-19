@@ -51,9 +51,8 @@ EvalResult := struct {
     mut is_continue: Bool = false
     mut thrown_type: Str = ""  // Empty string = None
     mut heap_offset: I64 = 0  // 0 means None (heap offset 0 is reserved for null)
-}
 
-namespace EvalResult {
+namespace:
     new := func(value: Str) returns EvalResult {
         return EvalResult(value=value)
     }

@@ -5,9 +5,8 @@ import("core.bounds")
 /** Bool - Boolean type backed by U8. */
 Bool := struct {
     mut data: U8 = 0
-}
 
-namespace Bool {
+namespace:
     len := func(_self: Bool) returns I64 {
         return 1
     }

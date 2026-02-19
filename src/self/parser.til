@@ -37,9 +37,8 @@ restore_loop_var_counter := func(saved: I64) returns I64 {
 EnumVariant := struct {
     mut name: Str = ""
     mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None (no payload)
-}
 
-namespace EnumVariant {
+namespace:
     clone := func(self: EnumVariant) returns EnumVariant {
         mut result := EnumVariant()
         result.name = self.name.clone()
@@ -56,9 +55,8 @@ namespace EnumVariant {
 SEnumDef := struct {
     mut variants: Vec = Vec.new(EnumVariant)
     mut methods: Map = Map.new(Str, Expr)  // Auto-generated methods (delete, clone)
-}
 
-namespace SEnumDef {
+namespace:
     clone := func(self: SEnumDef) returns SEnumDef {
         mut result := SEnumDef()
         // Deep clone: iterate and clone each element
@@ -105,9 +103,8 @@ Declaration := struct {
     mut is_copy: Bool = false
     mut is_own: Bool = false
     mut default_value: Ptr = Ptr()  // Ptr to Expr, NULL = None (for optional function arguments)
-}
 
-namespace Declaration {
+namespace:
     clone := func(self: Declaration) returns Declaration {
         mut result := Declaration()
         result.name = self.name.clone()
@@ -151,9 +148,8 @@ SFuncDef := struct {
     mut throw_types: Vec = Vec.new(ValueType)   // "throws" conflicts with TIL keyword
     mut body: Vec = Vec.new(Expr)
     mut source_path: Str = ""  // Path to the file where this function was defined
-}
 
-namespace SFuncDef {
+namespace:
     clone := func(self: SFuncDef) returns SFuncDef {
         mut result := SFuncDef()
         result.function_type = self.function_type
@@ -215,9 +211,8 @@ namespace SFuncDef {
 SStructDef := struct {
     mut members: Vec = Vec.new(Declaration)
     mut default_values: Map = Map.new(Str, Expr)
-}
 
-namespace SStructDef {
+namespace:
     clone := func(self: SStructDef) returns SStructDef {
         mut result := SStructDef()
         // Deep clone members
@@ -265,9 +260,8 @@ SNamespaceDef := struct {
     mut type_name: Str = ""
     mut members: Vec = Vec.new(Declaration)
     mut default_values: Map = Map.new(Str, Expr)
-}
 
-namespace SNamespaceDef {
+namespace:
     clone := func(self: SNamespaceDef) returns SNamespaceDef {
         mut result := SNamespaceDef()
         result.type_name = self.type_name.clone()
@@ -387,9 +381,8 @@ Expr := struct {
     mut params: Vec = Vec.new(Expr)
     mut line: I64 = 0
     mut col: I64 = 0
-}
 
-namespace Expr {
+namespace:
     new_parse := func(node_type: NodeType, token: Token, params: Vec) returns Expr {
         return Expr(node_type=node_type, params=params, line=token.line, col=token.col)
     }

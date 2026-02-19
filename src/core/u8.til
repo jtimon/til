@@ -17,9 +17,8 @@ U8 := struct {
     // TODO FIX can't use itself as base data, can it?
     // TODO This is the base of data storage, not I64
     // mut data: I8 = 0
-}
 
-namespace U8 {
+namespace:
     len := func(_self: U8) returns I64 {
         return 1
     }

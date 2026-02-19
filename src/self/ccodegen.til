@@ -74,9 +74,8 @@ CodegenContext := struct {
     mut precomputed_static_arrays: Map = Map.new(Str, PrecomputedStaticInfo)
     // Bug #168: variable name aliased to _ret for placement construction
     mut ret_var_alias: Str = ""
-}
 
-namespace CodegenContext {
+namespace:
     new := func() returns CodegenContext {
         return CodegenContext()
     }

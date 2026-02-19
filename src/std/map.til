@@ -39,9 +39,8 @@ Map := struct {
     mut keys: Vec = Vec()         // Dynamic array of keys (sorted)
     mut values: Vec = Vec()       // Dynamic array of values (parallel)
     mut _size: I64 = 0                // Number of entries (internal, use len() to access)
-}
 
-namespace Map {
+namespace:
     /** Create new empty map with specified key and value types.
      *  Example: Map.new(Str, I64) */
     new := proc(KeyType: Type, ValueType: Type) returns Map {
