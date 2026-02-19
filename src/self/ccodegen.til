@@ -3940,9 +3940,8 @@ emit_enum_method_prototypes := proc(expr: Expr, context: Context, mut output: St
             case NodeType.EnumDef(enum_def):
                 enum_name := til_name(decl.name)
                 for method_name: Str in enum_def.methods.keys {
-                    mut method_expr := Expr()
-                    enum_def.methods.get(method_name, method_expr)?
-                    catch (err: KeyNotFoundError) {}
+                    m_ref := enum_def.methods.get_by_ref(method_name)?
+                    create_alias(method_expr, Expr, m_ref.data)
                     switch method_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         mangled_name := enum_name.concat("_").concat(method_name)
@@ -3950,6 +3949,7 @@ emit_enum_method_prototypes := proc(expr: Expr, context: Context, mut output: St
                         output.push_str(";\n")
                     case:
                     }
+                    catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
                 }
                 return
             case:
@@ -3971,9 +3971,8 @@ emit_enum_method_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
             case NodeType.EnumDef(enum_def):
                 enum_name := til_name(decl.name)
                 for method_name: Str in enum_def.methods.keys {
-                    mut method_expr := Expr()
-                    enum_def.methods.get(method_name, method_expr)?
-                    catch (err: KeyNotFoundError) {}
+                    m_ref := enum_def.methods.get_by_ref(method_name)?
+                    create_alias(method_expr, Expr, m_ref.data)
                     switch method_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         // Create a fake Declaration for emit_struct_func_body
@@ -3988,6 +3987,7 @@ emit_enum_method_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
                         emit_struct_func_body(enum_name, method_decl, func_def, output, ctx, context)?
                     case:
                     }
+                    catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
                 }
                 return
             case:
