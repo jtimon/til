@@ -2068,10 +2068,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 for ref_caller_frame: ScopeFrame in context.scope_stack.frames {
                                     for ref_skey: Str in ref_caller_frame.symbols.keys {
                                         if ref_skey.starts_with(ref_prefix) {
-                                            mut ref_svalue := SymbolInfo()
-                                            ref_caller_frame.symbols.get(ref_skey, ref_svalue)?
+                                            ref_svalue_ref := ref_caller_frame.symbols.get_by_ref(ref_skey)?
+                                            create_alias(ref_svalue, SymbolInfo, ref_svalue_ref.data)
                                             ref_new_skey := ref_skey.replacen(ref_prefix, ref_replacement_prefix, 1)
-                                            ref_field_symbols_to_copy.push(SymbolEntry(name=ref_new_skey, info=ref_svalue.clone()))
+                                            // TODO Bug #176: UFCS workaround for create_alias
+                                            ref_field_symbols_to_copy.push(SymbolEntry(name=ref_new_skey, info=SymbolInfo.clone(ref_svalue)))
                                         }
                                     }
                                 }

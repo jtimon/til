@@ -62,8 +62,8 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
     // Process fields in reverse order (like C++/Rust destructors)
     mut member_i := struct_def.members.len().sub(1)
     while member_i.gteq(0) {
-        mut member := Declaration()
-        struct_def.members.get(member_i, member)?
+        member_ref := struct_def.members.get_by_ref(member_i)?
+        create_alias(member, Declaration, member_ref.data)
         catch (err: IndexOutOfBoundsError) { }
 
         // Skip non-mut fields and primitive types

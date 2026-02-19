@@ -296,9 +296,10 @@ find_enum_for_variant := func(context: Context, variant_name: Str) returns Str t
         frame_ref := context.scope_stack.frames.get_by_ref(frame_i)?
         create_alias(frame, ScopeFrame, frame_ref.data)
         for enum_name: Str in frame.enums.keys {
-            mut enum_def := SEnumDef()
-            frame.enums.get(enum_name, enum_def)?
-            if enum_def.contains_key(variant_name) {
+            enum_def_ref := frame.enums.get_by_ref(enum_name)?
+            create_alias(enum_def, SEnumDef, enum_def_ref.data)
+            // TODO Bug #176: UFCS workaround for create_alias
+            if SEnumDef.contains_key(enum_def, variant_name) {
                 if found_type.len().eq(0) {
                     found_type = enum_name
                 }
@@ -1316,8 +1317,8 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
         if is_enum {
             // Build proper enum constructor: EnumType.FirstVariant or EnumType.FirstVariant(payload)
             if enum_def.variants.len().gt(0) {
-                mut first_v := EnumVariant()
-                enum_def.variants.get(0, first_v)?
+                first_v_ref := enum_def.variants.get_by_ref(0)?
+                create_alias(first_v, EnumVariant, first_v_ref.data)
                 first_variant := first_v.name
                 payload_type_ptr := first_v.payload_type
                 catch (err: IndexOutOfBoundsError) {

@@ -349,8 +349,8 @@ namespace:
         // Store each field's default value
         for decl: Declaration in struct_def.members {
             if decl.is_mut {
-                mut field_offset := 0
-                field_offsets.get(decl.name, field_offset)?
+                field_offset_ref := field_offsets.get_by_ref(decl.name)?
+                create_alias(field_offset, I64, field_offset_ref.data)
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Missing field offset for '", decl.name, "'"))
                 }
@@ -375,9 +375,10 @@ namespace:
                         if not(parts.len().eq(2)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
-                        mut part0 := ""
-                        parts.get(0, part0)?
-                        if not(part0.eq(type_name)) {
+                        part0_ref := parts.get_by_ref(0)?
+                        create_alias(part0, Str, part0_ref.data)
+                        // TODO Bug #176: UFCS workaround for create_alias
+                        if not(Str.eq(part0, type_name)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
                         variant_ref := parts.get_by_ref(1)?
@@ -387,9 +388,10 @@ namespace:
                         mut found_variant := false
                         mut vi := 0
                         while vi.lt(enum_def.variants.len()) {
-                            mut ev := EnumVariant()
-                            enum_def.variants.get(vi, ev)?
-                            if ev.name.eq(variant) {
+                            ev_ref := enum_def.variants.get_by_ref(vi)?
+                            create_alias(ev, EnumVariant, ev_ref.data)
+                            // TODO Bug #176: UFCS workaround for create_alias
+                            if Str.eq(ev.name, variant) {
                                 index = vi
                                 found_variant = true
                             }
@@ -444,8 +446,8 @@ namespace:
                                     for dk: Str in default_keys {
                                         if dk.starts_with(prefix) {
                                             rest := dk.strip_prefix(prefix)
-                                            mut dv := ""
-                                            defaults.get(dk, dv)?
+                                            dv_ref := defaults.get_by_ref(dk)?
+                                            create_alias(dv, Str, dv_ref.data)
                                             catch (err: KeyNotFoundError) {
                                                 panic(loc(), "insert_struct_core: key not found in defaults")
                                             }
