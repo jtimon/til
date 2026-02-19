@@ -394,19 +394,10 @@ generate_struct_methods := func(struct_name: Str, struct_def: SStructDef, line: 
             has_clone = true
         }
     }
-    mut has_delete_dv := false
-    mut _dv := Expr()
-    struct_def.default_values.get("delete", _dv)?
-    has_delete_dv = true
-    catch (_err: KeyNotFoundError) {}
-    if has_delete_dv {
+    if struct_def.default_values.contains_key("delete") {
         has_delete = true
     }
-    mut has_clone_dv := false
-    struct_def.default_values.get("clone", _dv)?
-    has_clone_dv = true
-    catch (_err: KeyNotFoundError) {}
-    if has_clone_dv {
+    if struct_def.default_values.contains_key("clone") {
         has_clone = true
     }
 
