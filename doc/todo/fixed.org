@@ -4707,6 +4707,113 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #174: Replace separate namespace blocks with ~namespace:~ keyword inside type bodies
+:PROPERTIES:
+:DISCOVERED: 2026-02-19
+:IMPLEMENTED: 2026-02-19
+:IMPACT: Syntax unification, macro-friendly type definitions, path to first-class everything
+:STATUS: Implemented
+:RELATED: Issue #108 (namespace blocks - implemented), Issue #161 (namespace constants/statics), Issue #91 (first-class functions), doc/first_class.org
+:END:
+
+*** Background
+
+Issue #108 moved associated functions from inside struct bodies to separate
+~namespace TypeName { ... }~ blocks. This enabled enum methods (enums can't
+mix variants with function declarations) and avoided ambiguity between storage
+fields and associated functions.
+
+However, separate namespace blocks create problems:
+1. *Two declarations for one type*: ~Point := struct { ... }~ then
+   ~Point := namespace { ... }~. Unusual and disconnected.
+2. *Macros can't return complete types*: A macro returning a struct can't
+   include its methods. Would need to return struct + namespace separately.
+3. *First-class types*: If types are values that can be passed and returned,
+   they should be self-contained.
+
+*** Solution: ~namespace:~ keyword inside type bodies
+
+Move the namespace content inside the struct/enum body, using ~namespace:~
+as a section separator (like ~protected:~/~private:~ in C++):
+
+#+BEGIN_SRC til
+Point := struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+
+namespace:
+    origin := func() returns Point { return Point() }
+    add := func(self: Point, other: Point) returns Point {
+        return Point(x=self.x.add(other.x), y=self.y.add(other.y))
+    }
+}
+
+Color := enum {
+    Red,
+    Green,
+    Blue,
+
+namespace:
+    default := func() returns Color { return Color.Red }
+    to_str := func(c: Color) returns Str {
+        switch c {
+            Color.Red   => return "red"
+            Color.Green => return "green"
+            Color.Blue  => return "blue"
+        }
+    }
+}
+#+END_SRC
+
+*** What was done
+
+Used Option B: the parser packs namespace member Exprs into the StructDef/
+EnumDef params Vec, then a ~split_inline_namespaces~ post-parse pass extracts
+them into synthetic NamespaceDef nodes. No new fields on SStructDef/SEnumDef
+(zero extra memory). Init, typer, ccodegen unchanged -- they still see the
+same NamespaceDef nodes as before.
+
+**** Commit ~8e25ff25~: Add inline ~namespace:~ syntax
+
+- *Parser*: Modified ~parse_struct_definition~ and ~enum_definition~ to
+  recognize ~namespace:~ and parse declarations after it. Updated
+  ~split_inline_namespaces~ to extract namespace members from both
+  StructDef and EnumDef into synthetic NamespaceDef AST nodes.
+- *Init*: NamespaceDef handler only supported structs (had a TODO).
+  Added ~lookup_enum~ fallback so enum namespaces work. Also added
+  method fallback in TEnumDef variant resolution (when ~Color.method()~
+  is called, the init phase resolves ~Color~ as TEnumDef which only
+  checked variants -- now falls back to namespace methods).
+- Files: parser.rs, parser.til, init.rs, init.til
+- All 89/89 tests pass.
+
+**** Commit ~f5a26608~: Migrate all 48 namespace blocks
+
+- Migrated all 48 ~namespace TypeName { ... }~ blocks across 33 files
+  to inline ~namespace:~ syntax.
+- Files: src/core/*.til (10), src/std/*.til (5), src/self/*.til (6),
+  src/test/*.til (12), src/examples/hello_gui.til.
+- Fixed one line-number assertion in errors.til (shifted by migration).
+- All 93/93 tests pass.
+
+**** Commit ~264775af~: Remove old namespace block syntax
+
+- Removed ~parse_namespace_definition~ from parser.rs and parser.til.
+- Replaced call sites with error messages: "Separate namespace blocks are
+  no longer supported. Use inline namespace: inside struct/enum bodies."
+- Kept SNamespaceDef as internal AST node (still used by
+  ~split_inline_namespaces~).
+- All 93/93 tests pass.
+
+*** Notes
+
+- The ~namespace:~ keyword name is provisional. See doc/first_class.org for
+  alternatives (~associated:~, ~impl:~, ~methods:~, etc.).
+- #108 was not wasted work -- it enabled enum methods, and the init merging
+  logic carries over directly. This issue just changed the syntax surface.
+- Related to #161 which adds ~static mut~ and constants after ~namespace:~.
+  That work builds on top of this issue.
+
 ** Issue #163: Replace arena allocator with heap allocation (malloc/free)
 :PROPERTIES:
 :DISCOVERED: 2026-02-09
