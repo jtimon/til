@@ -1509,15 +1509,13 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     }
 
                     if found_match {
-                        // Remove matching entries
-                        mut ri := 0
-                        while ri.lt(thrown_types.len()) {
-                            mut te_remove := ThrownType()
-                            thrown_types.get(ri, te_remove)?
-                            if te_remove.type_str.eq(caught_type) {
+                        // Remove matching entries (reverse to avoid index shift issues)
+                        for ri in thrown_types.len().sub(1)..sub(0, 1) {
+                            te_remove_ref := thrown_types.get_by_ref(ri)?
+                            create_alias(te_remove, ThrownType, te_remove_ref.data)
+                            // TODO Bug #176: UFCS workaround for create_alias
+                            if Str.eq(te_remove.type_str, caught_type) {
                                 thrown_types.remove(ri)?
-                            } else {
-                                ri.inc()
                             }
                         }
                     } else {

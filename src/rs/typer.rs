@@ -1172,13 +1172,10 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         }
                     }
                     if found_match {
-                        // Remove matching entries
-                        let mut i = 0;
-                        while i < thrown_types.len() {
+                        // Remove matching entries (reverse to avoid index shift issues)
+                        for i in (0..thrown_types.len()).rev() {
                             if thrown_types[i].type_str == caught_type {
                                 thrown_types.remove(i);
-                            } else {
-                                i += 1;
                             }
                         }
                     } else {
