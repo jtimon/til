@@ -1322,7 +1322,7 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
                 first_variant := first_v.name
                 payload_type_ptr := first_v.payload_type
                 catch (err: IndexOutOfBoundsError) {
-                    // Shouldn't happen since we checked len > 0
+                    panic(loc(), "variants.get_by_ref(0): len > 0 checked: ", err.msg)
                 }
                 mut variant_id_params := Vec.new(Expr)
                 variant_id_params.push(make_id(first_variant, line, col))

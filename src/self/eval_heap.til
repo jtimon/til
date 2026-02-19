@@ -539,9 +539,13 @@ namespace:
         for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_rel_offset := 0
-                field_offsets.get(decl.name, field_rel_offset)?
+                if field_offsets.contains_key(decl.name) {
+                    fro_ref := field_offsets.get_by_ref(decl.name)?
+                    create_alias(fro, I64, fro_ref.data)
+                    field_rel_offset = fro
+                }
                 catch (err: KeyNotFoundError) {
-                    field_rel_offset = 0
+                    panic(loc(), "field_offsets: guarded by contains_key: ", err.msg)
                 }
                 field_abs_offset := add(base_offset, field_rel_offset)
                 combined_name := format(id, ".", decl.name)

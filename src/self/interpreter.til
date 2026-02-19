@@ -2210,11 +2210,14 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         for pbr_caller_frame: ScopeFrame in context.scope_stack.frames {
                                             for pbr_skey: Str in pbr_caller_frame.symbols.keys {
                                                 if pbr_skey.starts_with(pbr_prefix) {
-                                                    mut pbr_svalue := SymbolInfo()
-                                                    pbr_caller_frame.symbols.get(pbr_skey, pbr_svalue)?
-                                                    catch (err: KeyNotFoundError) { }
+                                                    pbr_svalue_ref := pbr_caller_frame.symbols.get_by_ref(pbr_skey)?
+                                                    create_alias(pbr_svalue, SymbolInfo, pbr_svalue_ref.data)
                                                     pbr_new_skey := pbr_skey.replacen(pbr_prefix, pbr_replacement_prefix, 1)
-                                                    pbr_field_symbols_to_copy.push(SymbolEntry(name=pbr_new_skey, info=pbr_svalue.clone()))
+                                                    // TODO Bug #176: UFCS workaround for create_alias
+                                                    pbr_field_symbols_to_copy.push(SymbolEntry(name=pbr_new_skey, info=SymbolInfo.clone(pbr_svalue)))
+                                                    catch (err: KeyNotFoundError) {
+                                                        panic(loc(), "symbols.get_by_ref: key from .keys iteration: ", err.msg)
+                                                    }
                                                 }
                                             }
                                         }

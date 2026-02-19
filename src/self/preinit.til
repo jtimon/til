@@ -64,7 +64,9 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
     while member_i.gteq(0) {
         member_ref := struct_def.members.get_by_ref(member_i)?
         create_alias(member, Declaration, member_ref.data)
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "members.get_by_ref: bounds-checked loop: ", err.msg)
+        }
 
         // Skip non-mut fields and primitive types
         if member.is_mut {

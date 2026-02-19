@@ -1410,36 +1410,26 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     errors.push(e.error(context.path, "type", "Suggestion: Update returns section here"))
                 } else {
                     for i in 0..p.params.len() {
-                        mut expected_value_type := ValueType.TCustom("")
-                        mut have_expected := true
-                        func_def.return_types.get(i, expected_value_type)?
-                        catch (err: IndexOutOfBoundsError) {
-                            errors.push(e.lang_error(context.path, "type", format("Fewer return values than provided at position ", I64.to_str(i))))
-                            have_expected = false
+                        expected_vt_ref := func_def.return_types.get_by_ref(i)?
+                        create_alias(expected_value_type, ValueType, expected_vt_ref.data)
+
+                        return_val_ref := p.params.get_by_ref(i)?
+                        create_alias(return_val_e, Expr, return_val_ref.data)
+
+                        // Recursively check this return expression for throws
+                        mut single_expr := Vec.new(Expr)
+                        // TODO Bug #176: UFCS workaround for create_alias
+                        single_expr.push(Expr.clone(return_val_e))
+                        errors.extend(check_body_returns_throws(context, return_val_e, func_def, single_expr, thrown_types, return_found)?)
+
+                        mut actual_value_type := get_value_type(context, return_val_e)?
+                        if not(value_type_to_str(expected_value_type).eq(value_type_to_str(actual_value_type))) {
+                            // TODO Bug #176: UFCS workaround for create_alias
+                            errors.push(Expr.error(return_val_e, context.path, "type", format("Return value in pos ", I64.to_str(i), " expected to be '", value_type_to_str(expected_value_type), "', but found '", value_type_to_str(actual_value_type), "' instead")))
+                            errors.push(e.error(context.path, "type", "Suggestion: Update returns section here"))
                         }
-
-                        mut return_val_e := Expr()
-                        mut have_return_val := true
-                        p.params.get(i, return_val_e)?
-                        catch (err: IndexOutOfBoundsError) {
-                            errors.push(e.lang_error(context.path, "type", format("Missing return value at position ", I64.to_str(i))))
-                            have_return_val = false
-                        }
-
-                        if have_expected.and(have_return_val) {
-                            // Recursively check this return expression for throws
-                            mut single_expr := Vec.new(Expr)
-                            single_expr.push(return_val_e.clone())
-                            errors.extend(check_body_returns_throws(context, return_val_e, func_def, single_expr, thrown_types, return_found)?)
-
-                            mut actual_value_type := get_value_type(context, return_val_e)?
-                            if not(value_type_to_str(expected_value_type).eq(value_type_to_str(actual_value_type))) {
-                                errors.push(return_val_e.error(context.path, "type", format("Return value in pos ", I64.to_str(i), " expected to be '", value_type_to_str(expected_value_type), "', but found '", value_type_to_str(actual_value_type), "' instead")))
-                                errors.push(e.error(context.path, "type", "Suggestion: Update returns section here"))
-                            }
-                            catch (err: Str) {
-                                errors.push(err)
-                            }
+                        catch (err: Str) {
+                            errors.push(err)
                         }
                     }
                 }
