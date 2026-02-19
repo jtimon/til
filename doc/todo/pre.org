@@ -15,6 +15,167 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #175: Unify C calling convention -- all functions return through ~_ret~ pointer
+:PROPERTIES:
+:DISCOVERED: 2026-02-19
+:IMPACT: Major ccodegen simplification, fewer special cases, enables future optimizations
+:STATUS: Open - implementation plan ready
+:RELATED: Bug #168 (ret_var_alias optimization), Bug #173 (missing *_ret assignment), doc/first_class.org (function pointer typedefs)
+:END:
+
+*** Background
+
+Currently, ccodegen uses two different C calling conventions depending on
+whether a function throws:
+
+#+BEGIN_SRC c
+// Non-throwing: returns value directly
+til_I64 til_add(const til_I64* til_I64_a, const til_I64* til_I64_b);
+result = til_add(&a, &b);
+
+// Throwing: returns status code, value through _ret pointer
+int til_parse(til_Ast* _ret, til_ParseError* _err1, const til_Str* til_Str_s);
+status = til_parse(&result, &err, &s);
+#+END_SRC
+
+This bifurcation infects the entire ccodegen:
+- ~emit_func_signature~: branches on ~is_throwing~ for return type and _ret param
+- ~emit_fcall~: completely different code paths for calling throwing vs non-throwing
+- ~emit_declaration~: different hoisting logic depending on whether RHS is throwing
+- ~emit_return~: ~return value;~ vs ~*_ret = value; return 0;~
+- ~find_ret_var_for_placement~ / ~ret_var_alias~: only applies to throwing functions
+  (non-throwing return directly, so no ~_ret~ to alias)
+- Function pointer typedefs (Issue #91): would need two typedef patterns
+
+*** Solution: all functions return through ~_ret~ pointer
+
+#+BEGIN_SRC c
+// Non-throwing (NEW): void, returns through _ret
+void til_add(til_I64* _ret, const til_I64* til_I64_a, const til_I64* til_I64_b);
+til_add(&result, &a, &b);
+
+// Throwing (UNCHANGED): int status, returns through _ret
+int til_parse(til_Ast* _ret, til_ParseError* _err1, const til_Str* til_Str_s);
+status = til_parse(&result, &err, &s);
+
+// Proc (UNCHANGED): void, no _ret
+void til_greet(const til_Str* til_Str_name);
+til_greet(&name);
+#+END_SRC
+
+Now every function with a return type uses ~_ret~. The only difference
+between throwing and non-throwing is whether there's an int return + error
+pointers. Call sites all follow the same pattern.
+
+*** What simplifies
+
+| Area                      | Before (two paths)                      | After (one path)                    |
+|---------------------------+-----------------------------------------+-------------------------------------|
+| ~emit_func_signature~     | if throwing: int + _ret param,          | Always _ret param if returns.       |
+|                           | else: return type directly              | void if non-throwing, int if throws |
+| ~emit_fcall~ call site    | if throwing: pass &result as _ret,      | Always pass &result as _ret         |
+|                           | else: result = func(...)                |                                     |
+| ~emit_return~             | if throwing: *_ret = val; return 0;     | Always *_ret = val; return;         |
+|                           | else: return val;                       | (or return 0 if throwing)           |
+| ~find_ret_var_for_placement~ | Only for throwing functions           | All functions with return type      |
+| ~ret_var_alias~           | Only for throwing functions              | All functions with return type      |
+| ~emit_declaration~ (RHS)  | Different hoisting for throwing vs not   | Same hoisting for all               |
+| Function pointer typedefs | Two patterns needed                     | One pattern                         |
+
+*** Implementation Plan
+
+**** Step 1: Change ~emit_func_signature~
+
+In ~emit_func_signature~ (ccodegen.rs:3455), unify the two branches:
+
+- If function has return types AND does not throw: emit ~void~ as return
+  type, add ~RetType* _ret~ as first parameter.
+- If function has return types AND throws: unchanged (~int~ return,
+  ~_ret~ + error params).
+- If function has no return types (proc): unchanged (~void~, no ~_ret~).
+
+The ~is_throwing~ branch for return type becomes:
+- has returns + throws -> ~int~
+- has returns + no throws -> ~void~
+- no returns -> ~void~
+
+The ~_ret~ parameter is emitted whenever ~return_types~ is non-empty,
+regardless of ~is_throwing~.
+
+Files: src/rs/ccodegen.rs, src/self/ccodegen.til
+
+**** Step 2: Change ~emit_return~
+
+Currently non-throwing functions emit ~return value;~. Change to:
+- ~*_ret = value; return;~ (for non-throwing with return type)
+- ~*_ret = value; return 0;~ (for throwing -- unchanged)
+- ~return;~ (for procs -- unchanged)
+
+The ~ret_var_alias~ optimization now applies to ALL functions with return
+types, not just throwing ones.
+
+Files: src/rs/ccodegen.rs, src/self/ccodegen.til
+
+**** Step 3: Change ~emit_fcall~ call sites
+
+Currently non-throwing call sites emit:
+~result = func(&a, &b);~
+
+Change to:
+~func(&result, &a, &b);~
+
+This means the call-site hoisting logic (declaring result variable, passing
+its address) is the same for all functions. The only extra step for throwing
+calls is: declare status variable, check status, read error if non-zero.
+
+Files: src/rs/ccodegen.rs, src/self/ccodegen.til
+
+**** Step 4: Extend ~find_ret_var_for_placement~ to non-throwing functions
+
+Currently this optimization only runs for throwing functions. With the
+unified convention, it applies to all functions with return types.
+
+Remove the ~is_throwing~ guards around ~find_ret_var_for_placement~ calls
+and ~ret_var_alias~ usage.
+
+Files: src/rs/ccodegen.rs, src/self/ccodegen.til
+
+**** Step 5: Update ~emit_declaration~ hoisting
+
+The declaration hoisting for function call RHS currently has separate paths
+for throwing (hoist into temp + status check) vs non-throwing (direct assign).
+Unify into one path: always hoist result variable, always pass as ~_ret~.
+
+Files: src/rs/ccodegen.rs, src/self/ccodegen.til
+
+**** Step 6: Update ext_func/ext_proc declarations
+
+External function declarations need to match the new convention. Any
+~ext_func~ that returns a value now expects a ~_ret~ pointer parameter.
+
+Review all ext_func declarations in src/core/*.til and update their C
+implementations if they exist (most are builtins handled by ccodegen).
+
+Files: src/core/*.til, src/rs/ccodegen.rs, src/self/ccodegen.til
+
+**** Step 7: Tests
+
+Run full benchmark. The generated C changes significantly but the behavior
+must be identical. All 93+ tests must pass.
+
+*** Notes
+
+- ~main~ function is special -- it returns ~int~ directly to the OS. This
+  is already a special case and stays that way.
+- Builtins (hardcoded in ~emit_fcall~) need updating too -- they currently
+  assume non-throwing functions return directly.
+- This change also simplifies future Issue #91 (function pointer typedefs):
+  all function pointers follow the same ~void (*fp)(RetType* _ret, ...)~
+  pattern, with ~int~ return only for throwing variants.
+- The generated C loses ~x = add(&a, &b)~ style (slightly less idiomatic),
+  but when reading generated C for debugging, one consistent pattern is
+  easier to follow than two different patterns depending on throws.
+
 ** Issue #174: Replace separate namespace blocks with ~namespace:~ keyword inside type bodies
 :PROPERTIES:
 :DISCOVERED: 2026-02-19
