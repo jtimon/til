@@ -201,8 +201,19 @@ run_file_or_exit := proc(path: Str, target: Target, lang: Lang, cc: Str, extra_a
     }
 
     // Run the compiled binary with any extra arguments
-    // Use run_cmd_vec_print to inherit stdout/stderr like rstil does
-    exit_code := run_cmd_vec_print(exe_path, extra_args)
+    // Use spawn_cmd + wait_cmd to inherit stdout/stderr like Rust's Command::status()
+    mut full_cmd := exe_path
+    for arg: Str in extra_args {
+        full_cmd = full_cmd.concat(" ").concat(arg)
+    }
+    pid := spawn_cmd(full_cmd)?
+    exit_code := wait_cmd(pid)
+
+    catch (err: SpawnError) {
+        println("Failed to run '", exe_path, "': ", err.msg)
+        exit(1)
+    }
+
     if not(exit_code.eq(0)) {
         exit(exit_code)
     }

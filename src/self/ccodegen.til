@@ -210,10 +210,7 @@ has_reassignment_of := proc(stmts: Vec, var_name: Str) returns Bool {
 // Bug #168: Pre-scan function body to find a single return variable that can be
 // placed directly into _ret. Returns the var name or "" if not applicable.
 find_ret_var_for_placement := proc(func_def: SFuncDef) returns Str throws Str {
-    // Must be a throwing function with struct/enum return type
-    if func_def.throw_types.is_empty() {
-        return ""
-    }
+    // Issue #175: Any function with struct/enum return type can use direct placement
     if func_def.return_types.is_empty() {
         return ""
     }
@@ -719,165 +716,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     return result
 }
 
-/// Hoist variadic arguments into a til_Array
-/// Returns the array variable name, or None if no variadic args
-/// Also returns the element type for use in Array.delete
-hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted: Map, regular_count: I64, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
-    indent_str := repeat("    ", indent)
-    arr_var := next_mangled(ctx)
-    err_suffix := next_mangled(ctx)
-    variadic_count := variadic_args.len()
-
-    // Declare the array variable
-    output.push_str(indent_str)
-    output.push_str(TIL_PREFIX)
-    output.push_str("Array ")
-    output.push_str(arr_var)
-    output.push_str(";\n")
-
-    // Declare error var for Array.set (IndexOutOfBoundsError)
-    output.push_str(indent_str)
-    output.push_str(TIL_PREFIX)
-    output.push_str("IndexOutOfBoundsError __attribute__((unused)) _err_idx_")
-    output.push_str(err_suffix)
-    output.push_str(";\n")
-
-    // Hoist variadic args into temp vars (needed to pass address to Array.set)
-    mut arg_temps := Vec.new(Str)
-    c_elem_type := format(TIL_PREFIX, elem_type)
-    mut i := 0
-    while i.lt(variadic_args.len()) {
-        arg_ref := variadic_args.get_by_ref(i)?
-        create_alias(arg, Expr, arg_ref.data)
-        hoisted_idx := add(regular_count, i)
-        if already_hoisted.contains_key(hoisted_idx) {
-            // Already hoisted, use that temp
-            mut temp := ""
-            already_hoisted.get(hoisted_idx, temp)?
-            arg_temps.push(temp)
-        } else {
-            // Need to hoist into a temp
-            // Bug #143: Use emit_arg_string to properly handle nested FCalls that need by-ref
-            arg_str := emit_arg_string(arg, Ptr(), false, output, indent, ctx, context)?
-            temp_var := next_mangled(ctx)
-            output.push_str(indent_str)
-            output.push_str(c_elem_type)
-            output.push_str(" ")
-            output.push_str(temp_var)
-            output.push_str(" = ")
-            output.push_str(arg_str)
-            output.push_str(";\n")
-            arg_temps.push(temp_var)
-        }
-        i.inc()
-    }
-
-    // Bug #60: Hoist Type and I64 literals for Array.new call
-    // Type param needs hoisting because we can't take address of string literal for const char* const*
-    type_temp := next_mangled(ctx)
-    output.push_str(indent_str)
-    output.push_str(TIL_PREFIX)
-    output.push_str("Type ")
-    output.push_str(type_temp)
-    output.push_str(" = \"")
-    output.push_str(elem_type)
-    output.push_str("\";\n")
-
-    // Capacity param needs hoisting because we can't take address of integer literal
-    count_temp := next_mangled(ctx)
-    output.push_str(indent_str)
-    output.push_str(TIL_PREFIX)
-    output.push_str("I64 ")
-    output.push_str(count_temp)
-    output.push_str(" = ")
-    output.push_str(variadic_count.to_str())
-    output.push_str(";\n")
-
-    // Emit Array.new call (non-throwing, panics internally on malloc failure)
-    // til_Array arr = til_Array_new(type_temp, &count_temp);
-    output.push_str(indent_str)
-    output.push_str(arr_var)
-    output.push_str(" = ")
-    output.push_str(TIL_PREFIX)
-    output.push_str("Array_new(")
-    output.push_str(type_temp)
-    output.push_str(", &")
-    output.push_str(count_temp)
-    output.push_str(");\n")
-
-    // Declare status variable for Array.set calls
-    output.push_str(indent_str)
-    output.push_str("int __attribute__((unused)) _arr_status_")
-    output.push_str(err_suffix)
-    output.push_str(";\n")
-
-    // Emit Array.set for each variadic arg
-    mut ti := 0
-    while ti.lt(arg_temps.len()) {
-        temp_item_ref := arg_temps.get_by_ref(ti)?
-        create_alias(temp_item, Str, temp_item_ref.data)
-        // Bug #60: Hoist index literal because we can't take address of integer literal
-        idx_temp := next_mangled(ctx)
-        output.push_str(indent_str)
-        output.push_str(TIL_PREFIX)
-        output.push_str("I64 ")
-        output.push_str(idx_temp)
-        output.push_str(" = ")
-        output.push_str(ti.to_str())
-        output.push_str(";\n")
-
-        // int _status = til_Array_set(&_err_idx, &arr, &idx_temp, (til_Dynamic*)&temp);
-        output.push_str(indent_str)
-        output.push_str("_arr_status_")
-        output.push_str(err_suffix)
-        output.push_str(" = ")
-        output.push_str(TIL_PREFIX)
-        output.push_str("Array_set(&_err_idx_")
-        output.push_str(err_suffix)
-        output.push_str(", &")
-        output.push_str(arr_var)
-        output.push_str(", &")
-        output.push_str(idx_temp)
-        output.push_str(", (")
-        output.push_str(TIL_PREFIX)
-        output.push_str("Dynamic*)&")
-        output.push_str(temp_item)
-        output.push_str(");\n")
-
-        // Error check for Array.set (IndexOutOfBoundsError - shouldn't happen but propagate if thrown)
-        output.push_str(indent_str)
-        output.push_str("if (_arr_status_")
-        output.push_str(err_suffix)
-        output.push_str(" != 0) {\n")
-        mut curr_idx := 0
-        for curr_throw: ValueType in ctx.current_throw_types {
-            switch curr_throw {
-            case ValueType.TCustom(curr_type_name):
-                if curr_type_name.eq("IndexOutOfBoundsError") {
-                    output.push_str(indent_str)
-                    output.push_str("    *_err")
-                    output.push_str(add(curr_idx, 1).to_str())
-                    output.push_str(" = _err_idx_")
-                    output.push_str(err_suffix)
-                    output.push_str("; return ")
-                    output.push_str(add(curr_idx, 1).to_str())
-                    output.push_str(";\n")
-                    break
-                }
-            case:
-            }
-            curr_idx.inc()
-        }
-        output.push_str(indent_str)
-        output.push_str("}\n")
-        ti.inc()
-    }
-
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw format("KeyNotFoundError: ", err.msg) }
-
-    return arr_var
-}
+// Issue #175: hoist_variadic_args removed (dead code after emit_return simplification)
 
 /// Detect if an expression is a variadic function call
 /// Returns VariadicFCallInfo if it's a variadic call
@@ -1624,10 +1463,8 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     }
     variadic_arr_var := emit_variadic_array_with_strings(vi.elem_type, variadic_arg_strings, hoist_output, indent, ctx)?
 
-    // Emit the function call
+    // Issue #175: Emit the function call with _ret pointer
     hoist_output.push_str(indent_str)
-    hoist_output.push_str(temp_var)
-    hoist_output.push_str(" = ")
 
     // Get function name
     if arg.params.is_empty() {
@@ -1647,27 +1484,21 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     }
 
     hoist_output.push_str(til_func_name(mangled_name))
-    hoist_output.push_str("(")
+    hoist_output.push_str("(&")
+    hoist_output.push_str(temp_var)
 
     // Regular arguments
-    mut first := true
     mut ri := 0
     while ri.lt(vi.regular_count) {
+        hoist_output.push_str(", ")
         arg_str_ref := nested_arg_strings.get_by_ref(ri)?
         create_alias(arg_str, Str, arg_str_ref.data)
-        if not(first) {
-            hoist_output.push_str(", ")
-        }
-        first = false
         hoist_output.push_str(arg_str)
         ri.inc()
     }
 
     // Variadic array pointer
-    if not(first) {
-        hoist_output.push_str(", ")
-    }
-    hoist_output.push_str("&")
+    hoist_output.push_str(", &")
     hoist_output.push_str(variadic_arr_var)
     hoist_output.push_str(");\n")
 
@@ -1751,12 +1582,12 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, mut o
     output.push_str(elem_count.to_str())
     output.push_str(";\n")
 
-    // Call Array.new (non-throwing)
+    // Issue #175: Call Array.new via _ret pointer (non-throwing)
     output.push_str(indent_str)
-    output.push_str(arr_var)
-    output.push_str(" = ")
     output.push_str(TIL_PREFIX)
-    output.push_str("Array_new(")
+    output.push_str("Array_new(&")
+    output.push_str(arr_var)
+    output.push_str(", ")
     output.push_str(type_temp)
     output.push_str(", &")
     output.push_str(count_temp)
@@ -1941,7 +1772,8 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
     // Bug #144: create_alias is handled in emit_fcall only (standalone statement, never an expression)
 
     if orig_func_name.eq("size_of") {
-        // size_of: generates til_size_of(&Str), with special Str handling
+        // size_of: generates til_size_of(&Str) -- keeps old return-value convention
+        // (fully special-cased in codegen, not a normal TIL function)
         if arg.params.len().lt(2) {
             throw arg.lang_error(context.path, "ccodegen", "size_of requires 1 argument")
         }
@@ -2110,6 +1942,54 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         }
     }
 
+    // Issue #175: Check if function has return types -- if so, hoist via _ret pointer
+    has_return_types := fd_found.and(not(fd_opt.return_types.is_empty())).or(is_enum_constructor)
+
+    if has_return_types {
+        fcall_indent_str := repeat("    ", indent)
+
+        // Get return type
+        c_type := get_c_type_for_expr(arg, context)?
+        catch (err: Str) {
+            throw arg.lang_error(context.path, "ccodegen", err)
+        }
+
+        // Declare temp var
+        temp_var := next_mangled(ctx)
+        hoist_output.push_str(fcall_indent_str)
+        hoist_output.push_str(c_type)
+        hoist_output.push_str(" ")
+        hoist_output.push_str(temp_var)
+        hoist_output.push_str(";\n")
+
+        // Emit call: func(&temp, args)
+        hoist_output.push_str(fcall_indent_str)
+        if is_enum_constructor {
+            hoist_output.push_str(TIL_PREFIX)
+            hoist_output.push_str(enum_ctor_name)
+            hoist_output.push_str("_make_")
+            hoist_output.push_str(variant_ctor_name)
+        } else {
+            hoist_output.push_str(til_func_name(mangled_name))
+        }
+        hoist_output.push_str("(&")
+        hoist_output.push_str(temp_var)
+        mut hoist_ci := 0
+        while hoist_ci.lt(nested_arg_strings.len()) {
+            hoist_arg_str_ref := nested_arg_strings.get_by_ref(hoist_ci)?
+            create_alias(hoist_arg_str, Str, hoist_arg_str_ref.data)
+            hoist_output.push_str(", ")
+            hoist_output.push_str(hoist_arg_str)
+            hoist_ci.inc()
+        }
+        hoist_output.push_str(");\n")
+
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+        return temp_var
+    }
+
+    // No return types - emit inline call string
     mut call_str := ""
     if is_enum_constructor {
         call_str.push_str(TIL_PREFIX)
@@ -2500,11 +2380,12 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case:
     }
 
+    // Pass 4c2 (Bug #133 fix): emit static arrays for precomputed heap values
+    // This serializes Vec/List contents to static arrays so Ptr fields can reference them
+    emit_precomputed_static_arrays(output, ctx, context)?
+
     // Pass 4d: emit til_size_of function (runtime type size lookup)
     emit_size_of_function(output, ctx)
-
-    // Bug #133 fix: Emit static arrays for precomputed heap values
-    emit_precomputed_static_arrays(output, ctx, context)?
 
     output.push_str("\n")
 
@@ -2630,7 +2511,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         if main_has_variadic {
             // Convert argc/argv to til_Array and pass to til_main
             // Skip argv[0] (exe path) to match interpreter behavior
-            output.push_str("    til_Array _main_args = til_Array_new(\"Str\", &(til_I64){argc - 1});\n")
+            // Issue #175: Array_new now uses _ret pointer
+            output.push_str("    til_Array _main_args;\n")
+            output.push_str("    til_Array_new(&_main_args, \"Str\", &(til_I64){argc - 1});\n")
             output.push_str("    for (int i = 1; i < argc; i++) {\n")
             output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1, 0, 0, 0}), strlen(argv[i]), 0};\n")
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n")
@@ -3169,7 +3052,8 @@ emit_enum_size_of_constant := proc(expr: Expr, mut output: Str, mut ctx: Codegen
     }
 }
 
-// Emit til_size_of function for runtime type size lookup
+// Note: size_of keeps the old return-value convention since it's fully special-cased
+// in the codegen (not a normal TIL function) and is easier to emit inline as an expression.
 emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
     output.push_str("\n")
     output.push_str("static inline ")
@@ -3733,15 +3617,15 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: 
     output.push_str("};\n\n")
 
     // 4. Emit constructor functions for ALL variants (including no-payload ones)
-    // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
+    // Issue #175: Uses _ret convention: void EnumName_make_Variant(EnumName* _ret, payload)
     for v: EnumVariant in variants {
-        output.push_str("static inline ")
-        output.push_str(enum_name)
-        output.push_str(" ")
+        output.push_str("static inline void ")
         output.push_str(enum_name)
         output.push_str("_make_")
         output.push_str(v.name)
         output.push_str("(")
+        output.push_str(enum_name)
+        output.push_str("* _ret")
 
         // Parameter for payload (if any)
         mut has_payload := false
@@ -3749,31 +3633,27 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: 
             mut ctor_payload_vt := ValueType.TCustom("")
             memcpy(to_ptr(ctor_payload_vt), v.payload_type.data, size_of(ValueType))
             ctor_c_type := til_type_to_c(ctor_payload_vt)?
+            output.push_str(", ")
             output.push_str(ctor_c_type)
             output.push_str(" value")
             has_payload = true
-        } else {
-            output.push_str("void")
         }
         output.push_str(") {\n")
 
         // Constructor body
-        output.push_str("    ")
-        output.push_str(enum_name)
-        output.push_str(" result = { .tag = ")
+        output.push_str("    _ret->tag = ")
         output.push_str(enum_name)
         output.push_str("_")
         output.push_str(v.name)
-        output.push_str(" };\n")
+        output.push_str(";\n")
 
         // Set payload if present
         if has_payload {
-            output.push_str("    result.payload.")
+            output.push_str("    _ret->payload.")
             output.push_str(v.name)
             output.push_str(" = value;\n")
         }
 
-        output.push_str("    return result;\n")
         output.push_str("}\n\n")
     }
 
@@ -3825,15 +3705,15 @@ emit_enum_declaration := proc(expr: Expr, mut output: Str) throws Str {
                 output.push_str(";\n\n")
 
                 // Generate constructor functions for consistency with payload enums
-                // static inline EnumName EnumName_make_Variant(void) { return EnumName_Variant; }
+                // Issue #175: void EnumName_make_Variant(EnumName* _ret) { *_ret = EnumName_Variant; }
                 for variant_name: Str in variants {
-                    output.push_str("static inline ")
-                    output.push_str(enum_name)
-                    output.push_str(" ")
+                    output.push_str("static inline void ")
                     output.push_str(enum_name)
                     output.push_str("_make_")
                     output.push_str(variant_name)
-                    output.push_str("(void) { return ")
+                    output.push_str("(")
+                    output.push_str(enum_name)
+                    output.push_str("* _ret) { *_ret = ")
                     output.push_str(enum_name)
                     output.push_str("_")
                     output.push_str(variant_name)
@@ -4080,13 +3960,14 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
         // Throwing functions return int (0=success, 1+=error)
         output.push_str("    return 0;\n")
     } else if not(func_def.return_types.is_empty()) {
-        // Non-throwing functions with return type - add zero-initialized fallback
-        ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
-        create_alias(ret_type_vt, ValueType, ret_type_vt_ref.data)
-        ret_type := til_type_to_c(ret_type_vt)?
-        output.push_str("    return (")
-        output.push_str(ret_type)
+        // Issue #175: Non-throwing functions with return type use *_ret
+        imp_ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
+        create_alias(imp_ret_type_vt, ValueType, imp_ret_type_vt_ref.data)
+        imp_ret_type := til_type_to_c(imp_ret_type_vt)?
+        output.push_str("    *_ret = (")
+        output.push_str(imp_ret_type)
         output.push_str("){0};\n")
+        output.push_str("    return;\n")
     }
 
     output.push_str("}\n\n")
@@ -4211,16 +4092,8 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
         // Throwing function returns int status code
         output.push_str("int ")
     } else {
-        // Non-throwing function returns its actual type
-        if func_def.return_types.is_empty() {
-            output.push_str("void ")
-        } else {
-            ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
-            create_alias(ret_type_vt, ValueType, ret_type_vt_ref.data)
-            ret_type := til_type_to_c(ret_type_vt)?
-            output.push_str(ret_type)
-            output.push_str(" ")
-        }
+        // Issue #175: All non-throwing functions use void (return via _ret pointer if needed)
+        output.push_str("void ")
     }
 
     output.push_str(func_name)
@@ -4228,17 +4101,17 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
 
     mut param_count := 0
 
-    if is_throwing {
-        // Output params first: return value pointer, then error pointers
-        if not(func_def.return_types.is_empty()) {
-            thr_ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
-            create_alias(thr_ret_type_vt, ValueType, thr_ret_type_vt_ref.data)
-            thr_ret_type := til_type_to_c(thr_ret_type_vt)?
-            output.push_str(thr_ret_type)
-            output.push_str("* _ret")
-            param_count.inc()
-        }
+    // Issue #175: _ret pointer for any function with return types (throwing or not)
+    if not(func_def.return_types.is_empty()) {
+        nonthr_ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
+        create_alias(nonthr_ret_type_vt, ValueType, nonthr_ret_type_vt_ref.data)
+        nonthr_ret_type := til_type_to_c(nonthr_ret_type_vt)?
+        output.push_str(nonthr_ret_type)
+        output.push_str("* _ret")
+        param_count.inc()
+    }
 
+    if is_throwing {
         // Issue #119: Skip empty struct errors - only status code matters
         for i in 0..func_def.throw_types.len() {
             throw_type_ref := func_def.throw_types.get_by_ref(i)?
@@ -4474,12 +4347,14 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 if not(func_def.throw_types.is_empty()) {
                     output.push_str("    return 0;\n")
                 } else if not(func_def.return_types.is_empty()) {
-                    ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
-                    create_alias(ret_type_vt, ValueType, ret_type_vt_ref.data)
-                    ret_type := til_type_to_c(ret_type_vt)?
-                    output.push_str("    return (")
-                    output.push_str(ret_type)
+                    // Issue #175: Non-throwing functions with return type use *_ret
+                    imp_ret_type_vt_ref2 := func_def.return_types.get_by_ref(0)?
+                    create_alias(imp_ret_type_vt2, ValueType, imp_ret_type_vt_ref2.data)
+                    imp_ret_type2 := til_type_to_c(imp_ret_type_vt2)?
+                    output.push_str("    *_ret = (")
+                    output.push_str(imp_ret_type2)
                     output.push_str("){0};\n")
+                    output.push_str("    return;\n")
                 }
 
                 output.push_str("}\n\n")
@@ -4563,12 +4438,34 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 }
                 if type_have_enum_def {
                     if type_enum_def.contains_key(type_field) {
-                        // Enum variant: Type.Variant -> til_Type_make_Variant()
-                        output.push_str(TIL_PREFIX)
-                        output.push_str(name)
-                        output.push_str("_make_")
-                        output.push_str(type_field)
-                        output.push_str("()")
+                        // Enum variant: Type.Variant
+                        // Issue #175: Constructors now use _ret convention, but we're in
+                        // expression position. For payload enums, use compound literal.
+                        // For simple enums, use the constant directly.
+                        mut has_any_payload := false
+                        for ev: EnumVariant in type_enum_def.variants {
+                            if not(ev.payload_type.is_null()) {
+                                has_any_payload = true
+                                break
+                            }
+                        }
+                        if has_any_payload {
+                            // Payload enum: construct struct inline with compound literal
+                            c_enum_name := til_name(name)
+                            output.push_str("((")
+                            output.push_str(c_enum_name)
+                            output.push_str("){ .tag = ")
+                            output.push_str(c_enum_name)
+                            output.push_str("_")
+                            output.push_str(type_field)
+                            output.push_str(" })")
+                        } else {
+                            // Simple enum: constant value works directly
+                            output.push_str(TIL_PREFIX)
+                            output.push_str(name)
+                            output.push_str("_")
+                            output.push_str(type_field)
+                        }
                         return
                     }
                 }
@@ -5159,33 +5056,61 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         catch (err: KeyNotFoundError) { }
     }
 
+    // Issue #175: Check if function has return types
+    func_has_return := not(func_def_opt.return_types.is_empty())
+
     func_name_c := func_name.replace(".", "_")
 
     // For declarations: declare the variable (skip for "_" - Bug #35)
     if not(decl_name.eq("")) {
         if decl_name.eq("_") {
             // Bug #35: For underscore, just call the function (discard result)
-            output.push_str(indent_str)
-            // Emit call inline
-            output.push_str(TIL_PREFIX)
-            output.push_str(func_name_c)
-            output.push_str("(")
-            mut ci := 0
-            while ci.lt(regular_count) {
-                if ci.gt(0) {
+            // Issue #175: Still need temp for _ret even when discarding
+            if func_has_return {
+                vc_temp := next_mangled(ctx)
+                output.push_str(indent_str)
+                output.push_str(ret_type)
+                output.push_str(" ")
+                output.push_str(vc_temp)
+                output.push_str(";\n")
+                output.push_str(indent_str)
+                output.push_str(TIL_PREFIX)
+                output.push_str(func_name_c)
+                output.push_str("(&")
+                output.push_str(vc_temp)
+                mut ci := 0
+                while ci.lt(regular_count) {
+                    output.push_str(", ")
+                    arg_str_discard_ref := arg_strings.get_by_ref(ci)?
+                    create_alias(arg_str_discard, Str, arg_str_discard_ref.data)
+                    output.push_str(arg_str_discard)
+                    ci.inc()
+                }
+                output.push_str(", &")
+                output.push_str(variadic_arr_var)
+                output.push_str(");\n")
+            } else {
+                output.push_str(indent_str)
+                output.push_str(TIL_PREFIX)
+                output.push_str(func_name_c)
+                output.push_str("(")
+                mut discard_nret_ci := 0
+                while discard_nret_ci.lt(regular_count) {
+                    if discard_nret_ci.gt(0) {
+                        output.push_str(", ")
+                    }
+                    discard_nret_arg_ref := arg_strings.get_by_ref(discard_nret_ci)?
+                    create_alias(discard_nret_arg, Str, discard_nret_arg_ref.data)
+                    output.push_str(discard_nret_arg)
+                    discard_nret_ci.inc()
+                }
+                if regular_count.gt(0) {
                     output.push_str(", ")
                 }
-                arg_str_discard_ref := arg_strings.get_by_ref(ci)?
-                create_alias(arg_str_discard, Str, arg_str_discard_ref.data)
-                output.push_str(arg_str_discard)
-                ci.inc()
+                output.push_str("&")
+                output.push_str(variadic_arr_var)
+                output.push_str(");\n")
             }
-            if regular_count.gt(0) {
-                output.push_str(", ")
-            }
-            output.push_str("&")
-            output.push_str(variadic_arr_var)
-            output.push_str(");\n")
         } else {
             // Bug #97: Register in scope FIRST so we can get the type-mangled name
             fd3 := get_fcall_func_def(context, fcall)?
@@ -5202,18 +5127,23 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             }
             catch (err: KeyNotFoundError) { }
             variadic_c_var_name := til_var_name_from_context(decl_name, context)
+            // Issue #175: Declare var, then call func(&var, args) instead of var = func(args)
             output.push_str(indent_str)
             output.push_str(ret_type)
             output.push_str(" ")
             output.push_str(variadic_c_var_name.clone())
-            output.push_str(" = ")
-            // Emit call inline
+            output.push_str(";\n")
+            output.push_str(indent_str)
             output.push_str(TIL_PREFIX)
             output.push_str(func_name_c)
             output.push_str("(")
+            if func_has_return {
+                output.push_str("&")
+                output.push_str(variadic_c_var_name.clone())
+            }
             mut di := 0
             while di.lt(regular_count) {
-                if di.gt(0) {
+                if di.gt(0).or(func_has_return) {
                     output.push_str(", ")
                 }
                 arg_str_decl_ref := arg_strings.get_by_ref(di)?
@@ -5221,7 +5151,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 output.push_str(arg_str_decl)
                 di.inc()
             }
-            if regular_count.gt(0) {
+            if regular_count.gt(0).or(func_has_return) {
                 output.push_str(", ")
             }
             output.push_str("&")
@@ -5232,40 +5162,33 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         }
     } else if not(assign_name.eq("")) {
         // Assignment
-        output.push_str(indent_str)
-        // Bug #97: Use type-mangled names for variables
-        // Check if assignment target is a field access on a mut param (self.field)
-        // If so, emit with -> instead of .
-        // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
+        // Issue #175: Build destination pointer for _ret, then call func(&dest, args)
+        mut dest_expr := ""
         dot_pos := assign_name.find(".")
         if dot_pos.gteq(0) {
             base := assign_name.get_substr(0, dot_pos)?
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
             if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_Type_self->field
-                output.push_str(resolve_var_name(base, ctx, context))
-                output.push_str("->")
-                output.push_str(rest)
+                dest_expr = format("&", resolve_var_name(base, ctx, context), "->", rest)
             } else {
-                output.push_str(resolve_var_name(base, ctx, context))
-                output.push_str(".")
-                output.push_str(rest)
+                dest_expr = format("&", resolve_var_name(base, ctx, context), ".", rest)
             }
         } else if ctx.current_ref_params.contains(assign_name) {
-            // Direct assignment to mut param: *til_Type_self = value
-            output.push_str("*")
-            output.push_str(resolve_var_name(assign_name, ctx, context))
+            // Mut param: already a pointer, no & needed
+            dest_expr = resolve_var_name(assign_name, ctx, context)
         } else {
-            output.push_str(resolve_var_name(assign_name, ctx, context))
+            dest_expr = format("&", resolve_var_name(assign_name, ctx, context))
         }
-        output.push_str(" = ")
-        // Emit call inline
+        output.push_str(indent_str)
         output.push_str(TIL_PREFIX)
         output.push_str(func_name_c)
         output.push_str("(")
+        if func_has_return {
+            output.push_str(dest_expr)
+        }
         mut ai := 0
         while ai.lt(regular_count) {
-            if ai.gt(0) {
+            if ai.gt(0).or(func_has_return) {
                 output.push_str(", ")
             }
             arg_str_assign_ref := arg_strings.get_by_ref(ai)?
@@ -5273,7 +5196,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             output.push_str(arg_str_assign)
             ai.inc()
         }
-        if regular_count.gt(0) {
+        if regular_count.gt(0).or(func_has_return) {
             output.push_str(", ")
         }
         output.push_str("&")
@@ -5281,27 +5204,52 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         output.push_str(");\n")
     } else {
         // Standalone variadic call (no return value used)
-        output.push_str(indent_str)
-        // Emit call inline
-        output.push_str(TIL_PREFIX)
-        output.push_str(func_name_c)
-        output.push_str("(")
-        mut si := 0
-        while si.lt(regular_count) {
-            if si.gt(0) {
+        if func_has_return {
+            // Issue #175: Need temp for _ret even when discarding result
+            vc_temp2 := next_mangled(ctx)
+            output.push_str(indent_str)
+            output.push_str(ret_type)
+            output.push_str(" ")
+            output.push_str(vc_temp2)
+            output.push_str(";\n")
+            output.push_str(indent_str)
+            output.push_str(TIL_PREFIX)
+            output.push_str(func_name_c)
+            output.push_str("(&")
+            output.push_str(vc_temp2)
+            mut si := 0
+            while si.lt(regular_count) {
+                output.push_str(", ")
+                arg_str_standalone_ref := arg_strings.get_by_ref(si)?
+                create_alias(arg_str_standalone, Str, arg_str_standalone_ref.data)
+                output.push_str(arg_str_standalone)
+                si.inc()
+            }
+            output.push_str(", &")
+            output.push_str(variadic_arr_var)
+            output.push_str(");\n")
+        } else {
+            output.push_str(indent_str)
+            output.push_str(TIL_PREFIX)
+            output.push_str(func_name_c)
+            output.push_str("(")
+            mut standalone_nret_si := 0
+            while standalone_nret_si.lt(regular_count) {
+                if standalone_nret_si.gt(0) {
+                    output.push_str(", ")
+                }
+                standalone_nret_arg_ref := arg_strings.get_by_ref(standalone_nret_si)?
+                create_alias(standalone_nret_arg, Str, standalone_nret_arg_ref.data)
+                output.push_str(standalone_nret_arg)
+                standalone_nret_si.inc()
+            }
+            if regular_count.gt(0) {
                 output.push_str(", ")
             }
-            arg_str_standalone_ref := arg_strings.get_by_ref(si)?
-            create_alias(arg_str_standalone, Str, arg_str_standalone_ref.data)
-            output.push_str(arg_str_standalone)
-            si.inc()
+            output.push_str("&")
+            output.push_str(variadic_arr_var)
+            output.push_str(");\n")
         }
-        if regular_count.gt(0) {
-            output.push_str(", ")
-        }
-        output.push_str("&")
-        output.push_str(variadic_arr_var)
-        output.push_str(");\n")
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -6524,12 +6472,14 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 if not(func_def.throw_types.is_empty()) {
                     func_output.push_str("    return 0;\n")
                 } else if not(func_def.return_types.is_empty()) {
+                    // Issue #175: Non-throwing functions with return type use *_ret
                     ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
                     create_alias(ret_type_vt, ValueType, ret_type_vt_ref.data)
                     ret_type := til_type_to_c(ret_type_vt)?
-                    func_output.push_str("    return (")
+                    func_output.push_str("    *_ret = (")
                     func_output.push_str(ret_type)
                     func_output.push_str("){0};\n")
+                    func_output.push_str("    return;\n")
                 }
                 func_output.push_str("}\n\n")
 
@@ -6572,38 +6522,30 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             rhs_string = emit_arg_string(rhs, Ptr(), false, output, indent, ctx, context)?
             has_rhs_string = true
         case NodeType.Identifier(name):
-            // Bug #157: Check for UFCS field access on throwing call
-            // Pattern: Identifier("_") with params[0] = throwing FCall, params[1..] = field chain
+            // Bug #157 + Issue #175: Check for UFCS field access on function call
+            // Pattern: Identifier("_") with params[0] = FCall, params[1..] = field chain
+            // Issue #175: All functions with return types use _ret convention, so all need hoisting
             if name.eq("_").and(not(rhs.params.is_empty())) {
                 rhs_first_param := rhs.get(0)?
                 dont_delete(rhs_first_param)
                 switch rhs_first_param.node_type {
                 case NodeType.FCall(_):
-                    mut fd := SFuncDef()
-                    mut found_fd := false
-                    fd = get_fcall_func_def(context, rhs_first_param)?
-                    found_fd = true
-                    catch (err: KeyNotFoundError) {
-                        // Not a function call we can look up
-                    }
-                    if found_fd.and(not(fd.throw_types.is_empty())) {
-                        // Hoist the throwing call
-                        base_temp := emit_arg_string(rhs_first_param, Ptr(), false, output, indent, ctx, context)?
-                        // Append field chain: temp.field1.field2...
-                        mut result := base_temp
-                        for field_idx in 1..rhs.params.len() {
-                            field_expr := rhs.get(field_idx)?
-                            dont_delete(field_expr)
-                            switch field_expr.node_type {
-                            case NodeType.Identifier(field):
-                                result = result.concat(".")
-                                result = result.concat(field)
-                            case:
-                            }
+                    // Hoist the call
+                    base_temp := emit_arg_string(rhs_first_param, Ptr(), false, output, indent, ctx, context)?
+                    // Append field chain: temp.field1.field2...
+                    mut result := base_temp
+                    for field_idx in 1..rhs.params.len() {
+                        field_expr := rhs.get(field_idx)?
+                        dont_delete(field_expr)
+                        switch field_expr.node_type {
+                        case NodeType.Identifier(field):
+                            result = result.concat(".")
+                            result = result.concat(field)
+                        case:
                         }
-                        rhs_string = result
-                        has_rhs_string = true
                     }
+                    rhs_string = result
+                    has_rhs_string = true
                 case:
                 }
             }
@@ -6896,7 +6838,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             emit_struct_literal_assign(output, struct_type, already_declared, "{0}")
         }
     } else if has_enum_type {
-        // Enum variable declaration
+        // Enum variable declaration - Bug #143: Use rhs_string if available
         output.push_str(indent_str)
         if not(already_declared) {
             // Issue #117: No const for enum locals - garbager inserts Type.delete() calls
@@ -6906,9 +6848,13 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         }
         output.push_str(c_var_name.clone())
         output.push_str(" = ")
-        enum_emit_first_param := expr.get(0)?
-        dont_delete(enum_emit_first_param)
-        emit_expr(enum_emit_first_param, output, 0, ctx, context)?
+        if has_rhs_string {
+            output.push_str(rhs_string)
+        } else {
+            enum_emit_first_param := expr.get(0)?
+            dont_delete(enum_emit_first_param)
+            emit_expr(enum_emit_first_param, output, 0, ctx, context)?
+        }
         output.push_str(";\n")
     } else {
         if is_mut {
@@ -7274,145 +7220,47 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         output.push_str(indent_str)
         output.push_str("return 0;\n")
     } else {
-        // Non-throwing function: normal return
-        // Check if return expression is a variadic function call
-        if not(expr.params.is_empty()) {
-            return_expr := expr.get(0)?
-            dont_delete(return_expr)
-            switch return_expr.node_type {
-            case NodeType.FCall(_):
-                mut variadic_fcall_info := VariadicFCallInfo()
-                variadic_fcall_info = detect_variadic_fcall(return_expr, ctx)?
-                catch (err: KeyNotFoundError) {
-                    // REM: not variadic - variadic_fcall_info stays at default
-                }
-                if not(variadic_fcall_info.elem_type.is_empty()) {
-                    // Variadic call in return - need to hoist it
-                    // Bug #143: Use emit_arg_string for regular args, pass empty map to hoist_variadic_args
-                    // (hoist_variadic_args already uses emit_arg_string internally)
-                    mut variadic_args := Vec.new(Expr)
-                    mut va_idx := add(1, variadic_fcall_info.regular_count)
-                    while va_idx.lt(return_expr.params.len()) {
-                        va_arg := return_expr.get(va_idx)?
-                        dont_delete(va_arg)
-                        variadic_args.push(va_arg)
-                        va_idx.inc()
-                    }
-                    empty_hoisted := Map.new(I64, Str)
-                    arr_var := hoist_variadic_args(variadic_fcall_info.elem_type, variadic_args, empty_hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?
+        // Issue #175: Non-throwing function with returns uses *_ret = value; return;
+        has_returns := not(ctx.current_return_types.is_empty())
 
-                    // Bug #143: Get regular arg strings using emit_arg_string
-                    mut regular_args := Vec.new(Expr)
-                    mut ra_idx := 1
-                    while ra_idx.lt(add(1, variadic_fcall_info.regular_count)).and(ra_idx.lt(return_expr.params.len())) {
-                        ra_arg := return_expr.get(ra_idx)?
-                        dont_delete(ra_arg)
-                        regular_args.push(ra_arg)
-                        ra_idx.inc()
-                    }
-                    var_fd := get_fcall_func_def(context, return_expr)?
-                    catch (err: KeyNotFoundError) { }
-                    mut regular_arg_strings := Vec.new(Str)
-                    mut i := 0
-                    while i.lt(regular_args.len()) {
-                        arg_ref := regular_args.get_by_ref(i)?
-                        create_alias(arg, Expr, arg_ref.data)
-                        mut param_type := Ptr()
-                        mut by_ref := true
-                        if i.lt(var_fd.args.len()) {
-                            param_decl_ref := var_fd.args.get_by_ref(i)?
-                            create_alias(param_decl, Declaration, param_decl_ref.data)
-                            param_type.data = to_ptr(param_decl.value_type)
-                            by_ref = param_needs_by_ref(param_decl)
+        if has_returns.and(not(expr.params.is_empty())) {
+            nonthr_return_expr := expr.get(0)?
+            dont_delete(nonthr_return_expr)
+
+            // Bug #168: If returning the ret_var_alias, skip the copy - it's already in _ret
+            mut nonthr_skip_ret_copy := false
+            switch nonthr_return_expr.node_type {
+            case NodeType.Identifier(ret_name):
+                if nonthr_return_expr.params.is_empty() {
+                    if not(ctx.ret_var_alias.is_empty()) {
+                        if ret_name.eq(ctx.ret_var_alias) {
+                            output.push_str(indent_str)
+                            output.push_str("return;\n")
+                            nonthr_skip_ret_copy = true
                         }
-                        arg_str := emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?
-                        regular_arg_strings.push(arg_str)
-                        i.inc()
                     }
-
-                    // Emit the function call storing result
-                    temp_var := next_mangled(ctx)
-                    ret_type_vt := get_value_type(context, return_expr)?
-                    catch (err: Str) {
-                        throw return_expr.lang_error(context.path, "ccodegen", err)
-                    }
-                    ret_type := til_type_to_c(ret_type_vt)?
-                    catch (err2: Str) {
-                        throw return_expr.lang_error(context.path, "ccodegen", err2)
-                    }
-                    output.push_str(indent_str)
-                    output.push_str(ret_type)
-                    output.push_str(" ")
-                    output.push_str(temp_var)
-                    output.push_str(" = ")
-                    // Emit the function call
-                    var_first_param := return_expr.get(0)?
-                    dont_delete(var_first_param)
-                    switch var_first_param.node_type {
-                    case NodeType.Identifier(func_name):
-                        output.push_str(til_func_name(func_name))
-                    case:
-                    }
-                    output.push_str("(")
-                    // Emit regular args
-                    mut vret_arg_i := 0
-                    while vret_arg_i.lt(regular_arg_strings.len()) {
-                        if vret_arg_i.gt(0) {
-                            output.push_str(", ")
-                        }
-                        vret_arg_str_ref := regular_arg_strings.get_by_ref(vret_arg_i)?
-                        create_alias(vret_arg_str, Str, vret_arg_str_ref.data)
-                        output.push_str(vret_arg_str)
-                        vret_arg_i.inc()
-                    }
-                    // Emit variadic array pointer
-                    if variadic_fcall_info.regular_count.gt(0) {
-                        output.push_str(", ")
-                    }
-                    output.push_str("&")
-                    output.push_str(arr_var)
-                    output.push_str(");\n")
-
-                    // Delete array
-                    output.push_str(indent_str)
-                    output.push_str(TIL_PREFIX)
-                    output.push_str("Array_delete(&")
-                    output.push_str(arr_var)
-                    output.push_str(");\n")
-
-                    // Return the result
-                    output.push_str(indent_str)
-                    output.push_str("return ")
-                    output.push_str(temp_var)
-                    output.push_str(";\n")
-                    return
                 }
             case:
             }
-        }
+            if nonthr_skip_ret_copy {
+                return
+            }
 
-        // Bug #143: Use emit_arg_string to handle hoisting
-        mut nv_return_str := ""
-        mut has_nv_return := false
-        if not(expr.params.is_empty()) {
-            ret_first_param := expr.get(0)?
-            dont_delete(ret_first_param)
-            nv_return_str = emit_arg_string(ret_first_param, Ptr(), false, output, indent, ctx, context)?
-            has_nv_return = true
-        }
+            // Bug #143: Use emit_arg_string to handle hoisting
+            nonthr_return_str := emit_arg_string(nonthr_return_expr, Ptr(), false, output, indent, ctx, context)?
 
-        // Regular non-variadic return
-        output.push_str(indent_str)
-        output.push_str("return")
-        if has_nv_return {
-            output.push_str(" ")
-            output.push_str(nv_return_str)
+            // Store value through _ret pointer and return
+            output.push_str(indent_str)
+            output.push_str("*_ret = ")
+            output.push_str(nonthr_return_str)
+            output.push_str(";\n")
+            output.push_str(indent_str)
+            output.push_str("return;\n")
+        } else {
+            // Proc or empty return
+            output.push_str(indent_str)
+            output.push_str("return;\n")
         }
-        output.push_str(";\n")
-    }
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
     }
 }
 
@@ -8659,6 +8507,32 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         }
     }
 
+    // Issue #175: For non-throwing calls with return types at statement level,
+    // declare temp var for _ret parameter
+    fcall_fd := get_fcall_func_def(context, expr)?
+    catch (err: KeyNotFoundError) {
+        // REM: No function definition found
+    }
+    has_returns_for_ret := not(fcall_fd.return_types.is_empty()).or(is_enum_constructor)
+
+    mut ret_temp_var := ""
+    mut has_ret_temp := false
+    if is_stmt_level.and(has_returns_for_ret) {
+        c_type := get_c_type_for_expr(expr, context)?
+        catch (err: Str) {
+            throw expr.lang_error(context.path, "ccodegen", err)
+        }
+        ret_temp_var = next_mangled(ctx)
+        // Note: indent_str was already added by emit_stmt for this line
+        // We use it for the temp declaration, then add our own indent for the call
+        output.push_str(c_type)
+        output.push_str(" ")
+        output.push_str(ret_temp_var)
+        output.push_str(";\n")
+        output.push_str(indent_str)
+        has_ret_temp = true
+    }
+
     output.push_str(TIL_PREFIX)
     if is_enum_constructor {
         ctor_parts := func_name.split("_")?
@@ -8674,6 +8548,12 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
     output.push_str("(")
 
+    // Issue #175: First arg is &ret_temp_var for functions with return types
+    if has_ret_temp {
+        output.push_str("&")
+        output.push_str(ret_temp_var)
+    }
+
     // Check if this is a variadic function call
     if have_variadic_info {
         mut var_fcall_info := VariadicFCallInfo()
@@ -8685,7 +8565,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             // Emit regular args from arg_strings
             mut vstmt_arg_i := 0
             while vstmt_arg_i.lt(var_regular_count) {
-                if vstmt_arg_i.gt(0) {
+                if vstmt_arg_i.gt(0).or(has_ret_temp) {
                     output.push_str(", ")
                 }
                 vstmt_arg_str_ref := arg_strings.get_by_ref(vstmt_arg_i)?
@@ -8746,7 +8626,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
         // Emit variadic array pointer
         if has_variadic_arr {
-            if var_regular_count.gt(0) {
+            // Issue #175: _ret or regular args always precede variadic array
+            if has_ret_temp.or(var_regular_count.gt(0)) {
                 output.push_str(", ")
             }
             output.push_str("&")
@@ -8761,7 +8642,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         if is_stmt_level {
             mut nstmt_arg_i := 0
             while nstmt_arg_i.lt(arg_strings.len()) {
-                if nstmt_arg_i.gt(0) {
+                if nstmt_arg_i.gt(0).or(has_ret_temp) {
                     output.push_str(", ")
                 }
                 nstmt_arg_str_ref := arg_strings.get_by_ref(nstmt_arg_i)?

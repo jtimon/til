@@ -19,7 +19,7 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 :PROPERTIES:
 :DISCOVERED: 2026-02-19
 :IMPACT: Major ccodegen simplification, fewer special cases, enables future optimizations
-:STATUS: Open - implementation plan ready
+:STATUS: WIP - Rust done, TIL port done, 2 generated C differences remain + OOM at test 73/89
 :RELATED: Bug #168 (ret_var_alias optimization), Bug #173 (missing *_ret assignment), doc/first_class.org (function pointer typedefs)
 :END:
 
@@ -304,6 +304,53 @@ must be identical.
 - The ~emit_throwing_call~ / ~emit_throwing_call_propagate~ functions serve
   as the template for the unified call pattern. The non-throwing version is
   the same minus the status check and error handling.
+
+*** Remaining generated C differences (TIL vs Rust)
+
+These are pre-existing differences between ~ccodegen.til~ and ~ccodegen.rs~
+that produce different C output. All must be fixed for ~make benchmark~ to
+pass (OOM at test 73/89 with 40GB limit).
+
+**** Difference 1: Enum method ordering (13 test files)
+
+Rust ~OrderedMap~ iterates in insertion order: delete, then clone.
+TIL ~Map~ iterates in sorted (alphabetical) order: clone, then delete.
+
+Affects: ~emit_enum_method_prototypes~ and ~emit_enum_method_bodies~ in
+ccodegen, which iterate ~enum_def.methods~.
+
+Files with this diff: args.c, bug52.c, bug56.c, c_mem.c, editor_mode_test.c,
+enums.c, forward_declarations.c, loops.c, modes.c, structs.c, test_lexer.c,
+ufcs.c, vecs.c.
+
+Fix: sort method keys alphabetically in ccodegen.rs before iterating, so
+both compilers produce alphabetical order. Or change TIL's ~Map~ to preserve
+insertion order.
+
+**** Difference 2: Catch block variable naming (errors.c)
+
+Rust hoists catch variable as: ~til_Str til_Str_msg;~ (type-prefixed name)
+TIL hoists catch variable as: ~til_Str til_msg;~ (no type prefix)
+
+Then in catch body:
+- Rust assigns to hoisted var: ~til_Str_msg = err.msg;~
+- TIL declares new var: ~til_Str til_Str_msg = err.msg;~ (hoisted ~til_msg~ unused)
+
+Fix: find where ccodegen.til generates hoisted catch variable names and add
+the type prefix to match Rust.
+
+**** Fixed: size_of placement (music.c)
+
+TIL emitted ~til_size_of~ before ~emit_precomputed_static_arrays~.
+Rust emits it after. Fixed by swapping order in ccodegen.til.
+
+**** OOM at test 73/89
+
+All 89 tests pass individually in all 4 modes. The OOM is cumulative memory
+leak (Bug #165) in ~bin/rs/tests~ (compiled TIL test runner) accumulating
+over 73+ tests. Not caused by a single test. ~bin/rs/til~ uses ~1.9GB per
+test in ~til_interpreted~ mode due to ~gen/rs/c/til.c~ growing to 120K lines
+(+38% from #175 hoisting).
 
 ** Issue #174: Replace separate namespace blocks with ~namespace:~ keyword inside type bodies
 :PROPERTIES:
