@@ -126,8 +126,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         mut filtered_vars := Vec.new(Str)
         mut filtered_types := Vec.new(Str)
         for i in 0..cand_vars.len() {
-            mut var_name := ""
-            cand_vars.get(i, var_name)?
+            var_name_ref := cand_vars.get_by_ref(i)?
+            create_alias(var_name, Str, var_name_ref.data)
             type_name_ref := cand_types.get_by_ref(i)?
             create_alias(type_name, Str, type_name_ref.data)
             mut excluded := var_name.eq("_")
@@ -218,9 +218,9 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             create_alias(body_stmt, Expr, body_stmt_ref.data)
             final_body.push(body_stmt)
             for di in 0..insert_positions.len() {
-                mut dpos := 0
-                insert_positions.get(di, dpos)?
-                if dpos.eq(bi.add(1)) {
+                dpos_ref := insert_positions.get_by_ref(di)?
+                create_alias(dpos, I64, dpos_ref.data)
+                if I64.eq(dpos, bi.add(1)) { // TODO Bug #176: UFCS workaround for create_alias
                     dc_ref := insert_del_calls.get_by_ref(di)?
                     create_alias(dc, Expr, dc_ref.data)
                     final_body.push(dc)
@@ -321,8 +321,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         // Check if this is a mut declaration with struct type and identifier RHS
         // Identifier can have field access (x.y.z), we clone any identifier-based RHS
         if decl.is_mut.and(decl_new_params.len().gt(0)) {
-            mut first_param := Expr()
-            decl_new_params.get(0, first_param)?
+            first_param_ref := decl_new_params.get_by_ref(0)?
+            create_alias(first_param, Expr, first_param_ref.data)
             catch (err: IndexOutOfBoundsError) {
                 throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
             }
@@ -341,8 +341,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
                         decl_transformed_params.push(decl_clone_call)
                         mut decl_i := 1
                         while decl_i.lt(decl_new_params.len()) {
-                            mut decl_param := Expr()
-                            decl_new_params.get(decl_i, decl_param)?
+                            decl_param_ref := decl_new_params.get_by_ref(decl_i)?
+                            create_alias(decl_param, Expr, decl_param_ref.data)
                             catch (err: IndexOutOfBoundsError) {
                                 throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
                             }
@@ -385,14 +385,16 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         // Check if RHS is a bare identifier (no field access children)
         // Field access expressions (x.y.z) are skipped - they read from memory directly
         if assign_new_params.len().gt(0) {
-            mut assign_first_param := Expr()
-            assign_new_params.get(0, assign_first_param)?
+            assign_first_param_ref := assign_new_params.get_by_ref(0)?
+            create_alias(assign_first_param, Expr, assign_first_param_ref.data)
             catch (err: IndexOutOfBoundsError) {
                 throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
             }
             switch assign_first_param.node_type {
             case NodeType.Identifier(rhs_name):
-                if assign_first_param.params.len().eq(0) {
+                // TODO Bug #176: UFCS workaround for create_alias
+                assign_first_param_len := Vec.len(assign_first_param.params)
+                if I64.eq(assign_first_param_len, 0) {
                 // Look up identifier's symbol type
                 assign_sym := context.scope_stack.lookup_symbol(rhs_name)?
                 catch (err: KeyNotFoundError) {
@@ -409,8 +411,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
                         assign_transformed_params.push(assign_clone_call)
                         mut assign_i := 1
                         while assign_i.lt(assign_new_params.len()) {
-                            mut assign_param := Expr()
-                            assign_new_params.get(assign_i, assign_param)?
+                            assign_param_ref := assign_new_params.get_by_ref(assign_i)?
+                            create_alias(assign_param, Expr, assign_param_ref.data)
                             catch (err: IndexOutOfBoundsError) {
                                 throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
                             }
@@ -584,8 +586,8 @@ detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Cont
     if resolved.func_def.args.len().eq(0) {
         return false
     }
-    mut first_arg := Declaration()
-    resolved.func_def.args.get(0, first_arg)?
+    first_arg_ref := resolved.func_def.args.get_by_ref(0)?
+    create_alias(first_arg, Declaration, first_arg_ref.data)
     catch (err: IndexOutOfBoundsError) {
         return false
     }
@@ -596,8 +598,8 @@ detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Cont
     case:
         return false
     }
-    mut method_name := ""
-    chain.get(chain.len().sub(1), method_name)?
+    method_name_ref := chain.get_by_ref(chain.len().sub(1))?
+    create_alias(method_name, Str, method_name_ref.data)
     catch (err: IndexOutOfBoundsError) {
         return false
     }
@@ -617,8 +619,8 @@ detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Cont
 
     // Find last mut arg (the out-param)
     last_arg_idx := resolved.func_def.args.len().sub(1)
-    mut last_arg := Declaration()
-    resolved.func_def.args.get(last_arg_idx, last_arg)?
+    last_arg_ref := resolved.func_def.args.get_by_ref(last_arg_idx)?
+    create_alias(last_arg, Declaration, last_arg_ref.data)
     catch (err: IndexOutOfBoundsError) {
         return false
     }
@@ -746,9 +748,11 @@ transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: V
     // Early out: check if any args (params[1..]) are identifiers
     mut has_identifier_arg := false
     for check_i in 1..new_params.len() {
-        mut check_param := Expr()
-        new_params.get(check_i, check_param)?
-        catch (err: IndexOutOfBoundsError) { }
+        check_param_ref := new_params.get_by_ref(check_i)?
+        create_alias(check_param, Expr, check_param_ref.data)
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "IndexOutOfBoundsError in check_i loop: ", err.msg)
+        }
         if is_identifier_expr(check_param) {
             has_identifier_arg = true
         }
@@ -769,9 +773,11 @@ transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: V
 
     // For each arg: if is_copy AND struct type AND identifier, wrap in Type.clone()
     for i in 0..func_def.args.len() {
-        mut arg_def := Declaration()
-        func_def.args.get(i, arg_def)?
-        catch (err: IndexOutOfBoundsError) { }
+        arg_def_ref := func_def.args.get_by_ref(i)?
+        create_alias(arg_def, Declaration, arg_def_ref.data)
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "IndexOutOfBoundsError in args loop: ", err.msg)
+        }
         param_idx := i.add(1) // params[0] is the function name
         if param_idx.gteq(new_params.len()) {
             return
@@ -779,9 +785,11 @@ transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: V
         if not(arg_def.is_copy) {
             // skip
         } else {
-            mut param_expr := Expr()
-            new_params.get(param_idx, param_expr)?
-            catch (err: IndexOutOfBoundsError) { }
+            param_expr_ref := new_params.get_by_ref(param_idx)?
+            create_alias(param_expr, Expr, param_expr_ref.data)
+            catch (err: IndexOutOfBoundsError) {
+                panic(loc(), "IndexOutOfBoundsError getting param_expr: ", err.msg)
+            }
             if not(is_identifier_expr(param_expr)) {
                 // skip
             } else {
@@ -952,7 +960,9 @@ resolve_fcall_from_chain := proc(chain: Vec, local_types: Map, context: Context)
     if context.scope_stack.has_struct(first) {
         current_type = first
     } else {
-        local_types.get(first, current_type)?
+        current_type_ref := local_types.get_by_ref(first)?
+        create_alias(current_type_alias, Str, current_type_ref.data)
+        current_type = Str.clone(current_type_alias) // TODO Bug #176: UFCS workaround for create_alias
         catch (err: KeyNotFoundError) {
             throw KeyNotFoundError(msg=format("resolve_fcall_from_chain: unknown first '", first, "'"))
         }
@@ -1001,9 +1011,10 @@ collect_own_transfers_recursive := proc(e: Expr, context: Context, local_types: 
         mut chain := Vec.new(Str)
         get_fcall_identifier_chain(e, chain)?
         if chain.len().gt(0) {
-            mut last := ""
-            chain.get(chain.len().sub(1), last)?
-            if not(last.eq("clone")).and(not(last.eq("delete"))) {
+            last_ref := chain.get_by_ref(chain.len().sub(1))?
+            create_alias(last, Str, last_ref.data)
+            // TODO Bug #176: UFCS workaround for create_alias
+            if not(Str.eq(last, "clone")).and(not(Str.eq(last, "delete"))) {
                 mut resolved := ResolvedFCall()
                 mut found := false
                 resolved = resolve_fcall_from_chain(chain, local_types, context)?
@@ -1092,9 +1103,11 @@ transform_struct_literal_fields := proc(context: Context, e: Expr, mut new_param
 
     // For each child in new_params[1..] that is a NamedArg
     for param_idx in 1..new_params.len() {
-        mut param := Expr()
-        new_params.get(param_idx, param)?
-        catch (err: IndexOutOfBoundsError) { }
+        param_ref := new_params.get_by_ref(param_idx)?
+        create_alias(param, Expr, param_ref.data)
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "IndexOutOfBoundsError getting named arg param: ", err.msg)
+        }
         switch param.node_type {
         case NodeType.NamedArg(field_name):
             // Find matching field in struct def members
