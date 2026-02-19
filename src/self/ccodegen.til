@@ -615,15 +615,16 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         create_alias(dep_expr, Expr, dep_expr_ref.data)
         dep_names := get_type_dependencies(dep_expr)?
         for dep_name: Str in dep_names {
-            if name_to_idx.contains_key(dep_name) {
-                mut dep_idx := 0
-                name_to_idx.get(dep_name, dep_idx)?
-                if not(dep_idx.eq(idx)) {
-                    mut dep_vec := Vec.new(I64)
-                    deps.get(idx, dep_vec)?
-                    dep_vec.push(dep_idx)
-                    deps.set(idx, dep_vec)?
-                }
+            dep_idx_ref := name_to_idx.get_by_ref(dep_name)?
+            create_alias(dep_idx, I64, dep_idx_ref.data)
+            if not(I64.eq(dep_idx, idx)) { // TODO Bug #176: UFCS workaround for create_alias
+                mut dep_vec := Vec.new(I64)
+                deps.get(idx, dep_vec)?
+                dep_vec.push(dep_idx)
+                deps.set(idx, dep_vec)?
+            }
+            catch (err: KeyNotFoundError) {
+                // Expected: not all dep names are in the type list
             }
         }
         idx.inc()
@@ -668,8 +669,8 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     mut queue := Vec.new(I64)
     idx = 0
     while idx.lt(in_degree.len()) {
-        mut queue_degree := 0
-        in_degree.get(idx, queue_degree)?
+        queue_degree_ref := in_degree.get_by_ref(idx)?
+        create_alias(queue_degree, I64, queue_degree_ref.data)
         if queue_degree.eq(0) {
             queue.push(idx)
         }
@@ -713,7 +714,6 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
 
     return result
 }
@@ -749,12 +749,11 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         arg_ref := variadic_args.get_by_ref(i)?
         create_alias(arg, Expr, arg_ref.data)
         hoisted_idx := add(regular_count, i)
-        if already_hoisted.contains_key(hoisted_idx) {
-            // Already hoisted, use that temp
-            mut temp := ""
-            already_hoisted.get(hoisted_idx, temp)?
-            arg_temps.push(temp)
-        } else {
+        temp_ref := already_hoisted.get_by_ref(hoisted_idx)?
+        create_alias(temp, Str, temp_ref.data)
+        // Already hoisted, use that temp
+        arg_temps.push(temp)
+        catch (err: KeyNotFoundError) {
             // Need to hoist into a temp
             // Bug #143: Use emit_arg_string to properly handle nested FCalls that need by-ref
             arg_str := emit_arg_string(arg, Ptr(), false, output, indent, ctx, context)?
@@ -873,7 +872,6 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw format("KeyNotFoundError: ", err.msg) }
 
     return arr_var
 }
@@ -890,8 +888,8 @@ detect_variadic_fcall := func(expr: Expr, ctx: CodegenContext) returns VariadicF
     dont_delete(first_param)
     orig_func_name := get_til_func_name_string(first_param)?
 
-    mut info := VariadicFCallInfo()
-    ctx.func_variadic_args.get(orig_func_name, info)?
+    info_ref := ctx.func_variadic_args.get_by_ref(orig_func_name)?
+    create_alias(info, VariadicFCallInfo, info_ref.data)
     catch (err: Str) {
         throw KeyNotFoundError(msg="Not variadic: name error")
     }
@@ -3235,8 +3233,8 @@ emit_precomputed_vec_static := proc(mut output: Str, mut ctx: CodegenContext, co
     dont_delete(elem_type) // alias of contents.element_type_name
     elem_count := contents.element_bytes.len()
     type_size := contents.type_size
-    mut static_info := PrecomputedStaticInfo()
-    ctx.precomputed_static_arrays.get(var_name, static_info)?
+    static_info_ref := ctx.precomputed_static_arrays.get_by_ref(var_name)?
+    create_alias(static_info, PrecomputedStaticInfo, static_info_ref.data)
     catch (err: KeyNotFoundError) {
         panic(loc(), "emit_precomputed_vec_static: no static info for '", var_name, "'")
     }
@@ -5004,8 +5002,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                     // Replace local_catch_labels with only the next catches
                     ctx.local_catch_labels.clear()
                     for type_name: Str in next_catches.keys {
-                        mut catch_info := CatchLabelInfo()
-                        next_catches.get(type_name, catch_info)?
+                        catch_info_ref := next_catches.get_by_ref(type_name)?
+                        create_alias(catch_info, CatchLabelInfo, catch_info_ref.data)
                         catch (err: KeyNotFoundError) {
                             panic(loc(), "KeyNotFoundError iterating keys: ", err.msg)
                         }
@@ -5631,11 +5629,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 mut found_idx := 0
                 mut found := false
                 for catch_err_idx in 0..throw_types.len() {
-                    mut vt := ValueType.TCustom("")
-                    throw_types.get(catch_err_idx, vt)?
+                    vt_ref := throw_types.get_by_ref(catch_err_idx)?
+                    create_alias(vt, ValueType, vt_ref.data)
                     switch vt {
                     case ValueType.TCustom(name):
-                        if name.eq(err_type_name) {
+                        if Str.eq(name, err_type_name) { // TODO Bug #176: UFCS workaround for create_alias
                             found = true
                             found_idx = catch_err_idx
                             break
@@ -5996,11 +5994,11 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             mut current_idx := 0
             mut found := false
             for cur_throw_idx in 0..ctx.current_throw_types.len() {
-                mut cur_vt := ValueType.TCustom("")
-                ctx.current_throw_types.get(cur_throw_idx, cur_vt)?
+                cur_vt_ref := ctx.current_throw_types.get_by_ref(cur_throw_idx)?
+                create_alias(cur_vt, ValueType, cur_vt_ref.data)
                 switch cur_vt {
                 case ValueType.TCustom(cur_name):
-                    if cur_name.eq(called_type_name) {
+                    if Str.eq(cur_name, called_type_name) { // TODO Bug #176: UFCS workaround for create_alias
                         found = true
                         current_idx = cur_throw_idx
                         break
@@ -6320,8 +6318,8 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         switch goto_throw_type {
         case ValueType.TCustom(type_name):
             // Check if there's a local catch for this error type
-            mut catch_info := CatchLabelInfo()
-            ctx.local_catch_labels.get(type_name, catch_info)?
+            catch_info_ref := ctx.local_catch_labels.get_by_ref(type_name)?
+            create_alias(catch_info, CatchLabelInfo, catch_info_ref.data)
             // Jump to local catch: copy error to temp var, then goto label
             output.push_str(indent_str)
             output.push_str("if (_status_")
@@ -6346,11 +6344,11 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 mut prop_idx := 0
                 mut found_prop := false
                 for prop_i in 0..ctx.current_throw_types.len() {
-                    mut prop_vt := ValueType.TCustom("")
-                    ctx.current_throw_types.get(prop_i, prop_vt)?
+                    prop_vt_ref := ctx.current_throw_types.get_by_ref(prop_i)?
+                    create_alias(prop_vt, ValueType, prop_vt_ref.data)
                     switch prop_vt {
                     case ValueType.TCustom(n):
-                        if n.eq(type_name) {
+                        if Str.eq(n, type_name) { // TODO Bug #176: UFCS workaround for create_alias
                             found_prop = true
                             prop_idx = prop_i
                             break
@@ -6643,13 +6641,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
     }
 
     // Bug #133: Precomputed globals are initialized at declaration site, skip in main()
-    mut have_static_info := true
-    mut static_info := PrecomputedStaticInfo()
-    ctx.precomputed_static_arrays.get(decl.name, static_info)?
-    catch (err: KeyNotFoundError) {
-        have_static_info = false
-    }
-    if have_static_info {
+    if ctx.precomputed_static_arrays.contains_key(decl.name) {
         return
     }
 
@@ -6804,19 +6796,21 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     continue
                 }
                 // Get value expr from named_values or default_values
-                mut value_expr := Expr()
                 mut has_value := false
-                if named_values.contains_key(member.name) {
-                    named_values.get(member.name, value_expr)?
-                    has_value = true
-                } else {
-                    struct_def.default_values.get(member.name, value_expr)?
+                mut value_expr_ptr := Ptr()
+                hoist_nv_ref := named_values.get_by_ref(member.name)?
+                value_expr_ptr.data = hoist_nv_ref.data
+                has_value = true
+                catch (err: KeyNotFoundError) {
+                    hoist_dv_ref := struct_def.default_values.get_by_ref(member.name)?
+                    value_expr_ptr.data = hoist_dv_ref.data
                     has_value = true
                     catch (err: KeyNotFoundError) {
-                        has_value = false
+                        // Expected: not all members have defaults
                     }
                 }
                 if has_value {
+                    create_alias(value_expr, Expr, value_expr_ptr.data)
                     mut is_fcall := false
                     switch value_expr.node_type {
                     case NodeType.FCall(_):
@@ -7516,12 +7510,9 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
 
     // Check if this type is locally caught (has a catch block at function level)
-    mut nh_catch_info := CatchLabelInfo()
-    ctx.local_catch_labels.get(nh_thrown_type_name.clone(), nh_catch_info)?
-    catch (err: KeyNotFoundError) {
-        // REM: Rust's None case - type not locally caught, continue to next check
-    }
-    if not(nh_catch_info.label.eq("")) {
+    if ctx.local_catch_labels.contains_key(nh_thrown_type_name.clone()) {
+        nh_catch_info_ref := ctx.local_catch_labels.get_by_ref(nh_thrown_type_name.clone())?
+        create_alias(nh_catch_info, CatchLabelInfo, nh_catch_info_ref.data)
         nh_label := nh_catch_info.label.clone()
         nh_temp_var := nh_catch_info.temp_var.clone()
 
@@ -8102,8 +8093,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     // Get variadic info to know which args are variadic (need different handling)
     mut variadic_regular_count := 9999999
     mut have_variadic_info := true
-    mut variadic_info_check := VariadicFCallInfo()
-    ctx.func_variadic_args.get(orig_func_name, variadic_info_check)?
+    variadic_info_check_ref := ctx.func_variadic_args.get_by_ref(orig_func_name)?
+    create_alias(variadic_info_check, VariadicFCallInfo, variadic_info_check_ref.data)
     variadic_regular_count = variadic_info_check.regular_count
     catch (err: KeyNotFoundError) {
         have_variadic_info = false
@@ -8628,8 +8619,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     mut variadic_arr_var := ""
     mut has_variadic_arr := false
     if is_stmt_level.and(have_variadic_info) {
-        mut variadic_info := VariadicFCallInfo()
-        ctx.func_variadic_args.get(orig_func_name, variadic_info)?
+        variadic_info_ref := ctx.func_variadic_args.get_by_ref(orig_func_name)?
+        create_alias(variadic_info, VariadicFCallInfo, variadic_info_ref.data)
         elem_type := variadic_info.elem_type.clone()
         regular_count := variadic_info.regular_count
         // Bug #143: Use pre-computed arg_strings
@@ -8690,8 +8681,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Check if this is a variadic function call
     if have_variadic_info {
-        mut var_fcall_info := VariadicFCallInfo()
-        ctx.func_variadic_args.get(orig_func_name, var_fcall_info)?
+        var_fcall_info_ref := ctx.func_variadic_args.get_by_ref(orig_func_name)?
+        create_alias(var_fcall_info, VariadicFCallInfo, var_fcall_info_ref.data)
         var_regular_count := var_fcall_info.regular_count
 
         // Bug #143: Use pre-computed arg_strings
