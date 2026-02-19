@@ -117,6 +117,8 @@ everything gets hoisted to temp vars, which is what throwing calls already do.
 
 *** Implementation Plan
 
+This plan was implemented in failed branch oom175, but failed due to OOM and differences in til and rust generated C.
+
 **** Step 1: ~emit_func_signature~ -- always emit ~_ret~ for functions with returns
 
 Current branching (rs:3456-3500):
@@ -2037,4 +2039,3 @@ bootstrap as the chicken-and-egg solution.
 *** Open Questions
 - How to handle parallel builds?
 - When is bootstrap/til.c trustworthy enough to be the primary bootstrap? (see Issue #100)
-
