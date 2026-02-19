@@ -11,12 +11,23 @@ import("core.vec")
 // Empty string means use default
 mut g_cc := ""
 
+// Global flag: --rust-only (skip til_interpreted/til_compiled tests)
+mut g_rust_only := false
+
 // Get --cc flag string for commands (returns "" if not set, " --cc=X" if set)
 get_cc_flag := func() returns Str {
     if g_cc.is_empty() {
         return ""
     }
     return concat(" --cc=", g_cc)
+}
+
+// Get --rust-only flag string for test commands
+get_rust_only_flag := func() returns Str {
+    if g_rust_only {
+        return " --rust-only"
+    }
+    return ""
 }
 
 // Run command with streaming output (prints as it goes)
@@ -146,7 +157,8 @@ run_tests := proc() {
     // Issue #131: Pass --cc flag to tests
     // test_runner.til calls rstil/til build per test, which has needs_rebuild logic
     cc_flag := get_cc_flag()
-    status = run_stream_cmd(concat("./bin/rs/tests", cc_flag))
+    rust_only_flag := get_rust_only_flag()
+    status = run_stream_cmd(concat("./bin/rs/tests", cc_flag).concat(rust_only_flag))
     tests_status := status
     status = run_stream_cmd("cp gen/rs/c/test/constfold.c src/test/constfold.c")
     println("Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c")
@@ -283,14 +295,16 @@ main := proc(args: ..Str) {
     if args.len().eq(0) {
         println("Usage: make.til <target> [options]")
         println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, mem-report, test-cross, diff <file>")
-        println("Options: --cc=COMPILER (e.g., --cc=clang)")
+        println("Options: --cc=COMPILER (e.g., --cc=clang), --rust-only")
         exit(1)
     }
-    // Parse --cc= option (Issue #131)
+    // Parse options
     mut remaining_args := Vec.new(Str)
     for arg: Str in args {
         if arg.starts_with("--cc=") {
             g_cc = arg.get_substr(5, arg.len())?
+        } else if arg.eq("--rust-only") {
+            g_rust_only = true
         } else {
             remaining_args.push(arg)
         }

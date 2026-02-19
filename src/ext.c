@@ -7,7 +7,7 @@
 #ifndef TIL_EXT_C
 #define TIL_EXT_C
 
-// Forward declarations
+// Forward declarations (size_of keeps old return-value convention - fully special-cased in codegen)
 static inline til_I64 til_size_of(const til_Str* type_name);
 
 // HeapState tracking (compiled from heap_state.til)
@@ -35,9 +35,9 @@ static inline void til_print_flush(void)
 }
 
 // to_ptr: get pointer address as integer
-static inline til_I64 til_to_ptr(til_I64* p)
+static inline void til_to_ptr(til_I64* _ret, til_I64* p)
 {
-    return (til_I64)p;
+    *_ret = (til_I64)p;
 }
 
 // enum_get_payload: extract enum payload into out parameter
@@ -53,124 +53,124 @@ static inline void til_enum_get_payload(til_Dynamic* enum_ptr, const til_Str* pa
 }
 
 // Type conversion helpers
-static inline til_I64 til_u8_to_i64(const til_U8* v)
+static inline void til_u8_to_i64(til_I64* _ret, const til_U8* v)
 {
-    return (til_I64)*v;
+    *_ret = (til_I64)*v;
 }
 
-static inline til_U8 til_i64_to_u8(const til_I64* v)
+static inline void til_i64_to_u8(til_U8* _ret, const til_I64* v)
 {
-    return (til_U8)*v;
+    *_ret = (til_U8)*v;
 }
 
 // U8 wrapping addition (mod 256)
-til_U8 til_u8_add(const til_U8* a, const til_U8* b)
+void til_u8_add(til_U8* _ret, const til_U8* a, const til_U8* b)
 {
-    return (til_U8)((*a + *b) & 0xFF);
+    *_ret = (til_U8)((*a + *b) & 0xFF);
 }
 
 // U8 wrapping subtraction (mod 256)
-til_U8 til_u8_sub(const til_U8* a, const til_U8* b)
+void til_u8_sub(til_U8* _ret, const til_U8* a, const til_U8* b)
 {
-    return (til_U8)((*a - *b) & 0xFF);
+    *_ret = (til_U8)((*a - *b) & 0xFF);
 }
 
 // U8 wrapping multiplication (mod 256)
-til_U8 til_u8_mul(const til_U8* a, const til_U8* b)
+void til_u8_mul(til_U8* _ret, const til_U8* a, const til_U8* b)
 {
-    return (til_U8)((*a * *b) & 0xFF);
+    *_ret = (til_U8)((*a * *b) & 0xFF);
 }
 
 // U8 division (returns 0 on divide by zero)
-til_U8 til_u8_div(const til_U8* a, const til_U8* b)
+void til_u8_div(til_U8* _ret, const til_U8* a, const til_U8* b)
 {
-    return *b == 0 ? 0 : (til_U8)(*a / *b);
+    *_ret = *b == 0 ? 0 : (til_U8)(*a / *b);
 }
 
 // U8 modulo (returns 0 on divide by zero)
-til_U8 til_u8_mod(const til_U8* a, const til_U8* b)
+void til_u8_mod(til_U8* _ret, const til_U8* a, const til_U8* b)
 {
-    return *b == 0 ? 0 : (til_U8)(*a % *b);
+    *_ret = *b == 0 ? 0 : (til_U8)(*a % *b);
 }
 
 // U8 bitwise xor
-til_U8 til_u8_xor(const til_U8* a, const til_U8* b)
+void til_u8_xor(til_U8* _ret, const til_U8* a, const til_U8* b)
 {
-    return (til_U8)(*a ^ *b);
+    *_ret = (til_U8)(*a ^ *b);
 }
 
 // U8 bitwise and
-til_U8 til_u8_and(const til_U8* a, const til_U8* b)
+void til_u8_and(til_U8* _ret, const til_U8* a, const til_U8* b)
 {
-    return (til_U8)(*a & *b);
+    *_ret = (til_U8)(*a & *b);
 }
 
 // U8 bitwise or
-til_U8 til_u8_or(const til_U8* a, const til_U8* b)
+void til_u8_or(til_U8* _ret, const til_U8* a, const til_U8* b)
 {
-    return (til_U8)(*a | *b);
+    *_ret = (til_U8)(*a | *b);
 }
 
 // Arithmetic functions
-static inline til_Bool til_i64_lt(const til_I64* a, const til_I64* b)
+static inline void til_i64_lt(til_Bool* _ret, const til_I64* a, const til_I64* b)
 {
-    return (til_Bool){*a < *b};
+    *_ret = (til_Bool){*a < *b};
 }
 
-static inline til_Bool til_i64_gt(const til_I64* a, const til_I64* b)
+static inline void til_i64_gt(til_Bool* _ret, const til_I64* a, const til_I64* b)
 {
-    return (til_Bool){*a > *b};
+    *_ret = (til_Bool){*a > *b};
 }
 
-static inline til_Bool til_u8_lt(const til_U8* a, const til_U8* b)
+static inline void til_u8_lt(til_Bool* _ret, const til_U8* a, const til_U8* b)
 {
-    return (til_Bool){*a < *b};
+    *_ret = (til_Bool){*a < *b};
 }
 
-static inline til_Bool til_u8_gt(const til_U8* a, const til_U8* b)
+static inline void til_u8_gt(til_Bool* _ret, const til_U8* a, const til_U8* b)
 {
-    return (til_Bool){*a > *b};
+    *_ret = (til_Bool){*a > *b};
 }
 
-static inline til_I64 til_i64_add(const til_I64* a, const til_I64* b)
+static inline void til_i64_add(til_I64* _ret, const til_I64* a, const til_I64* b)
 {
-    return *a + *b;
+    *_ret = *a + *b;
 }
 
-static inline til_I64 til_i64_sub(const til_I64* a, const til_I64* b)
+static inline void til_i64_sub(til_I64* _ret, const til_I64* a, const til_I64* b)
 {
-    return *a - *b;
+    *_ret = *a - *b;
 }
 
-static inline til_I64 til_i64_mul(const til_I64* a, const til_I64* b)
+static inline void til_i64_mul(til_I64* _ret, const til_I64* a, const til_I64* b)
 {
-    return *a * *b;
+    *_ret = *a * *b;
 }
 
-static inline til_I64 til_i64_div(const til_I64* a, const til_I64* b)
+static inline void til_i64_div(til_I64* _ret, const til_I64* a, const til_I64* b)
 {
-    return *b == 0 ? 0 : *a / *b;
+    *_ret = *b == 0 ? 0 : *a / *b;
 }
 
-static inline til_I64 til_i64_mod(const til_I64* a, const til_I64* b)
+static inline void til_i64_mod(til_I64* _ret, const til_I64* a, const til_I64* b)
 {
-    return *b == 0 ? 0 : *a % *b;
+    *_ret = *b == 0 ? 0 : *a % *b;
 }
 
 // Bitwise operations
-static inline til_I64 til_i64_xor(const til_I64* a, const til_I64* b)
+static inline void til_i64_xor(til_I64* _ret, const til_I64* a, const til_I64* b)
 {
-    return *a ^ *b;
+    *_ret = *a ^ *b;
 }
 
-static inline til_I64 til_i64_and(const til_I64* a, const til_I64* b)
+static inline void til_i64_and(til_I64* _ret, const til_I64* a, const til_I64* b)
 {
-    return *a & *b;
+    *_ret = *a & *b;
 }
 
-static inline til_I64 til_i64_or(const til_I64* a, const til_I64* b)
+static inline void til_i64_or(til_I64* _ret, const til_I64* a, const til_I64* b)
 {
-    return *a | *b;
+    *_ret = *a | *b;
 }
 
 // Memory functions
@@ -220,30 +220,28 @@ static inline void til_exit(const til_I64* code)
 }
 
 // String conversion functions
-static inline til_Str til_i64_to_str(const til_I64* v)
+static inline void til_i64_to_str(til_Str* _ret, const til_I64* v)
 {
     til_I64 _buf_ptr;
     til_I64 _buf_size = 32;
     if (til_malloc(&_buf_ptr, &_buf_size)) {
-        til_Str s = {{0, 0, 0, 0, 0}, 0, 0};  // Ptr{data, is_borrowed, alloc_size, elem_type, elem_size}
-        return s;
+        *_ret = (til_Str){{0, 0, 0, 0, 0}, 0, 0};
+        return;
     }
     char* buf = (char*)_buf_ptr;
     snprintf(buf, 32, "%lld", (long long)*v);
-    til_Str s;
-    s.c_string.data = (til_I64)buf;
-    s.c_string.is_borrowed = 0;
-    s.c_string.alloc_size = 32;
-    s.c_string.elem_type = 0;
-    s.c_string.elem_size = 0;
-    s._len = strlen(buf);
-    s.cap = 32;
-    return s;
+    _ret->c_string.data = (til_I64)buf;
+    _ret->c_string.is_borrowed = 0;
+    _ret->c_string.alloc_size = 32;
+    _ret->c_string.elem_type = 0;
+    _ret->c_string.elem_size = 0;
+    _ret->_len = strlen(buf);
+    _ret->cap = 32;
 }
 
-static inline til_I64 til_str_to_i64(const til_Str* s)
+static inline void til_str_to_i64(til_I64* _ret, const til_Str* s)
 {
-    return (til_I64)strtoll((const char*)s->c_string.data, NULL, 10);
+    *_ret = (til_I64)strtoll((const char*)s->c_string.data, NULL, 10);
 }
 
 // I/O functions
@@ -346,7 +344,7 @@ static inline int til_writefile(void* _err_v, const til_Str* path, const til_Str
 // run_cmd: run command with arguments, capture output and return exit code
 // Signature: run_cmd(mut output_str: Str, args: ..Str) returns I64
 // First element of args array is the command, rest are arguments
-static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
+static inline void til_run_cmd(til_I64* _ret, til_Str* output_str, til_Array* args)
 {
     #define RUN_CMD_BUF_SIZE 65536
     til_I64 _buf_ptr;
@@ -356,7 +354,8 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
         output_str->c_string.is_borrowed = 0;
         output_str->_len = 0;
         output_str->cap = 0;
-        return -1;
+        *_ret = -1;
+        return;
     }
     char* buf = (char*)_buf_ptr;
     buf[0] = '\0';
@@ -366,7 +365,8 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
         output_str->c_string.is_borrowed = 0;
         output_str->_len = 0;
         output_str->cap = RUN_CMD_BUF_SIZE;
-        return -1;
+        *_ret = -1;
+        return;
     }
 
     // Build command string: "cmd 'arg1' 'arg2' ..."
@@ -422,7 +422,8 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
         output_str->c_string.is_borrowed = 0;
         output_str->_len = 0;
         output_str->cap = RUN_CMD_BUF_SIZE;
-        return -1;
+        *_ret = -1;
+        return;
     }
 
     size_t total = 0;
@@ -449,7 +450,7 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
     output_str->c_string.is_borrowed = 0;
     output_str->_len = total;
     output_str->cap = RUN_CMD_BUF_SIZE;
-    return (til_I64)exit_code;
+    *_ret = (til_I64)exit_code;
     #undef RUN_CMD_BUF_SIZE
 }
 
@@ -499,15 +500,16 @@ static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd)
 
 // check_cmd_status: Check if process has finished (non-blocking)
 // Returns -1 if still running, exit code if finished
-static inline til_I64 til_check_cmd_status(const til_I64* handle) {
+static inline void til_check_cmd_status(til_I64* _ret, const til_I64* handle) {
     DWORD result = WaitForSingleObject((HANDLE)*handle, 0);
     if (result == WAIT_TIMEOUT) {
-        return -1;  // still running
+        *_ret = -1;
+        return;
     }
     DWORD exitCode;
     GetExitCodeProcess((HANDLE)*handle, &exitCode);
     CloseHandle((HANDLE)*handle);
-    return (til_I64)exitCode;
+    *_ret = (til_I64)exitCode;
 }
 
 // sleep: Sleep for specified milliseconds
@@ -518,25 +520,25 @@ static inline int til_sleep(void* _err_v, const til_I64* ms) {
 }
 
 // get_thread_count: Returns number of logical processors (threads)
-static inline til_I64 til_get_thread_count(void) {
+static inline void til_get_thread_count(til_I64* _ret) {
     SYSTEM_INFO sysinfo;
     GetSystemInfo(&sysinfo);
-    return (til_I64)sysinfo.dwNumberOfProcessors;
+    *_ret = (til_I64)sysinfo.dwNumberOfProcessors;
 }
 
 // file_mtime: Returns file modification time as Unix timestamp, -1 if not exists
-static inline til_I64 til_file_mtime(const til_Str* path) {
+static inline void til_file_mtime(til_I64* _ret, const til_Str* path) {
     HANDLE h = CreateFileA((char*)path->c_string.data, GENERIC_READ,
         FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (h == INVALID_HANDLE_VALUE) return -1;
+    if (h == INVALID_HANDLE_VALUE) { *_ret = -1; return; }
     FILETIME ft;
-    if (!GetFileTime(h, NULL, NULL, &ft)) { CloseHandle(h); return -1; }
+    if (!GetFileTime(h, NULL, NULL, &ft)) { CloseHandle(h); *_ret = -1; return; }
     CloseHandle(h);
     // Convert FILETIME to Unix timestamp
     ULARGE_INTEGER ull;
     ull.LowPart = ft.dwLowDateTime;
     ull.HighPart = ft.dwHighDateTime;
-    return (til_I64)((ull.QuadPart - 116444736000000000ULL) / 10000000ULL);
+    *_ret = (til_I64)((ull.QuadPart - 116444736000000000ULL) / 10000000ULL);
 }
 
 // Bug #98: Now throws IOError instead of returning empty string
@@ -590,7 +592,7 @@ static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* p
 }
 
 // fs_parent_dir: Get parent directory of a path (Windows version)
-static inline til_Str til_fs_parent_dir(const til_Str* path) {
+static inline void til_fs_parent_dir(til_Str* _ret, const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
 
@@ -605,30 +607,32 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     if (!found || last_slash == 0) {
-        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
+        *_ret = (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
+        return;
     }
 
     // Allocate and copy parent path
     til_I64 _result_ptr;
     til_I64 _result_size = (til_I64)(last_slash + 1);
     if (til_malloc(&_result_ptr, &_result_size)) {
-        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // OOM
+        *_ret = (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // OOM
+        return;
     }
     char* result = (char*)_result_ptr;
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
-    return (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
+    *_ret = (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Windows)
-static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
+static inline void til_fs_mkdir_p(til_I64* _ret, const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
-    if (len == 0) return 0;
+    if (len == 0) { *_ret = 0; return; }
 
     til_I64 _tmp_ptr;
     til_I64 _tmp_size = (til_I64)(len + 1);
-    if (til_malloc(&_tmp_ptr, &_tmp_size)) return -1;
+    if (til_malloc(&_tmp_ptr, &_tmp_size)) { *_ret = -1; return; }
     char* tmp = (char*)_tmp_ptr;
     memcpy(tmp, p, len);
     tmp[len] = '\0';
@@ -642,7 +646,7 @@ static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
     }
     int result = _mkdir(tmp);
     til_free(&_tmp_ptr);
-    return (result == 0 || errno == EEXIST) ? 0 : -1;
+    *_ret = (result == 0 || errno == EEXIST) ? 0 : -1;
 }
 
 #else  // Unix
@@ -674,16 +678,18 @@ static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd)
 
 // check_cmd_status: Check if process has finished (non-blocking)
 // Returns -1 if still running, exit code if finished
-static inline til_I64 til_check_cmd_status(const til_I64* pid) {
+static inline void til_check_cmd_status(til_I64* _ret, const til_I64* pid) {
     int status;
     pid_t result = waitpid((pid_t)*pid, &status, WNOHANG);
     if (result == 0) {
-        return -1;  // still running
+        *_ret = -1;  // still running
+        return;
     }
     if (WIFEXITED(status)) {
-        return WEXITSTATUS(status);
+        *_ret = WEXITSTATUS(status);
+        return;
     }
-    return -1;  // abnormal termination
+    *_ret = -1;  // abnormal termination
 }
 
 // sleep: Sleep for specified milliseconds
@@ -694,17 +700,17 @@ static inline int til_sleep(void* _err_v, const til_I64* ms) {
 }
 
 // get_thread_count: Returns number of logical processors (threads)
-static inline til_I64 til_get_thread_count(void) {
+static inline void til_get_thread_count(til_I64* _ret) {
     long count = sysconf(_SC_NPROCESSORS_ONLN);
-    return count > 0 ? (til_I64)count : 1;
+    *_ret = count > 0 ? (til_I64)count : 1;
 }
 
 // file_mtime: Returns file modification time as Unix timestamp, -1 if not exists
 #include <sys/stat.h>
-static inline til_I64 til_file_mtime(const til_Str* path) {
+static inline void til_file_mtime(til_I64* _ret, const til_Str* path) {
     struct stat st;
-    if (stat((char*)path->c_string.data, &st) != 0) return -1;
-    return (til_I64)st.st_mtime;
+    if (stat((char*)path->c_string.data, &st) != 0) { *_ret = -1; return; }
+    *_ret = (til_I64)st.st_mtime;
 }
 
 // Bug #98: Now throws IOError instead of returning empty string
@@ -756,7 +762,7 @@ static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* p
 }
 
 // fs_parent_dir: Get parent directory of a path
-static inline til_Str til_fs_parent_dir(const til_Str* path) {
+static inline void til_fs_parent_dir(til_Str* _ret, const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
 
@@ -771,30 +777,32 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     if (!found || last_slash == 0) {
-        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
+        *_ret = (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // No parent or root
+        return;
     }
 
     // Allocate and copy parent path
     til_I64 _result_ptr;
     til_I64 _result_size = (til_I64)(last_slash + 1);
     if (til_malloc(&_result_ptr, &_result_size)) {
-        return (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // OOM
+        *_ret = (til_Str){{0, 0, 0, 0, 0}, 0, 0};  // OOM
+        return;
     }
     char* result = (char*)_result_ptr;
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
-    return (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
+    *_ret = (til_Str){{(til_I64)result, 0, last_slash + 1, 0, 0}, last_slash, last_slash + 1};
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Unix)
-static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
+static inline void til_fs_mkdir_p(til_I64* _ret, const til_Str* path) {
     const char* p = (const char*)path->c_string.data;
     size_t len = path->_len;
-    if (len == 0) return 0;
+    if (len == 0) { *_ret = 0; return; }
 
     til_I64 _tmp_ptr;
     til_I64 _tmp_size = (til_I64)(len + 1);
-    if (til_malloc(&_tmp_ptr, &_tmp_size)) return -1;
+    if (til_malloc(&_tmp_ptr, &_tmp_size)) { *_ret = -1; return; }
     char* tmp = (char*)_tmp_ptr;
     memcpy(tmp, p, len);
     tmp[len] = '\0';
@@ -808,7 +816,7 @@ static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
     }
     int result = mkdir(tmp, 0755);
     til_free(&_tmp_ptr);
-    return (result == 0 || errno == EEXIST) ? 0 : -1;
+    *_ret = (result == 0 || errno == EEXIST) ? 0 : -1;
 }
 
 #endif  // _WIN32
