@@ -15,6 +15,208 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #174: Replace separate namespace blocks with ~namespace:~ keyword inside type bodies
+:PROPERTIES:
+:DISCOVERED: 2026-02-19
+:IMPACT: Syntax unification, macro-friendly type definitions, path to first-class everything
+:STATUS: Open - implementation plan ready
+:RELATED: Issue #108 (namespace blocks - implemented), Issue #161 (namespace constants/statics), Issue #91 (first-class functions), doc/first_class.org
+:END:
+
+*** Background
+
+Issue #108 moved associated functions from inside struct bodies to separate
+~namespace TypeName { ... }~ blocks. This enabled enum methods (enums can't
+mix variants with function declarations) and avoided ambiguity between storage
+fields and associated functions.
+
+However, separate namespace blocks create problems:
+1. *Two declarations for one type*: ~Point := struct { ... }~ then
+   ~Point := namespace { ... }~. Unusual and disconnected.
+2. *Macros can't return complete types*: A macro returning a struct can't
+   include its methods. Would need to return struct + namespace separately.
+3. *First-class types*: If types are values that can be passed and returned,
+   they should be self-contained.
+
+*** Solution: ~namespace:~ keyword inside type bodies
+
+Move the namespace content inside the struct/enum body, using ~namespace:~
+as a section separator (like ~protected:~/~private:~ in C++):
+
+#+BEGIN_SRC til
+// NEW syntax
+Point := struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+
+namespace:
+    origin := func() returns Point { return Point() }
+    add := func(self: Point, other: Point) returns Point {
+        return Point(x=self.x.add(other.x), y=self.y.add(other.y))
+    }
+}
+
+Color := enum {
+    Red,
+    Green,
+    Blue,
+
+namespace:
+    default := func() returns Color { return Color.Red }
+    to_str := func(c: Color) returns Str {
+        switch c {
+            Color.Red   => return "red"
+            Color.Green => return "green"
+            Color.Blue  => return "blue"
+        }
+    }
+}
+
+// OLD syntax (to be removed)
+Point := struct { mut x: I64 = 0, mut y: I64 = 0 }
+namespace Point {
+    origin := func() returns Point { return Point() }
+}
+#+END_SRC
+
+For enums, variants come first (with trailing comma on the last one),
+then ~namespace:~ introduces associated items. The parser knows:
+before ~namespace:~ = variants, after = associated items.
+
+The ~namespace:~ keyword is indented at the same level as the opening brace
+(one level less than fields), for visual separation.
+
+*** What goes where
+
+| Location           | What it means                           | Syntax                |
+|--------------------+-----------------------------------------+-----------------------|
+| Before ~namespace:~ | Per-instance mutable field              | ~mut x : I64 = 0~    |
+| After ~namespace:~  | Constant (shared, immutable)            | ~PI := 3~            |
+| After ~namespace:~  | Function/method                         | ~add := func(...)...~ |
+| After ~namespace:~  | Static mutable (shared, future #161)    | ~static mut c := 0~  |
+
+*** Standalone namespaces (utility modules)
+
+A struct with no fields and only a ~namespace:~ section is a standalone
+namespace (zero-size, no instances, just a bag of associated items):
+
+#+BEGIN_SRC til
+Math := struct {
+namespace:
+    PI := 3
+    add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+}
+Math.PI       // 3
+Math.add(3,5) // 8
+#+END_SRC
+
+*** Implementation Plan
+
+**** Step 1: Parser -- recognize ~namespace:~ inside struct bodies
+
+Modify ~parse_struct_definition~ in parser.rs/parser.til:
+
+After parsing the normal body (~parse_body~), check if a declaration
+has the identifier ~namespace~ followed by ~:~. Everything after that
+point is treated as namespace members (same parsing as current namespace
+block body -- declarations and assignments only, all must have values).
+
+Store namespace members in a new field on ~SStructDef~:
+~namespace_members: Vec<Declaration>~ and
+~namespace_default_values: HashMap<String, Expr>~.
+
+Alternatively, reuse ~SNamespaceDef~ as an embedded field in ~SStructDef~.
+
+Files: src/rs/parser.rs, src/self/parser.til
+
+**** Step 2: Parser -- recognize ~namespace:~ inside enum bodies
+
+Modify the enum parser similarly. When parsing enum variants, if
+~namespace~ + ~:~ is encountered after a comma, stop parsing variants
+and switch to parsing declarations (same as namespace block body).
+
+Store in a new field on ~SEnumDef~ or embed ~SNamespaceDef~.
+
+Files: src/rs/parser.rs, src/self/parser.til
+
+**** Step 3: Init -- merge inline namespace members
+
+Currently init handles ~NamespaceDef~ as a top-level expression and merges
+its members into the existing struct. With inline ~namespace:~, the members
+are already part of the struct/enum definition.
+
+Two approaches:
+- *Option A*: Init detects the inline namespace fields on SStructDef/SEnumDef
+  and merges them into the type (similar to current logic).
+- *Option B*: Parser emits the same AST as today -- a StructDef followed by
+  a synthetic NamespaceDef. Init code stays the same. This is simpler but
+  means the parser needs to split one source declaration into two AST nodes.
+
+Recommendation: Option A is cleaner long-term (one type = one AST node).
+
+Files: src/rs/init.rs, src/self/init.til
+
+**** Step 4: Typer -- handle inline namespace members
+
+The typer already has ~check_namespace_def~ which type-checks namespace
+function bodies. With inline members, either:
+- Extend ~check_struct_def~ to also type-check namespace members.
+- Or keep the existing ~check_namespace_def~ and call it from within
+  ~check_struct_def~ when namespace members are present.
+
+Also remove the error "Function 'X' is defined inside struct. Functions must
+be in namespace blocks" (typer.rs:2134-2138) -- functions after ~namespace:~
+are now valid.
+
+Files: src/rs/typer.rs, src/self/typer.til
+
+**** Step 5: Ccodegen -- emit inline namespace functions
+
+Currently ~emit_namespace_func_prototypes~ and ~emit_namespace_func_bodies~
+iterate top-level expressions looking for ~NamespaceDef~ nodes. With inline
+members, these functions need to find namespace members inside StructDef
+and EnumDef nodes instead (or in addition, during transition).
+
+Files: src/rs/ccodegen.rs, src/self/ccodegen.til
+
+**** Step 6: Migrate all existing namespace blocks
+
+Update all ~.til~ files to use the new syntax:
+- src/core/*.til (~10 files, 1 namespace each)
+- src/self/*.til (~6 files, ~17 namespaces total)
+- src/test/*.til (~9 files, various)
+- src/test/cross_file_forward/*.til (2 files)
+
+Each migration: move the namespace block body inside the corresponding
+struct/enum definition, after a ~namespace:~ separator.
+
+**** Step 7: Remove separate namespace block support
+
+Once all files are migrated:
+- Remove ~parse_namespace_definition~ from parser.rs/parser.til
+- Remove ~Namespace~ token from lexer (or repurpose as the ~namespace:~ keyword)
+- Remove ~SNamespaceDef~ as a top-level node type (keep if embedded in struct)
+- Remove ~is_namespace_definition~ and related helpers from ccodegen
+- Remove the NamespaceDef handler from init, typer, interpreter, ccodegen
+- Update error messages referencing "namespace blocks"
+
+**** Step 8: Tests
+
+- Update src/test/108.til and src/test/namespaces.til to use new syntax
+- Add tests for: struct with namespace, enum with namespace, standalone
+  namespace (struct with only namespace section), empty namespace section
+- Negative tests: namespace in wrong position, duplicate members, etc.
+- Run full benchmark to verify no regressions
+
+*** Notes
+
+- The ~namespace:~ keyword name is provisional. See doc/first_class.org for
+  alternatives (~associated:~, ~impl:~, ~methods:~, etc.).
+- #108 was not wasted work -- it enabled enum methods, and the init merging
+  logic carries over directly. This issue just changes the syntax surface.
+- Related to #161 which adds ~static mut~ and constants after ~namespace:~.
+  That work builds on top of this issue.
+
 ** Issue #161: Namespace constants, static mutables, and per-instance immutables
 :PROPERTIES:
 :DISCOVERED: 2026-02-04
