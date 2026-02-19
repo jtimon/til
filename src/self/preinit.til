@@ -460,17 +460,12 @@ preinit_expr_inner := func(e: Expr) returns Expr throws Str {
     case NodeType.StructDef(struct_def):
         // Recurse into default values but DON'T add delete/clone here
         mut new_default_values := Map.new(Str, Expr)
-        mut sdi := 0
-        while sdi.lt(struct_def.default_values.keys.len()) {
-            mut sd_name := ""
-            struct_def.default_values.keys.get(sdi, sd_name)?
-            catch (err: IndexOutOfBoundsError) {}
+        for sd_name: Str in struct_def.default_values.keys {
             val_ref := struct_def.default_values.get_by_ref(sd_name)?
             create_alias(sd_value_expr, Expr, val_ref.data)
-            catch (err: KeyNotFoundError) {}
-            new_default_values.set(sd_name, preinit_expr_inner(sd_value_expr)?)
-            sdi.inc()
+            new_default_values.set(sd_name.clone(), preinit_expr_inner(sd_value_expr)?)
         }
+        catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
         new_struct_def := SStructDef(
             members=struct_def.members,
             default_values=new_default_values

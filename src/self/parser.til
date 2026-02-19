@@ -223,7 +223,7 @@ namespace:
         for k: Str in self.default_values.keys {
             v_ref := self.default_values.get_by_ref(k)?
             create_alias(v, Expr, v_ref.data)
-            result.default_values.set(k.clone(), Expr.clone(v))
+            result.default_values.set(k.clone(), Expr.clone(v)) // TODO Bug #176: v.clone()
         }
         catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
         return result
@@ -271,7 +271,7 @@ namespace:
         for k: Str in self.default_values.keys {
             v_ref := self.default_values.get_by_ref(k)?
             create_alias(v, Expr, v_ref.data)
-            result.default_values.set(k.clone(), Expr.clone(v))
+            result.default_values.set(k.clone(), Expr.clone(v)) // TODO Bug #176: v.clone()
         }
         catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
         return result
