@@ -47,12 +47,12 @@ substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
     switch e.node_type {
     case NodeType.Identifier(name):
         mut new_name := name
-        mut found := false
-        mut sub_val := ""
-        subs.get(name, sub_val)?
+        sv_ref := subs.get_by_ref(name)?
+        create_alias(sub_val, Str, sv_ref.data)
         new_name = sub_val
-        found = true
-        catch (_err: KeyNotFoundError) {}
+        catch (_err: KeyNotFoundError) {
+            // Expected: not all identifiers are type params
+        }
         mut new_params := Vec.new(Expr)
         for p: Expr in e.params {
             new_params.push(substitute_type_params_in_expr(p, subs))
@@ -74,11 +74,13 @@ substitute_type_params_in_struct := func(struct_def: SStructDef, subs: Map) retu
         mut substituted := false
         switch member.value_type {
         case ValueType.TCustom(type_name):
-            mut concrete_type := ""
-            subs.get(type_name, concrete_type)?
+            ct_ref := subs.get_by_ref(type_name)?
+            create_alias(concrete_type, Str, ct_ref.data)
             new_members.push(Declaration(name=member.name, value_type=ValueType.TCustom(concrete_type), is_mut=member.is_mut, is_copy=member.is_copy, is_own=member.is_own))
             substituted = true
-            catch (_err: KeyNotFoundError) {}
+            catch (_err: KeyNotFoundError) {
+                // Expected: not all types need substitution
+            }
         case:
         }
         if not(substituted) {
@@ -126,7 +128,9 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                     mut func_def := SFuncDef()
                     func_def = context.scope_stack.lookup_func(f_name)?
                     found_func = true
-                    catch (_err: KeyNotFoundError) {}
+                    catch (_err: KeyNotFoundError) {
+                        // Expected: not all calls are to known functions
+                    }
                     if found_func {
                         if func_def.is_macro() {
                             if func_def.return_types.len().gt(0) {
@@ -152,17 +156,15 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                             switch member_decl.value_type {
                                             case ValueType.TCustom(type_name):
                                                 if type_name.eq(INFER_TYPE) {
-                                                    mut default_value := Expr()
-                                                    mut has_default := false
-                                                    substituted.default_values.get(member_decl.name, default_value)?
-                                                    has_default = true
-                                                    catch (_err: KeyNotFoundError) {}
-                                                    if has_default {
-                                                        mut resolved_type := get_value_type(context, default_value)?
-                                                        catch (_err: Str) {}
-                                                        resolved_member := Declaration(name=member_decl.name, value_type=resolved_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own)
-                                                        resolved_members.push(resolved_member)
-                                                        resolved = true
+                                                    pdv_ref := substituted.default_values.get_by_ref(member_decl.name)?
+                                                    create_alias(default_value, Expr, pdv_ref.data)
+                                                    mut resolved_type := get_value_type(context, default_value)?
+                                                    catch (_err: Str) {}
+                                                    resolved_member := Declaration(name=member_decl.name, value_type=resolved_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own)
+                                                    resolved_members.push(resolved_member)
+                                                    resolved = true
+                                                    catch (_err: KeyNotFoundError) {
+                                                        // Expected: not all members have defaults
                                                     }
                                                 }
                                             case:

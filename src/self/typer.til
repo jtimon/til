@@ -1179,7 +1179,9 @@ check_namespace_def := proc(mut context: Context, _e: Expr, ns_def: SNamespaceDe
         case:
         }
 
-        catch (err: KeyNotFoundError) {} // Expected: not all members have defaults
+        catch (err: KeyNotFoundError) {
+            // Expected: not all members have defaults
+        }
     }
 
     catch (err: IndexOutOfBoundsError) {

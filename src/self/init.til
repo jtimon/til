@@ -2007,7 +2007,9 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 case:
                 }
 
-                catch (err: KeyNotFoundError) {}
+                catch (err: KeyNotFoundError) {
+                    // Expected: not all members have defaults
+                }
             }
         }
 
