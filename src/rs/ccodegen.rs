@@ -3233,11 +3233,16 @@ fn emit_enum_method_prototypes(expr: &Expr, context: &Context, output: &mut Stri
         if !expr.params.is_empty() {
             if let NodeType::EnumDef(enum_def) = &expr.get(0)?.node_type {
                 let enum_name = til_name(&decl.name);
-                for (method_name, method_expr) in &enum_def.methods {
-                    if let NodeType::FuncDef(func_def) = &method_expr.node_type {
-                        let mangled_name = format!("{}_{}", enum_name, method_name);
-                        emit_func_signature(&mangled_name, func_def, context, output)?;
-                        output.push_str(";\n");
+                // Sort method keys for deterministic output (matches TIL Map iteration order)
+                let mut method_keys: Vec<&String> = enum_def.methods.keys().collect();
+                method_keys.sort();
+                for method_name in &method_keys {
+                    if let Some(method_expr) = enum_def.methods.get(*method_name) {
+                        if let NodeType::FuncDef(func_def) = &method_expr.node_type {
+                            let mangled_name = format!("{}_{}", enum_name, method_name);
+                            emit_func_signature(&mangled_name, func_def, context, output)?;
+                            output.push_str(";\n");
+                        }
                     }
                 }
                 return Ok(());
@@ -3253,18 +3258,23 @@ fn emit_enum_method_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
         if !expr.params.is_empty() {
             if let NodeType::EnumDef(enum_def) = &expr.get(0)?.node_type {
                 let enum_name = til_name(&decl.name);
-                for (method_name, method_expr) in &enum_def.methods {
-                    if let NodeType::FuncDef(func_def) = &method_expr.node_type {
-                        // Create a fake Declaration for emit_struct_func_body
-                        let method_decl = crate::rs::parser::Declaration {
-                            name: method_name.clone(),
-                            value_type: ValueType::TFunction(func_def.function_type.clone()),
-                            is_mut: false,
-                            is_copy: false,
-                            is_own: false,
-                            default_value: None,
-                        };
-                        emit_struct_func_body(&enum_name, &method_decl, func_def, output, ctx, context)?;
+                // Sort method keys for deterministic output (matches TIL Map iteration order)
+                let mut method_keys: Vec<&String> = enum_def.methods.keys().collect();
+                method_keys.sort();
+                for method_name in &method_keys {
+                    if let Some(method_expr) = enum_def.methods.get(*method_name) {
+                        if let NodeType::FuncDef(func_def) = &method_expr.node_type {
+                            // Create a fake Declaration for emit_struct_func_body
+                            let method_decl = crate::rs::parser::Declaration {
+                                name: method_name.to_string(),
+                                value_type: ValueType::TFunction(func_def.function_type.clone()),
+                                is_mut: false,
+                                is_copy: false,
+                                is_own: false,
+                                default_value: None,
+                            };
+                            emit_struct_func_body(&enum_name, &method_decl, func_def, output, ctx, context)?;
+                        }
                     }
                 }
                 return Ok(());

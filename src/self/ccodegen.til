@@ -2500,11 +2500,12 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case:
     }
 
+    // Pass 4c2 (Bug #133 fix): emit static arrays for precomputed heap values
+    // This serializes Vec/List contents to static arrays so Ptr fields can reference them
+    emit_precomputed_static_arrays(output, ctx, context)?
+
     // Pass 4d: emit til_size_of function (runtime type size lookup)
     emit_size_of_function(output, ctx)
-
-    // Bug #133 fix: Emit static arrays for precomputed heap values
-    emit_precomputed_static_arrays(output, ctx, context)?
 
     output.push_str("\n")
 
@@ -4713,11 +4714,13 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
             case:
             }
 
+            // Bug #97: Use type-mangled names for shadowing support
             catch_body := catch_block.get(2)?
             dont_delete(catch_body)
             decls := collect_declarations_in_body(catch_body, context)?
             for decl: CollectedDeclaration in decls {
-                c_var_name := til_name(decl.name)
+                type_prefix := value_type_to_c_prefix(decl.value_type)
+                c_var_name := til_var_name(decl.name, type_prefix)
                 if not(ctx.declared_vars.contains(c_var_name)) {
                     mut have_c_type := true
                     c_type := til_type_to_c(decl.value_type)?
