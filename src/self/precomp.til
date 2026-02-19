@@ -442,9 +442,11 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool throws Str
                     switch struct_arg.node_type {
                     case NodeType.NamedArg(_):
                         if struct_arg.params.len().gt(0) {
-                            struct_arg.params.get(0, arg_to_check)?
+                            atc_ref := struct_arg.params.get_by_ref(0)?
+                            create_alias(atc, Expr, atc_ref.data)
+                            arg_to_check = atc
                             catch (err5: IndexOutOfBoundsError) {
-                                return false
+                                panic(loc(), "struct_arg.params.get_by_ref(0): len > 0 checked: ", err5.msg)
                             }
                         }
                     case:

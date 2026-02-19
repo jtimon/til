@@ -1140,7 +1140,9 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
     if var_name.contains(".") {
         parts := var_name.split(".")?
         if parts.len().gt(0) {
-            parts.get(0, base_var_name)?
+            bvn_ref := parts.get_by_ref(0)?
+            create_alias(bvn, Str, bvn_ref.data)
+            base_var_name = bvn
         }
     }
 
@@ -2340,15 +2342,17 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     mut base_offset_found := false
                     base_offset = context.scope_stack.lookup_var(result.value)?
                     base_offset_found = true
-                    catch (err: KeyNotFoundError) { }
+                    catch (err: KeyNotFoundError) {
+                        // Expected: variable may not be in heap_index
+                    }
                     if base_offset_found {
                         // Get the second-to-last frame (caller's frame)
                         thrown_frame_count := context.scope_stack.frames.len()
                         if thrown_frame_count.gteq(2) {
-                            mut thrown_caller_frame := ScopeFrame()
-                            context.scope_stack.frames.get(thrown_frame_count.sub(2), thrown_caller_frame)?
-                            thrown_caller_frame.heap_index.set(result.value.clone(), base_offset)
-                            context.scope_stack.frames.set(thrown_frame_count.sub(2), thrown_caller_frame)?
+                            tcf_ref := context.scope_stack.frames.get_by_ref(thrown_frame_count.sub(2))?
+                            create_alias(thrown_caller_frame, ScopeFrame, tcf_ref.data)
+                            // TODO Bug #176: UFCS workaround for create_alias
+                            Map.set(thrown_caller_frame.heap_index, result.value.clone(), base_offset)
                         }
                     }
 
@@ -2361,13 +2365,15 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         mut throw_src_symbol_found := false
                         throw_src_symbol = context.scope_stack.lookup_symbol(throw_sym_key)?
                         throw_src_symbol_found = true
-                        catch (err: KeyNotFoundError) { }
+                        catch (err: KeyNotFoundError) {
+                            // Expected: symbol may not exist in scope
+                        }
                         if throw_src_symbol_found {
                             if throw_frame_count.gt(1) {
-                                mut throw_sym_caller_frame := ScopeFrame()
-                                context.scope_stack.frames.get(throw_frame_count.sub(2), throw_sym_caller_frame)?
-                                throw_sym_caller_frame.symbols.set(throw_sym_key, throw_src_symbol.clone())
-                                context.scope_stack.frames.set(throw_frame_count.sub(2), throw_sym_caller_frame)?
+                                tscf_ref := context.scope_stack.frames.get_by_ref(throw_frame_count.sub(2))?
+                                create_alias(throw_sym_caller_frame, ScopeFrame, tscf_ref.data)
+                                // TODO Bug #176: UFCS workaround for create_alias
+                                Map.set(throw_sym_caller_frame.symbols, throw_sym_key, throw_src_symbol.clone())
                             }
                         }
                     }

@@ -2318,8 +2318,9 @@ namespace:
             // Type constant: find the longest prefix that exists in heap_index
             for i in 0..parts.len() {
                 // Build candidate by joining parts[0..=i] with "."
-                mut candidate := ""
-                parts.get(0, candidate)?
+                cand_ref := parts.get_by_ref(0)?
+                create_alias(cand0, Str, cand_ref.data)
+                mut candidate := cand0
                 for j in 1..i.add(1) {
                     part_ref := parts.get_by_ref(j)?
                     create_alias(part, Str, part_ref.data)
@@ -2340,8 +2341,9 @@ namespace:
         }
 
         // Build base_var by joining parts[0..=base_end_idx] with "."
-        mut base_var := ""
-        parts.get(0, base_var)?
+        bv_ref := parts.get_by_ref(0)?
+        create_alias(bv0, Str, bv_ref.data)
+        mut base_var := bv0
         for j2 in 1..base_end_idx.add(1) {
             part_ref2 := parts.get_by_ref(j2)?
             create_alias(part, Str, part_ref2.data)

@@ -356,8 +356,8 @@ namespace:
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Missing field offset for '", decl.name, "'"))
                 }
 
-                mut default_value := ""
-                defaults.get(decl.name, default_value)?
+                defval_ref := defaults.get_by_ref(decl.name)?
+                create_alias(default_value, Str, defval_ref.data)
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Missing pre-evaluated default for field '", decl.name, "'"))
                 }
@@ -372,7 +372,8 @@ namespace:
                     }
 
                     if is_enum {
-                        parts := default_value.split(".")?
+                        // TODO Bug #176: UFCS workaround for create_alias
+                        parts := Str.split(default_value, ".")?
                         if not(parts.len().eq(2)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
@@ -1533,12 +1534,15 @@ namespace:
         mut multiplier := 1
         for i in 0..8 {
             if i.lt(str_bytes.len()) {
-                mut b : U8 = 0
-                str_bytes.get(i, b)?
-                c_string_ptr = c_string_ptr.add(b.to_i64().mul(multiplier))
+                b_ref := str_bytes.get_by_ref(i)?
+                create_alias(b, U8, b_ref.data)
+                // TODO Bug #176: UFCS workaround for create_alias
+                c_string_ptr = c_string_ptr.add(U8.to_i64(b).mul(multiplier))
                 multiplier = multiplier.mul(256)
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) {
+                panic(loc(), "str_bytes.get_by_ref: bounds-checked by i < len: ", err.msg)
+            }
         }
 
         // Read _len (I64) - after c_string Ptr
@@ -1547,12 +1551,15 @@ namespace:
         for i2 in 0..8 {
             idx := ptr_size.add(i2)
             if idx.lt(str_bytes.len()) {
-                mut b2 : U8 = 0
-                str_bytes.get(idx, b2)?
-                len = len.add(b2.to_i64().mul(multiplier2))
+                b2_ref := str_bytes.get_by_ref(idx)?
+                create_alias(b2, U8, b2_ref.data)
+                // TODO Bug #176: UFCS workaround for create_alias
+                len = len.add(U8.to_i64(b2).mul(multiplier2))
                 multiplier2 = multiplier2.mul(256)
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) {
+                panic(loc(), "str_bytes.get_by_ref: bounds-checked by idx < len: ", err.msg)
+            }
         }
 
         // Read the actual string bytes from heap

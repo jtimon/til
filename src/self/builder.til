@@ -87,11 +87,17 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
                                         _ := imported.insert(file_path.clone())
                                         // Bug #128: Use already-resolved AST from typer phase if available
                                         mut dep_resolved := Expr()
-                                        context.imported_asts.get(file_path, dep_resolved)?
-                                        catch (err: KeyNotFoundError) {
+                                        if context.imported_asts.contains_key(file_path) {
+                                            dr_ref := context.imported_asts.get_by_ref(file_path)?
+                                            create_alias(dr, Expr, dr_ref.data)
+                                            dep_resolved = dr
+                                        } else {
                                             dep_result := parse_file(file_path)?
                                             context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
                                             dep_resolved = dep_result.ast
+                                        }
+                                        catch (err: KeyNotFoundError) {
+                                            panic(loc(), "imported_asts: guarded by contains_key: ", err.msg)
                                         }
                                         // Recursively collect imports from this dependency
                                         collect_imports(dep_resolved, imported, all_asts, context)?
