@@ -134,9 +134,11 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                     if found_func {
                         if func_def.is_macro() {
                             if func_def.return_types.len().gt(0) {
-                                mut ret_type := ValueType.TCustom("")
-                                func_def.return_types.get(0, ret_type)?
-                                catch (_err: IndexOutOfBoundsError) {}
+                                ret_type_ref := func_def.return_types.get_by_ref(0)?
+                                create_alias(ret_type, ValueType, ret_type_ref.data)
+                                catch (_err: IndexOutOfBoundsError) {
+                                    panic(loc(), "IndexOutOfBoundsError getting return type after len check")
+                                }
                                 switch ret_type {
                                 case ValueType.TType(TTypeDef.TStructDef):
                                     // Expand the macro

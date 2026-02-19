@@ -814,10 +814,10 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
     if func_throws.and(not(does_throw)) {
         mut throw_types_str := ""
         for ti in 0..func_def.throw_types.len() {
-            mut tt := ValueType.TCustom("")
-            func_def.throw_types.get(ti, tt)?
+            tt_ref := func_def.throw_types.get_by_ref(ti)?
+            create_alias(tt, ValueType, tt_ref.data)
             catch (idx_err: IndexOutOfBoundsError) {
-                // REM: Should not happen - iterating within bounds
+                panic(loc(), "IndexOutOfBoundsError iterating throw_types: ", idx_err.msg)
             }
             if ti.gt(0) {
                 throw_types_str = throw_types_str.concat(", ")
@@ -860,8 +860,8 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
 
         // Bug #61: Skip optional args before variadic when type doesn't match
         while def_arg_idx.lt(max_arg_def) {
-            mut current_def := Declaration()
-            func_def.args.get(def_arg_idx, current_def)?
+            current_def_ref := func_def.args.get_by_ref(def_arg_idx)?
+            create_alias(current_def, Declaration, current_def_ref.data)
             catch (idx_err: IndexOutOfBoundsError) {
                 break
             }
@@ -917,9 +917,11 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
             has_default := not(NULL.eq(current_def.default_value.data))
             mut variadic_follows := false
             if def_arg_idx.add(1).lt(max_arg_def) {
-                mut next_def := Declaration()
-                func_def.args.get(def_arg_idx.add(1), next_def)?
-                catch (idx_err: IndexOutOfBoundsError) {}
+                next_def_ref := func_def.args.get_by_ref(def_arg_idx.add(1))?
+                create_alias(next_def, Declaration, next_def_ref.data)
+                catch (idx_err: IndexOutOfBoundsError) {
+                    panic(loc(), "IndexOutOfBoundsError after bounds check: ", idx_err.msg)
+                }
                 switch next_def.value_type {
                 case ValueType.TMulti(_):
                     variadic_follows = true
@@ -941,8 +943,8 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
             arg_idx = max_arg_def.sub(1)
         }
 
-        mut arg := Declaration()
-        func_def.args.get(arg_idx, arg)?
+        arg_ref := func_def.args.get_by_ref(arg_idx)?
+        create_alias(arg, Declaration, arg_ref.data)
         catch (idx_err: IndexOutOfBoundsError) {
             errors.push(e_clone.lang_error(context.path, "type", format("argument index ", I64.to_str(def_arg_idx), " out of bounds for function '", f_name, "'")))
             return errors
@@ -2925,8 +2927,8 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                 mut new_combined_name := ""
                 mut j := 0
                 while j.lt(parts.len().sub(1)) {
-                    mut part := ""
-                    parts.get(j, part)?
+                    part_ref := parts.get_by_ref(j)?
+                    create_alias(part, Str, part_ref.data)
                     if j.gt(0) {
                         new_combined_name = format(new_combined_name, ".")
                     }

@@ -159,13 +159,11 @@ namespace:
             frame_ref := self.frames.get_by_ref(i)?
             create_alias(frame, ScopeFrame, frame_ref.data)
 
-            if frame.heap_index.contains_key(name) {
-                mut offset := 0
-                frame.heap_index.get(name, offset)?
-                catch (err: KeyNotFoundError) {
-                    // Var not found, continue searching
-                }
-                return offset
+            mut offset := 0
+            frame.heap_index.get(name, offset)?
+            return offset
+            catch (err: KeyNotFoundError) {
+                // Expected: var not in this frame, continue searching
             }
         }
 
@@ -180,13 +178,11 @@ namespace:
             frame_ref := self.frames.get_by_ref(i)?
             create_alias(frame, ScopeFrame, frame_ref.data)
 
-            if frame.symbols.contains_key(name) {
-                mut symbol := SymbolInfo()
-                frame.symbols.get(name, symbol)?
-                catch (err: KeyNotFoundError) {
-                    // Symbol not found, continue searching
-                }
-                return symbol
+            mut symbol := SymbolInfo()
+            frame.symbols.get(name, symbol)?
+            return symbol
+            catch (err: KeyNotFoundError) {
+                // Expected: symbol not in this frame, continue searching
             }
         }
 
@@ -343,13 +339,11 @@ namespace:
             frame_ref := self.frames.get_by_ref(i)?
             create_alias(frame, ScopeFrame, frame_ref.data)
 
-            if frame.funcs.contains_key(name) {
-                mut func_def := SFuncDef()
-                frame.funcs.get(name, func_def)?
-                catch (err: KeyNotFoundError) {
-                    // Function not found, continue searching
-                }
-                return func_def
+            mut func_def := SFuncDef()
+            frame.funcs.get(name, func_def)?
+            return func_def
+            catch (err: KeyNotFoundError) {
+                // Expected: function not in this frame, continue searching
             }
         }
 
@@ -394,13 +388,11 @@ namespace:
             frame_ref := self.frames.get_by_ref(i)?
             create_alias(frame, ScopeFrame, frame_ref.data)
 
-            if frame.enums.contains_key(name) {
-                mut enum_def := SEnumDef()
-                frame.enums.get(name, enum_def)?
-                catch (err: KeyNotFoundError) {
-                    // Enum not found, continue searching
-                }
-                return enum_def
+            mut enum_def := SEnumDef()
+            frame.enums.get(name, enum_def)?
+            return enum_def
+            catch (err: KeyNotFoundError) {
+                // Expected: enum not in this frame, continue searching
             }
         }
 
@@ -427,13 +419,11 @@ namespace:
             frame_ref := self.frames.get_by_ref(i)?
             create_alias(frame, ScopeFrame, frame_ref.data)
 
-            if frame.structs.contains_key(name) {
-                mut struct_def := SStructDef()
-                frame.structs.get(name, struct_def)?
-                catch (err: KeyNotFoundError) {
-                    // Struct not found, continue searching
-                }
-                return struct_def
+            mut struct_def := SStructDef()
+            frame.structs.get(name, struct_def)?
+            return struct_def
+            catch (err: KeyNotFoundError) {
+                // Expected: struct not in this frame, continue searching
             }
         }
 
@@ -650,10 +640,11 @@ namespace:
             frame_ref := self.frames.get_by_ref(i)?
             create_alias(frame, ScopeFrame, frame_ref.data)
 
-            if frame.symbols.contains_key(name) {
-                mut symbol := SymbolInfo()
-                frame.symbols.get(name, symbol)?
-                return symbol
+            mut symbol := SymbolInfo()
+            frame.symbols.get(name, symbol)?
+            return symbol
+            catch (err: KeyNotFoundError) {
+                // Expected: symbol not in this frame, continue searching
             }
             // Stop at Function frame - don't search into global scope
             switch frame.scope_type {
