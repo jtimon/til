@@ -106,9 +106,10 @@ namespace:
     /// Issue #163: Free a heap-allocated block
     heap_free := proc(mut self: EvalHeap, ptr: I64) {
         for i in 0..self._heap_bases.len() {
-            mut base := 0
-            self._heap_bases.get(i, base)?
-            if base.eq(ptr) {
+            base_ref := self._heap_bases.get_by_ref(i)?
+            create_alias(base, I64, base_ref.data)
+            // TODO Bug #176: UFCS workaround for create_alias
+            if I64.eq(base, ptr) {
                 self._heap_bases.set(i, 0)?  // mark as freed
                 self._heap_sizes.set(i, 0)?
                 free(ptr)

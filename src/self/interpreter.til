@@ -941,11 +941,11 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             str_expr_heap_offset := str_result.heap_offset
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             if str_expr_heap_offset.gt(0) {
-                mut str_decl_last_idx := context.scope_stack.frames.len().sub(1)
-                mut str_decl_last_frame := ScopeFrame()
-                context.scope_stack.frames.get(str_decl_last_idx, str_decl_last_frame)?
-                str_decl_last_frame.heap_index.set(declaration.name, str_expr_heap_offset)
-                context.scope_stack.frames.set(str_decl_last_idx, str_decl_last_frame)?
+                str_decl_last_idx := context.scope_stack.frames.len().sub(1)
+                str_decl_last_frame_ref := context.scope_stack.frames.get_by_ref(str_decl_last_idx)?
+                create_alias(str_decl_last_frame, ScopeFrame, str_decl_last_frame_ref.data)
+                // TODO Bug #176: UFCS workaround for create_alias
+                Map.set(str_decl_last_frame.heap_index, declaration.name, str_expr_heap_offset)
                 return EvalResult.new("")
             }
             EvalHeap.insert_primitive(context, declaration.name, value_type, str_expr_result_str, e)?
@@ -1030,11 +1030,11 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 if not(struct_found_offset) {
                     throw e.lang_error(context.path, "eval", format("Could not find heap index for '", struct_expr_result_str, "'"))
                 }
-                mut struct_last_idx := context.scope_stack.frames.len().sub(1)
-                mut struct_last_frame := ScopeFrame()
-                context.scope_stack.frames.get(struct_last_idx, struct_last_frame)?
-                struct_last_frame.heap_index.set(declaration.name, struct_offset)
-                context.scope_stack.frames.set(struct_last_idx, struct_last_frame)?
+                struct_last_idx := context.scope_stack.frames.len().sub(1)
+                struct_last_frame_ref := context.scope_stack.frames.get_by_ref(struct_last_idx)?
+                create_alias(struct_last_frame, ScopeFrame, struct_last_frame_ref.data)
+                // TODO Bug #176: UFCS workaround for create_alias
+                Map.set(struct_last_frame.heap_index, declaration.name, struct_offset)
             } else {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(custom_symbol.value_type), "'. Only 'enum' and 'struct' custom types allowed."))
             }
@@ -1666,11 +1666,11 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                             }
 
                             if found_offset {
-                                mut lf_idx := context.scope_stack.frames.len().sub(1)
-                                mut lf := ScopeFrame()
-                                context.scope_stack.frames.get(lf_idx, lf)?
-                                lf.heap_index.set(var_name.clone(), offset)
-                                context.scope_stack.frames.set(lf_idx, lf)?
+                                lf_idx := context.scope_stack.frames.len().sub(1)
+                                lf_ref := context.scope_stack.frames.get_by_ref(lf_idx)?
+                                create_alias(lf, ScopeFrame, lf_ref.data)
+                                // TODO Bug #176: UFCS workaround for create_alias
+                                Map.set(lf.heap_index, var_name.clone(), offset)
 
                                 // Copy ALL field mappings (including nested) from thrown instance to catch variable
                                 // This handles both mutable and immutable fields, and nested struct fields
@@ -1694,11 +1694,11 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                     }
                                     if found_key {
                                         dest_key := src_key.replacen(source_prefix, dest_prefix, 1)
-                                        mut lf3_idx := context.scope_stack.frames.len().sub(1)
-                                        mut lf3 := ScopeFrame()
-                                        context.scope_stack.frames.get(lf3_idx, lf3)?
-                                        lf3.heap_index.set(dest_key, src_offset)
-                                        context.scope_stack.frames.set(lf3_idx, lf3)?
+                                        lf3_idx := context.scope_stack.frames.len().sub(1)
+                                        lf3_ref := context.scope_stack.frames.get_by_ref(lf3_idx)?
+                                        create_alias(lf3, ScopeFrame, lf3_ref.data)
+                                        // TODO Bug #176: UFCS workaround for create_alias
+                                        Map.set(lf3.heap_index, dest_key, src_offset)
                                     }
                                 }
 
@@ -1740,11 +1740,11 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         base_found = true
                                         catch (err: KeyNotFoundError) { }
                                         if base_found {
-                                            mut lf4_idx := context.scope_stack.frames.len().sub(1)
-                                            mut lf4 := ScopeFrame()
-                                            context.scope_stack.frames.get(lf4_idx, lf4)?
-                                            lf4.heap_index.set(var_name, base_offset)
-                                            context.scope_stack.frames.set(lf4_idx, lf4)?
+                                            lf4_idx := context.scope_stack.frames.len().sub(1)
+                                            lf4_ref := context.scope_stack.frames.get_by_ref(lf4_idx)?
+                                            create_alias(lf4, ScopeFrame, lf4_ref.data)
+                                            // TODO Bug #176: UFCS workaround for create_alias
+                                            Map.set(lf4.heap_index, var_name, base_offset)
                                         }
 
                                         // Copy symbol mappings for all fields
@@ -2576,11 +2576,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             }
             _ := EvalHeap.insert_enum(context, c.source_name, writeback_enum_val.enum_type, format(writeback_enum_val.enum_type, ".", writeback_enum_val.enum_name), e)?
         case MutArgValue.Struct(struct_data):
-            mut lf12_idx := context.scope_stack.frames.len().sub(1)
-            mut lf12 := ScopeFrame()
-            context.scope_stack.frames.get(lf12_idx, lf12)?
-            lf12.heap_index.set(c.source_name.clone(), struct_data.offset)
-            context.scope_stack.frames.set(lf12_idx, lf12)?
+            lf12_idx := context.scope_stack.frames.len().sub(1)
+            lf12_ref := context.scope_stack.frames.get_by_ref(lf12_idx)?
+            create_alias(lf12, ScopeFrame, lf12_ref.data)
+            // TODO Bug #176: UFCS workaround for create_alias
+            Map.set(lf12.heap_index, c.source_name.clone(), struct_data.offset)
             // Bug #160: map_instance_fields removed - type checker handles symbol registration
         }
     }
@@ -2638,11 +2638,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         context.scope_stack.declare_symbol(return_instance.clone(), SymbolInfo(value_type=ValueType.TCustom(copy_ret_custom_type_name.clone()), is_mut=true))?
 
                         // Share the base offset in caller's frame
-                        mut lf13_idx := context.scope_stack.frames.len().sub(1)
-                        mut lf13 := ScopeFrame()
-                        context.scope_stack.frames.get(lf13_idx, lf13)?
-                        lf13.heap_index.set(return_instance.clone(), copy_ret_offset)
-                        context.scope_stack.frames.set(lf13_idx, lf13)?
+                        lf13_idx := context.scope_stack.frames.len().sub(1)
+                        lf13_ref := context.scope_stack.frames.get_by_ref(lf13_idx)?
+                        create_alias(lf13, ScopeFrame, lf13_ref.data)
+                        // TODO Bug #176: UFCS workaround for create_alias
+                        Map.set(lf13.heap_index, return_instance.clone(), copy_ret_offset)
 
                         return EvalResult.new_return(return_instance) // CLEANUP SITE 4: Return struct instance
                     } else if copy_ret_is_enum_def {

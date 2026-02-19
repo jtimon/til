@@ -576,10 +576,10 @@ namespace:
     // Issue #105: Register struct in global frame (survives function scope pops)
     declare_struct_global := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws Str {
         if self.frames.len().gt(0) {
-            mut global_frame := ScopeFrame()
-            self.frames.get(0, global_frame)?
-            global_frame.structs.set(name, struct_def)
-            self.frames.set(0, global_frame)?
+            global_frame_ref := self.frames.get_by_ref(0)?
+            create_alias(global_frame, ScopeFrame, global_frame_ref.data)
+            // TODO Bug #176: UFCS workaround for create_alias
+            Map.set(global_frame.structs, name, struct_def)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
