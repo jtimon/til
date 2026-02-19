@@ -15,6 +15,48 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Bug #177: ccodegen missing =*_ret= assignment when returning create_alias variable
+:PROPERTIES:
+:DISCOVERED: 2026-02-19
+:IMPACT: Compiler error (-Werror=unused-parameter) in generated C; return value never written
+:STATUS: Open -- workaround is to return Type.clone(alias) instead of alias directly
+:RELATED: Bug #168 (ccodegen return copies), Bug #173 (original filing, repurposed for shadowing)
+:END:
+
+*** Description
+When a function returns a =create_alias= variable, the =find_ret_var_for_placement=
+optimization cannot apply because the variable is an alias (borrowed), not an owned
+local. In the non-optimized fallback path, the codegen should emit:
+#+begin_src c
+*_ret = til_Token_t;
+return 0;
+#+end_src
+
+But instead it emits just:
+#+begin_src c
+return 0;
+#+end_src
+
+The =*_ret = variable= assignment is completely missing. This causes GCC to
+report =unused parameter '_ret'= which is =-Werror=.
+
+This is the same underlying bug originally filed as Bug #173, which was then
+repurposed to fix a related shadowing issue. The =_ret= assignment problem
+remains for =create_alias= variables.
+
+*** Reproducer
+#+begin_src til
+get_token := func(self: Lexer, i: I64) returns Token throws Str {
+    t_ref := self.tokens.get_by_ref(i)?
+    create_alias(t, Token, t_ref.data)
+    return t  // BUG: codegen emits return 0; without *_ret = t
+}
+#+end_src
+
+*** Workaround
+Return =Type.clone(alias)= instead of returning the alias directly.
+This creates an owned copy that the codegen handles correctly.
+
 ** Issue #175: Unify C calling convention -- all functions return through ~_ret~ pointer
 :PROPERTIES:
 :DISCOVERED: 2026-02-19

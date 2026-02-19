@@ -131,12 +131,14 @@ namespace:
             mut err_token := self.peek()?
             throw err_token.lang_error(self.path, format("Token in pos ", i.to_str(), " is out of bounds"))
         }
-        mut t := Token()
-        self.tokens.get(i, t)?
+        t_ref := self.tokens.get_by_ref(i)?
+        create_alias(t, Token, t_ref.data)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        return t
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
+        // TODO Bug #176: UFCS workaround for create_alias (Token.clone instead of t.clone)
+        return Token.clone(t)
     }
 
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
