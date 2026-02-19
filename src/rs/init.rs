@@ -695,6 +695,11 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         let variant_type = match enum_def.get(variant_name) {
                             Some(_variant) => _variant,
                             None => {
+                                // Issue #174: Try namespace method before erroring
+                                let method_name = format!("{}.{}", f_name, variant_name);
+                                if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
+                                    return value_type_func_proc(&context.path, &e, &method_name, func_def);
+                                }
                                 return Err(e.error(&context.path, "init", &format!("enum '{}' has no variant '{}'", f_name, variant_name)));
                             },
                         };
@@ -1383,45 +1388,49 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
         }
         NodeType::NamespaceDef(ns_def) => {
             // Namespace blocks are syntax sugar - merge members into the existing type
-            // After this, the namespace is "gone" - its members are part of the struct
+            // After this, the namespace is "gone" - its members are part of the type
 
-            // Look up the existing struct
-            let existing_struct = match context.scope_stack.lookup_struct(&ns_def.type_name) {
-                Some(s) => s.clone(),
-                None => {
-                    // TODO: Also support enums - for now just error
-                    errors.push(e.error(&context.path, "init", &format!(
-                        "namespace block for '{}': type not found (must be declared before namespace block)",
-                        ns_def.type_name)));
-                    return Ok(errors);
-                }
-            };
-
-            // Clone and extend the struct with namespace members
-            let mut merged_struct = existing_struct;
-            for member_decl in &ns_def.members {
-                // Check for duplicate member names
-                if let Some(existing_member) = merged_struct.get_member(&member_decl.name) {
-                    // Issue #108: Allow namespace-defined methods to override auto-generated
-                    // methods (delete/clone from preinit). Storage fields (is_mut) cannot be
-                    // overridden.
-                    if existing_member.is_mut {
-                        errors.push(e.error(&context.path, "init", &format!(
-                            "namespace block for '{}': cannot override storage field '{}'",
-                            ns_def.type_name, member_decl.name)));
-                        continue;
+            // Try struct first, then enum
+            if let Some(existing_struct) = context.scope_stack.lookup_struct(&ns_def.type_name) {
+                // Clone and extend the struct with namespace members
+                let mut merged_struct = existing_struct.clone();
+                for member_decl in &ns_def.members {
+                    // Check for duplicate member names
+                    if let Some(existing_member) = merged_struct.get_member(&member_decl.name) {
+                        // Issue #108: Allow namespace-defined methods to override auto-generated
+                        // methods (delete/clone from preinit). Storage fields (is_mut) cannot be
+                        // overridden.
+                        if existing_member.is_mut {
+                            errors.push(e.error(&context.path, "init", &format!(
+                                "namespace block for '{}': cannot override storage field '{}'",
+                                ns_def.type_name, member_decl.name)));
+                            continue;
+                        }
+                        // Remove the existing method so the namespace version takes precedence
+                        merged_struct.members.retain(|m| m.name != member_decl.name);
                     }
-                    // Remove the existing method so the namespace version takes precedence
-                    merged_struct.members.retain(|m| m.name != member_decl.name);
+                    merged_struct.members.push(member_decl.clone());
                 }
-                merged_struct.members.push(member_decl.clone());
-            }
-            for (name, expr) in &ns_def.default_values {
-                merged_struct.default_values.insert(name.clone(), expr.clone());
-            }
+                for (name, expr) in &ns_def.default_values {
+                    merged_struct.default_values.insert(name.clone(), expr.clone());
+                }
 
-            // Re-declare the struct (overwrites the old one)
-            context.scope_stack.declare_struct(ns_def.type_name.clone(), merged_struct.clone());
+                // Re-declare the struct (overwrites the old one)
+                context.scope_stack.declare_struct(ns_def.type_name.clone(), merged_struct.clone());
+            } else if let Some(existing_enum) = context.scope_stack.lookup_enum(&ns_def.type_name) {
+                // Issue #174: Enum namespace support
+                let mut merged_enum = existing_enum.clone();
+                for (name, expr) in &ns_def.default_values {
+                    merged_enum.methods.insert(name.clone(), expr.clone());
+                }
+                // Re-declare the enum (overwrites the old one)
+                context.scope_stack.declare_enum(ns_def.type_name.clone(), merged_enum);
+            } else {
+                errors.push(e.error(&context.path, "init", &format!(
+                    "namespace block for '{}': type not found (must be declared before namespace block)",
+                    ns_def.type_name)));
+                return Ok(errors);
+            }
 
             // Register associated funcs and constants from namespace (same logic as StructDef)
             for member_decl in &ns_def.members {

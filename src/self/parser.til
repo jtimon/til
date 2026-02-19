@@ -1063,6 +1063,9 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     }
     lexer.advance(1)?
     mut variants := Vec.new(EnumVariant)  // Bug #38 fix: Use Vec for deterministic order
+    // Issue #174: namespace members packed into params for post-parse splitting
+    mut namespace_stmts := Vec.new(Expr)
+    mut in_namespace := false
 
     mut end_found := false
     while lexer.current.lt(lexer.len()).and(not(end_found)) {
@@ -1070,62 +1073,84 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
         itt := it_t.token_type
         switch itt {
         case TokenType.RightBrace:
+            lexer.advance(1)?
             end_found = true
-        case TokenType.Identifier:
-            enum_val_name := it_t.token_str
-            next_t := lexer.next()?
-            ntt := next_t.token_type
-            switch ntt {
+        // Issue #174: namespace: separator inside enum body
+        case TokenType.Namespace:
+            next := lexer.next()?
+            next_tt := next.token_type
+            switch next_tt {
             case TokenType.Colon:
-                next2_t := lexer.peek_ahead(2)?
-                n2tt := next2_t.token_type
-                switch n2tt {
-                case TokenType.Identifier:
-                    enum_val_type := next2_t.token_str
-                    // Some(ValueType) - store pointer to payload type
-                    // Bug #67 fix: allocate heap memory (stack ptr would be dangling after loop)
-                    mut payload_type := str_to_value_type(enum_val_type)
-                    mut payload_ptr := Ptr()
-                    payload_ptr.data = malloc(size_of(ValueType))?
-                    catch (err: BadAlloc) { panic(loc(), "enum_definition: malloc failed") }
-                    memcpy(payload_ptr.data, to_ptr(payload_type), size_of(ValueType))
-                    mut variant := EnumVariant()
-                    variant.name = enum_val_name
-                    variant.payload_type = payload_ptr
-                    variants.push(variant)
-                    lexer.advance(2)?
-                case:
-                    throw next2_t.error(lexer.path, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
+                if in_namespace {
+                    throw it_t.error(lexer.path, "duplicate 'namespace:' inside enum definition")
                 }
-            case TokenType.Comma:
-                mut comma_variant := EnumVariant()
-                comma_variant.name = enum_val_name
-                variants.push(comma_variant)  // None = NULL pointer (default)
-                // Continue
-            case TokenType.RightBrace:
-                mut brace_variant := EnumVariant()
-                brace_variant.name = enum_val_name
-                variants.push(brace_variant)  // None = NULL pointer (default)
-                end_found = true
-                lexer.advance(1)?  // Advance past the RightBrace since we peeked it with next()
+                in_namespace = true
+                lexer.advance(2)? // past namespace and :
             case:
-                throw next_t.error(lexer.path, format("Expected ',' or ':' after '", enum_val_name, "', found '", token_type_to_str(next_t.token_type), "'."))
+                throw it_t.error(lexer.path, "Expected ':' after 'namespace' inside enum body.")
             }
-        case TokenType.Comma:
-            // Skip comma
         case:
-            throw it_t.error(lexer.path, format("Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'."))
+            if in_namespace {
+                // Collect raw statement Exprs for post-parse splitting into NamespaceDef
+                stmt := parse_statement(lexer)?
+                namespace_stmts.push(stmt)
+            } else {
+                switch itt {
+                case TokenType.Identifier:
+                    enum_val_name := it_t.token_str
+                    next_t := lexer.next()?
+                    ntt := next_t.token_type
+                    switch ntt {
+                    case TokenType.Colon:
+                        next2_t := lexer.peek_ahead(2)?
+                        n2tt := next2_t.token_type
+                        switch n2tt {
+                        case TokenType.Identifier:
+                            enum_val_type := next2_t.token_str
+                            // Some(ValueType) - store pointer to payload type
+                            // Bug #67 fix: allocate heap memory (stack ptr would be dangling after loop)
+                            mut payload_type := str_to_value_type(enum_val_type)
+                            mut payload_ptr := Ptr()
+                            payload_ptr.data = malloc(size_of(ValueType))?
+                            catch (err: BadAlloc) { panic(loc(), "enum_definition: malloc failed") }
+                            memcpy(payload_ptr.data, to_ptr(payload_type), size_of(ValueType))
+                            mut variant := EnumVariant()
+                            variant.name = enum_val_name
+                            variant.payload_type = payload_ptr
+                            variants.push(variant)
+                            lexer.advance(3)? // past name, :, type
+                        case:
+                            throw next2_t.error(lexer.path, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
+                        }
+                    case TokenType.Comma:
+                        mut comma_variant := EnumVariant()
+                        comma_variant.name = enum_val_name
+                        variants.push(comma_variant)  // None = NULL pointer (default)
+                        lexer.advance(2)? // past name and comma
+                    case TokenType.RightBrace:
+                        mut brace_variant := EnumVariant()
+                        brace_variant.name = enum_val_name
+                        variants.push(brace_variant)  // None = NULL pointer (default)
+                        lexer.advance(2)? // past name and }
+                        end_found = true
+                    case:
+                        throw next_t.error(lexer.path, format("Expected ',' or ':' after '", enum_val_name, "', found '", token_type_to_str(next_t.token_type), "'."))
+                    }
+                case TokenType.Comma:
+                    lexer.advance(1)? // skip comma
+                case:
+                    throw it_t.error(lexer.path, format("Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'."))
+                }
+            }
         }
-        lexer.advance(1)?
     }
     if not(end_found) {
         throw t.error(lexer.path, "Expected '}}' to end enum.")
     }
-    params := Vec.new(Expr)
     mut enum_def := SEnumDef()
     enum_def.variants = variants
     initial_token := lexer.get_token(initial_current)?.clone()
-    e := Expr.new_parse(NodeType.EnumDef(enum_def), initial_token, params)
+    e := Expr.new_parse(NodeType.EnumDef(enum_def), initial_token, namespace_stmts)
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
@@ -1147,53 +1172,84 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
         throw t2.error(lexer.path, "expected 'identifier' after 'struct {{', found EOF.")
     }
     lexer.advance(1)?
-    body := parse_body(lexer, TokenType.RightBrace)?
 
-    mut members := Vec.new(Declaration)  // Vec of Declaration
-    mut default_values := Map.new(Str, Expr)  // Map<Str, Expr>
+    mut members := Vec.new(Declaration)
+    mut default_values := Map.new(Str, Expr)
+    // Issue #174: namespace members packed into params for post-parse splitting
+    mut namespace_stmts := Vec.new(Expr)
+    mut in_namespace := false
 
-    for p: Expr in body.params {
-        nt := p.node_type
-
-        switch nt {
-        case NodeType.Declaration(decl):
-            members.push(decl.clone())
-
-            if p.params.len().eq(1) {
-                val := p.get(0)?
-                dont_delete(val)
-                default_values.set(decl.name.clone(), val.clone())
-            } else {
-                // TODO allow not setting default values in struct members
-                throw t.error(lexer.path, "all declarations inside struct definitions must have a value for now")
-            }
-        case NodeType.Assignment(name):
-            // Handle const := value inside structs (methods like eq := func(...))
-            if p.params.len().eq(1) {
-                assign_val := p.get(0)?
-                dont_delete(assign_val)
-                // Create a Declaration for the method
-                mut assign_decl := Declaration()
-                assign_decl.name = name.clone()
-                assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
-                assign_decl.is_mut = false
-                assign_decl.is_copy = false
-                assign_decl.is_own = false
-                members.push(assign_decl.clone())
-                default_values.set(name.clone(), assign_val.clone())
-            } else {
-                throw t.error(lexer.path, format("struct assignment '", name, "' must have exactly one value"))
+    mut end_found := false
+    while lexer.current.lt(lexer.len()).and(not(end_found)) {
+        peek_t := lexer.peek()?
+        peek_tt := peek_t.token_type
+        switch peek_tt {
+        case TokenType.RightBrace:
+            lexer.advance(1)?
+            end_found = true
+        // Issue #174: namespace: separator inside struct body
+        case TokenType.Namespace:
+            next_tok := lexer.next()?
+            next_tt := next_tok.token_type
+            switch next_tt {
+            case TokenType.Colon:
+                if in_namespace {
+                    throw peek_t.error(lexer.path, "duplicate 'namespace:' inside struct definition")
+                }
+                in_namespace = true
+                lexer.advance(2)?  // past namespace and :
+            case:
+                throw peek_t.error(lexer.path, "Expected ':' after 'namespace' inside struct body.")
             }
         case:
-            throw t.error(lexer.path, "expected only declarations inside struct definition")
+            stmt := parse_statement(lexer)?
+            dont_delete(stmt)
+            if in_namespace {
+                // Collect raw statement Exprs for post-parse splitting into NamespaceDef
+                namespace_stmts.push(stmt.clone())
+            } else {
+                stmt_nt := stmt.node_type
+                switch stmt_nt {
+                case NodeType.Declaration(decl):
+                    members.push(decl.clone())
+                    if stmt.params.len().eq(1) {
+                        val := stmt.get(0)?
+                        dont_delete(val)
+                        default_values.set(decl.name.clone(), val.clone())
+                    } else {
+                        // TODO allow not setting default values in struct members
+                        throw t.error(lexer.path, "all declarations inside struct definitions must have a value for now")
+                    }
+                case NodeType.Assignment(name):
+                    // Handle const := value inside structs (methods like eq := func(...))
+                    if stmt.params.len().eq(1) {
+                        assign_val := stmt.get(0)?
+                        dont_delete(assign_val)
+                        mut assign_decl := Declaration()
+                        assign_decl.name = name.clone()
+                        assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
+                        assign_decl.is_mut = false
+                        assign_decl.is_copy = false
+                        assign_decl.is_own = false
+                        members.push(assign_decl.clone())
+                        default_values.set(name.clone(), assign_val.clone())
+                    } else {
+                        throw t.error(lexer.path, format("struct assignment '", name, "' must have exactly one value"))
+                    }
+                case:
+                    throw t.error(lexer.path, "expected only declarations inside struct definition")
+                }
+            }
         }
+    }
+    if not(end_found) {
+        throw t.error(lexer.path, "Expected '}}' to end struct definition.")
     }
 
     mut struct_def := SStructDef()
     struct_def.members = members
     struct_def.default_values = default_values
-    params := Vec.new(Expr)
-    result := Expr.new_parse(NodeType.StructDef(struct_def), t.clone(), params)
+    result := Expr.new_parse(NodeType.StructDef(struct_def), t.clone(), namespace_stmts)
     catch (err: IndexOutOfBoundsError) {
         throw concat("parse_struct_definition: ", err.msg)
     }
@@ -2398,6 +2454,99 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
     throw t.error(lexer.path, format("Expected '", token_type_to_str(end_token), "' to end body."))
 }
 
+// Issue #174: Post-parse pass to split inline namespace members from StructDef/EnumDef params
+// into synthetic NamespaceDef nodes. This keeps SStructDef/SEnumDef unchanged (no new fields).
+split_inline_namespaces := func(ast: Expr) returns Expr throws Str {
+    ast_nt := ast.node_type
+    switch ast_nt {
+    case NodeType.Body:
+        mut new_params := Vec.new(Expr)
+        for child: Expr in ast.params {
+            child_nt := child.node_type
+            switch child_nt {
+            case NodeType.Declaration(decl):
+                if child.params.len().eq(1) {
+                    inner := child.get(0)?
+                    dont_delete(inner)
+                    inner_nt := inner.node_type
+                    // Issue #174: Extract inline namespace from StructDef or EnumDef params
+                    if inner.params.len().gt(0) {
+                        mut is_type_def := false
+                        switch inner_nt {
+                        case NodeType.StructDef(_sd):
+                            is_type_def = true
+                        case NodeType.EnumDef(_ed):
+                            is_type_def = true
+                        case:
+                            // not a type def
+                        }
+                        if is_type_def {
+                            // Extract namespace members from params
+                            mut ns_members := Vec.new(Declaration)
+                            mut ns_default_values := Map.new(Str, Expr)
+                            for ns_stmt: Expr in inner.params {
+                                ns_stmt_nt := ns_stmt.node_type
+                                switch ns_stmt_nt {
+                                case NodeType.Declaration(ns_decl):
+                                    ns_members.push(ns_decl.clone())
+                                    if ns_stmt.params.len().eq(1) {
+                                        ns_val := ns_stmt.get(0)?
+                                        dont_delete(ns_val)
+                                        ns_default_values.set(ns_decl.name.clone(), ns_val.clone())
+                                    }
+                                case NodeType.Assignment(ns_name):
+                                    if ns_stmt.params.len().eq(1) {
+                                        ns_assign_val := ns_stmt.get(0)?
+                                        dont_delete(ns_assign_val)
+                                        mut ns_assign_decl := Declaration()
+                                        ns_assign_decl.name = ns_name.clone()
+                                        ns_assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
+                                        ns_assign_decl.is_mut = false
+                                        ns_assign_decl.is_copy = false
+                                        ns_assign_decl.is_own = false
+                                        ns_members.push(ns_assign_decl.clone())
+                                        ns_default_values.set(ns_name.clone(), ns_assign_val.clone())
+                                    }
+                                case:
+                                    // skip
+                                }
+                            }
+                            // Emit StructDef/EnumDef without namespace params
+                            clean_type_def_params := Vec.new(Expr)
+                            clean_type_def := Expr.new_explicit(inner.node_type.clone(), clean_type_def_params, inner.line, inner.col)
+                            mut clean_decl_params := Vec.new(Expr)
+                            clean_decl_params.push(clean_type_def)
+                            clean_decl := Expr.new_explicit(child.node_type.clone(), clean_decl_params, child.line, child.col)
+                            new_params.push(clean_decl)
+                            // Emit synthetic NamespaceDef
+                            if ns_members.len().gt(0) {
+                                mut ns_def := SNamespaceDef()
+                                ns_def.type_name = decl.name.clone()
+                                ns_def.members = ns_members
+                                ns_def.default_values = ns_default_values
+                                ns_expr := Expr.new_explicit(NodeType.NamespaceDef(ns_def), Vec.new(Expr), child.line, child.col)
+                                new_params.push(ns_expr)
+                            }
+                        } else {
+                            new_params.push(child.clone())
+                        }
+                    } else {
+                        new_params.push(child.clone())
+                    }
+                } else {
+                    new_params.push(child.clone())
+                }
+            case:
+                new_params.push(child.clone())
+            }
+        }
+        result := Expr.new_explicit(ast.node_type.clone(), new_params, ast.line, ast.col)
+        return result
+    case:
+        return ast.clone()
+    }
+}
+
 parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     e := parse_body(lexer, TokenType.Eof)?
 
@@ -2421,5 +2570,7 @@ parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
         throw format("Total unparsed tokens: ", unparsed_tokens.to_str(), "/", lexer_len_val.to_str())
     }
 
-    return e
+    // Issue #174: Split inline namespace members into synthetic NamespaceDef nodes
+    result := split_inline_namespaces(e)?
+    return result
 }

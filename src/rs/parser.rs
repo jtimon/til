@@ -757,56 +757,83 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
     }
     lexer.advance(1)?;
     let mut variants: Vec<EnumVariant> = Vec::new();
+    // Issue #174: namespace members packed into params for post-parse splitting
+    let mut namespace_stmts: Vec<Expr> = Vec::new();
+    let mut in_namespace = false;
 
     let mut end_found = false;
     while lexer.current < lexer.len() && !end_found {
         let it_t = lexer.peek();
         match it_t.token_type {
             TokenType::RightBrace => {
+                lexer.advance(1)?;
                 end_found = true;
             },
-            TokenType::Identifier => {
-                let enum_val_name = &it_t.token_str;
-                let next_t = lexer.next()?;
-                match next_t.token_type {
-                    TokenType::Colon => {
-                        let next2_t = lexer.peek_ahead(2)?;
-                        if next2_t.token_type != TokenType::Identifier {
-                            return Err(next2_t.error(&lexer.path, &format!("Expected type identifier after '{} :', found '{:?}'.",
-                                                              enum_val_name, next2_t.token_type)));
-                        }
-                        let enum_val_type = &next2_t.token_str;
-                        variants.push(EnumVariant { name: enum_val_name.to_string(), payload_type: Some(str_to_value_type(enum_val_type)) });
-                        lexer.advance(2)?;
-                    },
-                    TokenType::Comma | TokenType::RightBrace => {
-                        variants.push(EnumVariant { name: enum_val_name.to_string(), payload_type: None });
-                        if next_t.token_type == TokenType::RightBrace {
-                            end_found = true;
-                            lexer.advance(1)?; // Advance past the RightBrace since we peeked it with next()
-                        }
-                    },
-                    _ => {
-                        return Err(next_t.error(&lexer.path, &format!("Expected ',' or ':' after '{}', found '{:?}'.",
-                                                         enum_val_name, next_t.token_type)));
+            // Issue #174: namespace: separator inside enum body
+            TokenType::Namespace => {
+                let next = lexer.next()?;
+                if next.token_type == TokenType::Colon {
+                    if in_namespace {
+                        return Err(it_t.error(&lexer.path, "duplicate 'namespace:' inside enum definition"));
                     }
+                    in_namespace = true;
+                    lexer.advance(2)?; // past namespace and :
+                } else {
+                    return Err(it_t.error(&lexer.path, "Expected ':' after 'namespace' inside enum body."));
                 }
             },
-            TokenType::Comma => {
-                // Skip comma
-            },
             _ => {
-                return Err(it_t.error(&lexer.path, &format!("Expected '}}' to end enum or a new identifier, found '{:?}'.",
-                                               it_t.token_type)));
+                if in_namespace {
+                    // Collect raw statement Exprs for post-parse splitting into NamespaceDef
+                    let stmt = parse_statement(lexer)?;
+                    namespace_stmts.push(stmt);
+                } else {
+                    match it_t.token_type {
+                        TokenType::Identifier => {
+                            let enum_val_name = &it_t.token_str;
+                            let next_t = lexer.next()?;
+                            match next_t.token_type {
+                                TokenType::Colon => {
+                                    let next2_t = lexer.peek_ahead(2)?;
+                                    if next2_t.token_type != TokenType::Identifier {
+                                        return Err(next2_t.error(&lexer.path, &format!("Expected type identifier after '{} :', found '{:?}'.",
+                                                                          enum_val_name, next2_t.token_type)));
+                                    }
+                                    let enum_val_type = &next2_t.token_str;
+                                    variants.push(EnumVariant { name: enum_val_name.to_string(), payload_type: Some(str_to_value_type(enum_val_type)) });
+                                    lexer.advance(3)?; // past name, :, type
+                                },
+                                TokenType::Comma => {
+                                    variants.push(EnumVariant { name: enum_val_name.to_string(), payload_type: None });
+                                    lexer.advance(2)?; // past name and comma
+                                },
+                                TokenType::RightBrace => {
+                                    variants.push(EnumVariant { name: enum_val_name.to_string(), payload_type: None });
+                                    lexer.advance(2)?; // past name and }
+                                    end_found = true;
+                                },
+                                _ => {
+                                    return Err(next_t.error(&lexer.path, &format!("Expected ',' or ':' after '{}', found '{:?}'.",
+                                                                     enum_val_name, next_t.token_type)));
+                                }
+                            }
+                        },
+                        TokenType::Comma => {
+                            lexer.advance(1)?; // skip comma
+                        },
+                        _ => {
+                            return Err(it_t.error(&lexer.path, &format!("Expected '}}' to end enum or a new identifier, found '{:?}'.",
+                                                           it_t.token_type)));
+                        }
+                    }
+                }
             }
         }
-        lexer.advance(1)?;
     }
     if !end_found {
         return Err(t.error(&lexer.path, "Expected '}}' to end enum."));
     }
-    let params : Vec<Expr> = Vec::new();
-    return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{variants, methods: crate::rs::ordered_map::OrderedMap::new()}), lexer.get_token(initial_current)?.clone(), params));
+    return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{variants, methods: crate::rs::ordered_map::OrderedMap::new()}), lexer.get_token(initial_current)?.clone(), namespace_stmts));
 }
 
 fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
@@ -820,53 +847,85 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
         return Err(t.error(&lexer.path, "expected 'identifier' after 'struct {{', found EOF."));
     }
     lexer.advance(1)?;
-    let body = match parse_body(lexer, TokenType::RightBrace) {
-        Ok(body) => body,
-        Err(err_str) => return Err(err_str),
-    };
+
     let mut members = Vec::new();
     let mut default_values = HashMap::new();
-    for p in body.params {
-        match &p.node_type {
-            NodeType::Declaration(decl) => {
-                members.push(decl.clone());
-                if p.params.len() == 1 {
-                    match p.params.get(0) {
-                        Some(val) => {
-                            default_values.insert(decl.name.clone(), val.clone());
-                        },
-                        None => return Err(t.error(&lexer.path, "expected value in struct member declaration")),
+    // Issue #174: namespace members packed into params for post-parse splitting
+    let mut namespace_stmts: Vec<Expr> = Vec::new();
+    let mut in_namespace = false;
+
+    let mut end_found = false;
+    while lexer.current < lexer.len() && !end_found {
+        let peek_t = lexer.peek();
+        match peek_t.token_type {
+            TokenType::RightBrace => {
+                lexer.advance(1)?;
+                end_found = true;
+            },
+            // Issue #174: namespace: separator inside struct body
+            TokenType::Namespace => {
+                let next = lexer.next()?;
+                if next.token_type == TokenType::Colon {
+                    if in_namespace {
+                        return Err(peek_t.error(&lexer.path, "duplicate 'namespace:' inside struct definition"));
                     }
+                    in_namespace = true;
+                    lexer.advance(2)?; // past namespace and :
                 } else {
-                    // TODO allow not setting default values in struct members
-                    return Err(t.error(&lexer.path, "all declarations inside struct definitions must have a value for now"));
+                    return Err(peek_t.error(&lexer.path, "Expected ':' after 'namespace' inside struct body."));
                 }
             },
-            NodeType::Assignment(name) => {
-                // Handle const := value inside structs (methods like eq := func(...))
-                if p.params.len() == 1 {
-                    let val = p.params.get(0).unwrap();
-                    // Create a Declaration for the method
-                    let decl = Declaration {
-                        name: name.clone(),
-                        value_type: ValueType::TCustom(INFER_TYPE.to_string()),
-                        is_mut: false,
-                        is_copy: false,
-                        is_own: false,
-                        default_value: None,
-                    };
-                    members.push(decl.clone());
-                    default_values.insert(name.clone(), val.clone());
+            _ => {
+                let stmt = parse_statement(lexer)?;
+                if in_namespace {
+                    // Collect raw statement Exprs for post-parse splitting into NamespaceDef
+                    namespace_stmts.push(stmt);
                 } else {
-                    return Err(t.error(&lexer.path, &format!("struct assignment '{}' must have exactly one value", name)));
+                    match &stmt.node_type {
+                        NodeType::Declaration(decl) => {
+                            members.push(decl.clone());
+                            if stmt.params.len() == 1 {
+                                match stmt.params.get(0) {
+                                    Some(val) => {
+                                        default_values.insert(decl.name.clone(), val.clone());
+                                    },
+                                    None => return Err(t.error(&lexer.path, "expected value in struct member declaration")),
+                                }
+                            } else {
+                                // TODO allow not setting default values in struct members
+                                return Err(t.error(&lexer.path, "all declarations inside struct definitions must have a value for now"));
+                            }
+                        },
+                        NodeType::Assignment(name) => {
+                            // Handle const := value inside structs (methods like eq := func(...))
+                            if stmt.params.len() == 1 {
+                                let val = stmt.params.get(0).unwrap();
+                                let decl = Declaration {
+                                    name: name.clone(),
+                                    value_type: ValueType::TCustom(INFER_TYPE.to_string()),
+                                    is_mut: false,
+                                    is_copy: false,
+                                    is_own: false,
+                                    default_value: None,
+                                };
+                                members.push(decl.clone());
+                                default_values.insert(name.clone(), val.clone());
+                            } else {
+                                return Err(t.error(&lexer.path, &format!("struct assignment '{}' must have exactly one value", name)));
+                            }
+                        },
+                        _ => return Err(t.error(&lexer.path, &format!("expected only declarations inside struct definition, found {:?}", stmt.node_type))),
+                    }
                 }
-            },
-            _ => return Err(t.error(&lexer.path, &format!("expected only declarations inside struct definition, found {:?}", p.node_type))),
+            }
         }
+    }
+    if !end_found {
+        return Err(t.error(&lexer.path, "Expected '}}' to end struct definition."));
     }
 
     return Ok(Expr::new_parse(NodeType::StructDef(SStructDef{members: members, default_values: default_values}),
-                              t.clone(), Vec::new()));
+                              t.clone(), namespace_stmts));
 }
 
 // Parse namespace TypeName { declarations... }
@@ -1849,6 +1908,91 @@ fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
     return Err(t.error(&lexer.path, &format!("Expected '{:?}' to end body.", end_token))); // use last valid token
 }
 
+// Issue #174: Post-parse pass to split inline namespace members from StructDef/EnumDef params
+// into synthetic NamespaceDef nodes. This keeps SStructDef/SEnumDef unchanged (no new fields).
+fn split_inline_namespaces(ast: &Expr) -> Expr {
+    if let NodeType::Body = &ast.node_type {
+        let mut new_params: Vec<Expr> = Vec::new();
+        for child in &ast.params {
+            // Check if this is a Declaration whose value is a StructDef with namespace params
+            if let NodeType::Declaration(decl) = &child.node_type {
+                if child.params.len() == 1 {
+                    // Issue #174: Extract inline namespace from StructDef or EnumDef params
+                    let has_ns_params = !child.params[0].params.is_empty();
+                    let is_struct_or_enum = matches!(&child.params[0].node_type, NodeType::StructDef(_) | NodeType::EnumDef(_));
+                    if has_ns_params && is_struct_or_enum {
+                        // Extract namespace members from params
+                        let ns_stmts = &child.params[0].params;
+                        let mut ns_members = Vec::new();
+                        let mut ns_default_values = HashMap::new();
+                        for stmt in ns_stmts {
+                            match &stmt.node_type {
+                                NodeType::Declaration(ns_decl) => {
+                                    ns_members.push(ns_decl.clone());
+                                    if stmt.params.len() == 1 {
+                                        if let Some(val) = stmt.params.get(0) {
+                                            ns_default_values.insert(ns_decl.name.clone(), val.clone());
+                                        }
+                                    }
+                                },
+                                NodeType::Assignment(name) => {
+                                    if stmt.params.len() == 1 {
+                                        let val = stmt.params.get(0).unwrap();
+                                        let ns_decl = Declaration {
+                                            name: name.clone(),
+                                            value_type: ValueType::TCustom(INFER_TYPE.to_string()),
+                                            is_mut: false,
+                                            is_copy: false,
+                                            is_own: false,
+                                            default_value: None,
+                                        };
+                                        ns_members.push(ns_decl);
+                                        ns_default_values.insert(name.clone(), val.clone());
+                                    }
+                                },
+                                _ => {}
+                            }
+                        }
+                        // Emit StructDef/EnumDef without namespace params
+                        let clean_type_def = Expr::new_explicit(
+                            child.params[0].node_type.clone(),
+                            vec![],
+                            child.params[0].line,
+                            child.params[0].col,
+                        );
+                        let clean_decl = Expr::new_explicit(
+                            child.node_type.clone(),
+                            vec![clean_type_def],
+                            child.line,
+                            child.col,
+                        );
+                        new_params.push(clean_decl);
+                        // Emit synthetic NamespaceDef
+                        if !ns_members.is_empty() {
+                            let ns_def = SNamespaceDef {
+                                type_name: decl.name.clone(),
+                                members: ns_members,
+                                default_values: ns_default_values,
+                            };
+                            let ns_expr = Expr::new_explicit(
+                                NodeType::NamespaceDef(ns_def),
+                                vec![],
+                                child.line,
+                                child.col,
+                            );
+                            new_params.push(ns_expr);
+                        }
+                        continue;
+                    }
+                }
+            }
+            new_params.push(child.clone());
+        }
+        return Expr::new_explicit(ast.node_type.clone(), new_params, ast.line, ast.col);
+    }
+    ast.clone()
+}
+
 pub fn parse_tokens(lexer: &mut Lexer) -> Result<Expr, String> {
 
     let e: Expr = match parse_body(lexer, TokenType::Eof) {
@@ -1874,5 +2018,7 @@ pub fn parse_tokens(lexer: &mut Lexer) -> Result<Expr, String> {
         let t = lexer.get_token(lexer.current)?;
         return Err(t.error(&lexer.path, &format!("Total unparsed tokens: {}/{}", unparsed_tokens, lexer_len)));
     }
+    // Issue #174: Split inline namespace members into synthetic NamespaceDef nodes
+    let e = split_inline_namespaces(&e);
     return Ok(e)
 }
