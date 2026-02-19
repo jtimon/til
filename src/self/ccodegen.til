@@ -1355,8 +1355,11 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
         // REM: Use func_name as fallback
     }
     mut mangled_name := func_name.clone()
-    if ctx.nested_func_names.contains_key(orig_func_name) {
-        ctx.nested_func_names.get(orig_func_name, mangled_name)?
+    mn_ref := ctx.nested_func_names.get_by_ref(orig_func_name)?
+    create_alias(mn_val, Str, mn_ref.data)
+    mangled_name = mn_val
+    catch (err: KeyNotFoundError) {
+        // Expected: use func_name as fallback
     }
 
     // Emit function name
@@ -1418,7 +1421,6 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw format("KeyNotFoundError: ", err.msg) }
 
     // Return the temp var name with appropriate prefix
     return format_hoisted_result(temp_var, param_type, param_by_ref)
@@ -1641,8 +1643,11 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
         // REM: Use func_name as fallback
     }
     mut mangled_name := func_name.clone()
-    if ctx.nested_func_names.contains_key(orig_func_name) {
-        ctx.nested_func_names.get(orig_func_name, mangled_name)?
+    mn_ref := ctx.nested_func_names.get_by_ref(orig_func_name)?
+    create_alias(mn_val, Str, mn_ref.data)
+    mangled_name = mn_val
+    catch (err: KeyNotFoundError) {
+        // Expected: use func_name as fallback
     }
 
     hoist_output.push_str(til_func_name(mangled_name))
@@ -1678,7 +1683,6 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     hoist_output.push_str(");\n")
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw format("KeyNotFoundError: ", err.msg) }
 
     // Return the temp var name with appropriate prefix
     return format_hoisted_result(temp_var, param_type, param_by_ref)
@@ -2088,8 +2092,11 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
 
     // Build the call string
     mut mangled_name := func_name.clone()
-    if ctx.nested_func_names.contains_key(orig_func_name) {
-        ctx.nested_func_names.get(orig_func_name, mangled_name)?
+    mn_ref := ctx.nested_func_names.get_by_ref(orig_func_name)?
+    create_alias(mn_val, Str, mn_ref.data)
+    mangled_name = mn_val
+    catch (err: KeyNotFoundError) {
+        // Expected: use func_name as fallback
     }
 
     // Check if this is an enum constructor (Type_Variant) - need til_Type_make_Variant
@@ -2134,7 +2141,6 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
     call_str.push_str(")")
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw format("KeyNotFoundError: ", err.msg) }
 
     return call_str
 }
@@ -5324,10 +5330,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     mut func_name := get_fcall_func_name(fcall)?
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    if ctx.nested_func_names.contains_key(func_name) {
-        mut mangled_name := ""
-        ctx.nested_func_names.get(func_name, mangled_name)?
-        func_name = mangled_name
+    mn_ref := ctx.nested_func_names.get_by_ref(func_name)?
+    create_alias(mangled_name, Str, mn_ref.data)
+    func_name = mangled_name
+    catch (err: KeyNotFoundError) {
+        // Expected: use original func_name as fallback
     }
 
     // Generate unique temp names for this call
@@ -5752,10 +5759,11 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut func_name := get_fcall_func_name(fcall)?
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    if ctx.nested_func_names.contains_key(func_name) {
-        mut mangled_name := ""
-        ctx.nested_func_names.get(func_name, mangled_name)?
-        func_name = mangled_name
+    mn_ref := ctx.nested_func_names.get_by_ref(func_name)?
+    create_alias(mangled_name, Str, mn_ref.data)
+    func_name = mangled_name
+    catch (err: KeyNotFoundError) {
+        // Expected: use original func_name as fallback
     }
 
     // Generate unique temp names for this call
@@ -6078,10 +6086,11 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut func_name := get_fcall_func_name(fcall)?
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    if ctx.nested_func_names.contains_key(func_name) {
-        mut mangled_name := ""
-        ctx.nested_func_names.get(func_name, mangled_name)?
-        func_name = mangled_name
+    mn_ref := ctx.nested_func_names.get_by_ref(func_name)?
+    create_alias(mangled_name, Str, mn_ref.data)
+    func_name = mangled_name
+    catch (err: KeyNotFoundError) {
+        // Expected: use original func_name as fallback
     }
 
     // Generate unique temp names for this call
@@ -7992,8 +8001,11 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     orig_func_name := get_til_func_name_string(first_param)?
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    if ctx.nested_func_names.contains_key(orig_func_name) {
-        ctx.nested_func_names.get(orig_func_name, func_name)?
+    mn_ref := ctx.nested_func_names.get_by_ref(orig_func_name)?
+    create_alias(mn_val, Str, mn_ref.data)
+    func_name = mn_val
+    catch (err: KeyNotFoundError) {
+        // Expected: use orig_func_name as fallback
     }
 
     // Named args are already reordered by precomp, so no reordering needed here
