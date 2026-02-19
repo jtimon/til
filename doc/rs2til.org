@@ -290,7 +290,8 @@ The pattern variable ~decl~ only exists inside the case block. All logic using i
 
 ** if let Some(x) = ...
 
-Rust uses ~if let~ for Option destructuring. TIL uses catch blocks with the out-parameter pattern:
+Rust uses ~if let~ for Option destructuring. TIL uses ~get_by_ref~ + ~create_alias~ for
+zero-copy access, or ~contains_key~ for existence-only checks:
 
 Rust:
 #+begin_src rust
@@ -299,22 +300,21 @@ if let Some(val) = map.get(key) {
 }
 #+end_src
 
-TIL (catch block with out-parameter):
+TIL (zero-copy with get_by_ref + create_alias):
 #+begin_src til
-mut val := DefaultType()
-map.get(key, val)?
+val_ref := map.get_by_ref(key)?
+create_alias(val, ValType, val_ref.data)
+// use val (zero-copy alias into map storage)
+
 catch (err: KeyNotFoundError) {
-    // key not found - handle or ignore
+    // REM: Rust's None case did nothing
 }
-// use val (has value if key was found)
 #+end_src
 
-TIL (check existence first):
+TIL (existence check only, when you don't need the value):
 #+begin_src til
 if map.contains_key(key) {
-    mut val := DefaultType()
-    map.get(key, val)?
-    // use val
+    // key exists, don't need the value
 }
 #+end_src
 
@@ -333,7 +333,8 @@ if let Some(temp_var) = ctx.hoisted_exprs.get(&expr_addr) {
 
 TIL:
 #+begin_src til
-ctx.hoisted_exprs.get(expr_addr, temp_var)?
+temp_ref := ctx.hoisted_exprs.get_by_ref(expr_addr)?
+create_alias(temp_var, Str, temp_ref.data)
 output.push_str(temp_var)
 return
 catch (err: KeyNotFoundError) {
@@ -443,8 +444,8 @@ TIL (reverse range loop):
 #+begin_src til
 // Iterate len-1 down to 0 (inclusive) - use sub(0, 1) as end
 for i in items.len().sub(1)..sub(0, 1) {
-    mut item := T()
-    items.get(i, item)?
+    item_ref := items.get_by_ref(i)?
+    create_alias(item, T, item_ref.data)
     // use item
 }
 #+end_src
@@ -515,18 +516,21 @@ for (i, item) in items.iter().enumerate() {
 
 TIL:
 #+begin_src til
+// Preferred: for-in loop (zero-copy, uses get_by_ref + create_alias internally)
 for item: T in items {
     // use item
 }
 
+// When you need the index: range loop with get_by_ref + create_alias
 for i in 0..items.len() {
-    mut item := T()
-    items.get(i, item)?
+    item_ref := items.get_by_ref(i)?
+    create_alias(item, T, item_ref.data)
     // use i and item
 }
 #+end_src
 
-Note: TIL's ~for item: T in vec~ iterates by value. For indexed access, use range loop with ~get~.
+Note: TIL's ~for item: T in vec~ iterates by reference (zero-copy). For indexed access,
+use range loop with ~get_by_ref~ + ~create_alias~.
 
 ** Return type and error translation patterns
 
@@ -554,7 +558,7 @@ parse_expr := func(mut self: Parser) returns Expr throws Str { ... }
 try_lookup := func(self: Context, name: Str) returns Value throws Str, KeyNotFoundError { ... }
 #+end_src
 
-IMPORTANT: Internal errors (like ~IndexOutOfBoundsError~ from ~Vec.get()~) should be caught
+IMPORTANT: Internal errors (like ~IndexOutOfBoundsError~ from ~Vec.get_by_ref()~) should be caught
 internally and NOT exposed in the throws signature. Only expose the semantic error types
 that correspond to the Rust return type.
 
@@ -644,9 +648,9 @@ is_struct_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
     case NodeType.Declaration(_):
         if not(expr.params.is_empty()) {
-            mut first := Expr()
-            expr.params.get(0, first)?
+            first_ref := expr.params.get_by_ref(0)?
             catch (err: IndexOutOfBoundsError) { return false }
+            create_alias(first, Expr, first_ref.data)
             switch first.node_type {
             case NodeType.StructDef(_):
                 return true
@@ -664,7 +668,7 @@ Translation rules for this pattern:
 |------|-----|-------|
 | ~if let Pattern = expr { ... }~ | ~switch expr { case Pattern: ... case: }~ | Empty default case required |
 | ~!expr.is_empty()~ | ~not(expr.is_empty())~ | Use ~not()~ for negation |
-| ~expr.params[0]~ | ~mut first := T(); expr.params.get(0, first); catch...~ | get()+catch pattern |
+| ~expr.params[0]~ | ~ref := expr.params.get_by_ref(0)?; create_alias(first, T, ref.data)~ | get_by_ref+create_alias pattern |
 | Single ~false~ at end | Single ~return false~ at end | Empty default cases fall through |
 
 Note on ~is_empty()~: We added ~is_empty()~ methods to Vec, Map, and Str specifically to make
@@ -917,23 +921,30 @@ if not(self.ptr.is_null()) { ... }
 if self.ptr.is_null() { ... }
 #+end_src
 
-** Vec/Map.get() out-parameter pattern
+** Vec/Map access patterns (get_by_ref + create_alias)
 
-Rust returns the value directly. TIL uses out-parameter pattern:
+Rust returns references directly. TIL uses ~get_by_ref~ + ~create_alias~ for zero-copy access:
 
 Rust:
 #+begin_src rust
-let item = vec.get(i)?;
+let item = &vec[i];
 let val = map.get(&key)?;
 #+end_src
 
 TIL:
 #+begin_src til
-mut item := T()  // default init
-vec.get(i, item)?  // out-parameter, throws IndexOutOfBoundsError
+item_ref := vec.get_by_ref(i)?  // returns Ptr, throws IndexOutOfBoundsError
+create_alias(item, T, item_ref.data)  // zero-copy alias into vec storage
 
-mut val := V()
-map.get(key, val)?  // out-parameter, throws KeyNotFoundError
+val_ref := map.get_by_ref(key)?  // returns Ptr, throws KeyNotFoundError
+create_alias(val, V, val_ref.data)  // zero-copy alias into map storage
+#+end_src
+
+For existence checks only (don't need the value):
+#+begin_src til
+if map.contains_key(key) {
+    // key exists
+}
 #+end_src
 
 ** HashMap.insert vs Map.insert/set
@@ -979,7 +990,7 @@ for key: Str in map.keys { ... }
 
 ** HashMap iteration (key-value pairs)
 
-Rust iterates directly over ~(key, value)~ pairs. TIL must iterate over keys and do a separate ~get()~ for each value:
+Rust iterates directly over ~(key, value)~ pairs. TIL iterates over keys and uses ~get_by_ref~ for values:
 
 Rust:
 #+begin_src rust
@@ -994,22 +1005,24 @@ for (member_name, default_expr) in &struct_def.default_values {
 TIL:
 #+begin_src til
 for member_name: Str in struct_def.default_values.keys {
-    mut default_expr := Expr()
-    struct_def.default_values.get(member_name, default_expr)?
+    val_ref := struct_def.default_values.get_by_ref(member_name)?
+    create_alias(default_expr, Expr, val_ref.data)
     switch default_expr.node_type {
     case NodeType.FuncDef(func_def):
         mangled_name := format(struct_name, "_", member_name)
         // ...
     case:
     }
-    catch (err: KeyNotFoundError) { /* skip */ }
+    catch (err: KeyNotFoundError) {
+        // REM: key came from .keys, should never happen
+    }
 }
 #+end_src
 
 Key differences:
 - Rust: ~for (key, value) in &map~ - direct iteration over pairs
-- TIL: ~for key: KeyType in map.keys~ + ~map.get(key, value)~ - iterate keys, get values separately
-- TIL requires a catch block for ~KeyNotFoundError~ from ~get()~
+- TIL: ~for key: KeyType in map.keys~ + ~get_by_ref~ + ~create_alias~ - iterate keys, get values by ref
+- Catch is technically unnecessary (key came from .keys), but compiler requires it
 
 ** Catch blocks placement
 
@@ -1022,22 +1035,16 @@ Place catch immediately after the throwing call, before using the result:
 
 #+begin_src til
 lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
-    for i in self.frames.len().sub(1)..sub(0, 1) {
-        mut frame := ScopeFrame()
-        self.frames.get(i, frame)?
-
+    for frame: ScopeFrame in self.frames {
         if frame.funcs.contains_key(name) {
-            mut func_def := SFuncDef()
-            frame.funcs.get(name, func_def)?
-            catch (err: KeyNotFoundError) {
-                // Function not found, continue searching
-            }
+            val_ref := frame.funcs.get_by_ref(name)?
+            create_alias(func_def, SFuncDef, val_ref.data)
             return func_def
-        }
-    }
 
-    catch (err: IndexOutOfBoundsError) {
-        panic(loc(), "IndexOutOfBoundsError in lookup_func: ", err.msg)
+            catch (err: KeyNotFoundError) {
+                // REM: contains_key was true, should never happen
+            }
+        }
     }
     throw KeyNotFoundError(msg="lookup_func: Function not found in Context")
 }
@@ -1065,13 +1072,20 @@ my_func := func() returns T throws Str {
 Use ~panic(loc(), "message")~ for errors that should never happen (e.g., index errors when iterating within known bounds):
 
 #+begin_src til
-for i in vec.len().sub(1)..sub(0, 1) {
-    mut item := T()
-    vec.get(i, item)?
-    catch (err: IndexOutOfBoundsError) {
-        panic(loc(), "vec.get can't fail: i is always within bounds: ", err.msg)
-    }
+// Preferred: for-in loop (no index errors possible)
+for item: T in vec {
     // use item
+}
+
+// When index is needed: get_by_ref + create_alias
+for i in vec.len().sub(1)..sub(0, 1) {
+    item_ref := vec.get_by_ref(i)?
+    create_alias(item, T, item_ref.data)
+    // use item
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), "get_by_ref can't fail: i is always within bounds: ", err.msg)
+    }
 }
 #+end_src
 
@@ -1090,12 +1104,21 @@ fn process(items: &[Item]) -> Result {
 }
 #+end_src
 
-TIL (catch and throw Str):
+TIL (preferred: for-in loop avoids index errors entirely):
+#+begin_src til
+process := func(items: Vec) returns Result throws Str {
+    for item: Item in items {
+        // ...
+    }
+}
+#+end_src
+
+TIL (when index is needed):
 #+begin_src til
 process := func(items: Vec) returns Result throws Str {
     for i in 0..items.len() {
-        mut item := Item()
-        items.get(i, item)?
+        item_ref := items.get_by_ref(i)?
+        create_alias(item, Item, item_ref.data)
         // ...
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1297,8 +1320,8 @@ The ~throws~ section is completely independent of func/proc. Both can throw:
 #+begin_src til
 // Pure function that can throw
 get_value := func(map: Map, key: Str) returns Str throws KeyNotFoundError {
-    mut result := ""
-    map.get(key, result)?
+    val_ref := map.get_by_ref(key)?
+    create_alias(result, Str, val_ref.data)
     return result
 }
 
@@ -1400,7 +1423,7 @@ The translation is mechanical:
 7. UFCS works similarly: ~a.method(b)~ in both languages
 8. Default case: ~_~ -> empty ~case:~
 9. NULL check: ~!= NULL~ -> ~not(ptr.is_null())~ or ~not(NULL.eq(ptr.data))~
-10. ~vec.get(i)~ -> out-parameter: ~vec.get(i, out_val)~
+10. ~vec[i]~ / ~map.get(key)~ -> ~get_by_ref~ + ~create_alias~ (zero-copy)
 11. Catch blocks come before final return/throw
 12. Not-equal: ~!=~ or ~.ne()~ -> ~not(eq())~ or ~not(x.eq(y))~ (TIL has no ~ne~ function)
 13. Enum comparison: ~==~ on enums -> use ~switch~ or type-specific ~_to_str~ functions (enums have no ~eq~ method, ~enum_to_str~ ignores payloads)
@@ -1410,7 +1433,7 @@ The translation is mechanical:
 17. ~HashMap.insert()~ -> ~Map.set()~ (Rust overwrites, TIL's ~insert~ throws on duplicate; use ~set~ to match Rust behavior)
 18. ~vec.extend(std::iter::repeat(v).take(n))~ -> ~vec.extend_with(v, n)~
 19. Prefer method chaining: ~x.gt(0)~ over ~gt(x, 0)~, ~a.and(b)~ over ~and(a, b)~
-20. HashMap iteration: ~for (k, v) in &map~ -> ~for k: T in map.keys { map.get(k, v) }~
+20. HashMap iteration: ~for (k, v) in &map~ -> ~for k: T in map.keys { ref := map.get_by_ref(k)?; create_alias(v, V, ref.data) }~
 21. ~Option<T>~ struct fields/params -> ~Ptr~ (NULL = None); read with ~ptr.copy_to_dynamic(local, size_of(T))~
 22. Variable shadowing: TIL doesn't allow it. Rename in BOTH Rust and TIL to use unique names (see dedicated section)
 23. Tuples: TIL doesn't have tuples. Use structs instead in BOTH Rust and TIL with the same struct name and fields (e.g., ~HashSet<(String, usize, usize)>~ -> ~HashSet<FunctionLocal>~ with ~FunctionLocal~ struct)
