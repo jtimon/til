@@ -928,80 +928,6 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                               t.clone(), namespace_stmts));
 }
 
-// Parse namespace TypeName { declarations... }
-fn parse_namespace_definition(lexer: &mut Lexer) -> Result<Expr, String> {
-    let t = lexer.peek();
-    lexer.expect(TokenType::Namespace)?;
-
-    // Expect type name (identifier)
-    let type_token = lexer.peek();
-    if type_token.token_type != TokenType::Identifier {
-        return Err(type_token.error(&lexer.path, &format!("Expected type name after 'namespace', found '{:?}'.", type_token.token_type)));
-    }
-    let type_name = type_token.token_str.clone();
-    lexer.advance(1)?;
-
-    // Expect opening brace
-    let brace_token = lexer.peek();
-    if brace_token.token_type != TokenType::LeftBrace {
-        return Err(brace_token.error(&lexer.path, "Expected '{{' after namespace type name."));
-    }
-    lexer.advance(1)?;
-
-    // Parse body (same as struct body)
-    let body = parse_body(lexer, TokenType::RightBrace)?;
-
-    // Extract members and default values (same as struct)
-    let mut members = Vec::new();
-    let mut default_values = HashMap::new();
-    for p in body.params {
-        match &p.node_type {
-            NodeType::Declaration(decl) => {
-                members.push(decl.clone());
-                if p.params.len() == 1 {
-                    match p.params.get(0) {
-                        Some(val) => {
-                            default_values.insert(decl.name.clone(), val.clone());
-                        },
-                        None => return Err(t.error(&lexer.path, "expected value in namespace member declaration")),
-                    }
-                } else {
-                    return Err(t.error(&lexer.path, "all declarations inside namespace blocks must have a value"));
-                }
-            },
-            NodeType::Assignment(name) => {
-                // Handle const := value inside namespace (methods like eq := func(...))
-                if p.params.len() == 1 {
-                    let val = p.params.get(0).unwrap();
-                    let decl = Declaration {
-                        name: name.clone(),
-                        value_type: ValueType::TCustom(INFER_TYPE.to_string()),
-                        is_mut: false,
-                        is_copy: false,
-                        is_own: false,
-                        default_value: None,
-                    };
-                    members.push(decl.clone());
-                    default_values.insert(name.clone(), val.clone());
-                } else {
-                    return Err(t.error(&lexer.path, &format!("namespace assignment '{}' must have exactly one value", name)));
-                }
-            },
-            _ => return Err(t.error(&lexer.path, &format!("expected only declarations inside namespace block, found {:?}", p.node_type))),
-        }
-    }
-
-    return Ok(Expr::new_parse(
-        NodeType::NamespaceDef(SNamespaceDef {
-            type_name: type_name,
-            members: members,
-            default_values: default_values,
-        }),
-        t.clone(),
-        Vec::new()
-    ));
-}
-
 fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
 
     let initial_current = lexer.current;
@@ -1262,7 +1188,7 @@ fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::ProcExt => return parse_func_proc_definition(lexer, FunctionType::FTProcExt),
         TokenType::Enum => return enum_definition(lexer),
         TokenType::Struct => return parse_struct_definition(lexer),
-        TokenType::Namespace => return parse_namespace_definition(lexer),
+        TokenType::Namespace => return Err(t.error(&lexer.path, "Separate 'namespace TypeName {{ }}' blocks are no longer supported. Use 'namespace:' inside the struct/enum body instead.")),
         TokenType::LeftParen => return parse_args(lexer),
         TokenType::Identifier => return parse_primary_identifier(lexer),
         _ => return Err(t.error(&lexer.path, &format!("Expected primary expression, found '{:?}'.", t.token_type))),
@@ -1874,7 +1800,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
             lexer.advance(1)?; // Skip LeftBrace
             return parse_body(lexer, TokenType::RightBrace)
         }
-        TokenType::Namespace => return parse_namespace_definition(lexer),
+        TokenType::Namespace => return Err(t.error(&lexer.path, "Separate 'namespace TypeName {{ }}' blocks are no longer supported. Use 'namespace:' inside the struct/enum body instead.")),
         _ => {
             Err(t.error(&lexer.path, &format!("Expected statement, found {:?}.", t.token_type)))
         },

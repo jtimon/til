@@ -1250,85 +1250,6 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
 }
 
 // Parse namespace TypeName { declarations... }
-parse_namespace_definition := func(mut lexer: Lexer) returns Expr throws Str {
-    t := lexer.peek()?
-    _ := lexer.expect(TokenType.Namespace)?
-
-    // Expect type name (identifier)
-    type_token := lexer.peek()?
-    switch type_token.token_type {
-    case TokenType.Identifier:
-        // Continue
-    case:
-        throw type_token.error(lexer.path, format("Expected type name after 'namespace', found '", token_type_to_str(type_token.token_type), "'."))
-    }
-    type_name := type_token.token_str
-    lexer.advance(1)?
-
-    // Expect opening brace
-    brace_token := lexer.peek()?
-    switch brace_token.token_type {
-    case TokenType.LeftBrace:
-        // Continue
-    case:
-        throw brace_token.error(lexer.path, "Expected '{{' after namespace type name.")
-    }
-    lexer.advance(1)?
-
-    // Parse body (same as struct body)
-    body := parse_body(lexer, TokenType.RightBrace)?
-
-    // Extract members and default values (same as struct)
-    mut members := Vec.new(Declaration)
-    mut default_values := Map.new(Str, Expr)
-
-    for p: Expr in body.params {
-        nt := p.node_type
-
-        switch nt {
-        case NodeType.Declaration(decl):
-            members.push(decl.clone())
-
-            if p.params.len().eq(1) {
-                val := p.get(0)?
-                dont_delete(val)
-                default_values.set(decl.name.clone(), val.clone())
-            } else {
-                throw t.error(lexer.path, "all declarations inside namespace blocks must have a value")
-            }
-        case NodeType.Assignment(name):
-            // Handle const := value inside namespace (methods like eq := func(...))
-            if p.params.len().eq(1) {
-                assign_val := p.get(0)?
-                dont_delete(assign_val)
-                mut assign_decl := Declaration()
-                assign_decl.name = name.clone()
-                assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
-                assign_decl.is_mut = false
-                assign_decl.is_copy = false
-                assign_decl.is_own = false
-                members.push(assign_decl.clone())
-                default_values.set(name.clone(), assign_val.clone())
-            } else {
-                throw t.error(lexer.path, format("namespace assignment '", name, "' must have exactly one value"))
-            }
-        case:
-            throw t.error(lexer.path, "expected only declarations inside namespace block")
-        }
-    }
-
-    mut ns_def := SNamespaceDef()
-    ns_def.type_name = type_name
-    ns_def.members = members
-    ns_def.default_values = default_values
-    params := Vec.new(Expr)
-    result := Expr.new_parse(NodeType.NamespaceDef(ns_def), t.clone(), params)
-
-    catch (err: IndexOutOfBoundsError) {
-        throw concat("parse_namespace_definition: ", err.msg)
-    }
-    return result
-}
 
 parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
@@ -1649,7 +1570,7 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
     case TokenType.Struct:
         result = parse_struct_definition(lexer)?
     case TokenType.Namespace:
-        result = parse_namespace_definition(lexer)?
+        throw t.error(lexer.path, "Separate 'namespace TypeName { }' blocks are no longer supported. Use 'namespace:' inside the struct/enum body instead.")
     case TokenType.LeftParen:
         result = parse_args(lexer)?
     case TokenType.Identifier:
@@ -2402,7 +2323,7 @@ parse_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
         lexer.advance(1)? // Skip LeftBrace
         return parse_body(lexer, TokenType.RightBrace)?
     case TokenType.Namespace:
-        return parse_namespace_definition(lexer)?
+        throw t.error(lexer.path, "Separate 'namespace TypeName { }' blocks are no longer supported. Use 'namespace:' inside the struct/enum body instead.")
     case:
         throw t.error(lexer.path, format("Expected statement, found ", token_type_to_str(t.token_type), "."))
     }
