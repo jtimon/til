@@ -1168,24 +1168,21 @@ check_namespace_def := proc(mut context: Context, _e: Expr, ns_def: SNamespaceDe
     mut errors := Vec.new(Str)
 
     for member_decl: Declaration in ns_def.members {
-        if ns_def.default_values.contains_key(member_decl.name) {
-            val_ref := ns_def.default_values.get_by_ref(member_decl.name)?
-            create_alias(inner_e, Expr, val_ref.data)
+        val_ref := ns_def.default_values.get_by_ref(member_decl.name)?
+        create_alias(inner_e, Expr, val_ref.data)
 
-            switch inner_e.node_type {
-            case NodeType.FuncDef(func_def):
-                context.scope_stack.push(ScopeType.Function)
-                errors.extend(check_func_proc_types(func_def, context, inner_e)?)
-                _ := context.scope_stack.pop()?
-            case:
-            }
+        switch inner_e.node_type {
+        case NodeType.FuncDef(func_def):
+            context.scope_stack.push(ScopeType.Function)
+            errors.extend(check_func_proc_types(func_def, context, inner_e)?)
+            _ := context.scope_stack.pop()?
+        case:
         }
+
+        catch (err: KeyNotFoundError) {} // Expected: not all members have defaults
     }
 
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: KeyNotFoundError) {
         throw err.msg
     }
     return errors
@@ -2566,15 +2563,14 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
         }
 
         // Check default value
-        if struct_def.default_values.contains_key(member_decl.name) {
-            mut inner_e := Expr()
-            struct_def.default_values.get(member_decl.name, inner_e)?
+        dv_ref := struct_def.default_values.get_by_ref(member_decl.name)?
+        create_alias(inner_e, Expr, dv_ref.data)
 
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
                 // Issue #108: Functions inside structs are no longer allowed.
                 // They must be moved to a namespace block.
-                errors.push(inner_e.error(context.path, "type", format(
+                errors.push(Expr.error(inner_e, context.path, "type", format( // TODO Bug #176: inner_e.error()
                     "Function '", member_decl.name, "' is defined inside struct. Functions must be in namespace blocks.\n",
                     "Move this function outside the struct into: namespace ", struct_name, " { ", member_decl.name, " := func(...) { ... } }"
                 )))
@@ -2585,7 +2581,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
 
                 // Check if default value calls procs (violates purity of constructors)
                 if is_expr_calling_procs(context, inner_e)? {
-                    errors.push(inner_e.error(context.path, "type",
+                    errors.push(Expr.error(inner_e, context.path, "type", // TODO Bug #176: inner_e.error()
                         format("Struct field '", member_decl.name, "' has default value that calls proc. Default values must be pure (can only call funcs, not procs).")))
                 }
 
@@ -2664,13 +2660,13 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
                     }
 
                     if type_mismatch {
-                        errors.push(inner_e.error(context.path, "type", format(
+                        errors.push(Expr.error(inner_e, context.path, "type", format( // TODO Bug #176: inner_e.error()
                             "Struct field '", member_decl.name, "' declared as '", value_type_to_str(expected_type), "' but default value has type '", value_type_to_str(found_type), "'."
                         )))
                     }
                 }
             }
-        } else {
+        catch (err: KeyNotFoundError) {
             errors.push(e.todo_error(context.path, "type", format("Member '", member_decl.name, "' lacks a default value. Not allowed yet.")))
         }
     }
