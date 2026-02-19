@@ -933,175 +933,43 @@ Files: src/rs/typer.rs, src/self/typer.til
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Memory leak in self-hosted interpreter, grows with scope depth and lookup frequency
-:STATUS: Open - params.get/e.get done (zero-copy Expr.get), ScopeStack frame copies remain
+:STATUS: Mostly fixed - frame iteration zero-copy, Map.get within lookups still copies
 :END:
 
-*** Progress: Zero-copy Expr.get() (2026-02-14)
+*** What was done
 
-Categories A+B from copies.org (490 calls copying Expr) are now zero-copy:
-- Replaced ~.params.get(i, var)~ with ~.get(i)~ + ~dont_delete(var)~ across
-  all 11 TIL self-hosted files. Uses get_by_ref + create_alias (no copy).
-- Garbager updated to collect dont_delete vars recursively from nested
-  Body/If/While/Catch nodes, and strip dont_delete calls from Body handlers.
-- Fixed double-free in ccodegen save/restore pattern (~saved_ref_params~,
-  ~saved_catch_labels~): after restoring to ctx fields, the local aliases
-  the field's heap data. Added dont_delete for these locals.
+The original bug was that all ScopeStack lookup/has functions copied entire
+ScopeFrame objects (5 Maps each) on every iteration. Three rounds of fixes:
 
-Remaining: ScopeStack frame iteration (Category C, 35 calls copying ScopeFrame),
-Map.get (Category D), Vec.get on non-params Vecs (Category E).
-
-*** Description
-TIL's ScopeStack lookup functions (lookup_var, lookup_symbol, lookup_func, lookup_enum,
-lookup_struct, has_var, has_symbol, has_func, has_enum, has_struct, etc.) copy entire
-ScopeFrame objects when iterating through frames:
-
-#+BEGIN_SRC til
-// Current pattern (leaks memory) - ALL lookup/has functions use this
-for i in self.frames.len().sub(1)..sub(0, 1) {
-    mut frame := ScopeFrame()   // Allocates new ScopeFrame
-    self.frames.get(i, frame)   // Copies ALL fields including 5 Maps
-
-    if frame.arena_index.contains_key(name) {
-        // ...
-    }
-    // frame goes out of scope - Maps inside are NOT freed
-}
-#+END_SRC
-
-ScopeFrame contains 5 Maps (arena_index, symbols, funcs, enums, structs). Each copy
-duplicates the Map struct which holds pointers to heap-allocated Vec data. When the
-copied frame goes out of scope, those Map copies leak because TIL has no automatic
-destructor/drop mechanism.
-
-*** Why Bug #144 (for-in by-ref) doesn't fix this
-These functions use ~for i in range~ + ~self.frames.get(i, frame)~ (manual
-index loops), NOT ~for frame: ScopeFrame in self.frames~ (for-in loops).
-They must iterate in reverse (innermost scope first), and for-in has no
-reverse iteration support. The manual ~.get()~ call always copies.
-
-Fix requires either:
-- Manual ~get_by_ref~ usage: ~frame_ptr := self.frames.get_by_ref(i)~ then
-  pointer cast (like create_alias does), but awkward without language support
-- Reverse for-in: ~for frame: ScopeFrame in self.frames.reverse()~
-
-*** Why Rust Doesn't Have This Problem
-Rust iterates by reference, not by copy:
-#+BEGIN_SRC rust
-for frame in self.frames.iter().rev() {
-    if let Some(offset) = frame.arena_index.get(name) {
-        // frame is &ScopeFrame - no copy, no allocation
-    }
-}
-#+END_SRC
-
-*** Potential Solutions
-
-**** Option A: Return references from Vec.get (language change)
-Change Vec.get to return a reference/pointer instead of copying:
-#+BEGIN_SRC til
-// Hypothetical - would require language support for references
-for i in self.frames.len().sub(1)..sub(0, 1) {
-    frame := self.frames.get_ref(i)  // Returns reference, no copy
-    if frame.arena_index.contains_key(name) { ... }
-}
-#+END_SRC
-Pros: Matches Rust semantics, clean syntax
-Cons: Major language change, needs reference/borrow system
-
-**** Option B: Vec.get_ptr + manual offset calculation (branch approach)
-Use pointer arithmetic to access fields without copying entire struct:
-#+BEGIN_SRC til
-structs_offset := mul(size_of(Map), 4)
-mut scratch_map := Map.new(Str, SStructDef)
-for i in self.frames.len().sub(1)..sub(0, 1) {
-    frame_ptr := self.frames.get_ptr(i)
-    structs_ptr := add(frame_ptr, structs_offset)
-    memcpy(to_ptr(scratch_map), structs_ptr, size_of(Map))
-    if scratch_map.contains_key(name) { ... }
-}
-#+END_SRC
-Pros: Works now, fixes leak
-Cons: Fragile (hardcoded offsets), diverges from Rust significantly, error-prone
-
-**** Option C: Existence-check methods (has_struct, has_symbol, etc.)
-Add cheap existence-check methods that avoid full struct retrieval:
-#+BEGIN_SRC til
-// Instead of:
-_ := self.scope_stack.lookup_struct(name)  // Copies SStructDef
-catch { }
-
-// Use:
-if self.scope_stack.has_struct(name) { ... }  // Just checks existence
-#+END_SRC
-Pros: Simple, matches Rust .is_some() pattern, no language changes
-Cons: Only helps existence checks (~40 places), doesn't fix cases needing the value
-
-**** Option D: Explicit free/drop for complex types
-Add manual memory management:
-#+BEGIN_SRC til
-for i in self.frames.len().sub(1)..sub(0, 1) {
-    mut frame := ScopeFrame()
-    self.frames.get(i, frame)
-    // ... use frame ...
-    frame.free()  // Explicitly free copied Maps
-}
-#+END_SRC
-Pros: Explicit, controllable
-Cons: Error-prone, verbose, easy to forget
-
-**** Option E: For-in loop over Vec doesn't copy (compiler optimization)
-Make the compiler smart enough to not copy when iterating:
-#+BEGIN_SRC til
-for frame: ScopeFrame in self.frames.reverse() {
-    // frame is a reference, not a copy (compiler detects loop pattern)
-}
-#+END_SRC
-Pros: Clean syntax, no code changes needed
-Cons: Significant compiler work, may be complex to implement correctly
-
-**** Option F: ASAP destruction (Mojo-style automatic delete on last use)
-Compiler inserts destructor calls automatically when a value is last used:
-#+BEGIN_SRC til
-for i in self.frames.len().sub(1)..sub(0, 1) {
-    mut frame := ScopeFrame()
-    self.frames.get(i, frame)
-    if frame.arena_index.contains_key(name) {
-        // ...
-    }
-    // Compiler detects frame's last use and inserts: frame.__del__()
-}
-#+END_SRC
-Pros: Automatic, no manual memory management, matches Mojo semantics
-Cons: Requires:
-  - Destructor support (__del__ methods on types with heap data)
-  - Liveness analysis in compiler to detect last use
-  - Careful handling of control flow (returns, throws, branches)
-  - May interact poorly with references if added later
-
-This is how Mojo handles memory: values are destroyed as soon as they're last used,
-not at end of scope. This enables deterministic destruction without garbage collection.
-
-*** Recommended Approach
-Start with Option C (has_* methods) as immediate mitigation - it's simple, matches Rust,
-and fixes ~40 call sites. For long-term, evaluate:
-- Option F (ASAP destruction) - most automatic, Mojo-proven approach
-- Option A (references) - matches Rust semantics closely
-- Option E (smart for-in) - transparent optimization
-
-*** Progress
-**** Option C implemented (2026-01-29)
+**** Option C: has_* methods (2026-01-29)
 Added has_var, has_symbol, has_func, has_enum, has_struct methods to ScopeStack.
-Updated all call sites using lookup_*.is_some() pattern to use has_* instead.
+Updated call sites using lookup_*.is_some() pattern to use has_* instead.
+Avoided copying definition objects but still copied ScopeFrame itself.
 
-Note: The has_* methods still copy ScopeFrame via manual ~.get()~ calls.
-Bug #144 (now fixed) only helps ~for item: Type in collection~ loops, not
-manual index loops. Option C avoids copying the *definition* objects
-(VarDef, FuncDef, etc.) but not the ScopeFrame itself.
+**** Categories A+B: Zero-copy Expr.get() (2026-02-14)
+Replaced ~.params.get(i, var)~ with ~.get(i)~ + ~dont_delete(var)~ across
+all 11 TIL self-hosted files. Uses get_by_ref + create_alias (no copy).
+490 Expr copy calls eliminated.
 
-*** Related Work
-- Branch ~claude/detect-ccodegen-translation-diffs-A08OT~ attempted Option B
-- That branch was not merged due to Rust/TIL divergence concerns
-- ~has_struct~ method was prototyped on that branch
+**** Category C: Zero-copy ScopeFrame iteration (2026-02-14)
+All 23 ScopeStack lookup/has functions converted from:
+#+BEGIN_SRC til
+// OLD - copies entire ScopeFrame (5 Maps) per iteration
+mut frame := ScopeFrame()
+self.frames.get(i, frame)
+#+END_SRC
+to:
+#+BEGIN_SRC til
+// NEW - zero-copy pointer alias into Vec storage
+frame_ref := self.frames.get_by_ref(i)?
+create_alias(frame, ScopeFrame, frame_ref.data)
+#+END_SRC
+
+Only 2 non-iteration ~frames.get()~ calls remain (top frame, global frame).
+
+*** Remaining (not part of this bug)
+Map.get (Category D) and Vec.get on non-params Vecs (Category E) still copy.
+These are general collection semantics issues, not ScopeStack-specific.
 
 ** Bug #113: Self-hosted interpreter fails with "symbol 'msg' not found"
 :PROPERTIES:
