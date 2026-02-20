@@ -195,7 +195,7 @@ garbager.til need prefixed names (e.g., ~garbager_collect_decls~).
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Semantic correctness -- memcmp compares raw bytes (pointers, padding) not logical values
-:STATUS: Step 1 done (pure TIL memcmp)
+:STATUS: Step 1 done (pure TIL memcmp). Steps 2-4 blocked by Dynamic having no type dispatch.
 :RELATED: Bug #166 (container type info duplication, memcmp elem_size=0 breakage)
 :END:
 
@@ -206,13 +206,30 @@ Two structs with identical logical content but different pointer addresses
 (e.g. two Str with same text but different allocations) will compare as
 NOT equal. Creates interpreted/compiled divergence.
 
+*** Current usage (as of 2026-02-20)
+7 call sites in production code, all in containers:
+- set.til (3): insert, remove, contains -- element comparison
+- vec.til (2): _is_str_type (type tag check) + contains (element comparison)
+- map.til (1): key comparison for non-Str keys
+- hashmap.til (1): key comparison for non-Str keys
+All containers already special-case Str (using Str.eq()). memcmp is the
+fallback for all other types. Works correctly for value types (I64, U8, Bool)
+since their raw bytes ARE the value. Broken for any struct with heap pointers.
+
+*** Blocker
+Containers hold ~Dynamic~ parameters and use ~elem_type~ (a string) to know
+the type. They already special-case Str. Could extend the pattern to dispatch
+.eq() for other types, but that's a lot of per-type boilerplate. In practice
+memcmp works for value types (I64, U8, Bool) which are the common case.
+The real problem is only for struct types with heap pointers as container
+elements, which is rare.
+
 *** Plan
 - Step 1: Replace ext_func memcmp with pure TIL implementation (DONE)
   Removed C/Rust/TIL-interpreter implementations. memcmp is now a regular
   TIL function in mem.til using byte-by-byte comparison via memcpy+to_ptr.
-- Step 2: Add typed equality (.eq()) to containers
-- Step 3: Migrate containers from memcmp to typed equality
-- Step 4: Remove memcmp entirely (or keep for low-level use only)
+- Step 2: Extend elem_type dispatch to cover more types if needed
+- Step 3: Remove memcmp entirely (or keep for low-level use only)
 
 ** Bug #165: Compiled TIL binary leaks 200-800x memory vs Rust
 :PROPERTIES:
