@@ -9,7 +9,6 @@ import("core.ptr")
  */
 Vec := struct {
     mut type_name : Str  = ""
-    mut type_size : I64  = 0
     mut ptr       : Ptr  = Ptr()
     mut _len      : I64  = 0
     mut cap       : I64  = 0
@@ -26,15 +25,16 @@ namespace:
 
     /** Get total size in bytes. */
     size := func(self: Vec) returns I64 {
-        return mul(self._len, self.type_size)
+        return mul(self._len, self.ptr.elem_size)
     }
 
     /** Create new empty vec with specified element type. */
     new := proc(T: Type) returns Vec {
         mut vec := Vec()
         vec.type_name = type_as_str(T)
-        vec.type_size = size_of(T)
-        vec.ptr = Ptr()
+        mut p := Ptr()
+        p.elem_size = size_of(T)
+        vec.ptr = p
         vec._len = 0
         vec.cap = 0
         return vec
@@ -45,8 +45,9 @@ namespace:
     new_from_type_info := proc(type_name: Str, type_size: I64) returns Vec {
         mut vec := Vec()
         vec.type_name = type_name
-        vec.type_size = type_size
-        vec.ptr = Ptr()
+        mut p := Ptr()
+        p.elem_size = type_size
+        vec.ptr = p
         vec._len = 0
         vec.cap = 0
         return vec
@@ -54,9 +55,9 @@ namespace:
 
     /** Internal: allocate a Ptr with Vec's type info for deep cloning support. */
     _alloc_ptr := proc(mut self: Vec, capacity: I64) returns Ptr {
-        mut p := Ptr.new_by_size(capacity.mul(self.type_size))
+        mut p := Ptr.new_by_size(capacity.mul(self.ptr.elem_size))
         p.elem_type = self.type_name.c_string.data
-        p.elem_size = self.type_size
+        p.elem_size = self.ptr.elem_size
         return p
     }
 
@@ -65,7 +66,9 @@ namespace:
     with_capacity := proc(T: Type, capacity: I64) returns Vec {
         mut vec := Vec()
         vec.type_name = type_as_str(T)
-        vec.type_size = size_of(T)
+        mut p := Ptr()
+        p.elem_size = size_of(T)
+        vec.ptr = p
         vec._len = 0
         vec.cap = capacity
         if capacity.gt(0) {
@@ -73,8 +76,6 @@ namespace:
                 panic(loc(), "Vec.with_capacity: capacity exceeded Vec.MAX_CAP")
             }
             vec.ptr = vec._alloc_ptr(capacity)
-        } else {
-            vec.ptr = Ptr()
         }
         return vec
     }
@@ -98,7 +99,7 @@ namespace:
 
             mut new_ptr := self._alloc_ptr(new_cap)
             if self._len.gt(0) {
-                new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
+                new_ptr.copy_from(self.ptr, self._len.mul(self.ptr.elem_size))
             }
             if not(self.ptr.is_null()) {
                 self.ptr.delete()
@@ -107,8 +108,8 @@ namespace:
             self.cap = new_cap
         }
 
-        mut dest := self.ptr.offset(self._len.mul(self.type_size))
-        dest.copy_from_dynamic(value, self.type_size)
+        mut dest := self.ptr.offset(self._len.mul(self.ptr.elem_size))
+        dest.copy_from_dynamic(value, self.ptr.elem_size)
         self._len = self._len.add(1)
     }
 
@@ -117,7 +118,7 @@ namespace:
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.get_by_ref: index out of bounds"))
         }
-        return self.ptr.offset(index.mul(self.type_size))
+        return self.ptr.offset(index.mul(self.ptr.elem_size))
     }
 
     /** Set element at index. */
@@ -131,8 +132,8 @@ namespace:
         //     throw format(loc(), "Vec.set: value type mismatch")
         // }
 
-        mut dest := self.ptr.offset(index.mul(self.type_size))
-        dest.copy_from_dynamic(value, self.type_size)
+        mut dest := self.ptr.offset(index.mul(self.ptr.elem_size))
+        dest.copy_from_dynamic(value, self.ptr.elem_size)
     }
 
     /** Pop last element from vec. */
@@ -143,8 +144,8 @@ namespace:
 
         // Get last element
         mut last_index := sub(self._len, 1)
-        src := self.ptr.offset(last_index.mul(self.type_size))
-        src.copy_to_dynamic(dest, self.type_size)
+        src := self.ptr.offset(last_index.mul(self.ptr.elem_size))
+        src.copy_to_dynamic(dest, self.ptr.elem_size)
 
         // Decrement length
         self._len = last_index
@@ -155,7 +156,6 @@ namespace:
         if not(self.ptr.is_null()) {
             self.ptr.delete()
         }
-        self.ptr = Ptr()
         self._len = 0
         self.cap = 0
     }
@@ -166,16 +166,16 @@ namespace:
     clone := proc(self: Vec) returns Vec {
         mut cloned := Vec()
         cloned.type_name = self.type_name.clone()
-        cloned.type_size = self.type_size
+        mut p := Ptr()
+        p.elem_size = self.ptr.elem_size
+        cloned.ptr = p
         cloned._len = self._len
         cloned.cap = self.cap
         if self.cap.gt(0) {
             cloned.ptr = cloned._alloc_ptr(self.cap)
             if self._len.gt(0) {
-                cloned.ptr.copy_from(self.ptr, self._len.mul(self.type_size))
+                cloned.ptr.copy_from(self.ptr, self._len.mul(self.ptr.elem_size))
             }
-        } else {
-            cloned.ptr = Ptr()
         }
         return cloned
     }
@@ -185,7 +185,7 @@ namespace:
         mut i := 0
         while i.lt(other._len) {
             // Copy element from other to self
-            src := other.ptr.offset(i.mul(other.type_size))
+            src := other.ptr.offset(i.mul(other.ptr.elem_size))
 
             // Ensure capacity (handles cap=0 case with max(1, cap*2))
             if self._len.eq(self.cap) {
@@ -198,7 +198,7 @@ namespace:
                 }
                 mut new_ptr := self._alloc_ptr(new_cap)
                 if self._len.gt(0) {
-                    new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
+                    new_ptr.copy_from(self.ptr, self._len.mul(self.ptr.elem_size))
                 }
                 if not(self.ptr.is_null()) {
                     self.ptr.delete()
@@ -207,8 +207,8 @@ namespace:
                 self.cap = new_cap
             }
 
-            mut dest := self.ptr.offset(self._len.mul(self.type_size))
-            dest.copy_from(src, self.type_size)
+            mut dest := self.ptr.offset(self._len.mul(self.ptr.elem_size))
+            dest.copy_from(src, self.ptr.elem_size)
             self._len = self._len.add(1)
             i = i.add(1)
         }
@@ -231,7 +231,7 @@ namespace:
 
                 mut new_ptr := self._alloc_ptr(new_cap)
                 if self._len.gt(0) {
-                    new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
+                    new_ptr.copy_from(self.ptr, self._len.mul(self.ptr.elem_size))
                 }
                 if not(self.ptr.is_null()) {
                     self.ptr.delete()
@@ -240,8 +240,8 @@ namespace:
                 self.cap = new_cap
             }
 
-            mut dest := self.ptr.offset(self._len.mul(self.type_size))
-            dest.copy_from_dynamic(value, self.type_size)
+            mut dest := self.ptr.offset(self._len.mul(self.ptr.elem_size))
+            dest.copy_from_dynamic(value, self.ptr.elem_size)
             self._len = self._len.add(1)
         }
     }
@@ -251,18 +251,18 @@ namespace:
     contains := func(self: Vec, value: Dynamic) returns Bool {
         mut i := 0
         while i.lt(self._len) {
-            src := self.ptr.offset(i.mul(self.type_size))
+            src := self.ptr.offset(i.mul(self.ptr.elem_size))
             // Special case for Str: compare content, not struct bytes
             if Str.eq(self.type_name, "Str") {
                 mut existing := ""
-                src.copy_to_dynamic(existing, self.type_size)
+                src.copy_to_dynamic(existing, self.ptr.elem_size)
                 mut val_str := ""
-                memcpy(to_ptr(val_str), to_ptr(value), self.type_size)
+                memcpy(to_ptr(val_str), to_ptr(value), self.ptr.elem_size)
                 if val_str.eq(existing) {
                     return true
                 }
             } else {
-                if memcmp(to_ptr(value), src.data, self.type_size).eq(0) {
+                if memcmp(to_ptr(value), src.data, self.ptr.elem_size).eq(0) {
                     return true
                 }
             }
@@ -280,9 +280,9 @@ namespace:
         // Shift elements left
         mut i := index
         while i.lt(self._len.sub(1)) {
-            src := self.ptr.offset(i.add(1).mul(self.type_size))
-            mut dest := self.ptr.offset(i.mul(self.type_size))
-            dest.copy_from(src, self.type_size)
+            src := self.ptr.offset(i.add(1).mul(self.ptr.elem_size))
+            mut dest := self.ptr.offset(i.mul(self.ptr.elem_size))
+            dest.copy_from(src, self.ptr.elem_size)
             i = i.add(1)
         }
 
@@ -309,7 +309,7 @@ namespace:
 
             mut new_ptr := self._alloc_ptr(new_cap)
             if self._len.gt(0) {
-                new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
+                new_ptr.copy_from(self.ptr, self._len.mul(self.ptr.elem_size))
             }
             if not(self.ptr.is_null()) {
                 self.ptr.delete()
@@ -321,15 +321,15 @@ namespace:
         // Shift elements right (from end to index)
         mut i := self._len
         while i.gt(index) {
-            shift_src := self.ptr.offset(i.sub(1).mul(self.type_size))
-            mut shift_dest := self.ptr.offset(i.mul(self.type_size))
-            shift_dest.copy_from(shift_src, self.type_size)
+            shift_src := self.ptr.offset(i.sub(1).mul(self.ptr.elem_size))
+            mut shift_dest := self.ptr.offset(i.mul(self.ptr.elem_size))
+            shift_dest.copy_from(shift_src, self.ptr.elem_size)
             i = i.sub(1)
         }
 
         // Insert value at index
-        mut insert_dest := self.ptr.offset(index.mul(self.type_size))
-        insert_dest.copy_from_dynamic(value, self.type_size)
+        mut insert_dest := self.ptr.offset(index.mul(self.ptr.elem_size))
+        insert_dest.copy_from_dynamic(value, self.ptr.elem_size)
         self._len = self._len.add(1)
     }
 
@@ -344,8 +344,8 @@ namespace:
             // For Str elements, wrap in quotes
             if Str.eq(self.type_name, "Str") {
                 mut elem := ""
-                src := self.ptr.offset(i.mul(self.type_size))
-                src.copy_to_dynamic(elem, self.type_size)
+                src := self.ptr.offset(i.mul(self.ptr.elem_size))
+                src.copy_to_dynamic(elem, self.ptr.elem_size)
                 result = result.concat("\"").concat(elem).concat("\"")
             }
         }
@@ -368,16 +368,15 @@ namespace:
         tail_len := self._len.sub(at)
         mut result := Vec()
         result.type_name = self.type_name.clone()
-        result.type_size = self.type_size
+        mut p := Ptr()
+        p.elem_size = self.ptr.elem_size
+        result.ptr = p
         result._len = tail_len
         if tail_len.gt(0) {
             result.cap = tail_len
             result.ptr = result._alloc_ptr(tail_len)
-            src := self.ptr.offset(at.mul(self.type_size))
-            result.ptr.copy_from(src, tail_len.mul(self.type_size))
-        } else {
-            result.cap = 0
-            result.ptr = Ptr()
+            src := self.ptr.offset(at.mul(self.ptr.elem_size))
+            result.ptr.copy_from(src, tail_len.mul(self.ptr.elem_size))
         }
         self._len = at
         return result

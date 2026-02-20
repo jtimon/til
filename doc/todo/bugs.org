@@ -204,7 +204,7 @@ garbager.til need prefixed names (e.g., ~garbager_collect_decls~).
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Wasted memory, inconsistency, blocks clean ownership model
-:STATUS: Part 1 done, Part 2 deferred
+:STATUS: Part 1 done, Part 2a done (Vec.type_size removed), Part 2b+ remaining
 :RELATED: Bug #159 (shallow copies), Issue #151 (pointer syntax)
 :END:
 
@@ -212,7 +212,7 @@ Vec, Array, and List store ~type_name~ and ~type_size~ fields that duplicate
 the ~elem_type~ and ~elem_size~ already in their ~Ptr~ field.
 
 Affected containers:
-- ~Vec~ (vec.til:11-12): ~type_name: Str~, ~type_size: I64~
+- ~Vec~ (vec.til:11-12): ~type_name: Str~, ~type_size: I64~ -- type_size DONE
 - ~Array~ (array.til:11-12): ~type_name: Str~, ~type_size: I64~
 - ~Set~ (set.til:6-7): ~elem_type_name: Str~, ~elem_type_size: I64~ -- DONE
 - ~Map~ (map.til:39-42): 4 fields -- DONE (partial, see below)
@@ -280,10 +280,9 @@ Tested empirically: ~ptr.elem_size~ is 0 in both rs_interpreted and
 rs_compiled modes for Map. Set works because the explicit copy-back ensures
 the complete Ptr (including elem_size) survives.
 
-When Vec.type_size is removed (later step), Map will need to be revisited.
-Options: (a) adopt the copy-local-copy-back pattern like Set, (b) fix the
-interpreter's chained field propagation, or (c) set ptr.elem_size in Vec.new
-itself (not just in _alloc_ptr).
+Vec.type_size has now been removed (Part 2a). Map works because Vec constructors
+now set ptr.elem_size on a local Ptr before assigning to vec.ptr, so elem_size
+is available from the start -- option (c) from the original plan.
 
 **** Step 3: Vec.insert_at _alloc_ptr fix (DONE)
 Vec.insert_at used ~Ptr.new_by_size()~ directly instead of ~self._alloc_ptr()~
@@ -319,9 +318,32 @@ exists (see future.org) or Map/HashMap use Ptr directly.
 
 Part 1 DONE. Container-level duplication removed from Set, Map, HashMap.
 
-Part 2 (future, blocked on __init__ or Map-uses-Ptr-directly):
-- Vec -- remove type_size, use ptr.elem_size everywhere.
-  Update eval_heap.rs + eval_heap.til for new Vec layout.
+**** Part 2a: Vec.type_size removal (DONE)
+Removed ~type_size: I64~ from Vec struct. All code now uses ~self.ptr.elem_size~.
+Vec constructors (~new~, ~new_from_type_info~, ~with_capacity~) set elem_size
+on a local Ptr then assign it to ~vec.ptr~ (avoids chained-assignment interpreter
+bug where ~vec.ptr.elem_size = X~ writes to a copy).
+
+Updated ~clone~ and ~split_off~ to copy elem_size to the new Vec's Ptr.
+Updated codegen (~ccodegen.rs~ + ~ccodegen.til~): precomputed Vec static
+initializers set elem_size in Ptr (5th field) instead of emitting ~.type_size~.
+Updated ~extract_vec_contents~ (~eval_heap.rs~ + ~eval_heap.til~): ptr offset
+shifted from ~str_size + 8~ to ~str_size~, elem_size read from Ptr at offset 32.
+
+Key bug found and fixed: ~Vec.delete()~ had ~self.ptr = Ptr()~ which zeroed
+the entire Ptr including elem_size. ~Set.clear()~ calls ~Set.delete()~ which
+calls ~Vec.delete()~, so after clearing a Set, elem_size was lost. Fix: removed
+~self.ptr = Ptr()~ from ~Vec.delete()~ -- after ~self.ptr.delete()~, data is
+already NULL; metadata (elem_size) is preserved naturally.
+
+**** Part 2 Arena: Migrate from Vec to raw Ptr (DONE)
+Arena is a simple bump allocator that only stores bytes. Replaced Vec with
+Ptr + manual len/cap/growth, eliminating type_size overhead entirely.
+Committed at 8d28723c. Future: Arena's type is always U8, so it could
+potentially use raw memory operations (malloc/realloc/memcpy) directly
+instead of going through Ptr abstractions.
+
+**** Part 2 remaining:
 - Array -- remove type_name/type_size, migrate ptr from I64 to Ptr.
   Update eval_heap.rs + eval_heap.til for new Array layout.
 - List (needs investigation, heterogeneous)

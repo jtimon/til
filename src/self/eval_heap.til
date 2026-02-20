@@ -1424,7 +1424,7 @@ namespace:
             throw format("extract_vec_contents: instance '", instance_name, "' not found")
         }
 
-        // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+        // Vec layout: type_name (Str), ptr (Ptr), _len (I64), cap (I64)
         // Get sizes
         str_size := ctx.get_type_size("Str")?
         ptr_size := ctx.get_type_size("Ptr")?
@@ -1433,19 +1433,18 @@ namespace:
         type_name_offset := vec_offset
         type_name_str := EvalHeap.extract_str_at_offset(ctx, type_name_offset)?
 
-        // Read type_size (I64) - after Str
-        type_size_offset := vec_offset.add(str_size)
-        type_size_ptr := g_heap.get(type_size_offset, 8)
-        mut type_size := 0
-        Ptr(data=type_size_ptr).dereference(I64, type_size)
-
-        // Read ptr.data (I64) - after type_size
-        ptr_offset := type_size_offset.add(8)
+        // Read ptr.data (I64) - after type_name (no more type_size field)
+        ptr_offset := vec_offset.add(str_size)
         ptr_data_ptr := g_heap.get(ptr_offset, 8)
         mut data_ptr := 0
         Ptr(data=ptr_data_ptr).dereference(I64, data_ptr)
 
-        // Read _len (I64) - after ptr (Ptr is 16 bytes: data + is_borrowed)
+        // Read elem_size from Ptr (5th field at offset 32 within Ptr)
+        elem_size_ptr := g_heap.get(ptr_offset.add(32), 8)
+        mut type_size := 0
+        Ptr(data=elem_size_ptr).dereference(I64, type_size)
+
+        // Read _len (I64) - after ptr
         len_offset := ptr_offset.add(ptr_size)
         len_ptr := g_heap.get(len_offset, 8)
         mut len := 0

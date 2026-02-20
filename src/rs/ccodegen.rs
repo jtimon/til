@@ -2614,19 +2614,16 @@ fn emit_precomputed_vec_static(
     output.push_str(&elem_type.len().to_string());
     output.push_str(", 0},\n");
 
-    // type_size field
-    output.push_str("    .type_size = ");
-    output.push_str(&type_size.to_string());
-    output.push_str(",\n");
-
-    // ptr field - point to static data array
+    // ptr field - point to static data array, with elem_size set
     output.push_str("    .ptr = (");
     output.push_str(TIL_PREFIX);
     output.push_str("Ptr){(");
     output.push_str(TIL_PREFIX);
     output.push_str("I64)");
     output.push_str(data_array_name);
-    output.push_str(", 1, 0, 0, 0},\n");
+    output.push_str(", 1, 0, 0, ");
+    output.push_str(&type_size.to_string());
+    output.push_str("},\n");
 
     // _len field
     output.push_str("    ._len = ");
@@ -2751,18 +2748,19 @@ fn emit_precomputed_nested_vec_static(
 
         if elem_type == "Vec" {
             // Get the ptr field from the inner Vec struct bytes
-            // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+            // Vec layout: type_name (Str), ptr (Ptr), _len (I64), cap (I64)
             let str_size = context.get_type_size("Str")?;
-            let ptr_offset = str_size + 8; // after type_name and type_size
+            let ptr_offset = str_size; // after type_name (no more type_size field)
             let ptr_bytes: [u8; 8] = elem_bytes[ptr_offset..ptr_offset+8].try_into()
                 .map_err(|_| "emit_precomputed_nested_vec_static: failed to read inner Vec ptr")?;
             let inner_data_ptr = i64::from_ne_bytes(ptr_bytes) as usize;
 
             // Extract inner Vec contents from its memory location
-            // We need to reconstruct VecContents from the raw bytes
             let inner_type_name = EvalHeap::extract_str_from_bytes(context, elem_bytes)?;
-            let inner_type_size_bytes: [u8; 8] = elem_bytes[str_size..str_size+8].try_into()
-                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read inner type_size")?;
+            // Read elem_size from Ptr (5th field at offset 32 within Ptr)
+            let elem_size_offset = ptr_offset + 32;
+            let inner_type_size_bytes: [u8; 8] = elem_bytes[elem_size_offset..elem_size_offset+8].try_into()
+                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read inner elem_size")?;
             let inner_type_size = i64::from_ne_bytes(inner_type_size_bytes) as usize;
 
             let ptr_size = context.get_type_size("Ptr")?;
@@ -2807,17 +2805,18 @@ fn emit_precomputed_nested_vec_static(
     for (outer_idx, outer_elem_bytes) in contents.element_bytes.iter().enumerate() {
         if elem_type == "Vec" {
             // Emit Vec struct with patched pointers
-            // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+            // Vec layout: type_name (Str), ptr (Ptr), _len (I64), cap (I64)
             let outer_str_size = context.get_type_size("Str")?;
             let outer_ptr_size = context.get_type_size("Ptr")?;
 
-            // Extract type_size
-            let type_size_bytes: [u8; 8] = outer_elem_bytes[outer_str_size..outer_str_size+8].try_into()
-                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read type_size")?;
+            // Extract elem_size from Ptr (5th field at offset 32 within Ptr)
+            let elem_size_offset = outer_str_size + 32; // ptr starts at str_size, elem_size is 5th field
+            let type_size_bytes: [u8; 8] = outer_elem_bytes[elem_size_offset..elem_size_offset+8].try_into()
+                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read elem_size")?;
             let type_size = i64::from_ne_bytes(type_size_bytes);
 
             // Extract _len
-            let outer_len_offset = outer_str_size + 8 + outer_ptr_size;
+            let outer_len_offset = outer_str_size + outer_ptr_size;
             let len_bytes: [u8; 8] = outer_elem_bytes[outer_len_offset..outer_len_offset+8].try_into()
                 .map_err(|_| "emit_precomputed_nested_vec_static: failed to read _len")?;
             let len = i64::from_ne_bytes(len_bytes);
@@ -2841,15 +2840,15 @@ fn emit_precomputed_nested_vec_static(
             output.push_str(&outer_inner_type_name);
             output.push_str("\", 1, 0, 0, 0}, ._len =");
             output.push_str(&outer_inner_type_name.len().to_string());
-            output.push_str(", .cap = 0}, .type_size = ");
-            output.push_str(&type_size.to_string());
-            output.push_str(", .ptr = (");
+            output.push_str(", .cap = 0}, .ptr = (");
             output.push_str(TIL_PREFIX);
             output.push_str("Ptr){(");
             output.push_str(TIL_PREFIX);
             output.push_str("I64)");
             output.push_str(&inner_data_names[outer_idx]);
-            output.push_str(", 1, 0, 0, 0}, ._len =");
+            output.push_str(", 1, 0, 0, ");
+            output.push_str(&type_size.to_string());
+            output.push_str("}, ._len =");
             output.push_str(&len.to_string());
             output.push_str(", .cap = ");
             output.push_str(&cap.to_string());

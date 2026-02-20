@@ -29,7 +29,6 @@ GHOST_TYPE_HAS_CONST := Introspection.has_const("NonexistentType", "anything")
 
 // has_field: Vec mutable fields
 VEC_HAS_TYPE_NAME := Introspection.has_field("Vec", "type_name")
-VEC_HAS_TYPE_SIZE := Introspection.has_field("Vec", "type_size")
 VEC_HAS_PTR := Introspection.has_field("Vec", "ptr")
 VEC_HAS_ULEN := Introspection.has_field("Vec", "_len")
 VEC_HAS_CAP := Introspection.has_field("Vec", "cap")
@@ -75,7 +74,6 @@ test_has_const_negative()
 // Test has_field - Vec mutable fields
 test_has_field_vec := proc() {
     test(loc(), VEC_HAS_TYPE_NAME, "Expected Vec to have type_name field")
-    test(loc(), VEC_HAS_TYPE_SIZE, "Expected Vec to have type_size field")
     test(loc(), VEC_HAS_PTR, "Expected Vec to have ptr field")
     test(loc(), VEC_HAS_ULEN, "Expected Vec to have _len field")
     test(loc(), VEC_HAS_CAP, "Expected Vec to have cap field")

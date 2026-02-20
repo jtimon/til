@@ -1172,7 +1172,7 @@ impl EvalHeap {
         let vec_offset = ctx.scope_stack.lookup_var(instance_name)
             .ok_or_else(|| format!("extract_vec_contents: instance '{}' not found", instance_name))?;
 
-        // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+        // Vec layout: type_name (Str), ptr (Ptr), _len (I64), cap (I64)
         // Get sizes
         let str_size = ctx.get_type_size("Str")?;
         let ptr_size = ctx.get_type_size("Ptr")?;
@@ -1181,19 +1181,19 @@ impl EvalHeap {
         let type_name_offset = vec_offset;
         let type_name_str = Self::extract_str_at_offset(ctx, type_name_offset)?;
 
-        // Read type_size (I64) - after Str
-        let type_size_offset = vec_offset + str_size;
-        let type_size_bytes: [u8; 8] = EvalHeap::g().get(type_size_offset, 8).try_into()
-            .map_err(|_| "extract_vec_contents: failed to read type_size")?;
-        let type_size = i64::from_ne_bytes(type_size_bytes) as usize;
-
-        // Read ptr.data (I64) - after type_size
-        let ptr_offset = type_size_offset + 8;
+        // Read ptr.data (I64) - after type_name (no more type_size field)
+        let ptr_offset = vec_offset + str_size;
         let ptr_bytes: [u8; 8] = EvalHeap::g().get(ptr_offset, 8).try_into()
             .map_err(|_| "extract_vec_contents: failed to read ptr")?;
         let data_ptr = i64::from_ne_bytes(ptr_bytes) as usize;
 
-        // Read _len (I64) - after ptr (Ptr is 16 bytes: data + is_borrowed)
+        // Read elem_size from Ptr (5th field at offset 32 within Ptr)
+        let elem_size_offset = ptr_offset + 32;
+        let type_size_bytes: [u8; 8] = EvalHeap::g().get(elem_size_offset, 8).try_into()
+            .map_err(|_| "extract_vec_contents: failed to read elem_size")?;
+        let type_size = i64::from_ne_bytes(type_size_bytes) as usize;
+
+        // Read _len (I64) - after ptr
         let len_offset = ptr_offset + ptr_size;
         let len_bytes: [u8; 8] = EvalHeap::g().get(len_offset, 8).try_into()
             .map_err(|_| "extract_vec_contents: failed to read _len")?;

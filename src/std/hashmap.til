@@ -59,14 +59,14 @@ namespace:
         if self.keys.type_name.eq("Str") {
             // For Str keys, use the built-in Str.hash()
             mut s := ""
-            memcpy(to_ptr(s), key_ptr, self.keys.type_size)
+            memcpy(to_ptr(s), key_ptr, self.keys.ptr.elem_size)
             h = s.hash()
         } else {
             // For other types, use FNV-1a on raw bytes
             FNV_OFFSET_BASIS : I64 = sub(0, 3750763034362895579)
             FNV_PRIME : I64 = 1099511628211
             h = FNV_OFFSET_BASIS
-            for i in 0..self.keys.type_size {
+            for i in 0..self.keys.ptr.elem_size {
                 mut byte_val : U8 = 0
                 mut key_byte_ptr := Ptr()
                 key_byte_ptr.data = key_ptr.add(i)
@@ -91,11 +91,11 @@ namespace:
         if self.keys.type_name.eq("Str") {
             mut a := ""
             mut b := ""
-            memcpy(to_ptr(a), key_a_ptr, self.keys.type_size)
-            memcpy(to_ptr(b), key_b_ptr, self.keys.type_size)
+            memcpy(to_ptr(a), key_a_ptr, self.keys.ptr.elem_size)
+            memcpy(to_ptr(b), key_b_ptr, self.keys.ptr.elem_size)
             return a.eq(b)
         } else {
-            result := memcmp(key_a_ptr, key_b_ptr, self.keys.type_size)
+            result := memcmp(key_a_ptr, key_b_ptr, self.keys.ptr.elem_size)
             return result.eq(0)
         }
     }
@@ -113,7 +113,7 @@ namespace:
         // Walk the chain
         while entry_idx.gteq(0) {
             // Get key at entry_idx
-            key_ptr := self.keys.ptr.offset(entry_idx.mul(self.keys.type_size))
+            key_ptr := self.keys.ptr.offset(entry_idx.mul(self.keys.ptr.elem_size))
             if self.keys_equal(to_ptr(key), key_ptr.data) {
                 return entry_idx
             }
@@ -149,7 +149,7 @@ namespace:
         // Re-insert all entries into new buckets
         i = 0
         while i.lt(self._size) {
-            key_ptr := self.keys.ptr.offset(i.mul(self.keys.type_size))
+            key_ptr := self.keys.ptr.offset(i.mul(self.keys.ptr.elem_size))
             bucket_idx := self.hash_key(key_ptr.data)
 
             // Get current head of bucket
@@ -218,8 +218,8 @@ namespace:
 
         if existing_idx.gteq(0) {
             // Key found - update value in place
-            mut value_ptr := self.values.ptr.offset(existing_idx.mul(self.values.type_size))
-            value_ptr.copy_from_dynamic(value, self.values.type_size)
+            mut value_ptr := self.values.ptr.offset(existing_idx.mul(self.values.ptr.elem_size))
+            value_ptr.copy_from_dynamic(value, self.values.ptr.elem_size)
         } else {
             // Key not found - insert new entry
             // Check load factor and resize if needed
@@ -255,7 +255,7 @@ namespace:
     get_by_ref := proc(self: HashMap, key: Dynamic) returns Ptr throws KeyNotFoundError {
         idx := self.find_key(key)
         if idx.gteq(0) {
-            return self.values.ptr.offset(idx.mul(self.values.type_size))
+            return self.values.ptr.offset(idx.mul(self.values.ptr.elem_size))
         }
         throw KeyNotFoundError(msg=format(loc(), "Key not found in HashMap"))
     }
@@ -297,8 +297,8 @@ namespace:
 
     /** Get total size in bytes (keys + values). */
     size := func(self: HashMap) returns I64 {
-        keys_size := self._size.mul(self.keys.type_size)
-        values_size := self._size.mul(self.values.type_size)
+        keys_size := self._size.mul(self.keys.ptr.elem_size)
+        values_size := self._size.mul(self.values.ptr.elem_size)
         return keys_size.add(values_size)
     }
 
@@ -346,7 +346,7 @@ namespace:
         // Re-insert all entries into chains
         mut i := 0
         while i.lt(self._size) {
-            key_ptr := self.keys.ptr.offset(i.mul(self.keys.type_size))
+            key_ptr := self.keys.ptr.offset(i.mul(self.keys.ptr.elem_size))
             bucket_idx := self.hash_key(key_ptr.data)
 
             head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)

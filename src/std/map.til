@@ -59,12 +59,12 @@ namespace:
             // For Str keys, use Str.cmp() for proper lexicographic ordering
             mut a := ""
             mut b := ""
-            memcpy(to_ptr(a), key_a_ptr, self.keys.type_size)
-            memcpy(to_ptr(b), key_b_ptr, self.keys.type_size)
+            memcpy(to_ptr(a), key_a_ptr, self.keys.ptr.elem_size)
+            memcpy(to_ptr(b), key_b_ptr, self.keys.ptr.elem_size)
             return a.cmp(b)
         } else {
             // For other types, use memcmp
-            result := memcmp(key_a_ptr, key_b_ptr, self.keys.type_size)
+            result := memcmp(key_a_ptr, key_b_ptr, self.keys.ptr.elem_size)
             if result.lt(0) {
                 return sub(0, 1)
             } else if result.gt(0) {
@@ -92,7 +92,7 @@ namespace:
 
         while low.lteq(high) {
             mut mid := low.add(high.sub(low).div(2))
-            mid_key_ptr := self.keys.ptr.offset(mid.mul(self.keys.type_size))
+            mid_key_ptr := self.keys.ptr.offset(mid.mul(self.keys.ptr.elem_size))
             cmp := self.compare_keys(to_ptr(key), mid_key_ptr.data)
 
             if cmp.eq(0) {
@@ -152,8 +152,8 @@ namespace:
 
         if search.found {
             // Key found - update value in place
-            mut value_ptr := self.values.ptr.offset(search.index.mul(self.values.type_size))
-            value_ptr.copy_from_dynamic(value, self.values.type_size)
+            mut value_ptr := self.values.ptr.offset(search.index.mul(self.values.ptr.elem_size))
+            value_ptr.copy_from_dynamic(value, self.values.ptr.elem_size)
         } else {
             // Key not found - insert at sorted position
             self.keys.insert_at(search.index, key)?
@@ -170,7 +170,7 @@ namespace:
     get_by_ref := proc(self: Map, key: Dynamic) returns Ptr throws KeyNotFoundError {
         search := self.binary_search(key)
         if search.found {
-            return self.values.ptr.offset(search.index.mul(self.values.type_size))
+            return self.values.ptr.offset(search.index.mul(self.values.ptr.elem_size))
         }
         throw KeyNotFoundError(msg=format(loc(), "Key not found in map"))
     }
@@ -227,8 +227,8 @@ namespace:
 
     /** Get total size in bytes (keys + values). */
     size := func(self: Map) returns I64 {
-        mut keys_size := mul(self._size, self.keys.type_size)
-        mut values_size := mul(self._size, self.values.type_size)
+        mut keys_size := mul(self._size, self.keys.ptr.elem_size)
+        mut values_size := mul(self._size, self.values.ptr.elem_size)
         return add(keys_size, values_size)
     }
 
