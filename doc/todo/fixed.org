@@ -7,6 +7,18 @@
 
 * Fixed Bugs
 
+** Bug #166: Containers duplicate type info already in Ptr
+:PROPERTIES:
+:DISCOVERED: 2026-02-10
+:FIXED: 2026-02-20
+:END:
+
+Removed duplicate ~type_name~ and ~type_size~ fields from all homogeneous containers
+(Vec, Array, Set, Map, HashMap). Type info now accessed through ~Ptr.elem_type~ and
+~Ptr.elem_size~. Array migrated from raw ~I64~ ptr to ~Ptr~ struct. Arena migrated
+from Vec to raw Ptr. Vec went from 176 to 56 bytes, Array from 80 to 48 bytes.
+List investigated -- heterogeneous per-element type info is not redundant.
+
 ** Bug #176: UFCS doesn't resolve on create_alias variables
 :PROPERTIES:
 :DISCOVERED: 2026-02-19
