@@ -586,7 +586,7 @@ detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Cont
     if qualified.eq("Vec.pop") {
         whitelisted = true
     }
-    if qualified.eq("Map.get").or(qualified.eq("List.pop")) {
+    if qualified.eq("List.pop") {
         whitelisted = true
     }
     if not(whitelisted) {

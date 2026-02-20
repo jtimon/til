@@ -158,8 +158,7 @@ namespace:
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
-            mut offset := 0
-            frame.heap_index.get(name, offset)?
+            offset := cast(I64, frame.heap_index.get_by_ref(name)?)
             return offset
             catch (err: KeyNotFoundError) {
                 // Expected: var not in this frame, continue searching
@@ -176,8 +175,7 @@ namespace:
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
-            mut symbol := SymbolInfo()
-            frame.symbols.get(name, symbol)?
+            symbol := cast(SymbolInfo, frame.symbols.get_by_ref(name)?)
             return symbol
             catch (err: KeyNotFoundError) {
                 // Expected: symbol not in this frame, continue searching
@@ -328,8 +326,7 @@ namespace:
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
-            mut func_def := SFuncDef()
-            frame.funcs.get(name, func_def)?
+            func_def := cast(SFuncDef, frame.funcs.get_by_ref(name)?)
             return func_def
             catch (err: KeyNotFoundError) {
                 // Expected: function not in this frame, continue searching
@@ -375,8 +372,7 @@ namespace:
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
-            mut enum_def := SEnumDef()
-            frame.enums.get(name, enum_def)?
+            enum_def := cast(SEnumDef, frame.enums.get_by_ref(name)?)
             return enum_def
             catch (err: KeyNotFoundError) {
                 // Expected: enum not in this frame, continue searching
@@ -404,8 +400,7 @@ namespace:
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
-            mut struct_def := SStructDef()
-            frame.structs.get(name, struct_def)?
+            struct_def := cast(SStructDef, frame.structs.get_by_ref(name)?)
             return struct_def
             catch (err: KeyNotFoundError) {
                 // Expected: struct not in this frame, continue searching
@@ -611,8 +606,7 @@ namespace:
             }
             frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
-            mut symbol := SymbolInfo()
-            frame.symbols.get(name, symbol)?
+            symbol := cast(SymbolInfo, frame.symbols.get_by_ref(name)?)
             return symbol
             catch (err: KeyNotFoundError) {
                 // Expected: symbol not in this frame, continue searching

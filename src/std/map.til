@@ -166,21 +166,6 @@ namespace:
         }
     }
 
-    /** Get value for given key.
-     *  Copies value into dest parameter.
-     *  Throws KeyNotFoundError if key doesn't exist. */
-    get := proc(self: Map, key: Dynamic, mut dest: Dynamic) throws KeyNotFoundError {
-        search := self.binary_search(key)
-
-        if search.found {
-            value_ptr := self.values.ptr.offset(search.index.mul(self.values.type_size))
-            value_ptr.copy_to_dynamic(dest, self.values.type_size)
-            return
-        }
-
-        throw KeyNotFoundError(msg=format(loc(), "Key not found in map"))
-    }
-
     /** Get borrowed Ptr to value for given key. No copy - points into map memory. */
     get_by_ref := proc(self: Map, key: Dynamic) returns Ptr throws KeyNotFoundError {
         search := self.binary_search(key)
