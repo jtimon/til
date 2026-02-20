@@ -2507,7 +2507,6 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "size_of" => ext::func_size_of(context, &e),
         "type_as_str" => ext::func_type_as_str(context, &e),
         "to_ptr" => ext::func_to_ptr(context, &e),
-        "create_alias" => ext::func_create_alias(context, &e),
         "malloc" => ext::func_malloc(context, &e),
         "free" => ext::func_free(context, &e),
         "memset" => ext::func_memset(context, &e),

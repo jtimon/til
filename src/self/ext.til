@@ -200,44 +200,6 @@ func_to_ptr := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     return EvalResult.new(addr.to_str())
 }
 
-func_create_alias := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "create_alias", 3, false)?
-
-    // Param 1: NOT evaluated - variable name from AST
-    identifier_expr := e.get(1)?
-    combined_name := get_combined_name(context.path, identifier_expr)?
-
-    // Param 2: NOT evaluated - type name
-    type_expr := e.get(2)?
-    mut type_name := ""
-    switch type_expr.node_type {
-    case NodeType.Identifier(name):
-        type_name = name
-    case:
-        throw e.lang_error(context.path, "eval", "create_alias: second argument must be a type name identifier")
-    }
-
-    // Param 3: evaluated - source address (I64)
-    addr_result := eval_expr(context, e.get(3)?)?
-    if addr_result.is_throw { return addr_result }
-    addr := I64.from_str(addr_result.value)
-
-    // Declare variable with type and bind to source address
-    context.scope_stack.declare_symbol(
-        combined_name.clone(),
-        SymbolInfo(
-            value_type=ValueType.TCustom(type_name),
-            is_mut=true,
-            is_copy=false,
-            is_own=false,
-            is_comptime_const=false
-        )
-    )?
-    context.scope_stack.insert_var(combined_name, addr)?
-
-    return EvalResult.new("")
-}
-
 func_size_of := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "size_of", 1, false)?
 

@@ -970,35 +970,6 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case:
     }
 
-    // Bug #144: create_alias declares a variable - register it in scope
-    if combined_name.eq("create_alias").and(e.params.len().gteq(4)) {
-        ca_var_expr := e.get(1)?
-        dont_delete(ca_var_expr)
-        ca_type_expr := e.get(2)?
-        dont_delete(ca_type_expr)
-        switch ca_var_expr.node_type {
-        case NodeType.Identifier(var_name):
-            switch ca_type_expr.node_type {
-            case NodeType.Identifier(type_name):
-                mut sym := SymbolInfo()
-                sym.value_type = ValueType.TCustom(type_name)
-                sym.is_mut = true
-                sym.is_copy = false
-                sym.is_own = false
-                sym.is_comptime_const = false
-                context.scope_stack.declare_symbol(var_name, sym)?
-            case:
-            }
-        case:
-        }
-        // Transform addr expression (params[3]) but leave var/type identifiers as-is
-        mut transformed_params := Vec.new(Expr)
-        for p: Expr in e.params {
-            transformed_params.push(precomp_expr(context, p)?)
-        }
-        return Expr.new_clone(e.node_type, e, transformed_params)
-    }
-
     // 3. Struct constructor - create instance like eval does (before arg transform)
     if not(combined_name.eq("")) {
         mut struct_found := false

@@ -749,27 +749,6 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         String::new()
     };
 
-    // Bug #144: create_alias declares a variable - register it in scope
-    if combined_name == "create_alias" && e.params.len() >= 4 {
-        if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
-            if let NodeType::Identifier(type_name) = &e.get(2)?.node_type {
-                context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                    value_type: ValueType::TCustom(type_name.clone()),
-                    is_mut: true,
-                    is_copy: false,
-                    is_own: false,
-                    is_comptime_const: false,
-                });
-            }
-        }
-        // Transform addr expression (params[3]) but leave var/type identifiers as-is
-        let mut transformed_params = Vec::new();
-        for p in &e.params {
-            transformed_params.push(precomp_expr(context, p)?);
-        }
-        return Ok(Expr::new_clone(e.node_type.clone(), &e, transformed_params));
-    }
-
     // 2. Struct constructor - create instance like eval does (before arg transform)
     if !combined_name.is_empty() && context.scope_stack.has_struct(&combined_name) {
         create_default_instance(context, &combined_name, &e)?;

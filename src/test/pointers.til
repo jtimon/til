@@ -39,7 +39,7 @@ test_pointers := proc() {
 }
 test_pointers()
 
-test_create_alias := proc() {
+test_cast := proc() {
     mut vec := Vec.new(I64)
     vec.push(42)
     vec.push(99)
@@ -60,4 +60,4 @@ test_create_alias := proc() {
         exit(1)
     }
 }
-test_create_alias()
+test_cast()

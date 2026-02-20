@@ -387,6 +387,7 @@ void til_panic(const til_Str* til_Str_loc_str, const til_Str* til_Str_msg, til_A
     til_single_print(til_Str_msg);
     til_I64 _for_i_panic_0 = 0;
     til_Ptr _ref_forin_panic_0;
+    til_Str til_Str_extra_msg;
     while (1) {
         til_I64 _tmp_panic_0 = til_Array_len(til_Array_extra_msgs);
         if (!(til_I64_lt(&_for_i_panic_0, &_tmp_panic_0).data)) break;
@@ -446,6 +447,7 @@ void til_assertm(const til_Str* til_Str_loc_str, const til_Bool* til_Bool_cond, 
 void til_println(til_Array* til_Array_args) {
     til_I64 _for_i_println_0 = 0;
     til_Ptr _ref_forin_println_0;
+    til_Str til_Str_print_arg;
     while (1) {
         til_I64 _tmp_println_0 = til_Array_len(til_Array_args);
         if (!(til_I64_lt(&_for_i_println_0, &_tmp_println_0).data)) break;
@@ -633,6 +635,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
     til_Str_result._len = til_Str_prefix->_len;
     til_I64 _for_i_format_0 = 0;
     til_Ptr _ref_forin_format_0;
+    til_Str til_Str_arg;
     while (1) {
         til_I64 _tmp_format_1 = til_Array_len(til_Array_args);
         if (!(til_I64_lt(&_for_i_format_0, &_tmp_format_1).data)) break;
@@ -677,6 +680,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
     til_I64_fmt_offset = til_Str_prefix->_len;
     til_I64 _for_i_format_1 = 0;
     til_Ptr _ref_forin_format_1;
+    til_Str til_Str_s;
     while (1) {
         til_I64 _tmp_format_14 = til_Array_len(til_Array_args);
         if (!(til_I64_lt(&_for_i_format_1, &_tmp_format_14).data)) break;
@@ -972,6 +976,7 @@ til_Array til_Array_clone(const til_Array* til_Array_self) {
 til_Bool til_Array_contains(const til_Array* til_Array_self, const til_Str* til_Str_value) {
     til_I64 _for_i_0 = 0;
     til_Ptr _ref_forin_0;
+    til_Str til_Str_elem;
     while (1) {
         til_I64 _tmp_til_Array_contains_0 = til_Array_len(til_Array_self);
         if (!(til_I64_lt(&_for_i_0, &_tmp_til_Array_contains_0).data)) break;
@@ -3696,6 +3701,7 @@ void til_HeapState_report(void) {
     til_I64 til_I64_leaked_bytes = 0;
     til_I64 _for_i_0 = 0;
     til_Ptr _ref_forin_0;
+    til_HeapEntry til_HeapEntry_entry;
     while (1) {
         til_I64 _tmp_til_HeapState_report_0 = til_Vec_len(&til_Vec_g_entries);
         if (!(til_I64_lt(&_for_i_0, &_tmp_til_HeapState_report_0).data)) break;

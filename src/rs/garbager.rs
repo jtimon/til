@@ -31,11 +31,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 if is_dont_delete_call(stmt)? {
                     continue;
                 }
-                // Step 2: Collect create_alias and cast var names
-                let alias_var = get_create_alias_var(stmt)?;
-                if !alias_var.is_empty() {
-                    dont_delete_vars.insert(alias_var);
-                }
+                // Step 2: Collect cast var names
                 let cast_var = get_cast_var(stmt)?;
                 if !cast_var.is_empty() {
                     dont_delete_vars.insert(cast_var);
@@ -616,21 +612,6 @@ fn get_dont_delete_var(e: &Expr) -> Result<String, String> {
     }
     if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
         return Ok(var_name.clone());
-    }
-    Ok(String::new())
-}
-
-/// Extract variable name from create_alias(var, type, addr) call.
-fn get_create_alias_var(e: &Expr) -> Result<String, String> {
-    if let NodeType::FCall(_) = &e.node_type {
-        let name = get_func_name(e)?;
-        if !name.is_empty() {
-            if name == "create_alias" && e.params.len() >= 3 {
-                if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
-                    return Ok(var_name.clone());
-                }
-            }
-        }
     }
     Ok(String::new())
 }

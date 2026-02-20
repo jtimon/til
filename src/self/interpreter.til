@@ -2736,8 +2736,6 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_type_as_str(context, e)?
     case "to_ptr":
         return func_to_ptr(context, e)?
-    case "create_alias":
-        return func_create_alias(context, e)?
     case "malloc":
         return func_malloc(context, e)?
     case "free":

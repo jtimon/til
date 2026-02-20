@@ -25,11 +25,7 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             if is_dont_delete_call(stmt)? {
                 // already collected above, just skip
             } else {
-                // Step 2: Collect create_alias and cast var names
-                alias_var := get_create_alias_var(stmt)?
-                if alias_var.len().gt(0) {
-                    dont_delete_vars.push(alias_var)
-                }
+                // Step 2: Collect cast var names
                 cast_var := get_cast_var(stmt)?
                 if cast_var.len().gt(0) {
                     dont_delete_vars.push(cast_var)
@@ -809,25 +805,6 @@ get_dont_delete_var := func(e: Expr) returns Str throws Str {
     case:
         return ""
     }
-}
-
-/// Extract variable name from create_alias(var, type, addr) call.
-get_create_alias_var := func(e: Expr) returns Str throws Str {
-    switch e.node_type {
-    case NodeType.FCall(_):
-        func_name := get_func_name(e)?
-        if func_name.eq("create_alias").and(e.params.len().gteq(3)) {
-            param1 := e.get(1)?
-            dont_delete(param1)
-            switch param1.node_type {
-            case NodeType.Identifier(var_name):
-                return var_name
-            case:
-            }
-        }
-    case:
-    }
-    return ""
 }
 
 /// Extract variable name from cast(Type, ptr) declaration: target := cast(Type, ptr)

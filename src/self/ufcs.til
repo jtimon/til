@@ -584,30 +584,6 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.Identifier:
         combined_name := get_combined_name(context.path, func_expr)?
 
-        // Bug #144: create_alias declares a variable - register it in scope for UFCS resolution
-        if combined_name.eq("create_alias").and(new_e.params.len().gteq(4)) {
-            alias_var_expr := new_e.get(1)?
-            dont_delete(alias_var_expr)
-            alias_type_expr := new_e.get(2)?
-            dont_delete(alias_type_expr)
-            switch alias_var_expr.node_type {
-            case NodeType.Identifier(var_name):
-                switch alias_type_expr.node_type {
-                case NodeType.Identifier(alias_type_name):
-                    mut sym := SymbolInfo()
-                    sym.value_type = ValueType.TCustom(alias_type_name)
-                    sym.is_mut = true
-                    sym.is_copy = false
-                    sym.is_own = false
-                    sym.is_comptime_const = false
-                    context.scope_stack.declare_symbol(var_name, sym)?
-                case:
-                }
-            case:
-            }
-            return new_e
-        }
-
         // UFCS for chained calls: func(result, args) -> Type.func(result, args)
         // e.g., or(a.and(b), c) becomes Bool.or(a.and(b), c) when Bool.or exists
         // Associated methods take priority over standalone functions (checked below)

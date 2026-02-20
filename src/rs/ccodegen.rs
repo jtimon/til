@@ -5442,7 +5442,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     let indent_str = "    ".repeat(indent);
 
-    // cast(Type, ptr_expr) - emit pointer-typed alias variable (like create_alias)
+    // cast(Type, ptr_expr) - emit pointer-typed alias variable
     if !expr.params.is_empty() {
         let rhs = expr.get(0)?;
         if let NodeType::FCall(_) = &rhs.node_type {
@@ -6327,7 +6327,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
 
     // Don't save/restore declared_vars - TIL has function-level scoping
     // Variables declared in if branches stay declared for the rest of the function
-    // Bug #144: Save/restore current_ref_params to scope pointer semantics from create_alias
+    // Bug #144: Save/restore current_ref_params to scope pointer semantics from cast
     let saved_ref_params = ctx.current_ref_params.clone();
     emit_body(expr.get(1)?, output, indent + 1, ctx, context)?;
     ctx.current_ref_params = saved_ref_params;
@@ -6438,7 +6438,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     // Don't save/restore declared_vars - TIL has function-level scoping
     // Variables declared in loops stay declared for the rest of the function
-    // Bug #144: Save/restore current_ref_params to scope pointer semantics from create_alias
+    // Bug #144: Save/restore current_ref_params to scope pointer semantics from cast
     let saved_ref_params = ctx.current_ref_params.clone();
     emit_body(expr.get(1)?, output, indent + 1, ctx, context)?;
     ctx.current_ref_params = saved_ref_params;
@@ -6932,54 +6932,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 output.push_str("&");
                 emit_expr(arg, output, 0, ctx, context)?;
             }
-            Ok(())
-        },
-        // Bug #144: create_alias(var, type, addr) - compound directive
-        // Declares variable, then emits: type var; memcpy(&var, (void*)addr, sizeof(type))
-        "create_alias" => {
-            if expr.params.len() < 4 {
-                return Err("ccodegen: create_alias requires 3 arguments".to_string());
-            }
-            let var_arg = expr.get(1)?;
-            let type_arg = expr.get(2)?;
-            let addr_arg = expr.get(3)?;
-            let var_name = if let NodeType::Identifier(name) = &var_arg.node_type {
-                name.clone()
-            } else {
-                return Err("ccodegen: create_alias: first argument must be an identifier".to_string());
-            };
-            let type_name = if let NodeType::Identifier(name) = &type_arg.node_type {
-                name.clone()
-            } else {
-                return Err("ccodegen: create_alias: second argument must be an identifier".to_string());
-            };
-            let var_type = ValueType::TCustom(type_name.clone());
-            // Declare variable in ccodegen's scope_stack
-            context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                value_type: var_type.clone(),
-                is_mut: true,
-                is_copy: false,
-                is_own: false,
-                is_comptime_const: false,
-            });
-            let c_var_name = til_var_name_from_context(&var_name, context);
-            let c_type_name = value_type_to_c_name(&var_type)?;
-            // Emit C variable declaration (inline, uses C99 block scoping to shadow hoisted value-type)
-            if let Ok(c_type) = til_type_to_c(&var_type) {
-                output.push_str(&indent_str);
-                output.push_str(&c_type);
-                output.push_str("* ");
-                output.push_str(&c_var_name);
-                output.push_str(";\n");
-            }
-            ctx.current_ref_params.insert(var_name.clone());
-            output.push_str(&indent_str);
-            output.push_str(&c_var_name);
-            output.push_str(" = (");
-            output.push_str(&c_type_name);
-            output.push_str("*)");
-            emit_expr(addr_arg, output, 0, ctx, context)?;
-            output.push_str(";\n");
             Ok(())
         },
         // User-defined function call

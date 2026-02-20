@@ -437,22 +437,6 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     if let NodeType::Identifier(_id_name) = &func_expr.node_type {
         let combined_name = crate::rs::parser::get_combined_name(&context.path, func_expr)?;
 
-        // Bug #144: create_alias declares a variable - register it in scope for UFCS resolution
-        if combined_name == "create_alias" && e.params.len() >= 4 {
-            if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
-                if let NodeType::Identifier(type_name) = &e.get(2)?.node_type {
-                    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                        value_type: ValueType::TCustom(type_name.clone()),
-                        is_mut: true,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    });
-                }
-            }
-            return Ok(e);
-        }
-
         // UFCS for chained calls: func(result, args) -> Type.func(result, args)
         // e.g., or(a.and(b), c) becomes Bool.or(a.and(b), c) when Bool.or exists
         // Associated methods take priority over standalone functions (checked below)

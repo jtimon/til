@@ -1242,25 +1242,6 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                         return Ok(errors);
                     },
                 }
-            } else if f_name == "create_alias" {
-                // Bug #144: 3-arg create_alias(var_name, type_name, addr) is a compound directive
-                // that declares a variable. Register it in scope_stack so subsequent phases see it.
-                if e.params.len() >= 3 {
-                    if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
-                        if let NodeType::Identifier(type_name) = &e.get(2)?.node_type {
-                            context.scope_stack.declare_symbol(
-                                var_name.clone(),
-                                SymbolInfo {
-                                    value_type: ValueType::TCustom(type_name.clone()),
-                                    is_mut: true,
-                                    is_copy: false,
-                                    is_own: false,
-                                    is_comptime_const: false,
-                                },
-                            );
-                        }
-                    }
-                }
             }
         },
         NodeType::Declaration(decl) => {

@@ -219,68 +219,9 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
                 }
             }
         }
-        // Bug #144: create_alias is a compound directive - declare var, validate type,
-        // type-check addr expression, then skip check_fcall/check_fcall_return_usage
-        if f_name.eq("create_alias") {
-            if e.params.len().gteq(4) {
-                ca_var_expr := e.get(1)?
-                dont_delete(ca_var_expr)
-                ca_type_expr := e.get(2)?
-                dont_delete(ca_type_expr)
-                ca_addr_expr := e.get(3)?
-                dont_delete(ca_addr_expr)
-                mut ca_var_name := ""
-                switch ca_var_expr.node_type {
-                case NodeType.Identifier(name):
-                    ca_var_name = name
-                case:
-                }
-                mut ca_type_name := ""
-                switch ca_type_expr.node_type {
-                case NodeType.Identifier(name):
-                    ca_type_name = name
-                case:
-                }
-                if ca_var_name.len().gt(0).and(ca_type_name.len().gt(0)) {
-                    // Validate type exists
-                    mut type_valid := ca_type_name.eq("I64").or(ca_type_name.eq("U8")).or(ca_type_name.eq("Bool")).or(ca_type_name.eq("Str"))
-                    if not(type_valid) {
-                        mut found_struct := false
-                        mut _struct_def := context.scope_stack.lookup_struct(ca_type_name)?
-                        found_struct = true
-                        catch (err: KeyNotFoundError) {
-                            // Not a struct
-                        }
-                        if not(found_struct) {
-                            mut _enum_def := context.scope_stack.lookup_enum(ca_type_name)?
-                            found_struct = true
-                            catch (err: KeyNotFoundError) {
-                                // Not an enum either
-                            }
-                        }
-                        type_valid = found_struct
-                    }
-                    if not(type_valid) {
-                        errors.push(e.error(context.path, "type", format("create_alias: unknown type '", ca_type_name, "'")))
-                    }
-                    // Declare variable with type
-                    context.scope_stack.declare_symbol(
-                        ca_var_name,
-                        SymbolInfo(
-                            value_type=ValueType.TCustom(ca_type_name),
-                            is_mut=true,
-                            is_copy=false,
-                            is_own=false,
-                            is_comptime_const=false
-                        )
-                    )?
-                }
-                // Type-check the address expression (params[3])
-                errors.extend(check_types_with_context(context, ca_addr_expr, ExprContext.ValueUsed)?)
-            }
-        // cast(Type, ptr_expr) - like create_alias but expression syntax
+        // cast(Type, ptr_expr) - expression syntax
         // Variable declaration handled by the Declaration node, not here
-        } else if f_name.eq("cast") {
+        if f_name.eq("cast") {
             if e.params.len().gteq(3) {
                 cast_type_expr := e.get(1)?
                 dont_delete(cast_type_expr)
@@ -3637,38 +3578,6 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         return Expr.new_explicit(e.node_type, catch_params, e.line, e.col)
 
     case NodeType.FCall(does_throw):
-        // Bug #144: create_alias declares a variable - register it in scope for resolve pass
-        // Check directly via params[0] identifier to avoid Str allocation from get_func_name_in_call
-        if e.params.len().gteq(4) {
-            func_expr := cast(Expr, e.params.get_by_ref(0)?)
-            mut is_create_alias := false
-            switch func_expr.node_type {
-            case NodeType.Identifier(f_name):
-                is_create_alias = f_name.eq("create_alias")
-            case:
-            }
-            if is_create_alias {
-                alias_var_expr := e.get(1)?
-                dont_delete(alias_var_expr)
-                alias_type_expr := e.get(2)?
-                dont_delete(alias_type_expr)
-                switch alias_var_expr.node_type {
-                case NodeType.Identifier(var_name):
-                    switch alias_type_expr.node_type {
-                    case NodeType.Identifier(type_name):
-                        context.scope_stack.declare_symbol(var_name, SymbolInfo(
-                            value_type=ValueType.TCustom(type_name),
-                            is_mut=true,
-                            is_copy=false,
-                            is_own=false,
-                            is_comptime_const=false
-                        ))?
-                    case:
-                    }
-                case:
-                }
-            }
-        }
         // Recurse into params
         fcall_params := resolve_params(context, e)?
         return Expr.new_clone(e.node_type, e, fcall_params)

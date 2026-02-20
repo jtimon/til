@@ -1622,39 +1622,6 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 errors.push(err)
                 return errors
             }
-        } else if f_name.eq("create_alias") {
-            // Bug #144: 3-arg create_alias(var_name, type_name, addr) is a compound directive
-            // that declares a variable. Register it in scope_stack so subsequent phases see it.
-            if e.params.len().gteq(3) {
-                ca_var_expr := e.get(1)?
-                dont_delete(ca_var_expr)
-                ca_type_expr := e.get(2)?
-                dont_delete(ca_type_expr)
-                mut ca_var_name := ""
-                switch ca_var_expr.node_type {
-                case NodeType.Identifier(name):
-                    ca_var_name = name
-                case:
-                }
-                mut ca_type_name := ""
-                switch ca_type_expr.node_type {
-                case NodeType.Identifier(name):
-                    ca_type_name = name
-                case:
-                }
-                if ca_var_name.len().gt(0).and(ca_type_name.len().gt(0)) {
-                    context.scope_stack.declare_symbol(
-                        ca_var_name,
-                        SymbolInfo(
-                            value_type=ValueType.TCustom(ca_type_name),
-                            is_mut=true,
-                            is_copy=false,
-                            is_own=false,
-                            is_comptime_const=false
-                        )
-                    )?
-                }
-            }
         }
 
     case NodeType.Declaration(decl):
