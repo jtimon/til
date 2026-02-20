@@ -7,6 +7,16 @@
 
 * Fixed Bugs
 
+** Bug #171: make.til doesn't detect when it needs to rebuild itself
+:PROPERTIES:
+:DISCOVERED: 2026-02-11
+:FIXED: 2026-02-20
+:END:
+
+make.til now detects when it has been modified and rebuilds itself automatically.
+The self-rebuild check was added to the make.til build script. Verified with
+~touch make.til && make rstil~ -- outputs "make.til: rebuilding myself...".
+
 ** Bug #166: Containers duplicate type info already in Ptr
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
