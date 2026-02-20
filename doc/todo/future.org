@@ -1206,24 +1206,4 @@ some_function(enum {A, B})
 
 Similar in spirit to Issue #91 (first-class functions) but for enums.
 
-** Issue #107: First-Class Namespaces
-:PROPERTIES:
-:DISCOVERED: 2026-01-12
-:IMPACT: Language feature, anonymous namespaces
-:STATUS: Open
-:RELATED: Issue #91 (First-Class Functions), Issue #108 (Implement Namespaces)
-:END:
-
-*** Description
-Allow anonymous namespace definitions to be passed as arguments:
-
-#+BEGIN_SRC til
-some_function(namespace {
-    INC_VAL := 32
-    f := func(a: I64) returns I64 { return a.add(INC_VAL) }
-})
-#+END_SRC
-
-Similar in spirit to Issue #91 (first-class functions) but for namespaces.
-Depends on Issue #108 (proper namespace syntax).
 

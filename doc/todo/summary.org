@@ -19,7 +19,7 @@
 |  94 | gcc warnings cause bug47.til compilation failure (blocked by #99) | Build issue               |
 |  80 | ccodegen.til generates different C code than ccodegen.rs        | Divergence                  |
 
-* future.org (15 issues)
+* future.org (14 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
@@ -29,7 +29,6 @@
 | 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design     |
 | 112 | HashMap type slower than Map in TIL              | Blocked            |
 | 111 | Support returns Dynamic                          | Feature            |
-| 107 | First-Class Namespaces                           | Language feature   |
 | 106 | First-Class Enums                                | Language feature   |
 | 105 | First-Class Structs                              | Language feature   |
 | 100 | Get rid of rstil                                 | Architecture goal  |

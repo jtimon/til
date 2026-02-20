@@ -4744,6 +4744,19 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #107: First-Class Namespaces (CANCELLED)
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:CANCELLED: 2026-02-20
+:STATUS: Cancelled -- superseded by namespace: keyword inside structs/enums
+:RELATED: Issue #174 (namespace: keyword), Issue #105 (First-Class Structs), doc/first_class.org
+:END:
+
+Namespaces are no longer a separate concept. As decided in doc/first_class.org,
+namespace functionality is provided by the ~namespace:~ keyword inside struct and
+enum bodies (Issue #174, implemented 2026-02-19). Passing a "namespace" as an
+argument is equivalent to passing a struct with static members.
+
 ** Issue #174: Replace separate namespace blocks with ~namespace:~ keyword inside type bodies
 :PROPERTIES:
 :DISCOVERED: 2026-02-19
