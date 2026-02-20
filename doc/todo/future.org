@@ -1150,7 +1150,7 @@ Uncomment and update ~src/test/function_pointers.til~:
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
 :IMPACT: Language feature, anonymous data structures, templates
-:STATUS: Partial
+:STATUS: Mostly done
 :RELATED: Issue #91 (First-Class Functions), Issue #106 (First-Class Enums)
 :END:
 
@@ -1170,24 +1170,46 @@ template-like patterns where macros generate typed structs at compile time.
 - [X] All changes ported to both Rust and TIL
 - [X] Tests in src/test/structs.til (basic macros, mixed types, field override)
 
+*** Completed (2026-02-20) -- Macro namespace support
+- [X] ~namespace:~ inside macro-returned structs now works
+- [X] Named struct pattern: declare struct with internal name (e.g. ~TemplatedPtr~),
+  reference in methods via ~self: TemplatedPtr~, substitute to external name
+  (e.g. ~I64Ptr~) after expansion
+- [X] Type substitution in FuncDef nodes (args, returns, throws, body)
+- [X] ~extract_namespace_stmts_from_macro~ + ~extract_internal_struct_name~
+- [X] Namespace processing in ~expand_struct_macros~: build NamespaceDef from
+  substituted stmts, run init_context, skip auto delete/clone when macro provides its own
+- [X] Interpreter: bare struct name reference, INFER_TYPE acceptance, global frame registration
+- [X] Precompute struct default values during macro expansion (resolve constants like NULL)
+- [X] ~src/std/typed_ptr.til~: ~make_typed_ptr(T)~ macro -- real generics, no Dynamic
+- [X] Tests in src/test/macros.til (typed_ptr basic, array)
+- [X] All changes ported to both Rust and TIL, all 93 tests pass
+
 *** Working
 #+BEGIN_SRC til
+// Simple struct template
 make_point := macro() returns struct {
     return struct { mut x: I64 = 0, mut y: I64 = 0 }
 }
 Point := make_point()
 p := Point(x=10, y=20)  // works
+
+// Generic struct template with namespace methods
+import("std.typed_ptr")
+I64Ptr := make_typed_ptr(I64)
+mut p := I64Ptr.new()
+p.set(42)
+mut result := 0
+p.get(result)  // result == 42
+p.delete()
 #+END_SRC
 
 *** Not yet working
-1. *Macro parameters in struct defaults*: init type-checks the struct literal
-   inside the macro body before macro expansion, so macro params are
-   "undefined symbol". This blocks the template use case:
-   ~make_typed(T: Type) returns struct { ... Vec.new(T) ... }~
-2. *Namespace blocks on macro-defined structs*: init processes namespaces
-   before macro expansion, so the struct isn't registered yet
-3. *Immutable-only fields in compiled mode*: codegen doesn't emit constants
+1. *Immutable-only fields in compiled mode*: codegen doesn't emit constants
    for macro-expanded structs (only mutable fields work)
+2. *Constants in struct defaults inside macros*: e.g. ~mut data: I64 = NULL~
+   fails during macro eval because precomp hasn't run yet. Workaround: use
+   literal ~0~ instead of ~NULL~ in struct field defaults.
 
 ** Issue #106: First-Class Enums
 :PROPERTIES:

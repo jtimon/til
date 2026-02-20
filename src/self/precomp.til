@@ -55,6 +55,13 @@ substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
             new_params.push(substitute_type_params_in_expr(p, subs))
         }
         return Expr.new_clone(NodeType.Identifier(new_name), e, new_params)
+    case NodeType.FuncDef(func_def):
+        new_func_def := substitute_type_params_in_funcdef(func_def, subs)
+        mut funcdef_new_params := Vec.new(Expr)
+        for p: Expr in e.params {
+            funcdef_new_params.push(substitute_type_params_in_expr(p, subs))
+        }
+        return Expr.new_clone(NodeType.FuncDef(new_func_def), e, funcdef_new_params)
     case:
         mut default_new_params := Vec.new(Expr)
         for p: Expr in e.params {
@@ -62,6 +69,73 @@ substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
         }
         return Expr.new_clone(e.node_type, e, default_new_params)
     }
+}
+
+/// Substitute type param names in a FuncDef's args, return types, throw types, and body.
+substitute_type_params_in_funcdef := func(func_def: SFuncDef, subs: Map) returns SFuncDef {
+    mut new_args := Vec.new(Declaration)
+    for arg: Declaration in func_def.args {
+        mut substituted := false
+        switch arg.value_type {
+        case ValueType.TCustom(type_name):
+            concrete := cast(Str, subs.get_by_ref(type_name)?)
+            new_args.push(Declaration(name=arg.name, value_type=ValueType.TCustom(concrete), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+            substituted = true
+            catch (_err: KeyNotFoundError) {
+                // Expected: not all types need substitution
+            }
+        case:
+        }
+        if not(substituted) {
+            new_args.push(arg)
+        }
+    }
+    mut new_returns := Vec.new(ValueType)
+    for rt: ValueType in func_def.return_types {
+        mut rt_substituted := false
+        switch rt {
+        case ValueType.TCustom(type_name):
+            rt_concrete := cast(Str, subs.get_by_ref(type_name)?)
+            new_returns.push(ValueType.TCustom(rt_concrete))
+            rt_substituted = true
+            catch (_err: KeyNotFoundError) {
+                // Expected: not all types need substitution
+            }
+        case:
+        }
+        if not(rt_substituted) {
+            new_returns.push(rt)
+        }
+    }
+    mut new_throws := Vec.new(ValueType)
+    for tt: ValueType in func_def.throw_types {
+        mut tt_substituted := false
+        switch tt {
+        case ValueType.TCustom(type_name):
+            tt_concrete := cast(Str, subs.get_by_ref(type_name)?)
+            new_throws.push(ValueType.TCustom(tt_concrete))
+            tt_substituted = true
+            catch (_err: KeyNotFoundError) {
+                // Expected: not all types need substitution
+            }
+        case:
+        }
+        if not(tt_substituted) {
+            new_throws.push(tt)
+        }
+    }
+    mut new_body := Vec.new(Expr)
+    for stmt: Expr in func_def.body {
+        new_body.push(substitute_type_params_in_expr(stmt, subs))
+    }
+    mut new_func_def := SFuncDef()
+    new_func_def.function_type = func_def.function_type
+    new_func_def.args = new_args
+    new_func_def.return_types = new_returns
+    new_func_def.throw_types = new_throws
+    new_func_def.body = new_body
+    new_func_def.source_path = func_def.source_path.clone()
+    return new_func_def
 }
 
 /// Apply type param substitution to a struct definition's member types and default values.
@@ -94,6 +168,81 @@ substitute_type_params_in_struct := func(struct_def: SStructDef, subs: Map) retu
     }
 
     return SStructDef(members=new_members, default_values=new_defaults)
+}
+
+/// Extract namespace stmts from a macro's body AST.
+/// Scans for Return nodes or Declaration nodes containing a StructDef with params (namespace stmts).
+/// Returns the first matching set of namespace params (simple macros only).
+extract_namespace_stmts_from_macro := func(func_def: SFuncDef) returns Vec {
+    mut result := Vec.new(Expr)
+    for stmt: Expr in func_def.body {
+        // Pattern 1: return struct { ... namespace: ... }
+        switch stmt.node_type {
+        case NodeType.Return:
+            if stmt.params.len().gt(0) {
+                ret_val := cast(Expr, stmt.params.get_by_ref(0)?)
+                catch (_err: IndexOutOfBoundsError) {
+                    panic(loc(), "extract_namespace_stmts_from_macro: IndexOutOfBoundsError after len check")
+                }
+                switch ret_val.node_type {
+                case NodeType.StructDef(_):
+                    if ret_val.params.len().gt(0) {
+                        for p: Expr in ret_val.params {
+                            result.push(p.clone())
+                        }
+                        return result
+                    }
+                case:
+                }
+            }
+        case:
+        }
+        // Pattern 2: TemplatedPtr := struct { ... namespace: ... }
+        switch stmt.node_type {
+        case NodeType.Declaration(_):
+            if stmt.params.len().gt(0) {
+                val := cast(Expr, stmt.params.get_by_ref(0)?)
+                catch (_err: IndexOutOfBoundsError) {
+                    panic(loc(), "extract_namespace_stmts_from_macro: IndexOutOfBoundsError after len check")
+                }
+                switch val.node_type {
+                case NodeType.StructDef(_):
+                    if val.params.len().gt(0) {
+                        for p: Expr in val.params {
+                            result.push(p.clone())
+                        }
+                        return result
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    }
+    return result
+}
+
+/// Extract the internal struct name from a macro body (e.g., "TemplatedPtr" from
+/// `TemplatedPtr := struct { ... }`). Returns empty string for anonymous structs (`return struct { ... }`).
+extract_internal_struct_name := func(func_def: SFuncDef) returns Str {
+    for stmt: Expr in func_def.body {
+        switch stmt.node_type {
+        case NodeType.Declaration(inner_decl):
+            if stmt.params.len().gt(0) {
+                val := cast(Expr, stmt.params.get_by_ref(0)?)
+                catch (_err: IndexOutOfBoundsError) {
+                    panic(loc(), "extract_internal_struct_name: IndexOutOfBoundsError after len check")
+                }
+                switch val.node_type {
+                case NodeType.StructDef(_):
+                    return inner_decl.name
+                case:
+                }
+            }
+        case:
+        }
+    }
+    return ""
 }
 
 /// Issue #105: Expand struct-returning macros before type checking.
@@ -135,8 +284,11 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                 }
                                 switch ret_type {
                                 case ValueType.TType(TTypeDef.TStructDef):
-                                    // Expand the macro
+                                    // Extract data from func_def before mutable borrows
                                     type_subs := build_type_param_subs(func_def, inner_e)?
+                                    macro_ns_stmts := extract_namespace_stmts_from_macro(func_def)
+                                    macro_internal_name := extract_internal_struct_name(func_def)
+                                    // Expand the macro (mutably borrows context)
                                     expanded := eval_comptime(context, inner_e)?
                                     switch expanded.node_type {
                                     case NodeType.StructDef(struct_def):
@@ -168,7 +320,23 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                                 resolved_members.push(member_decl)
                                             }
                                         }
-                                        resolved_struct := SStructDef(members=resolved_members, default_values=substituted.default_values.clone())
+                                        // Issue #105: Precompute struct default values (e.g. NULL -> 0)
+                                        // Defaults come from macro body AST and weren't processed by precomp
+                                        mut precomputed_defaults := Map.new(Str, Expr)
+                                        mut cur_def_key := ""
+                                        for def_key: Str in substituted.default_values.keys {
+                                            cur_def_key = def_key
+                                            def_val := cast(Expr, substituted.default_values.get_by_ref(def_key)?)
+                                            catch (err: KeyNotFoundError) {
+                                                panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
+                                            }
+                                            mut precomputed := precomp_expr(context, def_val)?
+                                            precomputed_defaults.set(cur_def_key, precomputed)
+                                            catch (_err: Str) {
+                                                precomputed_defaults.set(cur_def_key, def_val)
+                                            }
+                                        }
+                                        resolved_struct := SStructDef(members=resolved_members, default_values=precomputed_defaults)
                                         resolved_expanded := Expr.new_clone(NodeType.StructDef(resolved_struct.clone()), expanded, Vec.new(Expr))
                                         // Register the struct in context
                                         context.scope_stack.declare_struct(decl.name, resolved_struct.clone())?
@@ -177,8 +345,34 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                         expanded_params.push(resolved_expanded)
                                         new_p := Expr.new_clone(p.node_type, p, expanded_params)
                                         new_params.push(new_p)
-                                        // Generate delete/clone methods (preinit ran before macro expansion)
-                                        methods_result := generate_struct_methods(decl.name, resolved_struct, p.line, p.col)
+                                        // Issue #105: Check if macro namespace stmts already define delete/clone
+                                        mut ns_has_delete := false
+                                        mut ns_has_clone := false
+                                        for ns_stmt: Expr in macro_ns_stmts {
+                                            switch ns_stmt.node_type {
+                                            case NodeType.Declaration(ns_stmt_decl):
+                                                if ns_stmt_decl.name.eq("delete") {
+                                                    ns_has_delete = true
+                                                }
+                                                if ns_stmt_decl.name.eq("clone") {
+                                                    ns_has_clone = true
+                                                }
+                                            case:
+                                            }
+                                        }
+                                        // Generate delete/clone methods only if not provided by macro namespace
+                                        mut auto_struct := resolved_struct.clone()
+                                        if ns_has_delete.or(ns_has_clone) {
+                                            // Add fake members so generate_struct_methods skips them
+                                            dummy := Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), 0, 0)
+                                            if ns_has_delete {
+                                                auto_struct.default_values.set("delete", dummy.clone())
+                                            }
+                                            if ns_has_clone {
+                                                auto_struct.default_values.set("clone", dummy)
+                                            }
+                                        }
+                                        methods_result := generate_struct_methods(decl.name, auto_struct, p.line, p.col)
                                         if methods_result.needs_methods {
                                             // Run init on the namespace block to register the methods
                                             mut ns_body_params := Vec.new(Expr)
@@ -186,6 +380,70 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                             ns_body := Expr.new_clone(NodeType.Body, p, ns_body_params)
                                             _ := init_context(context, ns_body)?
                                             new_params.push(methods_result.ns_block)
+                                        }
+                                        // Issue #105: Process namespace stmts extracted from macro body
+                                        if macro_ns_stmts.len().gt(0) {
+                                            // Build substitution map: type params + internal struct name -> external name
+                                            mut ns_subs := type_subs.clone()
+                                            if not(macro_internal_name.eq("")) {
+                                                ns_subs.set(macro_internal_name, decl.name)
+                                            }
+                                            // Apply type substitution to namespace stmts
+                                            mut substituted_stmts := Vec.new(Expr)
+                                            for ns_s: Expr in macro_ns_stmts {
+                                                substituted_stmts.push(substitute_type_params_in_expr(ns_s, ns_subs))
+                                            }
+                                            // Build NamespaceDef from substituted stmts (same pattern as split_inline_namespaces)
+                                            mut ns_members := Vec.new(Declaration)
+                                            mut ns_default_values := Map.new(Str, Expr)
+                                            for sub_stmt: Expr in substituted_stmts {
+                                                switch sub_stmt.node_type {
+                                                case NodeType.Declaration(ns_decl):
+                                                    ns_members.push(ns_decl.clone())
+                                                    if sub_stmt.params.len().gt(0) {
+                                                        ns_val := cast(Expr, sub_stmt.params.get_by_ref(0)?)
+                                                        catch (_err: IndexOutOfBoundsError) {
+                                                            panic(loc(), "sub_stmt.params.get_by_ref(0) after len check")
+                                                        }
+                                                        ns_default_values.set(ns_decl.name, ns_val)
+                                                    }
+                                                case NodeType.Assignment(assign_name):
+                                                    if sub_stmt.params.len().gt(0) {
+                                                        assign_ns_val := cast(Expr, sub_stmt.params.get_by_ref(0)?)
+                                                        catch (_err: IndexOutOfBoundsError) {
+                                                            panic(loc(), "sub_stmt.params.get_by_ref(0) after len check")
+                                                        }
+                                                        ns_assign_decl := Declaration(name=assign_name, value_type=ValueType.TCustom(INFER_TYPE), is_mut=false, is_copy=false, is_own=false)
+                                                        ns_members.push(ns_assign_decl)
+                                                        ns_default_values.set(assign_name, assign_ns_val)
+                                                    }
+                                                case:
+                                                }
+                                            }
+                                            if ns_members.len().gt(0) {
+                                                mut user_ns_def := SNamespaceDef()
+                                                user_ns_def.type_name = decl.name
+                                                user_ns_def.members = ns_members
+                                                user_ns_def.default_values = ns_default_values
+                                                user_ns_expr := Expr.new_explicit(NodeType.NamespaceDef(user_ns_def), Vec.new(Expr), p.line, p.col)
+                                                // Run init on the namespace to register methods
+                                                mut user_ns_body_params := Vec.new(Expr)
+                                                user_ns_body_params.push(user_ns_expr.clone())
+                                                user_ns_body := Expr.new_clone(NodeType.Body, p, user_ns_body_params)
+                                                user_ns_errors := init_context(context, user_ns_body)?
+                                                if user_ns_errors.len().gt(0) {
+                                                    mut err_msg := ""
+                                                    for user_err: Str in user_ns_errors {
+                                                        if err_msg.len().gt(0) {
+                                                            err_msg = format(err_msg, "\n", user_err)
+                                                        } else {
+                                                            err_msg = user_err
+                                                        }
+                                                    }
+                                                    throw err_msg
+                                                }
+                                                new_params.push(user_ns_expr)
+                                            }
                                         }
                                         modified = true
                                         handled = true
@@ -670,11 +928,12 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         throw e.lang_error(context.path, "precomp", err)
     }
 
-    // Error if INFER_TYPE reaches precomp - typer should have resolved all types
+    // Issue #105: Accept INFER_TYPE inside macro bodies (typer doesn't resolve inside FuncDef bodies)
+    mut is_infer_type := false
     switch decl.value_type {
     case ValueType.TCustom(decl_type_name):
         if decl_type_name.eq(INFER_TYPE) {
-            throw e.lang_error(context.path, "precomp", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
+            is_infer_type = true
         }
     case:
     }
@@ -695,7 +954,9 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         }
     case:
     }
-    if is_u8_decl.and(is_i64_value) {
+    if is_infer_type {
+        // Issue #105: Skip type checking for inferred types inside macro bodies
+    } else if is_u8_decl.and(is_i64_value) {
         value_type = decl.value_type
     } else {
         // Check types match

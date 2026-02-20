@@ -6,7 +6,7 @@ use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SFuncDef, SNamespaceDef, Literal, TTypeDef,
+    Expr, NodeType, ValueType, SStructDef, SFuncDef, SNamespaceDef, Declaration, Literal, TTypeDef,
     value_type_to_str, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
@@ -43,10 +43,54 @@ fn substitute_type_params_in_expr(e: &Expr, subs: &HashMap<String, String>) -> E
             let new_params: Vec<Expr> = e.params.iter().map(|p| substitute_type_params_in_expr(p, subs)).collect();
             Expr::new_clone(NodeType::Identifier(new_name.clone()), e, new_params)
         }
+        NodeType::FuncDef(func_def) => {
+            let new_func_def = substitute_type_params_in_funcdef(func_def, subs);
+            let new_params: Vec<Expr> = e.params.iter().map(|p| substitute_type_params_in_expr(p, subs)).collect();
+            Expr::new_clone(NodeType::FuncDef(new_func_def), e, new_params)
+        }
         _ => {
             let default_new_params: Vec<Expr> = e.params.iter().map(|p| substitute_type_params_in_expr(p, subs)).collect();
             Expr::new_clone(e.node_type.clone(), e, default_new_params)
         }
+    }
+}
+
+/// Substitute type param names in a FuncDef's args, return types, throw types, and body.
+fn substitute_type_params_in_funcdef(func_def: &SFuncDef, subs: &HashMap<String, String>) -> SFuncDef {
+    let new_args = func_def.args.iter().map(|arg| {
+        if let ValueType::TCustom(ref type_name) = arg.value_type {
+            if let Some(concrete) = subs.get(type_name) {
+                let mut new_arg = arg.clone();
+                new_arg.value_type = ValueType::TCustom(concrete.clone());
+                return new_arg;
+            }
+        }
+        arg.clone()
+    }).collect();
+    let new_returns = func_def.return_types.iter().map(|rt| {
+        if let ValueType::TCustom(ref type_name) = rt {
+            if let Some(concrete) = subs.get(type_name) {
+                return ValueType::TCustom(concrete.clone());
+            }
+        }
+        rt.clone()
+    }).collect();
+    let new_throws = func_def.throw_types.iter().map(|tt| {
+        if let ValueType::TCustom(ref type_name) = tt {
+            if let Some(concrete) = subs.get(type_name) {
+                return ValueType::TCustom(concrete.clone());
+            }
+        }
+        tt.clone()
+    }).collect();
+    let new_body = func_def.body.iter().map(|e| substitute_type_params_in_expr(e, subs)).collect();
+    SFuncDef {
+        function_type: func_def.function_type.clone(),
+        args: new_args,
+        return_types: new_returns,
+        throw_types: new_throws,
+        body: new_body,
+        source_path: func_def.source_path.clone(),
     }
 }
 
@@ -70,6 +114,46 @@ fn substitute_type_params_in_struct(struct_def: &SStructDef, subs: &HashMap<Stri
     SStructDef { members: new_members, default_values: new_defaults }
 }
 
+/// Extract namespace stmts from a macro's body AST.
+/// Scans for Return nodes or Declaration nodes containing a StructDef with params (namespace stmts).
+/// Returns the first matching set of namespace params (simple macros only).
+fn extract_namespace_stmts_from_macro(func_def: &SFuncDef) -> Vec<Expr> {
+    for stmt in &func_def.body {
+        // Pattern 1: return struct { ... namespace: ... }
+        if matches!(&stmt.node_type, NodeType::Return) {
+            if let Some(ret_val) = stmt.params.first() {
+                if matches!(&ret_val.node_type, NodeType::StructDef(_)) && !ret_val.params.is_empty() {
+                    return ret_val.params.clone();
+                }
+            }
+        }
+        // Pattern 2: TemplatedPtr := struct { ... namespace: ... }
+        if let NodeType::Declaration(_) = &stmt.node_type {
+            if let Some(val) = stmt.params.first() {
+                if matches!(&val.node_type, NodeType::StructDef(_)) && !val.params.is_empty() {
+                    return val.params.clone();
+                }
+            }
+        }
+    }
+    Vec::new()
+}
+
+/// Extract the internal struct name from a macro body (e.g., "TemplatedPtr" from
+/// `TemplatedPtr := struct { ... }`). Returns None for anonymous structs (`return struct { ... }`).
+fn extract_internal_struct_name(func_def: &SFuncDef) -> Option<String> {
+    for stmt in &func_def.body {
+        if let NodeType::Declaration(inner_decl) = &stmt.node_type {
+            if let Some(val) = stmt.params.first() {
+                if matches!(&val.node_type, NodeType::StructDef(_)) {
+                    return Some(inner_decl.name.clone());
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Issue #105: Expand struct-returning macros before type checking.
 /// Runs between init and typer to make struct definitions available for type checking.
 /// Only expands macros at the top-level body that return struct definitions.
@@ -91,8 +175,11 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                     if let Some(func_def) = context.scope_stack.lookup_func(&f_name) {
                         if func_def.is_macro() && !func_def.return_types.is_empty() {
                             if func_def.return_types[0] == ValueType::TType(TTypeDef::TStructDef) {
-                                // Expand the macro
+                                // Extract data from func_def before mutable borrows
                                 let type_subs = build_type_param_subs(&func_def, inner_e);
+                                let macro_ns_stmts = extract_namespace_stmts_from_macro(&func_def);
+                                let macro_internal_name = extract_internal_struct_name(&func_def);
+                                // Expand the macro (mutably borrows context)
                                 let expanded = eval_comptime(context, inner_e)?;
                                 if let NodeType::StructDef(struct_def) = &expanded.node_type {
                                     // Substitute type params (e.g. T -> I64) in member types and defaults
@@ -116,9 +203,18 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                         }
                                         resolved_members.push(member_decl.clone());
                                     }
+                                    // Issue #105: Precompute struct default values (e.g. NULL → 0)
+                                    // Defaults come from macro body AST and weren't processed by precomp
+                                    let mut precomputed_defaults = HashMap::new();
+                                    for (key, val) in &substituted.default_values {
+                                        match precomp_expr(context, val) {
+                                            Ok(precomputed) => { precomputed_defaults.insert(key.clone(), precomputed); },
+                                            Err(_) => { precomputed_defaults.insert(key.clone(), val.clone()); },
+                                        }
+                                    }
                                     let resolved_struct = SStructDef {
                                         members: resolved_members,
-                                        default_values: substituted.default_values.clone(),
+                                        default_values: precomputed_defaults,
                                     };
                                     let resolved_expanded = Expr::new_clone(NodeType::StructDef(resolved_struct.clone()), &expanded, vec![]);
                                     // Register the struct in context
@@ -126,14 +222,90 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                     // Replace the FCall with the StructDef in the AST
                                     let new_p = Expr::new_clone(p.node_type.clone(), p, vec![resolved_expanded]);
                                     new_params.push(new_p);
-                                    // Generate delete/clone methods (preinit ran before macro expansion)
-                                    if let Some(ns_block) = generate_struct_methods(&decl.name, &resolved_struct, p.line, p.col) {
+                                    // Issue #105: Check if macro namespace stmts already define delete/clone
+                                    let ns_has_delete = macro_ns_stmts.iter().any(|s| {
+                                        matches!(&s.node_type, NodeType::Declaration(d) if d.name == "delete")
+                                    });
+                                    let ns_has_clone = macro_ns_stmts.iter().any(|s| {
+                                        matches!(&s.node_type, NodeType::Declaration(d) if d.name == "clone")
+                                    });
+                                    // Generate delete/clone methods only if not provided by macro namespace
+                                    let auto_struct = if ns_has_delete || ns_has_clone {
+                                        // Add fake members so generate_struct_methods skips them
+                                        let mut fake = resolved_struct.clone();
+                                        let dummy = Expr::new_explicit(NodeType::LLiteral(Literal::Number("0".to_string())), vec![], 0, 0);
+                                        if ns_has_delete { fake.default_values.insert("delete".to_string(), dummy.clone()); }
+                                        if ns_has_clone { fake.default_values.insert("clone".to_string(), dummy); }
+                                        fake
+                                    } else {
+                                        resolved_struct.clone()
+                                    };
+                                    if let Some(ns_block) = generate_struct_methods(&decl.name, &auto_struct, p.line, p.col) {
                                         // Run init on the namespace block to register the methods
                                         let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, p, vec![ns_block.clone()]))?;
                                         if !ns_errors.is_empty() {
                                             return Err(ns_errors.join("\n"));
                                         }
                                         new_params.push(ns_block);
+                                    }
+                                    // Issue #105: Process namespace stmts extracted from macro body
+                                    if !macro_ns_stmts.is_empty() {
+                                        // Build substitution map: type params + internal struct name → external name
+                                        let mut ns_subs = type_subs.clone();
+                                        if let Some(ref internal_name) = macro_internal_name {
+                                            ns_subs.insert(internal_name.clone(), decl.name.clone());
+                                        }
+                                        // Apply type substitution to namespace stmts
+                                        let substituted_stmts: Vec<Expr> = macro_ns_stmts.iter()
+                                            .map(|s| substitute_type_params_in_expr(s, &ns_subs))
+                                            .collect();
+                                        // Build NamespaceDef from substituted stmts (same pattern as split_inline_namespaces)
+                                        let mut ns_members = Vec::new();
+                                        let mut ns_default_values = HashMap::new();
+                                        for stmt in &substituted_stmts {
+                                            match &stmt.node_type {
+                                                NodeType::Declaration(ns_decl) => {
+                                                    ns_members.push(ns_decl.clone());
+                                                    if let Some(val) = stmt.params.first() {
+                                                        ns_default_values.insert(ns_decl.name.clone(), val.clone());
+                                                    }
+                                                },
+                                                NodeType::Assignment(name) => {
+                                                    if let Some(val) = stmt.params.first() {
+                                                        let ns_decl = Declaration {
+                                                            name: name.clone(),
+                                                            value_type: ValueType::TCustom(INFER_TYPE.to_string()),
+                                                            is_mut: false,
+                                                            is_copy: false,
+                                                            is_own: false,
+                                                            default_value: None,
+                                                        };
+                                                        ns_members.push(ns_decl);
+                                                        ns_default_values.insert(name.clone(), val.clone());
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+                                        }
+                                        if !ns_members.is_empty() {
+                                            let user_ns_def = SNamespaceDef {
+                                                type_name: decl.name.clone(),
+                                                members: ns_members,
+                                                default_values: ns_default_values,
+                                            };
+                                            let user_ns_expr = Expr::new_explicit(
+                                                NodeType::NamespaceDef(user_ns_def),
+                                                vec![],
+                                                p.line,
+                                                p.col,
+                                            );
+                                            // Run init on the namespace to register methods
+                                            let user_ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, p, vec![user_ns_expr.clone()]))?;
+                                            if !user_ns_errors.is_empty() {
+                                                return Err(user_ns_errors.join("\n"));
+                                            }
+                                            new_params.push(user_ns_expr);
+                                        }
                                     }
                                     modified = true;
                                     continue;
@@ -519,10 +691,10 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
             return Err(e.lang_error(&context.path, "precomp", &error_string));
         },
     };
-    // Error if INFER_TYPE reaches precomp - typer should have resolved all types
+    // Issue #105: Accept INFER_TYPE inside macro bodies (typer doesn't resolve inside FuncDef bodies)
     if decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
-        return Err(e.lang_error(&context.path, "precomp", &format!("Declaration '{}' has INFER_TYPE - should have been resolved by typer", decl.name)));
-    }
+        // Infer type from the value - this is the := pattern inside a macro
+    } else
     // Type checking
     if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
         value_type = decl.value_type.clone();

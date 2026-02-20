@@ -138,6 +138,34 @@ test_u8_vec3 := proc() {
     assert_eq(loc(), 0, U8.to_i64(v2.z))
 }
 
+// Issue #105: Macro with namespace - typed_ptr template
+import("std.typed_ptr")
+
+I64Ptr := make_typed_ptr(I64)
+
+test_typed_ptr_basic := proc() {
+    mut p := I64Ptr.new()
+    test(loc(), p.is_null().not(), "typed_ptr new allocates")
+
+    p.set(42)
+    mut result := 0
+    p.get(result)
+    assert_eq(loc(), 42, result)
+
+    p.set(999)
+    p.get(result)
+    assert_eq(loc(), 999, result)
+
+    p.delete()
+    test(loc(), p.is_null(), "typed_ptr deleted")
+}
+
+test_typed_ptr_array := proc() {
+    mut p := I64Ptr.new_array(3)
+    test(loc(), p.is_null().not(), "typed_ptr array allocates")
+    p.delete()
+}
+
 test_basic_macro()
 test_nested_macro()
 test_multi_arg_macro()
@@ -147,3 +175,5 @@ test_factorial()
 test_fibonacci()
 test_i64_vec3()
 test_u8_vec3()
+test_typed_ptr_basic()
+test_typed_ptr_array()

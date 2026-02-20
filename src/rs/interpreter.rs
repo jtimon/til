@@ -948,7 +948,9 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
         },
     };
     // Type checking - INFER_TYPE should have been resolved by typer
-    if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
+    if declaration.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
+        // Issue #105: Accept inferred type (e.g., struct declarations inside macro bodies)
+    } else if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
         value_type = declaration.value_type.clone();
     } else if value_type != declaration.value_type {
         return Err(e.lang_error(&context.path, "eval", &format!("'{}' declared of type {} but initialized to type {:?}.", declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type))));
@@ -980,6 +982,10 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                     // Issue #108: Don't overwrite struct if already declared (may have merged namespace members)
                     if context.scope_stack.lookup_struct(&declaration.name).is_none() {
                         context.scope_stack.declare_struct(declaration.name.to_string(), struct_def.clone());
+                    }
+                    // Issue #105: Also register in global frame so struct survives macro function scope pops
+                    if let Some(global_frame) = context.scope_stack.frames.first_mut() {
+                        global_frame.structs.entry(declaration.name.to_string()).or_insert_with(|| struct_def.clone());
                     }
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
                     // Process members from AST struct_def (not merged struct - namespace members handled separately)
@@ -1308,6 +1314,10 @@ fn eval_identifier_expr_struct(name: &str, context: &mut Context, e: &Expr) -> R
         Some(def) => def.clone(),  // Clone to avoid borrow checker issues
         None => return Err(e.lang_error(&context.path, "eval", &format!("Struct '{}' not found in context", name))),
     };
+    // Issue #105: bare struct name reference (e.g., `return TemplatedPtr` in a macro)
+    if e.params.is_empty() {
+        return Ok(EvalResult::new(name));
+    }
     let inner_e = e.get(0)?;
     match &inner_e.node_type {
         NodeType::Identifier(inner_name) => {

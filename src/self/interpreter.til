@@ -918,10 +918,13 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
     }
 
     // Type checking - INFER_TYPE should have been resolved by typer
+    // Issue #105: Accept INFER_TYPE inside macro bodies (typer doesn't resolve inside FuncDef bodies)
+    mut decl_is_infer := false
     mut decl_is_u8 := false
     mut value_is_i64 := false
     switch declaration.value_type {
     case ValueType.TCustom(s):
+        if s.eq(INFER_TYPE) { decl_is_infer = true }
         if s.eq("U8") { decl_is_u8 = true }
     case:
     }
@@ -931,7 +934,9 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
     case:
     }
 
-    if decl_is_u8 {
+    if decl_is_infer {
+        // Issue #105: Accept inferred type (e.g., struct declarations inside macro bodies)
+    } else if decl_is_u8 {
         if value_is_i64 {
             value_type = declaration.value_type
         }
@@ -1085,6 +1090,8 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             if not(context.scope_stack.has_struct(declaration.name)) {
                 context.scope_stack.declare_struct(declaration.name, struct_def.clone())?
             }
+            // Issue #105: Also register in global frame so struct survives macro function scope pops
+            context.scope_stack.declare_struct_global(declaration.name, struct_def.clone())?
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             // Process struct members with default values
             for member_decl: Declaration in struct_def.members {
@@ -1354,6 +1361,10 @@ eval_identifier_expr_struct := proc(name: Str, mut context: Context, e: Expr) re
     struct_def := context.scope_stack.lookup_struct(name)?
     catch (err: KeyNotFoundError) {
         throw e.lang_error(context.path, "eval", format("Struct '", name, "' not found in context"))
+    }
+    // Issue #105: bare struct name reference (e.g., `return TemplatedPtr` in a macro)
+    if e.params.len().eq(0) {
+        return EvalResult.new(name)
     }
     inner_e := e.get(0)?
     switch inner_e.node_type {
