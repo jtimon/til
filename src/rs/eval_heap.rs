@@ -1030,7 +1030,6 @@ impl EvalHeap {
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", "Array struct definition not found"))?;
 
         // Calculate relative offsets for each field
-        let mut type_name_rel_offset = 0usize;
         let mut ptr_rel_offset = 0usize;
         let mut len_rel_offset = 0usize;
         let mut current_offset = 0usize;
@@ -1041,7 +1040,6 @@ impl EvalHeap {
                     _ => return Err(e.lang_error(&ctx.path, "insert_array", "unsupported field type")),
                 };
                 match &decl.name[..] {
-                    "type_name" => type_name_rel_offset = current_offset,
                     "ptr" => ptr_rel_offset = current_offset,
                     "_len" => len_rel_offset = current_offset,
                     _ => {}
@@ -1051,7 +1049,7 @@ impl EvalHeap {
         }
 
         // Update Array fields using calculated offsets
-        // ptr is now a Ptr struct (40 bytes): data, is_borrowed, alloc_size, elem_type, elem_size
+        // ptr is a Ptr struct (40 bytes): data, is_borrowed, alloc_size, elem_type, elem_size
         let ptr_offset = base_offset + ptr_rel_offset;
         EvalHeap::g().set(ptr_offset, &(ptr as i64).to_ne_bytes())?;          // data
         EvalHeap::g().set(ptr_offset + 8, &0i64.to_ne_bytes())?;              // is_borrowed = 0
@@ -1061,23 +1059,6 @@ impl EvalHeap {
 
         let len_offset = base_offset + len_rel_offset;
         EvalHeap::g().set(len_offset, &len.to_ne_bytes())?;
-
-        // Set type_name field (it's a Str)
-        let temp_type_name_id = format!("{}_type_name_temp", name);
-        frame.symbols.insert(temp_type_name_id.clone(), SymbolInfo {
-            value_type: ValueType::TCustom("Str".to_string()),
-            is_mut: false,
-            is_copy: false,
-            is_own: false,
-            is_comptime_const: false,
-        });
-        Self::insert_string_into_frame(ctx, frame, &temp_type_name_id, &elem_type.to_string(), e)?;
-        let temp_str_offset = frame.heap_index.get(&temp_type_name_id).copied()
-            .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", "missing type_name temp Str offset"))?;
-        let type_name_offset = base_offset + type_name_rel_offset;
-        let str_size = ctx.get_type_size("Str")?;
-        let data = EvalHeap::g().get(temp_str_offset, str_size).to_vec();
-        EvalHeap::g().set(type_name_offset, &data)?;
 
         Ok(())
     }

@@ -1268,7 +1268,6 @@ namespace:
         }
 
         // Calculate relative offsets for each field
-        mut type_name_rel_offset := 0
         mut ptr_rel_offset := 0
         mut len_rel_offset := 0
         mut current_field_offset := 0
@@ -1281,9 +1280,7 @@ namespace:
                 case:
                     throw e.lang_error(ctx.path, "insert_array", "unsupported field type")
                 }
-                if Str.eq(decl.name, "type_name") {
-                    type_name_rel_offset = current_field_offset
-                } else if Str.eq(decl.name, "ptr") {
+                if Str.eq(decl.name, "ptr") {
                     ptr_rel_offset = current_field_offset
                 } else if Str.eq(decl.name, "_len") {
                     len_rel_offset = current_field_offset
@@ -1293,7 +1290,7 @@ namespace:
         }
 
         // Update Array fields using calculated offsets
-        // ptr is now a Ptr struct (40 bytes): data, is_borrowed, alloc_size, elem_type, elem_size
+        // ptr is a Ptr struct (40 bytes): data, is_borrowed, alloc_size, elem_type, elem_size
         ptr_offset := add(base_offset, ptr_rel_offset)
         mut ptr_val := ptr
         g_heap.set(ptr_offset, to_ptr(ptr_val), 8)                           // data
@@ -1309,22 +1306,6 @@ namespace:
         len_offset := add(base_offset, len_rel_offset)
         mut len_val := len
         g_heap.set(len_offset, to_ptr(len_val), 8)
-
-        // Set type_name field (it's a Str)
-        temp_type_name_id := format(name, "_type_name_temp")
-        temp_symbol2 := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
-        frame.symbols.set(temp_type_name_id.clone(), temp_symbol2)
-
-        EvalHeap.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)?
-
-        temp_str_offset := cast(I64, frame.heap_index.get_by_ref(temp_type_name_id)?)
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "insert_array", "missing type_name temp Str offset")
-        }
-
-        type_name_offset := add(base_offset, type_name_rel_offset)
-        str_size := ctx.get_type_size("Str")?
-        g_heap.set(type_name_offset, g_heap.get(temp_str_offset, str_size), str_size)
 
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "IndexOutOfBoundsError")

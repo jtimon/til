@@ -9,7 +9,6 @@ import("core.ptr")
  * For growable arrays, use Vec instead.
  */
 Array := struct {
-    mut type_name : Str  = ""
     mut ptr       : Ptr  = Ptr()
     mut _len      : I64  = 0
 
@@ -27,7 +26,6 @@ namespace:
     /** Create new array with specified element type and capacity. */
     new := proc(T: Type, capacity: I64) returns Array {
         mut arr := Array()
-        arr.type_name = type_as_str(T)
         size_bytes := mul(capacity, size_of(T))
         // Use malloc directly (not Ptr.new_by_size) to avoid circular dependency:
         // panic -> Array.new (variadic args) -> Ptr.new_by_size -> panic
@@ -58,10 +56,6 @@ namespace:
             throw IndexOutOfBoundsError(msg=format(loc(), "Array.set: index out of bounds"))
         }
 
-        // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
-        //     throw format(loc(), "Array.set: value type mismatch")
-        // }
-
         mut dest := self.ptr.offset(mul(index, self.ptr.elem_size))
         dest.copy_from_dynamic(value, self.ptr.elem_size)
     }
@@ -77,7 +71,6 @@ namespace:
     /** Clone the array. */
     clone := func(self: Array) returns Array {
         mut cloned := Array()
-        cloned.type_name = self.type_name
         cloned._len = self._len
         mut total_bytes := mul(self._len, self.ptr.elem_size)
         // Use malloc directly (not Ptr.new_by_size) to avoid circular dependency

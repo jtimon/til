@@ -204,7 +204,7 @@ garbager.til need prefixed names (e.g., ~garbager_collect_decls~).
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Wasted memory, inconsistency, blocks clean ownership model
-:STATUS: Part 1 done, Part 2a+2b done (Vec+Array type_size removed), List remaining
+:STATUS: Part 1 done, Part 2a+2b+2c done (Vec+Array fully cleaned), List remaining
 :RELATED: Bug #159 (shallow copies), Issue #151 (pointer syntax)
 :END:
 
@@ -213,7 +213,7 @@ the ~elem_type~ and ~elem_size~ already in their ~Ptr~ field.
 
 Affected containers:
 - ~Vec~ (vec.til:11-12): ~type_name: Str~, ~type_size: I64~ -- type_size DONE
-- ~Array~ (array.til:11-12): ~type_name: Str~, ~type_size: I64~ -- type_size DONE, ptr migrated I64->Ptr
+- ~Array~ (array.til:11-12): ~type_name: Str~, ~type_size: I64~ -- DONE (both removed, ptr migrated I64->Ptr)
 - ~Set~ (set.til:6-7): ~elem_type_name: Str~, ~elem_type_size: I64~ -- DONE
 - ~Map~ (map.til:39-42): 4 fields -- DONE (partial, see below)
 - ~HashMap~ (hashmap.til:27-30): 4 fields
@@ -356,7 +356,17 @@ Updated ~insert_array_into_frame~ in eval_heap (Rust + TIL) to write full Ptr
 struct (5 fields at known offsets) instead of a single I64.
 Updated ~src/ext.c~ (~args->ptr~ -> ~args->ptr.data~).
 
+**** Part 2c: Array type_name removal (DONE)
+Removed ~type_name: Str~ from Array struct. Field was write-only -- set in
+~new()~ and copied in ~clone()~, but never read. For-in loops get element type
+from compile-time annotations (desugarer), not runtime type_name. Unlike Vec,
+whose type_name is read by Set for Str-vs-memcmp dispatch, Array has no
+runtime consumers. Removed type_name writing from ~insert_array_into_frame~
+in eval_heap (Rust + TIL). Array is now just ~{ptr: Ptr, _len: I64}~ (48 bytes,
+down from 80 bytes originally).
+
 **** Part 2 remaining:
+- Vec type_name -- cannot remove yet, Set reads it at runtime for Str dispatch
 - List (needs investigation, heterogeneous)
 
 ** Bug #169: Get rid of memcmp
