@@ -134,14 +134,12 @@ namespace:
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
-        return t.clone()
+        return t
     }
 
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
         t := cast(Token, self.tokens.get_by_ref(self.current)?)
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
-        return t.clone()
+        return t
     }
 
     previous := func(self: Lexer) returns Token throws Str {
@@ -154,12 +152,10 @@ namespace:
             throw err_token2.lang_error(self.path, "Previous token is out of bounds")
         }
         t := cast(Token, self.tokens.get_by_ref(self.current.sub(1))?)
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
-        result := t.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        return result
+        return t
     }
 
     advance := func(mut self: Lexer, count: I64) throws Str {
@@ -181,12 +177,10 @@ namespace:
             throw err_token.lang_error(self.path, format("Peek ahead by ", offset.to_str(), " from ", self.current.to_str(), " is out of bounds"))
         }
         t := cast(Token, self.tokens.get_by_ref(peek_idx)?)
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
-        result := t.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        return result
+        return t
     }
 
     next := func(self: Lexer) returns Token throws Str {

@@ -5476,6 +5476,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     output.push_str(";\n");
                 }
                 ctx.current_ref_params.insert(decl.name.clone());
+                // Bug #177: Cast variables can't be ret_var_alias targets - the optimization
+                // writes to _ret via resolve_var_name, but cast writes to the real var name
+                if ctx.ret_var_alias.as_deref() == Some(decl.name.as_str()) {
+                    ctx.ret_var_alias = None;
+                }
                 // Emit: var = (Type*)ptr.data;
                 output.push_str(&indent_str);
                 output.push_str(&cast_c_var_name);

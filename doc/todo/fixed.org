@@ -5584,3 +5584,28 @@ If copy semantics are later needed in for-in, add ~copy~ explicitly (like args).
 - ~src/core/array.til~ - added ~Array.get_by_ref~
 - ~src/core/set.til~ - added ~Set.get_by_ref~
 
+** Bug #177: ccodegen missing =*_ret= for cast returns -- FIXED 2026-02-20
+:PROPERTIES:
+:DISCOVERED: 2026-02-19
+:FIXED: 2026-02-20
+:IMPACT: Compiler error (-Werror=unused-parameter) in generated C; return value never written
+:RELATED: Bug #168 (ret_var_alias optimization)
+:END:
+
+*** Root cause
+The =find_ret_var_for_placement= optimization (Bug #168) is incompatible with cast
+variables. It aliases a return variable to =_ret= via =resolve_var_name=, but cast
+declarations use =til_var_name_from_context= directly, bypassing the alias. This means:
+- Cast declaration writes to =til_t= (real name)
+- All reads go through =resolve_var_name= mapping =t= -> =_ret= (uninitialized)
+- =emit_return= sees the alias match, skips =*_ret= assignment, emits bare =return 0;=
+
+*** Fix
+Clear =ctx.ret_var_alias= in =emit_declaration= when a cast variable matches the alias.
+After clearing, =resolve_var_name= returns the real name, and =emit_return= falls through
+to the normal path: =*_ret = (*til_t);= which correctly dereferences the cast pointer.
+
+*** Files modified
+- ~src/rs/ccodegen.rs~ + ~src/self/ccodegen.til~ - clear ret_var_alias for cast vars
+- ~src/self/lexer.til~ - removed 4 =.clone()= workarounds
+

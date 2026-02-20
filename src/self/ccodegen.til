@@ -6527,6 +6527,12 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 output.push_str(cast_c_var_name)
                 output.push_str(";\n")
                 _ := ctx.current_ref_params.insert(decl.name.clone())
+                // Bug #177: Cast variables can't be ret_var_alias targets
+                if not(ctx.ret_var_alias.is_empty()) {
+                    if decl.name.eq(ctx.ret_var_alias) {
+                        ctx.ret_var_alias = ""
+                    }
+                }
                 // Emit: var = (Type*)ptr.data;
                 output.push_str(indent_str)
                 output.push_str(cast_c_var_name)

@@ -39,11 +39,10 @@
 |  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (8 issues)
+* pre.org (7 issues)
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
-| 177 | ccodegen missing *_ret for cast returns             | Codegen      |
 | 168 | ccodegen returns create copies interpreter doesn't | Memory mgmt  |
 | 161 | Namespace constants, static mutables, immutables   | Language     |
 | 151 | Explicit pointer/reference syntax                  | Language     |
