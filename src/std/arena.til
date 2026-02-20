@@ -2,55 +2,93 @@ mode lib
 
 // Arena: Low-level memory management
 // Simple bump allocator with get/set/put/reserve operations.
+// Uses Ptr directly instead of Vec for minimal overhead.
 
 Arena := struct {
-    mut _memory : Vec = Vec()
+    mut _ptr : Ptr = Ptr()
+    mut _len : I64 = 0
+    mut _cap : I64 = 0
 
     INITIAL_CAPACITY : I64 = 32768  // 32KB
 
 namespace:
     new := proc() returns Arena {
         mut a := Arena()
-        a._memory = Vec.with_capacity(U8, Arena.INITIAL_CAPACITY)
-        a._memory.push(0)  // REM: first address 0 is reserved (invalid), malloc always >0
+        a._ptr = Ptr.new_by_size(Arena.INITIAL_CAPACITY)
+        a._cap = Arena.INITIAL_CAPACITY
+        // First address 0 is reserved (invalid), malloc always >0
+        a._ptr.set_zero(1)
+        a._len = 1
         return a
+    }
+
+    /** Grow arena to fit at least needed additional bytes */
+    _grow := proc(mut self: Arena, needed: I64) {
+        required := self._len.add(needed)
+        if required.lteq(self._cap) {
+            return
+        }
+        mut new_cap := self._cap.mul(2)
+        if new_cap.lt(1) {
+            new_cap = 1
+        }
+        while new_cap.lt(required) {
+            new_cap = new_cap.mul(2)
+        }
+        mut new_ptr := Ptr.new_by_size(new_cap)
+        if self._len.gt(0) {
+            new_ptr.copy_from(self._ptr, self._len)
+        }
+        if not(self._ptr.is_null()) {
+            self._ptr.delete()
+        }
+        self._ptr = new_ptr
+        self._cap = new_cap
     }
 
     /** Get current used length of arena memory */
     len := func(self: Arena) returns I64 {
-        return self._memory.len()
+        return self._len
     }
 
     /** Get size in bytes (same as len for Arena) */
     size := func(self: Arena) returns I64 {
-        return self._memory.len()
+        return self._len
     }
 
     /** Append bytes to arena, return offset where they were placed */
     put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 {
-        offset := self._memory.len()
-        // Extend vec to make room (Vec grows naturally)
-        self._memory.extend_with(0, num_bytes)
-        // Copy the actual data
-        memcpy(self._memory.ptr.offset(offset).data, src_ptr, num_bytes)
+        offset := self._len
+        self._grow(num_bytes)
+        memcpy(self._ptr.offset(offset).data, src_ptr, num_bytes)
+        self._len = self._len.add(num_bytes)
         return offset
     }
 
     /** Read bytes from arena at offset (returns pointer to data) */
     get := func(self: Arena, offset: I64, _num_bytes: I64) returns I64 {
-        return self._memory.ptr.offset(offset).data
+        return self._ptr.offset(offset).data
     }
 
     /** Write bytes to arena at offset */
     set := proc(mut self: Arena, offset: I64, src_ptr: I64, num_bytes: I64) {
-        memcpy(self._memory.ptr.offset(offset).data, src_ptr, num_bytes)
+        memcpy(self._ptr.offset(offset).data, src_ptr, num_bytes)
     }
 
     /** Reserve space in arena, return offset where space was allocated */
     reserve := proc(mut self: Arena, size: I64) returns I64 {
-        offset := self._memory.len()
-        // Extend vec with zeros (Vec grows naturally)
-        self._memory.extend_with(0, size)
+        offset := self._len
+        self._grow(size)
+        self._len = self._len.add(size)
         return offset
+    }
+
+    /** Free arena memory */
+    delete := proc(mut self: Arena) {
+        if not(self._ptr.is_null()) {
+            self._ptr.delete()
+        }
+        self._len = 0
+        self._cap = 0
     }
 }
