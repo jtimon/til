@@ -901,6 +901,46 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
 pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     let inner_e = e.get(0)?;
+
+    // cast(Type, ptr_expr) - create alias to data at ptr.data address
+    if let NodeType::FCall(_) = &inner_e.node_type {
+        let cast_f_name = get_func_name_in_call(&inner_e);
+        if cast_f_name == "cast" && inner_e.params.len() >= 3 {
+            let type_name = match &inner_e.get(1)?.node_type {
+                NodeType::Identifier(name) => name.clone(),
+                _ => return Err(e.lang_error(&context.path, "eval", "cast: first argument must be a type name")),
+            };
+            // Evaluate ptr_expr to get the Ptr
+            let ptr_result = eval_expr(context, inner_e.get(2)?)?;
+            if ptr_result.is_throw {
+                return Ok(ptr_result);
+            }
+            // ptr_result.value is the Ptr variable name - look up its heap address
+            let ptr_addr = match ptr_result.value.parse::<usize>() {
+                Ok(addr) => addr,
+                Err(_) => {
+                    context.scope_stack.lookup_var(&ptr_result.value)
+                        .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("cast: cannot find ptr variable '{}'", ptr_result.value)))?
+                }
+            };
+            // Read .data field (first I64 at offset 0 of the Ptr struct)
+            let data_bytes = EvalHeap::g().get(ptr_addr, 8);
+            let mut addr_buf = [0u8; 8];
+            addr_buf.copy_from_slice(&data_bytes[..8]);
+            let alias_addr = usize::from_ne_bytes(addr_buf);
+            // Declare variable with type and bind to alias address
+            context.scope_stack.declare_symbol(declaration.name.clone(), SymbolInfo {
+                value_type: ValueType::TCustom(type_name),
+                is_mut: true,
+                is_copy: false,
+                is_own: false,
+                is_comptime_const: false,
+            });
+            context.scope_stack.insert_var(declaration.name.clone(), alias_addr);
+            return Ok(EvalResult::new(""));
+        }
+    }
+
     let mut value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {

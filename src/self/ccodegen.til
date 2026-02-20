@@ -6571,6 +6571,69 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
     indent_str := repeat("    ", indent)
 
+    // cast(Type, ptr_expr) - emit pointer-typed alias variable (like create_alias)
+    if not(expr.params.is_empty()) {
+        cast_rhs := expr.get(0)?
+        dont_delete(cast_rhs)
+        switch cast_rhs.node_type {
+        case NodeType.FCall(_):
+            cast_first_param := cast_rhs.get(0)?
+            dont_delete(cast_first_param)
+            mut cast_f_name := ""
+            cast_f_name = get_func_name_string(cast_first_param)?
+            catch (err: Str) {
+                // Not an identifier, skip
+            }
+            if cast_f_name.eq("cast").and(cast_rhs.params.len().gteq(3)) {
+                cast_type_expr := cast_rhs.get(1)?
+                dont_delete(cast_type_expr)
+                mut cast_type_name := ""
+                switch cast_type_expr.node_type {
+                case NodeType.Identifier(name):
+                    cast_type_name = name
+                case:
+                    throw "ccodegen: cast: first argument must be a type name"
+                }
+                cast_ptr_expr := cast_rhs.get(2)?
+                dont_delete(cast_ptr_expr)
+                cast_var_type := ValueType.TCustom(cast_type_name.clone())
+                // Register in scope
+                context.scope_stack.declare_symbol(
+                    decl.name.clone(),
+                    SymbolInfo(
+                        value_type=cast_var_type,
+                        is_mut=true,
+                        is_copy=false,
+                        is_own=false,
+                        is_comptime_const=false
+                    )
+                )?
+                cast_c_var_name := til_var_name(decl.name, value_type_to_c_prefix(cast_var_type))
+                cast_c_type_name := value_type_to_c_name(cast_var_type)?
+                // Hoist the ptr_expr (may be a throwing call like get_by_ref)
+                cast_ptr_str := emit_arg_string(cast_ptr_expr, Ptr(), false, output, indent, ctx, context)?
+                // Emit inline pointer declaration (C99 block scoping shadows hoisted value-type)
+                cast_c_type := til_type_to_c(cast_var_type)?
+                output.push_str(indent_str)
+                output.push_str(cast_c_type)
+                output.push_str("* ")
+                output.push_str(cast_c_var_name)
+                output.push_str(";\n")
+                _ := ctx.current_ref_params.insert(decl.name.clone())
+                // Emit: var = (Type*)ptr.data;
+                output.push_str(indent_str)
+                output.push_str(cast_c_var_name)
+                output.push_str(" = (")
+                output.push_str(cast_c_type_name)
+                output.push_str("*)")
+                output.push_str(cast_ptr_str)
+                output.push_str(".data;\n")
+                return
+            }
+        case:
+        }
+    }
+
     // Bug #143: Process RHS FCall with emit_arg_string
     // This handles builtins (to_ptr, size_of, etc.), throwing calls, by-ref params, and Dynamic params properly
     // Bug #157: Also handle field access on throwing calls (e.g., get_wrapper()?.value)

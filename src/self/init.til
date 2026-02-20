@@ -891,6 +891,17 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
 
     mut f_name := get_func_name_in_call(e)?
 
+    // cast(Type, ptr_expr) returns the specified Type
+    if f_name.eq("cast").and(e.params.len().gteq(3)) {
+        cast_type_expr := e.get(1)?
+        dont_delete(cast_type_expr)
+        switch cast_type_expr.node_type {
+        case NodeType.Identifier(type_name):
+            return ValueType.TCustom(type_name)
+        case:
+        }
+    }
+
     // Check if this is a UFCS call on a function/expression result
     // If e has 2+ params (func name + target + args), check if the target's type
     // has an associated method with this name, prioritizing it over standalone functions

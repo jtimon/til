@@ -282,6 +282,44 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
                 // Type-check the address expression (params[3])
                 errors.extend(check_types_with_context(context, ca_addr_expr, ExprContext.ValueUsed)?)
             }
+        // cast(Type, ptr_expr) - like create_alias but expression syntax
+        // Variable declaration handled by the Declaration node, not here
+        } else if f_name.eq("cast") {
+            if e.params.len().gteq(3) {
+                cast_type_expr := e.get(1)?
+                dont_delete(cast_type_expr)
+                mut cast_type_name := ""
+                switch cast_type_expr.node_type {
+                case NodeType.Identifier(name):
+                    cast_type_name = name
+                case:
+                }
+                if cast_type_name.len().gt(0) {
+                    // Validate type exists
+                    mut cast_type_valid := cast_type_name.eq("I64").or(cast_type_name.eq("U8")).or(cast_type_name.eq("Bool")).or(cast_type_name.eq("Str"))
+                    if not(cast_type_valid) {
+                        mut cast_found_struct := false
+                        mut _cast_struct_def := context.scope_stack.lookup_struct(cast_type_name)?
+                        cast_found_struct = true
+                        catch (err: KeyNotFoundError) {
+                            // Not a struct
+                        }
+                        if not(cast_found_struct) {
+                            mut _cast_enum_def := context.scope_stack.lookup_enum(cast_type_name)?
+                            cast_found_struct = true
+                            catch (err: KeyNotFoundError) {
+                                // Not an enum either
+                            }
+                        }
+                        cast_type_valid = cast_found_struct
+                    }
+                    if not(cast_type_valid) {
+                        errors.push(e.error(context.path, "type", format("cast: unknown type '", cast_type_name, "'")))
+                    }
+                }
+                // Type-check the ptr expression (params[2])
+                errors.extend(check_types_with_context(context, e.get(2)?, ExprContext.ValueUsed)?)
+            }
         } else {
             errors.extend(check_fcall(context, e, does_throw)?)
             // Check if return value usage is correct for this context

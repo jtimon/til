@@ -5427,6 +5427,53 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     let indent_str = "    ".repeat(indent);
 
+    // cast(Type, ptr_expr) - emit pointer-typed alias variable (like create_alias)
+    if !expr.params.is_empty() {
+        let rhs = expr.get(0)?;
+        if let NodeType::FCall(_) = &rhs.node_type {
+            let cast_f_name = get_func_name_string(rhs.get(0)?);
+            if cast_f_name.as_deref() == Some("cast") && rhs.params.len() >= 3 {
+                let cast_type_name = if let NodeType::Identifier(name) = &rhs.get(1)?.node_type {
+                    name.clone()
+                } else {
+                    return Err("ccodegen: cast: first argument must be a type name".to_string());
+                };
+                let cast_ptr_expr = rhs.get(2)?;
+                let cast_var_type = ValueType::TCustom(cast_type_name.clone());
+                // Register in scope
+                context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                    value_type: cast_var_type.clone(),
+                    is_mut: true,
+                    is_copy: false,
+                    is_own: false,
+                    is_comptime_const: false,
+                });
+                let cast_c_var_name = til_var_name_from_context(&decl.name, context);
+                let cast_c_type_name = value_type_to_c_name(&cast_var_type)?;
+                // Hoist the ptr_expr (may be a throwing call like get_by_ref)
+                let cast_ptr_str = emit_arg_string(cast_ptr_expr, None, false, output, indent, ctx, context)?;
+                // Emit inline pointer declaration (C99 block scoping shadows hoisted value-type)
+                if let Ok(cast_c_type) = til_type_to_c(&cast_var_type) {
+                    output.push_str(&indent_str);
+                    output.push_str(&cast_c_type);
+                    output.push_str("* ");
+                    output.push_str(&cast_c_var_name);
+                    output.push_str(";\n");
+                }
+                ctx.current_ref_params.insert(decl.name.clone());
+                // Emit: var = (Type*)ptr.data;
+                output.push_str(&indent_str);
+                output.push_str(&cast_c_var_name);
+                output.push_str(" = (");
+                output.push_str(&cast_c_type_name);
+                output.push_str("*)");
+                output.push_str(&cast_ptr_str);
+                output.push_str(".data;\n");
+                return Ok(());
+            }
+        }
+    }
+
     // Bug #143: Process RHS FCall with emit_arg_string
     // This handles builtins (to_ptr, size_of, etc.), throwing calls, by-ref params, and Dynamic params properly
     // Bug #157: Also handle field access on throwing calls (e.g., get_wrapper()?.value)

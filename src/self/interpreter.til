@@ -878,6 +878,49 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
 eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr) returns EvalResult throws Str {
     inner_e := e.get(0)?
+
+    // cast(Type, ptr_expr) - create alias to data at ptr.data address
+    switch inner_e.node_type {
+    case NodeType.FCall(_):
+        cast_f_name := get_func_name_in_call(inner_e)?
+        if cast_f_name.eq("cast").and(inner_e.params.len().gteq(3)) {
+            cast_type_expr := inner_e.get(1)?
+            dont_delete(cast_type_expr)
+            mut cast_type_name := ""
+            switch cast_type_expr.node_type {
+            case NodeType.Identifier(name):
+                cast_type_name = name
+            case:
+                throw e.lang_error(context.path, "eval", "cast: first argument must be a type name")
+            }
+            // Evaluate ptr_expr to get the Ptr
+            ptr_result := eval_expr(context, inner_e.get(2)?)?
+            if ptr_result.is_throw { return ptr_result }
+            // Look up the Ptr's heap address
+            ptr_addr := context.scope_stack.lookup_var(ptr_result.value)?
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "eval", format("cast: cannot find ptr variable '", ptr_result.value, "'"))
+            }
+            // Read .data field (first I64 at offset 0 of the Ptr struct)
+            mut alias_addr := 0
+            memcpy(to_ptr(alias_addr), ptr_addr, 8)
+            // Declare variable with type and bind to alias address
+            context.scope_stack.declare_symbol(
+                declaration.name.clone(),
+                SymbolInfo(
+                    value_type=ValueType.TCustom(cast_type_name),
+                    is_mut=true,
+                    is_copy=false,
+                    is_own=false,
+                    is_comptime_const=false
+                )
+            )?
+            context.scope_stack.insert_var(declaration.name, alias_addr)?
+            return EvalResult.new("")
+        }
+    case:
+    }
+
     mut value_type := ValueType.TCustom("")
     value_type = get_value_type(context, inner_e)?
     catch (err: Str) {

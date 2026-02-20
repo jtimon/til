@@ -592,6 +592,13 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
     let f_name = get_func_name_in_call(&e);
 
+    // cast(Type, ptr_expr) returns the specified Type
+    if f_name == "cast" && e.params.len() >= 3 {
+        if let NodeType::Identifier(type_name) = &e.get(1)?.node_type {
+            return Ok(ValueType::TCustom(type_name.clone()));
+        }
+    }
+
     // Check if this is a UFCS call on a function/expression result
     // If e has 2+ params (func name + target + args), check if the target's type
     // has an associated method with this name, prioritizing it over standalone functions

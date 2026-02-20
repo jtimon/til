@@ -300,8 +300,7 @@ main := proc(args: ..Str) {
         println("Usage: make.til <target> [options]")
         exit(1)
     }
-    target_ref := remaining_args.get_by_ref(0)?
-    create_alias(target, Str, target_ref.data)
+    target := cast(Str, remaining_args.get_by_ref(0)?)
     catch (err: IndexOutOfBoundsError) { panic(loc(), "remaining_args: len checked above: ", err.msg) }
     switch target {
     case "clean":

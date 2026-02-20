@@ -240,6 +240,22 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                     // Type-check the address expression (params[3])
                     errors.extend(check_types_with_context(context, e.get(3)?, ExprContext::ValueUsed)?);
                 }
+            // cast(Type, ptr_expr) - like create_alias but expression syntax
+            // Variable declaration handled by the Declaration node, not here
+            } else if f_name == "cast" {
+                if e.params.len() >= 3 {
+                    if let NodeType::Identifier(type_name) = &e.get(1)?.node_type {
+                        // Validate type exists
+                        let type_valid = matches!(type_name.as_str(), "I64" | "U8" | "Bool" | "Str")
+                            || context.scope_stack.lookup_struct(type_name).is_some()
+                            || context.scope_stack.lookup_enum(type_name).is_some();
+                        if !type_valid {
+                            errors.push(e.error(&context.path, "type", &format!("cast: unknown type '{}'", type_name)));
+                        }
+                    }
+                    // Type-check the ptr expression (params[2])
+                    errors.extend(check_types_with_context(context, e.get(2)?, ExprContext::ValueUsed)?);
+                }
             } else {
                 errors.extend(check_fcall(context, &e, *does_throw)?);
                 // Check if return value usage is correct for this context
