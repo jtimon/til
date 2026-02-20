@@ -13,7 +13,7 @@
 | 152 | Migrate doc/todo files to numbered issue system                  | Documentation cleanup       |
 | 133 | Precomputed heap values have invalid pointers at runtime         | Partial fix (nested broken) |
 | 130 | Unify type resolution with type checking into single pass        | Architecture                |
-| 113 | Self-hosted interpreter fails with "symbol 'msg' not found"      | Interpreter broken          |
+| 113 | Self-hosted interpreter fails with "symbol 'msg' not found"      | Not reproducible, blocked #112|
 |  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality                |
 |  94 | gcc warnings cause bug47.til compilation failure (blocked by #99 5c) | Build issue              |
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence                  |

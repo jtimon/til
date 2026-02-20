@@ -398,7 +398,7 @@ deletion strategy risks double-free on aliased heap pointers.
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, prevents ASAP deletion, root cause of memory leaks
-:STATUS: Open -- interpreter copy_fields removed; ccodegen shallow copies remain; deep Vec.clone/delete blocked on Issue #91 (function pointers); .get() elimination in progress
+:STATUS: Open -- interpreter copy_fields removed; ccodegen shallow copies remain; deep Vec.clone/delete blocked on Issue #91 (function pointers); Map.get eliminated, cast replaces create_alias
 :RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak), Bug #170 (scope-exit deletion blocked by this), Issue #91 (function pointers needed for deep clone/delete)
 :END:
 
@@ -447,23 +447,21 @@ the codebase via memcpy in generated C code and core library operations.
 **** 3. src/core/vec.til -- Collection operations using copy_to/from_dynamic
 Handled by =dont_delete= in garbager: the shallow copies still happen, but the
 aliased data is not double-freed. The copies still leak memory (root cause of #165).
-- =get=, =push=, =set=, =clone=, =extend=, =extend_with=, =contains=, =remove=,
+- =get= REMOVED, =push=, =set=, =clone=, =extend=, =extend_with=, =contains=, =remove=,
   =insert_at=, =to_str=, =split_off=, =pop= -- all use copy_to/from_dynamic
 
 **** 4. src/core/set.til -- Uses Vec internally, same dont_delete protection
-- =insert=, =remove=, =contains=, =get= -- copy_to_dynamic for comparison/retrieval
+- =insert=, =remove=, =contains=, =get= REMOVED -- copy_to_dynamic for comparison/retrieval
 
 **** 5. src/core/array.til -- Direct memcpy, same dont_delete protection
-- =get=, =set=, =clone= -- copy_to/from_dynamic
+- =get= REMOVED, =set=, =clone= -- copy_to/from_dynamic
 
 **** 6. ccodegen -- enum_get_payload
 - Shallow memcpy of enum payload data
 
-**** 7. ccodegen -- create_alias directive
-- Emits =memcpy(&var, (void*)addr, sizeof(type))= -- shallow copy
-- Interpreter handles this as =insert_var(name, addr)= -- zero copy, pure offset binding
-- The C equivalent would be a pointer cast: =Type* var = (Type*)addr;=
-- Tracked under Bug #168 as next actionable item
+**** 7. ccodegen -- create_alias directive (FIXED)
+=create_alias= replaced by =cast(Type, Ptr)= which emits =Type* var = (Type*)ptr.data;=
+-- true pointer aliasing, zero copy in both interpreter and ccodegen.
 
 *** Step 9: Clone-after-get for container out-params (2026-02-11)
 Container =get()= and =pop()= methods extract elements via =copy_to_dynamic=
@@ -473,8 +471,8 @@ container get/pop call where the out-param is a local variable with a deletable
 struct type.
 
 Whitelist of affected methods:
-- =Vec.get=, =Vec.pop=, =Array.get=, =Set.get=
-- =Map.get=, =HashMap.get=, =List.get=, =List.pop=
+- =Vec.pop= (Vec.get, Array.get, Set.get, Map.get all REMOVED)
+- =HashMap.get=, =List.get=, =List.pop=
 
 New garbager functions:
 - =build_clone_assignment_expr= -- builds AST for =var = Type.clone(var)=
@@ -535,16 +533,22 @@ but many sources of shallow copies remain:
 4. *Consuming functions*: =Expr.new_explicit=, =build_clone_call_expr= etc. take
    struct params by-ref instead of =own=. The garbager can't detect ownership transfer.
 5. *Collection .get()*: copy_to_dynamic memcpy creates aliases. Partially mitigated
-   by clone-after-get (Step 9), but the .get() method itself is the wrong API --
-   should use get_by_ref + create_alias (zero-copy pointer into collection storage).
+   by clone-after-get (Step 9). Map.get eliminated (2026-02-20). Vec/Array/Set .get()
+   remain -- should use get_by_ref + cast (zero-copy pointer into collection storage).
 
 *** Remediation plan
 
-**** Phase 1: Eliminate .get() from all collections (no dependencies)
-Replace all .get() callers with get_by_ref + create_alias + dont_delete.
-Then delete the .get() method from Vec, Map, Array, Set.
-Add get_by_ref to List (currently missing).
-One commit per collection type. Independent of all other fixes.
+**** Phase 1: Eliminate .get() from all collections (no dependencies) -- DONE
+All copying .get() methods removed from Vec, Map, Array, Set, List.
+All callers converted to get_by_ref + cast (zero-copy pointer into storage).
+
+=.pop()= methods (Vec.pop, List.pop) are NOT part of Phase 1 -- pop removes the
+element from the collection, so a zero-copy pointer into storage would dangle.
+Pop needs ownership transfer (move semantics). Ideal API: pop returns a Ptr
+(is_borrowed=false), caller uses cast. Internally, pop would get_by_ref the last
+element, clone it, decrement length, return Ptr to the clone. But cloning a
+type-erased Dynamic element requires calling =Type.clone()= from =self.type_name=
+at runtime -- blocked by Phase 2 (Issue #91, function pointers).
 
 **** Phase 2: Function pointer builtins (Issue #91, minimal scope)
 Deep Vec.clone/delete requires calling Type.clone()/Type.delete() on type-erased
@@ -565,10 +569,11 @@ etc.) must take =own= + =dont_delete= internally. This lets =collect_own_transfe
 exclude caller variables from deletion candidates. Vec.push/set/insert_at already
 use this pattern correctly.
 
-**** Phase 4: Ccodegen return move semantics
-After =*_ret = var;=, emit =memset(&var, 0, sizeof(Type));= to zero the source.
-Turns shallow copy into move. Only for simple local variables (not ref params,
-not ret_var_alias, not field access).
+**** Phase 4: Garbager skips delete for returned locals
+Part of Issue #117 (ASAP destruction). When a local variable is returned
+(=return var=), the garbager should NOT insert a delete for it -- the caller
+now owns the data via =*_ret=. The garbager already has =dont_delete_vars= --
+returned locals should be added to that set.
 
 **** Phase 5: Garbager clone gaps
 - Clone ALL Identifier-init declarations (not just mut)
