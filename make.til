@@ -252,7 +252,7 @@ go_build_yourself := proc(args: Vec) {
 
     // Rebuild
     println("make.til: rebuilding myself...")
-    status := run_stream_cmd("./bin/rstil build make.til")
+    status := run_stream_cmd("./bin/rstil build make.til --force-rebuild")
     if status.eq(0).not() {
         println("make.til: rebuild failed")
         exit(1)

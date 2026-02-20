@@ -16,7 +16,7 @@ bin/rstil: $(RSTIL_SRCS)
 # After this, go_build_yourself() in make.til handles .til dependency tracking
 # Bug #141: rstil outputs to bin/rs/
 bin/rs/make: bin/rstil
-	./bin/rstil build make.til
+	./bin/rstil build make.til --force-rebuild
 
 # Prevent .rs, .til files and Makefile from matching the % pattern.
 # The % pattern below delegates unknown targets to compiled make.til, but:
