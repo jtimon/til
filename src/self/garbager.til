@@ -91,29 +91,29 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             }
         }
 
-        // 3b: Scan new_body for Declaration nodes.
-        // Skip if function has any catch blocks: throws can skip declarations,
-        // making unconditional deletes at function end unsafe.
-        mut has_any_catch := false
-        for catch_check_stmt: Expr in new_body {
-            switch catch_check_stmt.node_type {
-            case NodeType.Catch:
-                has_any_catch = true
-            case:
-            }
-        }
-        if not(has_any_catch) {
-            for stmt: Expr in new_body {
-                switch stmt.node_type {
-                case NodeType.Declaration(decl):
-                    switch decl.value_type {
-                    case ValueType.TCustom(type_name):
+        // 3b: Scan new_body for Declaration nodes with owned init.
+        // Catch guard removed: ccodegen hoists struct locals to function top
+        // with zero-init, making unconditional deletes safe even with goto.
+        // Only delete locals whose RHS is provably owned (constructor, clone, etc.)
+        // to avoid freeing aliased data from shallow copies (Bug #159).
+        for stmt: Expr in new_body {
+            switch stmt.node_type {
+            case NodeType.Declaration(decl):
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    mut is_owned := false
+                    if stmt.params.len().gt(0) {
+                        init_rhs := stmt.get(0)?
+                        dont_delete(init_rhs)
+                        is_owned = is_owned_init_expr(init_rhs)
+                    }
+                    if is_owned {
                         cand_vars.push(decl.name)
                         cand_types.push(type_name)
-                    case:
                     }
                 case:
                 }
+            case:
             }
         }
 
@@ -213,7 +213,9 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             }
         }
 
-        // End-of-function: append locals in reverse declaration order
+        // End-of-function: insert locals deletion in reverse declaration order.
+        // Deletes go BEFORE the last Return (so they actually execute),
+        // not after it (where they'd be dead code).
         mut last_line := e.line
         mut last_col := e.col
         if final_body.len().gt(0) {
@@ -221,12 +223,54 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             last_line = final_last_s.line
             last_col = final_last_s.col
         }
+
+        // Don't delete the return variable -- it's the function's output
+        mut return_var_name := ""
+        mut last_is_return := false
+        if final_body.len().gt(0) {
+            final_last_stmt := cast(Expr, final_body.get_by_ref(final_body.len().sub(1))?)
+            switch final_last_stmt.node_type {
+            case NodeType.Return:
+                last_is_return = true
+                if not(final_last_stmt.params.is_empty()) {
+                    ret_param := cast(Expr, final_last_stmt.params.get_by_ref(0)?)
+                    switch ret_param.node_type {
+                    case NodeType.Identifier(ret_name):
+                        return_var_name = ret_name
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+
+        // If the body ends with Return, insert deletes before it.
+        // If no Return at end (proc without explicit return), just append.
+        // Build delete calls into a temporary vec first.
+        mut delete_calls := Vec.new(Expr)
         mut eri := end_vars.len()
         while eri.gt(0) {
             eri = eri.sub(1)
             ev := cast(Str, end_vars.get_by_ref(eri)?)
             et := cast(Str, end_types.get_by_ref(eri)?)
-            final_body.push(build_delete_call_expr(et, ev, last_line, last_col))
+            if not(return_var_name.eq("")).and(ev.eq(return_var_name)) {
+                continue
+            }
+            delete_calls.push(build_delete_call_expr(et, ev, last_line, last_col))
+        }
+
+        if last_is_return.and(final_body.len().gt(0)) {
+            // Pop the Return stmt, insert deletes, push Return back
+            mut return_stmt := Expr()
+            final_body.pop(return_stmt)?
+            for dc: Expr in delete_calls {
+                final_body.push(dc)
+            }
+            final_body.push(return_stmt)
+        } else {
+            for dc: Expr in delete_calls {
+                final_body.push(dc)
+            }
         }
         new_body = final_body
 
@@ -430,6 +474,19 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         }
         return Expr.new_explicit(e.node_type, default_new_params, e.line, e.col)
     }
+}
+
+/// Check if a declaration's RHS expression is provably owned (not an alias).
+/// Only locals with owned init are safe to delete at function end.
+/// Aliases from shallow copies (memcpy) would cause double-free if deleted.
+is_owned_init_expr := func(_rhs: Expr) returns Bool {
+    // Disabled: local deletion is unsafe due to shallow-copy aliasing (Bug #159).
+    // A local initialized by .new() can have its data aliased by other locals
+    // through field access, container get, or function return memcpy.
+    // Deleting it at function end would corrupt those aliases.
+    // For now, only copy/own params get deletion (ASAP, no aliasing risk).
+    // Local deletion requires deep-copy semantics (Bug #159) to be safe.
+    return false
 }
 
 /// Build AST for Type.clone(src_expr): FCall( Identifier("Type").Identifier("clone"), src_expr )

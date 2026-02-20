@@ -300,6 +300,82 @@ fn til_func_name(name: &str) -> String {
     format!("{}{}", TIL_PREFIX, name.replace('.', "_"))
 }
 
+// Issue #117: Collect all struct local declarations from a function body.
+// Recurses into Body nodes (if/while/for) but NOT into nested FuncDef bodies.
+// Returns (var_name, type_name) pairs for hoisting.
+fn collect_struct_locals(stmts: &[Expr]) -> Vec<(String, String)> {
+    let mut locals = Vec::new();
+    let mut seen = HashSet::new();
+    collect_struct_locals_inner(stmts, &mut locals, &mut seen);
+    locals
+}
+
+fn collect_struct_locals_inner(stmts: &[Expr], locals: &mut Vec<(String, String)>, seen: &mut HashSet<String>) {
+    for stmt in stmts {
+        if let NodeType::Declaration(decl) = &stmt.node_type {
+            if decl.name != "_" {
+                if let ValueType::TCustom(type_name) = &decl.value_type {
+                    // Skip cast() declarations — they emit as pointer types (Type* var)
+                    let is_cast = stmt.params.first()
+                        .and_then(|rhs| if let NodeType::FCall(_) = &rhs.node_type {
+                            get_func_name_string(rhs.params.first()?)
+                        } else { None })
+                        .map(|name| name == "cast")
+                        .unwrap_or(false);
+                    if !is_cast && seen.insert(decl.name.clone()) {
+                        locals.push((decl.name.clone(), type_name.clone()));
+                    }
+                }
+            }
+        }
+        // Do NOT recurse into Body nodes (if/while/for children).
+        // Inner-scope declarations include for-in loop variables which are
+        // pointer types (by-ref aliases) — hoisting them as value types causes
+        // type mismatch. Inner-scope vars aren't deleted at function end anyway.
+    }
+}
+
+// Issue #117: Check if a function body contains any Catch nodes (top-level only).
+fn body_has_catch(stmts: &[Expr]) -> bool {
+    stmts.iter().any(|stmt| matches!(&stmt.node_type, NodeType::Catch))
+}
+
+// Issue #117: Emit hoisted zero-init declarations for struct locals.
+// For functions with catch blocks, all struct locals need to be declared
+// at the top of the function with zero-init, so that goto (from throws)
+// can't skip past their declarations, making function-end deletes safe.
+fn emit_hoisted_locals(
+    stmts: &[Expr],
+    output: &mut String,
+    ctx: &mut CodegenContext,
+) -> Result<(), String> {
+    if !body_has_catch(stmts) {
+        return Ok(());
+    }
+    let locals = collect_struct_locals(stmts);
+    for (var_name, type_name) in &locals {
+        // Skip ret_var_alias -- it maps to _ret, not a local variable
+        if let Some(ref alias) = ctx.ret_var_alias {
+            if alias == var_name {
+                continue;
+            }
+        }
+        let c_type = til_type_to_c(&ValueType::TCustom(type_name.clone()))
+            .map_err(|e| format!("ccodegen: hoisted local: {}", e))?;
+        // Use til_var_name with type prefix (not til_var_name_from_context)
+        // because the variable isn't in scope_stack yet at hoisting time
+        let type_prefix = value_type_to_c_prefix(&ValueType::TCustom(type_name.clone()));
+        let c_var_name = til_var_name(var_name, &type_prefix);
+        output.push_str("    ");
+        output.push_str(&c_type);
+        output.push_str(" ");
+        output.push_str(&c_var_name);
+        output.push_str(" = {};\n");
+        ctx.declared_vars.insert(c_var_name);
+    }
+    Ok(())
+}
+
 // Issue #119: Check if a throw type refers to an empty struct (no fields)
 // Empty struct errors don't need error parameters - only the status code matters
 fn is_empty_error_struct(context: &Context, throw_type: &ValueType) -> bool {
@@ -3347,6 +3423,9 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
         ctx.current_ref_params.insert(alias.clone());
     }
 
+    // Issue #117: Hoist struct locals for catch-safe deletion
+    emit_hoisted_locals(&func_def.body, output, ctx)?;
+
     // Emit function body with catch pattern detection
     emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
@@ -3677,6 +3756,9 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                     ctx.current_ref_params.insert(alias.clone());
                 }
 
+                // Issue #117: Hoist struct locals for catch-safe deletion
+                emit_hoisted_locals(&func_def.body, output, ctx)?;
+
                 // Emit function body with catch pattern detection
                 emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
@@ -3903,13 +3985,14 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         }
     }
 
-    // Declare temp variables for all catches at the start
+    // Declare temp variables for all catches at the start (zero-init to avoid
+    // GCC maybe-uninitialized warnings when goto skips the assignment)
     for catch_entry in &all_catch_info {
         output.push_str(&indent_str);
         output.push_str(&til_name(&catch_entry.type_name));
         output.push_str(" ");
         output.push_str(&catch_entry.temp_var);
-        output.push_str(";\n");
+        output.push_str(" = {};\n");
     }
 
     // For backward compatibility, also populate local_catch_labels with first catch of each type
@@ -4284,8 +4367,11 @@ fn emit_variadic_call(
             }
             let c_var_name = til_var_name_from_context(var_name, context);
             output.push_str(&indent_str);
-            output.push_str(&ret_type);
-            output.push_str(" ");
+            // Issue #117: Skip type prefix if already declared (hoisted zero-init for catch-safe deletion)
+            if !ctx.declared_vars.contains(&c_var_name) {
+                output.push_str(&ret_type);
+                output.push_str(" ");
+            }
             output.push_str(&c_var_name);
             output.push_str(" = ");
             emit_call(output);
@@ -4420,8 +4506,9 @@ fn emit_throwing_call(
             }
             let c_var_name = til_var_name_from_context(var_name, context);
             // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
+            // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
             let is_ret_alias = ctx.ret_var_alias.as_ref().map(|a| a == var_name).unwrap_or(false);
-            if !is_ret_alias {
+            if !is_ret_alias && !ctx.declared_vars.contains(&c_var_name) {
                 output.push_str(&indent_str);
                 output.push_str(&ret_type);
                 output.push_str(" ");
@@ -4790,8 +4877,9 @@ fn emit_throwing_call_propagate(
             }
             let c_var_name = til_var_name_from_context(var_name, context);
             // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
+            // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
             let is_ret_alias = ctx.ret_var_alias.as_ref().map(|a| a == var_name).unwrap_or(false);
-            if !is_ret_alias {
+            if !is_ret_alias && !ctx.declared_vars.contains(&c_var_name) {
                 output.push_str(&indent_str);
                 output.push_str(&ret_type);
                 output.push_str(" ");
@@ -5074,8 +5162,9 @@ fn emit_throwing_call_with_goto(
             }
             let c_var_name = til_var_name_from_context(var_name, context);
             // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
+            // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
             let is_ret_alias = ctx.ret_var_alias.as_ref().map(|a| a == var_name).unwrap_or(false);
-            if !is_ret_alias {
+            if !is_ret_alias && !ctx.declared_vars.contains(&c_var_name) {
                 output.push_str(&indent_str);
                 output.push_str(&ret_type);
                 output.push_str(" ");
@@ -5390,6 +5479,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 if let Some(ref alias) = ctx.ret_var_alias {
                     ctx.current_ref_params.insert(alias.clone());
                 }
+
+                // Issue #117: Hoist struct locals for catch-safe deletion
+                emit_hoisted_locals(&func_def.body, &mut func_output, ctx)?;
 
                 emit_stmts(&func_def.body, &mut func_output, 1, ctx, context)?;
                 // Add implicit return at end to silence gcc -Wreturn-type warnings

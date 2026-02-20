@@ -37,14 +37,20 @@ time timeout 300 make benchmark
 
 Why: When something fails, you need to see the FULL output. Filtering hides critical error messages and forces re-running the entire command.
 
-## Debugging Failed Builds
-When `make benchmark` fails (segfault, wrong output, etc.) and you need to examine the output:
-
+## CRITICAL: Always Use Memory Limit
+**EVERY** `make benchmark` must use the memory limit:
 ```bash
-# Step 1: Capture full output to a file
-make clean && make benchmark > tmp/build_output.txt 2>&1
+systemd-run --user --scope -p MemoryMax=40G -p MemorySwapMax=0 make benchmark > tmp/build_output.txt 2>&1
+```
+Do NOT forget this. Do NOT drop it.
 
-# Step 2: Read/grep/tail the captured file to find the error
+## CRITICAL: Always Capture Benchmark Output
+**ALWAYS** redirect `make benchmark` output to `tmp/build_output.txt`:
+```bash
+# CORRECT - captures output for later analysis
+systemd-run --user --scope -p MemoryMax=40G -p MemorySwapMax=0 make benchmark > tmp/build_output.txt 2>&1
+
+# Then read/grep/tail the captured file
 # Now you CAN use grep/tail/head on the CAPTURED file
 ```
 

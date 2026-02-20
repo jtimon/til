@@ -80,16 +80,20 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 }
             }
 
-            // 3b: Scan new_body for Declaration nodes.
-            // Skip if function has any catch blocks: throws can skip declarations,
-            // making unconditional deletes at function end unsafe.
-            let has_any_catch = new_body.iter().any(|stmt| {
-                matches!(&stmt.node_type, NodeType::Catch)
-            });
-            if !has_any_catch {
-                for stmt in &new_body {
-                    if let NodeType::Declaration(decl) = &stmt.node_type {
-                        if let ValueType::TCustom(type_name) = &decl.value_type {
+            // 3b: Scan new_body for Declaration nodes with owned init.
+            // Catch guard removed: ccodegen hoists struct locals to function top
+            // with zero-init, making unconditional deletes safe even with goto.
+            // Only delete locals whose RHS is provably owned (constructor, clone, etc.)
+            // to avoid freeing aliased data from shallow copies (Bug #159).
+            for stmt in &new_body {
+                if let NodeType::Declaration(decl) = &stmt.node_type {
+                    if let ValueType::TCustom(type_name) = &decl.value_type {
+                        let is_owned = if !stmt.params.is_empty() {
+                            is_owned_init_expr(stmt.get(0)?)?
+                        } else {
+                            false
+                        };
+                        if is_owned {
                             candidates.push((decl.name.clone(), type_name.clone()));
                         }
                     }
@@ -159,12 +163,38 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 }
             }
 
-            // End-of-function: append locals in reverse declaration order
+            // End-of-function: insert locals deletion in reverse declaration order.
+            // Deletes go BEFORE the last Return (so they actually execute),
+            // not after it (where they'd be dead code).
             let last_line = final_body.last().map_or(e.line, |s| s.line);
             let last_col = final_body.last().map_or(e.col, |s| s.col);
             end_candidates.reverse();
+
+            // Don't delete the return variable -- it's the function's output
+            let return_var_name = final_body.last()
+                .filter(|s| matches!(&s.node_type, NodeType::Return))
+                .and_then(|s| s.params.first())
+                .and_then(|p| if let NodeType::Identifier(name) = &p.node_type { Some(name.clone()) } else { None });
+            if let Some(ref ret_name) = return_var_name {
+                end_candidates.retain(|(var_name, _)| var_name != ret_name);
+            }
+
+            // Find the insertion point: before the last Return statement.
+            // If the body ends with Return, pop it, insert deletes, push it back.
+            // If no Return at end (proc without explicit return), just append.
+            let last_is_return = final_body.last()
+                .map(|s| matches!(&s.node_type, NodeType::Return))
+                .unwrap_or(false);
+            let return_stmt = if last_is_return {
+                Some(final_body.pop().unwrap())
+            } else {
+                None
+            };
             for (var_name, type_name) in &end_candidates {
                 final_body.push(build_delete_call_expr(type_name, var_name, last_line, last_col));
+            }
+            if let Some(ret) = return_stmt {
+                final_body.push(ret);
             }
             let new_body = final_body;
 
@@ -318,6 +348,19 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             Ok(Expr::new_explicit(e.node_type.clone(), default_new_params, e.line, e.col))
         }
     }
+}
+
+/// Check if a declaration's RHS expression is provably owned (not an alias).
+/// Only locals with owned init are safe to delete at function end.
+/// Aliases from shallow copies (memcpy) would cause double-free if deleted.
+fn is_owned_init_expr(_rhs: &Expr) -> Result<bool, String> {
+    // Disabled: local deletion is unsafe due to shallow-copy aliasing (Bug #159).
+    // A local initialized by .new() can have its data aliased by other locals
+    // through field access, container get, or function return memcpy.
+    // Deleting it at function end would corrupt those aliases.
+    // For now, only copy/own params get deletion (ASAP, no aliasing risk).
+    // Local deletion requires deep-copy semantics (Bug #159) to be safe.
+    Ok(false)
 }
 
 /// Build AST for Type.clone(src_expr): FCall( Identifier("Type").Identifier("clone"), src_expr )

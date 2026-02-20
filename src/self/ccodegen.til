@@ -4004,6 +4004,9 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
         _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
     }
 
+    // Issue #117: Hoist struct locals for catch-safe deletion
+    emit_hoisted_locals(func_def.body, output, ctx)?
+
     // Emit function body with catch pattern detection
     emit_stmts(func_def.body, output, 1, ctx, context)?
 
@@ -4110,6 +4113,100 @@ value_type_to_c_name := func(vt: ValueType) returns Str throws Str {
         return TIL_PREFIX.concat(name)
     case:
         throw "Cannot convert to C type name"
+    }
+}
+
+// Issue #117: Recursively collect struct local declarations from a function body.
+// Collects (var_name, type_name) pairs for all TCustom declarations, recursing
+// into Body nodes (if/while/for children) but not into FuncDef (nested functions).
+collect_struct_locals_inner := proc(stmts: Vec, mut local_vars: Vec, mut local_types: Vec, mut seen: Set) {
+    for stmt: Expr in stmts {
+        switch stmt.node_type {
+        case NodeType.Declaration(decl):
+            if not(decl.name.eq("_")) {
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    // Skip cast() declarations -- they emit as pointer types (Type* var)
+                    mut is_cast := false
+                    if not(stmt.params.is_empty()) {
+                        rhs := cast(Expr, stmt.params.get_by_ref(0)?)
+                        switch rhs.node_type {
+                        case NodeType.FCall(_):
+                            if not(rhs.params.is_empty()) {
+                                rhs_first := cast(Expr, rhs.params.get_by_ref(0)?)
+                                switch rhs_first.node_type {
+                                case NodeType.Identifier(fname):
+                                    if fname.eq("cast") { is_cast = true }
+                                case:
+                                }
+                            }
+                        case:
+                        }
+                        catch (err: IndexOutOfBoundsError) { }
+                    }
+                    if not(is_cast).and(not(seen.contains(decl.name))) {
+                        _ := seen.insert(decl.name.clone())
+                        local_vars.push(decl.name.clone())
+                        local_types.push(type_name.clone())
+                    }
+                case:
+                }
+            }
+        case:
+        }
+        // Do NOT recurse into Body nodes (if/while/for children).
+        // Inner-scope declarations include for-in loop variables which are
+        // pointer types (by-ref aliases) -- hoisting them as value types causes
+        // type mismatch. Inner-scope vars aren't deleted at function end anyway.
+    }
+}
+
+// Issue #117: Check if a function body contains any Catch nodes (top-level only).
+body_has_catch := func(stmts: Vec) returns Bool {
+    for stmt: Expr in stmts {
+        switch stmt.node_type {
+        case NodeType.Catch:
+            return true
+        case:
+        }
+    }
+    return false
+}
+
+// Issue #117: Emit hoisted zero-init declarations for struct locals.
+// For functions with catch blocks, all struct locals need to be declared
+// at the top of the function with zero-init, so that goto (from throws)
+// can't skip past their declarations, making function-end deletes safe.
+emit_hoisted_locals := proc(stmts: Vec, mut output: Str, mut ctx: CodegenContext) throws Str {
+    if not(body_has_catch(stmts)) {
+        return
+    }
+    mut local_vars := Vec.new(Str)
+    mut local_types := Vec.new(Str)
+    mut seen := Set.new(Str)
+    collect_struct_locals_inner(stmts, local_vars, local_types, seen)
+    for i in 0..local_vars.len() {
+        var_name := cast(Str, local_vars.get_by_ref(i)?)
+        // Skip ret_var_alias -- it maps to _ret, not a local variable
+        if not(ctx.ret_var_alias.eq("")).and(ctx.ret_var_alias.eq(var_name)) {
+            continue
+        }
+        type_name := cast(Str, local_types.get_by_ref(i)?)
+        c_type := til_type_to_c(ValueType.TCustom(type_name.clone()))?
+        // Use til_var_name with type prefix (not til_var_name_from_context)
+        // because the variable isn't in scope_stack yet at hoisting time
+        type_prefix := value_type_to_c_prefix(ValueType.TCustom(type_name.clone()))
+        c_var_name := til_var_name(var_name.clone(), type_prefix)
+        output.push_str("    ")
+        output.push_str(c_type)
+        output.push_str(" ")
+        output.push_str(c_var_name.clone())
+        output.push_str(" = {};\n")
+        _ := ctx.declared_vars.insert(c_var_name)
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
     }
 }
 
@@ -4401,6 +4498,9 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 if not(ctx.ret_var_alias.is_empty()) {
                     _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
                 }
+
+                // Issue #117: Hoist struct locals for catch-safe deletion
+                emit_hoisted_locals(func_def.body, output, ctx)?
 
                 // Emit function body with catch pattern detection
                 emit_stmts(func_def.body, output, 1, ctx, context)?
@@ -4708,13 +4808,14 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
         scan_idx.inc()
     }
 
-    // Declare temp variables for all catches at the start
+    // Declare temp variables for all catches at the start (zero-init to avoid
+    // GCC maybe-uninitialized warnings when goto skips the assignment)
     for catch_entry: CatchLabelInfoEntry in all_catch_info {
         output.push_str(indent_str)
         output.push_str(til_name(catch_entry.type_name))
         output.push_str(" ")
         output.push_str(catch_entry.temp_var)
-        output.push_str(";\n")
+        output.push_str(" = {};\n")
     }
 
     // For backward compatibility, also populate local_catch_labels with first catch of each type
@@ -5146,8 +5247,11 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             catch (err: KeyNotFoundError) { }
             variadic_c_var_name := til_var_name_from_context(decl_name, context)
             output.push_str(indent_str)
-            output.push_str(ret_type)
-            output.push_str(" ")
+            // Issue #117: Skip type prefix if already declared (hoisted zero-init for catch-safe deletion)
+            if not(ctx.declared_vars.contains(variadic_c_var_name.clone())) {
+                output.push_str(ret_type)
+                output.push_str(" ")
+            }
             output.push_str(variadic_c_var_name.clone())
             output.push_str(" = ")
             // Emit call inline
@@ -5353,8 +5457,9 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         catch (err: IndexOutOfBoundsError) { }
         throw_c_var_name := til_var_name_from_context(decl_name, context)
         // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
+        // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
         is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
-        if not(is_ret_alias) {
+        if not(is_ret_alias).and(not(ctx.declared_vars.contains(throw_c_var_name.clone()))) {
             output.push_str(indent_str)
             output.push_str(ret_type)
             output.push_str(" ")
@@ -5765,8 +5870,9 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         catch (err: IndexOutOfBoundsError) { }
         throwing_decl_c_var := til_var_name_from_context(decl_name, context)
         // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
+        // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
         is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
-        if not(is_ret_alias) {
+        if not(is_ret_alias).and(not(ctx.declared_vars.contains(throwing_decl_c_var.clone()))) {
             output.push_str(indent_str)
             output.push_str(ret_type)
             output.push_str(" ")
@@ -6081,8 +6187,9 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         catch (err: IndexOutOfBoundsError) { }
         throwing_decl_c_var := til_var_name_from_context(decl_name, context)
         // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
+        // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
         is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
-        if not(is_ret_alias) {
+        if not(is_ret_alias).and(not(ctx.declared_vars.contains(throwing_decl_c_var.clone()))) {
             output.push_str(indent_str)
             output.push_str(ret_type)
             output.push_str(" ")
@@ -6428,6 +6535,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 if not(ctx.ret_var_alias.is_empty()) {
                     _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
                 }
+
+                // Issue #117: Hoist struct locals for catch-safe deletion
+                emit_hoisted_locals(func_def.body, func_output, ctx)?
 
                 emit_stmts(func_def.body, func_output, 1, ctx, context)?
                 // Add implicit return at end to silence gcc -Wreturn-type warnings
