@@ -43,7 +43,7 @@
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
-| 177 | ccodegen missing *_ret for create_alias returns    | Codegen      |
+| 177 | ccodegen missing *_ret for cast returns             | Codegen      |
 | 168 | ccodegen returns create copies interpreter doesn't | Memory mgmt  |
 | 161 | Namespace constants, static mutables, immutables   | Language     |
 | 151 | Explicit pointer/reference syntax                  | Language     |

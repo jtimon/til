@@ -113,14 +113,14 @@ rebuild_namespace_without_unreachable_methods := proc(ns_def: SNamespaceDef, rea
         switch default_expr.node_type {
         case NodeType.FuncDef(func_def):
             // Method - check if reachable or external
-            if SFuncDef.is_ext(func_def).or(reachable.contains(full_name)) { // TODO Bug #176: func_def.is_ext()
+            if func_def.is_ext().or(reachable.contains(full_name)) {
                 new_members.push(member_decl.clone())
-                new_default_values.set(member_decl.name.clone(), Expr.clone(default_expr)) // TODO Bug #176: default_expr.clone()
+                new_default_values.set(member_decl.name.clone(), default_expr.clone())
             }
         case:
             // Not a FuncDef - keep it (regular constant)
             new_members.push(member_decl.clone())
-            new_default_values.set(member_decl.name.clone(), Expr.clone(default_expr)) // TODO Bug #176: default_expr.clone()
+            new_default_values.set(member_decl.name.clone(), default_expr.clone())
         }
 
         catch (err: KeyNotFoundError) {
@@ -151,14 +151,14 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
         switch default_expr.node_type {
         case NodeType.FuncDef(func_def):
             // Method - check if reachable or external
-            if SFuncDef.is_ext(func_def).or(reachable.contains(full_name)) { // TODO Bug #176: func_def.is_ext()
+            if func_def.is_ext().or(reachable.contains(full_name)) {
                 new_members.push(member_decl.clone())
-                new_default_values.set(member_decl.name.clone(), Expr.clone(default_expr)) // TODO Bug #176: default_expr.clone()
+                new_default_values.set(member_decl.name.clone(), default_expr.clone())
             }
         case:
             // Not a FuncDef - keep it (regular field with default value)
             new_members.push(member_decl.clone())
-            new_default_values.set(member_decl.name.clone(), Expr.clone(default_expr)) // TODO Bug #176: default_expr.clone()
+            new_default_values.set(member_decl.name.clone(), default_expr.clone())
         }
 
         catch (err: KeyNotFoundError) {
@@ -287,7 +287,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         full_name := format(decl.name, ".", member_name)
-                        context.scope_stack.declare_func(full_name, SFuncDef.clone(func_def))? // TODO Bug #176: func_def.clone()
+                        context.scope_stack.declare_func(full_name, func_def.clone())?
                         // Recurse into method body for local declarations
                         for stmt: Expr in func_def.body {
                             register_declarations_recursive(context, stmt)?
@@ -305,7 +305,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
             switch ns_default_expr.node_type {
             case NodeType.FuncDef(func_def):
                 ns_full_name := format(ns_def.type_name, ".", member_name)
-                context.scope_stack.declare_func(ns_full_name, SFuncDef.clone(func_def))? // TODO Bug #176: func_def.clone()
+                context.scope_stack.declare_func(ns_full_name, func_def.clone())?
                 // Recurse into method body for local declarations
                 for stmt: Expr in func_def.body {
                     register_declarations_recursive(context, stmt)?

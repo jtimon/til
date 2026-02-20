@@ -210,7 +210,7 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             final_body.push(body_stmt)
             for di in 0..insert_positions.len() {
                 dpos := cast(I64, insert_positions.get_by_ref(di)?)
-                if I64.eq(dpos, bi.add(1)) { // TODO Bug #176: UFCS workaround for create_alias
+                if dpos.eq(bi.add(1)) {
                     dc := cast(Expr, insert_del_calls.get_by_ref(di)?)
                     final_body.push(dc)
                 }
@@ -373,9 +373,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             }
             switch assign_first_param.node_type {
             case NodeType.Identifier(rhs_name):
-                // TODO Bug #176: UFCS workaround for create_alias
-                assign_first_param_len := Vec.len(assign_first_param.params)
-                if I64.eq(assign_first_param_len, 0) {
+                assign_first_param_len := assign_first_param.params.len()
+                if assign_first_param_len.eq(0) {
                 // Look up identifier's symbol type
                 assign_sym := context.scope_stack.lookup_symbol(rhs_name)?
                 catch (err: KeyNotFoundError) {
@@ -932,7 +931,7 @@ resolve_fcall_from_chain := proc(chain: Vec, local_types: Map, context: Context)
         current_type = first
     } else {
         current_type_alias := cast(Str, local_types.get_by_ref(first)?)
-        current_type = Str.clone(current_type_alias) // TODO Bug #176: UFCS workaround for create_alias
+        current_type = current_type_alias.clone()
         catch (err: KeyNotFoundError) {
             throw KeyNotFoundError(msg=format("resolve_fcall_from_chain: unknown first '", first, "'"))
         }
@@ -981,8 +980,7 @@ collect_own_transfers_recursive := proc(e: Expr, context: Context, local_types: 
         get_fcall_identifier_chain(e, chain)?
         if chain.len().gt(0) {
             last := cast(Str, chain.get_by_ref(chain.len().sub(1))?)
-            // TODO Bug #176: UFCS workaround for create_alias
-            if not(Str.eq(last, "clone")).and(not(Str.eq(last, "delete"))) {
+            if not(last.eq("clone")).and(not(last.eq("delete"))) {
                 mut resolved := ResolvedFCall()
                 mut found := false
                 resolved = resolve_fcall_from_chain(chain, local_types, context)?

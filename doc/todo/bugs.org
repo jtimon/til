@@ -9,20 +9,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #176: UFCS .clone() doesn't resolve on create_alias variables
-:PROPERTIES:
-:DISCOVERED: 2026-02-19
-:IMPACT: Type error at compile time -- workaround is to use Type.clone(v) function call style
-:END:
-
-When a variable is created via ~create_alias(v, Type, ptr)~, calling ~v.clone()~ fails with:
-~type ERROR: Could not find function definition for 'v.clone'~
-
-The type checker doesn't resolve UFCS method calls on create_alias variables. The same
-issue likely affects other UFCS method calls beyond .clone().
-
-Workaround: Use explicit function call style ~Type.clone(v)~ instead of ~v.clone()~.
-
 ** Bug #172: Codegen bug returning for-in loop variable of same type as return type
 :PROPERTIES:
 :DISCOVERED: 2026-02-18

@@ -107,8 +107,7 @@ namespace:
     heap_free := proc(mut self: EvalHeap, ptr: I64) {
         for i in 0..self._heap_bases.len() {
             base := cast(I64, self._heap_bases.get_by_ref(i)?)
-            // TODO Bug #176: UFCS workaround for create_alias
-            if I64.eq(base, ptr) {
+            if base.eq(ptr) {
                 self._heap_bases.set(i, 0)?  // mark as freed
                 self._heap_sizes.set(i, 0)?
                 free(ptr)
@@ -368,14 +367,12 @@ namespace:
                     }
 
                     if is_enum {
-                        // TODO Bug #176: UFCS workaround for create_alias
-                        parts := Str.split(default_value, ".")?
+                        parts := default_value.split(".")?
                         if not(parts.len().eq(2)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
                         part0 := cast(Str, parts.get_by_ref(0)?)
-                        // TODO Bug #176: UFCS workaround for create_alias
-                        if not(Str.eq(part0, type_name)) {
+                        if not(part0.eq(type_name)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
                         variant := cast(Str, parts.get_by_ref(1)?)
@@ -385,8 +382,7 @@ namespace:
                         mut vi := 0
                         while vi.lt(enum_def.variants.len()) {
                             ev := cast(EnumVariant, enum_def.variants.get_by_ref(vi)?)
-                            // TODO Bug #176: UFCS workaround for create_alias
-                            if Str.eq(ev.name, variant) {
+                            if ev.name.eq(variant) {
                                 index = vi
                                 found_variant = true
                             }
@@ -1516,8 +1512,7 @@ namespace:
         for i in 0..8 {
             if i.lt(str_bytes.len()) {
                 b := cast(U8, str_bytes.get_by_ref(i)?)
-                // TODO Bug #176: UFCS workaround for create_alias
-                c_string_ptr = c_string_ptr.add(U8.to_i64(b).mul(multiplier))
+                c_string_ptr = c_string_ptr.add(b.to_i64().mul(multiplier))
                 multiplier = multiplier.mul(256)
             }
             catch (err: IndexOutOfBoundsError) {
@@ -1532,8 +1527,7 @@ namespace:
             idx := ptr_size.add(i2)
             if idx.lt(str_bytes.len()) {
                 b2 := cast(U8, str_bytes.get_by_ref(idx)?)
-                // TODO Bug #176: UFCS workaround for create_alias
-                len = len.add(U8.to_i64(b2).mul(multiplier2))
+                len = len.add(b2.to_i64().mul(multiplier2))
                 multiplier2 = multiplier2.mul(256)
             }
             catch (err: IndexOutOfBoundsError) {

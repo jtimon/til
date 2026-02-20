@@ -134,16 +134,14 @@ namespace:
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
-        // TODO Bug #176: UFCS workaround for create_alias (Token.clone instead of t.clone)
-        return Token.clone(t)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+        return t.clone()
     }
 
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
         t := cast(Token, self.tokens.get_by_ref(self.current)?)
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
-        // TODO Bug #176: UFCS workaround for create_alias (Token.clone instead of t.clone)
-        return Token.clone(t)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+        return t.clone()
     }
 
     previous := func(self: Lexer) returns Token throws Str {
@@ -156,9 +154,8 @@ namespace:
             throw err_token2.lang_error(self.path, "Previous token is out of bounds")
         }
         t := cast(Token, self.tokens.get_by_ref(self.current.sub(1))?)
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
-        // TODO Bug #176: UFCS workaround for create_alias
-        result := Token.clone(t)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+        result := t.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -184,9 +181,8 @@ namespace:
             throw err_token.lang_error(self.path, format("Peek ahead by ", offset.to_str(), " from ", self.current.to_str(), " is out of bounds"))
         }
         t := cast(Token, self.tokens.get_by_ref(peek_idx)?)
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
-        // TODO Bug #176: UFCS workaround for create_alias
-        result := Token.clone(t)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+        result := t.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }

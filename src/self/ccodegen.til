@@ -19,8 +19,7 @@ sort_enum_variants := proc(mut v: Vec) {
         for i in 1..n {
             prev := cast(EnumVariant, v.get_by_ref(i.sub(1))?)
             curr := cast(EnumVariant, v.get_by_ref(i)?)
-            // TODO Bug #176: UFCS workaround for create_alias
-            if gt(Str.cmp(prev.name, curr.name), 0) {
+            if gt(prev.name.cmp(curr.name), 0) {
                 tmp := EnumVariant.clone(prev)
                 v.set(i.sub(1), curr)?
                 v.set(i, tmp)?
@@ -613,10 +612,9 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         dep_names := get_type_dependencies(dep_expr)?
         for dep_name: Str in dep_names {
             dep_idx := cast(I64, name_to_idx.get_by_ref(dep_name)?)
-            if not(I64.eq(dep_idx, idx)) { // TODO Bug #176: UFCS workaround for create_alias
+            if not(dep_idx.eq(idx)) {
                 mut dep_vec := cast(Vec, deps.get_by_ref(idx)?)
-                // TODO Bug #176: UFCS workaround for create_alias
-                Vec.push(dep_vec, dep_idx)
+                dep_vec.push(dep_idx)
             }
             catch (err: KeyNotFoundError) {
                 // Expected: not all dep names are in the type list
@@ -638,8 +636,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         dep_list := cast(Vec, deps.get_by_ref(idx)?)
         for dep: I64 in dep_list {
             mut rev_dep_vec := cast(Vec, reverse_deps.get_by_ref(dep)?)
-            // TODO Bug #176: UFCS workaround for create_alias
-            Vec.push(rev_dep_vec, idx)
+            rev_dep_vec.push(idx)
         }
         idx.inc()
     }
@@ -678,8 +675,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
             next_degree := cast(I64, in_degree.get_by_ref(next)?)
             mut new_degree := I64.sub(next_degree, 1)
             in_degree.set(next, new_degree.clone())?
-            // TODO Bug #176: UFCS workaround for create_alias
-            if I64.eq(new_degree, 0) {
+            if new_degree.eq(0) {
                 queue.push(next)
             }
         }
@@ -5571,7 +5567,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     vt := cast(ValueType, throw_types.get_by_ref(catch_err_idx)?)
                     switch vt {
                     case ValueType.TCustom(name):
-                        if Str.eq(name, err_type_name) { // TODO Bug #176: UFCS workaround for create_alias
+                        if name.eq(err_type_name) {
                             found = true
                             found_idx = catch_err_idx
                             break
@@ -5925,7 +5921,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 cur_vt := cast(ValueType, ctx.current_throw_types.get_by_ref(cur_throw_idx)?)
                 switch cur_vt {
                 case ValueType.TCustom(cur_name):
-                    if Str.eq(cur_name, called_type_name) { // TODO Bug #176: UFCS workaround for create_alias
+                    if cur_name.eq(called_type_name) {
                         found = true
                         current_idx = cur_throw_idx
                         break
@@ -6263,7 +6259,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
                     prop_vt := cast(ValueType, ctx.current_throw_types.get_by_ref(prop_i)?)
                     switch prop_vt {
                     case ValueType.TCustom(n):
-                        if Str.eq(n, type_name) { // TODO Bug #176: UFCS workaround for create_alias
+                        if n.eq(type_name) {
                             found_prop = true
                             prop_idx = prop_i
                             break

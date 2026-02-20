@@ -188,8 +188,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
             mut search_j := 0
             while search_j.lt(func_def.args.len()) {
                 search_arg_decl := cast(Declaration, func_def.args.get_by_ref(search_j)?)
-                // TODO Bug #176: UFCS workaround for create_alias
-                if Str.eq(search_arg_decl.name, arg_name) {
+                if search_arg_decl.name.eq(arg_name) {
                     param_idx = search_j
                     search_j = func_def.args.len() // break
                 } else {

@@ -23,8 +23,7 @@ namespace:
 
     get_component := proc(self: Entity, index: I64) returns Component throws IndexOutOfBoundsError {
         comp := cast(Component, self.components.get_by_ref(index)?)
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
-        // TODO Bug #176: UFCS workaround for create_alias
-        return Component.clone(comp)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+        return comp.clone()
     }
 }

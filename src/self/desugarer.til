@@ -296,8 +296,7 @@ find_enum_for_variant := func(context: Context, variant_name: Str) returns Str t
         frame := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(frame_i)?)
         for enum_name: Str in frame.enums.keys {
             enum_def := cast(SEnumDef, frame.enums.get_by_ref(enum_name)?)
-            // TODO Bug #176: UFCS workaround for create_alias
-            if SEnumDef.contains_key(enum_def, variant_name) {
+            if enum_def.contains_key(variant_name) {
                 if found_type.len().eq(0) {
                     found_type = enum_name
                 }

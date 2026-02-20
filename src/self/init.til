@@ -149,9 +149,8 @@ namespace:
     // REM TODO Use this approach instead of the other workaround in files other than interpreter.til
     last_frame := func(self: ScopeStack) returns ScopeFrame throws IndexOutOfBoundsError {
         out := cast(ScopeFrame, self.frames.get_by_ref(self.frames.len().sub(1))?)
-        // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
-        // TODO Bug #176: UFCS workaround for create_alias
-        return ScopeFrame.clone(out)
+        // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+        return out.clone()
     }
 
     lookup_var := func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError {
@@ -553,8 +552,7 @@ namespace:
     declare_struct_global := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws Str {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get_by_ref(0)?)
-            // TODO Bug #176: UFCS workaround for create_alias
-            Map.set(global_frame.structs, name, struct_def)
+            global_frame.structs.set(name, struct_def)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -782,14 +780,12 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
         }
         switch return_type {
         case ValueType.TCustom(custom_type_str):
-            // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
-            // TODO Bug #176: UFCS workaround for create_alias
-            return ValueType.clone(return_type)
+            // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+            return return_type.clone()
         // Issue #105: Allow struct as a return type for first-class structs
         case ValueType.TType(TTypeDef.TStructDef):
-            // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
-            // TODO Bug #176: UFCS workaround for create_alias
-            return ValueType.clone(return_type)
+            // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+            return return_type.clone()
         case:
             throw e.error(path, "init", format("func '", name, "' returns unsupported type ", value_type_to_str(return_type)))
         }
@@ -1775,7 +1771,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                             // Failed to get type - just use INFER_TYPE default
                         }
                         context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo(value_type=value_type_clone(method_value_type), is_mut=false, is_copy=false, is_own=false))?
-                        context.scope_stack.declare_func(full_name, SFuncDef.clone(func_def))? // TODO Bug #176: func_def.clone()
+                        context.scope_stack.declare_func(full_name, func_def.clone())?
                     case:
                         // Not a function, skip
                     }
@@ -1862,7 +1858,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 mut merged_enum := existing_enum.clone()
                 for edv_name: Str in ns_def.default_values.keys {
                     edv_expr := cast(Expr, ns_def.default_values.get_by_ref(edv_name)?)
-                    merged_enum.methods.set(edv_name.clone(), Expr.clone(edv_expr)) // TODO Bug #176: edv_expr.clone()
+                    merged_enum.methods.set(edv_name.clone(), edv_expr.clone())
                 }
                 catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
                 // Re-declare the enum (overwrites the old one)
@@ -1908,7 +1904,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
             for dv_name: Str in ns_def.default_values.keys {
                 dv_expr := cast(Expr, ns_def.default_values.get_by_ref(dv_name)?)
-                merged_struct.default_values.set(dv_name.clone(), Expr.clone(dv_expr)) // TODO Bug #176: dv_expr.clone()
+                merged_struct.default_values.set(dv_name.clone(), dv_expr.clone())
             }
             catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
 
@@ -1936,7 +1932,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 // If it's a function, also register in funcs
                 switch ns_member_expr.node_type {
                 case NodeType.FuncDef(ns_func_def):
-                    context.scope_stack.declare_func(ns_full_name.clone(), SFuncDef.clone(ns_func_def))? // TODO Bug #176: ns_func_def.clone()
+                    context.scope_stack.declare_func(ns_full_name.clone(), ns_func_def.clone())?
                 case:
                 }
 

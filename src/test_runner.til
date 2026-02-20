@@ -87,8 +87,7 @@ parse_maxrss_kb := func(time_output: Str) returns I64 throws IndexOutOfBoundsErr
             parts := line.split(": ")?
             if parts.len().gt(1) {
                 vs := cast(Str, parts.get_by_ref(parts.len().sub(1))?)
-                // TODO Bug #176: UFCS workaround for create_alias
-                mut val_str := Str.replace(vs, "\r", "")
+                mut val_str := vs.replace("\r", "")
                 return val_str.to_i64()
             }
         }

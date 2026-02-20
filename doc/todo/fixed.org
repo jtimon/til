@@ -7,6 +7,21 @@
 
 * Fixed Bugs
 
+** Bug #176: UFCS doesn't resolve on create_alias variables
+:PROPERTIES:
+:DISCOVERED: 2026-02-19
+:FIXED: 2026-02-20
+:END:
+
+UFCS method calls like ~v.clone()~ failed on variables created via ~create_alias~
+because the typer/UFCS pass didn't know the variable's type.
+
+Fixed by replacing ~create_alias~ with ~cast(Type, Ptr)~, which uses regular
+declaration syntax (~v := cast(Type, ptr)~). The UFCS pass sees ~v~ as a normal
+declared variable with its type known, so ~v.clone()~, ~v.eq()~, etc. resolve
+correctly. All ~create_alias~ code removed; for-in desugaring also converted to
+use cast. ~create_alias~ ext_func and all special-case handling deleted.
+
 ** Bug #173: Rust typer missing variable shadowing check (ccodegen =*_ret= assignment bug)
 :PROPERTIES:
 :DISCOVERED: 2026-02-18

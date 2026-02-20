@@ -1379,14 +1379,12 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                         // Recursively check this return expression for throws
                         mut single_expr := Vec.new(Expr)
-                        // TODO Bug #176: UFCS workaround for create_alias
-                        single_expr.push(Expr.clone(return_val_e))
+                        single_expr.push(return_val_e.clone())
                         errors.extend(check_body_returns_throws(context, return_val_e, func_def, single_expr, thrown_types, return_found)?)
 
                         mut actual_value_type := get_value_type(context, return_val_e)?
                         if not(value_type_to_str(expected_value_type).eq(value_type_to_str(actual_value_type))) {
-                            // TODO Bug #176: UFCS workaround for create_alias
-                            errors.push(Expr.error(return_val_e, context.path, "type", format("Return value in pos ", I64.to_str(i), " expected to be '", value_type_to_str(expected_value_type), "', but found '", value_type_to_str(actual_value_type), "' instead")))
+                            errors.push(return_val_e.error(context.path, "type", format("Return value in pos ", I64.to_str(i), " expected to be '", value_type_to_str(expected_value_type), "', but found '", value_type_to_str(actual_value_type), "' instead")))
                             errors.push(e.error(context.path, "type", "Suggestion: Update returns section here"))
                         }
                         catch (err: Str) {
@@ -1463,8 +1461,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         // Remove matching entries (reverse to avoid index shift issues)
                         for ri in thrown_types.len().sub(1)..sub(0, 1) {
                             te_remove := cast(ThrownType, thrown_types.get_by_ref(ri)?)
-                            // TODO Bug #176: UFCS workaround for create_alias
-                            if Str.eq(te_remove.type_str, caught_type) {
+                            if te_remove.type_str.eq(caught_type) {
                                 thrown_types.remove(ri)?
                             }
                         }
@@ -2533,7 +2530,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
             case NodeType.FuncDef(func_def):
                 // Issue #108: Functions inside structs are no longer allowed.
                 // They must be moved to a namespace block.
-                errors.push(Expr.error(inner_e, context.path, "type", format( // TODO Bug #176: inner_e.error()
+                errors.push(inner_e.error(context.path, "type", format(
                     "Function '", member_decl.name, "' is defined inside struct. Functions must be in namespace blocks.\n",
                     "Move this function outside the struct into: namespace ", struct_name, " { ", member_decl.name, " := func(...) { ... } }"
                 )))
@@ -2544,7 +2541,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
 
                 // Check if default value calls procs (violates purity of constructors)
                 if is_expr_calling_procs(context, inner_e)? {
-                    errors.push(Expr.error(inner_e, context.path, "type", // TODO Bug #176: inner_e.error()
+                    errors.push(inner_e.error(context.path, "type",
                         format("Struct field '", member_decl.name, "' has default value that calls proc. Default values must be pure (can only call funcs, not procs).")))
                 }
 
@@ -2623,7 +2620,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
                     }
 
                     if type_mismatch {
-                        errors.push(Expr.error(inner_e, context.path, "type", format( // TODO Bug #176: inner_e.error()
+                        errors.push(inner_e.error(context.path, "type", format(
                             "Struct field '", member_decl.name, "' declared as '", value_type_to_str(expected_type), "' but default value has type '", value_type_to_str(found_type), "'."
                         )))
                     }
