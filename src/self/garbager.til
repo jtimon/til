@@ -79,21 +79,19 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
         mut cand_vars := Vec.new(Str)
         mut cand_types := Vec.new(Str)
 
-        // 3a: copy/own params with deletable types
+        // 3a: copy/own params
         for arg_def: Declaration in func_def.args {
             if arg_def.is_copy.or(arg_def.is_own) {
                 switch arg_def.value_type {
                 case ValueType.TCustom(type_name):
-                    if is_deletable_type(type_name, context) {
-                        cand_vars.push(arg_def.name)
-                        cand_types.push(type_name)
-                    }
+                    cand_vars.push(arg_def.name)
+                    cand_types.push(type_name)
                 case:
                 }
             }
         }
 
-        // 3b: Scan new_body for Declaration nodes with deletable types.
+        // 3b: Scan new_body for Declaration nodes.
         // Skip if function has any catch blocks: throws can skip declarations,
         // making unconditional deletes at function end unsafe.
         mut has_any_catch := false
@@ -110,10 +108,8 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
                 case NodeType.Declaration(decl):
                     switch decl.value_type {
                     case ValueType.TCustom(type_name):
-                        if is_deletable_type(type_name, context) {
-                            cand_vars.push(decl.name)
-                            cand_types.push(type_name)
-                        }
+                        cand_vars.push(decl.name)
+                        cand_types.push(type_name)
                     case:
                     }
                 case:
@@ -313,26 +309,21 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
             case NodeType.Identifier(_):
                 switch decl.value_type {
                 case ValueType.TCustom(type_name):
-                    // Exclude true primitive types - they don't need deep cloning
-                    // Note: Bool is NOT excluded because true/false are global constants
-                    // that would be corrupted if we just share offsets
-                    if is_deletable_type(type_name, context) {
-                        // Build clone call: Type.clone(rhs_expr)
-                        decl_rhs_expr := first_param.clone()
-                        decl_clone_call := build_clone_call_expr(type_name, decl_rhs_expr, e.line, e.col)
-                        mut decl_transformed_params := Vec.new(Expr)
-                        decl_transformed_params.push(decl_clone_call)
-                        mut decl_i := 1
-                        while decl_i.lt(decl_new_params.len()) {
-                            decl_param := cast(Expr, decl_new_params.get_by_ref(decl_i)?)
-                            catch (err: IndexOutOfBoundsError) {
-                                throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
-                            }
-                            decl_transformed_params.push(decl_param)
-                            decl_i = decl_i.add(1)
+                    // Build clone call: Type.clone(rhs_expr)
+                    decl_rhs_expr := first_param.clone()
+                    decl_clone_call := build_clone_call_expr(type_name, decl_rhs_expr, e.line, e.col)
+                    mut decl_transformed_params := Vec.new(Expr)
+                    decl_transformed_params.push(decl_clone_call)
+                    mut decl_i := 1
+                    while decl_i.lt(decl_new_params.len()) {
+                        decl_param := cast(Expr, decl_new_params.get_by_ref(decl_i)?)
+                        catch (err: IndexOutOfBoundsError) {
+                            throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
                         }
-                        return Expr.new_explicit(e.node_type, decl_transformed_params, e.line, e.col)
+                        decl_transformed_params.push(decl_param)
+                        decl_i = decl_i.add(1)
                     }
+                    return Expr.new_explicit(e.node_type, decl_transformed_params, e.line, e.col)
                 case:
                     // Not a TCustom type
                 }
@@ -383,23 +374,21 @@ garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws St
                 }
                 switch assign_sym.value_type {
                 case ValueType.TCustom(type_name):
-                    if is_deletable_type(type_name, context) {
-                        // Build clone call: Type.clone(rhs_expr)
-                        assign_rhs_expr := assign_first_param.clone()
-                        assign_clone_call := build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col)
-                        mut assign_transformed_params := Vec.new(Expr)
-                        assign_transformed_params.push(assign_clone_call)
-                        mut assign_i := 1
-                        while assign_i.lt(assign_new_params.len()) {
-                            assign_param := cast(Expr, assign_new_params.get_by_ref(assign_i)?)
-                            catch (err: IndexOutOfBoundsError) {
-                                throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
-                            }
-                            assign_transformed_params.push(assign_param)
-                            assign_i = assign_i.add(1)
+                    // Build clone call: Type.clone(rhs_expr)
+                    assign_rhs_expr := assign_first_param.clone()
+                    assign_clone_call := build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col)
+                    mut assign_transformed_params := Vec.new(Expr)
+                    assign_transformed_params.push(assign_clone_call)
+                    mut assign_i := 1
+                    while assign_i.lt(assign_new_params.len()) {
+                        assign_param := cast(Expr, assign_new_params.get_by_ref(assign_i)?)
+                        catch (err: IndexOutOfBoundsError) {
+                            throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
                         }
-                        return Expr.new_explicit(e.node_type, assign_transformed_params, e.line, e.col)
+                        assign_transformed_params.push(assign_param)
+                        assign_i = assign_i.add(1)
                     }
+                    return Expr.new_explicit(e.node_type, assign_transformed_params, e.line, e.col)
                 case:
                     // Not a TCustom type
                 }
@@ -455,28 +444,6 @@ build_clone_call_expr := func(type_name: Str, src_expr: Expr, line: I64, col: I6
     clone_call.params.push(type_clone_access)
     clone_call.params.push(src_expr)
     return clone_call
-}
-
-/// Check if a type should have delete() calls inserted.
-/// Excludes primitives: I64, U8, Type, Dynamic, Ptr. NOT Str (has heap data).
-/// Also excludes structs with no mutable fields (no heap data to free).
-is_deletable_type := func(type_name: Str, context: Context) returns Bool {
-    is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Type")).or(type_name.eq("Dynamic")).or(type_name.eq("Ptr"))
-    if is_primitive {
-        return false
-    }
-    mut struct_def := context.scope_stack.lookup_struct(type_name)?
-    mut has_mut_fields := false
-    for m: Declaration in struct_def.members {
-        if m.is_mut {
-            has_mut_fields = true
-        }
-    }
-    return has_mut_fields
-
-    catch (err: KeyNotFoundError) {
-        return false
-    }
 }
 
 /// Recursively check if any Identifier node in the expression tree matches var_name.
@@ -622,11 +589,9 @@ detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Cont
             catch (err: KeyNotFoundError) {
                 return false
             }
-            if is_deletable_type(type_name, context) {
-                out_var = var_name
-                out_type = type_name
-                return true
-            }
+            out_var = var_name
+            out_type = type_name
+            return true
         }
     case:
     }
@@ -766,12 +731,10 @@ transform_fcall_copy_params := proc(context: Context, e: Expr, mut new_params: V
             } else {
                 switch arg_def.value_type {
                 case ValueType.TCustom(type_name):
-                    if is_deletable_type(type_name, context) {
-                        arg_expr := param_expr.clone()
-                        clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
-                        new_params.set(param_idx, clone_call)?
-                        catch (err: IndexOutOfBoundsError) { }
-                    }
+                    arg_expr := param_expr.clone()
+                    clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
+                    new_params.set(param_idx, clone_call)?
+                    catch (err: IndexOutOfBoundsError) { }
                 case:
                 }
             }
@@ -1089,19 +1052,17 @@ transform_struct_literal_fields := proc(context: Context, e: Expr, mut new_param
                 // Check if field type is a non-primitive struct
                 switch field_decl.value_type {
                 case ValueType.TCustom(type_name):
-                    if is_deletable_type(type_name, context) {
-                        // Check if the NamedArg's value (params[0]) is an identifier
-                        if param.params.len().gt(0) {
-                            value_expr := param.get(0)?
-                            dont_delete(value_expr)
-                            if is_identifier_expr(value_expr) {
-                                arg_expr := value_expr.clone()
-                                clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
-                                param.params.set(0, clone_call)?
-                                catch (err: IndexOutOfBoundsError) { }
-                                new_params.set(param_idx, param)?
-                                catch (err: IndexOutOfBoundsError) { }
-                            }
+                    // Check if the NamedArg's value (params[0]) is an identifier
+                    if param.params.len().gt(0) {
+                        value_expr := param.get(0)?
+                        dont_delete(value_expr)
+                        if is_identifier_expr(value_expr) {
+                            arg_expr := value_expr.clone()
+                            clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
+                            param.params.set(0, clone_call)?
+                            catch (err: IndexOutOfBoundsError) { }
+                            new_params.set(param_idx, param)?
+                            catch (err: IndexOutOfBoundsError) { }
                         }
                     }
                 case:

@@ -71,18 +71,16 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             // Step 3: Collect delete candidates
             let mut candidates: Vec<(String, String)> = Vec::new();
 
-            // 3a: copy/own params with deletable types
+            // 3a: copy/own params
             for arg_def in &func_def.args {
                 if arg_def.is_copy || arg_def.is_own {
                     if let ValueType::TCustom(type_name) = &arg_def.value_type {
-                        if is_deletable_type(type_name, context) {
-                            candidates.push((arg_def.name.clone(), type_name.clone()));
-                        }
+                        candidates.push((arg_def.name.clone(), type_name.clone()));
                     }
                 }
             }
 
-            // 3b: Scan new_body for Declaration nodes with deletable types.
+            // 3b: Scan new_body for Declaration nodes.
             // Skip if function has any catch blocks: throws can skip declarations,
             // making unconditional deletes at function end unsafe.
             let has_any_catch = new_body.iter().any(|stmt| {
@@ -92,9 +90,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 for stmt in &new_body {
                     if let NodeType::Declaration(decl) = &stmt.node_type {
                         if let ValueType::TCustom(type_name) = &decl.value_type {
-                            if is_deletable_type(type_name, context) {
-                                candidates.push((decl.name.clone(), type_name.clone()));
-                            }
+                            candidates.push((decl.name.clone(), type_name.clone()));
                         }
                     }
                 }
@@ -232,22 +228,17 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             if decl.is_mut && !decl_new_params.is_empty() {
                 if let NodeType::Identifier(_) = &decl_new_params[0].node_type {
                     if let ValueType::TCustom(type_name) = &decl.value_type {
-                        // Exclude true primitive types - they don't need deep cloning
-                        // Note: Bool is NOT excluded because true/false are global constants
-                        // that would be corrupted if we just share offsets
-                        if is_deletable_type(type_name, context) {
-                            // Build clone call: Type.clone(rhs_expr)
-                            let decl_rhs_expr = decl_new_params[0].clone();
-                            let decl_clone_call = build_clone_call_expr(type_name, decl_rhs_expr, e.line, e.col);
-                            let mut decl_transformed_params = vec![decl_clone_call];
-                            decl_transformed_params.extend(decl_new_params.into_iter().skip(1));
-                            return Ok(Expr::new_explicit(
-                                e.node_type.clone(),
-                                decl_transformed_params,
-                                e.line,
-                                e.col,
-                            ));
-                        }
+                        // Build clone call: Type.clone(rhs_expr)
+                        let decl_rhs_expr = decl_new_params[0].clone();
+                        let decl_clone_call = build_clone_call_expr(type_name, decl_rhs_expr, e.line, e.col);
+                        let mut decl_transformed_params = vec![decl_clone_call];
+                        decl_transformed_params.extend(decl_new_params.into_iter().skip(1));
+                        return Ok(Expr::new_explicit(
+                            e.node_type.clone(),
+                            decl_transformed_params,
+                            e.line,
+                            e.col,
+                        ));
                     }
                 }
             }
@@ -283,19 +274,17 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         // Look up identifier's symbol type
                         if let Some(sym) = context.scope_stack.lookup_symbol(rhs_name) {
                             if let ValueType::TCustom(type_name) = &sym.value_type {
-                                if is_deletable_type(type_name, context) {
-                                    // Build clone call: Type.clone(rhs_expr)
-                                    let assign_rhs_expr = assign_new_params[0].clone();
-                                    let assign_clone_call = build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col);
-                                    let mut assign_transformed_params = vec![assign_clone_call];
-                                    assign_transformed_params.extend(assign_new_params.into_iter().skip(1));
-                                    return Ok(Expr::new_explicit(
-                                        e.node_type.clone(),
-                                        assign_transformed_params,
-                                        e.line,
-                                        e.col,
-                                    ));
-                                }
+                                // Build clone call: Type.clone(rhs_expr)
+                                let assign_rhs_expr = assign_new_params[0].clone();
+                                let assign_clone_call = build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col);
+                                let mut assign_transformed_params = vec![assign_clone_call];
+                                assign_transformed_params.extend(assign_new_params.into_iter().skip(1));
+                                return Ok(Expr::new_explicit(
+                                    e.node_type.clone(),
+                                    assign_transformed_params,
+                                    e.line,
+                                    e.col,
+                                ));
                             }
                         }
                     }
@@ -354,19 +343,6 @@ fn build_clone_call_expr(type_name: &str, src_expr: Expr, line: usize, col: usiz
         line,
         col,
     )
-}
-
-/// Check if a type should have delete() calls inserted.
-/// Excludes primitives: I64, U8, Type, Dynamic, Ptr. NOT Str (has heap data).
-/// Also excludes structs with no mutable fields (no heap data to free).
-fn is_deletable_type(type_name: &str, context: &Context) -> bool {
-    let is_primitive = matches!(type_name, "I64" | "U8" | "Type" | "Dynamic" | "Ptr");
-    if is_primitive { return false; }
-    if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
-        struct_def.members.iter().any(|m| m.is_mut)
-    } else {
-        false
-    }
 }
 
 /// Recursively check if any Identifier node in the expression tree matches var_name.
@@ -474,9 +450,7 @@ fn detect_shallow_copy_outparam(stmt: &Expr, local_types: &HashMap<String, Strin
         if param_expr.params.is_empty() {
             // Look up type in local_types
             if let Some(type_name) = local_types.get(var_name) {
-                if is_deletable_type(type_name, context) {
-                    return Ok(Some((var_name.clone(), type_name.clone())));
-                }
+                return Ok(Some((var_name.clone(), type_name.clone())));
             }
         }
     }
@@ -583,11 +557,9 @@ fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec
             continue;
         }
         if let ValueType::TCustom(type_name) = &arg_def.value_type {
-            if is_deletable_type(type_name, context) {
-                let arg_expr = new_params[param_idx].clone();
-                let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
-                new_params[param_idx] = clone_call;
-            }
+            let arg_expr = new_params[param_idx].clone();
+            let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
+            new_params[param_idx] = clone_call;
         }
     }
     Ok(())
@@ -806,11 +778,7 @@ fn transform_struct_literal_fields(context: &Context, e: &Expr, new_params: &mut
                 Some(decl) => decl,
                 None => continue,
             };
-            // Check if field type is a non-primitive struct
             if let ValueType::TCustom(type_name) = &field_decl.value_type {
-                if !is_deletable_type(type_name, context) {
-                    continue;
-                }
                 // Check if the NamedArg's value (params[0]) is an identifier
                 if !new_params[param_idx].params.is_empty() && is_identifier_expr(new_params[param_idx].get(0)?) {
                     let arg_expr = new_params[param_idx].get(0)?.clone();

@@ -305,7 +305,9 @@ fn til_func_name(name: &str) -> String {
 fn is_empty_error_struct(context: &Context, throw_type: &ValueType) -> bool {
     if let ValueType::TCustom(type_name) = throw_type {
         if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
-            return struct_def.members.is_empty();
+            // Check for no mutable (data) fields, not empty members list
+            // Preinit may add non-mut methods (delete, clone) to empty structs
+            return !struct_def.members.iter().any(|m| m.is_mut);
         }
     }
     false
@@ -3356,7 +3358,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     } else if !func_def.return_types.is_empty() {
         // Non-throwing functions with return type - add zero-initialized fallback
         let ret_type = til_type_to_c(&func_def.return_types[0])?;
-        output.push_str(&format!("    return ({}){{0}};\n", ret_type));
+        output.push_str(&format!("    return ({}){{}};\n", ret_type));
     }
 
     output.push_str("}\n\n");
@@ -3683,7 +3685,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                     output.push_str("    return 0;\n");
                 } else if !func_def.return_types.is_empty() {
                     let ret_type = til_type_to_c(&func_def.return_types[0])?;
-                    output.push_str(&format!("    return ({}){{0}};\n", ret_type));
+                    output.push_str(&format!("    return ({}){{}};\n", ret_type));
                 }
 
                 output.push_str("}\n\n");
@@ -5395,7 +5397,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     func_output.push_str("    return 0;\n");
                 } else if !func_def.return_types.is_empty() {
                     let ret_type = til_type_to_c(&func_def.return_types[0])?;
-                    func_output.push_str(&format!("    return ({}){{0}};\n", ret_type));
+                    func_output.push_str(&format!("    return ({}){{}};\n", ret_type));
                 }
                 func_output.push_str("}\n\n");
 
@@ -5784,7 +5786,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             }
             let c_type = til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
             // Issue #117: No const for struct/enum locals - garbager inserts Type.delete() calls
-            let is_struct_local = matches!(&decl.value_type, ValueType::TCustom(s) if s != "I64" && s != "U8" && s != "Type" && s != "Dynamic");
+            let is_struct_local = matches!(&decl.value_type, ValueType::TCustom(_));
             if !is_struct_local {
                 output.push_str("const ");
             }

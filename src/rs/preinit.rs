@@ -110,8 +110,12 @@ fn generate_delete_method(struct_name: &str, struct_def: &SStructDef, line: usiz
 fn generate_clone_method(struct_name: &str, struct_def: &SStructDef, line: usize, col: usize) -> MethodResult {
     // Build: clone := func(self: StructName) returns StructName { return StructName(field1 = self.field1.clone(), ...) }
 
+    // Use _self when no mut fields (body won't reference self)
+    let has_mut_fields = struct_def.members.iter().any(|m| m.is_mut);
+    let self_param_name = if has_mut_fields { "self" } else { "_self" };
+
     let self_decl = Declaration {
-        name: "self".to_string(),
+        name: self_param_name.to_string(),
         value_type: ValueType::TCustom(struct_name.to_string()),
         is_mut: false,
         is_copy: false,
@@ -300,12 +304,6 @@ fn collect_structs_needing_methods(
             if let NodeType::Declaration(decl) = &child.node_type {
                 if let Some(value_expr) = child.params.first() {
                     if let NodeType::StructDef(struct_def) = &value_expr.node_type {
-                        // Check if struct has any mutable fields
-                        let has_mut_fields = struct_def.members.iter().any(|m| m.is_mut);
-                        if !has_mut_fields {
-                            continue;
-                        }
-
                         // Check if delete/clone are already defined (in struct or namespace)
                         let has_delete_inline = struct_def.members.iter().any(|m| m.name == "delete")
                             || struct_def.default_values.contains_key("delete");
@@ -338,12 +336,6 @@ fn collect_structs_needing_methods(
 /// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
 /// Returns Some(namespace_block_expr) if the struct needs auto-generated methods, None otherwise.
 pub fn generate_struct_methods(struct_name: &str, struct_def: &SStructDef, line: usize, col: usize) -> Option<Expr> {
-    // Check if struct has any mutable fields
-    let has_mut_fields = struct_def.members.iter().any(|m| m.is_mut);
-    if !has_mut_fields {
-        return None;
-    }
-
     // Check if delete/clone are already defined inline
     let has_delete = struct_def.members.iter().any(|m| m.name == "delete")
         || struct_def.default_values.contains_key("delete");

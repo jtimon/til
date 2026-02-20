@@ -116,8 +116,21 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
 generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns MethodResult {
     // Build: clone := func(self: StructName) returns StructName { return StructName(field1 = self.field1.clone(), ...) }
 
+    // Use _self when no mut fields (body won't reference self)
+    mut has_mut_fields := false
+    for mf2: Declaration in struct_def.members {
+        if mf2.is_mut {
+            has_mut_fields = true
+        }
+    }
+
+    mut self_param_name := "_self"
+    if has_mut_fields {
+        self_param_name = "self"
+    }
+
     self_decl := Declaration(
-        name="self",
+        name=self_param_name,
         value_type=ValueType.TCustom(struct_name),
         is_mut=false,
         is_copy=false,
@@ -303,54 +316,43 @@ collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) retur
 
                     switch value_expr.node_type {
                     case NodeType.StructDef(struct_def):
-                        // Check if struct has any mutable fields
-                        mut has_mut_fields := false
-                        for mf: Declaration in struct_def.members {
-                            if mf.is_mut {
-                                has_mut_fields = true
-                            }
-                        }
-                        if not(has_mut_fields) {
-                            // continue - skip to next child
-                        } else {
-                            // Check if delete/clone are already defined (in struct or namespace)
-                            mut has_delete_inline := false
-                            for dm: Declaration in struct_def.members {
-                                if dm.name.eq("delete") {
-                                    has_delete_inline = true
-                                }
-                            }
-                            if struct_def.default_values.contains_key("delete") {
+                        // Check if delete/clone are already defined (in struct or namespace)
+                        mut has_delete_inline := false
+                        for dm: Declaration in struct_def.members {
+                            if dm.name.eq("delete") {
                                 has_delete_inline = true
                             }
-                            has_delete_namespace := namespace_methods.contains(format(decl.name, ".delete"))
-                            has_delete := has_delete_inline.or(has_delete_namespace)
+                        }
+                        if struct_def.default_values.contains_key("delete") {
+                            has_delete_inline = true
+                        }
+                        has_delete_namespace := namespace_methods.contains(format(decl.name, ".delete"))
+                        has_delete := has_delete_inline.or(has_delete_namespace)
 
-                            mut has_clone_inline := false
-                            for clm: Declaration in struct_def.members {
-                                if clm.name.eq("clone") {
-                                    has_clone_inline = true
-                                }
-                            }
-                            if struct_def.default_values.contains_key("clone") {
+                        mut has_clone_inline := false
+                        for clm: Declaration in struct_def.members {
+                            if clm.name.eq("clone") {
                                 has_clone_inline = true
                             }
-                            has_clone_namespace := namespace_methods.contains(format(decl.name, ".clone"))
-                            has_clone := has_clone_inline.or(has_clone_namespace)
+                        }
+                        if struct_def.default_values.contains_key("clone") {
+                            has_clone_inline = true
+                        }
+                        has_clone_namespace := namespace_methods.contains(format(decl.name, ".clone"))
+                        has_clone := has_clone_inline.or(has_clone_namespace)
 
-                            needs_delete := not(has_delete)
-                            needs_clone := not(has_clone)
+                        needs_delete := not(has_delete)
+                        needs_clone := not(has_clone)
 
-                            if needs_delete.or(needs_clone) {
-                                mut info := StructNeedingMethods()
-                                info.struct_name = decl.name.clone()
-                                info.struct_def = struct_def.clone()
-                                info.line = child.line
-                                info.col = child.col
-                                info.needs_delete = needs_delete
-                                info.needs_clone = needs_clone
-                                structs.push(info)
-                            }
+                        if needs_delete.or(needs_clone) {
+                            mut info := StructNeedingMethods()
+                            info.struct_name = decl.name.clone()
+                            info.struct_def = struct_def.clone()
+                            info.line = child.line
+                            info.col = child.col
+                            info.needs_delete = needs_delete
+                            info.needs_clone = needs_clone
+                            structs.push(info)
                         }
                     case:
                     }
@@ -373,17 +375,6 @@ StructMethodsResult := struct {
 /// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
 /// Returns StructMethodsResult with needs_methods=true and ns_block set if methods needed.
 generate_struct_methods := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns StructMethodsResult {
-    // Check if struct has any mutable fields
-    mut has_mut_fields := false
-    for member: Declaration in struct_def.members {
-        if member.is_mut {
-            has_mut_fields = true
-        }
-    }
-    if not(has_mut_fields) {
-        return StructMethodsResult()
-    }
-
     // Check if delete/clone are already defined inline
     mut has_delete := false
     mut has_clone := false

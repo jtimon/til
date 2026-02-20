@@ -4018,7 +4018,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
         ret_type := til_type_to_c(ret_type_vt)?
         output.push_str("    return (")
         output.push_str(ret_type)
-        output.push_str("){0};\n")
+        output.push_str("){};\n")
     }
 
     output.push_str("}\n\n")
@@ -4122,7 +4122,15 @@ is_empty_error_struct := func(context: Context, throw_type: ValueType) returns B
         catch (err: KeyNotFoundError) {
             return false
         }
-        return struct_def_opt.members.is_empty()
+        // Check for no mutable (data) fields, not empty members list
+        // Preinit may add non-mut methods (delete, clone) to empty structs
+        mut has_mut_field := false
+        for m: Declaration in struct_def_opt.members {
+            if m.is_mut {
+                has_mut_field = true
+            }
+        }
+        return not(has_mut_field)
     case:
         return false
     }
@@ -4405,7 +4413,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                     ret_type := til_type_to_c(ret_type_vt)?
                     output.push_str("    return (")
                     output.push_str(ret_type)
-                    output.push_str("){0};\n")
+                    output.push_str("){};\n")
                 }
 
                 output.push_str("}\n\n")
@@ -6430,7 +6438,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     ret_type := til_type_to_c(ret_type_vt)?
                     func_output.push_str("    return (")
                     func_output.push_str(ret_type)
-                    func_output.push_str("){0};\n")
+                    func_output.push_str("){};\n")
                 }
                 func_output.push_str("}\n\n")
 
@@ -6928,7 +6936,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 mut is_struct_local := false
                 switch decl.value_type {
                 case ValueType.TCustom(s):
-                    is_struct_local = not(s.eq("I64").or(s.eq("U8")).or(s.eq("Type")).or(s.eq("Dynamic")))
+                    is_struct_local = true
                 case:
                 }
                 if not(is_struct_local) {
