@@ -56,7 +56,7 @@ namespace:
     hash_key := func(self: HashMap, key_ptr: I64) returns I64 {
         mut h : I64 = 0
 
-        if self.keys.type_name.eq("Str") {
+        if self.keys._is_str_type() {
             // For Str keys, use the built-in Str.hash()
             mut s := ""
             memcpy(to_ptr(s), key_ptr, self.keys.ptr.elem_size)
@@ -88,7 +88,7 @@ namespace:
     /** Compare two keys for equality.
      *  For Str keys, uses Str.eq(). For others, uses memcmp. */
     keys_equal := func(self: HashMap, key_a_ptr: I64, key_b_ptr: I64) returns Bool {
-        if self.keys.type_name.eq("Str") {
+        if self.keys._is_str_type() {
             mut a := ""
             mut b := ""
             memcpy(to_ptr(a), key_a_ptr, self.keys.ptr.elem_size)

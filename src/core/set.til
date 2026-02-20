@@ -29,7 +29,7 @@ namespace:
         mut i := 0
         while i.lt(self._size) {
             mut elems_match := 0
-            if Str.eq(self.elements.type_name, "Str") {
+            if self.elements._is_str_type() {
                 // For Str elements, use Str.eq() to compare content
                 mut existing_elem := ""
                 existing_elem_ptr := self.elements.ptr.offset(i.mul(self.elements.ptr.elem_size))
@@ -64,7 +64,7 @@ namespace:
         mut i := 0
         while i.lt(self._size) {
             mut elems_match := 0
-            if Str.eq(self.elements.type_name, "Str") {
+            if self.elements._is_str_type() {
                 mut existing_elem := ""
                 existing_elem_ptr := self.elements.ptr.offset(i.mul(self.elements.ptr.elem_size))
                 existing_elem_ptr.copy_to_dynamic(existing_elem, self.elements.ptr.elem_size)
@@ -105,7 +105,7 @@ namespace:
         mut i := 0
         while i.lt(self._size) {
             mut elems_match := 0
-            if Str.eq(self.elements.type_name, "Str") {
+            if self.elements._is_str_type() {
                 mut existing_elem := ""
                 existing_elem_ptr := self.elements.ptr.offset(i.mul(self.elements.ptr.elem_size))
                 existing_elem_ptr.copy_to_dynamic(existing_elem, self.elements.ptr.elem_size)

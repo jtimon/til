@@ -1407,20 +1407,20 @@ namespace:
             throw format("extract_vec_contents: instance '", instance_name, "' not found")
         }
 
-        // Vec layout: type_name (Str), ptr (Ptr), _len (I64), cap (I64)
-        // Get sizes
-        str_size := ctx.get_type_size("Str")?
+        // Vec layout: ptr (Ptr), _len (I64), cap (I64)
         ptr_size := ctx.get_type_size("Ptr")?
 
-        // Read type_name (Str) - need to extract the string value
-        type_name_offset := vec_offset
-        type_name_str := EvalHeap.extract_str_at_offset(ctx, type_name_offset)?
-
-        // Read ptr.data (I64) - after type_name (no more type_size field)
-        ptr_offset := vec_offset.add(str_size)
+        // Read ptr.data (I64) - first field
+        ptr_offset := vec_offset
         ptr_data_ptr := g_heap.get(ptr_offset, 8)
         mut data_ptr := 0
         Ptr(data=ptr_data_ptr).dereference(I64, data_ptr)
+
+        // Read elem_type from Ptr (4th field at offset 24) -- C string pointer
+        elem_type_data := g_heap.get(ptr_offset.add(24), 8)
+        mut elem_type_ptr := 0
+        Ptr(data=elem_type_data).dereference(I64, elem_type_ptr)
+        type_name_str := EvalHeap.read_c_string(elem_type_ptr)
 
         // Read elem_size from Ptr (5th field at offset 32 within Ptr)
         elem_size_ptr := g_heap.get(ptr_offset.add(32), 8)
@@ -1527,6 +1527,27 @@ namespace:
             mut byte_val : U8 = 0
             Ptr(data=byte_ptr).dereference(U8, byte_val)
             result = concat(result, Str.from_byte(byte_val))
+        }
+        return result
+    }
+
+    /// Read a null-terminated C string from a heap address.
+    /// Used for reading elem_type (Ptr field) which stores a C string pointer.
+    read_c_string := func(addr: I64) returns Str {
+        if addr.eq(0) {
+            return ""
+        }
+        mut result := ""
+        mut offset := addr
+        while true {
+            byte_ptr := g_heap.get(offset, 1)
+            mut byte_val : U8 = 0
+            Ptr(data=byte_ptr).dereference(U8, byte_val)
+            if byte_val.to_i64().eq(0) {
+                return result
+            }
+            result = concat(result, Str.from_byte(byte_val))
+            offset = offset.add(1)
         }
         return result
     }

@@ -204,7 +204,7 @@ garbager.til need prefixed names (e.g., ~garbager_collect_decls~).
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Wasted memory, inconsistency, blocks clean ownership model
-:STATUS: Part 1 done, Part 2a+2b+2c done (Vec+Array fully cleaned), List remaining
+:STATUS: Part 1 done, Part 2a+2b+2c+2d done (Vec+Array fully cleaned), List remaining
 :RELATED: Bug #159 (shallow copies), Issue #151 (pointer syntax)
 :END:
 
@@ -212,7 +212,7 @@ Vec, Array, and List store ~type_name~ and ~type_size~ fields that duplicate
 the ~elem_type~ and ~elem_size~ already in their ~Ptr~ field.
 
 Affected containers:
-- ~Vec~ (vec.til:11-12): ~type_name: Str~, ~type_size: I64~ -- type_size DONE
+- ~Vec~ (vec.til): DONE (both removed, type info via Ptr.elem_type/elem_size)
 - ~Array~ (array.til:11-12): ~type_name: Str~, ~type_size: I64~ -- DONE (both removed, ptr migrated I64->Ptr)
 - ~Set~ (set.til:6-7): ~elem_type_name: Str~, ~elem_type_size: I64~ -- DONE
 - ~Map~ (map.til:39-42): 4 fields -- DONE (partial, see below)
@@ -365,8 +365,34 @@ runtime consumers. Removed type_name writing from ~insert_array_into_frame~
 in eval_heap (Rust + TIL). Array is now just ~{ptr: Ptr, _len: I64}~ (48 bytes,
 down from 80 bytes originally).
 
+**** Part 2d: Vec type_name removal (DONE)
+Removed ~type_name: Str~ from Vec struct (saves 56 bytes, Vec now just 56 bytes:
+~{ptr: Ptr, _len: I64, cap: I64}~). Unlike Array (where type_name was write-only),
+Vec's type_name was read at runtime by ~Vec.contains~, ~Vec.to_str~, ~Set~, ~Map~,
+and ~HashMap~ for Str-specific dispatch (~Str.eq(self.type_name, "Str")~).
+
+Replacement: added ~Vec._is_str_type()~ helper that compares ~Ptr.elem_type~
+(C string pointer) against "Str" using ~memcmp~ (4 bytes including null terminator).
+Constructors now set ~p.elem_type = type_str.c_string.data~ on a local Ptr (needed
+intermediate ~type_c := type_str.c_string~ to avoid chained field access on function
+return, which the interpreter doesn't support).
+
+Updated 6 call sites across set.til (3), map.til (1), hashmap.til (2) to use
+~_is_str_type()~ instead of reading ~type_name~.
+
+Updated codegen (ccodegen.rs + ccodegen.til): precomputed Vec emission no longer
+emits ~.type_name~ Str initializer. Sets elem_type as 4th field of Ptr in the
+initializer. Same for nested Vec emission (~emit_precomputed_nested_vec_static~).
+
+Updated eval_heap (eval_heap.rs + eval_heap.til): ~extract_vec_contents~ reads
+elem_type from Ptr offset 24 (C string pointer) via new ~read_c_string()~ helper
+(reads bytes until null terminator). Removed ~extract_str_from_bytes~ (no longer used).
+Nested Vec parsing in codegen also reads elem_type from Ptr offset 24 instead of
+extracting a Str struct.
+
+Updated introspections.til: removed ~VEC_HAS_TYPE_NAME~ test assertion.
+
 **** Part 2 remaining:
-- Vec type_name -- cannot remove yet, Set reads it at runtime for Str dispatch
 - List (needs investigation, heterogeneous)
 
 ** Bug #169: Get rid of memcmp

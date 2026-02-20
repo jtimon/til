@@ -8,7 +8,6 @@ import("core.ptr")
  * Replaces Array.new_dyn() for cases where you need to grow the array.
  */
 Vec := struct {
-    mut type_name : Str  = ""
     mut ptr       : Ptr  = Ptr()
     mut _len      : I64  = 0
     mut cap       : I64  = 0
@@ -28,11 +27,21 @@ namespace:
         return mul(self._len, self.ptr.elem_size)
     }
 
+    /** Check if this Vec's element type is Str (compares elem_type C string). */
+    _is_str_type := func(self: Vec) returns Bool {
+        if NULL.eq(self.ptr.elem_type) { return false }
+        str_ref := "Str"
+        str_ref_ptr := str_ref.c_string
+        return memcmp(self.ptr.elem_type, str_ref_ptr.data, 4).eq(0)
+    }
+
     /** Create new empty vec with specified element type. */
     new := proc(T: Type) returns Vec {
         mut vec := Vec()
-        vec.type_name = type_as_str(T)
+        type_str := type_as_str(T)
+        type_c := type_str.c_string
         mut p := Ptr()
+        p.elem_type = type_c.data
         p.elem_size = size_of(T)
         vec.ptr = p
         vec._len = 0
@@ -44,8 +53,9 @@ namespace:
      *  TODO: Remove this workaround once we can pass Dynamic params through nested calls. */
     new_from_type_info := proc(type_name: Str, type_size: I64) returns Vec {
         mut vec := Vec()
-        vec.type_name = type_name
+        type_c := type_name.c_string
         mut p := Ptr()
+        p.elem_type = type_c.data
         p.elem_size = type_size
         vec.ptr = p
         vec._len = 0
@@ -56,7 +66,7 @@ namespace:
     /** Internal: allocate a Ptr with Vec's type info for deep cloning support. */
     _alloc_ptr := proc(mut self: Vec, capacity: I64) returns Ptr {
         mut p := Ptr.new_by_size(capacity.mul(self.ptr.elem_size))
-        p.elem_type = self.type_name.c_string.data
+        p.elem_type = self.ptr.elem_type
         p.elem_size = self.ptr.elem_size
         return p
     }
@@ -65,8 +75,10 @@ namespace:
      *  Use when you know approximately how many elements you'll need. */
     with_capacity := proc(T: Type, capacity: I64) returns Vec {
         mut vec := Vec()
-        vec.type_name = type_as_str(T)
+        type_str := type_as_str(T)
+        type_c := type_str.c_string
         mut p := Ptr()
+        p.elem_type = type_c.data
         p.elem_size = size_of(T)
         vec.ptr = p
         vec._len = 0
@@ -83,9 +95,6 @@ namespace:
     /** Push element to end of vec. */
     push := proc(mut self: Vec, own value: Dynamic) {
         dont_delete(value)
-        // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
-        //     throw format(loc(), "Vec.push: value type mismatch")
-        // }
 
         // Grow if needed (handles cap=0 case with max(1, cap*2))
         if self._len.eq(self.cap) {
@@ -128,10 +137,6 @@ namespace:
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.set: index out of bounds"))
         }
 
-        // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
-        //     throw format(loc(), "Vec.set: value type mismatch")
-        // }
-
         mut dest := self.ptr.offset(index.mul(self.ptr.elem_size))
         dest.copy_from_dynamic(value, self.ptr.elem_size)
     }
@@ -165,8 +170,8 @@ namespace:
      *  For deep cloning, use clone_deep() once interpreter support is added. */
     clone := proc(self: Vec) returns Vec {
         mut cloned := Vec()
-        cloned.type_name = self.type_name.clone()
         mut p := Ptr()
+        p.elem_type = self.ptr.elem_type
         p.elem_size = self.ptr.elem_size
         cloned.ptr = p
         cloned._len = self._len
@@ -253,7 +258,7 @@ namespace:
         while i.lt(self._len) {
             src := self.ptr.offset(i.mul(self.ptr.elem_size))
             // Special case for Str: compare content, not struct bytes
-            if Str.eq(self.type_name, "Str") {
+            if self._is_str_type() {
                 mut existing := ""
                 src.copy_to_dynamic(existing, self.ptr.elem_size)
                 mut val_str := ""
@@ -342,7 +347,7 @@ namespace:
                 result = result.concat(", ")
             }
             // For Str elements, wrap in quotes
-            if Str.eq(self.type_name, "Str") {
+            if self._is_str_type() {
                 mut elem := ""
                 src := self.ptr.offset(i.mul(self.ptr.elem_size))
                 src.copy_to_dynamic(elem, self.ptr.elem_size)
@@ -367,8 +372,8 @@ namespace:
         }
         tail_len := self._len.sub(at)
         mut result := Vec()
-        result.type_name = self.type_name.clone()
         mut p := Ptr()
+        p.elem_type = self.ptr.elem_type
         p.elem_size = self.ptr.elem_size
         result.ptr = p
         result._len = tail_len

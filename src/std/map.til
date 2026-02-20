@@ -55,7 +55,7 @@ namespace:
      *  For Str keys, uses lexicographic comparison via Str.cmp().
      *  For other types, uses memcmp on raw bytes. */
     compare_keys := func(self: Map, key_a_ptr: I64, key_b_ptr: I64) returns I64 {
-        if Str.eq(self.keys.type_name, "Str") {
+        if self.keys._is_str_type() {
             // For Str keys, use Str.cmp() for proper lexicographic ordering
             mut a := ""
             mut b := ""

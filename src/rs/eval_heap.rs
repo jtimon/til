@@ -1153,20 +1153,21 @@ impl EvalHeap {
         let vec_offset = ctx.scope_stack.lookup_var(instance_name)
             .ok_or_else(|| format!("extract_vec_contents: instance '{}' not found", instance_name))?;
 
-        // Vec layout: type_name (Str), ptr (Ptr), _len (I64), cap (I64)
-        // Get sizes
-        let str_size = ctx.get_type_size("Str")?;
+        // Vec layout: ptr (Ptr), _len (I64), cap (I64)
         let ptr_size = ctx.get_type_size("Ptr")?;
 
-        // Read type_name (Str) - need to extract the string value
-        let type_name_offset = vec_offset;
-        let type_name_str = Self::extract_str_at_offset(ctx, type_name_offset)?;
-
-        // Read ptr.data (I64) - after type_name (no more type_size field)
-        let ptr_offset = vec_offset + str_size;
+        // Read ptr.data (I64) - first field
+        let ptr_offset = vec_offset;
         let ptr_bytes: [u8; 8] = EvalHeap::g().get(ptr_offset, 8).try_into()
             .map_err(|_| "extract_vec_contents: failed to read ptr")?;
         let data_ptr = i64::from_ne_bytes(ptr_bytes) as usize;
+
+        // Read elem_type from Ptr (4th field at offset 24 within Ptr) — C string pointer
+        let elem_type_offset = ptr_offset + 24;
+        let elem_type_bytes: [u8; 8] = EvalHeap::g().get(elem_type_offset, 8).try_into()
+            .map_err(|_| "extract_vec_contents: failed to read elem_type")?;
+        let elem_type_ptr = i64::from_ne_bytes(elem_type_bytes) as usize;
+        let type_name_str = Self::read_c_string(elem_type_ptr);
 
         // Read elem_size from Ptr (5th field at offset 32 within Ptr)
         let elem_size_offset = ptr_offset + 32;
@@ -1195,28 +1196,22 @@ impl EvalHeap {
         })
     }
 
-    /// Extract string data from Str raw bytes.
-    /// Used for nested types where we have the Str struct bytes directly.
-    pub fn extract_str_from_bytes(ctx: &Context, str_bytes: &[u8]) -> Result<String, String> {
-        let ptr_size = ctx.get_type_size("Ptr")?;
 
-        // Read c_string.data (first 8 bytes)
-        let c_string_ptr_bytes: [u8; 8] = str_bytes[..8].try_into()
-            .map_err(|_| "extract_str_from_bytes: failed to read c_string ptr")?;
-        let c_string_ptr = i64::from_ne_bytes(c_string_ptr_bytes) as usize;
-
-        // Read _len (I64) - after c_string Ptr
-        let len_bytes: [u8; 8] = str_bytes[ptr_size..ptr_size+8].try_into()
-            .map_err(|_| "extract_str_from_bytes: failed to read _len")?;
-        let len = i64::from_ne_bytes(len_bytes) as usize;
-
-        // Read the actual string bytes from heap
-        if c_string_ptr == 0 || len == 0 {
-            return Ok(String::new());
+    /// Read a null-terminated C string from a heap address.
+    /// Used for reading elem_type (Ptr field) which stores a C string pointer.
+    pub fn read_c_string(addr: usize) -> String {
+        if addr == 0 {
+            return String::new();
         }
-        let string_bytes = EvalHeap::g().get(c_string_ptr, len);
-        String::from_utf8(string_bytes.to_vec())
-            .map_err(|_| "extract_str_from_bytes: invalid UTF-8 in string".to_string())
+        let mut bytes = Vec::new();
+        let mut offset = addr;
+        loop {
+            let byte = EvalHeap::g().get(offset, 1)[0];
+            if byte == 0 { break; }
+            bytes.push(byte);
+            offset += 1;
+        }
+        String::from_utf8(bytes).unwrap_or_default()
     }
 
     /// Extract string data from a Str at a given offset.
