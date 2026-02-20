@@ -2,6 +2,7 @@ mode lib
 
 import("core.bounds")
 import("core.mem")
+import("core.ptr")
 
 /**
  * Array - Fixed-size array.
@@ -9,8 +10,7 @@ import("core.mem")
  */
 Array := struct {
     mut type_name : Str  = ""
-    mut type_size : I64  = 0
-    mut ptr       : I64  = 0
+    mut ptr       : Ptr  = Ptr()
     mut _len      : I64  = 0
 
 namespace:
@@ -21,19 +21,24 @@ namespace:
 
     /** Get total size in bytes. */
     size := func(self: Array) returns I64 {
-        return mul(self._len, self.type_size)
+        return mul(self._len, self.ptr.elem_size)
     }
 
     /** Create new array with specified element type and capacity. */
     new := proc(T: Type, capacity: I64) returns Array {
         mut arr := Array()
         arr.type_name = type_as_str(T)
-        arr.type_size = size_of(T)
-        size_bytes := mul(capacity, arr.type_size)
-        arr.ptr = malloc(size_bytes)?
+        size_bytes := mul(capacity, size_of(T))
+        // Use malloc directly (not Ptr.new_by_size) to avoid circular dependency:
+        // panic -> Array.new (variadic args) -> Ptr.new_by_size -> panic
+        mut p := Ptr()
+        p.data = malloc(size_bytes)?
         catch (err: BadAlloc) { panic(loc(), "Array.new: malloc failed") }
+        p.alloc_size = size_bytes
+        p.elem_size = size_of(T)
         zero : U8 = 0
-        memset(arr.ptr, zero, size_bytes)
+        memset(p.data, zero, size_bytes)
+        arr.ptr = p
         arr._len = capacity
         return arr
     }
@@ -43,10 +48,7 @@ namespace:
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Array.get_by_ref: index out of bounds"))
         }
-        mut p := Ptr()
-        p.data = add(self.ptr, mul(index, self.type_size))
-        p.is_borrowed = 1
-        return p
+        return self.ptr.offset(mul(index, self.ptr.elem_size))
     }
 
     /** Set element at index. */
@@ -60,14 +62,15 @@ namespace:
         //     throw format(loc(), "Array.set: value type mismatch")
         // }
 
-        mut dest := add(self.ptr, mul(index, self.type_size))
-        memcpy(dest, to_ptr(value), self.type_size)
+        mut dest := self.ptr.offset(mul(index, self.ptr.elem_size))
+        dest.copy_from_dynamic(value, self.ptr.elem_size)
     }
 
     /** Free array memory. */
     delete := proc(mut self: Array) {
-        free(self.ptr)
-        self.ptr = 0
+        if not(self.ptr.is_null()) {
+            self.ptr.delete()
+        }
         self._len = 0
     }
 
@@ -75,12 +78,16 @@ namespace:
     clone := func(self: Array) returns Array {
         mut cloned := Array()
         cloned.type_name = self.type_name
-        cloned.type_size = self.type_size
         cloned._len = self._len
-        mut total_bytes := mul(self._len, self.type_size)
-        cloned.ptr = malloc(total_bytes)?
+        mut total_bytes := mul(self._len, self.ptr.elem_size)
+        // Use malloc directly (not Ptr.new_by_size) to avoid circular dependency
+        mut p := Ptr()
+        p.data = malloc(total_bytes)?
         catch (err: BadAlloc) { panic(loc(), "Array.clone: malloc failed") }
-        memcpy(cloned.ptr, self.ptr, total_bytes)
+        p.alloc_size = total_bytes
+        p.elem_size = self.ptr.elem_size
+        memcpy(p.data, self.ptr.data, total_bytes)
+        cloned.ptr = p
         return cloned
     }
 

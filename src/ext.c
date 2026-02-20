@@ -377,7 +377,7 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
     size_t cmd_len = 0;
 
     for (til_I64 i = 0; i < args->_len; i++) {
-        til_Str* arg = (til_Str*)((char*)args->ptr + i * sizeof(til_Str));
+        til_Str* arg = (til_Str*)((char*)args->ptr.data + i * sizeof(til_Str));
         if (i > 0) {
             if (cmd_len < sizeof(cmd_buf) - 1) {
                 cmd_buf[cmd_len++] = ' ';

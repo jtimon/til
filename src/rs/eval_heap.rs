@@ -1031,7 +1031,6 @@ impl EvalHeap {
 
         // Calculate relative offsets for each field
         let mut type_name_rel_offset = 0usize;
-        let mut type_size_rel_offset = 0usize;
         let mut ptr_rel_offset = 0usize;
         let mut len_rel_offset = 0usize;
         let mut current_offset = 0usize;
@@ -1043,7 +1042,6 @@ impl EvalHeap {
                 };
                 match &decl.name[..] {
                     "type_name" => type_name_rel_offset = current_offset,
-                    "type_size" => type_size_rel_offset = current_offset,
                     "ptr" => ptr_rel_offset = current_offset,
                     "_len" => len_rel_offset = current_offset,
                     _ => {}
@@ -1053,14 +1051,16 @@ impl EvalHeap {
         }
 
         // Update Array fields using calculated offsets
+        // ptr is now a Ptr struct (40 bytes): data, is_borrowed, alloc_size, elem_type, elem_size
         let ptr_offset = base_offset + ptr_rel_offset;
-        EvalHeap::g().set(ptr_offset, &(ptr as i64).to_ne_bytes())?;
+        EvalHeap::g().set(ptr_offset, &(ptr as i64).to_ne_bytes())?;          // data
+        EvalHeap::g().set(ptr_offset + 8, &0i64.to_ne_bytes())?;              // is_borrowed = 0
+        EvalHeap::g().set(ptr_offset + 16, &(total_size as i64).to_ne_bytes())?; // alloc_size
+        EvalHeap::g().set(ptr_offset + 24, &0i64.to_ne_bytes())?;             // elem_type = NULL
+        EvalHeap::g().set(ptr_offset + 32, &(elem_size as i64).to_ne_bytes())?; // elem_size
 
         let len_offset = base_offset + len_rel_offset;
         EvalHeap::g().set(len_offset, &len.to_ne_bytes())?;
-
-        let type_size_offset = base_offset + type_size_rel_offset;
-        EvalHeap::g().set(type_size_offset, &(elem_size as i64).to_ne_bytes())?;
 
         // Set type_name field (it's a Str)
         let temp_type_name_id = format!("{}_type_name_temp", name);

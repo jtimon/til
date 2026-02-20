@@ -1269,7 +1269,6 @@ namespace:
 
         // Calculate relative offsets for each field
         mut type_name_rel_offset := 0
-        mut type_size_rel_offset := 0
         mut ptr_rel_offset := 0
         mut len_rel_offset := 0
         mut current_field_offset := 0
@@ -1284,8 +1283,6 @@ namespace:
                 }
                 if Str.eq(decl.name, "type_name") {
                     type_name_rel_offset = current_field_offset
-                } else if Str.eq(decl.name, "type_size") {
-                    type_size_rel_offset = current_field_offset
                 } else if Str.eq(decl.name, "ptr") {
                     ptr_rel_offset = current_field_offset
                 } else if Str.eq(decl.name, "_len") {
@@ -1296,17 +1293,22 @@ namespace:
         }
 
         // Update Array fields using calculated offsets
+        // ptr is now a Ptr struct (40 bytes): data, is_borrowed, alloc_size, elem_type, elem_size
         ptr_offset := add(base_offset, ptr_rel_offset)
         mut ptr_val := ptr
-        g_heap.set(ptr_offset, to_ptr(ptr_val), 8)
+        g_heap.set(ptr_offset, to_ptr(ptr_val), 8)                           // data
+        mut is_borrowed_val := 0
+        g_heap.set(add(ptr_offset, 8), to_ptr(is_borrowed_val), 8)           // is_borrowed = 0
+        mut alloc_size_val := total_size
+        g_heap.set(add(ptr_offset, 16), to_ptr(alloc_size_val), 8)           // alloc_size
+        mut elem_type_val := 0
+        g_heap.set(add(ptr_offset, 24), to_ptr(elem_type_val), 8)            // elem_type = NULL
+        mut elem_size_val := elem_size
+        g_heap.set(add(ptr_offset, 32), to_ptr(elem_size_val), 8)            // elem_size
 
         len_offset := add(base_offset, len_rel_offset)
         mut len_val := len
         g_heap.set(len_offset, to_ptr(len_val), 8)
-
-        type_size_offset := add(base_offset, type_size_rel_offset)
-        mut elem_size_val := elem_size
-        g_heap.set(type_size_offset, to_ptr(elem_size_val), 8)
 
         // Set type_name field (it's a Str)
         temp_type_name_id := format(name, "_type_name_temp")

@@ -204,7 +204,7 @@ garbager.til need prefixed names (e.g., ~garbager_collect_decls~).
 :PROPERTIES:
 :DISCOVERED: 2026-02-10
 :IMPACT: Wasted memory, inconsistency, blocks clean ownership model
-:STATUS: Part 1 done, Part 2a done (Vec.type_size removed), Part 2b+ remaining
+:STATUS: Part 1 done, Part 2a+2b done (Vec+Array type_size removed), List remaining
 :RELATED: Bug #159 (shallow copies), Issue #151 (pointer syntax)
 :END:
 
@@ -213,7 +213,7 @@ the ~elem_type~ and ~elem_size~ already in their ~Ptr~ field.
 
 Affected containers:
 - ~Vec~ (vec.til:11-12): ~type_name: Str~, ~type_size: I64~ -- type_size DONE
-- ~Array~ (array.til:11-12): ~type_name: Str~, ~type_size: I64~
+- ~Array~ (array.til:11-12): ~type_name: Str~, ~type_size: I64~ -- type_size DONE, ptr migrated I64->Ptr
 - ~Set~ (set.til:6-7): ~elem_type_name: Str~, ~elem_type_size: I64~ -- DONE
 - ~Map~ (map.til:39-42): 4 fields -- DONE (partial, see below)
 - ~HashMap~ (hashmap.til:27-30): 4 fields
@@ -229,8 +229,8 @@ them through their Ptr (or Vec's Ptr) instead. E.g. ~self.keys.ptr.elem_size~
 instead of ~self.key_type_size~. May need a helper to convert elem_type
 (raw C string pointer) back to Str for cases that need it.
 
-Array is a special case -- it uses ~mut ptr: I64~ (raw integer) instead of
-~Ptr~. It should be migrated to use ~Ptr~ as well.
+Array was a special case -- it used ~mut ptr: I64~ (raw integer) instead of
+~Ptr~. Migrated to ~Ptr~ in Part 2b.
 
 Future direction: containers like Map, HashMap, Set, List, and Arena currently
 use Vec internally but could use Ptr directly instead. They'd manage their own
@@ -343,9 +343,20 @@ Committed at 8d28723c. Future: Arena's type is always U8, so it could
 potentially use raw memory operations (malloc/realloc/memcpy) directly
 instead of going through Ptr abstractions.
 
+**** Part 2b: Array type_size removal + ptr I64->Ptr migration (DONE)
+Removed ~type_size: I64~ from Array struct and migrated ~ptr~ from raw ~I64~
+to ~Ptr~ struct. All methods now use ~self.ptr.elem_size~ and Ptr operations
+(offset, copy_from_dynamic, delete) instead of raw pointer arithmetic.
+
+~Array.new~ and ~clone~ use ~malloc~ directly (not ~Ptr.new_by_size~) to avoid
+circular dependency: ~panic~ uses variadic args -> ~Array.new~ -> ~Ptr.new_by_size~
+-> ~panic~ (infinite recursion).
+
+Updated ~insert_array_into_frame~ in eval_heap (Rust + TIL) to write full Ptr
+struct (5 fields at known offsets) instead of a single I64.
+Updated ~src/ext.c~ (~args->ptr~ -> ~args->ptr.data~).
+
 **** Part 2 remaining:
-- Array -- remove type_name/type_size, migrate ptr from I64 to Ptr.
-  Update eval_heap.rs + eval_heap.til for new Array layout.
 - List (needs investigation, heterogeneous)
 
 ** Bug #169: Get rid of memcmp
