@@ -2,7 +2,7 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-02-14
 
-* bugs.org (12 bugs/issues)
+* bugs.org (11 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                      |
 |-----+------------------------------------------------------------------+-----------------------------|
@@ -13,7 +13,6 @@
 | 152 | Migrate doc/todo files to numbered issue system                  | Documentation cleanup       |
 | 133 | Precomputed heap values have invalid pointers at runtime         | Partial fix (nested broken) |
 | 130 | Unify type resolution with type checking into single pass        | Architecture                |
-| 114 | ScopeStack lookup functions leak memory by copying ScopeFrame    | Mostly fixed (Map.get left) |
 | 113 | Self-hosted interpreter fails with "symbol 'msg' not found"      | Interpreter broken          |
 |  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality                |
 |  94 | gcc warnings cause bug47.til compilation failure (blocked by #99 5c) | Build issue              |
