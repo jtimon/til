@@ -534,6 +534,8 @@ fn value_type_func_proc(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -
                 Some(ValueType::TCustom(type_str)) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
                 // Issue #105: Allow struct as a return type for first-class structs
                 Some(ValueType::TType(TTypeDef::TStructDef)) => Ok(ValueType::TType(TTypeDef::TStructDef)),
+                // Issue #106: Allow enum as a return type for first-class enums
+                Some(ValueType::TType(TTypeDef::TEnumDef)) => Ok(ValueType::TType(TTypeDef::TEnumDef)),
                 Some(other) => Err(e.error(path, "init", &format!("func '{}' returns unsupported type {}", name, value_type_to_str(other)))),
                 None => Err(e.lang_error(path, "init", &format!("func '{}' has inconsistent return type info", name))),
             }
@@ -1294,13 +1296,13 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                 },
 
                 ValueType::TType(TTypeDef::TEnumDef) => {
-                    if inner_e.params.len() != 0 {
-                        errors.push(e.exit_error("init", &format!("while declaring {}: enum declarations don't have any parameters in the tree.",
-                                                                  decl.name)));
-                        return Ok(errors)
-                    }
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
+                            if inner_e.params.len() != 0 {
+                                errors.push(e.exit_error("init", &format!("while declaring {}: enum declarations don't have any parameters in the tree.",
+                                                                          decl.name)));
+                                return Ok(errors)
+                            }
                             context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                             context.scope_stack.declare_enum(decl.name.to_string(), enum_def.clone());
 
@@ -1313,6 +1315,11 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                     context.scope_stack.declare_func(full_name, func_def.clone());
                                 }
                             }
+                        },
+                        NodeType::FCall(_) => {
+                            // Issue #106: First-class enum - macro/function returning an enum definition
+                            // Enum registration deferred to precomp after macro expansion
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                         },
                         _ => {
                             errors.push(e.lang_error(&context.path, "init", "enums should have definitions."));
@@ -1500,6 +1507,8 @@ pub struct Context {
     pub precomputed_heap_values: Vec<PrecomputedHeapValue>,
     // Issue #105: Counter for anonymous struct definitions (first-class structs)
     pub anon_struct_counter: usize,
+    // Issue #106: Counter for anonymous enum definitions (first-class enums)
+    pub anon_enum_counter: usize,
 }
 
 impl Context {
@@ -1533,6 +1542,8 @@ impl Context {
             precomputed_heap_values: Vec::new(),
             // Issue #105: Initialize anonymous struct counter
             anon_struct_counter: 0,
+            // Issue #106: Initialize anonymous enum counter
+            anon_enum_counter: 0,
         });
     }
 

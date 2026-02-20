@@ -223,7 +223,7 @@ fn generate_clone_method(struct_name: &str, struct_def: &SStructDef, line: usize
 /// Generate a delete() method for an enum - no-op since enums are value types.
 fn generate_enum_delete_method(enum_name: &str, line: usize, col: usize) -> Expr {
     let self_decl = Declaration {
-        name: "self".to_string(),
+        name: "_self".to_string(),
         value_type: ValueType::TCustom(enum_name.to_string()),
         is_mut: true,
         is_copy: false,
@@ -347,6 +347,56 @@ pub fn generate_struct_methods(struct_name: &str, struct_def: &SStructDef, line:
 
     if needs_delete || needs_clone {
         Some(generate_namespace_block(struct_name, struct_def, line, col, needs_delete, needs_clone))
+    } else {
+        None
+    }
+}
+
+/// Issue #106: Public API for generating delete/clone methods for a macro-expanded enum.
+/// Returns Some(namespace_block_expr) if the enum needs auto-generated methods, None otherwise.
+pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool, line: usize, col: usize) -> Option<Expr> {
+    let needs_delete = !has_delete;
+    let needs_clone = !has_clone;
+
+    if needs_delete || needs_clone {
+        let mut members = Vec::new();
+        let mut default_values = HashMap::new();
+
+        if needs_delete {
+            let delete_decl = Declaration {
+                name: "delete".to_string(),
+                value_type: ValueType::TFunction(FunctionType::FTProc),
+                is_mut: false,
+                is_copy: false,
+                is_own: false,
+                default_value: None,
+            };
+            let delete_expr = generate_enum_delete_method(enum_name, line, col);
+            members.push(delete_decl);
+            default_values.insert("delete".to_string(), delete_expr);
+        }
+
+        if needs_clone {
+            let clone_decl = Declaration {
+                name: "clone".to_string(),
+                value_type: ValueType::TFunction(FunctionType::FTFunc),
+                is_mut: false,
+                is_copy: false,
+                is_own: false,
+                default_value: None,
+            };
+            let clone_expr = generate_enum_clone_method(enum_name, line, col);
+            members.push(clone_decl);
+            default_values.insert("clone".to_string(), clone_expr);
+        }
+
+        let ns_def = SNamespaceDef {
+            type_name: enum_name.to_string(),
+            members,
+            default_values,
+        };
+
+        Some(Expr::new_explicit(NodeType::NamespaceDef(ns_def), vec![], line, col))
     } else {
         None
     }

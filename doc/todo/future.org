@@ -1215,7 +1215,7 @@ p.delete()
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
 :IMPACT: Language feature, anonymous data structures
-:STATUS: Open
+:STATUS: Partial
 :RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs)
 :END:
 
@@ -1227,5 +1227,42 @@ some_function(enum {A, B})
 #+END_SRC
 
 Similar in spirit to Issue #91 (first-class functions) but for enums.
+
+*** Progress (2026-02-20): Macro-returned enums with namespace support
+
+Implemented the same macro infrastructure that Issue #105 provides for structs,
+but for enums. Macro-returned enums now work with =namespace:= blocks and type
+parameter substitution in variant payload types.
+
+**** What works
+- =macro(T: Type) returns enum { ... }= syntax
+- Named enum pattern inside macro body (=TemplatedOption := enum { ... }=)
+- Internal-to-external name substitution (=TemplatedOption= -> =I64Option=)
+- Type substitution in variant payload types (=Some: T= -> =Some: I64=)
+- Pattern substitution in switch-case (=case TemplatedOption.Some(val):= -> =case I64Option.Some(val):=)
+- =namespace:= methods on macro-returned enums
+- Auto-generated delete/clone methods
+- Anonymous enum registration with =__anon_enum_N= temp names
+- Global frame enum registration (survives macro function scope pops)
+- =returns enum= in parser for macro return types
+
+**** Test case: typed_option.til
+Generic Option type (like Rust's =Option<T>=):
+#+BEGIN_SRC til
+import("std.typed_option")
+I64Option := make_option(I64)
+opt := I64Option.Some(42)
+test(loc(), opt.is_some(), "is_some")
+#+END_SRC
+
+**** Files changed
+- src/rs/interpreter.rs, src/rs/init.rs, src/rs/parser.rs, src/rs/precomp.rs, src/rs/preinit.rs
+- src/self/interpreter.til, src/self/init.til, src/self/parser.til, src/self/precomp.til, src/self/preinit.til
+- src/std/typed_option.til (new), src/test/macros.til
+
+**** What remains
+- Anonymous enum as inline arguments: =some_function(enum {A, B})=
+- Multiple type parameters in enum macros
+- Enum macros with complex payload types (structs, nested enums)
 
 

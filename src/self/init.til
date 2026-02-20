@@ -554,6 +554,17 @@ namespace:
         }
     }
 
+    // Issue #106: Register enum in global frame (survives function scope pops)
+    declare_enum_global := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws Str {
+        if self.frames.len().gt(0) {
+            mut global_frame := cast(ScopeFrame, self.frames.get_by_ref(0)?)
+            global_frame.enums.set(name, enum_def)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+    }
+
     get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec {
         // Collect all keys from all scopes that start with the given prefix
         mut keys := Vec.new(Str)
@@ -778,6 +789,10 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
             return return_type.clone()
         // Issue #105: Allow struct as a return type for first-class structs
         case ValueType.TType(TTypeDef.TStructDef):
+            // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+            return return_type.clone()
+        // Issue #106: Allow enum as a return type for first-class enums
+        case ValueType.TType(TTypeDef.TEnumDef):
             // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
             return return_type.clone()
         case:
@@ -1743,12 +1758,12 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
 
         case ValueType.TType(TTypeDef.TEnumDef):
-            if not(inner_e.params.len().eq(0)) {
-                errors.push(e.lang_error(context.path, "init", format("while declaring ", decl.name, ": enum declarations don't have any parameters in the tree.")))
-                return errors
-            }
             switch inner_e.node_type {
             case NodeType.EnumDef(enum_def):
+                if not(inner_e.params.len().eq(0)) {
+                    errors.push(e.lang_error(context.path, "init", format("while declaring ", decl.name, ": enum declarations don't have any parameters in the tree.")))
+                    return errors
+                }
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                 context.scope_stack.declare_enum(decl.name, enum_def.clone())?
 
@@ -1771,6 +1786,9 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                     }
                     catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
                 }
+            case NodeType.FCall(_):
+                // Issue #106: First-class enum - deferred to precomp after macro expansion
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
             case:
                 errors.push(e.lang_error(context.path, "init", "enums should have definitions."))
                 return errors
@@ -1989,6 +2007,8 @@ Context := struct {
     mut precomputed_heap_values: Vec = Vec.new(PrecomputedHeapValue)
     # Issue #105: Counter for anonymous struct definitions (first-class structs)
     mut anon_struct_counter: I64 = 0
+    // Issue #106: Counter for anonymous enum definitions (first-class enums)
+    mut anon_enum_counter: I64 = 0
 
 namespace:
     # Context methods (insert/get/copy methods moved to EvalHeap in interpreter.til)

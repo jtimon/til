@@ -488,7 +488,16 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         },
         // Definition types are handled during registration, not evaluation
         NodeType::FuncDef(_) => Ok(EvalResult::new("")),
-        NodeType::EnumDef(_) => Ok(EvalResult::new("")),
+        NodeType::EnumDef(enum_def) => {
+            // Issue #106: First-class enums - register as anonymous enum and return the name
+            // Register in global frame so it survives function scope pops (e.g. macro returns)
+            let temp_name = format!("__anon_enum_{}", context.anon_enum_counter);
+            context.anon_enum_counter += 1;
+            if let Some(global_frame) = context.scope_stack.frames.first_mut() {
+                global_frame.enums.insert(temp_name.clone(), enum_def.clone());
+            }
+            Ok(EvalResult::new(&temp_name))
+        },
         NodeType::StructDef(struct_def) => {
             // Issue #105: First-class structs - register as anonymous struct and return the name
             // Register in global frame so it survives function scope pops (e.g. macro returns)
@@ -969,6 +978,10 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
                     context.scope_stack.declare_enum(declaration.name.clone(), enum_def.clone());
+                    // Issue #106: Also register in global frame so enum survives macro function scope pops
+                    if let Some(global_frame) = context.scope_stack.frames.first_mut() {
+                        global_frame.enums.entry(declaration.name.to_string()).or_insert_with(|| enum_def.clone());
+                    }
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
                     return Ok(EvalResult::new(""));
                 },
@@ -1543,10 +1556,10 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                 return Ok(EvalResult::new(name));
             },
             ValueType::TType(TTypeDef::TEnumDef) => {
-                // let enum_def = match context.scope_stack.lookup_enum(name) {
-                //     Some(def) => def,
-                //     None => return Err(e.lang_error(&context.path, "eval", &format!("Enum '{}' not found in context", name))),
-                // };
+                // Issue #106: bare enum name reference (e.g., `return TemplatedOption` in a macro)
+                if e.params.is_empty() {
+                    return Ok(EvalResult::new(name));
+                }
                 let inner_e = e.get(0)?;
                 match &inner_e.node_type {
                     NodeType::Identifier(inner_name) => {

@@ -214,7 +214,7 @@ generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I6
 /// Generate a delete() method for an enum - no-op since enums are value types.
 generate_enum_delete_method := func(enum_name: Str, line: I64, col: I64) returns Expr {
     self_decl := Declaration(
-        name="self",
+        name="_self",
         value_type=ValueType.TCustom(enum_name),
         is_mut=true,
         is_copy=false,
@@ -267,6 +267,58 @@ generate_enum_clone_method := func(enum_name: Str, line: I64, col: I64) returns 
     )
 
     return Expr.new_explicit(NodeType.FuncDef(func_def), Vec.new(Expr), line, col)
+}
+
+/// Issue #106: Generate delete/clone methods for a macro-expanded enum.
+/// Returns StructMethodsResult with needs_methods=true and ns_block set if methods needed.
+generate_enum_methods := func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: Bool, line: I64, col: I64) returns StructMethodsResult {
+    needs_delete := not(ns_has_delete)
+    needs_clone := not(ns_has_clone)
+
+    if needs_delete.or(needs_clone) {
+        mut members := Vec.new(Declaration)
+        mut default_values := Map.new(Str, Expr)
+
+        if needs_delete {
+            delete_decl := Declaration(
+                name="delete",
+                value_type=ValueType.TFunction(FunctionType.FTProc),
+                is_mut=false,
+                is_copy=false,
+                is_own=false,
+                default_value=Ptr()
+            )
+            delete_expr := generate_enum_delete_method(enum_name, line, col)
+            members.push(delete_decl)
+            default_values.set("delete", delete_expr)
+        }
+
+        if needs_clone {
+            clone_decl := Declaration(
+                name="clone",
+                value_type=ValueType.TFunction(FunctionType.FTFunc),
+                is_mut=false,
+                is_copy=false,
+                is_own=false,
+                default_value=Ptr()
+            )
+            clone_expr := generate_enum_clone_method(enum_name, line, col)
+            members.push(clone_decl)
+            default_values.set("clone", clone_expr)
+        }
+
+        ns_def := SNamespaceDef(
+            type_name=enum_name,
+            members=members,
+            default_values=default_values
+        )
+
+        mut result := StructMethodsResult()
+        result.needs_methods = true
+        result.ns_block = Expr.new_explicit(NodeType.NamespaceDef(ns_def), Vec.new(Expr), line, col)
+        return result
+    }
+    return StructMethodsResult()
 }
 
 /// Collect all methods defined in namespace blocks.

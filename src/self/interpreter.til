@@ -429,6 +429,13 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         context.anon_struct_counter.inc()
         context.scope_stack.declare_struct_global(temp_name, struct_def.clone())?
         return EvalResult.new(temp_name)
+    case NodeType.EnumDef(enum_def):
+        // Issue #106: First-class enums - register as anonymous enum and return the name
+        // Register in global frame so it survives function scope pops (e.g. macro returns)
+        enum_temp_name := format("__anon_enum_", I64.to_str(context.anon_enum_counter))
+        context.anon_enum_counter.inc()
+        context.scope_stack.declare_enum_global(enum_temp_name, enum_def.clone())?
+        return EvalResult.new(enum_temp_name)
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }
@@ -1078,6 +1085,8 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         switch inner_e.node_type {
         case NodeType.EnumDef(enum_def):
             context.scope_stack.declare_enum(declaration.name, enum_def.clone())?
+            // Issue #106: Also register in global frame so enum survives macro function scope pops
+            context.scope_stack.declare_enum_global(declaration.name, enum_def.clone())?
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             return EvalResult.new("")
         case:
@@ -1613,6 +1622,10 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
     case ValueType.TFunction(FunctionType.FTMacro):
         return EvalResult.new(name)
     case ValueType.TType(TTypeDef.TEnumDef):
+        // Issue #106: bare enum name reference (e.g., `return TemplatedOption` in a macro)
+        if e.params.len().eq(0) {
+            return EvalResult.new(name)
+        }
         inner_e := e.get(0)?
         switch inner_e.node_type {
         case NodeType.Identifier(inner_name):

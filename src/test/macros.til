@@ -177,3 +177,23 @@ test_i64_vec3()
 test_u8_vec3()
 test_typed_ptr_basic()
 test_typed_ptr_array()
+
+// Issue #106: Macro with namespace - typed_option template (enum)
+import("std.typed_option")
+
+I64Option := make_option(I64)
+
+test_option_none := proc() {
+    opt := I64Option.None
+    test(loc(), opt.is_none(), "None is_none")
+    test(loc(), opt.is_some().not(), "None not is_some")
+}
+
+test_option_some := proc() {
+    opt := I64Option.Some(42)
+    test(loc(), opt.is_some(), "Some is_some")
+    test(loc(), opt.is_none().not(), "Some not is_none")
+}
+
+test_option_none()
+test_option_some()

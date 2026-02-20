@@ -1,0 +1,37 @@
+mode lib
+
+make_option := macro(T: Type) returns enum {
+    TemplatedOption := enum {
+        None,
+        Some: T
+
+    namespace:
+        is_some := func(self: TemplatedOption) returns Bool {
+            switch self {
+            case TemplatedOption.None:
+                return false
+            case:
+                return true
+            }
+        }
+
+        is_none := func(self: TemplatedOption) returns Bool {
+            switch self {
+            case TemplatedOption.None:
+                return true
+            case:
+                return false
+            }
+        }
+
+        unwrap := proc(self: TemplatedOption) returns T throws Str {
+            switch self {
+            case TemplatedOption.Some(val):
+                return val
+            case:
+                throw "unwrap called on None"
+            }
+        }
+    }
+    return TemplatedOption
+}

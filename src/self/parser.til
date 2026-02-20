@@ -912,6 +912,15 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
             expect_comma = true
             lexer.advance(1)?
             t = lexer.peek()?
+        // Issue #106: Allow 'enum' as a return type for first-class enums
+        case TokenType.Enum:
+            if expect_comma {
+                throw t.error(lexer.path, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
+            }
+            return_types.push(str_to_value_type("enum"))
+            expect_comma = true
+            lexer.advance(1)?
+            t = lexer.peek()?
         case:
             throw t.error(lexer.path, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc returns."))
         }

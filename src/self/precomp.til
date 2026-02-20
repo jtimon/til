@@ -62,6 +62,35 @@ substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
             funcdef_new_params.push(substitute_type_params_in_expr(p, subs))
         }
         return Expr.new_clone(NodeType.FuncDef(new_func_def), e, funcdef_new_params)
+    // Issue #106: Substitute type params in enum variant payload types
+    case NodeType.EnumDef(enum_def):
+        new_enum := substitute_type_params_in_enum(enum_def, subs)
+        mut enumdef_new_params := Vec.new(Expr)
+        for p: Expr in e.params {
+            enumdef_new_params.push(substitute_type_params_in_expr(p, subs))
+        }
+        return Expr.new_clone(NodeType.EnumDef(new_enum), e, enumdef_new_params)
+    // Issue #106: Substitute type params in switch-case pattern variant names
+    case NodeType.Pattern(pattern_info):
+        mut new_variant_name := pattern_info.variant_name.clone()
+        // Pattern variant_name format is "EnumType.Variant" - substitute the enum type prefix
+        dot_pos := pattern_info.variant_name.find(".")
+        if dot_pos.gteq(0) {
+            enum_prefix := pattern_info.variant_name.get_substr(0, dot_pos)?
+            catch (_err: IndexOutOfBoundsError) {
+                panic(loc(), "substitute_type_params_in_expr: get_substr failed on pattern variant_name")
+            }
+            prefix_sub := cast(Str, subs.get_by_ref(enum_prefix)?)
+            variant_suffix := pattern_info.variant_name.get_substr(dot_pos, pattern_info.variant_name.len())?
+            catch (_err2: IndexOutOfBoundsError) {
+                panic(loc(), "substitute_type_params_in_expr: get_substr failed on pattern variant_name suffix")
+            }
+            new_variant_name = format(prefix_sub, variant_suffix)
+            catch (_err: KeyNotFoundError) {
+                // Expected: enum prefix not in subs
+            }
+        }
+        return Expr.new_clone(NodeType.Pattern(PatternInfo(variant_name=new_variant_name, binding_var=pattern_info.binding_var.clone())), e, Vec.new(Expr))
     case:
         mut default_new_params := Vec.new(Expr)
         for p: Expr in e.params {
@@ -170,13 +199,45 @@ substitute_type_params_in_struct := func(struct_def: SStructDef, subs: Map) retu
     return SStructDef(members=new_members, default_values=new_defaults)
 }
 
+/// Issue #106: Apply type param substitution to an enum definition's variant payload types.
+substitute_type_params_in_enum := func(enum_def: SEnumDef, subs: Map) returns SEnumDef {
+    mut new_variants := Vec.new(EnumVariant)
+    for v: EnumVariant in enum_def.variants {
+        if not(v.payload_type.is_null()) {
+            // Read the ValueType from the Ptr
+            mut pt := ValueType.TCustom("")
+            memcpy(to_ptr(pt), v.payload_type.data, size_of(ValueType))
+            switch pt {
+            case ValueType.TCustom(type_name):
+                sub_val := cast(Str, subs.get_by_ref(type_name)?)
+                // Build new variant with substituted payload type
+                mut new_payload := ValueType.TCustom(sub_val)
+                mut new_variant := EnumVariant()
+                new_variant.name = v.name.clone()
+                new_variant.payload_type.data = malloc(size_of(ValueType))?
+                catch (err: BadAlloc) { panic(loc(), "substitute_type_params_in_enum: malloc failed") }
+                memcpy(new_variant.payload_type.data, to_ptr(new_payload), size_of(ValueType))
+                new_variants.push(new_variant)
+                catch (_err: KeyNotFoundError) {
+                    new_variants.push(v.clone())
+                }
+            case:
+                new_variants.push(v.clone())
+            }
+        } else {
+            new_variants.push(v.clone())
+        }
+    }
+    return SEnumDef(variants=new_variants, methods=enum_def.methods.clone())
+}
+
 /// Extract namespace stmts from a macro's body AST.
-/// Scans for Return nodes or Declaration nodes containing a StructDef with params (namespace stmts).
+/// Scans for Return nodes or Declaration nodes containing a StructDef or EnumDef with params (namespace stmts).
 /// Returns the first matching set of namespace params (simple macros only).
 extract_namespace_stmts_from_macro := func(func_def: SFuncDef) returns Vec {
     mut result := Vec.new(Expr)
     for stmt: Expr in func_def.body {
-        // Pattern 1: return struct { ... namespace: ... }
+        // Pattern 1: return struct/enum { ... namespace: ... }
         switch stmt.node_type {
         case NodeType.Return:
             if stmt.params.len().gt(0) {
@@ -184,20 +245,24 @@ extract_namespace_stmts_from_macro := func(func_def: SFuncDef) returns Vec {
                 catch (_err: IndexOutOfBoundsError) {
                     panic(loc(), "extract_namespace_stmts_from_macro: IndexOutOfBoundsError after len check")
                 }
+                mut ret_is_type_def := false
                 switch ret_val.node_type {
                 case NodeType.StructDef(_):
-                    if ret_val.params.len().gt(0) {
-                        for p: Expr in ret_val.params {
-                            result.push(p.clone())
-                        }
-                        return result
-                    }
+                    ret_is_type_def = true
+                case NodeType.EnumDef(_):
+                    ret_is_type_def = true
                 case:
+                }
+                if ret_is_type_def.and(ret_val.params.len().gt(0)) {
+                    for p: Expr in ret_val.params {
+                        result.push(p.clone())
+                    }
+                    return result
                 }
             }
         case:
         }
-        // Pattern 2: TemplatedPtr := struct { ... namespace: ... }
+        // Pattern 2: TemplatedPtr/TemplatedOption := struct/enum { ... namespace: ... }
         switch stmt.node_type {
         case NodeType.Declaration(_):
             if stmt.params.len().gt(0) {
@@ -205,15 +270,19 @@ extract_namespace_stmts_from_macro := func(func_def: SFuncDef) returns Vec {
                 catch (_err: IndexOutOfBoundsError) {
                     panic(loc(), "extract_namespace_stmts_from_macro: IndexOutOfBoundsError after len check")
                 }
+                mut val_is_type_def := false
                 switch val.node_type {
                 case NodeType.StructDef(_):
-                    if val.params.len().gt(0) {
-                        for p: Expr in val.params {
-                            result.push(p.clone())
-                        }
-                        return result
-                    }
+                    val_is_type_def = true
+                case NodeType.EnumDef(_):
+                    val_is_type_def = true
                 case:
+                }
+                if val_is_type_def.and(val.params.len().gt(0)) {
+                    for p: Expr in val.params {
+                        result.push(p.clone())
+                    }
+                    return result
                 }
             }
         case:
@@ -222,21 +291,28 @@ extract_namespace_stmts_from_macro := func(func_def: SFuncDef) returns Vec {
     return result
 }
 
-/// Extract the internal struct name from a macro body (e.g., "TemplatedPtr" from
-/// `TemplatedPtr := struct { ... }`). Returns empty string for anonymous structs (`return struct { ... }`).
-extract_internal_struct_name := func(func_def: SFuncDef) returns Str {
+/// Extract the internal type name from a macro body (e.g., "TemplatedPtr" from
+/// `TemplatedPtr := struct { ... }` or "TemplatedOption" from `TemplatedOption := enum { ... }`).
+/// Returns empty string for anonymous types (`return struct/enum { ... }`).
+extract_internal_type_name := func(func_def: SFuncDef) returns Str {
     for stmt: Expr in func_def.body {
         switch stmt.node_type {
         case NodeType.Declaration(inner_decl):
             if stmt.params.len().gt(0) {
                 val := cast(Expr, stmt.params.get_by_ref(0)?)
                 catch (_err: IndexOutOfBoundsError) {
-                    panic(loc(), "extract_internal_struct_name: IndexOutOfBoundsError after len check")
+                    panic(loc(), "extract_internal_type_name: IndexOutOfBoundsError after len check")
                 }
+                mut is_type_def := false
                 switch val.node_type {
                 case NodeType.StructDef(_):
-                    return inner_decl.name
+                    is_type_def = true
+                case NodeType.EnumDef(_):
+                    is_type_def = true
                 case:
+                }
+                if is_type_def {
+                    return inner_decl.name
                 }
             }
         case:
@@ -278,16 +354,23 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                     if found_func {
                         if func_def.is_macro() {
                             if func_def.return_types.len().gt(0) {
-                                ret_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
+                                // Extract all data from func_def before mutable borrows
+                                macro_return_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
                                 catch (_err: IndexOutOfBoundsError) {
                                     panic(loc(), "IndexOutOfBoundsError getting return type after len check")
                                 }
-                                switch ret_type {
+                                type_subs := build_type_param_subs(func_def, inner_e)?
+                                macro_ns_stmts := extract_namespace_stmts_from_macro(func_def)
+                                macro_internal_name := extract_internal_type_name(func_def)
+
+                                // Check for struct-returning macro
+                                mut is_struct_macro := false
+                                switch macro_return_type {
                                 case ValueType.TType(TTypeDef.TStructDef):
-                                    // Extract data from func_def before mutable borrows
-                                    type_subs := build_type_param_subs(func_def, inner_e)?
-                                    macro_ns_stmts := extract_namespace_stmts_from_macro(func_def)
-                                    macro_internal_name := extract_internal_struct_name(func_def)
+                                    is_struct_macro = true
+                                case:
+                                }
+                                if is_struct_macro {
                                     // Expand the macro (mutably borrows context)
                                     expanded := eval_comptime(context, inner_e)?
                                     switch expanded.node_type {
@@ -449,7 +532,126 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                         handled = true
                                     case:
                                     }
+                                }
+                                // Issue #106: Check if macro returns an enum definition
+                                mut is_enum_macro := false
+                                switch macro_return_type {
+                                case ValueType.TType(TTypeDef.TEnumDef):
+                                    is_enum_macro = true
                                 case:
+                                }
+                                if is_enum_macro.and(not(handled)) {
+                                    // Expand the macro
+                                    enum_expanded := eval_comptime(context, inner_e)?
+                                    switch enum_expanded.node_type {
+                                    case NodeType.EnumDef(enum_def):
+                                        // Substitute type params in variant payload types
+                                        mut enum_substituted := enum_def.clone()
+                                        if type_subs.keys.len().gt(0) {
+                                            enum_substituted = substitute_type_params_in_enum(enum_def, type_subs)
+                                        }
+                                        // Clear preinit-generated methods (they reference the internal name)
+                                        // They'll be regenerated with the correct external name below
+                                        enum_substituted.methods = Map.new(Str, Expr)
+                                        enum_resolved_expanded := Expr.new_clone(NodeType.EnumDef(enum_substituted.clone()), enum_expanded, Vec.new(Expr))
+                                        // Register the enum in context
+                                        context.scope_stack.declare_enum(decl.name, enum_substituted.clone())?
+                                        // Replace the FCall with the EnumDef in the AST
+                                        mut enum_expanded_params := Vec.new(Expr)
+                                        enum_expanded_params.push(enum_resolved_expanded)
+                                        enum_new_p := Expr.new_clone(p.node_type, p, enum_expanded_params)
+                                        new_params.push(enum_new_p)
+                                        // Check if macro namespace stmts already define delete/clone
+                                        mut enum_ns_has_delete := false
+                                        mut enum_ns_has_clone := false
+                                        for enum_ns_stmt: Expr in macro_ns_stmts {
+                                            switch enum_ns_stmt.node_type {
+                                            case NodeType.Declaration(enum_ns_stmt_decl):
+                                                if enum_ns_stmt_decl.name.eq("delete") {
+                                                    enum_ns_has_delete = true
+                                                }
+                                                if enum_ns_stmt_decl.name.eq("clone") {
+                                                    enum_ns_has_clone = true
+                                                }
+                                            case:
+                                            }
+                                        }
+                                        // Generate delete/clone methods if not provided by macro namespace
+                                        enum_methods_result := generate_enum_methods(decl.name, enum_ns_has_delete, enum_ns_has_clone, p.line, p.col)
+                                        if enum_methods_result.needs_methods {
+                                            mut enum_ns_body_params := Vec.new(Expr)
+                                            enum_ns_body_params.push(enum_methods_result.ns_block.clone())
+                                            enum_ns_body := Expr.new_clone(NodeType.Body, p, enum_ns_body_params)
+                                            _ := init_context(context, enum_ns_body)?
+                                            new_params.push(enum_methods_result.ns_block)
+                                        }
+                                        // Process namespace stmts extracted from macro body
+                                        if macro_ns_stmts.len().gt(0) {
+                                            mut enum_ns_subs := type_subs.clone()
+                                            if not(macro_internal_name.eq("")) {
+                                                enum_ns_subs.set(macro_internal_name, decl.name)
+                                            }
+                                            // Apply type substitution to namespace stmts
+                                            mut enum_substituted_stmts := Vec.new(Expr)
+                                            for enum_ns_s: Expr in macro_ns_stmts {
+                                                enum_substituted_stmts.push(substitute_type_params_in_expr(enum_ns_s, enum_ns_subs))
+                                            }
+                                            // Build NamespaceDef from substituted stmts
+                                            mut enum_ns_members := Vec.new(Declaration)
+                                            mut enum_ns_default_values := Map.new(Str, Expr)
+                                            for enum_sub_stmt: Expr in enum_substituted_stmts {
+                                                switch enum_sub_stmt.node_type {
+                                                case NodeType.Declaration(enum_ns_decl):
+                                                    enum_ns_members.push(enum_ns_decl.clone())
+                                                    if enum_sub_stmt.params.len().gt(0) {
+                                                        enum_ns_val := cast(Expr, enum_sub_stmt.params.get_by_ref(0)?)
+                                                        catch (_err: IndexOutOfBoundsError) {
+                                                            panic(loc(), "enum_sub_stmt.params.get_by_ref(0) after len check")
+                                                        }
+                                                        enum_ns_default_values.set(enum_ns_decl.name, enum_ns_val)
+                                                    }
+                                                case NodeType.Assignment(enum_assign_name):
+                                                    if enum_sub_stmt.params.len().gt(0) {
+                                                        enum_assign_ns_val := cast(Expr, enum_sub_stmt.params.get_by_ref(0)?)
+                                                        catch (_err: IndexOutOfBoundsError) {
+                                                            panic(loc(), "enum_sub_stmt.params.get_by_ref(0) after len check")
+                                                        }
+                                                        enum_ns_assign_decl := Declaration(name=enum_assign_name, value_type=ValueType.TCustom(INFER_TYPE), is_mut=false, is_copy=false, is_own=false)
+                                                        enum_ns_members.push(enum_ns_assign_decl)
+                                                        enum_ns_default_values.set(enum_assign_name, enum_assign_ns_val)
+                                                    }
+                                                case:
+                                                }
+                                            }
+                                            if enum_ns_members.len().gt(0) {
+                                                mut enum_user_ns_def := SNamespaceDef()
+                                                enum_user_ns_def.type_name = decl.name
+                                                enum_user_ns_def.members = enum_ns_members
+                                                enum_user_ns_def.default_values = enum_ns_default_values
+                                                enum_user_ns_expr := Expr.new_explicit(NodeType.NamespaceDef(enum_user_ns_def), Vec.new(Expr), p.line, p.col)
+                                                // Run init on the namespace to register methods
+                                                mut enum_user_ns_body_params := Vec.new(Expr)
+                                                enum_user_ns_body_params.push(enum_user_ns_expr.clone())
+                                                enum_user_ns_body := Expr.new_clone(NodeType.Body, p, enum_user_ns_body_params)
+                                                enum_user_ns_errors := init_context(context, enum_user_ns_body)?
+                                                if enum_user_ns_errors.len().gt(0) {
+                                                    mut enum_err_msg := ""
+                                                    for enum_user_err: Str in enum_user_ns_errors {
+                                                        if enum_err_msg.len().gt(0) {
+                                                            enum_err_msg = format(enum_err_msg, "\n", enum_user_err)
+                                                        } else {
+                                                            enum_err_msg = enum_user_err
+                                                        }
+                                                    }
+                                                    throw enum_err_msg
+                                                }
+                                                new_params.push(enum_user_ns_expr)
+                                            }
+                                        }
+                                        modified = true
+                                        handled = true
+                                    case:
+                                    }
                                 }
                             }
                         }
@@ -811,6 +1013,14 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
             throw e.error(context.path, "precomp", format("Macro returned struct type but definition '", struct_name, "' not found"))
         }
         return Expr.new_clone(NodeType.StructDef(sd.clone()), e, Vec.new(Expr))
+    // Issue #106: First-class enums - macro returning an enum definition
+    case ValueType.TType(TTypeDef.TEnumDef):
+        enum_name := result.value
+        enum_def := context.scope_stack.lookup_enum(enum_name)?
+        return Expr.new_clone(NodeType.EnumDef(enum_def.clone()), e, Vec.new(Expr))
+        catch (_err: KeyNotFoundError) {
+            throw e.error(context.path, "precomp", format("Macro returned enum type but definition '", enum_name, "' not found"))
+        }
     case:
         // For other types, eval was done (errors caught), return original (no folding)
         return e.clone()
