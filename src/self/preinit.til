@@ -62,8 +62,7 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
     // Process fields in reverse order (like C++/Rust destructors)
     mut member_i := struct_def.members.len().sub(1)
     while member_i.gteq(0) {
-        member_ref := struct_def.members.get_by_ref(member_i)?
-        create_alias(member, Declaration, member_ref.data)
+        member := cast(Declaration, struct_def.members.get_by_ref(member_i)?)
         catch (err: IndexOutOfBoundsError) {
             panic(loc(), "members.get_by_ref: bounds-checked loop: ", err.msg)
         }
@@ -463,8 +462,7 @@ preinit_expr_inner := func(e: Expr) returns Expr throws Str {
         // Recurse into default values but DON'T add delete/clone here
         mut new_default_values := Map.new(Str, Expr)
         for sd_name: Str in struct_def.default_values.keys {
-            val_ref := struct_def.default_values.get_by_ref(sd_name)?
-            create_alias(sd_value_expr, Expr, val_ref.data)
+            sd_value_expr := cast(Expr, struct_def.default_values.get_by_ref(sd_name)?)
             new_default_values.set(sd_name.clone(), preinit_expr_inner(sd_value_expr)?)
         }
         catch (err: KeyNotFoundError) { panic(loc(), err.msg) }

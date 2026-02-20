@@ -58,18 +58,15 @@ test_list_get := proc() {
     list.push(Bool, false)?
 
     // Get I64 at index 0
-    val0_ref := list.get_by_ref(0)?
-    create_alias(val0, I64, val0_ref.data)
+    val0 := cast(I64, list.get_by_ref(0)?)
     test(loc(), val0.eq(100), "Value at index 0")
 
     // Get Str at index 1
-    val1_ref := list.get_by_ref(1)?
-    create_alias(val1, Str, val1_ref.data)
+    val1 := cast(Str, list.get_by_ref(1)?)
     test(loc(), val1.eq("world"), "Value at index 1")
 
     // Get Bool at index 2
-    val2_ref := list.get_by_ref(2)?
-    create_alias(val2, Bool, val2_ref.data)
+    val2 := cast(Bool, list.get_by_ref(2)?)
     test(loc(), val2.eq(false), "Value at index 2")
 
     catch (err: IndexOutOfBoundsError) {
@@ -98,8 +95,7 @@ test_list_set_same_size := proc() {
         exit(1)
     }
 
-    val_ref := list.get_by_ref(1)?
-    create_alias(val, I64, val_ref.data)
+    val := cast(I64, list.get_by_ref(1)?)
     test(loc(), val.eq(999), "Set and get index 1")
 
     catch (err: IndexOutOfBoundsError) {
@@ -129,13 +125,11 @@ test_list_set_different_size := proc() {
     }
 
     // Verify element at index 1 is now Str
-    val_ref := list.get_by_ref(1)?
-    create_alias(val, Str, val_ref.data)
+    val := cast(Str, list.get_by_ref(1)?)
     test(loc(), val.eq("replaced"), "Set different size at index 1")
 
     // Verify element at index 2 is still correct
-    val2_ref := list.get_by_ref(2)?
-    create_alias(val2, I64, val2_ref.data)
+    val2 := cast(I64, list.get_by_ref(2)?)
     test(loc(), val2.eq(3), "Element at index 2 after set")
 
     catch (err: IndexOutOfBoundsError) {
@@ -168,14 +162,12 @@ test_list_with_struct := proc() {
     assert_eq(loc(), 3, list.len())
 
     // Get Vec2 at index 0
-    result_ref := list.get_by_ref(0)?
-    create_alias(result, Vec2, result_ref.data)
+    result := cast(Vec2, list.get_by_ref(0)?)
     test(loc(), result.x.eq(10), "Vec2.x at index 0")
     test(loc(), result.y.eq(20), "Vec2.y at index 0")
 
     // Get I64 at index 1
-    num_ref := list.get_by_ref(1)?
-    create_alias(num, I64, num_ref.data)
+    num := cast(I64, list.get_by_ref(1)?)
     test(loc(), num.eq(42), "I64 at index 1")
 
     catch (err: IndexOutOfBoundsError) {
@@ -215,8 +207,7 @@ test_list_out_of_bounds := proc() {
 
     list.push(I64, 10)?
 
-    val_ref := list.get_by_ref(5)?
-    create_alias(val, I64, val_ref.data)
+    _val := cast(I64, list.get_by_ref(5)?)
     panic(loc(), "Expected IndexOutOfBoundsError")
 
     catch (err: IndexOutOfBoundsError) {
@@ -244,12 +235,10 @@ test_list_multiple_pushes := proc() {
     test(loc(), list.len().eq(10), "List holds 10 elements")
 
     // Verify values are correct
-    val0_ref := list.get_by_ref(0)?
-    create_alias(val0, I64, val0_ref.data)
+    val0 := cast(I64, list.get_by_ref(0)?)
     test(loc(), val0.eq(0), "First element")
 
-    val9_ref := list.get_by_ref(9)?
-    create_alias(val9, I64, val9_ref.data)
+    val9 := cast(I64, list.get_by_ref(9)?)
     test(loc(), val9.eq(9), "Last element")
 
     catch (err: IndexOutOfBoundsError) {
@@ -277,14 +266,12 @@ test_nested_lists := proc() {
     assert_eq(loc(), 2, outer.len())
 
     // Get the nested list (zero-copy reference into outer's data buffer)
-    inner_ref := outer.get_by_ref(0)?
-    create_alias(retrieved_inner, List, inner_ref.data)
+    retrieved_inner := cast(List, outer.get_by_ref(0)?)
 
     test(loc(), retrieved_inner.len().eq(2), "Nested list length")
 
     // Get value from nested list
-    nested_val_ref := retrieved_inner.get_by_ref(0)?
-    create_alias(nested_val, I64, nested_val_ref.data)
+    nested_val := cast(I64, retrieved_inner.get_by_ref(0)?)
     test(loc(), nested_val.eq(1), "Value from nested list")
 
     catch (err: IndexOutOfBoundsError) {

@@ -293,11 +293,9 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
 find_enum_for_variant := func(context: Context, variant_name: Str) returns Str throws Str {
     mut found_type := ""
     for frame_i in context.scope_stack.frames.len().sub(1)..sub(0, 1) {
-        frame_ref := context.scope_stack.frames.get_by_ref(frame_i)?
-        create_alias(frame, ScopeFrame, frame_ref.data)
+        frame := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(frame_i)?)
         for enum_name: Str in frame.enums.keys {
-            enum_def_ref := frame.enums.get_by_ref(enum_name)?
-            create_alias(enum_def, SEnumDef, enum_def_ref.data)
+            enum_def := cast(SEnumDef, frame.enums.get_by_ref(enum_name)?)
             // TODO Bug #176: UFCS workaround for create_alias
             if SEnumDef.contains_key(enum_def, variant_name) {
                 if found_type.len().eq(0) {
@@ -617,10 +615,8 @@ build_case_condition := proc(
         if case_pattern.params.len().lt(2) {
             throw "desugar: Range case requires start and end values"
         }
-        low_ref := case_pattern.params.get_by_ref(0)?
-        create_alias(low, Expr, low_ref.data)
-        high_ref := case_pattern.params.get_by_ref(1)?
-        create_alias(high, Expr, high_ref.data)
+        low := cast(Expr, case_pattern.params.get_by_ref(0)?)
+        high := cast(Expr, case_pattern.params.get_by_ref(1)?)
 
         // Build: gteq(_switch_val, low)
         mut gteq_args := Vec.new(Expr)
@@ -942,10 +938,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     mut i := 1
     while i.add(1).lt(e.params.len()) {
-        case_pattern_ref := e.params.get_by_ref(i)?
-        create_alias(case_pattern, Expr, case_pattern_ref.data)
-        case_body_ref := e.params.get_by_ref(i.add(1))?
-        create_alias(case_body, Expr, case_body_ref.data)
+        case_pattern := cast(Expr, e.params.get_by_ref(i)?)
+        case_body := cast(Expr, e.params.get_by_ref(i.add(1))?)
 
         // If the case pattern has a payload binding, declare it in scope before desugaring body
         // This allows nested switches in the body to see the payload variable's type
@@ -1018,8 +1012,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut has_nested_pattern := false
     mut case_idx := 0
     while case_idx.lt(cases.len()) {
-        check_case_pattern_ref := cases.get_by_ref(case_idx)?
-        create_alias(check_case_pattern, Expr, check_case_pattern_ref.data)
+        check_case_pattern := cast(Expr, cases.get_by_ref(case_idx)?)
         switch check_case_pattern.node_type {
         case NodeType.FCall(_):
             check_info := get_case_variant_info(check_case_pattern)?
@@ -1065,10 +1058,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         mut nested_case_index := 0
         while nested_case_index.lt(total_cases) {
-            nested_case_pattern_ref := cases.get_by_ref(nested_case_index.mul(2))?
-            create_alias(nested_case_pattern, Expr, nested_case_pattern_ref.data)
-            nested_case_body_ref := cases.get_by_ref(nested_case_index.mul(2).add(1))?
-            create_alias(nested_case_body, Expr, nested_case_body_ref.data)
+            nested_case_pattern := cast(Expr, cases.get_by_ref(nested_case_index.mul(2))?)
+            nested_case_body := cast(Expr, cases.get_by_ref(nested_case_index.mul(2).add(1))?)
 
             mut nested_condition := Expr()
             mut nested_body_prefix := Vec.new(Expr)
@@ -1213,10 +1204,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         rev_case_index.dec()
         rev_ci := rev_case_index
 
-        rev_case_pattern_ref := cases.get_by_ref(rev_ci.mul(2))?
-        create_alias(rev_case_pattern, Expr, rev_case_pattern_ref.data)
-        rev_case_body_ref := cases.get_by_ref(rev_ci.mul(2).add(1))?
-        create_alias(rev_case_body, Expr, rev_case_body_ref.data)
+        rev_case_pattern := cast(Expr, cases.get_by_ref(rev_ci.mul(2))?)
+        rev_case_body := cast(Expr, cases.get_by_ref(rev_ci.mul(2).add(1))?)
 
         mut rev_condition := Expr()
         mut rev_body_prefix := Vec.new(Expr)
@@ -1317,8 +1306,7 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
         if is_enum {
             // Build proper enum constructor: EnumType.FirstVariant or EnumType.FirstVariant(payload)
             if enum_def.variants.len().gt(0) {
-                first_v_ref := enum_def.variants.get_by_ref(0)?
-                create_alias(first_v, EnumVariant, first_v_ref.data)
+                first_v := cast(EnumVariant, enum_def.variants.get_by_ref(0)?)
                 first_variant := first_v.name
                 payload_type_ptr := first_v.payload_type
                 catch (err: IndexOutOfBoundsError) {
@@ -1566,10 +1554,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut new_default_values := Map.new(Str, Expr)
         mut struct_i := 0
         while struct_i.lt(struct_def.default_values.keys.len()) {
-            name_ref := struct_def.default_values.keys.get_by_ref(struct_i)?
-            create_alias(name, Str, name_ref.data)
-            val_ref := struct_def.default_values.get_by_ref(name)?
-            create_alias(value_expr, Expr, val_ref.data)
+            name := cast(Str, struct_def.default_values.keys.get_by_ref(struct_i)?)
+            value_expr := cast(Expr, struct_def.default_values.get_by_ref(name)?)
             new_default_values.set(name, desugar_expr(context, value_expr)?)
             struct_i.inc()
         }
@@ -1583,10 +1569,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut ns_new_default_values := Map.new(Str, Expr)
         mut ns_i := 0
         while ns_i.lt(ns_def.default_values.keys.len()) {
-            ns_name_ref := ns_def.default_values.keys.get_by_ref(ns_i)?
-            create_alias(ns_name, Str, ns_name_ref.data)
-            ns_val_ref := ns_def.default_values.get_by_ref(ns_name)?
-            create_alias(ns_value_expr, Expr, ns_val_ref.data)
+            ns_name := cast(Str, ns_def.default_values.keys.get_by_ref(ns_i)?)
+            ns_value_expr := cast(Expr, ns_def.default_values.get_by_ref(ns_name)?)
             ns_new_default_values.set(ns_name, desugar_expr(context, ns_value_expr)?)
             ns_i.inc()
         }

@@ -106,8 +106,7 @@ namespace:
     /// Issue #163: Free a heap-allocated block
     heap_free := proc(mut self: EvalHeap, ptr: I64) {
         for i in 0..self._heap_bases.len() {
-            base_ref := self._heap_bases.get_by_ref(i)?
-            create_alias(base, I64, base_ref.data)
+            base := cast(I64, self._heap_bases.get_by_ref(i)?)
             // TODO Bug #176: UFCS workaround for create_alias
             if I64.eq(base, ptr) {
                 self._heap_bases.set(i, 0)?  // mark as freed
@@ -133,8 +132,7 @@ namespace:
             return false
         }
         parts := id.split(".")?
-        base_ref := parts.get_by_ref(0)?
-        create_alias(base, Str, base_ref.data)
+        base := cast(Str, parts.get_by_ref(0)?)
         mut sym := ctx.scope_stack.lookup_symbol(base)?
         switch sym.value_type {
         case ValueType.TType(inner):
@@ -350,14 +348,12 @@ namespace:
         // Store each field's default value
         for decl: Declaration in struct_def.members {
             if decl.is_mut {
-                field_offset_ref := field_offsets.get_by_ref(decl.name)?
-                create_alias(field_offset, I64, field_offset_ref.data)
+                field_offset := cast(I64, field_offsets.get_by_ref(decl.name)?)
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Missing field offset for '", decl.name, "'"))
                 }
 
-                defval_ref := defaults.get_by_ref(decl.name)?
-                create_alias(default_value, Str, defval_ref.data)
+                default_value := cast(Str, defaults.get_by_ref(decl.name)?)
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Missing pre-evaluated default for field '", decl.name, "'"))
                 }
@@ -377,21 +373,18 @@ namespace:
                         if not(parts.len().eq(2)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
-                        part0_ref := parts.get_by_ref(0)?
-                        create_alias(part0, Str, part0_ref.data)
+                        part0 := cast(Str, parts.get_by_ref(0)?)
                         // TODO Bug #176: UFCS workaround for create_alias
                         if not(Str.eq(part0, type_name)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
-                        variant_ref := parts.get_by_ref(1)?
-                        create_alias(variant, Str, variant_ref.data)
+                        variant := cast(Str, parts.get_by_ref(1)?)
                         // Find variant index - Bug #38 fix: use variants Vec
                         mut index : I64 = 0
                         mut found_variant := false
                         mut vi := 0
                         while vi.lt(enum_def.variants.len()) {
-                            ev_ref := enum_def.variants.get_by_ref(vi)?
-                            create_alias(ev, EnumVariant, ev_ref.data)
+                            ev := cast(EnumVariant, enum_def.variants.get_by_ref(vi)?)
                             // TODO Bug #176: UFCS workaround for create_alias
                             if Str.eq(ev.name, variant) {
                                 index = vi
@@ -448,8 +441,7 @@ namespace:
                                     for dk: Str in default_keys {
                                         if dk.starts_with(prefix) {
                                             rest := dk.strip_prefix(prefix)
-                                            dv_ref := defaults.get_by_ref(dk)?
-                                            create_alias(dv, Str, dv_ref.data)
+                                            dv := cast(Str, defaults.get_by_ref(dk)?)
                                             catch (err: KeyNotFoundError) {
                                                 panic(loc(), "insert_struct_core: key not found in defaults")
                                             }
@@ -541,8 +533,7 @@ namespace:
             if decl.is_mut {
                 mut field_rel_offset := 0
                 if field_offsets.contains_key(decl.name) {
-                    fro_ref := field_offsets.get_by_ref(decl.name)?
-                    create_alias(fro, I64, fro_ref.data)
+                    fro := cast(I64, field_offsets.get_by_ref(decl.name)?)
                     field_rel_offset = fro
                 }
                 catch (err: KeyNotFoundError) {
@@ -745,8 +736,7 @@ namespace:
             return
         }
         // Create Str struct from template
-        di_ref := g_heap.default_instances.get_by_ref("Str")?
-        create_alias(template_offset, I64, di_ref.data)
+        template_offset := cast(I64, g_heap.default_instances.get_by_ref("Str")?)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string", "Str template not found - ensure str.til is imported")
         }
@@ -775,16 +765,14 @@ namespace:
         // because the interpreter never evaluated struct declarations. This is OK for
         // macros with Type parameters - the type name is only used in AST construction,
         // not read as a runtime Str value.
-        di_ref := g_heap.default_instances.get_by_ref("Str")?
-        create_alias(template_offset, I64, di_ref.data)
+        template_offset := cast(I64, g_heap.default_instances.get_by_ref("Str")?)
         catch (err: KeyNotFoundError) {
             return
         }
         EvalHeap.insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?
         // Bug #160: Calculate field offsets from base offset in frame
         // The base struct was just inserted into frame.heap_index
-        hi_ref := frame.heap_index.get_by_ref(id)?
-        create_alias(base_offset, I64, hi_ref.data)
+        base_offset := cast(I64, frame.heap_index.get_by_ref(id)?)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string_into_frame", format("missing '", id, "' in frame"))
         }
@@ -1092,8 +1080,7 @@ namespace:
         parts := pre_normalized_enum_name.split(".")?
         mut enum_name := ""
         if parts.len().gt(0) {
-            enum_name_ref := parts.get_by_ref(sub(parts.len(), 1))?
-            create_alias(enum_name_alias, Str, enum_name_ref.data)
+            enum_name_alias := cast(Str, parts.get_by_ref(sub(parts.len(), 1))?)
             enum_name = enum_name_alias
         }
         catch (err: IndexOutOfBoundsError) {
@@ -1137,8 +1124,7 @@ namespace:
                     payload_offset := add(offset, 8)
                     mut pi := 0
                     while pi.lt(payload_data.len()) {
-                        byte_val_ref := payload_data.get_by_ref(pi)?
-                        create_alias(byte_val, U8, byte_val_ref.data)
+                        byte_val := cast(U8, payload_data.get_by_ref(pi)?)
                         g_heap.set(add(payload_offset, pi), to_ptr(byte_val), 1)
                         pi = add(pi, 1)
                     }
@@ -1224,8 +1210,7 @@ namespace:
      *  Uses insert_struct_into_frame internally. */
     insert_array_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, name: Str, elem_type: Str, values: Vec, e: Expr) throws Str {
         // Create Array struct using template
-        di_ref := g_heap.default_instances.get_by_ref("Array")?
-        create_alias(template_offset, I64, di_ref.data)
+        template_offset := cast(I64, g_heap.default_instances.get_by_ref("Array")?)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "Array template not found - ensure array.til is imported")
         }
@@ -1242,8 +1227,7 @@ namespace:
         mut i := 0
         while i.lt(len) {
             offset := add(ptr, mul(i, elem_size))
-            val_ref := values.get_by_ref(i)?
-            create_alias(val, Str, val_ref.data)
+            val := cast(Str, values.get_by_ref(i)?)
 
             if Str.eq(elem_type, "U8") {
                 byte := U8.from_str(val)?
@@ -1259,8 +1243,7 @@ namespace:
 
                 EvalHeap.insert_string_into_frame(ctx, frame, temp_id, val, e)?
 
-                so_ref := frame.heap_index.get_by_ref(temp_id)?
-                create_alias(str_offset, I64, so_ref.data)
+                str_offset := cast(I64, frame.heap_index.get_by_ref(temp_id)?)
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("missing Str offset for '", temp_id, "'"))
                 }
@@ -1279,8 +1262,7 @@ namespace:
         }
 
         // Bug #160: Calculate field offsets from base offset in frame
-        bo_ref := frame.heap_index.get_by_ref(name)?
-        create_alias(base_offset, I64, bo_ref.data)
+        base_offset := cast(I64, frame.heap_index.get_by_ref(name)?)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", format("missing base offset for '", name, "'"))
         }
@@ -1337,8 +1319,7 @@ namespace:
 
         EvalHeap.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)?
 
-        tso_ref := frame.heap_index.get_by_ref(temp_type_name_id)?
-        create_alias(temp_str_offset, I64, tso_ref.data)
+        temp_str_offset := cast(I64, frame.heap_index.get_by_ref(temp_type_name_id)?)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", "missing type_name temp Str offset")
         }
@@ -1534,8 +1515,7 @@ namespace:
         mut multiplier := 1
         for i in 0..8 {
             if i.lt(str_bytes.len()) {
-                b_ref := str_bytes.get_by_ref(i)?
-                create_alias(b, U8, b_ref.data)
+                b := cast(U8, str_bytes.get_by_ref(i)?)
                 // TODO Bug #176: UFCS workaround for create_alias
                 c_string_ptr = c_string_ptr.add(U8.to_i64(b).mul(multiplier))
                 multiplier = multiplier.mul(256)
@@ -1551,8 +1531,7 @@ namespace:
         for i2 in 0..8 {
             idx := ptr_size.add(i2)
             if idx.lt(str_bytes.len()) {
-                b2_ref := str_bytes.get_by_ref(idx)?
-                create_alias(b2, U8, b2_ref.data)
+                b2 := cast(U8, str_bytes.get_by_ref(idx)?)
                 // TODO Bug #176: UFCS workaround for create_alias
                 len = len.add(U8.to_i64(b2).mul(multiplier2))
                 multiplier2 = multiplier2.mul(256)

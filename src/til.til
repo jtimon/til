@@ -212,27 +212,23 @@ main := proc(args: ..Str) {
     // args already collected by TIL runtime
 
     if args.len().gt(1) {
-        command_ref := args.get_by_ref(0)?
-        create_alias(command, Str, command_ref.data)
+        command := cast(Str, args.get_by_ref(0)?)
 
         mut remaining_args := Vec.new(Str)
         mut i := 1
         while i.lt(args.len()) {
-            arg_ref := args.get_by_ref(i)?
-            create_alias(arg, Str, arg_ref.data)
+            arg := cast(Str, args.get_by_ref(i)?)
             remaining_args.push(arg)
             i.inc()
         }
 
         if command.eq("interpret") {
             // interpret doesn't use build options, just pass remaining args
-            path_ref := args.get_by_ref(1)?
-            create_alias(path, Str, path_ref.data)
+            path := cast(Str, args.get_by_ref(1)?)
             mut main_args := Vec.new(Str)
             mut j := 2
             while j.lt(args.len()) {
-                interp_arg_ref := args.get_by_ref(j)?
-                create_alias(interp_arg, Str, interp_arg_ref.data)
+                interp_arg := cast(Str, args.get_by_ref(j)?)
                 main_args.push(interp_arg)
                 j.inc()
             }
@@ -246,8 +242,7 @@ main := proc(args: ..Str) {
                 usage()
                 exit(1)
             }
-            build_first_path_ref := build_opts.remaining.get_by_ref(0)?
-            create_alias(build_first_path, Str, build_first_path_ref.data)
+            build_first_path := cast(Str, build_opts.remaining.get_by_ref(0)?)
             translate_only := build_opts.translate_only
             build_file_or_exit(build_first_path, build_opts.target, build_opts.lang, build_opts.cc, translate_only, build_opts.force_rebuild)
             catch (err: Str) {
@@ -264,8 +259,7 @@ main := proc(args: ..Str) {
                 usage()
                 exit(1)
             }
-            translate_first_path_ref := translate_opts.remaining.get_by_ref(0)?
-            create_alias(translate_first_path, Str, translate_first_path_ref.data)
+            translate_first_path := cast(Str, translate_opts.remaining.get_by_ref(0)?)
             build_file_or_exit(translate_first_path, translate_opts.target, translate_opts.lang, translate_opts.cc, true, translate_opts.force_rebuild)
             catch (err: Str) {
                 println("Error: ", err)
@@ -281,8 +275,7 @@ main := proc(args: ..Str) {
                 usage()
                 exit(1)
             }
-            run_first_path_ref := run_opts.remaining.get_by_ref(0)?
-            create_alias(run_first_path, Str, run_first_path_ref.data)
+            run_first_path := cast(Str, run_opts.remaining.get_by_ref(0)?)
             // Pass remaining paths as arguments to the compiled program
             mut extra_args := Vec.new(Str)
             if run_opts.mem_report {
@@ -291,8 +284,7 @@ main := proc(args: ..Str) {
             if run_opts.remaining.len().gt(1) {
                 mut k := 1
                 while k.lt(run_opts.remaining.len()) {
-                    run_arg_ref := run_opts.remaining.get_by_ref(k)?
-                    create_alias(run_arg, Str, run_arg_ref.data)
+                    run_arg := cast(Str, run_opts.remaining.get_by_ref(k)?)
                     extra_args.push(run_arg)
                     k.inc()
                 }
@@ -313,8 +305,7 @@ main := proc(args: ..Str) {
             exit(1)
         }
     } else if args.len().gt(0) {
-        first_arg_ref := args.get_by_ref(0)?
-        create_alias(first_arg, Str, first_arg_ref.data)
+        first_arg := cast(Str, args.get_by_ref(0)?)
         switch first_arg {
         case "repl":
             interpret_file_or_exit(REPL_PATH, Vec.new(Str))

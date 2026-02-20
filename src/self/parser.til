@@ -221,8 +221,7 @@ namespace:
         }
         // Deep clone default_values Map<Str, Expr>
         for k: Str in self.default_values.keys {
-            v_ref := self.default_values.get_by_ref(k)?
-            create_alias(v, Expr, v_ref.data)
+            v := cast(Expr, self.default_values.get_by_ref(k)?)
             result.default_values.set(k.clone(), Expr.clone(v)) // TODO Bug #176: v.clone()
         }
         catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
@@ -232,8 +231,7 @@ namespace:
     /** Helper to find a member by name */
     get_member := func(self: SStructDef, member_name: Str) returns Declaration throws Str {
         for i in 0..self.members.len() {
-            member_ref := self.members.get_by_ref(i)?
-            create_alias(member, Declaration, member_ref.data)
+            member := cast(Declaration, self.members.get_by_ref(i)?)
             // TODO Bug #176: UFCS workaround for create_alias
             if Str.eq(member.name, member_name) {
                 // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
@@ -271,8 +269,7 @@ namespace:
         }
         // Deep clone default_values Map<Str, Expr>
         for k: Str in self.default_values.keys {
-            v_ref := self.default_values.get_by_ref(k)?
-            create_alias(v, Expr, v_ref.data)
+            v := cast(Expr, self.default_values.get_by_ref(k)?)
             result.default_values.set(k.clone(), Expr.clone(v)) // TODO Bug #176: v.clone()
         }
         catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
@@ -428,8 +425,7 @@ namespace:
 
     get := func(self: Expr, i: I64) returns Expr throws Str {
         if i.lt(self.params.len()) {
-            expr_ref := self.params.get_by_ref(i)?
-            create_alias(result, Expr, expr_ref.data)
+            result := cast(Expr, self.params.get_by_ref(i)?)
             return result
         }
         catch (err: IndexOutOfBoundsError) {

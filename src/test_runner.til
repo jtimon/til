@@ -38,8 +38,7 @@ parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError
             // Extract value after last ": "
             parts := line.split(": ")?
             if parts.len().gt(1) {
-                ts_ref := parts.get_by_ref(parts.len().sub(1))?
-                create_alias(ts, Str, ts_ref.data)
+                ts := cast(Str, parts.get_by_ref(parts.len().sub(1))?)
                 mut time_str := Str.replace(ts, "\r", "")
                 // Find first colon (separates minutes from seconds, or hours from minutes)
                 colon_pos := time_str.find(":")
@@ -87,8 +86,7 @@ parse_maxrss_kb := func(time_output: Str) returns I64 throws IndexOutOfBoundsErr
         if line.find("Maximum resident set size").gt(I64_MINUS1) {
             parts := line.split(": ")?
             if parts.len().gt(1) {
-                vs_ref := parts.get_by_ref(parts.len().sub(1))?
-                create_alias(vs, Str, vs_ref.data)
+                vs := cast(Str, parts.get_by_ref(parts.len().sub(1))?)
                 // TODO Bug #176: UFCS workaround for create_alias
                 mut val_str := Str.replace(vs, "\r", "")
                 return val_str.to_i64()
@@ -548,24 +546,18 @@ main := proc(args: ..Str) {
     }
 
     // Extract required args
-    command_ref := args.get_by_ref(0)?
-    create_alias(command, Str, command_ref.data)
-    test_mode_ref := args.get_by_ref(1)?
-    create_alias(test_mode, Str, test_mode_ref.data)
-    out_mode_ref := args.get_by_ref(2)?
-    create_alias(out_mode, Str, out_mode_ref.data)
-    expected_status_str_ref := args.get_by_ref(3)?
-    create_alias(expected_status_str, Str, expected_status_str_ref.data)
-    file_ref := args.get_by_ref(4)?
-    create_alias(file, Str, file_ref.data)
+    command := cast(Str, args.get_by_ref(0)?)
+    test_mode := cast(Str, args.get_by_ref(1)?)
+    out_mode := cast(Str, args.get_by_ref(2)?)
+    expected_status_str := cast(Str, args.get_by_ref(3)?)
+    file := cast(Str, args.get_by_ref(4)?)
 
     expected_status := expected_status_str.to_i64()
 
     // Collect extra args into single string, filtering out --cc= (Issue #131)
     mut cmd_args := ""
     for i in 5..args.len() {
-        arg_ref := args.get_by_ref(i)?
-        create_alias(arg, Str, arg_ref.data)
+        arg := cast(Str, args.get_by_ref(i)?)
         if arg.starts_with("--cc=") {
             g_cc = arg.get_substr(5, arg.len())?
         } else if arg.eq("--mem-report") {

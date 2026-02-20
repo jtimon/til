@@ -44,18 +44,14 @@ test_create_alias := proc() {
     vec.push(42)
     vec.push(99)
 
-    // Get a reference to element 0
-    ref := vec.get_by_ref(0)?
-
-    // Bug #144: 3-arg create_alias declares + aliases + skips auto-delete
-    create_alias(item, I64, ref.data)
+    // Get a reference to element 0, cast to typed pointer alias
+    item := cast(I64, vec.get_by_ref(0)?)
 
     // item should now read the value from vec memory
     assert_eq(loc(), 42, item)
 
     // Get a reference to element 1
-    ref2 := vec.get_by_ref(1)?
-    create_alias(item2, I64, ref2.data)
+    item2 := cast(I64, vec.get_by_ref(1)?)
 
     assert_eq(loc(), 99, item2)
 

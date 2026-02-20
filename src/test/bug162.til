@@ -76,8 +76,7 @@ test_own_vec_push := proc() {
     mut v := Vec.new(I64)
     x := 42
     v.push(x)  // push takes Dynamic, but once it takes own, const should work
-    result_ref := v.get_by_ref(0)?
-    create_alias(result, I64, result_ref.data)
+    result := cast(I64, v.get_by_ref(0)?)
     assert_eq(loc(), 42, result)
     println("PASS: own vec push works")
 
@@ -103,11 +102,9 @@ test_ufcs_before_own_consumption := proc() {
     m1.set(name.clone(), 42)
     m2.set(name, 99)
 
-    val1_ref := m1.get_by_ref("hello")?
-    create_alias(val1, I64, val1_ref.data)
+    val1 := cast(I64, m1.get_by_ref("hello")?)
     assert_eq(loc(), 42, val1)
-    val2_ref := m2.get_by_ref("hello")?
-    create_alias(val2, I64, val2_ref.data)
+    val2 := cast(I64, m2.get_by_ref("hello")?)
     assert_eq(loc(), 99, val2)
     println("PASS: UFCS before own consumption")
 
@@ -128,11 +125,9 @@ test_inline_clone_to_own := proc() {
     m1.set(name.clone(), 100)
     m2.set(name, 200)
 
-    val1_ref := m1.get_by_ref("world")?
-    create_alias(val1, I64, val1_ref.data)
+    val1 := cast(I64, m1.get_by_ref("world")?)
     assert_eq(loc(), 100, val1)
-    val2_ref := m2.get_by_ref("world")?
-    create_alias(val2, I64, val2_ref.data)
+    val2 := cast(I64, m2.get_by_ref("world")?)
     assert_eq(loc(), 200, val2)
     println("PASS: inline clone to own param")
 

@@ -330,8 +330,7 @@ main := proc(args: ..Str) {
             println("Usage: make diff <file.til>")
             exit(1)
         }
-        file_path_ref := args.get_by_ref(1)?
-        create_alias(file_path, Str, file_path_ref.data)
+        file_path := cast(Str, args.get_by_ref(1)?)
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         run_diff(file_path)
     case:

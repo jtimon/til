@@ -241,5 +241,8 @@ test_strings := proc() {
     }
     assert_eq_str(loc(), "abcde", alphabet)  // range is exclusive of end
 
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), err.msg)
+    }
 }
 test_strings()

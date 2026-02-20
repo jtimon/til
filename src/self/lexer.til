@@ -116,8 +116,7 @@ namespace:
         if i.gteq(self.tokens.len()) {
             return true
         }
-        t_ref := self.tokens.get_by_ref(i)?
-        create_alias(t, Token, t_ref.data)
+        t := cast(Token, self.tokens.get_by_ref(i)?)
         switch t.token_type {
         case TokenType.Eof:
             return true
@@ -131,8 +130,7 @@ namespace:
             mut err_token := self.peek()?
             throw err_token.lang_error(self.path, format("Token in pos ", i.to_str(), " is out of bounds"))
         }
-        t_ref := self.tokens.get_by_ref(i)?
-        create_alias(t, Token, t_ref.data)
+        t := cast(Token, self.tokens.get_by_ref(i)?)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -142,8 +140,7 @@ namespace:
     }
 
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
-        t_ref := self.tokens.get_by_ref(self.current)?
-        create_alias(t, Token, t_ref.data)
+        t := cast(Token, self.tokens.get_by_ref(self.current)?)
         // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
         // TODO Bug #176: UFCS workaround for create_alias (Token.clone instead of t.clone)
         return Token.clone(t)
@@ -158,8 +155,7 @@ namespace:
             mut err_token2 := self.peek()?
             throw err_token2.lang_error(self.path, "Previous token is out of bounds")
         }
-        t_ref := self.tokens.get_by_ref(self.current.sub(1))?
-        create_alias(t, Token, t_ref.data)
+        t := cast(Token, self.tokens.get_by_ref(self.current.sub(1))?)
         // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
         // TODO Bug #176: UFCS workaround for create_alias
         result := Token.clone(t)
@@ -187,8 +183,7 @@ namespace:
             mut err_token := self.peek()?
             throw err_token.lang_error(self.path, format("Peek ahead by ", offset.to_str(), " from ", self.current.to_str(), " is out of bounds"))
         }
-        t_ref := self.tokens.get_by_ref(peek_idx)?
-        create_alias(t, Token, t_ref.data)
+        t := cast(Token, self.tokens.get_by_ref(peek_idx)?)
         // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
         // TODO Bug #176: UFCS workaround for create_alias
         result := Token.clone(t)
@@ -682,12 +677,9 @@ build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str
     }
 
     if should_check {
-        ident_token_ref := tokens.get_by_ref(var_index.add(1))?
-        create_alias(ident_token, Token, ident_token_ref.data)
-        equals_token_ref := tokens.get_by_ref(var_index.add(2))?
-        create_alias(equals_token, Token, equals_token_ref.data)
-        value_token_ref := tokens.get_by_ref(var_index.add(3))?
-        create_alias(value_token, Token, value_token_ref.data)
+        ident_token := cast(Token, tokens.get_by_ref(var_index.add(1))?)
+        equals_token := cast(Token, tokens.get_by_ref(var_index.add(2))?)
+        value_token := cast(Token, tokens.get_by_ref(var_index.add(3))?)
 
         mut is_identifier := false
         switch ident_token.token_type {
@@ -720,8 +712,7 @@ print_lex_errors := proc(tokens: Vec, path: Str) returns I64 throws Str {
     mut errors_found := 0
     mut tokens_len := tokens.len()
     for i in 0..tokens_len {
-        t_ref := tokens.get_by_ref(i)?
-        create_alias(t, Token, t_ref.data)
+        t := cast(Token, tokens.get_by_ref(i)?)
         print_if_lex_error(path, tokens, i, t, errors_found)?
     }
     catch (err: IndexOutOfBoundsError) {
@@ -812,8 +803,7 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
         throw path.format(":1:0: compiler ERROR: End of file not found.")
     }
 
-    first_ref := tokens.get_by_ref(0)?
-    create_alias(first, Token, first_ref.data)
+    first := cast(Token, tokens.get_by_ref(0)?)
     switch first.token_type {
     case TokenType.Eof:
         throw path.format(":0:0: compiler ERROR: Nothing to be done")

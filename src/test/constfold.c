@@ -3613,7 +3613,7 @@ void til_HeapState_remove(const til_I64* til_I64_ptr) {
         return;
     }
     til_I64 til_I64_i = 0;
-    til_Ptr til_Ptr_entry_ref;
+    til_HeapEntry til_HeapEntry_entry;
     til_HeapEntry til_HeapEntry_freed;
     til_I64 _tmp_til_HeapState_remove_2 = 0;
     til_I64 _tmp_til_HeapState_remove_3 = til_Vec_len(&til_Vec_g_entries);
@@ -3621,68 +3621,70 @@ void til_HeapState_remove(const til_I64* til_I64_ptr) {
         while (1) {
             til_I64 _tmp_til_HeapState_remove_4 = til_Vec_len(&til_Vec_g_entries);
             if (!(til_I64_lt(&til_I64_i, &_tmp_til_HeapState_remove_4).data)) break;
-            til_Ptr til_Ptr_entry_ref;
-            til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_5 = {};
-            int __attribute__((unused)) _status__tmp_til_HeapState_remove_5 = til_Vec_get_by_ref(&til_Ptr_entry_ref, &_err0__tmp_til_HeapState_remove_5, &til_Vec_g_entries, &til_I64_i);
+            til_Ptr _tmp_til_HeapState_remove_5;
+            til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_6;
+            int __attribute__((unused)) _status__tmp_til_HeapState_remove_6 = til_Vec_get_by_ref(&_tmp_til_HeapState_remove_5, &_err0__tmp_til_HeapState_remove_6, &til_Vec_g_entries, &til_I64_i);
+            if (_status__tmp_til_HeapState_remove_6 == 1) { _thrown_IndexOutOfBoundsError__tmp_til_HeapState_remove_0 = _err0__tmp_til_HeapState_remove_6; goto _catch_IndexOutOfBoundsError__tmp_til_HeapState_remove_0; }
             til_HeapEntry* til_HeapEntry_entry;
-            til_HeapEntry_entry = (til_HeapEntry*)til_Ptr_entry_ref.data;
+            til_HeapEntry_entry = (til_HeapEntry*)_tmp_til_HeapState_remove_5.data;
             if (til_I64_eq(&til_HeapEntry_entry->ptr, til_I64_ptr).data) {
                 til_HeapEntry_freed = (til_HeapEntry){.ptr = 0, .size = til_HeapEntry_entry->size};
-                til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_6 = {};
-                int __attribute__((unused)) _status__tmp_til_HeapState_remove_6 = til_Vec_set(&_err0__tmp_til_HeapState_remove_6, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_freed);
+                til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_7 = {};
+                int __attribute__((unused)) _status__tmp_til_HeapState_remove_7 = til_Vec_set(&_err0__tmp_til_HeapState_remove_7, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_freed);
                 return;
             }
             til_I64_inc(&til_I64_i);
         }
     } else {
         while (1) {
-            til_I64 _tmp_til_HeapState_remove_7 = til_Vec_len(&til_Vec_g_entries);
-            if (!(til_I64_gt(&til_I64_i, &_tmp_til_HeapState_remove_7).data)) break;
-            til_Ptr til_Ptr_entry_ref;
-            til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_8 = {};
-            int __attribute__((unused)) _status__tmp_til_HeapState_remove_8 = til_Vec_get_by_ref(&til_Ptr_entry_ref, &_err0__tmp_til_HeapState_remove_8, &til_Vec_g_entries, &til_I64_i);
+            til_I64 _tmp_til_HeapState_remove_8 = til_Vec_len(&til_Vec_g_entries);
+            if (!(til_I64_gt(&til_I64_i, &_tmp_til_HeapState_remove_8).data)) break;
+            til_Ptr _tmp_til_HeapState_remove_9;
+            til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_10;
+            int __attribute__((unused)) _status__tmp_til_HeapState_remove_10 = til_Vec_get_by_ref(&_tmp_til_HeapState_remove_9, &_err0__tmp_til_HeapState_remove_10, &til_Vec_g_entries, &til_I64_i);
+            if (_status__tmp_til_HeapState_remove_10 == 1) { _thrown_IndexOutOfBoundsError__tmp_til_HeapState_remove_0 = _err0__tmp_til_HeapState_remove_10; goto _catch_IndexOutOfBoundsError__tmp_til_HeapState_remove_0; }
             til_HeapEntry* til_HeapEntry_entry;
-            til_HeapEntry_entry = (til_HeapEntry*)til_Ptr_entry_ref.data;
+            til_HeapEntry_entry = (til_HeapEntry*)_tmp_til_HeapState_remove_9.data;
             if (til_I64_eq(&til_HeapEntry_entry->ptr, til_I64_ptr).data) {
                 til_HeapEntry_freed = (til_HeapEntry){.ptr = 0, .size = til_HeapEntry_entry->size};
-                til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_9 = {};
-                int __attribute__((unused)) _status__tmp_til_HeapState_remove_9 = til_Vec_set(&_err0__tmp_til_HeapState_remove_9, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_freed);
+                til_IndexOutOfBoundsError _err0__tmp_til_HeapState_remove_11 = {};
+                int __attribute__((unused)) _status__tmp_til_HeapState_remove_11 = til_Vec_set(&_err0__tmp_til_HeapState_remove_11, &til_Vec_g_entries, &til_I64_i, (til_Dynamic*)&til_HeapEntry_freed);
                 return;
             }
             til_I64_dec(&til_I64_i);
         }
     }
-    til_Array _tmp_til_HeapState_remove_10;
-    til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_HeapState_remove_11;
-    til_Str _tmp_til_HeapState_remove_12 = ((til_Str){((til_Ptr){(til_I64)"HEAP_STATE PANIC: double-free for pointer", 1, 0, 0, 0}), 41, 0});
-    til_Str _tmp_til_HeapState_remove_13 = til_I64_to_str(til_I64_ptr);
-    til_Type _tmp_til_HeapState_remove_14 = "Str";
-    til_I64 _tmp_til_HeapState_remove_15 = 2;
-    _tmp_til_HeapState_remove_10 = til_Array_new(_tmp_til_HeapState_remove_14, &_tmp_til_HeapState_remove_15);
-    int __attribute__((unused)) _arr_status__tmp_til_HeapState_remove_11;
-    til_I64 _tmp_til_HeapState_remove_16 = 0;
-    _arr_status__tmp_til_HeapState_remove_11 = til_Array_set(&_err_idx__tmp_til_HeapState_remove_11, &_tmp_til_HeapState_remove_10, &_tmp_til_HeapState_remove_16, (til_Dynamic*)&_tmp_til_HeapState_remove_12);
-    til_I64 _tmp_til_HeapState_remove_17 = 1;
-    _arr_status__tmp_til_HeapState_remove_11 = til_Array_set(&_err_idx__tmp_til_HeapState_remove_11, &_tmp_til_HeapState_remove_10, &_tmp_til_HeapState_remove_17, (til_Dynamic*)&_tmp_til_HeapState_remove_13);
-    til_println(&_tmp_til_HeapState_remove_10);
-    til_Array_delete(&_tmp_til_HeapState_remove_10);
-    til_I64 _tmp_til_HeapState_remove_18 = 1;
-    til_exit(&_tmp_til_HeapState_remove_18);
+    til_Array _tmp_til_HeapState_remove_12;
+    til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_HeapState_remove_13;
+    til_Str _tmp_til_HeapState_remove_14 = ((til_Str){((til_Ptr){(til_I64)"HEAP_STATE PANIC: double-free for pointer", 1, 0, 0, 0}), 41, 0});
+    til_Str _tmp_til_HeapState_remove_15 = til_I64_to_str(til_I64_ptr);
+    til_Type _tmp_til_HeapState_remove_16 = "Str";
+    til_I64 _tmp_til_HeapState_remove_17 = 2;
+    _tmp_til_HeapState_remove_12 = til_Array_new(_tmp_til_HeapState_remove_16, &_tmp_til_HeapState_remove_17);
+    int __attribute__((unused)) _arr_status__tmp_til_HeapState_remove_13;
+    til_I64 _tmp_til_HeapState_remove_18 = 0;
+    _arr_status__tmp_til_HeapState_remove_13 = til_Array_set(&_err_idx__tmp_til_HeapState_remove_13, &_tmp_til_HeapState_remove_12, &_tmp_til_HeapState_remove_18, (til_Dynamic*)&_tmp_til_HeapState_remove_14);
+    til_I64 _tmp_til_HeapState_remove_19 = 1;
+    _arr_status__tmp_til_HeapState_remove_13 = til_Array_set(&_err_idx__tmp_til_HeapState_remove_13, &_tmp_til_HeapState_remove_12, &_tmp_til_HeapState_remove_19, (til_Dynamic*)&_tmp_til_HeapState_remove_15);
+    til_println(&_tmp_til_HeapState_remove_12);
+    til_Array_delete(&_tmp_til_HeapState_remove_12);
+    til_I64 _tmp_til_HeapState_remove_20 = 1;
+    til_exit(&_tmp_til_HeapState_remove_20);
     if (0) { _catch_IndexOutOfBoundsError__tmp_til_HeapState_remove_0:;
         til_IndexOutOfBoundsError til_IndexOutOfBoundsError_err = _thrown_IndexOutOfBoundsError__tmp_til_HeapState_remove_0;
-        til_Array _tmp_til_HeapState_remove_19;
-        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_HeapState_remove_20;
-        til_Str _tmp_til_HeapState_remove_21 = ((til_Str){((til_Ptr){(til_I64)"HEAP_STATE: unexpected index error in remove", 1, 0, 0, 0}), 44, 0});
-        til_Type _tmp_til_HeapState_remove_22 = "Str";
-        til_I64 _tmp_til_HeapState_remove_23 = 1;
-        _tmp_til_HeapState_remove_19 = til_Array_new(_tmp_til_HeapState_remove_22, &_tmp_til_HeapState_remove_23);
-        int __attribute__((unused)) _arr_status__tmp_til_HeapState_remove_20;
-        til_I64 _tmp_til_HeapState_remove_24 = 0;
-        _arr_status__tmp_til_HeapState_remove_20 = til_Array_set(&_err_idx__tmp_til_HeapState_remove_20, &_tmp_til_HeapState_remove_19, &_tmp_til_HeapState_remove_24, (til_Dynamic*)&_tmp_til_HeapState_remove_21);
-        til_println(&_tmp_til_HeapState_remove_19);
-        til_Array_delete(&_tmp_til_HeapState_remove_19);
+        til_Array _tmp_til_HeapState_remove_21;
+        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_HeapState_remove_22;
+        til_Str _tmp_til_HeapState_remove_23 = ((til_Str){((til_Ptr){(til_I64)"HEAP_STATE: unexpected index error in remove", 1, 0, 0, 0}), 44, 0});
+        til_Type _tmp_til_HeapState_remove_24 = "Str";
         til_I64 _tmp_til_HeapState_remove_25 = 1;
-        til_exit(&_tmp_til_HeapState_remove_25);
+        _tmp_til_HeapState_remove_21 = til_Array_new(_tmp_til_HeapState_remove_24, &_tmp_til_HeapState_remove_25);
+        int __attribute__((unused)) _arr_status__tmp_til_HeapState_remove_22;
+        til_I64 _tmp_til_HeapState_remove_26 = 0;
+        _arr_status__tmp_til_HeapState_remove_22 = til_Array_set(&_err_idx__tmp_til_HeapState_remove_22, &_tmp_til_HeapState_remove_21, &_tmp_til_HeapState_remove_26, (til_Dynamic*)&_tmp_til_HeapState_remove_23);
+        til_println(&_tmp_til_HeapState_remove_21);
+        til_Array_delete(&_tmp_til_HeapState_remove_21);
+        til_I64 _tmp_til_HeapState_remove_27 = 1;
+        til_exit(&_tmp_til_HeapState_remove_27);
     }
 }
 
@@ -3710,7 +3712,7 @@ void til_HeapState_report(void) {
             til_I64 _tmp_til_HeapState_report_6 = 0;
             _tmp_til_HeapState_report_3 = til_Array_new(_tmp_til_HeapState_report_5, &_tmp_til_HeapState_report_6);
             int __attribute__((unused)) _arr_status__tmp_til_HeapState_report_4;
-            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/heap_state.til:58:9:", 1, 0, 0, 0}), 29, 0}), &_err_forin_0.msg, &_tmp_til_HeapState_report_3);
+            til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/heap_state.til:57:9:", 1, 0, 0, 0}), 29, 0}), &_err_forin_0.msg, &_tmp_til_HeapState_report_3);
             til_Array_delete(&_tmp_til_HeapState_report_3);
         }
         til_HeapEntry* til_HeapEntry_entry;

@@ -17,10 +17,8 @@ sort_enum_variants := proc(mut v: Vec) {
     while gt(n, 1) {
         mut new_n := 0
         for i in 1..n {
-            prev_ref := v.get_by_ref(i.sub(1))?
-            create_alias(prev, EnumVariant, prev_ref.data)
-            curr_ref := v.get_by_ref(i)?
-            create_alias(curr, EnumVariant, curr_ref.data)
+            prev := cast(EnumVariant, v.get_by_ref(i.sub(1))?)
+            curr := cast(EnumVariant, v.get_by_ref(i)?)
             // TODO Bug #176: UFCS workaround for create_alias
             if gt(Str.cmp(prev.name, curr.name), 0) {
                 tmp := EnumVariant.clone(prev)
@@ -218,8 +216,7 @@ find_ret_var_for_placement := proc(func_def: SFuncDef) returns Str throws Str {
     if func_def.return_types.is_empty() {
         return ""
     }
-    first_ret_type_ref := func_def.return_types.get_by_ref(0)?
-    create_alias(first_ret_type, ValueType, first_ret_type_ref.data)
+    first_ret_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
     catch (err: IndexOutOfBoundsError) {
         return ""
     }
@@ -594,8 +591,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     mut name_to_idx := Map.new(Str, I64)
     mut idx := 0
     while idx.lt(types.len()) {
-        expr_ref := types.get_by_ref(idx)?
-        create_alias(expr, Expr, expr_ref.data)
+        expr := cast(Expr, types.get_by_ref(idx)?)
         name := get_type_name(expr)?
         name_to_idx.set(name, idx.clone())
         catch (err: KeyNotFoundError) {
@@ -613,15 +609,12 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     }
     idx = 0
     while idx.lt(types.len()) {
-        dep_expr_ref := types.get_by_ref(idx)?
-        create_alias(dep_expr, Expr, dep_expr_ref.data)
+        dep_expr := cast(Expr, types.get_by_ref(idx)?)
         dep_names := get_type_dependencies(dep_expr)?
         for dep_name: Str in dep_names {
-            dep_idx_ref := name_to_idx.get_by_ref(dep_name)?
-            create_alias(dep_idx, I64, dep_idx_ref.data)
+            dep_idx := cast(I64, name_to_idx.get_by_ref(dep_name)?)
             if not(I64.eq(dep_idx, idx)) { // TODO Bug #176: UFCS workaround for create_alias
-                dep_vec_ref := deps.get_by_ref(idx)?
-                create_alias(dep_vec, Vec, dep_vec_ref.data)
+                mut dep_vec := cast(Vec, deps.get_by_ref(idx)?)
                 // TODO Bug #176: UFCS workaround for create_alias
                 Vec.push(dep_vec, dep_idx)
             }
@@ -642,11 +635,9 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     }
     idx = 0
     while idx.lt(deps.len()) {
-        dep_list_ref := deps.get_by_ref(idx)?
-        create_alias(dep_list, Vec, dep_list_ref.data)
+        dep_list := cast(Vec, deps.get_by_ref(idx)?)
         for dep: I64 in dep_list {
-            rev_dep_vec_ref := reverse_deps.get_by_ref(dep)?
-            create_alias(rev_dep_vec, Vec, rev_dep_vec_ref.data)
+            mut rev_dep_vec := cast(Vec, reverse_deps.get_by_ref(dep)?)
             // TODO Bug #176: UFCS workaround for create_alias
             Vec.push(rev_dep_vec, idx)
         }
@@ -662,8 +653,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     }
     for dep_list: Vec in reverse_deps {
         for dep: I64 in dep_list {
-            degree_ref := in_degree.get_by_ref(dep)?
-            create_alias(degree, I64, degree_ref.data)
+            degree := cast(I64, in_degree.get_by_ref(dep)?)
             in_degree.set(dep, I64.add(degree, 1))?
         }
     }
@@ -671,8 +661,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     mut queue := Vec.new(I64)
     idx = 0
     while idx.lt(in_degree.len()) {
-        queue_degree_ref := in_degree.get_by_ref(idx)?
-        create_alias(queue_degree, I64, queue_degree_ref.data)
+        queue_degree := cast(I64, in_degree.get_by_ref(idx)?)
         if queue_degree.eq(0) {
             queue.push(idx)
         }
@@ -684,11 +673,9 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         mut pop_idx := 0
         queue.pop(pop_idx)?
         result.push(pop_idx.clone())
-        rev_dep_list_ref := reverse_deps.get_by_ref(pop_idx)?
-        create_alias(rev_dep_list, Vec, rev_dep_list_ref.data)
+        rev_dep_list := cast(Vec, reverse_deps.get_by_ref(pop_idx)?)
         for next: I64 in rev_dep_list {
-            next_degree_ref := in_degree.get_by_ref(next)?
-            create_alias(next_degree, I64, next_degree_ref.data)
+            next_degree := cast(I64, in_degree.get_by_ref(next)?)
             mut new_degree := I64.sub(next_degree, 1)
             in_degree.set(next, new_degree.clone())?
             // TODO Bug #176: UFCS workaround for create_alias
@@ -749,11 +736,9 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     c_elem_type := format(TIL_PREFIX, elem_type)
     mut i := 0
     while i.lt(variadic_args.len()) {
-        arg_ref := variadic_args.get_by_ref(i)?
-        create_alias(arg, Expr, arg_ref.data)
+        arg := cast(Expr, variadic_args.get_by_ref(i)?)
         hoisted_idx := add(regular_count, i)
-        temp_ref := already_hoisted.get_by_ref(hoisted_idx)?
-        create_alias(temp, Str, temp_ref.data)
+        temp := cast(Str, already_hoisted.get_by_ref(hoisted_idx)?)
         // Already hoisted, use that temp
         arg_temps.push(temp)
         catch (err: KeyNotFoundError) {
@@ -815,8 +800,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     // Emit Array.set for each variadic arg
     mut ti := 0
     while ti.lt(arg_temps.len()) {
-        temp_item_ref := arg_temps.get_by_ref(ti)?
-        create_alias(temp_item, Str, temp_item_ref.data)
+        temp_item := cast(Str, arg_temps.get_by_ref(ti)?)
         // Bug #60: Hoist index literal because we can't take address of integer literal
         idx_temp := next_mangled(ctx)
         output.push_str(indent_str)
@@ -891,8 +875,7 @@ detect_variadic_fcall := func(expr: Expr, ctx: CodegenContext) returns VariadicF
     dont_delete(first_param)
     orig_func_name := get_til_func_name_string(first_param)?
 
-    info_ref := ctx.func_variadic_args.get_by_ref(orig_func_name)?
-    create_alias(info, VariadicFCallInfo, info_ref.data)
+    info := cast(VariadicFCallInfo, ctx.func_variadic_args.get_by_ref(orig_func_name)?)
     catch (err: Str) {
         throw KeyNotFoundError(msg="Not variadic: name error")
     }
@@ -1268,8 +1251,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
             if i.lt(fd.args.len()) {
-                param_decl_ref := fd.args.get_by_ref(i)?
-                create_alias(param_decl, Declaration, param_decl_ref.data)
+                param_decl := cast(Declaration, fd.args.get_by_ref(i)?)
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     nested_by_ref = param_needs_by_ref(param_decl)
@@ -1290,8 +1272,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
     if fd.return_types.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Throwing call has no return type")
     }
-    first_ret_ref := fd.return_types.get_by_ref(0)?
-    create_alias(first_ret, ValueType, first_ret_ref.data)
+    first_ret := cast(ValueType, fd.return_types.get_by_ref(0)?)
     c_type := til_type_to_c(first_ret)?
 
     // Declare temp variable
@@ -1329,8 +1310,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
         mut variadic_arg_strings := Vec.new(Str)
         mut vi := variadic_info.regular_count
         while vi.lt(nested_arg_strings.len()) {
-            vas_ref := nested_arg_strings.get_by_ref(vi)?
-            create_alias(vas, Str, vas_ref.data)
+            vas := cast(Str, nested_arg_strings.get_by_ref(vi)?)
             variadic_arg_strings.push(vas)
             vi.inc()
         }
@@ -1356,8 +1336,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
         // REM: Use func_name as fallback
     }
     mut mangled_name := func_name.clone()
-    mn_ref := ctx.nested_func_names.get_by_ref(orig_func_name)?
-    create_alias(mn_val, Str, mn_ref.data)
+    mn_val := cast(Str, ctx.nested_func_names.get_by_ref(orig_func_name)?)
     mangled_name = mn_val
     catch (err: KeyNotFoundError) {
         // Expected: use func_name as fallback
@@ -1394,8 +1373,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
     }
     mut ri := 0
     while ri.lt(regular_count) {
-        arg_str_ref := nested_arg_strings.get_by_ref(ri)?
-        create_alias(arg_str, Str, arg_str_ref.data)
+        arg_str := cast(Str, nested_arg_strings.get_by_ref(ri)?)
         hoist_output.push_str(", ")
         hoist_output.push_str(arg_str)
         ri.inc()
@@ -1504,8 +1482,7 @@ emit_error_handling := proc(throw_types: Vec, temp_suffix: Str, mut output: Str,
             switch throw_type {
             case ValueType.TCustom(type_name):
                 if ctx.local_catch_labels.contains_key(type_name) {
-                    ci_ref := ctx.local_catch_labels.get_by_ref(type_name)?
-                    create_alias(catch_info, CatchLabelInfo, ci_ref.data)
+                    catch_info := cast(CatchLabelInfo, ctx.local_catch_labels.get_by_ref(type_name)?)
                     output.push_str(indent_str)
                     output.push_str("if (_status_")
                     output.push_str(temp_suffix)
@@ -1583,8 +1560,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
             if i.lt(fd.args.len()) {
-                param_decl_ref := fd.args.get_by_ref(i)?
-                create_alias(param_decl, Declaration, param_decl_ref.data)
+                param_decl := cast(Declaration, fd.args.get_by_ref(i)?)
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     nested_by_ref = param_needs_by_ref(param_decl)
@@ -1604,8 +1580,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     if fd.return_types.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
     }
-    first_ret_ref := fd.return_types.get_by_ref(0)?
-    create_alias(first_ret, ValueType, first_ret_ref.data)
+    first_ret := cast(ValueType, fd.return_types.get_by_ref(0)?)
     c_type := til_type_to_c(first_ret)?
 
     // Declare temp variable
@@ -1619,8 +1594,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     mut variadic_arg_strings := Vec.new(Str)
     mut vai := vi.regular_count
     while vai.lt(nested_arg_strings.len()) {
-        vas_ref := nested_arg_strings.get_by_ref(vai)?
-        create_alias(vas, Str, vas_ref.data)
+        vas := cast(Str, nested_arg_strings.get_by_ref(vai)?)
         variadic_arg_strings.push(vas)
         vai.inc()
     }
@@ -1644,8 +1618,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
         // REM: Use func_name as fallback
     }
     mut mangled_name := func_name.clone()
-    mn_ref := ctx.nested_func_names.get_by_ref(orig_func_name)?
-    create_alias(mn_val, Str, mn_ref.data)
+    mn_val := cast(Str, ctx.nested_func_names.get_by_ref(orig_func_name)?)
     mangled_name = mn_val
     catch (err: KeyNotFoundError) {
         // Expected: use func_name as fallback
@@ -1658,8 +1631,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     mut first := true
     mut ri := 0
     while ri.lt(vi.regular_count) {
-        arg_str_ref := nested_arg_strings.get_by_ref(ri)?
-        create_alias(arg_str, Str, arg_str_ref.data)
+        arg_str := cast(Str, nested_arg_strings.get_by_ref(ri)?)
         if not(first) {
             hoist_output.push_str(", ")
         }
@@ -1721,8 +1693,7 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, mut o
     mut arg_temps := Vec.new(Str)
     mut asi := 0
     while asi.lt(arg_strings.len()) {
-        arg_str_ref := arg_strings.get_by_ref(asi)?
-        create_alias(arg_str, Str, arg_str_ref.data)
+        arg_str := cast(Str, arg_strings.get_by_ref(asi)?)
         temp_var := next_mangled(ctx)
         output.push_str(indent_str)
         output.push_str(c_elem_type)
@@ -1775,8 +1746,7 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, mut o
     // Emit Array.set for each variadic arg
     mut ti := 0
     while ti.lt(arg_temps.len()) {
-        temp_item_ref := arg_temps.get_by_ref(ti)?
-        create_alias(temp_item, Str, temp_item_ref.data)
+        temp_item := cast(Str, arg_temps.get_by_ref(ti)?)
         // Hoist index literal
         idx_temp := next_mangled(ctx)
         output.push_str(indent_str)
@@ -1873,12 +1843,10 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
             result.push_str(member.name)
             result.push_str(" = ")
             if field_values.contains_key(member.name) {
-                fv_ref := field_values.get_by_ref(member.name)?
-                create_alias(field_val, Str, fv_ref.data)
+                field_val := cast(Str, field_values.get_by_ref(member.name)?)
                 result.push_str(field_val)
             } else if struct_def.default_values.contains_key(member.name) {
-                dv_ref := struct_def.default_values.get_by_ref(member.name)?
-                create_alias(default_expr, Expr, dv_ref.data)
+                default_expr := cast(Expr, struct_def.default_values.get_by_ref(member.name)?)
                 // Use emit_arg_string for defaults too (may contain variadic/throwing calls)
                 mut member_type := Ptr()
                 member_type.data = to_ptr(member.value_type)
@@ -2079,8 +2047,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
             if fd_found.and(i.lt(fd_opt.args.len())) {
-                param_decl_ref := fd_opt.args.get_by_ref(i)?
-                create_alias(param_decl, Declaration, param_decl_ref.data)
+                param_decl := cast(Declaration, fd_opt.args.get_by_ref(i)?)
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 nested_by_ref = param_needs_by_ref(param_decl)
             }
@@ -2093,8 +2060,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
 
     // Build the call string
     mut mangled_name := func_name.clone()
-    mn_ref := ctx.nested_func_names.get_by_ref(orig_func_name)?
-    create_alias(mn_val, Str, mn_ref.data)
+    mn_val := cast(Str, ctx.nested_func_names.get_by_ref(orig_func_name)?)
     mangled_name = mn_val
     catch (err: KeyNotFoundError) {
         // Expected: use func_name as fallback
@@ -2130,8 +2096,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
 
     mut ci := 0
     while ci.lt(nested_arg_strings.len()) {
-        arg_str_ref := nested_arg_strings.get_by_ref(ci)?
-        create_alias(arg_str, Str, arg_str_ref.data)
+        arg_str := cast(Str, nested_arg_strings.get_by_ref(ci)?)
         if ci.gt(0) {
             call_str.push_str(", ")
         }
@@ -2161,8 +2126,7 @@ get_c_type_for_expr := proc(arg: Expr, context: Context) returns Str throws Str 
     case NodeType.FCall(_):
         fd := get_fcall_func_def(context, arg)?
         if not(fd.return_types.is_empty()) {
-            ret_type_ref := fd.return_types.get_by_ref(0)?
-            create_alias(ret_type, ValueType, ret_type_ref.data)
+            ret_type := cast(ValueType, fd.return_types.get_by_ref(0)?)
             return til_type_to_c(ret_type)?
         }
         catch (err: KeyNotFoundError) {
@@ -2392,8 +2356,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         }
         sorted_indices := topological_sort_types(type_decls)?
         for idx: I64 in sorted_indices {
-            child_ref := type_decls.get_by_ref(idx)?
-            create_alias(child, Expr, child_ref.data)
+            child := cast(Expr, type_decls.get_by_ref(idx)?)
             if is_struct_declaration(child)? {
                 emit_struct_declaration(child, output)?
             } else {
@@ -3106,8 +3069,7 @@ emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
 
                         if c_type_valid {
                             mut default_val_valid := false
-                            val_ref := struct_def.default_values.get_by_ref(member.name)?
-                            create_alias(default_val, Expr, val_ref.data)
+                            default_val := cast(Expr, struct_def.default_values.get_by_ref(member.name)?)
                             default_val_valid = true
                             catch (err: KeyNotFoundError) {
                                 // REM: Rust's None case - member has no default value, skip
@@ -3236,8 +3198,7 @@ emit_precomputed_vec_static := proc(mut output: Str, mut ctx: CodegenContext, co
     dont_delete(elem_type) // alias of contents.element_type_name
     elem_count := contents.element_bytes.len()
     type_size := contents.type_size
-    static_info_ref := ctx.precomputed_static_arrays.get_by_ref(var_name)?
-    create_alias(static_info, PrecomputedStaticInfo, static_info_ref.data)
+    static_info := cast(PrecomputedStaticInfo, ctx.precomputed_static_arrays.get_by_ref(var_name)?)
     catch (err: KeyNotFoundError) {
         panic(loc(), "emit_precomputed_vec_static: no static info for '", var_name, "'")
     }
@@ -3317,8 +3278,7 @@ emit_precomputed_vec_recursive := proc(mut output: Str, mut ctx: CodegenContext,
             if i.gt(0) {
                 output.push_str(", ")
             }
-            bytes_ref := contents.element_bytes.get_by_ref(i)?
-            create_alias(bytes, Vec, bytes_ref.data)
+            bytes := cast(Vec, contents.element_bytes.get_by_ref(i)?)
             // Read I64 from 8 bytes (little endian)
             val := bytes_to_i64(bytes)
             output.push_str(val.to_str())
@@ -3337,10 +3297,8 @@ emit_precomputed_vec_recursive := proc(mut output: Str, mut ctx: CodegenContext,
             if u8_i.gt(0) {
                 output.push_str(", ")
             }
-            u8_bytes_ref := contents.element_bytes.get_by_ref(u8_i)?
-            create_alias(u8_bytes, Vec, u8_bytes_ref.data)
-            byte_val_ref := u8_bytes.get_by_ref(0)?
-            create_alias(byte_val, U8, byte_val_ref.data)
+            u8_bytes := cast(Vec, contents.element_bytes.get_by_ref(u8_i)?)
+            byte_val := cast(U8, u8_bytes.get_by_ref(0)?)
             output.push_str(byte_val.to_str())
         }
         output.push_str("};\n")
@@ -3392,8 +3350,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
     mut inner_data_names := Vec.new(Str)
 
     for idx in 0..elem_count {
-        elem_bytes_ref := contents.element_bytes.get_by_ref(idx)?
-        create_alias(elem_bytes, Vec, elem_bytes_ref.data)
+        elem_bytes := cast(Vec, contents.element_bytes.get_by_ref(idx)?)
 
         inner_var_name := format(var_name, "_", idx.to_str())
 
@@ -3452,8 +3409,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
     output.push_str("] = {\n")
 
     for outer_idx in 0..elem_count {
-        outer_elem_bytes_ref := contents.element_bytes.get_by_ref(outer_idx)?
-        create_alias(outer_elem_bytes, Vec, outer_elem_bytes_ref.data)
+        outer_elem_bytes := cast(Vec, contents.element_bytes.get_by_ref(outer_idx)?)
 
         if elem_type.eq("Vec") {
             // Emit Vec struct with patched pointers
@@ -3475,8 +3431,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
             // Get inner type name
             outer_inner_type_name := EvalHeap.extract_str_from_bytes(context, outer_elem_bytes)?
 
-            inner_data_name_str_ref := inner_data_names.get_by_ref(outer_idx)?
-            create_alias(inner_data_name_str, Str, inner_data_name_str_ref.data)
+            inner_data_name_str := cast(Str, inner_data_names.get_by_ref(outer_idx)?)
 
             output.push_str("    {.type_name = (")
             output.push_str(TIL_PREFIX)
@@ -3523,8 +3478,7 @@ bytes_to_i64 := func(bytes: Vec) returns I64 {
     mut multiplier := 1  // 256^0 = 1
     for i in 0..8 {
         if i.lt(bytes.len()) {
-            b_ref := bytes.get_by_ref(i)?
-            create_alias(b, U8, b_ref.data)
+            b := cast(U8, bytes.get_by_ref(i)?)
             // Add byte value * position multiplier (256^i)
             result = result.add(b.to_i64().mul(multiplier))
             multiplier = multiplier.mul(256)
@@ -3550,8 +3504,7 @@ emit_precomputed_vec_str_static := proc(mut output: Str, mut _ctx: CodegenContex
     output.push_str("] = {\n")
 
     for idx in 0..elem_count {
-        bytes_ref := contents.element_bytes.get_by_ref(idx)?
-        create_alias(bytes, Vec, bytes_ref.data)
+        bytes := cast(Vec, contents.element_bytes.get_by_ref(idx)?)
 
         // Extract string data from Str struct bytes
         // Str layout: c_string (Ptr), _len (I64), cap (I64)
@@ -3618,8 +3571,7 @@ bytes_to_i64_from_offset := func(bytes: Vec, offset: I64) returns I64 {
     for i in 0..8 {
         idx := offset.add(i)
         if idx.lt(bytes.len()) {
-            b_ref := bytes.get_by_ref(idx)?
-            create_alias(b, U8, b_ref.data)
+            b := cast(U8, bytes.get_by_ref(idx)?)
             result = result.add(b.to_i64().mul(multiplier))
             multiplier = multiplier.mul(256)
         }
@@ -3947,8 +3899,7 @@ emit_enum_method_prototypes := proc(expr: Expr, context: Context, mut output: St
             case NodeType.EnumDef(enum_def):
                 enum_name := til_name(decl.name)
                 for method_name: Str in enum_def.methods.keys {
-                    m_ref := enum_def.methods.get_by_ref(method_name)?
-                    create_alias(method_expr, Expr, m_ref.data)
+                    method_expr := cast(Expr, enum_def.methods.get_by_ref(method_name)?)
                     switch method_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         mangled_name := enum_name.concat("_").concat(method_name)
@@ -3978,8 +3929,7 @@ emit_enum_method_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
             case NodeType.EnumDef(enum_def):
                 enum_name := til_name(decl.name)
                 for method_name: Str in enum_def.methods.keys {
-                    m_ref := enum_def.methods.get_by_ref(method_name)?
-                    create_alias(method_expr, Expr, m_ref.data)
+                    method_expr := cast(Expr, enum_def.methods.get_by_ref(method_name)?)
                     switch method_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         // Create a fake Declaration for emit_struct_func_body
@@ -4088,8 +4038,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
         output.push_str("    return 0;\n")
     } else if not(func_def.return_types.is_empty()) {
         // Non-throwing functions with return type - add zero-initialized fallback
-        ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
-        create_alias(ret_type_vt, ValueType, ret_type_vt_ref.data)
+        ret_type_vt := cast(ValueType, func_def.return_types.get_by_ref(0)?)
         ret_type := til_type_to_c(ret_type_vt)?
         output.push_str("    return (")
         output.push_str(ret_type)
@@ -4122,8 +4071,7 @@ emit_namespace_func_prototypes := proc(expr: Expr, context: Context, mut output:
     case NodeType.NamespaceDef(ns_def):
         type_name := til_name(ns_def.type_name)
         for member: Declaration in ns_def.members {
-            val_ref := ns_def.default_values.get_by_ref(member.name)?
-            create_alias(func_expr, Expr, val_ref.data)
+            func_expr := cast(Expr, ns_def.default_values.get_by_ref(member.name)?)
             catch (err: KeyNotFoundError) {
                 // member has no default value, skip
             }
@@ -4145,8 +4093,7 @@ emit_namespace_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: Codegen
     case NodeType.NamespaceDef(ns_def):
         type_name := til_name(ns_def.type_name)
         for member: Declaration in ns_def.members {
-            val_ref := ns_def.default_values.get_by_ref(member.name)?
-            create_alias(func_expr, Expr, val_ref.data)
+            func_expr := cast(Expr, ns_def.default_values.get_by_ref(member.name)?)
             catch (err: KeyNotFoundError) {
                 // member has no default value, skip
             }
@@ -4222,8 +4169,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
         if func_def.return_types.is_empty() {
             output.push_str("void ")
         } else {
-            ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
-            create_alias(ret_type_vt, ValueType, ret_type_vt_ref.data)
+            ret_type_vt := cast(ValueType, func_def.return_types.get_by_ref(0)?)
             ret_type := til_type_to_c(ret_type_vt)?
             output.push_str(ret_type)
             output.push_str(" ")
@@ -4238,8 +4184,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
     if is_throwing {
         // Output params first: return value pointer, then error pointers
         if not(func_def.return_types.is_empty()) {
-            thr_ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
-            create_alias(thr_ret_type_vt, ValueType, thr_ret_type_vt_ref.data)
+            thr_ret_type_vt := cast(ValueType, func_def.return_types.get_by_ref(0)?)
             thr_ret_type := til_type_to_c(thr_ret_type_vt)?
             output.push_str(thr_ret_type)
             output.push_str("* _ret")
@@ -4248,8 +4193,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
 
         // Issue #119: Skip empty struct errors - only status code matters
         for i in 0..func_def.throw_types.len() {
-            throw_type_ref := func_def.throw_types.get_by_ref(i)?
-            create_alias(throw_type, ValueType, throw_type_ref.data)
+            throw_type := cast(ValueType, func_def.throw_types.get_by_ref(i)?)
             if is_empty_error_struct(context, throw_type) {
                 // Skip this error parameter for empty struct
             } else {
@@ -4481,8 +4425,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 if not(func_def.throw_types.is_empty()) {
                     output.push_str("    return 0;\n")
                 } else if not(func_def.return_types.is_empty()) {
-                    ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
-                    create_alias(ret_type_vt, ValueType, ret_type_vt_ref.data)
+                    ret_type_vt := cast(ValueType, func_def.return_types.get_by_ref(0)?)
                     ret_type := til_type_to_c(ret_type_vt)?
                     output.push_str("    return (")
                     output.push_str(ret_type)
@@ -4809,8 +4752,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Process all statements
     while i.lt(stmts.len()) {
-        stmt_ref := stmts.get_by_ref(i)?
-        create_alias(stmt, Expr, stmt_ref.data)
+        stmt := cast(Expr, stmts.get_by_ref(i)?)
         effective_indent := indent  // Use same indent for all statements (no if-block nesting)
 
         // Bug #39 fix: Handle catch blocks inline with if(0) { label: ... }
@@ -4894,6 +4836,21 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                             // Bug #46 fix: Remove this catch from local_catch_labels
                             // Catches should only handle throws from BEFORE them, not after.
                             ctx.local_catch_labels.remove(stmt_err_type_name)
+
+                            // Register next catch of the same type, if any.
+                            // Without this, throwing calls nested inside non-throwing nodes
+                            // (e.g. cast(Type, throwing_expr?)) between two catches of the
+                            // same type would see no catch label and generate empty error
+                            // handling, causing segfaults.
+                            for next_entry: CatchLabelInfoEntry in all_catch_info {
+                                if next_entry.stmt_index.gt(i).and(next_entry.type_name.eq(stmt_err_type_name)) {
+                                    mut next_info := CatchLabelInfo()
+                                    next_info.label = next_entry.label.clone()
+                                    next_info.temp_var = next_entry.temp_var.clone()
+                                    ctx.local_catch_labels.set(stmt_err_type_name.clone(), next_info)
+                                    break
+                                }
+                            }
                         }
                     }
                 case:
@@ -4965,8 +4922,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                 mut catch_blocks := Vec.new(Expr)
                 mut j := i.add(1)
                 while j.lt(stmts.len()) {
-                    next_stmt_ref := stmts.get_by_ref(j)?
-                    create_alias(next_stmt, Expr, next_stmt_ref.data)
+                    next_stmt := cast(Expr, stmts.get_by_ref(j)?)
                     switch next_stmt.node_type {
                     case NodeType.Catch:
                         catch_blocks.push(next_stmt)
@@ -5005,8 +4961,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                     // Replace local_catch_labels with only the next catches
                     ctx.local_catch_labels.clear()
                     for type_name: Str in next_catches.keys {
-                        catch_info_ref := next_catches.get_by_ref(type_name)?
-                        create_alias(catch_info, CatchLabelInfo, catch_info_ref.data)
+                        catch_info := cast(CatchLabelInfo, next_catches.get_by_ref(type_name)?)
                         catch (err: KeyNotFoundError) {
                             panic(loc(), "KeyNotFoundError iterating keys: ", err.msg)
                         }
@@ -5125,8 +5080,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             mut param_type := Ptr()
             mut by_ref := false
             if i.lt(func_def_opt.args.len()) {
-                param_decl_ref := func_def_opt.args.get_by_ref(i)?
-                create_alias(param_decl, Declaration, param_decl_ref.data)
+                param_decl := cast(Declaration, func_def_opt.args.get_by_ref(i)?)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -5143,8 +5097,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     mut variadic_arg_strings := Vec.new(Str)
     mut vi := regular_count
     while vi.lt(arg_strings.len()) {
-        vas_ref := arg_strings.get_by_ref(vi)?
-        create_alias(vas, Str, vas_ref.data)
+        vas := cast(Str, arg_strings.get_by_ref(vi)?)
         variadic_arg_strings.push(vas)
         vi.inc()
     }
@@ -5155,8 +5108,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     if not(decl_name.eq("")).or(not(assign_name.eq(""))) {
         fd2 := get_fcall_func_def(context, fcall)?
         if not(fd2.return_types.is_empty()) {
-            first_ret_ref := fd2.return_types.get_by_ref(0)?
-            create_alias(first_ret, ValueType, first_ret_ref.data)
+            first_ret := cast(ValueType, fd2.return_types.get_by_ref(0)?)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) {
                 ret_type = "int"
@@ -5184,8 +5136,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if ci.gt(0) {
                     output.push_str(", ")
                 }
-                arg_str_discard_ref := arg_strings.get_by_ref(ci)?
-                create_alias(arg_str_discard, Str, arg_str_discard_ref.data)
+                arg_str_discard := cast(Str, arg_strings.get_by_ref(ci)?)
                 output.push_str(arg_str_discard)
                 ci.inc()
             }
@@ -5199,8 +5150,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             // Bug #97: Register in scope FIRST so we can get the type-mangled name
             fd3 := get_fcall_func_def(context, fcall)?
             if not(fd3.return_types.is_empty()) {
-                first_type_ref := fd3.return_types.get_by_ref(0)?
-                create_alias(first_type, ValueType, first_type_ref.data)
+                first_type := cast(ValueType, fd3.return_types.get_by_ref(0)?)
                 mut sym_info := SymbolInfo()
                 sym_info.value_type = first_type
                 sym_info.is_mut = true
@@ -5225,8 +5175,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if di.gt(0) {
                     output.push_str(", ")
                 }
-                arg_str_decl_ref := arg_strings.get_by_ref(di)?
-                create_alias(arg_str_decl, Str, arg_str_decl_ref.data)
+                arg_str_decl := cast(Str, arg_strings.get_by_ref(di)?)
                 output.push_str(arg_str_decl)
                 di.inc()
             }
@@ -5277,8 +5226,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             if ai.gt(0) {
                 output.push_str(", ")
             }
-            arg_str_assign_ref := arg_strings.get_by_ref(ai)?
-            create_alias(arg_str_assign, Str, arg_str_assign_ref.data)
+            arg_str_assign := cast(Str, arg_strings.get_by_ref(ai)?)
             output.push_str(arg_str_assign)
             ai.inc()
         }
@@ -5300,8 +5248,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             if si.gt(0) {
                 output.push_str(", ")
             }
-            arg_str_standalone_ref := arg_strings.get_by_ref(si)?
-            create_alias(arg_str_standalone, Str, arg_str_standalone_ref.data)
+            arg_str_standalone := cast(Str, arg_strings.get_by_ref(si)?)
             output.push_str(arg_str_standalone)
             si.inc()
         }
@@ -5331,8 +5278,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     mut func_name := get_fcall_func_name(fcall)?
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    mn_ref := ctx.nested_func_names.get_by_ref(func_name)?
-    create_alias(mangled_name, Str, mn_ref.data)
+    mangled_name := cast(Str, ctx.nested_func_names.get_by_ref(func_name)?)
     func_name = mangled_name
     catch (err: KeyNotFoundError) {
         // Expected: use original func_name as fallback
@@ -5375,8 +5321,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             mut param_type := Ptr()
             mut by_ref := false
             if i.lt(func_def_opt.args.len()) {
-                param_decl_ref := func_def_opt.args.get_by_ref(i)?
-                create_alias(param_decl, Declaration, param_decl_ref.data)
+                param_decl := cast(Declaration, func_def_opt.args.get_by_ref(i)?)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -5395,8 +5340,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)?
         if not(fd3.return_types.is_empty()) {
-            first_ret_ref := fd3.return_types.get_by_ref(0)?
-            create_alias(first_ret, ValueType, first_ret_ref.data)
+            first_ret := cast(ValueType, fd3.return_types.get_by_ref(0)?)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) {
                 ret_type = "int"
@@ -5412,8 +5356,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
         if not(fd4.return_types.is_empty()) {
-            first_type_ref := fd4.return_types.get_by_ref(0)?
-            create_alias(first_type, ValueType, first_type_ref.data)
+            first_type := cast(ValueType, fd4.return_types.get_by_ref(0)?)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
@@ -5454,8 +5397,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Declare error structs for each throw type (Issue #119: skip empty struct errors)
     for idx in 0..throw_types.len() {
-        throw_type_ref := throw_types.get_by_ref(idx)?
-        create_alias(throw_type, ValueType, throw_type_ref.data)
+        throw_type := cast(ValueType, throw_types.get_by_ref(idx)?)
         if is_empty_error_struct(context, throw_type) {
             continue
         }
@@ -5481,8 +5423,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     mut variadic_arg_strings := Vec.new(Str)
     mut vi_j := vi_regular_count
     while vi_j.lt(arg_strings.len()) {
-        vi_as_ref := arg_strings.get_by_ref(vi_j)?
-        create_alias(vi_as, Str, vi_as_ref.data)
+        vi_as := cast(Str, arg_strings.get_by_ref(vi_j)?)
         variadic_arg_strings.push(vi_as)
         vi_j.inc()
     }
@@ -5515,8 +5456,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     mut has_emitted_params := needs_ret
     mut err_idx := 0
     while err_idx.lt(throw_types.len()) {
-        err_throw_type_ref := throw_types.get_by_ref(err_idx)?
-        create_alias(err_throw_type, ValueType, err_throw_type_ref.data)
+        err_throw_type := cast(ValueType, throw_types.get_by_ref(err_idx)?)
         if not(is_empty_error_struct(context, err_throw_type)) {
             if has_emitted_params {
                 output.push_str(", ")
@@ -5538,8 +5478,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             if has_emitted_params.or(vi_arg_idx.gt(0)) {
                 output.push_str(", ")
             }
-            vi_arg_str_ref := arg_strings.get_by_ref(vi_arg_idx)?
-            create_alias(vi_arg_str, Str, vi_arg_str_ref.data)
+            vi_arg_str := cast(Str, arg_strings.get_by_ref(vi_arg_idx)?)
             output.push_str(vi_arg_str)
             vi_arg_idx.inc()
         }
@@ -5556,8 +5495,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             if has_emitted_params.or(nv_arg_i.gt(0)) {
                 output.push_str(", ")
             }
-            nv_arg_str_ref := arg_strings.get_by_ref(nv_arg_i)?
-            create_alias(nv_arg_str, Str, nv_arg_str_ref.data)
+            nv_arg_str := cast(Str, arg_strings.get_by_ref(nv_arg_i)?)
             output.push_str(nv_arg_str)
             nv_arg_i.inc()
         }
@@ -5632,8 +5570,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 mut found_idx := 0
                 mut found := false
                 for catch_err_idx in 0..throw_types.len() {
-                    vt_ref := throw_types.get_by_ref(catch_err_idx)?
-                    create_alias(vt, ValueType, vt_ref.data)
+                    vt := cast(ValueType, throw_types.get_by_ref(catch_err_idx)?)
                     switch vt {
                     case ValueType.TCustom(name):
                         if Str.eq(name, err_type_name) { // TODO Bug #176: UFCS workaround for create_alias
@@ -5760,8 +5697,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut func_name := get_fcall_func_name(fcall)?
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    mn_ref := ctx.nested_func_names.get_by_ref(func_name)?
-    create_alias(mangled_name, Str, mn_ref.data)
+    mangled_name := cast(Str, ctx.nested_func_names.get_by_ref(func_name)?)
     func_name = mangled_name
     catch (err: KeyNotFoundError) {
         // Expected: use original func_name as fallback
@@ -5800,8 +5736,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             mut param_type := Ptr()
             mut by_ref := false
             if have_func_def.and(i.lt(func_def_opt.args.len())) {
-                param_decl_ref := func_def_opt.args.get_by_ref(i)?
-                create_alias(param_decl, Declaration, param_decl_ref.data)
+                param_decl := cast(Declaration, func_def_opt.args.get_by_ref(i)?)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -5820,8 +5755,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)?
         if not(fd3.return_types.is_empty()) {
-            first_ret_ref := fd3.return_types.get_by_ref(0)?
-            create_alias(first_ret, ValueType, first_ret_ref.data)
+            first_ret := cast(ValueType, fd3.return_types.get_by_ref(0)?)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) { ret_type = "int" }
         }
@@ -5834,8 +5768,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
         if not(fd4.return_types.is_empty()) {
-            first_type_ref := fd4.return_types.get_by_ref(0)?
-            create_alias(first_type, ValueType, first_type_ref.data)
+            first_type := cast(ValueType, fd4.return_types.get_by_ref(0)?)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
@@ -5876,8 +5809,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
     for idx in 0..throw_types.len() {
-        throw_type_ref := throw_types.get_by_ref(idx)?
-        create_alias(throw_type, ValueType, throw_type_ref.data)
+        throw_type := cast(ValueType, throw_types.get_by_ref(idx)?)
         if is_empty_error_struct(context, throw_type) {
             continue
         }
@@ -5904,8 +5836,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut variadic_arg_strings := Vec.new(Str)
     mut va_j := prop_vi_regular_count
     while va_j.lt(arg_strings.len()) {
-        va_s_ref := arg_strings.get_by_ref(va_j)?
-        create_alias(va_s, Str, va_s_ref.data)
+        va_s := cast(Str, arg_strings.get_by_ref(va_j)?)
         variadic_arg_strings.push(va_s)
         va_j.inc()
     }
@@ -5938,8 +5869,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut has_emitted_params := needs_ret
     mut err_idx := 0
     while err_idx.lt(throw_types.len()) {
-        err_throw_type_ref := throw_types.get_by_ref(err_idx)?
-        create_alias(err_throw_type, ValueType, err_throw_type_ref.data)
+        err_throw_type := cast(ValueType, throw_types.get_by_ref(err_idx)?)
         if not(is_empty_error_struct(context, err_throw_type)) {
             if has_emitted_params {
                 output.push_str(", ")
@@ -5960,8 +5890,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             if has_emitted_params.or(var_arg_i.gt(0)) {
                 output.push_str(", ")
             }
-            var_arg_str_ref := arg_strings.get_by_ref(var_arg_i)?
-            create_alias(var_arg_str, Str, var_arg_str_ref.data)
+            var_arg_str := cast(Str, arg_strings.get_by_ref(var_arg_i)?)
             output.push_str(var_arg_str)
             var_arg_i.inc()
         }
@@ -5977,8 +5906,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             if has_emitted_params.or(nv_arg_i.gt(0)) {
                 output.push_str(", ")
             }
-            nv_arg_str_ref := arg_strings.get_by_ref(nv_arg_i)?
-            create_alias(nv_arg_str, Str, nv_arg_str_ref.data)
+            nv_arg_str := cast(Str, arg_strings.get_by_ref(nv_arg_i)?)
             output.push_str(nv_arg_str)
             nv_arg_i.inc()
         }
@@ -5989,16 +5917,14 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Generate error propagation: if status != 0, copy error to caller's error param and return
     for called_idx in 0..throw_types.len() {
-        called_throw_type_ref := throw_types.get_by_ref(called_idx)?
-        create_alias(called_throw_type, ValueType, called_throw_type_ref.data)
+        called_throw_type := cast(ValueType, throw_types.get_by_ref(called_idx)?)
         switch called_throw_type {
         case ValueType.TCustom(called_type_name):
             // Find matching error type in current function's throw types
             mut current_idx := 0
             mut found := false
             for cur_throw_idx in 0..ctx.current_throw_types.len() {
-                cur_vt_ref := ctx.current_throw_types.get_by_ref(cur_throw_idx)?
-                create_alias(cur_vt, ValueType, cur_vt_ref.data)
+                cur_vt := cast(ValueType, ctx.current_throw_types.get_by_ref(cur_throw_idx)?)
                 switch cur_vt {
                 case ValueType.TCustom(cur_name):
                     if Str.eq(cur_name, called_type_name) { // TODO Bug #176: UFCS workaround for create_alias
@@ -6087,8 +6013,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut func_name := get_fcall_func_name(fcall)?
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    mn_ref := ctx.nested_func_names.get_by_ref(func_name)?
-    create_alias(mangled_name, Str, mn_ref.data)
+    mangled_name := cast(Str, ctx.nested_func_names.get_by_ref(func_name)?)
     func_name = mangled_name
     catch (err: KeyNotFoundError) {
         // Expected: use original func_name as fallback
@@ -6127,8 +6052,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             mut param_type := Ptr()
             mut by_ref := false
             if have_func_def.and(i.lt(func_def_opt.args.len())) {
-                param_decl_ref := func_def_opt.args.get_by_ref(i)?
-                create_alias(param_decl, Declaration, param_decl_ref.data)
+                param_decl := cast(Declaration, func_def_opt.args.get_by_ref(i)?)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -6147,8 +6071,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)?
         if not(fd3.return_types.is_empty()) {
-            first_ret_ref := fd3.return_types.get_by_ref(0)?
-            create_alias(first_ret, ValueType, first_ret_ref.data)
+            first_ret := cast(ValueType, fd3.return_types.get_by_ref(0)?)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) { ret_type = "int" }
         }
@@ -6161,8 +6084,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
         if not(fd4.return_types.is_empty()) {
-            first_type_ref := fd4.return_types.get_by_ref(0)?
-            create_alias(first_type, ValueType, first_type_ref.data)
+            first_type := cast(ValueType, fd4.return_types.get_by_ref(0)?)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
@@ -6203,8 +6125,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
     for idx in 0..throw_types.len() {
-        throw_type_ref := throw_types.get_by_ref(idx)?
-        create_alias(throw_type, ValueType, throw_type_ref.data)
+        throw_type := cast(ValueType, throw_types.get_by_ref(idx)?)
         if is_empty_error_struct(context, throw_type) {
             continue
         }
@@ -6231,8 +6152,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut variadic_arg_strings := Vec.new(Str)
     mut va_j := goto_vi_regular_count
     while va_j.lt(arg_strings.len()) {
-        va_s_ref := arg_strings.get_by_ref(va_j)?
-        create_alias(va_s, Str, va_s_ref.data)
+        va_s := cast(Str, arg_strings.get_by_ref(va_j)?)
         variadic_arg_strings.push(va_s)
         va_j.inc()
     }
@@ -6265,8 +6185,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut has_emitted_params := needs_ret
     mut err_idx := 0
     while err_idx.lt(throw_types.len()) {
-        err_throw_type_ref := throw_types.get_by_ref(err_idx)?
-        create_alias(err_throw_type, ValueType, err_throw_type_ref.data)
+        err_throw_type := cast(ValueType, throw_types.get_by_ref(err_idx)?)
         if not(is_empty_error_struct(context, err_throw_type)) {
             if has_emitted_params {
                 output.push_str(", ")
@@ -6287,8 +6206,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             if has_emitted_params.or(var_arg_i.gt(0)) {
                 output.push_str(", ")
             }
-            var_arg_str_ref := arg_strings.get_by_ref(var_arg_i)?
-            create_alias(var_arg_str, Str, var_arg_str_ref.data)
+            var_arg_str := cast(Str, arg_strings.get_by_ref(var_arg_i)?)
             output.push_str(var_arg_str)
             var_arg_i.inc()
         }
@@ -6304,8 +6222,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             if has_emitted_params.or(nv_arg_i.gt(0)) {
                 output.push_str(", ")
             }
-            nv_arg_str_ref := arg_strings.get_by_ref(nv_arg_i)?
-            create_alias(nv_arg_str, Str, nv_arg_str_ref.data)
+            nv_arg_str := cast(Str, arg_strings.get_by_ref(nv_arg_i)?)
             output.push_str(nv_arg_str)
             nv_arg_i.inc()
         }
@@ -6316,13 +6233,11 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Bug #39 fix: Use simple status checks with goto, not if-block nesting
     for goto_err_idx in 0..throw_types.len() {
-        goto_throw_type_ref := throw_types.get_by_ref(goto_err_idx)?
-        create_alias(goto_throw_type, ValueType, goto_throw_type_ref.data)
+        goto_throw_type := cast(ValueType, throw_types.get_by_ref(goto_err_idx)?)
         switch goto_throw_type {
         case ValueType.TCustom(type_name):
             // Check if there's a local catch for this error type
-            catch_info_ref := ctx.local_catch_labels.get_by_ref(type_name)?
-            create_alias(catch_info, CatchLabelInfo, catch_info_ref.data)
+            catch_info := cast(CatchLabelInfo, ctx.local_catch_labels.get_by_ref(type_name)?)
             // Jump to local catch: copy error to temp var, then goto label
             output.push_str(indent_str)
             output.push_str("if (_status_")
@@ -6347,8 +6262,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 mut prop_idx := 0
                 mut found_prop := false
                 for prop_i in 0..ctx.current_throw_types.len() {
-                    prop_vt_ref := ctx.current_throw_types.get_by_ref(prop_i)?
-                    create_alias(prop_vt, ValueType, prop_vt_ref.data)
+                    prop_vt := cast(ValueType, ctx.current_throw_types.get_by_ref(prop_i)?)
                     switch prop_vt {
                     case ValueType.TCustom(n):
                         if Str.eq(n, type_name) { // TODO Bug #176: UFCS workaround for create_alias
@@ -6536,8 +6450,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 if not(func_def.throw_types.is_empty()) {
                     func_output.push_str("    return 0;\n")
                 } else if not(func_def.return_types.is_empty()) {
-                    ret_type_vt_ref := func_def.return_types.get_by_ref(0)?
-                    create_alias(ret_type_vt, ValueType, ret_type_vt_ref.data)
+                    ret_type_vt := cast(ValueType, func_def.return_types.get_by_ref(0)?)
                     ret_type := til_type_to_c(ret_type_vt)?
                     func_output.push_str("    return (")
                     func_output.push_str(ret_type)
@@ -6608,7 +6521,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         is_comptime_const=false
                     )
                 )?
-                cast_c_var_name := til_var_name(decl.name, value_type_to_c_prefix(cast_var_type))
+                cast_c_var_name := til_var_name_from_context(decl.name, context)
                 cast_c_type_name := value_type_to_c_name(cast_var_type)?
                 // Hoist the ptr_expr (may be a throwing call like get_by_ref)
                 cast_ptr_str := emit_arg_string(cast_ptr_expr, Ptr(), false, output, indent, ctx, context)?
@@ -6876,7 +6789,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     }
                 }
                 if has_value {
-                    create_alias(value_expr, Expr, value_expr_ptr.data)
+                    value_expr := cast(Expr, value_expr_ptr)
                     mut is_fcall := false
                     switch value_expr.node_type {
                     case NodeType.FCall(_):
@@ -6934,16 +6847,13 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 output.push_str(" = ")
                 // Use hoisted temp if available, otherwise emit inline
                 if hoisted_values.contains_key(member.name) {
-                    hv_ref := hoisted_values.get_by_ref(member.name)?
-                    create_alias(temp_var, Str, hv_ref.data)
-                    output.push_str(temp_var)
+                    hoisted_temp_var := cast(Str, hoisted_values.get_by_ref(member.name)?)
+                    output.push_str(hoisted_temp_var)
                 } else if named_values.contains_key(member.name) {
-                    nv_ref := named_values.get_by_ref(member.name)?
-                    create_alias(value_expr, Expr, nv_ref.data)
-                    emit_expr(value_expr, output, 0, ctx, context)?
+                    nv_expr := cast(Expr, named_values.get_by_ref(member.name)?)
+                    emit_expr(nv_expr, output, 0, ctx, context)?
                 } else {
-                    dv_ref := struct_def.default_values.get_by_ref(member.name)?
-                    create_alias(member_default_expr, Expr, dv_ref.data)
+                    member_default_expr := cast(Expr, struct_def.default_values.get_by_ref(member.name)?)
                     emit_expr(member_default_expr, output, 0, ctx, context)?
                     catch (err: KeyNotFoundError) {
                         // No default - use zero
@@ -7386,13 +7296,11 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     mut regular_arg_strings := Vec.new(Str)
                     mut i := 0
                     while i.lt(regular_args.len()) {
-                        arg_ref := regular_args.get_by_ref(i)?
-                        create_alias(arg, Expr, arg_ref.data)
+                        arg := cast(Expr, regular_args.get_by_ref(i)?)
                         mut param_type := Ptr()
                         mut by_ref := true
                         if i.lt(var_fd.args.len()) {
-                            param_decl_ref := var_fd.args.get_by_ref(i)?
-                            create_alias(param_decl, Declaration, param_decl_ref.data)
+                            param_decl := cast(Declaration, var_fd.args.get_by_ref(i)?)
                             param_type.data = to_ptr(param_decl.value_type)
                             by_ref = param_needs_by_ref(param_decl)
                         }
@@ -7431,8 +7339,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                         if vret_arg_i.gt(0) {
                             output.push_str(", ")
                         }
-                        vret_arg_str_ref := regular_arg_strings.get_by_ref(vret_arg_i)?
-                        create_alias(vret_arg_str, Str, vret_arg_str_ref.data)
+                        vret_arg_str := cast(Str, regular_arg_strings.get_by_ref(vret_arg_i)?)
                         output.push_str(vret_arg_str)
                         vret_arg_i.inc()
                     }
@@ -7524,8 +7431,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 if nh_thrown_type_name.is_empty() {
                     // It's a function - use its return type as the thrown type
                     if not(func_def.return_types.is_empty()) {
-                        nh_ret_type_ref := func_def.return_types.get_by_ref(0)?
-                        create_alias(nh_ret_type, ValueType, nh_ret_type_ref.data)
+                        nh_ret_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
                         switch nh_ret_type {
                         case ValueType.TCustom(type_name):
                             nh_thrown_type_name = type_name.clone()
@@ -7577,8 +7483,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Check if this type is locally caught (has a catch block at function level)
     if ctx.local_catch_labels.contains_key(nh_thrown_type_name.clone()) {
-        nh_catch_info_ref := ctx.local_catch_labels.get_by_ref(nh_thrown_type_name.clone())?
-        create_alias(nh_catch_info, CatchLabelInfo, nh_catch_info_ref.data)
+        nh_catch_info := cast(CatchLabelInfo, ctx.local_catch_labels.get_by_ref(nh_thrown_type_name.clone())?)
         nh_label := nh_catch_info.label.clone()
         nh_temp_var := nh_catch_info.temp_var.clone()
 
@@ -7619,8 +7524,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     mut nh_error_index := sub(0, 1)
     mut nh_i := 0
     while nh_i.lt(ctx.current_throw_types.len()) {
-        nh_vt_ref := ctx.current_throw_types.get_by_ref(nh_i)?
-        create_alias(nh_vt, ValueType, nh_vt_ref.data)
+        nh_vt := cast(ValueType, ctx.current_throw_types.get_by_ref(nh_i)?)
         switch nh_vt {
         case ValueType.TCustom(name):
             if name.eq(nh_thrown_type_name) {
@@ -7634,8 +7538,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     if nh_error_index.gteq(0) {
         // Issue #119: Check if this is an empty struct error
-        nh_prop_err_type_ref := ctx.current_throw_types.get_by_ref(nh_error_index)?
-        create_alias(nh_prop_err_type, ValueType, nh_prop_err_type_ref.data)
+        nh_prop_err_type := cast(ValueType, ctx.current_throw_types.get_by_ref(nh_error_index)?)
         is_empty_err := is_empty_error_struct(context, nh_prop_err_type)
 
         // Issue #119: Skip storing error value for empty struct errors
@@ -8058,8 +7961,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     orig_func_name := get_til_func_name_string(first_param)?
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    mn_ref := ctx.nested_func_names.get_by_ref(orig_func_name)?
-    create_alias(mn_val, Str, mn_ref.data)
+    mn_val := cast(Str, ctx.nested_func_names.get_by_ref(orig_func_name)?)
     func_name = mn_val
     catch (err: KeyNotFoundError) {
         // Expected: use orig_func_name as fallback
@@ -8129,12 +8031,10 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     // Use named arg value if provided, otherwise use default
                     // Bug #143: At expression level, use emit_expr - caller should have used emit_arg_string for hoisting
                     if named_values.contains_key(member.name) {
-                        nv_ref := named_values.get_by_ref(member.name)?
-                        create_alias(member_value_expr, Expr, nv_ref.data)
+                        member_value_expr := cast(Expr, named_values.get_by_ref(member.name)?)
                         emit_expr(member_value_expr, output, 0, ctx, context)?
                     } else {
-                        val_ref := struct_def.default_values.get_by_ref(member.name)?
-                        create_alias(default_expr, Expr, val_ref.data)
+                        default_expr := cast(Expr, struct_def.default_values.get_by_ref(member.name)?)
                         emit_expr(default_expr, output, 0, ctx, context)?
                         catch (err: KeyNotFoundError) {
                             output.push_str("0")
@@ -8159,8 +8059,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     // Get variadic info to know which args are variadic (need different handling)
     mut variadic_regular_count := 9999999
     mut have_variadic_info := true
-    variadic_info_check_ref := ctx.func_variadic_args.get_by_ref(orig_func_name)?
-    create_alias(variadic_info_check, VariadicFCallInfo, variadic_info_check_ref.data)
+    variadic_info_check := cast(VariadicFCallInfo, ctx.func_variadic_args.get_by_ref(orig_func_name)?)
     variadic_regular_count = variadic_info_check.regular_count
     catch (err: KeyNotFoundError) {
         have_variadic_info = false
@@ -8201,8 +8100,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             mut prep_param_type := Ptr()
             mut prep_by_ref := false
             if prep_i.lt(param_info.len()) {
-                prep_loop_pi_ref := param_info.get_by_ref(prep_i)?
-                create_alias(prep_loop_pi, ParamTypeInfo, prep_loop_pi_ref.data)
+                prep_loop_pi := cast(ParamTypeInfo, param_info.get_by_ref(prep_i)?)
                 prep_param_type.data = to_ptr(prep_loop_pi.value_type)
                 if prep_is_variadic_arg {
                     prep_by_ref = false
@@ -8662,8 +8560,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(".")
                 output.push_str(member.name)
                 output.push_str(" = ")
-                out_val_ref := struct_def_opt.default_values.get_by_ref(member.name)?
-                create_alias(out_default_expr, Expr, out_val_ref.data)
+                out_default_expr := cast(Expr, struct_def_opt.default_values.get_by_ref(member.name)?)
                 // Bug #143: At expression level, use emit_expr - caller handles hoisting via emit_arg_string
                 emit_expr(out_default_expr, output, 0, ctx, context)?
                 catch (err: KeyNotFoundError) {
@@ -8685,16 +8582,14 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     mut variadic_arr_var := ""
     mut has_variadic_arr := false
     if is_stmt_level.and(have_variadic_info) {
-        variadic_info_ref := ctx.func_variadic_args.get_by_ref(orig_func_name)?
-        create_alias(variadic_info, VariadicFCallInfo, variadic_info_ref.data)
+        variadic_info := cast(VariadicFCallInfo, ctx.func_variadic_args.get_by_ref(orig_func_name)?)
         elem_type := variadic_info.elem_type.clone()
         regular_count := variadic_info.regular_count
         // Bug #143: Use pre-computed arg_strings
         mut variadic_arg_strings := Vec.new(Str)
         mut vi := regular_count
         while vi.lt(arg_strings.len()) {
-            varg_str_ref := arg_strings.get_by_ref(vi)?
-            create_alias(varg_str, Str, varg_str_ref.data)
+            varg_str := cast(Str, arg_strings.get_by_ref(vi)?)
             variadic_arg_strings.push(varg_str)
             vi.inc()
         }
@@ -8713,10 +8608,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     if func_name.contains("_") {
         parts := func_name.split("_")?
         if parts.len().gteq(2) {
-            type_name_part_ref := parts.get_by_ref(0)?
-            create_alias(type_name_part, Str, type_name_part_ref.data)
-            variant_name_part_ref := parts.get_by_ref(1)?
-            create_alias(variant_name_part, Str, variant_name_part_ref.data)
+            type_name_part := cast(Str, parts.get_by_ref(0)?)
+            variant_name_part := cast(Str, parts.get_by_ref(1)?)
             mut ctor_have_enum_def := true
             enum_def := context.scope_stack.lookup_enum(type_name_part)?
             catch (err: KeyNotFoundError) {
@@ -8733,10 +8626,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     output.push_str(TIL_PREFIX)
     if is_enum_constructor {
         ctor_parts := func_name.split("_")?
-        ctor_type_name_part_ref := ctor_parts.get_by_ref(0)?
-        create_alias(ctor_type_name_part, Str, ctor_type_name_part_ref.data)
-        ctor_variant_name_part_ref := ctor_parts.get_by_ref(1)?
-        create_alias(ctor_variant_name_part, Str, ctor_variant_name_part_ref.data)
+        ctor_type_name_part := cast(Str, ctor_parts.get_by_ref(0)?)
+        ctor_variant_name_part := cast(Str, ctor_parts.get_by_ref(1)?)
         output.push_str(ctor_type_name_part)
         output.push_str("_make_")
         output.push_str(ctor_variant_name_part)
@@ -8747,8 +8638,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Check if this is a variadic function call
     if have_variadic_info {
-        var_fcall_info_ref := ctx.func_variadic_args.get_by_ref(orig_func_name)?
-        create_alias(var_fcall_info, VariadicFCallInfo, var_fcall_info_ref.data)
+        var_fcall_info := cast(VariadicFCallInfo, ctx.func_variadic_args.get_by_ref(orig_func_name)?)
         var_regular_count := var_fcall_info.regular_count
 
         // Bug #143: Use pre-computed arg_strings
@@ -8759,8 +8649,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 if vstmt_arg_i.gt(0) {
                     output.push_str(", ")
                 }
-                vstmt_arg_str_ref := arg_strings.get_by_ref(vstmt_arg_i)?
-                create_alias(vstmt_arg_str, Str, vstmt_arg_str_ref.data)
+                vstmt_arg_str := cast(Str, arg_strings.get_by_ref(vstmt_arg_i)?)
                 output.push_str(vstmt_arg_str)
                 vstmt_arg_i.inc()
             }
@@ -8788,8 +8677,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 dont_delete(vexpr_arg)
                 mut vexpr_by_ref := false
                 if vexpr_arg_i.lt(var_param_info.len()) {
-                    vexpr_loop_pi_ref := var_param_info.get_by_ref(vexpr_arg_i)?
-                    create_alias(vexpr_loop_pi, ParamTypeInfo, vexpr_loop_pi_ref.data)
+                    vexpr_loop_pi := cast(ParamTypeInfo, var_param_info.get_by_ref(vexpr_arg_i)?)
                     vexpr_by_ref = vexpr_loop_pi.by_ref
                 }
                 if vexpr_by_ref.and(is_pure_lvalue(vexpr_arg, context)?) {
@@ -8835,8 +8723,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 if nstmt_arg_i.gt(0) {
                     output.push_str(", ")
                 }
-                nstmt_arg_str_ref := arg_strings.get_by_ref(nstmt_arg_i)?
-                create_alias(nstmt_arg_str, Str, nstmt_arg_str_ref.data)
+                nstmt_arg_str := cast(Str, arg_strings.get_by_ref(nstmt_arg_i)?)
                 output.push_str(nstmt_arg_str)
                 nstmt_arg_i.inc()
             }
@@ -8875,8 +8762,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     mut nexpr_param_type := Ptr()
                     mut nexpr_by_ref := false
                     if nexpr_arg_i.lt(nv_param_info.len()) {
-                        nexpr_loop_pi_ref := nv_param_info.get_by_ref(nexpr_arg_i)?
-                        create_alias(nexpr_loop_pi, ParamTypeInfo, nexpr_loop_pi_ref.data)
+                        nexpr_loop_pi := cast(ParamTypeInfo, nv_param_info.get_by_ref(nexpr_arg_i)?)
                         nexpr_param_type.data = to_ptr(nexpr_loop_pi.value_type)
                         nexpr_by_ref = nexpr_loop_pi.by_ref
                     }

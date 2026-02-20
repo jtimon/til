@@ -131,8 +131,7 @@ test_mode_test := proc() {
     assert_eq(loc(), 1, m.imports.len())
 
     // Test that imports contains "modes.test"
-    import_str_ref := m.imports.get_by_ref(0)?
-    create_alias(import_str, Str, import_str_ref.data)
+    import_str := cast(Str, m.imports.get_by_ref(0)?)
     assert_eq_str(loc(), "modes.test", import_str)
 
     catch (err: Str) {

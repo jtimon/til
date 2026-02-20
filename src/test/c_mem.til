@@ -66,6 +66,9 @@ test_memset := proc() {
     catch(err: BadAlloc) {
         panic(loc(), "buy more ram")
     }
+    catch(err: U8_Overflow) {
+        panic(loc(), err.msg)
+    }
 }
 test_memset()
 
@@ -78,6 +81,9 @@ test_memcpy := proc() {
     free(p2)
     catch(err: BadAlloc) {
         panic(loc(), "buy more ram")
+    }
+    catch(err: U8_Overflow) {
+        panic(loc(), err.msg)
     }
 }
 test_memcpy()

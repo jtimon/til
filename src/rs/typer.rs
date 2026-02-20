@@ -1259,6 +1259,18 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                             if let NodeType::FCall(_) = arg.node_type {
                                 match get_func_def_for_fcall(&context, arg) {
                                     Ok(Some(arg_nested_func_def)) => {
+                                        // Add the nested function's own throw types (only if it has ?)
+                                        if matches!(arg.node_type, NodeType::FCall(true)) {
+                                            for arg_nested_throw in &arg_nested_func_def.throw_types {
+                                                let arg_nested_throw_str = value_type_to_str(arg_nested_throw);
+                                                let arg_nested_error_msg = format!(
+                                                    "Function throws '{}', but it is not declared in this function's throws section.",
+                                                    arg_nested_throw_str
+                                                );
+                                                thrown_types.push(ThrownType { type_str: arg_nested_throw_str.clone(), msg: arg.error(&context.path, "type", &arg_nested_error_msg) });
+                                                thrown_types.push(ThrownType { type_str: arg_nested_throw_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
+                                            }
+                                        }
                                         let mut arg_thrown_types: Vec<ThrownType> = Vec::new();
                                         errors.extend(check_body_returns_throws(context, arg, &arg_nested_func_def, &arg.params, &mut arg_thrown_types, return_found)?);
                                         thrown_types.extend(arg_thrown_types);
@@ -2929,8 +2941,8 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
         // Issue #108: NamespaceDef - recurse into default_values (function bodies)
         NodeType::NamespaceDef(ns_def) => {
             let mut ns_new_default_values = HashMap::new();
-            for (name, value_expr) in &ns_def.default_values {
-                let resolved_expr = resolve_inferred_types(context, value_expr)?;
+            for (name, ns_value_expr) in &ns_def.default_values {
+                let resolved_expr = resolve_inferred_types(context, ns_value_expr)?;
                 // Re-register resolved func_defs in scope_stack so interpreter uses resolved types
                 if let NodeType::FuncDef(func_def) = &resolved_expr.node_type {
                     let full_name = format!("{}.{}", ns_def.type_name, name);

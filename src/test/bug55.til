@@ -16,8 +16,7 @@ test_clone_in_struct_literal_pushed_to_vec := proc() {
     // This triggers Bug #55 - clone inside struct literal passed to push
     items.push(Item(name=original.clone(), count=42))
 
-    item_ref := items.get_by_ref(0)?
-    create_alias(item, Item, item_ref.data)
+    item := cast(Item, items.get_by_ref(0)?)
     assert_eq_str(loc(), "hello", item.name)
 
     catch (err: IndexOutOfBoundsError) {

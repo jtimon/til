@@ -25,12 +25,10 @@ data := create_data()
 main := proc() {
     println("data len: ", data.len().to_str())
 
-    item0_ref := data.get_by_ref(0)?
-    create_alias(item0, Str, item0_ref.data)
+    item0 := cast(Str, data.get_by_ref(0)?)
     println("data[0]: ", item0)
 
-    item1_ref := data.get_by_ref(1)?
-    create_alias(item1, Str, item1_ref.data)
+    item1 := cast(Str, data.get_by_ref(1)?)
     println("data[1]: ", item1)
 
     println("Bug #133 test PASSED")

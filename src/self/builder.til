@@ -88,8 +88,7 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
                                         // Bug #128: Use already-resolved AST from typer phase if available
                                         mut dep_resolved := Expr()
                                         if context.imported_asts.contains_key(file_path) {
-                                            dr_ref := context.imported_asts.get_by_ref(file_path)?
-                                            create_alias(dr, Expr, dr_ref.data)
+                                            dr := cast(Expr, context.imported_asts.get_by_ref(file_path)?)
                                             dep_resolved = dr
                                         } else {
                                             dep_result := parse_file(file_path)?
@@ -136,7 +135,7 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
 }
 
 // Merge multiple ASTs into one, filtering out import statements
-merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr {
+merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr throws Str {
     mut all_params := Vec.new(Expr)
 
     // Add dependencies first (in order they were collected)
@@ -473,7 +472,7 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
     main_ast := precomp_expr(context, main_ufcs)?
 
     // Merge all precompiled ASTs for codegen
-    merged_ast := merge_asts(main_ast, dep_asts)
+    merged_ast := merge_asts(main_ast, dep_asts)?
 
     // Scavenger phase: Remove unused function declarations
     merged_ast2 := scavenger_expr(context, merged_ast)?

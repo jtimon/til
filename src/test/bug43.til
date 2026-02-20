@@ -23,14 +23,12 @@ test_map_get_in_struct := proc() {
     // Try direct Map (not in struct) to isolate the issue
     mut direct_map := Map.new(Str, I64)
     direct_map.insert("direct_test", 99)?
-    direct_val_ref := direct_map.get_by_ref("direct_test")?
-    create_alias(direct_val, I64, direct_val_ref.data)
+    direct_val := cast(I64, direct_map.get_by_ref("direct_test")?)
     assert_eq(loc(), 99, direct_val)  // Does direct Map work?
     direct_map.delete()
 
     // Now try the struct field Map
-    val_ref := frame.funcs.get_by_ref("test")?
-    create_alias(val, I64, val_ref.data)
+    val := cast(I64, frame.funcs.get_by_ref("test")?)
     assert_eq(loc(), 42, val)
 
     frame.funcs.delete()

@@ -94,8 +94,7 @@ parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError
             parts := line.split(": ")?
             if parts.len().gt(1) {
                 mut time_str := ""
-                time_str_ref := parts.get_by_ref(parts.len().sub(1))?
-                create_alias(time_str_alias, Str, time_str_ref.data)
+                time_str_alias := cast(Str, parts.get_by_ref(parts.len().sub(1))?)
                 time_str = time_str_alias
                 time_str = time_str.replace("\r", "")
                 // Find first colon (separates minutes from seconds, or hours from minutes)
@@ -145,8 +144,7 @@ parse_maxrss_kb := func(time_output: Str) returns I64 throws IndexOutOfBoundsErr
             parts := line.split(": ")?
             if parts.len().gt(1) {
                 mut val_str := ""
-                val_str_ref := parts.get_by_ref(parts.len().sub(1))?
-                create_alias(val_str_alias, Str, val_str_ref.data)
+                val_str_alias := cast(Str, parts.get_by_ref(parts.len().sub(1))?)
                 val_str = val_str_alias
                 val_str = val_str.replace("\r", "")
                 return val_str.to_i64()
@@ -548,10 +546,8 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
     // Start initial batch
     while running.len().lt(parallelism) {
         if pending_idx.lt(tests.len()) {
-            entry_ref := tests.get_by_ref(pending_idx)?
-            create_alias(entry, TestEntry, entry_ref.data)
-            phase_ref := phases.get_by_ref(0)?
-            create_alias(phase, TestPhase, phase_ref.data)
+            entry := cast(TestEntry, tests.get_by_ref(pending_idx)?)
+            phase := cast(TestPhase, phases.get_by_ref(0)?)
             rt := spawn_test(entry, phase, next_id)?
             running.push(rt)
             pending_idx.inc()
@@ -566,15 +562,13 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
         mut i := 0
         while i.lt(running.len()) {
             mut current := RunningTest()
-            current_ref := running.get_by_ref(i)?
-            create_alias(current_alias, RunningTest, current_ref.data)
+            current_alias := cast(RunningTest, running.get_by_ref(i)?)
             current = current_alias
 
             status := check_cmd_status(current.pid)
             if not(status.eq(I64_MINUS1)) {
                 // Phase finished - parse result from test.til
-                current_phase_ref := phases.get_by_ref(current.current_phase)?
-                create_alias(current_phase, TestPhase, current_phase_ref.data)
+                current_phase := cast(TestPhase, phases.get_by_ref(current.current_phase)?)
 
                 mut build_ms := 0
                 mut build_maxrss_kb := 0
@@ -592,19 +586,15 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
                 current.phase_mem_reports.push(mem_report_line)
 
                 // Accumulate to phase total (time: sum, build: sum, maxrss: keep max)
-                old_build_ref := phase_build_totals.get_by_ref(current.current_phase)?
-                create_alias(old_build, I64, old_build_ref.data)
+                old_build := cast(I64, phase_build_totals.get_by_ref(current.current_phase)?)
                 phase_build_totals.set(current.current_phase, old_build.add(build_ms))?
-                old_build_maxrss_ref := phase_build_maxrss_maxes.get_by_ref(current.current_phase)?
-                create_alias(old_build_maxrss, I64, old_build_maxrss_ref.data)
+                old_build_maxrss := cast(I64, phase_build_maxrss_maxes.get_by_ref(current.current_phase)?)
                 if build_maxrss_kb.gt(old_build_maxrss) {
                     phase_build_maxrss_maxes.set(current.current_phase, build_maxrss_kb)?
                 }
-                old_total_ref := phase_totals.get_by_ref(current.current_phase)?
-                create_alias(old_total, I64, old_total_ref.data)
+                old_total := cast(I64, phase_totals.get_by_ref(current.current_phase)?)
                 phase_totals.set(current.current_phase, old_total.add(time_ms))?
-                old_maxrss_ref := phase_maxrss_maxes.get_by_ref(current.current_phase)?
-                create_alias(old_maxrss, I64, old_maxrss_ref.data)
+                old_maxrss := cast(I64, phase_maxrss_maxes.get_by_ref(current.current_phase)?)
                 if maxrss_kb.gt(old_maxrss) {
                     phase_maxrss_maxes.set(current.current_phase, maxrss_kb)?
                 }
@@ -619,8 +609,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
                     // Remove from running
                     last_idx := running.len().sub(1)
                     if i.lt(last_idx) {
-                        last_ref := running.get_by_ref(last_idx)?
-                        create_alias(last, RunningTest, last_ref.data)
+                        last := cast(RunningTest, running.get_by_ref(last_idx)?)
                         running.set(i, last)?
                     }
                     mut popped := RunningTest()
@@ -628,10 +617,8 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
 
                     // Start next test
                     if pending_idx.lt(tests.len()) {
-                        fail_next_entry_ref := tests.get_by_ref(pending_idx)?
-                        create_alias(fail_next_entry, TestEntry, fail_next_entry_ref.data)
-                        fail_first_phase_ref := phases.get_by_ref(0)?
-                        create_alias(fail_first_phase, TestPhase, fail_first_phase_ref.data)
+                        fail_next_entry := cast(TestEntry, tests.get_by_ref(pending_idx)?)
+                        fail_first_phase := cast(TestPhase, phases.get_by_ref(0)?)
                         fail_rt := spawn_test(fail_next_entry, fail_first_phase, next_id)?
                         running.push(fail_rt)
                         pending_idx.inc()
@@ -642,8 +629,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
                     next_phase_idx := current.current_phase.add(1)
                     if next_phase_idx.lt(num_phases) {
                         // More phases to run - spawn next with test_runner
-                        next_phase_ref := phases.get_by_ref(next_phase_idx)?
-                        create_alias(next_phase, TestPhase, next_phase_ref.data)
+                        next_phase := cast(TestPhase, phases.get_by_ref(next_phase_idx)?)
 
                         // Issue #131: Pass --cc flag to test_runner
                         mut cc_flag := ""
@@ -688,14 +674,10 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
                         mut csv_til_comp_ms := ""
                         mut csv_til_comp_kb := ""
                         for p_idx in 0..num_phases {
-                            p_ref := phases.get_by_ref(p_idx)?
-                            create_alias(p, TestPhase, p_ref.data)
-                            bt_ref := current.phase_build_times.get_by_ref(p_idx)?
-                            create_alias(bt, I64, bt_ref.data)
-                            t_ref := current.phase_times.get_by_ref(p_idx)?
-                            create_alias(t, I64, t_ref.data)
-                            rss_ref := current.phase_maxrss.get_by_ref(p_idx)?
-                            create_alias(rss, I64, rss_ref.data)
+                            p := cast(TestPhase, phases.get_by_ref(p_idx)?)
+                            bt := cast(I64, current.phase_build_times.get_by_ref(p_idx)?)
+                            t := cast(I64, current.phase_times.get_by_ref(p_idx)?)
+                            rss := cast(I64, current.phase_maxrss.get_by_ref(p_idx)?)
                             if p_idx.gt(0) {
                                 timing_str = timing_str.concat(", ")
                             }
@@ -721,32 +703,24 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
                         // For 2-phase tests, add "faster" annotation
                         mut faster := ""
                         if num_phases.eq(2) {
-                            t0_ref := current.phase_times.get_by_ref(0)?
-                            create_alias(t0, I64, t0_ref.data)
-                            t1_ref := current.phase_times.get_by_ref(1)?
-                            create_alias(t1, I64, t1_ref.data)
+                            t0 := cast(I64, current.phase_times.get_by_ref(0)?)
+                            t1 := cast(I64, current.phase_times.get_by_ref(1)?)
                             if t0.lt(t1) {
-                                p0_ref := phases.get_by_ref(0)?
-                                create_alias(p0, TestPhase, p0_ref.data)
+                                p0 := cast(TestPhase, phases.get_by_ref(0)?)
                                 faster = format(" (faster ", p0.label, ")")
                             } else {
                                 if t1.lt(t0) {
-                                    p1_ref := phases.get_by_ref(1)?
-                                    create_alias(p1, TestPhase, p1_ref.data)
+                                    p1 := cast(TestPhase, phases.get_by_ref(1)?)
                                     faster = format(" (faster ", p1.label, ")")
                                 }
                             }
                         }
                         // For 4-phase tests (all_common: rs_interpreted, rs_compiled, til_interpreted, til_compiled)
                         if num_phases.eq(4) {
-                            rs_interp_ref := current.phase_times.get_by_ref(0)?
-                            create_alias(rs_interp, I64, rs_interp_ref.data)  // rs_interpreted
-                            rs_comp_ref := current.phase_times.get_by_ref(1)?
-                            create_alias(rs_comp, I64, rs_comp_ref.data)    // rs_compiled
-                            til_interp_ref := current.phase_times.get_by_ref(2)?
-                            create_alias(til_interp, I64, til_interp_ref.data) // til_interpreted
-                            til_comp_ref := current.phase_times.get_by_ref(3)?
-                            create_alias(til_comp, I64, til_comp_ref.data)   // til_compiled
+                            rs_interp := cast(I64, current.phase_times.get_by_ref(0)?)  // rs_interpreted
+                            rs_comp := cast(I64, current.phase_times.get_by_ref(1)?)    // rs_compiled
+                            til_interp := cast(I64, current.phase_times.get_by_ref(2)?) // til_interpreted
+                            til_comp := cast(I64, current.phase_times.get_by_ref(3)?)   // til_compiled
                             // Compare rstil modes: interpreted vs compiled
                             mut rstil_faster := ""
                             if rs_interp.lt(rs_comp) {
@@ -786,8 +760,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
                                     if pi.gt(0) {
                                         faster = faster.concat(", ")
                                     }
-                                    part_ref := parts.get_by_ref(pi)?
-                                    create_alias(part, Str, part_ref.data)
+                                    part := cast(Str, parts.get_by_ref(pi)?)
                                     faster = faster.concat(part)
                                     pi.inc()
                                 }
@@ -803,10 +776,8 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
                         // Accumulate mem reports to globals
                         if g_mem_report {
                             for p_idx2 in 0..num_phases {
-                                p2_ref := phases.get_by_ref(p_idx2)?
-                                create_alias(p2, TestPhase, p2_ref.data)
-                                mem_line_ref := current.phase_mem_reports.get_by_ref(p_idx2)?
-                                create_alias(mem_line, Str, mem_line_ref.data)
+                                p2 := cast(TestPhase, phases.get_by_ref(p_idx2)?)
+                                mem_line := cast(Str, current.phase_mem_reports.get_by_ref(p_idx2)?)
                                 if mem_line.len().gt(0) {
                                     mut entry_line := concat("- ", current.entry.path)
                                     if current.entry.cmd_args.len().gt(0) {
@@ -825,8 +796,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
                         // Remove from running
                         success_last_idx := running.len().sub(1)
                         if i.lt(success_last_idx) {
-                            success_last_ref := running.get_by_ref(success_last_idx)?
-                            create_alias(success_last, RunningTest, success_last_ref.data)
+                            success_last := cast(RunningTest, running.get_by_ref(success_last_idx)?)
                             running.set(i, success_last)?
                         }
                         mut success_popped := RunningTest()
@@ -834,10 +804,8 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_
 
                         // Start next test
                         if pending_idx.lt(tests.len()) {
-                            next_entry_ref := tests.get_by_ref(pending_idx)?
-                            create_alias(next_entry, TestEntry, next_entry_ref.data)
-                            next_first_phase_ref := phases.get_by_ref(0)?
-                            create_alias(next_first_phase, TestPhase, next_first_phase_ref.data)
+                            next_entry := cast(TestEntry, tests.get_by_ref(pending_idx)?)
+                            next_first_phase := cast(TestPhase, phases.get_by_ref(0)?)
                             next_rt := spawn_test(next_entry, next_first_phase, next_id)?
                             running.push(next_rt)
                             pending_idx.inc()
@@ -1036,125 +1004,89 @@ run_all_tests := proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til
     mut maxrss_til_compile := 0
 
     if rs_interpreted.len().gt(0) {
-        total_rs_interp_ref := rs_interp_totals.get_by_ref(0)?
-        create_alias(total_rs_interp_alias, I64, total_rs_interp_ref.data)
+        total_rs_interp_alias := cast(I64, rs_interp_totals.get_by_ref(0)?)
         total_rs_interp = total_rs_interp_alias
-        rss_ref := rs_interp_maxrss.get_by_ref(0)?
-        create_alias(rss, I64, rss_ref.data)
+        rss := cast(I64, rs_interp_maxrss.get_by_ref(0)?)
         if rss.gt(maxrss_rs_interp) { maxrss_rs_interp = rss }
     }
     if rs_compiled.len().gt(0) {
-        rsc_bt_ref := rs_compile_build_totals.get_by_ref(0)?
-        create_alias(rsc_bt, I64, rsc_bt_ref.data)
+        rsc_bt := cast(I64, rs_compile_build_totals.get_by_ref(0)?)
         total_rs_built = total_rs_built.add(rsc_bt)
-        rsc_brss_ref := rs_compile_build_maxrss.get_by_ref(0)?
-        create_alias(rsc_brss, I64, rsc_brss_ref.data)
+        rsc_brss := cast(I64, rs_compile_build_maxrss.get_by_ref(0)?)
         if rsc_brss.gt(maxrss_rs_built) { maxrss_rs_built = rsc_brss }
-        total_rs_compile_ref := rs_compile_totals.get_by_ref(0)?
-        create_alias(total_rs_compile_alias, I64, total_rs_compile_ref.data)
+        total_rs_compile_alias := cast(I64, rs_compile_totals.get_by_ref(0)?)
         total_rs_compile = total_rs_compile_alias
-        rsc_rss_ref := rs_compile_maxrss.get_by_ref(0)?
-        create_alias(rsc_rss, I64, rsc_rss_ref.data)
+        rsc_rss := cast(I64, rs_compile_maxrss.get_by_ref(0)?)
         if rsc_rss.gt(maxrss_rs_compile) { maxrss_rs_compile = rsc_rss }
     }
     if rs_common.len().gt(0) {
-        rs_common_interp_ref := rs_common_totals.get_by_ref(0)?
-        create_alias(rs_common_interp, I64, rs_common_interp_ref.data)
-        rs_common_compile_ref := rs_common_totals.get_by_ref(1)?
-        create_alias(rs_common_compile, I64, rs_common_compile_ref.data)
+        rs_common_interp := cast(I64, rs_common_totals.get_by_ref(0)?)
+        rs_common_compile := cast(I64, rs_common_totals.get_by_ref(1)?)
         total_rs_interp = total_rs_interp.add(rs_common_interp)
         total_rs_compile = total_rs_compile.add(rs_common_compile)
-        rscom_bt_ref := rs_common_build_totals.get_by_ref(1)?
-        create_alias(rscom_bt, I64, rscom_bt_ref.data)
+        rscom_bt := cast(I64, rs_common_build_totals.get_by_ref(1)?)
         total_rs_built = total_rs_built.add(rscom_bt)
-        rscom_brss_ref := rs_common_build_maxrss.get_by_ref(1)?
-        create_alias(rscom_brss, I64, rscom_brss_ref.data)
+        rscom_brss := cast(I64, rs_common_build_maxrss.get_by_ref(1)?)
         if rscom_brss.gt(maxrss_rs_built) { maxrss_rs_built = rscom_brss }
-        rscom_rss0_ref := rs_common_maxrss.get_by_ref(0)?
-        create_alias(rscom_rss0, I64, rscom_rss0_ref.data)
-        rscom_rss1_ref := rs_common_maxrss.get_by_ref(1)?
-        create_alias(rscom_rss1, I64, rscom_rss1_ref.data)
+        rscom_rss0 := cast(I64, rs_common_maxrss.get_by_ref(0)?)
+        rscom_rss1 := cast(I64, rs_common_maxrss.get_by_ref(1)?)
         if rscom_rss0.gt(maxrss_rs_interp) { maxrss_rs_interp = rscom_rss0 }
         if rscom_rss1.gt(maxrss_rs_compile) { maxrss_rs_compile = rscom_rss1 }
     }
     if til_interpreted.len().gt(0) {
-        total_til_interp_ref := til_interp_totals.get_by_ref(0)?
-        create_alias(total_til_interp_alias, I64, total_til_interp_ref.data)
+        total_til_interp_alias := cast(I64, til_interp_totals.get_by_ref(0)?)
         total_til_interp = total_til_interp_alias
-        tili_rss_ref := til_interp_maxrss.get_by_ref(0)?
-        create_alias(tili_rss, I64, tili_rss_ref.data)
+        tili_rss := cast(I64, til_interp_maxrss.get_by_ref(0)?)
         if tili_rss.gt(maxrss_til_interp) { maxrss_til_interp = tili_rss }
     }
     if til_compiled.len().gt(0) {
-        tilc_bt_ref := til_compile_build_totals.get_by_ref(0)?
-        create_alias(tilc_bt, I64, tilc_bt_ref.data)
+        tilc_bt := cast(I64, til_compile_build_totals.get_by_ref(0)?)
         total_til_built = total_til_built.add(tilc_bt)
-        tilc_brss_ref := til_compile_build_maxrss.get_by_ref(0)?
-        create_alias(tilc_brss, I64, tilc_brss_ref.data)
+        tilc_brss := cast(I64, til_compile_build_maxrss.get_by_ref(0)?)
         if tilc_brss.gt(maxrss_til_built) { maxrss_til_built = tilc_brss }
-        total_til_compile_ref := til_compile_totals.get_by_ref(0)?
-        create_alias(total_til_compile_alias, I64, total_til_compile_ref.data)
+        total_til_compile_alias := cast(I64, til_compile_totals.get_by_ref(0)?)
         total_til_compile = total_til_compile_alias
-        tilc_rss_ref := til_compile_maxrss.get_by_ref(0)?
-        create_alias(tilc_rss, I64, tilc_rss_ref.data)
+        tilc_rss := cast(I64, til_compile_maxrss.get_by_ref(0)?)
         if tilc_rss.gt(maxrss_til_compile) { maxrss_til_compile = tilc_rss }
     }
     if til_common.len().gt(0) {
-        til_common_interp_ref := til_common_totals.get_by_ref(0)?
-        create_alias(til_common_interp, I64, til_common_interp_ref.data)
-        til_common_compile_ref := til_common_totals.get_by_ref(1)?
-        create_alias(til_common_compile, I64, til_common_compile_ref.data)
+        til_common_interp := cast(I64, til_common_totals.get_by_ref(0)?)
+        til_common_compile := cast(I64, til_common_totals.get_by_ref(1)?)
         total_til_interp = total_til_interp.add(til_common_interp)
         total_til_compile = total_til_compile.add(til_common_compile)
-        tilcom_bt_ref := til_common_build_totals.get_by_ref(1)?
-        create_alias(tilcom_bt, I64, tilcom_bt_ref.data)
+        tilcom_bt := cast(I64, til_common_build_totals.get_by_ref(1)?)
         total_til_built = total_til_built.add(tilcom_bt)
-        tilcom_brss_ref := til_common_build_maxrss.get_by_ref(1)?
-        create_alias(tilcom_brss, I64, tilcom_brss_ref.data)
+        tilcom_brss := cast(I64, til_common_build_maxrss.get_by_ref(1)?)
         if tilcom_brss.gt(maxrss_til_built) { maxrss_til_built = tilcom_brss }
-        tilcom_rss0_ref := til_common_maxrss.get_by_ref(0)?
-        create_alias(tilcom_rss0, I64, tilcom_rss0_ref.data)
-        tilcom_rss1_ref := til_common_maxrss.get_by_ref(1)?
-        create_alias(tilcom_rss1, I64, tilcom_rss1_ref.data)
+        tilcom_rss0 := cast(I64, til_common_maxrss.get_by_ref(0)?)
+        tilcom_rss1 := cast(I64, til_common_maxrss.get_by_ref(1)?)
         if tilcom_rss0.gt(maxrss_til_interp) { maxrss_til_interp = tilcom_rss0 }
         if tilcom_rss1.gt(maxrss_til_compile) { maxrss_til_compile = tilcom_rss1 }
     }
     if all_common.len().gt(0) {
-        all_common_rs_interp_ref := all_common_totals.get_by_ref(0)?
-        create_alias(all_common_rs_interp, I64, all_common_rs_interp_ref.data)
-        all_common_rs_compile_ref := all_common_totals.get_by_ref(1)?
-        create_alias(all_common_rs_compile, I64, all_common_rs_compile_ref.data)
+        all_common_rs_interp := cast(I64, all_common_totals.get_by_ref(0)?)
+        all_common_rs_compile := cast(I64, all_common_totals.get_by_ref(1)?)
         total_rs_interp = total_rs_interp.add(all_common_rs_interp)
         total_rs_compile = total_rs_compile.add(all_common_rs_compile)
-        bt_rs_ref := all_common_build_totals.get_by_ref(1)?
-        create_alias(bt_rs, I64, bt_rs_ref.data)
+        bt_rs := cast(I64, all_common_build_totals.get_by_ref(1)?)
         total_rs_built = total_rs_built.add(bt_rs)
-        brss_rs_ref := all_common_build_maxrss.get_by_ref(1)?
-        create_alias(brss_rs, I64, brss_rs_ref.data)
+        brss_rs := cast(I64, all_common_build_maxrss.get_by_ref(1)?)
         if brss_rs.gt(maxrss_rs_built) { maxrss_rs_built = brss_rs }
-        allcom_rss0_ref := all_common_maxrss.get_by_ref(0)?
-        create_alias(allcom_rss0, I64, allcom_rss0_ref.data)
-        allcom_rss1_ref := all_common_maxrss.get_by_ref(1)?
-        create_alias(allcom_rss1, I64, allcom_rss1_ref.data)
+        allcom_rss0 := cast(I64, all_common_maxrss.get_by_ref(0)?)
+        allcom_rss1 := cast(I64, all_common_maxrss.get_by_ref(1)?)
         if allcom_rss0.gt(maxrss_rs_interp) { maxrss_rs_interp = allcom_rss0 }
         if allcom_rss1.gt(maxrss_rs_compile) { maxrss_rs_compile = allcom_rss1 }
         if not(g_rust_only) {
-            all_common_til_interp_ref := all_common_totals.get_by_ref(2)?
-            create_alias(all_common_til_interp, I64, all_common_til_interp_ref.data)
-            all_common_til_compile_ref := all_common_totals.get_by_ref(3)?
-            create_alias(all_common_til_compile, I64, all_common_til_compile_ref.data)
+            all_common_til_interp := cast(I64, all_common_totals.get_by_ref(2)?)
+            all_common_til_compile := cast(I64, all_common_totals.get_by_ref(3)?)
             total_til_interp = total_til_interp.add(all_common_til_interp)
             total_til_compile = total_til_compile.add(all_common_til_compile)
-            bt_til_ref := all_common_build_totals.get_by_ref(3)?
-            create_alias(bt_til, I64, bt_til_ref.data)
+            bt_til := cast(I64, all_common_build_totals.get_by_ref(3)?)
             total_til_built = total_til_built.add(bt_til)
-            brss_til_ref := all_common_build_maxrss.get_by_ref(3)?
-            create_alias(brss_til, I64, brss_til_ref.data)
+            brss_til := cast(I64, all_common_build_maxrss.get_by_ref(3)?)
             if brss_til.gt(maxrss_til_built) { maxrss_til_built = brss_til }
-            rss2_ref := all_common_maxrss.get_by_ref(2)?
-            create_alias(rss2, I64, rss2_ref.data)
-            rss3_ref := all_common_maxrss.get_by_ref(3)?
-            create_alias(rss3, I64, rss3_ref.data)
+            rss2 := cast(I64, all_common_maxrss.get_by_ref(2)?)
+            rss3 := cast(I64, all_common_maxrss.get_by_ref(3)?)
             if rss2.gt(maxrss_til_interp) { maxrss_til_interp = rss2 }
             if rss3.gt(maxrss_til_compile) { maxrss_til_compile = rss3 }
         }
@@ -1553,8 +1485,7 @@ main := proc(args: ..Str) {
         // Default: run tests
         run_all_tests(rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common, parallelism, start_epoch)
     } else {
-        cmd_ref := remaining_args.get_by_ref(0)?
-        create_alias(cmd, Str, cmd_ref.data)
+        cmd := cast(Str, remaining_args.get_by_ref(0)?)
         switch cmd {
         case "test":
             if remaining_args.len().eq(1) {
@@ -1564,15 +1495,12 @@ main := proc(args: ..Str) {
                 usage()
                 exit(1)
             } else {
-                test_mode_ref := remaining_args.get_by_ref(1)?
-                create_alias(test_mode, Str, test_mode_ref.data)
-                file_ref := remaining_args.get_by_ref(2)?
-                create_alias(file, Str, file_ref.data)
+                test_mode := cast(Str, remaining_args.get_by_ref(1)?)
+                file := cast(Str, remaining_args.get_by_ref(2)?)
                 // Collect optional args
                 mut cmd_args := ""
                 for i in 3..remaining_args.len() {
-                    arg_ref := remaining_args.get_by_ref(i)?
-                    create_alias(arg, Str, arg_ref.data)
+                    arg := cast(Str, remaining_args.get_by_ref(i)?)
                     if cmd_args.len().gt(0) {
                         cmd_args = cmd_args.concat(" ")
                     }
@@ -1603,8 +1531,7 @@ main := proc(args: ..Str) {
         case "regen":
             mut files := Vec.new(Str)
             for regen_idx in 1..remaining_args.len() {
-                path_ref := remaining_args.get_by_ref(regen_idx)?
-                create_alias(path, Str, path_ref.data)
+                path := cast(Str, remaining_args.get_by_ref(regen_idx)?)
                 files.push(path)
             }
             regen(files, rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common)

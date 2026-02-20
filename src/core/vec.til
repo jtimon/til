@@ -395,10 +395,8 @@ sort_str_vec := proc(mut v: Vec) {
     while gt(n, 1) {
         mut new_n := 0
         for i in 1..n {
-            prev_ref := v.get_by_ref(i.sub(1))?
-            create_alias(prev, Str, prev_ref.data)
-            curr_ref := v.get_by_ref(i)?
-            create_alias(curr, Str, curr_ref.data)
+            prev := cast(Str, v.get_by_ref(i.sub(1))?)
+            curr := cast(Str, v.get_by_ref(i)?)
             if gt(prev.cmp(curr), 0) {
                 // Clone prev before swap since both alias vec storage
                 prev_clone := prev.clone()

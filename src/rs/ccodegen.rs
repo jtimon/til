@@ -4018,6 +4018,21 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                             // This mirrors the interpreter's behavior where pending_throw is
                             // set by statements and only subsequent catches can handle it.
                             ctx.local_catch_labels.remove(err_type_name);
+
+                            // Register next catch of the same type, if any.
+                            // Without this, throwing calls nested inside non-throwing nodes
+                            // (e.g. cast(Type, throwing_expr?)) between two catches of the
+                            // same type would see no catch label and generate empty error
+                            // handling, causing segfaults.
+                            for next_entry in &all_catch_info {
+                                if next_entry.stmt_index > i && next_entry.type_name == *err_type_name {
+                                    ctx.local_catch_labels.insert(err_type_name.clone(), CatchLabelInfo {
+                                        label: next_entry.label.clone(),
+                                        temp_var: next_entry.temp_var.clone(),
+                                    });
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
@@ -5702,10 +5717,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     output.push_str(&member.name);
                     output.push_str(" = ");
                     // Use hoisted temp if available, otherwise emit inline
-                    if let Some(temp_var) = hoisted_values.get(&member.name) {
-                        output.push_str(temp_var);
-                    } else if let Some(value_expr) = named_values.get(&member.name) {
-                        emit_expr(value_expr, output, 0, ctx, context)?;
+                    if let Some(hoisted_temp_var) = hoisted_values.get(&member.name) {
+                        output.push_str(hoisted_temp_var);
+                    } else if let Some(nv_expr) = named_values.get(&member.name) {
+                        emit_expr(nv_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         emit_expr(default_expr, output, 0, ctx, context)?;
                     } else {

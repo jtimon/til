@@ -107,8 +107,7 @@ namespace:
         }
 
         bucket_idx := self.hash_key(to_ptr(key))
-        bucket_head_ref := self.buckets.get_by_ref(bucket_idx)?
-        create_alias(bucket_head, I64, bucket_head_ref.data)
+        bucket_head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
         mut entry_idx := bucket_head
 
         // Walk the chain
@@ -119,8 +118,7 @@ namespace:
                 return entry_idx
             }
             // Move to next in chain
-            next_ref := self.nexts.get_by_ref(entry_idx)?
-            create_alias(next_entry, I64, next_ref.data)
+            next_entry := cast(I64, self.nexts.get_by_ref(entry_idx)?)
             entry_idx = next_entry
         }
 
@@ -155,8 +153,7 @@ namespace:
             bucket_idx := self.hash_key(key_ptr.data)
 
             // Get current head of bucket
-            head_ref := self.buckets.get_by_ref(bucket_idx)?
-            create_alias(head, I64, head_ref.data)
+            head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
 
             // Insert at head of chain
             self.nexts.set(i, head)?
@@ -197,8 +194,7 @@ namespace:
         new_idx := self._size
 
         // Add to bucket chain (use pre-computed bucket_idx)
-        head_ref := self.buckets.get_by_ref(bucket_idx)?
-        create_alias(head, I64, head_ref.data)
+        head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
 
         // New entry points to old head
         self.nexts.push(head)
@@ -240,8 +236,7 @@ namespace:
             new_idx := self._size
 
             // Add to bucket chain (use pre-computed bucket_idx)
-            head_ref := self.buckets.get_by_ref(bucket_idx)?
-            create_alias(head, I64, head_ref.data)
+            head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
 
             // New entry points to old head
             self.nexts.push(head)
@@ -354,8 +349,7 @@ namespace:
             key_ptr := self.keys.ptr.offset(i.mul(self.keys.type_size))
             bucket_idx := self.hash_key(key_ptr.data)
 
-            head_ref := self.buckets.get_by_ref(bucket_idx)?
-            create_alias(head, I64, head_ref.data)
+            head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
 
             self.nexts.set(i, head)?
             self.buckets.set(bucket_idx, i.clone())?

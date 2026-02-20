@@ -38,8 +38,7 @@ test_mut_array := proc() {
 
     assert_eq(loc(), 1, arr.len())
 
-    value_ref := arr.get_by_ref(0)?
-    create_alias(value, I64, value_ref.data)
+    value := cast(I64, arr.get_by_ref(0)?)
 
     assert_eq(loc(), 10, value)
 

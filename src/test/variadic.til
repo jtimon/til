@@ -32,7 +32,14 @@ var_safe_add := proc(args: ..U8) returns U8 {
 
     return result
 }
-assert_eq(loc(), add(34, 35), U8.to_i64(var_safe_add(U8.from_i64(34)?, U8.from_i64(35)?)))
+test_var_safe_add := proc() {
+    assert_eq(loc(), add(34, 35), U8.to_i64(var_safe_add(U8.from_i64(34)?, U8.from_i64(35)?)))
+
+    catch(err: U8_Overflow) {
+        panic(loc(), err.msg)
+    }
+}
+test_var_safe_add()
 
 // Test: Variadic type checking (merged from variadic_type_check.til)
 test_i64_variadic := func(args: ..I64) returns I64 {

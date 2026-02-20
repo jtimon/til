@@ -15,15 +15,13 @@ import("self.precomp_ext")
 build_type_param_subs := func(func_def: SFuncDef, fcall: Expr) returns Map throws Str {
     mut subs := Map.new(Str, Str)
     for i in 0..func_def.args.len() {
-        arg_ref := func_def.args.get_by_ref(i)?
-        create_alias(arg, Declaration, arg_ref.data)
+        arg := cast(Declaration, func_def.args.get_by_ref(i)?)
         switch arg.value_type {
         case ValueType.TCustom(type_name):
             if type_name.eq("Type").or(type_name.eq("Dynamic")) {
                 // FCall params: [0] = function name identifier, [1..] = arguments
                 if fcall.params.len().gt(i.add(1)) {
-                    actual_arg_ref := fcall.params.get_by_ref(i.add(1))?
-                    create_alias(actual_arg, Expr, actual_arg_ref.data)
+                    actual_arg := cast(Expr, fcall.params.get_by_ref(i.add(1))?)
                     switch actual_arg.node_type {
                     case NodeType.Identifier(actual_type_name):
                         subs.set(arg.name, actual_type_name)
@@ -47,8 +45,7 @@ substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
     switch e.node_type {
     case NodeType.Identifier(name):
         mut new_name := name
-        sv_ref := subs.get_by_ref(name)?
-        create_alias(sub_val, Str, sv_ref.data)
+        sub_val := cast(Str, subs.get_by_ref(name)?)
         new_name = sub_val
         catch (_err: KeyNotFoundError) {
             // Expected: not all identifiers are type params
@@ -74,8 +71,7 @@ substitute_type_params_in_struct := func(struct_def: SStructDef, subs: Map) retu
         mut substituted := false
         switch member.value_type {
         case ValueType.TCustom(type_name):
-            ct_ref := subs.get_by_ref(type_name)?
-            create_alias(concrete_type, Str, ct_ref.data)
+            concrete_type := cast(Str, subs.get_by_ref(type_name)?)
             new_members.push(Declaration(name=member.name, value_type=ValueType.TCustom(concrete_type), is_mut=member.is_mut, is_copy=member.is_copy, is_own=member.is_own))
             substituted = true
             catch (_err: KeyNotFoundError) {
@@ -90,8 +86,7 @@ substitute_type_params_in_struct := func(struct_def: SStructDef, subs: Map) retu
 
     mut new_defaults := Map.new(Str, Expr)
     for name: Str in struct_def.default_values.keys {
-        val_ref := struct_def.default_values.get_by_ref(name)?
-        create_alias(expr, Expr, val_ref.data)
+        expr := cast(Expr, struct_def.default_values.get_by_ref(name)?)
         catch (err: KeyNotFoundError) {
             panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
         }
@@ -134,8 +129,7 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                     if found_func {
                         if func_def.is_macro() {
                             if func_def.return_types.len().gt(0) {
-                                ret_type_ref := func_def.return_types.get_by_ref(0)?
-                                create_alias(ret_type, ValueType, ret_type_ref.data)
+                                ret_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
                                 catch (_err: IndexOutOfBoundsError) {
                                     panic(loc(), "IndexOutOfBoundsError getting return type after len check")
                                 }
@@ -158,8 +152,7 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                             switch member_decl.value_type {
                                             case ValueType.TCustom(type_name):
                                                 if type_name.eq(INFER_TYPE) {
-                                                    pdv_ref := substituted.default_values.get_by_ref(member_decl.name)?
-                                                    create_alias(default_value, Expr, pdv_ref.data)
+                                                    default_value := cast(Expr, substituted.default_values.get_by_ref(member_decl.name)?)
                                                     mut resolved_type := get_value_type(context, default_value)?
                                                     catch (_err: Str) {}
                                                     resolved_member := Declaration(name=member_decl.name, value_type=resolved_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own)
@@ -227,7 +220,7 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
 precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
-        return precomp_body(context, e)
+        return precomp_body(context, e)?
     case NodeType.FCall(_):
         mut const_folded := precomp_fcall(context, e)?
         // Try compile-time constant folding for pure functions with literal args.
@@ -257,9 +250,9 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
         return const_folded
     case NodeType.If:
-        return precomp_params(context, e)
+        return precomp_params(context, e)?
     case NodeType.While:
-        return precomp_params(context, e)
+        return precomp_params(context, e)?
     case NodeType.Switch:
         throw e.lang_error(context.path, "precomp", "Switch should have been desugared to if/else by desugarer phase")
     case NodeType.FuncDef(func_def):
@@ -267,15 +260,15 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.Declaration(decl):
         return precomp_declaration(context, e, decl)?
     case NodeType.Assignment:
-        return precomp_params(context, e)
+        return precomp_params(context, e)?
     case NodeType.Return:
-        return precomp_params(context, e)
+        return precomp_params(context, e)?
     case NodeType.Throw:
-        return precomp_params(context, e)
+        return precomp_params(context, e)?
     case NodeType.Catch:
         return precomp_catch(context, e)?
     case NodeType.Range:
-        return precomp_params(context, e)
+        return precomp_params(context, e)?
     // Struct/enum definitions - need to process default values (which may contain function defs)
     case NodeType.StructDef(struct_def):
         return precomp_struct_def(context, e, struct_def)?
@@ -283,7 +276,7 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return e.clone()
     // Identifiers can have nested params (e.g., a.b.c for field access chains)
     case NodeType.Identifier:
-        return precomp_params(context, e)
+        return precomp_params(context, e)?
     // Leaf nodes - no transformation needed
     case NodeType.LLiteral:
         return e.clone()
@@ -307,8 +300,7 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.NamespaceDef(ns_def):
         mut new_default_values := Map.new(Str, Expr)
         for name: Str in ns_def.default_values.keys {
-            val_ref := ns_def.default_values.get_by_ref(name)?
-            create_alias(value_expr, Expr, val_ref.data)
+            value_expr := cast(Expr, ns_def.default_values.get_by_ref(name)?)
             catch (err: KeyNotFoundError) {
                 panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
             }
@@ -442,8 +434,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool throws Str
                     switch struct_arg.node_type {
                     case NodeType.NamedArg(_):
                         if struct_arg.params.len().gt(0) {
-                            atc_ref := struct_arg.params.get_by_ref(0)?
-                            create_alias(atc, Expr, atc_ref.data)
+                            atc := cast(Expr, struct_arg.params.get_by_ref(0)?)
                             arg_to_check = atc
                             catch (err5: IndexOutOfBoundsError) {
                                 panic(loc(), "struct_arg.params.get_by_ref(0): len > 0 checked: ", err5.msg)
@@ -572,7 +563,7 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
 // ---------- AST transformation
 
 /// Transform Body node - recursively transform all statements
-precomp_body := proc(mut context: Context, e: Expr) returns Expr {
+precomp_body := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
         new_params.push(precomp_expr(context, p)?)
@@ -582,7 +573,7 @@ precomp_body := proc(mut context: Context, e: Expr) returns Expr {
 }
 
 /// Transform node params - recursively transform all child expressions
-precomp_params := proc(mut context: Context, e: Expr) returns Expr {
+precomp_params := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
         new_params.push(precomp_expr(context, p)?)
@@ -596,10 +587,8 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
     mut new_default_values := Map.new(Str, Expr)
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
-        name_ref := struct_def.default_values.keys.get_by_ref(i)?
-        create_alias(name, Str, name_ref.data)
-        val_ref := struct_def.default_values.get_by_ref(name)?
-        create_alias(value_expr, Expr, val_ref.data)
+        name := cast(Str, struct_def.default_values.keys.get_by_ref(i)?)
+        value_expr := cast(Expr, struct_def.default_values.get_by_ref(name)?)
 
         // Bug #40 fix: For method definitions, set function name context
         mut is_func := false
@@ -793,8 +782,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     switch value_type {
     case ValueType.TType(TTypeDef.TStructDef):
         if new_params.len().gt(0) {
-            expanded_param_ref := new_params.get_by_ref(0)?
-            create_alias(expanded_param, Expr, expanded_param_ref.data)
+            expanded_param := cast(Expr, new_params.get_by_ref(0)?)
             switch expanded_param.node_type {
             case NodeType.StructDef(expanded_struct_def):
                 if not(context.scope_stack.has_struct(decl.name)) {
@@ -813,8 +801,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     // Determine if this is a compile-time constant
     // Only mut matters for constantness - copy/own are about ownership, orthogonal to comptime.
     // Any type can be comptime - the type doesn't matter, only how the value is computed.
-    first_param_ref := new_params.get_by_ref(0)?
-    create_alias(first_param, Expr, first_param_ref.data)
+    first_param := cast(Expr, new_params.get_by_ref(0)?)
     is_comptime_const := not(decl.is_mut)
         .and(is_comptime_evaluable(context, first_param)?)
 
@@ -826,8 +813,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     switch value_type {
     case ValueType.TFunction:
         if new_params.len().gt(0) {
-            fp_ref := new_params.get_by_ref(0)?
-            create_alias(fp, Expr, fp_ref.data)
+            fp := cast(Expr, new_params.get_by_ref(0)?)
             switch fp.node_type {
             case NodeType.FuncDef(func_def):
                 context.scope_stack.declare_func(decl.name, func_def)?
@@ -907,27 +893,25 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
 precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     if e.params.len().lt(3) {
         // Malformed catch - just use default handling
-        return precomp_params(context, e)
+        return precomp_params(context, e)?
     }
 
     // Get the catch variable name and type
-    name_expr_ref := e.params.get_by_ref(0)?
-    create_alias(name_expr, Expr, name_expr_ref.data)
-    type_expr_ref := e.params.get_by_ref(1)?
-    create_alias(type_expr, Expr, type_expr_ref.data)
+    name_expr := cast(Expr, e.params.get_by_ref(0)?)
+    type_expr := cast(Expr, e.params.get_by_ref(1)?)
     mut var_name := ""
     mut type_name := ""
     switch name_expr.node_type {
     case NodeType.Identifier(n):
         var_name = n
     case:
-        return precomp_params(context, e)  // Not a simple identifier, use default handling
+        return precomp_params(context, e)?  // Not a simple identifier, use default handling
     }
     switch type_expr.node_type {
     case NodeType.Identifier(t):
         type_name = t
     case:
-        return precomp_params(context, e)  // Not a simple type, use default handling
+        return precomp_params(context, e)?  // Not a simple type, use default handling
     }
 
     // Push a scope frame for the catch block
@@ -1081,8 +1065,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             if func_def.is_ext() {
                 mut parts := combined_name.split(".")?
                 if parts.len().gt(0) {
-                    last_part_ref := parts.get_by_ref(parts.len().sub(1))?
-                    create_alias(last_part, Str, last_part_ref.data)
+                    last_part := cast(Str, parts.get_by_ref(parts.len().sub(1))?)
                     if last_part.eq("import") {
                         _ := eval_expr(context, new_e)?
                     }

@@ -25,23 +25,19 @@ test_array_clone := proc() {
     mut cloned := original.clone()
 
     // Check values in clone
-    val0_ref := cloned.get_by_ref(0)?
-    create_alias(val0, I64, val0_ref.data)
+    val0 := cast(I64, cloned.get_by_ref(0)?)
     assert_eq(loc(), 10, val0)
 
-    val1_ref := cloned.get_by_ref(1)?
-    create_alias(val1, I64, val1_ref.data)
+    val1 := cast(I64, cloned.get_by_ref(1)?)
     assert_eq(loc(), 20, val1)
 
-    val2_ref := cloned.get_by_ref(2)?
-    create_alias(val2, I64, val2_ref.data)
+    val2 := cast(I64, cloned.get_by_ref(2)?)
     assert_eq(loc(), 30, val2)
 
     // Modify clone, original should be unchanged
     cloned.set(0, 999)?
 
-    orig_val_ref := original.get_by_ref(0)?
-    create_alias(orig_val, I64, orig_val_ref.data)
+    orig_val := cast(I64, original.get_by_ref(0)?)
     assert_eq(loc(), 10, orig_val)
 
     catch(err: IndexOutOfBoundsError) {
@@ -62,8 +58,7 @@ test_vec_clone := proc() {
 
     assert_eq(loc(), 3, cloned.len())
 
-    val0_ref := cloned.get_by_ref(0)?
-    create_alias(val0, I64, val0_ref.data)
+    val0 := cast(I64, cloned.get_by_ref(0)?)
     assert_eq(loc(), 10, val0)
 
     // Modify clone
@@ -89,16 +84,13 @@ test_list_clone := proc() {
 
     assert_eq(loc(), 3, cloned.len())
 
-    val0_ref := cloned.get_by_ref(0)?
-    create_alias(val0, I64, val0_ref.data)
+    val0 := cast(I64, cloned.get_by_ref(0)?)
     assert_eq(loc(), 42, val0)
 
-    val1_ref := cloned.get_by_ref(1)?
-    create_alias(val1, Str, val1_ref.data)
+    val1 := cast(Str, cloned.get_by_ref(1)?)
     assert_eq_str(loc(), "hello", val1)
 
-    val2_ref := cloned.get_by_ref(2)?
-    create_alias(val2, Bool, val2_ref.data)
+    val2 := cast(Bool, cloned.get_by_ref(2)?)
     if not(val2) {
         panic(loc(), "Expected true, got false")
     }
@@ -124,19 +116,16 @@ test_map_clone := proc() {
 
     mut cloned := original.clone()
 
-    one_ref := cloned.get_by_ref("one")?
-    create_alias(one_val, I64, one_ref.data)
+    one_val := cast(I64, cloned.get_by_ref("one")?)
     assert_eq(loc(), 1, one_val)
 
-    two_ref := cloned.get_by_ref("two")?
-    create_alias(two_val, I64, two_ref.data)
+    two_val := cast(I64, cloned.get_by_ref("two")?)
     assert_eq(loc(), 2, two_val)
 
     // Modify clone
     cloned.set("one", 999)
 
-    orig_ref := original.get_by_ref("one")?
-    create_alias(orig_val, I64, orig_ref.data)
+    orig_val := cast(I64, original.get_by_ref("one")?)
     assert_eq(loc(), 1, orig_val)
 
     catch(err: DuplicatedKeyError) {

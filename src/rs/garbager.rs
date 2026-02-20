@@ -209,8 +209,8 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         // Recurse into NamespaceDef default values
         NodeType::NamespaceDef(ns_def) => {
             let mut ns_new_default_values = HashMap::new();
-            for (name, value_expr) in &ns_def.default_values {
-                ns_new_default_values.insert(name.clone(), garbager_recursive(context, value_expr)?);
+            for (name, ns_value_expr) in &ns_def.default_values {
+                ns_new_default_values.insert(name.clone(), garbager_recursive(context, ns_value_expr)?);
             }
             let new_ns_def = SNamespaceDef {
                 type_name: ns_def.type_name.clone(),

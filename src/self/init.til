@@ -148,8 +148,7 @@ namespace:
 
     // REM TODO Use this approach instead of the other workaround in files other than interpreter.til
     last_frame := func(self: ScopeStack) returns ScopeFrame throws IndexOutOfBoundsError {
-        out_ref := self.frames.get_by_ref(self.frames.len().sub(1))?
-        create_alias(out, ScopeFrame, out_ref.data)
+        out := cast(ScopeFrame, self.frames.get_by_ref(self.frames.len().sub(1))?)
         // TODO Bug #177: clone needed because ccodegen skips *_ret for create_alias returns
         // TODO Bug #176: UFCS workaround for create_alias
         return ScopeFrame.clone(out)
@@ -158,8 +157,7 @@ namespace:
     lookup_var := func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError {
         // Walk up the stack from innermost to outermost
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
             mut offset := 0
             frame.heap_index.get(name, offset)?
@@ -177,8 +175,7 @@ namespace:
 
     lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
             mut symbol := SymbolInfo()
             frame.symbols.get(name, symbol)?
@@ -203,8 +200,7 @@ namespace:
 
         // Walk from innermost to outermost scope
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
             // Track when we enter/exit function scopes
             switch frame.scope_type {
@@ -245,8 +241,7 @@ namespace:
         }
 
         mut last_idx := self.frames.len().sub(1)
-        frame_ref := self.frames.get_by_ref(last_idx)?
-        create_alias(current_frame, ScopeFrame, frame_ref.data)
+        mut current_frame := cast(ScopeFrame, self.frames.get_by_ref(last_idx)?)
 
         // Check for redeclaration in current scope only
         // Bug #35: Skip check for "_" - it's special for discarding return values
@@ -265,8 +260,7 @@ namespace:
     declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            frame_ref := self.frames.get_by_ref(last_idx)?
-            create_alias(current_frame, ScopeFrame, frame_ref.data)
+            mut current_frame := cast(ScopeFrame, self.frames.get_by_ref(last_idx)?)
             current_frame.symbols.set(name, symbol)
         }
         catch (err: IndexOutOfBoundsError) {
@@ -277,12 +271,10 @@ namespace:
     remove_symbol := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            frame_ref := self.frames.get_by_ref(last_idx)?
-            create_alias(current_frame, ScopeFrame, frame_ref.data)
+            mut current_frame := cast(ScopeFrame, self.frames.get_by_ref(last_idx)?)
             if current_frame.symbols.contains_key(name) {
                 if self.removal_tracking_depth.gt(0) {
-                    si_ref := current_frame.symbols.get_by_ref(name)?
-                    create_alias(info, SymbolInfo, si_ref.data)
+                    info := cast(SymbolInfo, current_frame.symbols.get_by_ref(name)?)
                     self.removed_log.push(RemovedSymbol(name=name.clone(), info=info))
                     catch (err: KeyNotFoundError) {
                         throw err.msg
@@ -303,11 +295,9 @@ namespace:
     remove_var := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            frame_ref := self.frames.get_by_ref(last_idx)?
-            create_alias(current_frame, ScopeFrame, frame_ref.data)
+            mut current_frame := cast(ScopeFrame, self.frames.get_by_ref(last_idx)?)
             if current_frame.heap_index.contains_key(name) {
-                hi_ref := current_frame.heap_index.get_by_ref(name)?
-                create_alias(offset, I64, hi_ref.data)
+                offset := cast(I64, current_frame.heap_index.get_by_ref(name)?)
                 current_frame.heap_index.remove(name)
                 mut ptr := Ptr()
                 ptr.data = offset
@@ -327,8 +317,7 @@ namespace:
     insert_var := proc(mut self: ScopeStack, name: Str, offset: I64) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            frame_ref := self.frames.get_by_ref(last_idx)?
-            create_alias(current_frame, ScopeFrame, frame_ref.data)
+            mut current_frame := cast(ScopeFrame, self.frames.get_by_ref(last_idx)?)
             current_frame.heap_index.set(name, offset)
         }
         catch (err: IndexOutOfBoundsError) {
@@ -338,8 +327,7 @@ namespace:
 
     lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
             mut func_def := SFuncDef()
             frame.funcs.get(name, func_def)?
@@ -358,8 +346,7 @@ namespace:
     declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            frame_ref := self.frames.get_by_ref(last_idx)?
-            create_alias(current_frame, ScopeFrame, frame_ref.data)
+            mut current_frame := cast(ScopeFrame, self.frames.get_by_ref(last_idx)?)
             // Use set() instead of insert() to allow overwriting existing funcs
             // This matches Rust's HashMap.insert behavior which overwrites.
             // Needed because init phase stores original func_def, then eval phase
@@ -387,8 +374,7 @@ namespace:
 
     lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
             mut enum_def := SEnumDef()
             frame.enums.get(name, enum_def)?
@@ -407,8 +393,7 @@ namespace:
     declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            frame_ref := self.frames.get_by_ref(last_idx)?
-            create_alias(current_frame, ScopeFrame, frame_ref.data)
+            mut current_frame := cast(ScopeFrame, self.frames.get_by_ref(last_idx)?)
             current_frame.enums.set(name, enum_def)
         }
         catch (err: IndexOutOfBoundsError) {
@@ -418,8 +403,7 @@ namespace:
 
     lookup_struct := func(self: ScopeStack, name: Str) returns SStructDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
             mut struct_def := SStructDef()
             frame.structs.get(name, struct_def)?
@@ -438,8 +422,7 @@ namespace:
     // Existence check methods - avoid full struct retrieval when only checking presence
     has_var := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
             if frame.heap_index.contains_key(name) {
                 return true
             }
@@ -452,8 +435,7 @@ namespace:
 
     has_symbol := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
             if frame.symbols.contains_key(name) {
                 return true
             }
@@ -466,8 +448,7 @@ namespace:
 
     has_func := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
             if frame.funcs.contains_key(name) {
                 return true
             }
@@ -480,8 +461,7 @@ namespace:
 
     has_enum := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
             if frame.enums.contains_key(name) {
                 return true
             }
@@ -494,8 +474,7 @@ namespace:
 
     has_struct := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
             if frame.structs.contains_key(name) {
                 return true
             }
@@ -510,14 +489,12 @@ namespace:
     is_enum_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         mut parts := combined_name.split(".")?
         if parts.len().eq(2) {
-            enum_type_ref := parts.get_by_ref(0)?
-            create_alias(enum_type, Str, enum_type_ref.data)
+            enum_type := cast(Str, parts.get_by_ref(0)?)
             mut enum_def := self.lookup_enum(enum_type)?
             catch (err: KeyNotFoundError) {
                 return false
             }
-            variant_name_ref := parts.get_by_ref(1)?
-            create_alias(variant_name, Str, variant_name_ref.data)
+            variant_name := cast(Str, parts.get_by_ref(1)?)
             mut result := enum_def.contains_key(variant_name)
             return result
         }
@@ -531,8 +508,7 @@ namespace:
     is_struct_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         mut parts := combined_name.split(".")?
         if parts.len().eq(1) {
-            struct_name_ref := parts.get_by_ref(0)?
-            create_alias(struct_name, Str, struct_name_ref.data)
+            struct_name := cast(Str, parts.get_by_ref(0)?)
             return self.has_struct(struct_name)
         }
         catch (err: IndexOutOfBoundsError) {
@@ -549,8 +525,7 @@ namespace:
     all_structs := func(self: ScopeStack) returns Vec throws Str {
         mut result := Vec.new(SStructDef)
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
             for struct_def: SStructDef in frame.structs.values {
                 result.push(struct_def)
@@ -566,8 +541,7 @@ namespace:
     declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            frame_ref := self.frames.get_by_ref(last_idx)?
-            create_alias(current_frame, ScopeFrame, frame_ref.data)
+            mut current_frame := cast(ScopeFrame, self.frames.get_by_ref(last_idx)?)
             current_frame.structs.set(name, struct_def)
         }
         catch (err: IndexOutOfBoundsError) {
@@ -578,8 +552,7 @@ namespace:
     // Issue #105: Register struct in global frame (survives function scope pops)
     declare_struct_global := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws Str {
         if self.frames.len().gt(0) {
-            global_frame_ref := self.frames.get_by_ref(0)?
-            create_alias(global_frame, ScopeFrame, global_frame_ref.data)
+            mut global_frame := cast(ScopeFrame, self.frames.get_by_ref(0)?)
             // TODO Bug #176: UFCS workaround for create_alias
             Map.set(global_frame.structs, name, struct_def)
         }
@@ -614,8 +587,7 @@ namespace:
     // Bug #97: Check if we're currently inside a function (not at global scope).
     is_inside_function := func(self: ScopeStack) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
             switch frame.scope_type {
             case ScopeType.Function:
                 return true
@@ -639,8 +611,7 @@ namespace:
                 skipped_first = true
                 continue
             }
-            frame_ref := self.frames.get_by_ref(i)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            frame := cast(ScopeFrame, self.frames.get_by_ref(i)?)
 
             mut symbol := SymbolInfo()
             frame.symbols.get(name, symbol)?
@@ -740,8 +711,7 @@ namespace:
     restore_removed := proc(mut self: ScopeStack, removed: Vec) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
-            frame_ref := self.frames.get_by_ref(last_idx)?
-            create_alias(frame, ScopeFrame, frame_ref.data)
+            mut frame := cast(ScopeFrame, self.frames.get_by_ref(last_idx)?)
             for entry: RemovedSymbol in removed {
                 if not(frame.symbols.contains_key(entry.name)) {
                     frame.symbols.set(entry.name.clone(), entry.info.clone())
@@ -806,8 +776,7 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
         throw e.error(path, "init", format("func '", name, "' does not return anything"))
     }
     if returns_len.eq(1) {
-        rt_ref := func_def.return_types.get_by_ref(0)?
-        create_alias(return_type, ValueType, rt_ref.data)
+        return_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -1017,8 +986,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if not(found_member) {
                 throw e.error(context.path, "init", format("Struct '", f_name, "' has no member '", after_dot_name, "'"))
             }
-            val_ref := struct_def.default_values.get_by_ref(after_dot_name)?
-            create_alias(member_default_value, Expr, val_ref.data)
+            member_default_value := cast(Expr, struct_def.default_values.get_by_ref(after_dot_name)?)
             catch (key_err: KeyNotFoundError) {
                 throw e.error(context.path, "init", format("struct '", f_name, "' has no member '", after_dot_name, "' b"))
             }
@@ -1115,8 +1083,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 if id_expr.params.len().eq(0) {
                     return ValueType.TCustom(f_name.clone())
                 }
-                enum_after_dot_ref := id_expr.params.get_by_ref(0)?
-                create_alias(enum_after_dot, Expr, enum_after_dot_ref.data)
+                enum_after_dot := cast(Expr, id_expr.params.get_by_ref(0)?)
 
                 switch enum_after_dot.node_type {
                 case NodeType.Identifier(enum_after_dot_name):
@@ -1159,8 +1126,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if id_expr.params.len().eq(0) {
                 return ValueType.TCustom(f_name.clone())
             }
-            struct_after_dot_ref := id_expr.params.get_by_ref(0)?
-            create_alias(struct_after_dot, Expr, struct_after_dot_ref.data)
+            struct_after_dot := cast(Expr, id_expr.params.get_by_ref(0)?)
 
             switch struct_after_dot.node_type {
             case NodeType.Identifier(struct_after_dot_name):
@@ -1258,8 +1224,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     return direct_ufcs_result
                 }
 
-                direct_val_ref := custom_struct_def.default_values.get_by_ref(struct_after_dot_name)?
-                create_alias(direct_member_default_value, Expr, direct_val_ref.data)
+                direct_member_default_value := cast(Expr, custom_struct_def.default_values.get_by_ref(struct_after_dot_name)?)
                 catch (key_err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no member '", struct_after_dot_name, "' d"))
                 }
@@ -1287,8 +1252,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if id_expr.params.len().eq(0) {
                 return ValueType.TCustom(variadic_type_name)
             }
-            variadic_after_dot_ref := id_expr.params.get_by_ref(0)?
-            create_alias(variadic_after_dot, Expr, variadic_after_dot_ref.data)
+            variadic_after_dot := cast(Expr, id_expr.params.get_by_ref(0)?)
 
             switch variadic_after_dot.node_type {
             case NodeType.Identifier(variadic_after_dot_name):
@@ -1302,8 +1266,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     return variadic_ufcs_result
                 }
 
-                variadic_val_ref := variadic_struct_def.default_values.get_by_ref(variadic_after_dot_name)?
-                create_alias(variadic_member_default_value, Expr, variadic_val_ref.data)
+                variadic_member_default_value := cast(Expr, variadic_struct_def.default_values.get_by_ref(variadic_after_dot_name)?)
                 catch (key_err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("struct '", variadic_type_name, "' has no member '", variadic_after_dot_name, "' (variadic default)"))
                 }
@@ -1834,8 +1797,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
 
                 // Register enum methods (e.g., delete, clone)
                 for method_name: Str in enum_def.methods.keys {
-                    method_ref := enum_def.methods.get_by_ref(method_name)?
-                    create_alias(method_expr, Expr, method_ref.data)
+                    method_expr := cast(Expr, enum_def.methods.get_by_ref(method_name)?)
 
                     mut full_name := format(decl.name, ".", method_name)
                     switch method_expr.node_type {
@@ -1873,8 +1835,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                         # Skip instance fields - only process non-mut fields
                         # Try to find a default_value (required for funcs/consts)
                         mut has_default_value := false
-                        val_ref := struct_def.default_values.get_by_ref(member_decl.name)?
-                        create_alias(member_expr, Expr, val_ref.data)
+                        member_expr := cast(Expr, struct_def.default_values.get_by_ref(member_decl.name)?)
                         has_default_value = true
                         catch (key_err: KeyNotFoundError) {
                             # No default value, skip this member
@@ -1933,8 +1894,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 // Issue #174: Enum namespace support
                 mut merged_enum := existing_enum.clone()
                 for edv_name: Str in ns_def.default_values.keys {
-                    edv_ref := ns_def.default_values.get_by_ref(edv_name)?
-                    create_alias(edv_expr, Expr, edv_ref.data)
+                    edv_expr := cast(Expr, ns_def.default_values.get_by_ref(edv_name)?)
                     merged_enum.methods.set(edv_name.clone(), Expr.clone(edv_expr)) // TODO Bug #176: edv_expr.clone()
                 }
                 catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
@@ -1980,8 +1940,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 }
             }
             for dv_name: Str in ns_def.default_values.keys {
-                dv_ref := ns_def.default_values.get_by_ref(dv_name)?
-                create_alias(dv_expr, Expr, dv_ref.data)
+                dv_expr := cast(Expr, ns_def.default_values.get_by_ref(dv_name)?)
                 merged_struct.default_values.set(dv_name.clone(), Expr.clone(dv_expr)) // TODO Bug #176: dv_expr.clone()
             }
             catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
@@ -1993,8 +1952,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
         // Register associated funcs and constants from namespace (same logic as StructDef)
         for ns_member_decl: Declaration in ns_def.members {
             if not(ns_member_decl.is_mut) {
-                ns_dv_ref := ns_def.default_values.get_by_ref(ns_member_decl.name)?
-                create_alias(ns_member_expr, Expr, ns_dv_ref.data)
+                ns_member_expr := cast(Expr, ns_def.default_values.get_by_ref(ns_member_decl.name)?)
 
                 mut ns_member_vtype := get_value_type(context, ns_member_expr)?
                 catch (err: Str) {
@@ -2106,8 +2064,7 @@ namespace:
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str {
         for search_idx in 0..selfi.variants.len() {
-            search_v_ref := selfi.variants.get_by_ref(search_idx)?
-            create_alias(search_v, EnumVariant, search_v_ref.data)
+            search_v := cast(EnumVariant, selfi.variants.get_by_ref(search_idx)?)
             if search_v.name.eq(variant_name) {
                 return search_idx
             }
@@ -2132,8 +2089,7 @@ namespace:
             throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant in '", err_names.to_str(), "'."))
         }
         # If position is valid, return the corresponding variant name
-        pos_v_ref := selfi.variants.get_by_ref(position)?
-        create_alias(pos_v, EnumVariant, pos_v_ref.data)
+        pos_v := cast(EnumVariant, selfi.variants.get_by_ref(position)?)
         mut result := pos_v.name.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -2305,8 +2261,7 @@ namespace:
         // Bug #160: Check if the first part is an instance variable
         // If so, use only the first part as the base (to avoid interference from copy_fields entries)
         // If not (type constant), use longest-prefix matching
-        first_part_ref := parts.get_by_ref(0)?
-        create_alias(first_part, Str, first_part_ref.data)
+        first_part := cast(Str, parts.get_by_ref(0)?)
         mut first_part_is_instance := false
         mut first_sym := self.scope_stack.lookup_symbol(first_part)?
         switch first_sym.value_type {
@@ -2335,12 +2290,10 @@ namespace:
             // Type constant: find the longest prefix that exists in heap_index
             for i in 0..parts.len() {
                 // Build candidate by joining parts[0..=i] with "."
-                cand_ref := parts.get_by_ref(0)?
-                create_alias(cand0, Str, cand_ref.data)
+                cand0 := cast(Str, parts.get_by_ref(0)?)
                 mut candidate := cand0
                 for j in 1..i.add(1) {
-                    part_ref := parts.get_by_ref(j)?
-                    create_alias(part, Str, part_ref.data)
+                    part := cast(Str, parts.get_by_ref(j)?)
                     candidate = candidate.concat(".").concat(part)
                 }
                 mut offset := 0
@@ -2358,13 +2311,11 @@ namespace:
         }
 
         // Build base_var by joining parts[0..=base_end_idx] with "."
-        bv_ref := parts.get_by_ref(0)?
-        create_alias(bv0, Str, bv_ref.data)
+        bv0 := cast(Str, parts.get_by_ref(0)?)
         mut base_var := bv0
         for j2 in 1..base_end_idx.add(1) {
-            part_ref2 := parts.get_by_ref(j2)?
-            create_alias(part, Str, part_ref2.data)
-            base_var = base_var.concat(".").concat(part)
+            bv_part := cast(Str, parts.get_by_ref(j2)?)
+            base_var = base_var.concat(".").concat(bv_part)
         }
         // Get the base variable's type
         mut base_symbol := self.scope_stack.lookup_symbol(base_var)?
@@ -2385,8 +2336,7 @@ namespace:
         mut idx := base_end_idx.add(1)
         while idx.lt(parts.len()) {
             if should_continue_path {
-                field_name_ref := parts.get_by_ref(idx)?
-                create_alias(field_name, Str, field_name_ref.data)
+                field_name := cast(Str, parts.get_by_ref(idx)?)
 
                 field_offset := self.calculate_field_offset(current_type, field_name)?
                 current_offset = current_offset.add(field_offset)
@@ -2439,8 +2389,7 @@ namespace:
             throw "get_field_type: empty field path"
         }
 
-        base_var_ref := parts.get_by_ref(0)?
-        create_alias(base_var, Str, base_var_ref.data)
+        base_var := cast(Str, parts.get_by_ref(0)?)
         catch (err: IndexOutOfBoundsError) {
             throw "get_field_type: empty field path"
         }
@@ -2457,8 +2406,7 @@ namespace:
         // Walk through the remaining parts of the path
         mut idx := 1
         while idx.lt(parts.len()) {
-            field_name_ref := parts.get_by_ref(idx)?
-            create_alias(field_name, Str, field_name_ref.data)
+            field_name := cast(Str, parts.get_by_ref(idx)?)
 
             // Get the type name from current_type
             mut type_name := ""
