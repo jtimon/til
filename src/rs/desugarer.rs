@@ -213,7 +213,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Build: _for_i = add(_for_i, 1)
     let inc_stmt = make_assign(&index_var_name, make_call("add", vec![make_id(&index_var_name, line, col), make_num("1", line, col)], line, col), line, col);
 
-    // Bug #144: All types use get_by_ref + create_alias (zero-copy for all types)
+    // Bug #144: All types use get_by_ref + cast (zero-copy for all types)
     // Build: _ref_forin_N := get_by_ref(collection, _for_i)
     let ref_var_name = make_temp_name("_ref_forin", func_name, forin_id);
     let get_by_ref_call = make_call("get_by_ref", vec![
@@ -222,15 +222,14 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     ], line, col);
     let ref_decl = make_decl(&ref_var_name, ValueType::TCustom("Ptr".to_string()), false, get_by_ref_call, line, col);
 
-    // Build: create_alias(item, Type, _ref_forin_N.data)
-    // 3-arg compound directive: declares var + aliases + skips auto-delete
-    let alias_call = make_call("create_alias", vec![
-        make_id(&var_name, line, col),
+    // Build: item := cast(Type, _ref_forin_N)
+    let cast_call = make_call("cast", vec![
         make_id(var_type_name, line, col),
-        make_field_access(&ref_var_name, vec!["data"], line, col),
+        make_id(&ref_var_name, line, col),
     ], line, col);
+    let cast_decl = make_decl(&var_name, ValueType::TCustom(var_type_name.to_string()), false, cast_call, line, col);
 
-    let mut while_body_params = vec![ref_decl, catch_expr, alias_call];
+    let mut while_body_params = vec![ref_decl, catch_expr, cast_decl];
 
     // Bug #57 fix: Transform continue statements to include increment before continue
     let transformed_body = transform_continue_with_step(&body_expr, &inc_stmt);
