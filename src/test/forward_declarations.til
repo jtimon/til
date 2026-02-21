@@ -1,23 +1,23 @@
 mode test
 
 // Test 0: Original example from todo_pre.org (the exact case that prompted this work)
-ValueType := enum {
-    TFunction: FunctionType,  // Forward reference - FunctionType not defined yet
+FwdValueType := enum {
+    TFunction: FwdFunctionType,  // Forward reference - FwdFunctionType not defined yet
     TCustom: Str,
 }
 
-FunctionType := enum {
+FwdFunctionType := enum {
     FTFunc,
     FTProc,
 }
 
 // Test 1: Enum with forward reference to another enum (should error)
-ValueType1 := enum {
-    TFunction: FunctionType1,
+FwdValueType1 := enum {
+    TFunction: FwdFunctionType1,
     TCustom: Str,
 }
 
-FunctionType1 := enum {
+FwdFunctionType1 := enum {
     FTFunc,
     FTProc,
 }
@@ -52,13 +52,13 @@ Inner1 := struct {
 }
 
 // Test 5: VALID - Backward references (should work)
-FunctionType2 := enum {
+FwdFunctionType2 := enum {
     FTFunc,
     FTProc,
 }
 
-ValueType2 := enum {
-    TFunction: FunctionType2,
+FwdValueType2 := enum {
+    TFunction: FwdFunctionType2,
     TCustom: Str,
 }
 
@@ -72,11 +72,11 @@ my_func : func() returns I64 = {
 }
 
 // Test 8: Function with forward-referenced enum return type
-func_returning_forward_enum : func() returns FunctionType3 = {
-    return FunctionType3.FTFunc
+func_returning_forward_enum : func() returns FwdFunctionType3 = {
+    return FwdFunctionType3.FTFunc
 }
 
-FunctionType3 := enum {
+FwdFunctionType3 := enum {
     FTFunc,
     FTProc,
 }
@@ -107,14 +107,14 @@ ForwardStatus1 := enum {
 
 // Test 0: Use the original example
 test_original_case : proc() = {
-    _vt := ValueType.TFunction(FunctionType.FTFunc)
+    _vt := FwdValueType.TFunction(FwdFunctionType.FTFunc)
     println("Test 0 (original example) passed")
 }
 
 // Test 7: Actually USE the forward-referenced enums
 test_forward_enum_usage : proc() = {
-    // This should trigger the error since FunctionType1 was forward-referenced
-    _vt1 := ValueType1.TFunction(FunctionType1.FTFunc)
+    // This should trigger the error since FwdFunctionType1 was forward-referenced
+    _vt1 := FwdValueType1.TFunction(FwdFunctionType1.FTFunc)
     println("Test 1 passed (unexpected!)")
 }
 
@@ -139,7 +139,7 @@ test_forward_struct_in_struct : proc() = {
 
 // Test that valid backward references work
 test_backward_refs : proc() = {
-    _vt := ValueType2.TFunction(FunctionType2.FTFunc)
+    _vt := FwdValueType2.TFunction(FwdFunctionType2.FTFunc)
     println("Test 5 (backward ref) passed - as expected")
 }
 

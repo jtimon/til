@@ -19,8 +19,40 @@ typedef struct til_Str til_Str;
 typedef struct til_U8_Overflow til_U8_Overflow;
 typedef struct til_HeapEntry til_HeapEntry;
 typedef struct til_HeapState til_HeapState;
+typedef struct til_Map til_Map;
+typedef struct til_SEnumDef til_SEnumDef;
+typedef struct til_Declaration til_Declaration;
+typedef struct til_PatternInfo til_PatternInfo;
+typedef struct til_SFuncDef til_SFuncDef;
+typedef struct til_SStructDef til_SStructDef;
+typedef struct til_SNamespaceDef til_SNamespaceDef;
+typedef struct til_Literal til_Literal;
+typedef struct til_NodeType til_NodeType;
+typedef struct til_ValueType til_ValueType;
 typedef struct til_CfVec2 til_CfVec2;
 typedef struct til_CfRect til_CfRect;
+
+typedef enum {
+    til_FunctionType_FTFunc = 0,
+    til_FunctionType_FTFuncExt = 1,
+    til_FunctionType_FTMacro = 2,
+    til_FunctionType_FTProc = 3,
+    til_FunctionType_FTProcExt = 4,
+} til_FunctionType;
+
+static inline til_FunctionType til_FunctionType_make_FTFunc(void) { return til_FunctionType_FTFunc; }
+static inline til_FunctionType til_FunctionType_make_FTFuncExt(void) { return til_FunctionType_FTFuncExt; }
+static inline til_FunctionType til_FunctionType_make_FTMacro(void) { return til_FunctionType_FTMacro; }
+static inline til_FunctionType til_FunctionType_make_FTProc(void) { return til_FunctionType_FTProc; }
+static inline til_FunctionType til_FunctionType_make_FTProcExt(void) { return til_FunctionType_FTProcExt; }
+
+typedef enum {
+    til_TTypeDef_TEnumDef = 0,
+    til_TTypeDef_TStructDef = 1,
+} til_TTypeDef;
+
+static inline til_TTypeDef til_TTypeDef_make_TEnumDef(void) { return til_TTypeDef_TEnumDef; }
+static inline til_TTypeDef til_TTypeDef_make_TStructDef(void) { return til_TTypeDef_TStructDef; }
 
 struct til_CfVec2 {
     til_I64 x;
@@ -57,6 +89,98 @@ struct til_Str {
     til_I64 cap;
 };
 
+typedef enum {
+    til_ValueType_TCustom = 0,
+    til_ValueType_TFunction = 1,
+    til_ValueType_TMulti = 2,
+    til_ValueType_TType = 3,
+} til_ValueType_Tag;
+
+typedef union {
+    til_Str TCustom;
+    til_FunctionType TFunction;
+    til_Str TMulti;
+    til_TTypeDef TType;
+} til_ValueType_Payload;
+
+struct til_ValueType {
+    til_I64 tag;
+    til_ValueType_Payload payload;
+};
+
+static inline til_ValueType til_ValueType_make_TCustom(til_Str value) {
+    til_ValueType result = { .tag = til_ValueType_TCustom };
+    result.payload.TCustom = value;
+    return result;
+}
+
+static inline til_ValueType til_ValueType_make_TFunction(til_FunctionType value) {
+    til_ValueType result = { .tag = til_ValueType_TFunction };
+    result.payload.TFunction = value;
+    return result;
+}
+
+static inline til_ValueType til_ValueType_make_TMulti(til_Str value) {
+    til_ValueType result = { .tag = til_ValueType_TMulti };
+    result.payload.TMulti = value;
+    return result;
+}
+
+static inline til_ValueType til_ValueType_make_TType(til_TTypeDef value) {
+    til_ValueType result = { .tag = til_ValueType_TType };
+    result.payload.TType = value;
+    return result;
+}
+
+struct til_Declaration {
+    til_Str name;
+    til_ValueType value_type;
+    til_Bool is_mut;
+    til_Bool is_copy;
+    til_Bool is_own;
+    til_Ptr default_value;
+};
+
+typedef enum {
+    til_Literal_List = 0,
+    til_Literal_Number = 1,
+    til_Literal_Str = 2,
+} til_Literal_Tag;
+
+typedef union {
+    til_Str List;
+    til_Str Number;
+    til_Str Str;
+} til_Literal_Payload;
+
+struct til_Literal {
+    til_I64 tag;
+    til_Literal_Payload payload;
+};
+
+static inline til_Literal til_Literal_make_List(til_Str value) {
+    til_Literal result = { .tag = til_Literal_List };
+    result.payload.List = value;
+    return result;
+}
+
+static inline til_Literal til_Literal_make_Number(til_Str value) {
+    til_Literal result = { .tag = til_Literal_Number };
+    result.payload.Number = value;
+    return result;
+}
+
+static inline til_Literal til_Literal_make_Str(til_Str value) {
+    til_Literal result = { .tag = til_Literal_Str };
+    result.payload.Str = value;
+    return result;
+}
+
+struct til_PatternInfo {
+    til_Str variant_name;
+    til_Str binding_var;
+};
+
 struct til_U8_Overflow {
     til_Str msg;
 };
@@ -74,6 +198,210 @@ struct til_Vec {
     til_I64 _len;
     til_I64 cap;
 };
+
+struct til_SFuncDef {
+    til_FunctionType function_type;
+    til_Vec args;
+    til_Vec return_types;
+    til_Vec throw_types;
+    til_Vec body;
+    til_Str source_path;
+};
+
+struct til_Map {
+    til_Vec keys;
+    til_Vec values;
+    til_I64 _size;
+};
+
+struct til_SNamespaceDef {
+    til_Str type_name;
+    til_Vec members;
+    til_Map default_values;
+};
+
+struct til_SStructDef {
+    til_Vec members;
+    til_Map default_values;
+};
+
+struct til_SEnumDef {
+    til_Vec variants;
+    til_Map methods;
+};
+
+typedef enum {
+    til_NodeType_Assignment = 0,
+    til_NodeType_Body = 1,
+    til_NodeType_Break = 2,
+    til_NodeType_Catch = 3,
+    til_NodeType_Continue = 4,
+    til_NodeType_Declaration = 5,
+    til_NodeType_DefaultCase = 6,
+    til_NodeType_EnumDef = 7,
+    til_NodeType_FCall = 8,
+    til_NodeType_ForIn = 9,
+    til_NodeType_FuncDef = 10,
+    til_NodeType_Identifier = 11,
+    til_NodeType_If = 12,
+    til_NodeType_LLiteral = 13,
+    til_NodeType_NamedArg = 14,
+    til_NodeType_NamespaceDef = 15,
+    til_NodeType_Pattern = 16,
+    til_NodeType_Range = 17,
+    til_NodeType_Return = 18,
+    til_NodeType_StructDef = 19,
+    til_NodeType_Switch = 20,
+    til_NodeType_Throw = 21,
+    til_NodeType_While = 22,
+} til_NodeType_Tag;
+
+typedef union {
+    til_Str Assignment;
+    til_Declaration Declaration;
+    til_SEnumDef EnumDef;
+    til_Bool FCall;
+    til_Str ForIn;
+    til_SFuncDef FuncDef;
+    til_Str Identifier;
+    til_Literal LLiteral;
+    til_Str NamedArg;
+    til_SNamespaceDef NamespaceDef;
+    til_PatternInfo Pattern;
+    til_SStructDef StructDef;
+} til_NodeType_Payload;
+
+struct til_NodeType {
+    til_I64 tag;
+    til_NodeType_Payload payload;
+};
+
+static inline til_NodeType til_NodeType_make_Assignment(til_Str value) {
+    til_NodeType result = { .tag = til_NodeType_Assignment };
+    result.payload.Assignment = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Body(void) {
+    til_NodeType result = { .tag = til_NodeType_Body };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Break(void) {
+    til_NodeType result = { .tag = til_NodeType_Break };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Catch(void) {
+    til_NodeType result = { .tag = til_NodeType_Catch };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Continue(void) {
+    til_NodeType result = { .tag = til_NodeType_Continue };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Declaration(til_Declaration value) {
+    til_NodeType result = { .tag = til_NodeType_Declaration };
+    result.payload.Declaration = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_DefaultCase(void) {
+    til_NodeType result = { .tag = til_NodeType_DefaultCase };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_EnumDef(til_SEnumDef value) {
+    til_NodeType result = { .tag = til_NodeType_EnumDef };
+    result.payload.EnumDef = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_FCall(til_Bool value) {
+    til_NodeType result = { .tag = til_NodeType_FCall };
+    result.payload.FCall = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_ForIn(til_Str value) {
+    til_NodeType result = { .tag = til_NodeType_ForIn };
+    result.payload.ForIn = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_FuncDef(til_SFuncDef value) {
+    til_NodeType result = { .tag = til_NodeType_FuncDef };
+    result.payload.FuncDef = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Identifier(til_Str value) {
+    til_NodeType result = { .tag = til_NodeType_Identifier };
+    result.payload.Identifier = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_If(void) {
+    til_NodeType result = { .tag = til_NodeType_If };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_LLiteral(til_Literal value) {
+    til_NodeType result = { .tag = til_NodeType_LLiteral };
+    result.payload.LLiteral = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_NamedArg(til_Str value) {
+    til_NodeType result = { .tag = til_NodeType_NamedArg };
+    result.payload.NamedArg = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_NamespaceDef(til_SNamespaceDef value) {
+    til_NodeType result = { .tag = til_NodeType_NamespaceDef };
+    result.payload.NamespaceDef = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Pattern(til_PatternInfo value) {
+    til_NodeType result = { .tag = til_NodeType_Pattern };
+    result.payload.Pattern = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Range(void) {
+    til_NodeType result = { .tag = til_NodeType_Range };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Return(void) {
+    til_NodeType result = { .tag = til_NodeType_Return };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_StructDef(til_SStructDef value) {
+    til_NodeType result = { .tag = til_NodeType_StructDef };
+    result.payload.StructDef = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Switch(void) {
+    til_NodeType result = { .tag = til_NodeType_Switch };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Throw(void) {
+    til_NodeType result = { .tag = til_NodeType_Throw };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_While(void) {
+    til_NodeType result = { .tag = til_NodeType_While };
+    return result;
+}
 
 struct til_Array {
     til_Ptr ptr;
@@ -102,6 +430,16 @@ void til_test_loc_folded_correctly(void);
 void til_test_struct_fold_simple(void);
 void til_test_struct_fold_values(void);
 void til_test_struct_fold_nested(void);
+til_FunctionType til_FunctionType_clone(const til_FunctionType* til_FunctionType_self);
+void til_FunctionType_delete(til_FunctionType* _self);
+til_Literal til_Literal_clone(const til_Literal* til_Literal_self);
+void til_Literal_delete(til_Literal* _self);
+til_NodeType til_NodeType_clone(const til_NodeType* til_NodeType_self);
+void til_NodeType_delete(til_NodeType* _self);
+til_TTypeDef til_TTypeDef_clone(const til_TTypeDef* til_TTypeDef_self);
+void til_TTypeDef_delete(til_TTypeDef* _self);
+til_ValueType til_ValueType_clone(const til_ValueType* til_ValueType_self);
+void til_ValueType_delete(til_ValueType* _self);
 void til_IndexOutOfBoundsError_delete(til_IndexOutOfBoundsError* til_IndexOutOfBoundsError_self);
 til_IndexOutOfBoundsError til_IndexOutOfBoundsError_clone(const til_IndexOutOfBoundsError* til_IndexOutOfBoundsError_self);
 void til_BadAlloc_delete(til_BadAlloc* _self);
@@ -278,10 +616,89 @@ const til_I64 til_size_of_U8_Overflow = sizeof(til_U8_Overflow);
 const til_I64 til_size_of_U8 = sizeof(til_U8);
 const til_I64 til_size_of_HeapEntry = sizeof(til_HeapEntry);
 const til_I64 til_size_of_HeapState = sizeof(til_HeapState);
+const til_I64 til_size_of_Map = sizeof(til_Map);
+const til_I64 til_size_of_SEnumDef = sizeof(til_SEnumDef);
+const til_I64 til_size_of_Declaration = sizeof(til_Declaration);
+const til_I64 til_size_of_PatternInfo = sizeof(til_PatternInfo);
+const til_I64 til_size_of_SFuncDef = sizeof(til_SFuncDef);
+const til_I64 til_size_of_SStructDef = sizeof(til_SStructDef);
+const til_I64 til_size_of_SNamespaceDef = sizeof(til_SNamespaceDef);
 const til_I64 til_size_of_Dynamic = sizeof(til_Dynamic);
 const til_I64 til_size_of_Type = sizeof(til_Type);
 const til_I64 til_size_of_CfVec2 = sizeof(til_CfVec2);
 const til_I64 til_size_of_CfRect = sizeof(til_CfRect);
+const til_I64 til_size_of_FunctionType = sizeof(til_FunctionType);
+const til_I64 til_size_of_Literal = sizeof(til_Literal);
+const til_I64 til_size_of_NodeType = sizeof(til_NodeType);
+const til_I64 til_size_of_TTypeDef = sizeof(til_TTypeDef);
+const til_I64 til_size_of_ValueType = sizeof(til_ValueType);
+static inline til_Str til_FunctionType_to_str(const til_FunctionType* e) {
+    switch(*e) {
+        case til_FunctionType_FTFunc: return ((til_Str){((til_Ptr){(til_I64)"FunctionType.FTFunc", 1, 0, 0, 0}), 19, 0});
+        case til_FunctionType_FTFuncExt: return ((til_Str){((til_Ptr){(til_I64)"FunctionType.FTFuncExt", 1, 0, 0, 0}), 22, 0});
+        case til_FunctionType_FTMacro: return ((til_Str){((til_Ptr){(til_I64)"FunctionType.FTMacro", 1, 0, 0, 0}), 20, 0});
+        case til_FunctionType_FTProc: return ((til_Str){((til_Ptr){(til_I64)"FunctionType.FTProc", 1, 0, 0, 0}), 19, 0});
+        case til_FunctionType_FTProcExt: return ((til_Str){((til_Ptr){(til_I64)"FunctionType.FTProcExt", 1, 0, 0, 0}), 22, 0});
+    }
+    return ((til_Str){((til_Ptr){(til_I64)"FunctionType.?", 1, 0, 0, 0}), 14, 0});
+}
+
+static inline til_Str til_Literal_to_str(const til_Literal* e) {
+    switch(e->tag) {
+        case til_Literal_List: return ((til_Str){((til_Ptr){(til_I64)"Literal.List", 1, 0, 0, 0}), 12, 0});
+        case til_Literal_Number: return ((til_Str){((til_Ptr){(til_I64)"Literal.Number", 1, 0, 0, 0}), 14, 0});
+        case til_Literal_Str: return ((til_Str){((til_Ptr){(til_I64)"Literal.Str", 1, 0, 0, 0}), 11, 0});
+    }
+    return ((til_Str){((til_Ptr){(til_I64)"Literal.?", 1, 0, 0, 0}), 9, 0});
+}
+
+static inline til_Str til_NodeType_to_str(const til_NodeType* e) {
+    switch(e->tag) {
+        case til_NodeType_Assignment: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Assignment", 1, 0, 0, 0}), 19, 0});
+        case til_NodeType_Body: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Body", 1, 0, 0, 0}), 13, 0});
+        case til_NodeType_Break: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Break", 1, 0, 0, 0}), 14, 0});
+        case til_NodeType_Catch: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Catch", 1, 0, 0, 0}), 14, 0});
+        case til_NodeType_Continue: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Continue", 1, 0, 0, 0}), 17, 0});
+        case til_NodeType_Declaration: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Declaration", 1, 0, 0, 0}), 20, 0});
+        case til_NodeType_DefaultCase: return ((til_Str){((til_Ptr){(til_I64)"NodeType.DefaultCase", 1, 0, 0, 0}), 20, 0});
+        case til_NodeType_EnumDef: return ((til_Str){((til_Ptr){(til_I64)"NodeType.EnumDef", 1, 0, 0, 0}), 16, 0});
+        case til_NodeType_FCall: return ((til_Str){((til_Ptr){(til_I64)"NodeType.FCall", 1, 0, 0, 0}), 14, 0});
+        case til_NodeType_ForIn: return ((til_Str){((til_Ptr){(til_I64)"NodeType.ForIn", 1, 0, 0, 0}), 14, 0});
+        case til_NodeType_FuncDef: return ((til_Str){((til_Ptr){(til_I64)"NodeType.FuncDef", 1, 0, 0, 0}), 16, 0});
+        case til_NodeType_Identifier: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Identifier", 1, 0, 0, 0}), 19, 0});
+        case til_NodeType_If: return ((til_Str){((til_Ptr){(til_I64)"NodeType.If", 1, 0, 0, 0}), 11, 0});
+        case til_NodeType_LLiteral: return ((til_Str){((til_Ptr){(til_I64)"NodeType.LLiteral", 1, 0, 0, 0}), 17, 0});
+        case til_NodeType_NamedArg: return ((til_Str){((til_Ptr){(til_I64)"NodeType.NamedArg", 1, 0, 0, 0}), 17, 0});
+        case til_NodeType_NamespaceDef: return ((til_Str){((til_Ptr){(til_I64)"NodeType.NamespaceDef", 1, 0, 0, 0}), 21, 0});
+        case til_NodeType_Pattern: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Pattern", 1, 0, 0, 0}), 16, 0});
+        case til_NodeType_Range: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Range", 1, 0, 0, 0}), 14, 0});
+        case til_NodeType_Return: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Return", 1, 0, 0, 0}), 15, 0});
+        case til_NodeType_StructDef: return ((til_Str){((til_Ptr){(til_I64)"NodeType.StructDef", 1, 0, 0, 0}), 18, 0});
+        case til_NodeType_Switch: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Switch", 1, 0, 0, 0}), 15, 0});
+        case til_NodeType_Throw: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Throw", 1, 0, 0, 0}), 14, 0});
+        case til_NodeType_While: return ((til_Str){((til_Ptr){(til_I64)"NodeType.While", 1, 0, 0, 0}), 14, 0});
+    }
+    return ((til_Str){((til_Ptr){(til_I64)"NodeType.?", 1, 0, 0, 0}), 10, 0});
+}
+
+static inline til_Str til_TTypeDef_to_str(const til_TTypeDef* e) {
+    switch(*e) {
+        case til_TTypeDef_TEnumDef: return ((til_Str){((til_Ptr){(til_I64)"TTypeDef.TEnumDef", 1, 0, 0, 0}), 17, 0});
+        case til_TTypeDef_TStructDef: return ((til_Str){((til_Ptr){(til_I64)"TTypeDef.TStructDef", 1, 0, 0, 0}), 19, 0});
+    }
+    return ((til_Str){((til_Ptr){(til_I64)"TTypeDef.?", 1, 0, 0, 0}), 10, 0});
+}
+
+static inline til_Str til_ValueType_to_str(const til_ValueType* e) {
+    switch(e->tag) {
+        case til_ValueType_TCustom: return ((til_Str){((til_Ptr){(til_I64)"ValueType.TCustom", 1, 0, 0, 0}), 17, 0});
+        case til_ValueType_TFunction: return ((til_Str){((til_Ptr){(til_I64)"ValueType.TFunction", 1, 0, 0, 0}), 19, 0});
+        case til_ValueType_TMulti: return ((til_Str){((til_Ptr){(til_I64)"ValueType.TMulti", 1, 0, 0, 0}), 16, 0});
+        case til_ValueType_TType: return ((til_Str){((til_Ptr){(til_I64)"ValueType.TType", 1, 0, 0, 0}), 15, 0});
+    }
+    return ((til_Str){((til_Ptr){(til_I64)"ValueType.?", 1, 0, 0, 0}), 11, 0});
+}
+
 const til_I64 til_I64_NULL = 0;
 const til_I64 til_I64_I64_SIZE = 8;
 const til_I64 til_I64_I64_MINUS1 = -1;
@@ -291,6 +708,7 @@ const til_I64 til_I64_U8_SIZE = 1;
 const til_I64 til_I64_MIN_U8 = 0;
 const til_I64 til_I64_MAX_U8 = 255;
 const til_U8 til_U8_ZERO_U8 = 0;
+const til_Str til_Str_LANG_NAME = ((til_Str){((til_Ptr){(til_I64)"til", 1, 0, 0, 0}), 3, 0});
 static til_Vec til_Vec_g_entries;
 static til_Bool til_Bool_g_enabled;
 
@@ -309,10 +727,22 @@ static inline til_I64 til_size_of(const til_Str* type_name) {
     if (strcmp((char*)type_name->c_string.data, "U8") == 0) return til_size_of_U8;
     if (strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) return til_size_of_HeapEntry;
     if (strcmp((char*)type_name->c_string.data, "HeapState") == 0) return til_size_of_HeapState;
+    if (strcmp((char*)type_name->c_string.data, "Map") == 0) return til_size_of_Map;
+    if (strcmp((char*)type_name->c_string.data, "SEnumDef") == 0) return til_size_of_SEnumDef;
+    if (strcmp((char*)type_name->c_string.data, "Declaration") == 0) return til_size_of_Declaration;
+    if (strcmp((char*)type_name->c_string.data, "PatternInfo") == 0) return til_size_of_PatternInfo;
+    if (strcmp((char*)type_name->c_string.data, "SFuncDef") == 0) return til_size_of_SFuncDef;
+    if (strcmp((char*)type_name->c_string.data, "SStructDef") == 0) return til_size_of_SStructDef;
+    if (strcmp((char*)type_name->c_string.data, "SNamespaceDef") == 0) return til_size_of_SNamespaceDef;
     if (strcmp((char*)type_name->c_string.data, "Dynamic") == 0) return til_size_of_Dynamic;
     if (strcmp((char*)type_name->c_string.data, "Type") == 0) return til_size_of_Type;
     if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) return til_size_of_CfVec2;
     if (strcmp((char*)type_name->c_string.data, "CfRect") == 0) return til_size_of_CfRect;
+    if (strcmp((char*)type_name->c_string.data, "FunctionType") == 0) return til_size_of_FunctionType;
+    if (strcmp((char*)type_name->c_string.data, "Literal") == 0) return til_size_of_Literal;
+    if (strcmp((char*)type_name->c_string.data, "NodeType") == 0) return til_size_of_NodeType;
+    if (strcmp((char*)type_name->c_string.data, "TTypeDef") == 0) return til_size_of_TTypeDef;
+    if (strcmp((char*)type_name->c_string.data, "ValueType") == 0) return til_size_of_ValueType;
     fprintf(stderr, "size_of: unknown type %s\n", (char*)type_name->c_string.data);
     exit(1);
 }
@@ -839,6 +1269,51 @@ void til_test_struct_fold_nested(void) {
     til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:101:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_2, &til_CfRect_r.bottom_right.x);
     til_I64 _tmp_test_struct_fold_nested_3 = 200;
     til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:102:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_3, &til_CfRect_r.bottom_right.y);
+}
+
+til_FunctionType til_FunctionType_clone(const til_FunctionType* til_FunctionType_self) {
+    return (*til_FunctionType_self);
+    return (til_FunctionType){};
+}
+
+void til_FunctionType_delete(til_FunctionType* _self) {
+    (void)_self;
+}
+
+til_Literal til_Literal_clone(const til_Literal* til_Literal_self) {
+    return (*til_Literal_self);
+    return (til_Literal){};
+}
+
+void til_Literal_delete(til_Literal* _self) {
+    (void)_self;
+}
+
+til_NodeType til_NodeType_clone(const til_NodeType* til_NodeType_self) {
+    return (*til_NodeType_self);
+    return (til_NodeType){};
+}
+
+void til_NodeType_delete(til_NodeType* _self) {
+    (void)_self;
+}
+
+til_TTypeDef til_TTypeDef_clone(const til_TTypeDef* til_TTypeDef_self) {
+    return (*til_TTypeDef_self);
+    return (til_TTypeDef){};
+}
+
+void til_TTypeDef_delete(til_TTypeDef* _self) {
+    (void)_self;
+}
+
+til_ValueType til_ValueType_clone(const til_ValueType* til_ValueType_self) {
+    return (*til_ValueType_self);
+    return (til_ValueType){};
+}
+
+void til_ValueType_delete(til_ValueType* _self) {
+    (void)_self;
 }
 
 void til_IndexOutOfBoundsError_delete(til_IndexOutOfBoundsError* til_IndexOutOfBoundsError_self) {

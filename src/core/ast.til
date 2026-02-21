@@ -1,0 +1,487 @@
+mode liba
+
+import("core.vec")
+import("core.ptr")
+import("std.map")
+import("std.meta")          // enum_to_str (for auto-generated enum to_str methods)
+
+LANG_NAME := "til"
+
+// Bug #38 fix: Use a Vec to preserve variant order instead of Map
+EnumVariant := struct {
+    mut name: Str = ""
+    mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None (no payload)
+
+namespace:
+    clone : func(self: EnumVariant) returns EnumVariant = {
+        mut result := EnumVariant()
+        result.name = self.name.clone()
+        if not(NULL.eq(self.payload_type.data)) {
+            // Bug #67 fix: allocate heap memory for ValueType (stack ptr would be dangling)
+            result.payload_type.data = malloc(size_of(ValueType))?
+            catch (err: BadAlloc) { panic(loc(), "EnumVariant.clone: malloc failed") }
+            memcpy(result.payload_type.data, self.payload_type.data, size_of(ValueType))
+        }
+        return result
+    }
+}
+
+SEnumDef := struct {
+    mut variants: Vec = Vec.new(EnumVariant)
+    mut methods: Map = Map.new(Str, Expr)  // Auto-generated methods (delete, clone)
+
+namespace:
+    clone : func(self: SEnumDef) returns SEnumDef = {
+        mut result := SEnumDef()
+        // Deep clone: iterate and clone each element
+        for v: EnumVariant in self.variants {
+            result.variants.push(v.clone())
+        }
+        // Clone methods map
+        result.methods = self.methods.clone()
+        return result
+    }
+
+    len : func(self: SEnumDef) returns I64 = {
+        return self.variants.len()
+    }
+
+    size : func(self: SEnumDef) returns I64 = {
+        return self.variants.size()
+    }
+
+    // Helper methods for backward compatibility
+    get : func(self: SEnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError = {
+        for v: EnumVariant in self.variants {
+            if v.name.eq(variant_name) {
+                return v.payload_type
+            }
+        }
+        throw KeyNotFoundError()
+    }
+
+    contains_key : func(self: SEnumDef, variant_name: Str) returns Bool = {
+        for v: EnumVariant in self.variants {
+            if v.name.eq(variant_name) {
+                return true
+            }
+        }
+        return false
+    }
+}
+
+Declaration := struct {
+    mut name: Str = ""
+    mut value_type: ValueType = ValueType.TCustom("")
+    mut is_mut: Bool = false
+    mut is_copy: Bool = false
+    mut is_own: Bool = false
+    mut default_value: Ptr = Ptr()  // Ptr to Expr, NULL = None (for optional function arguments)
+
+namespace:
+    clone : func(self: Declaration) returns Declaration = {
+        mut result := Declaration()
+        result.name = self.name.clone()
+        result.value_type = value_type_clone(self.value_type)
+        result.is_mut = self.is_mut
+        result.is_copy = self.is_copy
+        result.is_own = self.is_own
+        // Clone default_value if present (must allocate heap memory like Rust's Box<Expr>)
+        if not(NULL.eq(self.default_value.data)) {
+            mut default_expr := Expr()
+            memcpy(to_ptr(default_expr), self.default_value.data, size_of(Expr))
+            mut cloned_expr := default_expr.clone()
+            result.default_value.data = malloc(size_of(Expr))?
+            catch (err: BadAlloc) { panic(loc(), "Declaration.clone: malloc failed") }
+            memcpy(result.default_value.data, to_ptr(cloned_expr), size_of(Expr))
+        }
+        return result
+    }
+}
+
+// TODO: PatternInfo is a workaround for homogeneity with TIL's lack of tuple syntax
+// Once TIL supports tuple notation like (Str, Str), this can be replaced with:
+// Pattern(String, String)  // Pattern(variant_name, binding_var)
+PatternInfo := struct {
+    mut variant_name: Str = ""
+    mut binding_var: Str = ""
+}
+
+FunctionType := enum {
+    FTFunc,
+    FTProc,
+    FTMacro,
+    FTFuncExt,
+    FTProcExt,
+}
+
+SFuncDef := struct {
+    mut function_type: FunctionType = FunctionType.FTFunc
+    mut args: Vec = Vec.new(Declaration)
+    mut return_types: Vec = Vec.new(ValueType)  // "returns" conflicts with TIL keyword
+    mut throw_types: Vec = Vec.new(ValueType)   // "throws" conflicts with TIL keyword
+    mut body: Vec = Vec.new(Expr)
+    mut source_path: Str = ""  // Path to the file where this function was defined
+
+namespace:
+    clone : func(self: SFuncDef) returns SFuncDef = {
+        mut result := SFuncDef()
+        result.function_type = self.function_type
+        // Deep clone args
+        for arg: Declaration in self.args {
+            result.args.push(arg.clone())
+        }
+        // Deep clone return_types
+        for rt: ValueType in self.return_types {
+            result.return_types.push(value_type_clone(rt))
+        }
+        // Deep clone throw_types
+        for tt: ValueType in self.throw_types {
+            result.throw_types.push(value_type_clone(tt))
+        }
+        // Deep clone body
+        for e: Expr in self.body {
+            result.body.push(e.clone())
+        }
+        result.source_path = self.source_path.clone()
+        return result
+    }
+
+    is_proc : func(self: SFuncDef) returns Bool = {
+        ft := self.function_type
+        switch ft {
+        case FunctionType.FTProc:
+            return true
+        case FunctionType.FTProcExt:
+            return true
+        case:
+            return false
+        }
+    }
+
+    is_ext : func(self: SFuncDef) returns Bool = {
+        ft := self.function_type
+        switch ft {
+        case FunctionType.FTFuncExt:
+            return true
+        case FunctionType.FTProcExt:
+            return true
+        case:
+            return false
+        }
+    }
+
+    is_macro : func(self: SFuncDef) returns Bool = {
+        ft := self.function_type
+        switch ft {
+        case FunctionType.FTMacro:
+            return true
+        case:
+            return false
+        }
+    }
+}
+
+SStructDef := struct {
+    mut members: Vec = Vec.new(Declaration)
+    mut default_values: Map = Map.new(Str, Expr)
+
+namespace:
+    clone : func(self: SStructDef) returns SStructDef = {
+        mut result := SStructDef()
+        // Deep clone members
+        for m: Declaration in self.members {
+            result.members.push(m.clone())
+        }
+        // Deep clone default_values Map<Str, Expr>
+        for k: Str in self.default_values.keys {
+            v := cast(Expr, self.default_values.get(k)?)
+            result.default_values.set(k.clone(), v.clone())
+        }
+        catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
+        return result
+    }
+
+    /** Helper to find a member by name */
+    get_member : func(self: SStructDef, member_name: Str) returns Declaration throws Str = {
+        for i in 0..self.members.len() {
+            member := cast(Declaration, self.members.get(i)?)
+            if Str.eq(member.name, member_name) {
+                // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
+                return Declaration.clone(member)
+            }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        throw format(loc(), "Member '", member_name, "' not found")
+    }
+
+    /** Helper to find a member by name or return an error */
+    get_member_or_err : func(self: SStructDef, member_name: Str, struct_name: Str, path: Str, e: Expr) returns Declaration throws Str = {
+        member := self.get_member(member_name)?
+        catch (err: Str) {
+            throw e.error(path, "type", format("Struct '", struct_name, "' has no member '", member_name, "'"))
+        }
+        return member
+    }
+}
+
+SNamespaceDef := struct {
+    mut type_name: Str = ""
+    mut members: Vec = Vec.new(Declaration)
+    mut default_values: Map = Map.new(Str, Expr)
+
+namespace:
+    clone : func(self: SNamespaceDef) returns SNamespaceDef = {
+        mut result := SNamespaceDef()
+        result.type_name = self.type_name.clone()
+        // Deep clone members
+        for m: Declaration in self.members {
+            result.members.push(m.clone())
+        }
+        // Deep clone default_values Map<Str, Expr>
+        for k: Str in self.default_values.keys {
+            v := cast(Expr, self.default_values.get(k)?)
+            result.default_values.set(k.clone(), v.clone())
+        }
+        catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
+        return result
+    }
+}
+
+Literal := enum {
+    Number: Str,  // TODO support more kinds of numbers
+    Str: Str,
+    List: Str,  // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
+}
+
+literal_clone : func(lit: Literal) returns Literal = {
+    switch lit {
+    case Literal.Number(s):
+        // TODO Bug #56: inline s.clone() should work here
+        num_cloned := s.clone()
+        return Literal.Number(num_cloned)
+    case Literal.Str(s):
+        str_cloned := s.clone()
+        return Literal.Str(str_cloned)
+    case Literal.List(s):
+        list_cloned := s.clone()
+        return Literal.List(list_cloned)
+    }
+    // Unreachable, but TIL requires a return
+    return lit
+}
+
+NodeType := enum {
+    Body,
+    LLiteral: Literal,
+    FCall: Bool,  // Issue #132: Bool indicates if call has ? (does_throw)
+    Identifier: Str,
+    Declaration: Declaration,
+    Assignment: Str,
+    NamedArg: Str,  // Named argument in function call: name=value
+    FuncDef: SFuncDef,
+    EnumDef: SEnumDef,
+    StructDef: SStructDef,
+    NamespaceDef: SNamespaceDef,
+    Return,
+    Throw,
+    Catch,
+    Break,
+    Continue,
+    If,
+    While,
+    Switch,
+    DefaultCase,
+    Range,
+    Pattern: PatternInfo,  // Pattern matching for switch case with payload extraction
+    ForIn: Str,  // for VAR: TYPE in COLLECTION - payload is the TYPE name
+}
+
+// Deep clone a NodeType, including all payloads
+// TODO Bug #56: inline clone calls should work in enum payloads
+node_type_clone : func(nt: NodeType) returns NodeType = {
+    switch nt {
+    case NodeType.LLiteral(lit):
+        lit_cloned := literal_clone(lit)
+        return NodeType.LLiteral(lit_cloned)
+    case NodeType.Identifier(s):
+        id_cloned := s.clone()
+        return NodeType.Identifier(id_cloned)
+    case NodeType.Declaration(decl):
+        decl_cloned := decl.clone()
+        return NodeType.Declaration(decl_cloned)
+    case NodeType.Assignment(s):
+        assign_cloned := s.clone()
+        return NodeType.Assignment(assign_cloned)
+    case NodeType.NamedArg(s):
+        named_arg_cloned := s.clone()
+        return NodeType.NamedArg(named_arg_cloned)
+    case NodeType.FuncDef(fd):
+        fd_cloned := fd.clone()
+        return NodeType.FuncDef(fd_cloned)
+    case NodeType.EnumDef(ed):
+        ed_cloned := ed.clone()
+        return NodeType.EnumDef(ed_cloned)
+    case NodeType.StructDef(sd):
+        sd_cloned := sd.clone()
+        return NodeType.StructDef(sd_cloned)
+    case NodeType.NamespaceDef(nd):
+        nd_cloned := nd.clone()
+        return NodeType.NamespaceDef(nd_cloned)
+    case NodeType.Pattern(pi):
+        pi_cloned := pi.clone()
+        return NodeType.Pattern(pi_cloned)
+    case NodeType.ForIn(s):
+        forin_cloned := s.clone()
+        return NodeType.ForIn(forin_cloned)
+    case NodeType.FCall(does_throw):
+        return NodeType.FCall(does_throw)
+    case:
+        // Simple variants (Body, Return, etc.) have no payload to clone
+        return nt
+    }
+}
+
+Expr := struct {
+    mut node_type: NodeType = NodeType.Body
+    mut params: Vec = Vec.new(Expr)
+    mut line: I64 = 0
+    mut col: I64 = 0
+
+namespace:
+    new_explicit : func(node_type: NodeType, params: Vec, line: I64, col: I64) returns Expr = {
+        return Expr(node_type=node_type, params=params, line=line, col=col)
+    }
+
+    new_clone : func(node_type: NodeType, e: Expr, params: Vec) returns Expr = {
+        return Expr.new_explicit(node_type, params, e.line, e.col)
+    }
+
+    len : func(self: Expr) returns I64 = {
+        return self.params.len()
+    }
+
+    to_str : func(self: Expr) returns Str = {
+        mut s := "Expr{"
+        switch self.node_type {
+        case NodeType.Identifier(name):
+            s = s.concat("Identifier(\"")
+            s = s.concat(name)
+            s = s.concat("\")")
+        case:
+            s = s.concat("NodeType.?")
+        }
+        s = s.concat(", line=")
+        s = s.concat(self.line.to_str())
+        s = s.concat(", params=[")
+        mut i := 0
+        for p: Expr in self.params {
+            if gt(i, 0) {
+                s = s.concat(", ")
+            }
+            s = s.concat(p.to_str())
+            i = add(i, 1)
+        }
+        s = s.concat("]}")
+        return s
+    }
+
+    size : func(_self: Expr) returns I64 = {
+        return size_of(Expr)
+    }
+
+    get : func(self: Expr, i: I64) returns Expr throws Str = {
+        if i.lt(self.params.len()) {
+            result := cast(Expr, self.params.get(i)?)
+            return result
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        throw self.lang_error("<internal>", "assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
+    }
+
+    clone : func(self: Expr) returns Expr = {
+        // Deep clone: clone node_type and each element in params
+        mut cloned_params := Vec.new(Expr)
+        for e: Expr in self.params {
+            cloned_params.push(e.clone())
+        }
+        return Expr(node_type=node_type_clone(self.node_type), params=cloned_params, line=self.line, col=self.col)
+    }
+
+    exit_error : proc(self: Expr, phase: Str, msg: Str) = {
+        line_str := self.line.to_str()
+        col_str := self.col.to_str()
+        if phase.eq("warning") {
+            println(format(line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: This should never happen, this is a bug in the language."))
+        } else {
+            println(format(line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: This should never happen, this is a bug in the language."))
+        }
+        exit(1)
+    }
+
+    lang_error : func(self: Expr, path: Str, phase: Str, msg: Str) returns Str = {
+        prefix := path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str()).concat(": ")
+        suffix := "\nExplanation: This should never happen, this is a bug in the language."
+        if phase.eq("warning") {
+            return prefix.concat(LANG_NAME).concat(" WARNING: ").concat(msg).concat(suffix)
+        }
+        return prefix.concat(LANG_NAME).concat(" ").concat(phase).concat(" ERROR: ").concat(msg).concat(suffix)
+    }
+
+    todo_error : func(self: Expr, path: Str, phase: Str, msg: Str) returns Str = {
+        prefix := path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str()).concat(": ")
+        suffix := "\nExplanation: Not implemented yet, this is a missing feature in the language."
+        if phase.eq("warning") {
+            return prefix.concat(LANG_NAME).concat(" WARNING: ").concat(msg).concat(suffix)
+        }
+        return prefix.concat(LANG_NAME).concat(" ").concat(phase).concat(" ERROR: ").concat(msg).concat(suffix)
+    }
+
+    error : func(self: Expr, path: Str, phase: Str, msg: Str) returns Str = {
+        prefix := path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str()).concat(": ")
+        if phase.eq("warning") {
+            return prefix.concat("WARNING: ").concat(msg)
+        }
+        return prefix.concat(phase).concat(" ERROR: ").concat(msg)
+    }
+
+    params_clone : func(self: Expr) returns Vec = {
+        mut cloned := Vec.new(Expr)
+        for elem: Expr in self.params {
+            cloned.push(elem)
+        }
+        return cloned
+    }
+}
+
+TTypeDef := enum {
+    TEnumDef,
+    TStructDef,
+}
+
+ValueType := enum {
+    TFunction: FunctionType,
+    TType: TTypeDef,
+    TCustom: Str,
+    TMulti: Str,
+}
+
+// Deep clone a ValueType, including string payloads
+// TODO Bug #56: inline clone calls should work in enum payloads
+value_type_clone : func(vt: ValueType) returns ValueType = {
+    switch vt {
+    case ValueType.TCustom(s):
+        custom_cloned := s.clone()
+        return ValueType.TCustom(custom_cloned)
+    case ValueType.TMulti(s):
+        multi_cloned := s.clone()
+        return ValueType.TMulti(multi_cloned)
+    case:
+        // TFunction and TType have no heap allocations to clone
+        return vt
+    }
+}

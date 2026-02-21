@@ -11,25 +11,25 @@ import("core.vec")
 mut GLOBAL_COUNT := 0
 
 // Enum with payload variant
-NodeType := enum {
+Bug52NodeType := enum {
     Body,
     Identifier: Str,
     FCall,
 }
 
 // Struct with enum field and Vec
-Expr := struct {
-    mut node_type: NodeType = NodeType.Body
-    mut params: Vec = Vec.new(Expr)
+Bug52Expr := struct {
+    mut node_type: Bug52NodeType = Bug52NodeType.Body
+    mut params: Vec = Vec.new(Bug52Expr)
     mut line: I64 = 0
 }
 
 test_vec_iteration : proc() = {
-    mut parent := Expr()
+    mut parent := Bug52Expr()
 
-    mut child1 := Expr(node_type=NodeType.Body, line=1)
-    mut child2 := Expr(node_type=NodeType.Identifier("hello"), line=2)
-    mut child3 := Expr(node_type=NodeType.FCall, line=3)
+    mut child1 := Bug52Expr(node_type=Bug52NodeType.Body, line=1)
+    mut child2 := Bug52Expr(node_type=Bug52NodeType.Identifier("hello"), line=2)
+    mut child3 := Bug52Expr(node_type=Bug52NodeType.FCall, line=3)
 
     parent.params.push(child1)
     parent.params.push(child2)
@@ -39,21 +39,21 @@ test_vec_iteration : proc() = {
     GLOBAL_COUNT = add(GLOBAL_COUNT, 1)
 
     // Iterate and verify global is readable correctly inside loop
-    for cursor: Expr in parent.params {
+    for cursor: Bug52Expr in parent.params {
         // Bug #47: This used to read wrong value due to static buffer
         mut local_count := GLOBAL_COUNT
         assert_eq(loc(), 1, local_count)
 
         switch cursor.node_type {
-        case NodeType.Body:
+        case Bug52NodeType.Body:
             assert_eq(loc(), 1, cursor.line)
-        case NodeType.Identifier(n):
+        case Bug52NodeType.Identifier(n):
             assert_eq_str(loc(), "hello", n)
             assert_eq(loc(), 2, cursor.line)
-        case NodeType.FCall:
+        case Bug52NodeType.FCall:
             assert_eq(loc(), 3, cursor.line)
         case:
-            panic(loc(), "Unknown NodeType variant")
+            panic(loc(), "Unknown Bug52NodeType variant")
         }
     }
 

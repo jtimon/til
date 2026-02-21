@@ -9,13 +9,13 @@ mode cli
  * Actual: The catch block catches the later throw, causing unexpected behavior.
  */
 
-KeyNotFoundError := struct {
+Bug46KeyNotFoundError := struct {
     mut msg: Str = ""
 }
 
-maybe_throw : proc(should_throw: Bool) throws KeyNotFoundError = {
+maybe_throw : proc(should_throw: Bool) throws Bug46KeyNotFoundError = {
     if should_throw {
-        throw KeyNotFoundError(msg="from maybe_throw")
+        throw Bug46KeyNotFoundError(msg="from maybe_throw")
     }
 }
 
@@ -24,13 +24,13 @@ maybe_throw : proc(should_throw: Bool) throws KeyNotFoundError = {
  * The throw inside the if-block should propagate UP to caller,
  * NOT be caught by the catch block above it.
  */
-test_catch_scope : proc() throws KeyNotFoundError = {
+test_catch_scope : proc() throws Bug46KeyNotFoundError = {
     mut found := false
 
     // Call that might throw
-    maybe_throw(true)?  // This throws KeyNotFoundError
+    maybe_throw(true)?  // This throws Bug46KeyNotFoundError
     found = true       // Should be skipped when throw happens
-    catch (err: KeyNotFoundError) {
+    catch (err: Bug46KeyNotFoundError) {
         // Handle the lookup error - found stays false
         // This catch is ONLY for the maybe_throw call above
     }
@@ -39,24 +39,24 @@ test_catch_scope : proc() throws KeyNotFoundError = {
     // The throw below should propagate to caller, NOT be caught above
     if not(found) {
         // BUG: This throw gets caught by the catch block above!
-        throw KeyNotFoundError(msg="not found - should propagate to caller")
+        throw Bug46KeyNotFoundError(msg="not found - should propagate to caller")
     }
 }
 
 /** Simpler test - throw after catch should propagate */
-test_throw_after_catch : proc() throws KeyNotFoundError = {
+test_throw_after_catch : proc() throws Bug46KeyNotFoundError = {
     mut val := 0
 
     maybe_throw(false)?  // Does not throw
     val = 1
-    catch (err: KeyNotFoundError) {
+    catch (err: Bug46KeyNotFoundError) {
         val = 2
     }
 
     // val should be 1 here (no error was thrown)
     // This throw should NOT be caught by the catch above
     if val.eq(1) {
-        throw KeyNotFoundError(msg="deliberate throw after catch")
+        throw Bug46KeyNotFoundError(msg="deliberate throw after catch")
     }
 }
 
@@ -68,7 +68,7 @@ main : proc() = {
     mut test1_msg := ""
 
     test_throw_after_catch()?
-    catch (err: KeyNotFoundError) {
+    catch (err: Bug46KeyNotFoundError) {
         test1_caught = true
         test1_msg = err.msg
     }
@@ -91,7 +91,7 @@ main : proc() = {
     mut test2_msg := ""
 
     test_catch_scope()?
-    catch (err: KeyNotFoundError) {
+    catch (err: Bug46KeyNotFoundError) {
         test2_caught = true
         test2_msg = err.msg
     }

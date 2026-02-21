@@ -3,7 +3,6 @@ mode liba
 import("core.vec")
 import("std.io")            // readfile
 
-LANG_NAME := "til"
 // Bug #141: Separate output directories for rstil vs til to prevent race conditions
 LANG_NAME_141 := "til"
 

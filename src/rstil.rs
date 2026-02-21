@@ -6,6 +6,7 @@ mod rs {
     pub mod lexer;
     pub mod mode;
     pub mod target;
+    pub mod ast;
     pub mod parser;
     pub mod preinit;
     pub mod init;
@@ -23,7 +24,7 @@ mod rs {
     pub mod builder;
     pub mod ordered_map;
 }
-use rs::lexer::LANG_NAME;
+use rs::ast::LANG_NAME;
 use rs::interpreter::interpret_file;
 use rs::builder;
 use rs::eval_heap::EvalHeap;

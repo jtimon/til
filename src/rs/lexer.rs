@@ -1,4 +1,4 @@
-pub const LANG_NAME  : &str = "til";
+pub use crate::rs::ast::LANG_NAME;
 // Bug #141: Separate output directories for rstil vs til to prevent race conditions
 pub const LANG_NAME_141: &str = "rs";
 
