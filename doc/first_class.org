@@ -44,7 +44,7 @@ name := "hello"
 // Type definitions: explicit metatype annotation
 Point : StructDef = struct { mut x: I64 = 0, mut y: I64 = 0 }
 Color : EnumDef = enum { Red, Green, Blue }
-BinaryOp : FuncSig = func(a: I64, b: I64) returns I64
+BinaryOp : FuncSig = func(I64, I64) returns I64
 
 // Or using the general Type (accepts any type definition)
 Point : Type = struct { mut x: I64 = 0, mut y: I64 = 0 }
@@ -52,7 +52,7 @@ Point : Type = struct { mut x: I64 = 0, mut y: I64 = 0 }
 // Inferred (metatype inferred from RHS)
 Point := struct { mut x: I64 = 0, mut y: I64 = 0 }   // infers StructDef
 Color := enum { Red, Green, Blue }                      // infers EnumDef
-BinaryOp := func(a: I64, b: I64) returns I64           // infers FuncSig
+BinaryOp := func(I64, I64) returns I64                  // infers FuncSig
 
 // Function definitions: the type IS the signature, the value IS the body
 add : func(a: I64, b: I64) returns I64 = {
@@ -75,7 +75,7 @@ Each variant serves as both a specific metatype and a value of ~Type~:
 |-------------+-------------------------+---------------------------------------|
 | ~StructDef~ | Data layout (fields)    | ~p := Point(x=10)~ is a Point         |
 | ~EnumDef~   | Tagged union (variants) | ~c := Color.Red~ is a Color           |
-| ~FuncSig~   | Calling convention      | ~add := func(...){...}~ is a BinaryOp |
+| ~FuncSig~   | Calling convention      | ~add : BinaryOp = (a, b) { ... }~     |
 
 A function definition is an instance of its signature, just like a struct
 value is an instance of its struct definition. This is consistent across
@@ -99,14 +99,29 @@ Vec.new(Type)       // Vec of any type definition (structs, enums, funcsigs)
 ~:=~ infers the type from the RHS. Explicit types are always allowed but
 never required for declarations:
 
-| Declaration                         | Inferred type                                 |
-|-------------------------------------+-----------------------------------------------|
-| ~x := 5~                            | ~I64~                                         |
-| ~name := "hello"~                   | ~Str~                                         |
-| ~Point := struct { ... }~           | ~StructDef~ (or ~Type~)                       |
-| ~Color := enum { ... }~             | ~EnumDef~ (or ~Type~)                         |
-| ~BinaryOp := func(a: I64) ret I64~  | ~FuncSig~ (or ~Type~) (no body)               |
-| ~add := func(a: I64) ret I64 {...}~ | ~func(a: I64) returns I64~ (has body = value) |
+| Declaration                         | Inferred type                   |
+|-------------------------------------+---------------------------------|
+| ~x := 5~                            | ~I64~                           |
+| ~name := "hello"~                   | ~Str~                           |
+| ~Point := struct { ... }~           | ~StructDef~ (or ~Type~)         |
+| ~Color := enum { ... }~             | ~EnumDef~ (or ~Type~)           |
+| ~BinaryOp := func(I64, I64) ret I64~ | ~FuncSig~ (or ~Type~) (no body) |
+
+Function *definitions* (with body) are instances, not type definitions.
+The signature IS the type, so ~:=~ (type inference) does not apply:
+#+BEGIN_SRC til
+// CORRECT: signature is the type, body is the value
+add : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+
+// WRONG: := means "infer the type", but the signature already IS the type
+add := func(a: I64, b: I64) returns I64 { return a.add(b) }  // error
+#+END_SRC
+
+This parallels how struct/enum work: ~Point := struct { ... }~ defines a *type*
+(infers StructDef). ~p := Point(x=10)~ creates an *instance* (infers Point).
+For functions: ~BinaryOp := func(I64, I64) returns I64~ defines a *type*
+(infers FuncSig). ~add : func(a: I64, b: I64) returns I64 = { ... }~ creates
+an *instance* where the signature is explicitly stated as the type.
 
 The only place where types are NOT inferred is function signatures.
 Parameters always require explicit types:
@@ -240,8 +255,8 @@ get_op : func(which: Str) returns BinaryOp = {
 #+BEGIN_SRC til
 apply(func(a: I64, b: I64) returns I64 { return a.add(b) }, 3, 5)
 
-// Or assigned to a variable with type inference:
-double := func(a: I64) returns I64 { return a.mul(2) }
+// Or assigned to a variable:
+double : func(a: I64) returns I64 = { return a.mul(2) }
 #+END_SRC
 
 ** Stored in collections
@@ -271,10 +286,11 @@ h.on_click(3, 5)  // 8
 | Swift      | ~(Int, Int) -> Int~               | No param names in type       |
 | Haskell    | ~Int -> Int -> Int~               | Curried, no parens           |
 | Zig        | ~fn (i64, i64) i64~               | No param names               |
-| TIL        | ~func(a: I64, b: I64) returns I64~ | Param names required (for now) |
+| TIL        | ~func(I64, I64) returns I64~       | Names optional in type         |
 
-TIL keeps param names in the type. This is verbose but readable. Could make
-names optional in type position later: ~func(I64, I64) returns I64~.
+TIL allows param names in function types as documentation, but they are not
+part of the type identity. ~func(a: I64, b: I64) returns I64~ and
+~func(I64, I64) returns I64~ are the same type.
 
 * Lambdas, Captures, and Closures
 
@@ -410,7 +426,7 @@ total = total.add(x)
 }
 
 // Step 3: promote to lambda (add params, same captures)
-adder := func(a: I64) returns I64 [total] { return total.add(a) }
+adder : func(a: I64) returns I64 = [total] { return total.add(a) }
 
 // Step 4: promote to pure function (captures become params, no more closure)
 adder : func(a: I64, b: I64) returns I64 = { return a.add(b) }
@@ -441,7 +457,7 @@ data.for_each(func(x: I64) [mut total] { total = total.add(x) })
 data.map(func(x: I64) returns I64 [copy total] { return x.add(total) })
 
 // own capture: moves data into the closure, caller can't use it after
-consume := func() [own data] { data.clear() }
+consume : proc() = [own data] { data.clear() }
 #+END_SRC
 
 No new rules to learn -- captures are just arguments that come from the
