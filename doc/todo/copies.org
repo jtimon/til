@@ -1,5 +1,6 @@
 * Copy Analysis - All .get() sites in the TIL codebase
   Date: 2026-02-14
+  Note: ~get_by_ref~ was renamed to ~get~ (2026-02-21). References below updated.
 
 ** Summary
 
@@ -19,7 +20,7 @@ Every .get() call performs a shallow memcpy copy. The for-in loops
 *** Category A: params.get(i, expr) -- 290 calls -- DONE (2026-02-14)
 
 *CONVERTED to zero-copy*: Replaced with ~e.get(i)~ + ~dont_delete(var)~
-across all 11 TIL self-hosted files. Uses get_by_ref + create_alias
+across all 11 TIL self-hosted files. Uses get + create_alias
 (zero-copy pointer into collection storage, no memcpy).
 
 These access child nodes of an Expr AST node. The copied type is
@@ -45,7 +46,7 @@ phase uses these extensively.
 *** Category B: e.get(N)? shorthand -- ~200 calls -- DONE (2026-02-14)
 
 *CONVERTED to zero-copy*: Same as Category A. ~e.get(N)~ now uses
-get_by_ref + create_alias internally. All call sites have
+get + create_alias internally. All call sites have
 ~dont_delete(var)~ to prevent the garbager from freeing the alias.
 
 These use the Expr helper method e.get(N) which returns an Expr
@@ -63,11 +64,11 @@ by value. Found extensively in:
 *** Category C: self.frames.get(i, frame) -- ScopeStack lookups -- MOSTLY DONE (2026-02-16)
 
 *CONVERTED to zero-copy*: 24 of 25 .get() calls + all 10 .set() calls converted
-to get_by_ref + create_alias. Commits 40d2a579, 0cd9e119.
+to get + create_alias. Commits 40d2a579, 0cd9e119.
 
-14 reverse loops: get_by_ref + create_alias (zero-copy pointer into Vec storage).
-10 mutating last-frame operations: get_by_ref + create_alias, removed .set() copy-back.
-1 forward loop (update_func): get_by_ref + create_alias, removed .set() copy-back.
+14 reverse loops: get + create_alias (zero-copy pointer into Vec storage).
+10 mutating last-frame operations: get + create_alias, removed .set() copy-back.
+1 forward loop (update_func): get + create_alias, removed .set() copy-back.
 
 **** last_frame (line 153) -- NOT YET CONVERTED
 
@@ -77,7 +78,7 @@ last_frame returns a ScopeFrame by value. The old generated C is very wasteful:
 3. ScopeFrame_clone() deep clone (garbager-inserted)
 4. *_ret = out shallow copy to caller
 
-Converting to get_by_ref + create_alias should eliminate all of that, but is
+Converting to get + create_alias should eliminate all of that, but is
 blocked by the Bug #168 ret_var_alias optimization. The optimization maps the
 return variable to _ret, but create_alias declares a separate pointer variable.
 Result: _ret is never written (verified in gen/rs/c/til.c).
@@ -95,7 +96,7 @@ heap_index.keys -- they never modify the frame. A borrowed view would suffice.
 Possible fixes:
 1. Add has_create_alias_of check to find_ret_var_for_placement (disables ret_var_alias
    when return var is a create_alias target). Still does a shallow copy via *_ret.
-2. Change callers to use get_by_ref + create_alias directly on
+2. Change callers to use get + create_alias directly on
    context.scope_stack.frames, bypassing last_frame entirely (true zero-copy).
 3. Change ccodegen to generate pointer-typed caller variables when the returned
    value comes from create_alias + dont_delete (avoids even the shallow copy).
@@ -114,7 +115,7 @@ Map lookups that copy the value. Found in:
 
 These are inside lookup_symbol/lookup_func/lookup_enum/lookup_struct which all
 RETURN the struct. Same ret_var_alias problem as last_frame: converting the
-internal Map.get to get_by_ref + create_alias and returning the alias still
+internal Map.get to get + create_alias and returning the alias still
 generates *_ret = (*alias_ptr) in C -- a full struct copy. The copy moves from
 Map.get to the return statement, net savings zero.
 
@@ -124,17 +125,17 @@ performance improvement. Reverted.
 
 Same three fixes apply as for last_frame:
 1. has_create_alias_of (fix 1) -- compiles but still copies via *_ret.
-2. Inline: callers use frame.symbols.get_by_ref directly instead of calling
+2. Inline: callers use frame.symbols.get directly instead of calling
    lookup_symbol -- true zero-copy but duplicates lookup logic at every call site.
 3. Codegen: generate pointer-typed caller variables when the returned value
    comes from create_alias (avoids even the *_ret copy).
 
 Additional detail discovered during the attempt:
 - Init phase (init.rs) can't resolve create_alias variables in declaration RHS.
-  val_ref := frame.symbols.get_by_ref(name)? fails with "Undefined symbol 'frame'"
+  val_ref := frame.symbols.get(name)? fails with "Undefined symbol 'frame'"
   because get_value_type (called for declarations) does lookup_symbol which doesn't
   find create_alias variables. Workaround: pre-declare mut val_ref := Ptr() then
-  assign val_ref = frame.symbols.get_by_ref(name)? as a statement (not declaration).
+  assign val_ref = frame.symbols.get(name)? as a statement (not declaration).
   Statements don't go through get_value_type so the alias is found normally.
 
 **** Struct/enum default value lookups -- MOSTLY DONE (2026-02-17)
@@ -142,7 +143,7 @@ Additional detail discovered during the attempt:
 - struct_def.default_values.get(name, expr) -- copies Expr
 - ns_def.default_values.get(name, expr) -- copies Expr
 
-These are used IN-PLACE (not returned), so get_by_ref + create_alias genuinely
+These are used IN-PLACE (not returned), so get + create_alias genuinely
 eliminates the copy. No ret_var_alias problem.
 
 Converted 25/35 calls:
@@ -226,7 +227,7 @@ All in src/self/eval_heap.til and src/self/interpreter.til.
 These are raw byte reads from the heap, not struct copies.
 They return raw pointer data via memcpy. Different from the
 struct-level .get() -- these are low-level memory operations
-and cannot be converted to get_by_ref.
+and cannot be converted to get.
 
 *** Category G: Collection internals -- ~10 calls
 
@@ -262,14 +263,14 @@ desugarer.til). The segfault occurred even with just these 3 conversions
 + the cascading changes -- no Category 2 changes needed to reproduce.
 
 Root cause unknown. The for-in generates correct-looking C code (pointer
-alias via get_by_ref into Vec storage). Needs investigation -- possibly
+alias via get into Vec storage). Needs investigation -- possibly
 related to how the compiled TIL binary uses these functions during
 initialization/parsing of core types.
 
 *** NOT attempted -- blocked by above segfault
 
 12 Expr.get() loops (Category 2, cleanup only, no copy savings since
-Expr.get() already uses get_by_ref + create_alias internally):
+Expr.get() already uses get + create_alias internally):
 - parser.til: 7 loops (clone, params_clone, parse_struct body,
   parse_namespace body, arg_list args, get_combined_name, transform_continue_with_step)
 - typer.til: 1 loop (check body params)
@@ -356,21 +357,21 @@ All copy ScopeFrame via `self.frames.get(i, frame)`
 
 These CANNOT be converted to for-in without reverse iteration support.
 Options:
-1. Add get_by_ref to Vec (return Ptr, no copy)
+1. Use get + create_alias (already available, returns Ptr, no copy)
 2. Add reversed for-in (.rev() or similar)
 3. Cache lookups to avoid repeated frame iteration
 
 ** Priority for optimization
 
 1. *DONE* **params.get() / e.get()** -- 490 calls copying Expr
-   Converted to zero-copy via get_by_ref + create_alias (2026-02-14).
+   Converted to zero-copy via get + create_alias (2026-02-14).
 
 2. *MOSTLY DONE* **ScopeStack frame iteration** -- 35 calls copying ScopeFrame
-   24/25 .get() + 10 .set() converted to get_by_ref + create_alias (2026-02-16).
+   24/25 .get() + 10 .set() converted to get + create_alias (2026-02-16).
    1 remaining: last_frame blocked by Bug #168 ret_var_alias.
 
 3. *MOSTLY DONE* **Map.get() for default_values** -- 25/35 calls converted (2026-02-17)
-   Uses get_by_ref + create_alias. 10 remaining call methods on aliased variable
+   Uses get + create_alias. 10 remaining call methods on aliased variable
    (typer can't resolve methods on pointer-typed create_alias variables).
    ScopeFrame map lookups (~6 calls) BLOCKED by ret_var_alias (same as last_frame).
 

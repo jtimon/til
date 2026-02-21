@@ -106,7 +106,7 @@ namespace:
     /// Issue #163: Free a heap-allocated block
     heap_free := proc(mut self: EvalHeap, ptr: I64) {
         for i in 0..self._heap_bases.len() {
-            base := cast(I64, self._heap_bases.get_by_ref(i)?)
+            base := cast(I64, self._heap_bases.get(i)?)
             if base.eq(ptr) {
                 self._heap_bases.set(i, 0)?  // mark as freed
                 self._heap_sizes.set(i, 0)?
@@ -131,7 +131,7 @@ namespace:
             return false
         }
         parts := id.split(".")?
-        base := cast(Str, parts.get_by_ref(0)?)
+        base := cast(Str, parts.get(0)?)
         mut sym := ctx.scope_stack.lookup_symbol(base)?
         switch sym.value_type {
         case ValueType.TType(inner):
@@ -347,12 +347,12 @@ namespace:
         // Store each field's default value
         for decl: Declaration in struct_def.members {
             if decl.is_mut {
-                field_offset := cast(I64, field_offsets.get_by_ref(decl.name)?)
+                field_offset := cast(I64, field_offsets.get(decl.name)?)
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Missing field offset for '", decl.name, "'"))
                 }
 
-                default_value := cast(Str, defaults.get_by_ref(decl.name)?)
+                default_value := cast(Str, defaults.get(decl.name)?)
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Missing pre-evaluated default for field '", decl.name, "'"))
                 }
@@ -371,17 +371,17 @@ namespace:
                         if not(parts.len().eq(2)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
-                        part0 := cast(Str, parts.get_by_ref(0)?)
+                        part0 := cast(Str, parts.get(0)?)
                         if not(part0.eq(type_name)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
-                        variant := cast(Str, parts.get_by_ref(1)?)
+                        variant := cast(Str, parts.get(1)?)
                         // Find variant index - Bug #38 fix: use variants Vec
                         mut index : I64 = 0
                         mut found_variant := false
                         mut vi := 0
                         while vi.lt(enum_def.variants.len()) {
-                            ev := cast(EnumVariant, enum_def.variants.get_by_ref(vi)?)
+                            ev := cast(EnumVariant, enum_def.variants.get(vi)?)
                             if ev.name.eq(variant) {
                                 index = vi
                                 found_variant = true
@@ -437,7 +437,7 @@ namespace:
                                     for dk: Str in default_keys {
                                         if dk.starts_with(prefix) {
                                             rest := dk.strip_prefix(prefix)
-                                            dv := cast(Str, defaults.get_by_ref(dk)?)
+                                            dv := cast(Str, defaults.get(dk)?)
                                             catch (err: KeyNotFoundError) {
                                                 panic(loc(), "insert_struct_core: key not found in defaults")
                                             }
@@ -529,7 +529,7 @@ namespace:
             if decl.is_mut {
                 mut field_rel_offset := 0
                 if field_offsets.contains_key(decl.name) {
-                    fro := cast(I64, field_offsets.get_by_ref(decl.name)?)
+                    fro := cast(I64, field_offsets.get(decl.name)?)
                     field_rel_offset = fro
                 }
                 catch (err: KeyNotFoundError) {
@@ -732,7 +732,7 @@ namespace:
             return
         }
         // Create Str struct from template
-        template_offset := cast(I64, g_heap.default_instances.get_by_ref("Str")?)
+        template_offset := cast(I64, g_heap.default_instances.get("Str")?)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string", "Str template not found - ensure str.til is imported")
         }
@@ -761,14 +761,14 @@ namespace:
         // because the interpreter never evaluated struct declarations. This is OK for
         // macros with Type parameters - the type name is only used in AST construction,
         // not read as a runtime Str value.
-        template_offset := cast(I64, g_heap.default_instances.get_by_ref("Str")?)
+        template_offset := cast(I64, g_heap.default_instances.get("Str")?)
         catch (err: KeyNotFoundError) {
             return
         }
         EvalHeap.insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?
         // Bug #160: Calculate field offsets from base offset in frame
         // The base struct was just inserted into frame.heap_index
-        base_offset := cast(I64, frame.heap_index.get_by_ref(id)?)
+        base_offset := cast(I64, frame.heap_index.get(id)?)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string_into_frame", format("missing '", id, "' in frame"))
         }
@@ -1076,7 +1076,7 @@ namespace:
         parts := pre_normalized_enum_name.split(".")?
         mut enum_name := ""
         if parts.len().gt(0) {
-            enum_name_alias := cast(Str, parts.get_by_ref(sub(parts.len(), 1))?)
+            enum_name_alias := cast(Str, parts.get(sub(parts.len(), 1))?)
             enum_name = enum_name_alias
         }
         catch (err: IndexOutOfBoundsError) {
@@ -1120,7 +1120,7 @@ namespace:
                     payload_offset := add(offset, 8)
                     mut pi := 0
                     while pi.lt(payload_data.len()) {
-                        byte_val := cast(U8, payload_data.get_by_ref(pi)?)
+                        byte_val := cast(U8, payload_data.get(pi)?)
                         g_heap.set(add(payload_offset, pi), to_ptr(byte_val), 1)
                         pi = add(pi, 1)
                     }
@@ -1206,7 +1206,7 @@ namespace:
      *  Uses insert_struct_into_frame internally. */
     insert_array_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, name: Str, elem_type: Str, values: Vec, e: Expr) throws Str {
         // Create Array struct using template
-        template_offset := cast(I64, g_heap.default_instances.get_by_ref("Array")?)
+        template_offset := cast(I64, g_heap.default_instances.get("Array")?)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "Array template not found - ensure array.til is imported")
         }
@@ -1223,7 +1223,7 @@ namespace:
         mut i := 0
         while i.lt(len) {
             offset := add(ptr, mul(i, elem_size))
-            val := cast(Str, values.get_by_ref(i)?)
+            val := cast(Str, values.get(i)?)
 
             if Str.eq(elem_type, "U8") {
                 byte := U8.from_str(val)?
@@ -1239,7 +1239,7 @@ namespace:
 
                 EvalHeap.insert_string_into_frame(ctx, frame, temp_id, val, e)?
 
-                str_offset := cast(I64, frame.heap_index.get_by_ref(temp_id)?)
+                str_offset := cast(I64, frame.heap_index.get(temp_id)?)
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("missing Str offset for '", temp_id, "'"))
                 }
@@ -1258,7 +1258,7 @@ namespace:
         }
 
         // Bug #160: Calculate field offsets from base offset in frame
-        base_offset := cast(I64, frame.heap_index.get_by_ref(name)?)
+        base_offset := cast(I64, frame.heap_index.get(name)?)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", format("missing base offset for '", name, "'"))
         }
@@ -1493,12 +1493,12 @@ namespace:
         mut multiplier := 1
         for i in 0..8 {
             if i.lt(str_bytes.len()) {
-                b := cast(U8, str_bytes.get_by_ref(i)?)
+                b := cast(U8, str_bytes.get(i)?)
                 c_string_ptr = c_string_ptr.add(b.to_i64().mul(multiplier))
                 multiplier = multiplier.mul(256)
             }
             catch (err: IndexOutOfBoundsError) {
-                panic(loc(), "str_bytes.get_by_ref: bounds-checked by i < len: ", err.msg)
+                panic(loc(), "str_bytes.get: bounds-checked by i < len: ", err.msg)
             }
         }
 
@@ -1508,12 +1508,12 @@ namespace:
         for i2 in 0..8 {
             idx := ptr_size.add(i2)
             if idx.lt(str_bytes.len()) {
-                b2 := cast(U8, str_bytes.get_by_ref(idx)?)
+                b2 := cast(U8, str_bytes.get(idx)?)
                 len = len.add(b2.to_i64().mul(multiplier2))
                 multiplier2 = multiplier2.mul(256)
             }
             catch (err: IndexOutOfBoundsError) {
-                panic(loc(), "str_bytes.get_by_ref: bounds-checked by idx < len: ", err.msg)
+                panic(loc(), "str_bytes.get: bounds-checked by idx < len: ", err.msg)
             }
         }
 

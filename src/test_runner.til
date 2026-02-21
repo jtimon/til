@@ -38,7 +38,7 @@ parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError
             // Extract value after last ": "
             parts := line.split(": ")?
             if parts.len().gt(1) {
-                ts := cast(Str, parts.get_by_ref(parts.len().sub(1))?)
+                ts := cast(Str, parts.get(parts.len().sub(1))?)
                 mut time_str := Str.replace(ts, "\r", "")
                 // Find first colon (separates minutes from seconds, or hours from minutes)
                 colon_pos := time_str.find(":")
@@ -86,7 +86,7 @@ parse_maxrss_kb := func(time_output: Str) returns I64 throws IndexOutOfBoundsErr
         if line.find("Maximum resident set size").gt(I64_MINUS1) {
             parts := line.split(": ")?
             if parts.len().gt(1) {
-                vs := cast(Str, parts.get_by_ref(parts.len().sub(1))?)
+                vs := cast(Str, parts.get(parts.len().sub(1))?)
                 mut val_str := vs.replace("\r", "")
                 return val_str.to_i64()
             }
@@ -545,18 +545,18 @@ main := proc(args: ..Str) {
     }
 
     // Extract required args
-    command := cast(Str, args.get_by_ref(0)?)
-    test_mode := cast(Str, args.get_by_ref(1)?)
-    out_mode := cast(Str, args.get_by_ref(2)?)
-    expected_status_str := cast(Str, args.get_by_ref(3)?)
-    file := cast(Str, args.get_by_ref(4)?)
+    command := cast(Str, args.get(0)?)
+    test_mode := cast(Str, args.get(1)?)
+    out_mode := cast(Str, args.get(2)?)
+    expected_status_str := cast(Str, args.get(3)?)
+    file := cast(Str, args.get(4)?)
 
     expected_status := expected_status_str.to_i64()
 
     // Collect extra args into single string, filtering out --cc= (Issue #131)
     mut cmd_args := ""
     for i in 5..args.len() {
-        arg := cast(Str, args.get_by_ref(i)?)
+        arg := cast(Str, args.get(i)?)
         if arg.starts_with("--cc=") {
             g_cc = arg.get_substr(5, arg.len())?
         } else if arg.eq("--mem-report") {

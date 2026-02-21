@@ -286,7 +286,7 @@ test_namespace_parses := proc() {
     }
 
     // Get the first statement
-    first_stmt := cast(Expr, ast.params.get_by_ref(0)?)
+    first_stmt := cast(Expr, ast.params.get(0)?)
 
     // Verify it's a NamespaceDef
     switch first_stmt.node_type {

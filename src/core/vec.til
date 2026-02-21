@@ -123,9 +123,9 @@ namespace:
     }
 
     /** Get borrowed Ptr to element at index. No copy - points into vec memory. */
-    get_by_ref := proc(self: Vec, index: I64) returns Ptr throws IndexOutOfBoundsError {
+    get := proc(self: Vec, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if index.gteq(self._len) {
-            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.get_by_ref: index out of bounds"))
+            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.get: index out of bounds"))
         }
         return self.ptr.offset(index.mul(self.ptr.elem_size))
     }
@@ -399,8 +399,8 @@ sort_str_vec := proc(mut v: Vec) {
     while gt(n, 1) {
         mut new_n := 0
         for i in 1..n {
-            prev := cast(Str, v.get_by_ref(i.sub(1))?)
-            curr := cast(Str, v.get_by_ref(i)?)
+            prev := cast(Str, v.get(i.sub(1))?)
+            curr := cast(Str, v.get(i)?)
             if gt(prev.cmp(curr), 0) {
                 // Clone prev before swap since both alias vec storage
                 prev_clone := prev.clone()

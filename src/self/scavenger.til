@@ -108,7 +108,7 @@ rebuild_namespace_without_unreachable_methods := proc(ns_def: SNamespaceDef, rea
     for member_decl: Declaration in ns_def.members {
         full_name := format(type_name, ".", member_decl.name)
 
-        default_expr := cast(Expr, ns_def.default_values.get_by_ref(member_decl.name)?)
+        default_expr := cast(Expr, ns_def.default_values.get(member_decl.name)?)
 
         switch default_expr.node_type {
         case NodeType.FuncDef(func_def):
@@ -146,7 +146,7 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
     for member_decl: Declaration in struct_def.members {
         full_name := format(struct_name, ".", member_decl.name)
 
-        default_expr := cast(Expr, struct_def.default_values.get_by_ref(member_decl.name)?)
+        default_expr := cast(Expr, struct_def.default_values.get(member_decl.name)?)
 
         switch default_expr.node_type {
         case NodeType.FuncDef(func_def):
@@ -235,7 +235,7 @@ get_combined_name_from_identifier := proc(e: Expr) returns Str throws Str {
             mut result := ""
             mut i := 0
             while i.lt(parts.len()) {
-                part := cast(Str, parts.get_by_ref(i)?)
+                part := cast(Str, parts.get(i)?)
                 if i.gt(0) {
                     result = result.concat(".")
                 }
@@ -283,7 +283,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
                 }
                 // Struct methods
                 for member_name: Str in struct_def.default_values.keys {
-                    default_expr := cast(Expr, struct_def.default_values.get_by_ref(member_name)?)
+                    default_expr := cast(Expr, struct_def.default_values.get(member_name)?)
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         full_name := format(decl.name, ".", member_name)
@@ -301,7 +301,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
     // Issue #108: Handle namespace definitions - register their functions
     case NodeType.NamespaceDef(ns_def):
         for member_name: Str in ns_def.default_values.keys {
-            ns_default_expr := cast(Expr, ns_def.default_values.get_by_ref(member_name)?)
+            ns_default_expr := cast(Expr, ns_def.default_values.get(member_name)?)
             switch ns_default_expr.node_type {
             case NodeType.FuncDef(func_def):
                 ns_full_name := format(ns_def.type_name, ".", member_name)
@@ -465,11 +465,11 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                     // This happens when precomp couldn't determine the type (e.g., pattern bindings in switch)
                     // In this case, parts[0] is a variable name, not a type name
                     mut parts := func_name.split(".")?
-                    method_name := cast(Str, parts.get_by_ref(parts.len().sub(1))?) // Last part is the method name
+                    method_name := cast(Str, parts.get(parts.len().sub(1))?) // Last part is the method name
 
                     mut is_unresolved_ufcs := false
                     if parts.len().gteq(2) {
-                        maybe_var := cast(Str, parts.get_by_ref(0)?)
+                        maybe_var := cast(Str, parts.get(0)?)
                         // If first part is NOT a known struct/enum, it's likely a variable
                         mut found_struct_check := false
                         mut _dummy_struct := SStructDef()
@@ -610,7 +610,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
             case NodeType.NamespaceDef(ns_def):
                 if ns_def.type_name.eq(eq_type_name) {
                     for method_name: Str in ns_def.default_values.keys {
-                        method_expr := cast(Expr, ns_def.default_values.get_by_ref(method_name)?)
+                        method_expr := cast(Expr, ns_def.default_values.get(method_name)?)
                         catch (err: KeyNotFoundError) {
                             panic(loc(), "scavenger: KeyNotFoundError iterating default_values.keys: ", err.msg)
                         }
@@ -811,7 +811,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             mut array_methods := Vec.new(Str)
             array_methods.push("Array.new")
             array_methods.push("Array.set")
-            array_methods.push("Array.get_by_ref")
+            array_methods.push("Array.get")
             array_methods.push("Array.delete")
             array_methods.push("Array.len")
             for method: Str in array_methods {

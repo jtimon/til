@@ -116,7 +116,7 @@ namespace:
         if i.gteq(self.tokens.len()) {
             return true
         }
-        t := cast(Token, self.tokens.get_by_ref(i)?)
+        t := cast(Token, self.tokens.get(i)?)
         switch t.token_type {
         case TokenType.Eof:
             return true
@@ -130,7 +130,7 @@ namespace:
             mut err_token := self.peek()?
             throw err_token.lang_error(self.path, format("Token in pos ", i.to_str(), " is out of bounds"))
         }
-        t := cast(Token, self.tokens.get_by_ref(i)?)
+        t := cast(Token, self.tokens.get(i)?)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -138,7 +138,7 @@ namespace:
     }
 
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
-        t := cast(Token, self.tokens.get_by_ref(self.current)?)
+        t := cast(Token, self.tokens.get(self.current)?)
         return t
     }
 
@@ -151,7 +151,7 @@ namespace:
             mut err_token2 := self.peek()?
             throw err_token2.lang_error(self.path, "Previous token is out of bounds")
         }
-        t := cast(Token, self.tokens.get_by_ref(self.current.sub(1))?)
+        t := cast(Token, self.tokens.get(self.current.sub(1))?)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -176,7 +176,7 @@ namespace:
             mut err_token := self.peek()?
             throw err_token.lang_error(self.path, format("Peek ahead by ", offset.to_str(), " from ", self.current.to_str(), " is out of bounds"))
         }
-        t := cast(Token, self.tokens.get_by_ref(peek_idx)?)
+        t := cast(Token, self.tokens.get(peek_idx)?)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -667,9 +667,9 @@ build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str
     }
 
     if should_check {
-        ident_token := cast(Token, tokens.get_by_ref(var_index.add(1))?)
-        equals_token := cast(Token, tokens.get_by_ref(var_index.add(2))?)
-        value_token := cast(Token, tokens.get_by_ref(var_index.add(3))?)
+        ident_token := cast(Token, tokens.get(var_index.add(1))?)
+        equals_token := cast(Token, tokens.get(var_index.add(2))?)
+        value_token := cast(Token, tokens.get(var_index.add(3))?)
 
         mut is_identifier := false
         switch ident_token.token_type {
@@ -702,7 +702,7 @@ print_lex_errors := proc(tokens: Vec, path: Str) returns I64 throws Str {
     mut errors_found := 0
     mut tokens_len := tokens.len()
     for i in 0..tokens_len {
-        t := cast(Token, tokens.get_by_ref(i)?)
+        t := cast(Token, tokens.get(i)?)
         print_if_lex_error(path, tokens, i, t, errors_found)?
     }
     catch (err: IndexOutOfBoundsError) {
@@ -793,7 +793,7 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
         throw path.format(":1:0: compiler ERROR: End of file not found.")
     }
 
-    first := cast(Token, tokens.get_by_ref(0)?)
+    first := cast(Token, tokens.get(0)?)
     switch first.token_type {
     case TokenType.Eof:
         throw path.format(":0:0: compiler ERROR: Nothing to be done")

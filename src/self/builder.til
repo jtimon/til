@@ -88,7 +88,7 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
                                         // Bug #128: Use already-resolved AST from typer phase if available
                                         mut dep_resolved := Expr()
                                         if context.imported_asts.contains_key(file_path) {
-                                            dr := cast(Expr, context.imported_asts.get_by_ref(file_path)?)
+                                            dr := cast(Expr, context.imported_asts.get(file_path)?)
                                             dep_resolved = dr
                                         } else {
                                             dep_result := parse_file(file_path)?

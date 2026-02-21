@@ -21,13 +21,13 @@ test_continue_in_for := proc() {
     assert_eq(loc(), 9, result.len())
 
     // Verify the values
-    val0 := cast(I64, result.get_by_ref(0)?)
+    val0 := cast(I64, result.get(0)?)
     assert_eq(loc(), 0, val0)
-    val4 := cast(I64, result.get_by_ref(4)?)
+    val4 := cast(I64, result.get(4)?)
     assert_eq(loc(), 4, val4)
-    val5 := cast(I64, result.get_by_ref(5)?)
+    val5 := cast(I64, result.get(5)?)
     assert_eq(loc(), 6, val5)  // 5 was skipped, so index 5 has value 6
-    val8 := cast(I64, result.get_by_ref(8)?)
+    val8 := cast(I64, result.get(8)?)
     assert_eq(loc(), 9, val8)
 
     println("Bug #57 test passed: continue in for loops works correctly")
@@ -52,11 +52,11 @@ test_continue_in_reverse_for := proc() {
     assert_eq(loc(), 9, result.len())
 
     // Verify the values
-    val0 := cast(I64, result.get_by_ref(0)?)
+    val0 := cast(I64, result.get(0)?)
     assert_eq(loc(), 9, val0)
-    val4 := cast(I64, result.get_by_ref(4)?)
+    val4 := cast(I64, result.get(4)?)
     assert_eq(loc(), 4, val4)  // 5 was skipped
-    val8 := cast(I64, result.get_by_ref(8)?)
+    val8 := cast(I64, result.get(8)?)
     assert_eq(loc(), 0, val8)
 
     println("Bug #57 test passed: continue in reverse for loops works correctly")

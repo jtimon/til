@@ -43,7 +43,7 @@ namespace:
         mut offset := 0
         mut i := 0
         while lt(i, index) {
-            size := cast(I64, self.type_sizes.get_by_ref(i)?)
+            size := cast(I64, self.type_sizes.get(i)?)
             offset = add(offset, size)
             i = add(i, 1)
         }
@@ -94,13 +94,13 @@ namespace:
     }
 
     /** Get reference to element at index. */
-    get_by_ref := proc(self: List, index: I64) returns Ptr throws IndexOutOfBoundsError {
+    get := proc(self: List, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if gteq(index, self._len) {
-            throw IndexOutOfBoundsError(msg=format("List.get_by_ref: index ",
+            throw IndexOutOfBoundsError(msg=format("List.get: index ",
                 format(index.to_str(), format(" >= len ", self._len.to_str()))))
         }
         if lt(index, 0) {
-            throw IndexOutOfBoundsError(msg=format("List.get_by_ref: negative index ", index.to_str()))
+            throw IndexOutOfBoundsError(msg=format("List.get: negative index ", index.to_str()))
         }
         offset := self.calc_offset(index)?
         return self.data.offset(offset)
@@ -123,9 +123,9 @@ namespace:
         mut new_type := type_as_str(T)
         mut new_size := size_of(T)
 
-        old_type := cast(Str, self.type_names.get_by_ref(index)?)
+        old_type := cast(Str, self.type_names.get(index)?)
 
-        old_size := cast(I64, self.type_sizes.get_by_ref(index)?)
+        old_size := cast(I64, self.type_sizes.get(index)?)
 
         // Case 1: Same size - simple overwrite
         if I64.eq(new_size, old_size) {
@@ -190,7 +190,7 @@ namespace:
         // Get last element FIRST before modifying anything
         mut last_index := sub(self._len, 1)
         mut offset := self.calc_offset(last_index)?
-        size := cast(I64, self.type_sizes.get_by_ref(last_index)?)
+        size := cast(I64, self.type_sizes.get(last_index)?)
 
         // Copy data to destination directly
         src := self.data.offset(offset)

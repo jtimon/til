@@ -935,15 +935,16 @@ HashMap.insert, HashMap.set, List.push, List.set.
 
 Prerequisite for Step 9 (Bug #144 fix) and Step 10 (auto-delete).
 
-**** Step 9: Fix ~get~ shallow copy + ~get_by_ref~ + ~create_alias~ (Bug #144) — DONE
+**** Step 9: Fix ~get~ shallow copy + ~get~ (zero-copy) + ~create_alias~ (Bug #144) — DONE
 
-Current ~get(self, index, mut dest)~ does memcpy (shallow copy). The caller's
-local aliases the container element's heap data. Auto-deleting the local
-corrupts the container (double-free).
+The old copying ~get(self, index, mut dest)~ did memcpy (shallow copy). The
+caller's local aliased the container element's heap data. Auto-deleting the
+local corrupted the container (double-free).
 
 Agreed approach:
-1. DONE — ~get_by_ref~ added to Vec, Map, HashMap. Returns borrowed Ptr
-   (~offset~ sets ~is_borrowed=1~). Tests in vecs.til and maps.til.
+1. DONE — zero-copy ~get~ added to Vec, Map, HashMap (previously named
+   ~get_by_ref~, renamed for simplicity). Returns borrowed Ptr (~offset~
+   sets ~is_borrowed=1~). Tests in vecs.til and maps.til.
 2. DONE — ~create_alias~ standalone ext_func added. Rebinds a local variable's
    arena offset to a Ptr's data address (interpreter) or emits memcpy (compiler).
    Not a Ptr method (wrapper can't rebind caller's variable). Declared in mem.til,
@@ -955,7 +956,7 @@ Agreed approach:
    scope tracking recognizes it: init, typer, ufcs, precomp, ccodegen, interpreter.
    Desugared for-in for non-primitives is now:
 #+begin_src til
-_ref := get_by_ref(vec, _for_i_func_N)
+_ref := get(vec, _for_i_func_N)
 catch (...) { panic(...) }
 create_alias(item, MyStruct, _ref.data)   // declares + aliases + skips delete
 // user's body
@@ -964,10 +965,10 @@ create_alias(item, MyStruct, _ref.data)   // declares + aliases + skips delete
    value is correctness: create_alias variables are properly excluded from
    auto-delete, which is what Step 10 needs. Without this, Step 10 would
    double-free for-in loop variables over containers.
-4. Decide on ~get~ API — break it (make ~get~ return ref by default) or
-   keep both ~get~ (copy) / ~get_by_ref~ (reference).
+4. DONE — Renamed ~get_by_ref~ to ~get~. The old copying ~get~ was removed,
+   so the name is free for the zero-copy version.
 
-Dependencies: Step 8 (~dont_delete~), ~get_by_ref~, ~create_alias~ ext_func.
+Dependencies: Step 8 (~dont_delete~), ~get~, ~create_alias~ ext_func.
 Files: desugarer.rs, desugarer.til, container files, ptr ext_funcs,
   ufcs.rs, ufcs.til, precomp.rs, precomp.til, init.rs, init.til,
   typer.rs, typer.til, ccodegen.rs, ccodegen.til, ext.rs, ext.til,

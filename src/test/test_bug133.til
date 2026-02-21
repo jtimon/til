@@ -25,10 +25,10 @@ data := create_data()
 main := proc() {
     println("data len: ", data.len().to_str())
 
-    item0 := cast(Str, data.get_by_ref(0)?)
+    item0 := cast(Str, data.get(0)?)
     println("data[0]: ", item0)
 
-    item1 := cast(Str, data.get_by_ref(1)?)
+    item1 := cast(Str, data.get(1)?)
     println("data[1]: ", item1)
 
     println("Bug #133 test PASSED")

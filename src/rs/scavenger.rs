@@ -657,7 +657,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             let array_methods = vec![
                 "Array.new".to_string(),
                 "Array.set".to_string(),
-                "Array.get_by_ref".to_string(),
+                "Array.get".to_string(),
                 "Array.delete".to_string(),
                 "Array.len".to_string(),
             ];

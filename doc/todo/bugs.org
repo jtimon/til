@@ -416,18 +416,19 @@ but many sources of shallow copies remain:
    struct params by-ref instead of =own=. The garbager can't detect ownership transfer.
 5. *Collection .get()*: copy_to_dynamic memcpy creates aliases. Partially mitigated
    by clone-after-get (Step 9). Map.get eliminated (2026-02-20). Vec/Array/Set .get()
-   remain -- should use get_by_ref + cast (zero-copy pointer into collection storage).
+   remain -- should use get + cast (zero-copy pointer into collection storage).
 
 *** Remediation plan
 
-**** Phase 1: Eliminate .get() from all collections (no dependencies) -- DONE
+**** Phase 1: Eliminate copying .get() from all collections (no dependencies) -- DONE
 All copying .get() methods removed from Vec, Map, Array, Set, List.
-All callers converted to get_by_ref + cast (zero-copy pointer into storage).
+All callers converted to get + cast (zero-copy pointer into storage).
+(~get~ was previously named ~get_by_ref~, renamed for simplicity.)
 
 =.pop()= methods (Vec.pop, List.pop) are NOT part of Phase 1 -- pop removes the
 element from the collection, so a zero-copy pointer into storage would dangle.
 Pop needs ownership transfer (move semantics). Ideal API: pop returns a Ptr
-(is_borrowed=false), caller uses cast. Internally, pop would get_by_ref the last
+(is_borrowed=false), caller uses cast. Internally, pop would get the last
 element, clone it, decrement length, return Ptr to the clone. But cloning a
 type-erased Dynamic element requires calling =Type.clone()= from =self.type_name=
 at runtime -- blocked by Phase 2 (Issue #91, function pointers).

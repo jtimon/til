@@ -47,7 +47,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
     if is_variadic.and(func_def.args.len().gt(1)) {
         mut check_j := 0
         while check_j.lt(func_def.args.len().sub(1)) {
-            check_def_arg := cast(Declaration, func_def.args.get_by_ref(check_j)?)
+            check_def_arg := cast(Declaration, func_def.args.get(check_j)?)
             if not(NULL.eq(check_def_arg.default_value.data)) {
                 has_optional_before_variadic = true
             }
@@ -81,7 +81,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
 
         // Process optional args before the variadic
         while def_arg_idx.lt(func_def.args.len().sub(1)) {
-            opt_def_arg := cast(Declaration, func_def.args.get_by_ref(def_arg_idx)?)
+            opt_def_arg := cast(Declaration, func_def.args.get(def_arg_idx)?)
 
             // Check if we have a provided arg that matches this def arg's type
             mut matches := false
@@ -187,7 +187,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
             mut param_idx := sub(0, 1)
             mut search_j := 0
             while search_j.lt(func_def.args.len()) {
-                search_arg_decl := cast(Declaration, func_def.args.get_by_ref(search_j)?)
+                search_arg_decl := cast(Declaration, func_def.args.get(search_j)?)
                 if search_arg_decl.name.eq(arg_name) {
                     param_idx = search_j
                     search_j = func_def.args.len() // break
@@ -198,7 +198,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
             if param_idx.lt(0) {
                 throw named_arg.error(context.path, "ufcs", format("Unknown parameter name '", arg_name, "'"))
             }
-            already_set := cast(Bool, final_args_set.get_by_ref(param_idx)?)
+            already_set := cast(Bool, final_args_set.get(param_idx)?)
             if already_set {
                 throw named_arg.error(context.path, "ufcs", format("Argument '", arg_name, "' specified multiple times"))
             }
@@ -215,13 +215,13 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
     // Check all required args are present and build final result
     i = 0
     while i.lt(final_args.len()) {
-        is_set := cast(Bool, final_args_set.get_by_ref(i)?)
+        is_set := cast(Bool, final_args_set.get(i)?)
         if is_set {
-            final_arg := cast(Expr, final_args.get_by_ref(i)?)
+            final_arg := cast(Expr, final_args.get(i)?)
             result.push(final_arg)
         } else {
             // Check if this parameter has a default value
-            final_arg_decl := cast(Declaration, func_def.args.get_by_ref(i)?)
+            final_arg_decl := cast(Declaration, func_def.args.get(i)?)
             if not(NULL.eq(final_arg_decl.default_value.data)) {
                 mut final_default_expr := Expr()
                 memcpy(to_ptr(final_default_expr), final_arg_decl.default_value.data, size_of(Expr))
@@ -338,8 +338,8 @@ ufcs_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) r
     mut new_default_values := Map.new(Str, Expr)
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
-        name := cast(Str, struct_def.default_values.keys.get_by_ref(i)?)
-        value_expr := cast(Expr, struct_def.default_values.get_by_ref(name)?)
+        name := cast(Str, struct_def.default_values.keys.get(i)?)
+        value_expr := cast(Expr, struct_def.default_values.get(name)?)
         new_default_values.set(name, ufcs_expr(context, value_expr)?)
         i.inc()
     }
@@ -472,7 +472,7 @@ ufcs_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retur
 
     // Also register function definitions so UFCS can resolve their return types
     if new_params.len().gt(0) {
-        first_param := cast(Expr, new_params.get_by_ref(0)?)
+        first_param := cast(Expr, new_params.get(0)?)
         switch first_param.node_type {
         case NodeType.FuncDef(func_def):
             context.scope_stack.declare_func(decl.name, func_def)?
@@ -495,8 +495,8 @@ ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     }
 
     // Get the catch variable name and type
-    name_expr := cast(Expr, e.params.get_by_ref(0)?)
-    type_expr := cast(Expr, e.params.get_by_ref(1)?)
+    name_expr := cast(Expr, e.params.get(0)?)
+    type_expr := cast(Expr, e.params.get(1)?)
     mut var_name := ""
     mut type_name := ""
     switch name_expr.node_type {
@@ -549,7 +549,7 @@ ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 ufcs_namespace_def := proc(mut context: Context, e: Expr, ns_def: SNamespaceDef) returns Expr throws Str {
     mut new_default_values := Map.new(Str, Expr)
     for name: Str in ns_def.default_values.keys {
-        value_expr := cast(Expr, ns_def.default_values.get_by_ref(name)?)
+        value_expr := cast(Expr, ns_def.default_values.get(name)?)
         new_default_values.set(name, ufcs_expr(context, value_expr)?)
     }
     mut new_ns_def := SNamespaceDef()

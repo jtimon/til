@@ -42,9 +42,9 @@ namespace:
     }
 
     /** Get borrowed Ptr to element at index. No copy - points into array memory. */
-    get_by_ref := proc(self: Array, index: I64) returns Ptr throws IndexOutOfBoundsError {
+    get := proc(self: Array, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if index.gteq(self._len) {
-            throw IndexOutOfBoundsError(msg=format(loc(), "Array.get_by_ref: index out of bounds"))
+            throw IndexOutOfBoundsError(msg=format(loc(), "Array.get: index out of bounds"))
         }
         return self.ptr.offset(mul(index, self.ptr.elem_size))
     }

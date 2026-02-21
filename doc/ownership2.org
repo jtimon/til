@@ -127,22 +127,16 @@ Unclear cases:
 - *Field access* on a ref param: is this a reference or a copy?
 - *Function return*: depends on the function (see question 2)
 
-*** Vec.get vs Vec.get_by_ref
+*** Vec.get (previously get_by_ref)
 
-~Vec.get~ (vec.til:117) does NOT return a value. It copies bytes into a
-caller-provided ~mut T: Dynamic~ out-param via ~copy_to_dynamic~ (memcpy).
-No ~Ptr.is_borrowed~ is involved -- the caller gets a raw byte copy of the
-element, including any Ptr fields. Those Ptrs are ALIASED with the ones
-still inside the Vec's buffer.
+~Vec.get~ (previously ~get_by_ref~) returns a ~Ptr~ via ~self.ptr.offset(...)~.
+~Ptr.offset~ sets ~is_borrowed = 1~. So ~get~ correctly returns a borrowed
+pointer -- no copy, no aliasing.
 
-~Vec.get_by_ref~ (vec.til:131) returns a ~Ptr~ via ~self.ptr.offset(...)~.
-~Ptr.offset~ sets ~is_borrowed = 1~. So get_by_ref correctly returns a
-borrowed pointer -- no copy, no aliasing.
-
-For the ownership model, ~get~ (memcpy out-param) doesn't play nicely
-because it creates aliased Ptrs outside the container with no borrowed
-flag. Either callers should use ~get_by_ref~ instead, or ~get~ needs
-redesign.
+Note: the old ~Vec.get~ (before rename) was a different method that copied
+bytes into a caller-provided ~mut T: Dynamic~ out-param via ~copy_to_dynamic~
+(memcpy). That created aliased Ptrs with no borrowed flag. It has been
+replaced by the zero-copy ~get~ (the former ~get_by_ref~).
 
 ** 2. Return value ownership from CALLER's perspective
 
@@ -219,7 +213,7 @@ it can't safely do ASAP deletion for borrowed values (the owner might be
 deleted first, leaving a dangling pointer).
 
 #+BEGIN_SRC til
-e := vec.get_by_ref(0)    // borrowed -- but garbager can't always tell
+e := vec.get(0)           // borrowed -- but garbager can't always tell
 // ASAP deletes vec here (frees buffer)
 println(e.line)            // dangling! buffer already freed
 #+END_SRC

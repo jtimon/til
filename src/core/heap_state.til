@@ -34,7 +34,7 @@ namespace:
         if not(g_enabled) { return }
         if ptr.eq(0) { return }
         for i in 0..g_entries.len() {
-            entry := cast(HeapEntry, g_entries.get_by_ref(i)?)
+            entry := cast(HeapEntry, g_entries.get(i)?)
             if entry.ptr.eq(ptr) {
                 mut freed := HeapEntry(ptr=0, size=entry.size)
                 g_entries.set(i, freed)?

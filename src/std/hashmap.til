@@ -107,7 +107,7 @@ namespace:
         }
 
         bucket_idx := self.hash_key(to_ptr(key))
-        bucket_head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
+        bucket_head := cast(I64, self.buckets.get(bucket_idx)?)
         mut entry_idx := bucket_head
 
         // Walk the chain
@@ -118,7 +118,7 @@ namespace:
                 return entry_idx
             }
             // Move to next in chain
-            next_entry := cast(I64, self.nexts.get_by_ref(entry_idx)?)
+            next_entry := cast(I64, self.nexts.get(entry_idx)?)
             entry_idx = next_entry
         }
 
@@ -153,7 +153,7 @@ namespace:
             bucket_idx := self.hash_key(key_ptr.data)
 
             // Get current head of bucket
-            head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
+            head := cast(I64, self.buckets.get(bucket_idx)?)
 
             // Insert at head of chain
             self.nexts.set(i, head)?
@@ -194,7 +194,7 @@ namespace:
         new_idx := self._size
 
         // Add to bucket chain (use pre-computed bucket_idx)
-        head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
+        head := cast(I64, self.buckets.get(bucket_idx)?)
 
         // New entry points to old head
         self.nexts.push(head)
@@ -236,7 +236,7 @@ namespace:
             new_idx := self._size
 
             // Add to bucket chain (use pre-computed bucket_idx)
-            head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
+            head := cast(I64, self.buckets.get(bucket_idx)?)
 
             // New entry points to old head
             self.nexts.push(head)
@@ -252,7 +252,7 @@ namespace:
     }
 
     /** Get borrowed Ptr to value for given key. No copy - points into HashMap memory. */
-    get_by_ref := proc(self: HashMap, key: Dynamic) returns Ptr throws KeyNotFoundError {
+    get := proc(self: HashMap, key: Dynamic) returns Ptr throws KeyNotFoundError {
         idx := self.find_key(key)
         if idx.gteq(0) {
             return self.values.ptr.offset(idx.mul(self.values.ptr.elem_size))
@@ -349,7 +349,7 @@ namespace:
             key_ptr := self.keys.ptr.offset(i.mul(self.keys.ptr.elem_size))
             bucket_idx := self.hash_key(key_ptr.data)
 
-            head := cast(I64, self.buckets.get_by_ref(bucket_idx)?)
+            head := cast(I64, self.buckets.get(bucket_idx)?)
 
             self.nexts.set(i, head)?
             self.buckets.set(bucket_idx, i.clone())?

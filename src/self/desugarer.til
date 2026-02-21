@@ -293,9 +293,9 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
 find_enum_for_variant := func(context: Context, variant_name: Str) returns Str throws Str {
     mut found_type := ""
     for frame_i in context.scope_stack.frames.len().sub(1)..sub(0, 1) {
-        frame := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(frame_i)?)
+        frame := cast(ScopeFrame, context.scope_stack.frames.get(frame_i)?)
         for enum_name: Str in frame.enums.keys {
-            enum_def := cast(SEnumDef, frame.enums.get_by_ref(enum_name)?)
+            enum_def := cast(SEnumDef, frame.enums.get(enum_name)?)
             if enum_def.contains_key(variant_name) {
                 if found_type.len().eq(0) {
                     found_type = enum_name
@@ -614,8 +614,8 @@ build_case_condition := proc(
         if case_pattern.params.len().lt(2) {
             throw "desugar: Range case requires start and end values"
         }
-        low := cast(Expr, case_pattern.params.get_by_ref(0)?)
-        high := cast(Expr, case_pattern.params.get_by_ref(1)?)
+        low := cast(Expr, case_pattern.params.get(0)?)
+        high := cast(Expr, case_pattern.params.get(1)?)
 
         // Build: gteq(_switch_val, low)
         mut gteq_args := Vec.new(Expr)
@@ -937,8 +937,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     mut i := 1
     while i.add(1).lt(e.params.len()) {
-        case_pattern := cast(Expr, e.params.get_by_ref(i)?)
-        case_body := cast(Expr, e.params.get_by_ref(i.add(1))?)
+        case_pattern := cast(Expr, e.params.get(i)?)
+        case_body := cast(Expr, e.params.get(i.add(1))?)
 
         // If the case pattern has a payload binding, declare it in scope before desugaring body
         // This allows nested switches in the body to see the payload variable's type
@@ -1011,7 +1011,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut has_nested_pattern := false
     mut case_idx := 0
     while case_idx.lt(cases.len()) {
-        check_case_pattern := cast(Expr, cases.get_by_ref(case_idx)?)
+        check_case_pattern := cast(Expr, cases.get(case_idx)?)
         switch check_case_pattern.node_type {
         case NodeType.FCall(_):
             check_info := get_case_variant_info(check_case_pattern)?
@@ -1057,8 +1057,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         mut nested_case_index := 0
         while nested_case_index.lt(total_cases) {
-            nested_case_pattern := cast(Expr, cases.get_by_ref(nested_case_index.mul(2))?)
-            nested_case_body := cast(Expr, cases.get_by_ref(nested_case_index.mul(2).add(1))?)
+            nested_case_pattern := cast(Expr, cases.get(nested_case_index.mul(2))?)
+            nested_case_body := cast(Expr, cases.get(nested_case_index.mul(2).add(1))?)
 
             mut nested_condition := Expr()
             mut nested_body_prefix := Vec.new(Expr)
@@ -1203,8 +1203,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         rev_case_index.dec()
         rev_ci := rev_case_index
 
-        rev_case_pattern := cast(Expr, cases.get_by_ref(rev_ci.mul(2))?)
-        rev_case_body := cast(Expr, cases.get_by_ref(rev_ci.mul(2).add(1))?)
+        rev_case_pattern := cast(Expr, cases.get(rev_ci.mul(2))?)
+        rev_case_body := cast(Expr, cases.get(rev_ci.mul(2).add(1))?)
 
         mut rev_condition := Expr()
         mut rev_body_prefix := Vec.new(Expr)
@@ -1305,11 +1305,11 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
         if is_enum {
             // Build proper enum constructor: EnumType.FirstVariant or EnumType.FirstVariant(payload)
             if enum_def.variants.len().gt(0) {
-                first_v := cast(EnumVariant, enum_def.variants.get_by_ref(0)?)
+                first_v := cast(EnumVariant, enum_def.variants.get(0)?)
                 first_variant := first_v.name
                 payload_type_ptr := first_v.payload_type
                 catch (err: IndexOutOfBoundsError) {
-                    panic(loc(), "variants.get_by_ref(0): len > 0 checked: ", err.msg)
+                    panic(loc(), "variants.get(0): len > 0 checked: ", err.msg)
                 }
                 mut variant_id_params := Vec.new(Expr)
                 variant_id_params.push(make_id(first_variant, line, col))
@@ -1447,14 +1447,14 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
 
     inc_stmt := make_assign(index_var_name, add_call, e.line, e.col)
 
-    // Bug #144: All types use get_by_ref + cast (zero-copy for all types)
-    // Build: _ref_forin_N := get_by_ref(collection, _for_i)
+    // Bug #144: All types use get + cast (zero-copy for all types)
+    // Build: _ref_forin_N := get(collection, _for_i)
     ref_var_name := make_temp_name("_ref_forin", context.current_precomp_func, forin_id)
-    mut get_by_ref_args := Vec.new(Expr)
-    get_by_ref_args.push(collection_expr.clone())
-    get_by_ref_args.push(make_id(index_var_name, e.line, e.col))
-    get_by_ref_call := make_call("get_by_ref", get_by_ref_args, e.line, e.col)
-    ref_decl := make_decl(ref_var_name, ValueType.TCustom("Ptr"), false, get_by_ref_call, e.line, e.col)
+    mut get_args := Vec.new(Expr)
+    get_args.push(collection_expr.clone())
+    get_args.push(make_id(index_var_name, e.line, e.col))
+    get_call := make_call("get", get_args, e.line, e.col)
+    ref_decl := make_decl(ref_var_name, ValueType.TCustom("Ptr"), false, get_call, e.line, e.col)
 
     // Build: item := cast(Type, _ref_forin_N)
     mut cast_args := Vec.new(Expr)
@@ -1549,8 +1549,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut new_default_values := Map.new(Str, Expr)
         mut struct_i := 0
         while struct_i.lt(struct_def.default_values.keys.len()) {
-            name := cast(Str, struct_def.default_values.keys.get_by_ref(struct_i)?)
-            value_expr := cast(Expr, struct_def.default_values.get_by_ref(name)?)
+            name := cast(Str, struct_def.default_values.keys.get(struct_i)?)
+            value_expr := cast(Expr, struct_def.default_values.get(name)?)
             new_default_values.set(name, desugar_expr(context, value_expr)?)
             struct_i.inc()
         }
@@ -1564,8 +1564,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut ns_new_default_values := Map.new(Str, Expr)
         mut ns_i := 0
         while ns_i.lt(ns_def.default_values.keys.len()) {
-            ns_name := cast(Str, ns_def.default_values.keys.get_by_ref(ns_i)?)
-            ns_value_expr := cast(Expr, ns_def.default_values.get_by_ref(ns_name)?)
+            ns_name := cast(Str, ns_def.default_values.keys.get(ns_i)?)
+            ns_value_expr := cast(Expr, ns_def.default_values.get(ns_name)?)
             ns_new_default_values.set(ns_name, desugar_expr(context, ns_value_expr)?)
             ns_i.inc()
         }

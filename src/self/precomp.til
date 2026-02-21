@@ -15,13 +15,13 @@ import("self.precomp_ext")
 build_type_param_subs := func(func_def: SFuncDef, fcall: Expr) returns Map throws Str {
     mut subs := Map.new(Str, Str)
     for i in 0..func_def.args.len() {
-        arg := cast(Declaration, func_def.args.get_by_ref(i)?)
+        arg := cast(Declaration, func_def.args.get(i)?)
         switch arg.value_type {
         case ValueType.TCustom(type_name):
             if type_name.eq("Type").or(type_name.eq("Dynamic")) {
                 // FCall params: [0] = function name identifier, [1..] = arguments
                 if fcall.params.len().gt(i.add(1)) {
-                    actual_arg := cast(Expr, fcall.params.get_by_ref(i.add(1))?)
+                    actual_arg := cast(Expr, fcall.params.get(i.add(1))?)
                     switch actual_arg.node_type {
                     case NodeType.Identifier(actual_type_name):
                         subs.set(arg.name, actual_type_name)
@@ -45,7 +45,7 @@ substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
     switch e.node_type {
     case NodeType.Identifier(name):
         mut new_name := name
-        sub_val := cast(Str, subs.get_by_ref(name)?)
+        sub_val := cast(Str, subs.get(name)?)
         new_name = sub_val
         catch (_err: KeyNotFoundError) {
             // Expected: not all identifiers are type params
@@ -80,7 +80,7 @@ substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
             catch (_err: IndexOutOfBoundsError) {
                 panic(loc(), "substitute_type_params_in_expr: get_substr failed on pattern variant_name")
             }
-            prefix_sub := cast(Str, subs.get_by_ref(enum_prefix)?)
+            prefix_sub := cast(Str, subs.get(enum_prefix)?)
             variant_suffix := pattern_info.variant_name.get_substr(dot_pos, pattern_info.variant_name.len())?
             catch (_err2: IndexOutOfBoundsError) {
                 panic(loc(), "substitute_type_params_in_expr: get_substr failed on pattern variant_name suffix")
@@ -107,7 +107,7 @@ substitute_type_params_in_funcdef := func(func_def: SFuncDef, subs: Map) returns
         mut substituted := false
         switch arg.value_type {
         case ValueType.TCustom(type_name):
-            concrete := cast(Str, subs.get_by_ref(type_name)?)
+            concrete := cast(Str, subs.get(type_name)?)
             new_args.push(Declaration(name=arg.name, value_type=ValueType.TCustom(concrete), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
             substituted = true
             catch (_err: KeyNotFoundError) {
@@ -124,7 +124,7 @@ substitute_type_params_in_funcdef := func(func_def: SFuncDef, subs: Map) returns
         mut rt_substituted := false
         switch rt {
         case ValueType.TCustom(type_name):
-            rt_concrete := cast(Str, subs.get_by_ref(type_name)?)
+            rt_concrete := cast(Str, subs.get(type_name)?)
             new_returns.push(ValueType.TCustom(rt_concrete))
             rt_substituted = true
             catch (_err: KeyNotFoundError) {
@@ -141,7 +141,7 @@ substitute_type_params_in_funcdef := func(func_def: SFuncDef, subs: Map) returns
         mut tt_substituted := false
         switch tt {
         case ValueType.TCustom(type_name):
-            tt_concrete := cast(Str, subs.get_by_ref(type_name)?)
+            tt_concrete := cast(Str, subs.get(type_name)?)
             new_throws.push(ValueType.TCustom(tt_concrete))
             tt_substituted = true
             catch (_err: KeyNotFoundError) {
@@ -174,7 +174,7 @@ substitute_type_params_in_struct := func(struct_def: SStructDef, subs: Map) retu
         mut substituted := false
         switch member.value_type {
         case ValueType.TCustom(type_name):
-            concrete_type := cast(Str, subs.get_by_ref(type_name)?)
+            concrete_type := cast(Str, subs.get(type_name)?)
             new_members.push(Declaration(name=member.name, value_type=ValueType.TCustom(concrete_type), is_mut=member.is_mut, is_copy=member.is_copy, is_own=member.is_own))
             substituted = true
             catch (_err: KeyNotFoundError) {
@@ -189,7 +189,7 @@ substitute_type_params_in_struct := func(struct_def: SStructDef, subs: Map) retu
 
     mut new_defaults := Map.new(Str, Expr)
     for name: Str in struct_def.default_values.keys {
-        expr := cast(Expr, struct_def.default_values.get_by_ref(name)?)
+        expr := cast(Expr, struct_def.default_values.get(name)?)
         catch (err: KeyNotFoundError) {
             panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
         }
@@ -209,7 +209,7 @@ substitute_type_params_in_enum := func(enum_def: SEnumDef, subs: Map) returns SE
             memcpy(to_ptr(pt), v.payload_type.data, size_of(ValueType))
             switch pt {
             case ValueType.TCustom(type_name):
-                sub_val := cast(Str, subs.get_by_ref(type_name)?)
+                sub_val := cast(Str, subs.get(type_name)?)
                 // Build new variant with substituted payload type
                 mut new_payload := ValueType.TCustom(sub_val)
                 mut new_variant := EnumVariant()
@@ -241,7 +241,7 @@ extract_namespace_stmts_from_macro := func(func_def: SFuncDef) returns Vec {
         switch stmt.node_type {
         case NodeType.Return:
             if stmt.params.len().gt(0) {
-                ret_val := cast(Expr, stmt.params.get_by_ref(0)?)
+                ret_val := cast(Expr, stmt.params.get(0)?)
                 catch (_err: IndexOutOfBoundsError) {
                     panic(loc(), "extract_namespace_stmts_from_macro: IndexOutOfBoundsError after len check")
                 }
@@ -266,7 +266,7 @@ extract_namespace_stmts_from_macro := func(func_def: SFuncDef) returns Vec {
         switch stmt.node_type {
         case NodeType.Declaration(_):
             if stmt.params.len().gt(0) {
-                val := cast(Expr, stmt.params.get_by_ref(0)?)
+                val := cast(Expr, stmt.params.get(0)?)
                 catch (_err: IndexOutOfBoundsError) {
                     panic(loc(), "extract_namespace_stmts_from_macro: IndexOutOfBoundsError after len check")
                 }
@@ -299,7 +299,7 @@ extract_internal_type_name := func(func_def: SFuncDef) returns Str {
         switch stmt.node_type {
         case NodeType.Declaration(inner_decl):
             if stmt.params.len().gt(0) {
-                val := cast(Expr, stmt.params.get_by_ref(0)?)
+                val := cast(Expr, stmt.params.get(0)?)
                 catch (_err: IndexOutOfBoundsError) {
                     panic(loc(), "extract_internal_type_name: IndexOutOfBoundsError after len check")
                 }
@@ -355,7 +355,7 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                         if func_def.is_macro() {
                             if func_def.return_types.len().gt(0) {
                                 // Extract all data from func_def before mutable borrows
-                                macro_return_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
+                                macro_return_type := cast(ValueType, func_def.return_types.get(0)?)
                                 catch (_err: IndexOutOfBoundsError) {
                                     panic(loc(), "IndexOutOfBoundsError getting return type after len check")
                                 }
@@ -387,7 +387,7 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                             switch member_decl.value_type {
                                             case ValueType.TCustom(type_name):
                                                 if type_name.eq(INFER_TYPE) {
-                                                    default_value := cast(Expr, substituted.default_values.get_by_ref(member_decl.name)?)
+                                                    default_value := cast(Expr, substituted.default_values.get(member_decl.name)?)
                                                     mut resolved_type := get_value_type(context, default_value)?
                                                     catch (_err: Str) {}
                                                     resolved_member := Declaration(name=member_decl.name, value_type=resolved_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own)
@@ -409,7 +409,7 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                         mut cur_def_key := ""
                                         for def_key: Str in substituted.default_values.keys {
                                             cur_def_key = def_key
-                                            def_val := cast(Expr, substituted.default_values.get_by_ref(def_key)?)
+                                            def_val := cast(Expr, substituted.default_values.get(def_key)?)
                                             catch (err: KeyNotFoundError) {
                                                 panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
                                             }
@@ -484,17 +484,17 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                                 case NodeType.Declaration(ns_decl):
                                                     ns_members.push(ns_decl.clone())
                                                     if sub_stmt.params.len().gt(0) {
-                                                        ns_val := cast(Expr, sub_stmt.params.get_by_ref(0)?)
+                                                        ns_val := cast(Expr, sub_stmt.params.get(0)?)
                                                         catch (_err: IndexOutOfBoundsError) {
-                                                            panic(loc(), "sub_stmt.params.get_by_ref(0) after len check")
+                                                            panic(loc(), "sub_stmt.params.get(0) after len check")
                                                         }
                                                         ns_default_values.set(ns_decl.name, ns_val)
                                                     }
                                                 case NodeType.Assignment(assign_name):
                                                     if sub_stmt.params.len().gt(0) {
-                                                        assign_ns_val := cast(Expr, sub_stmt.params.get_by_ref(0)?)
+                                                        assign_ns_val := cast(Expr, sub_stmt.params.get(0)?)
                                                         catch (_err: IndexOutOfBoundsError) {
-                                                            panic(loc(), "sub_stmt.params.get_by_ref(0) after len check")
+                                                            panic(loc(), "sub_stmt.params.get(0) after len check")
                                                         }
                                                         ns_assign_decl := Declaration(name=assign_name, value_type=ValueType.TCustom(INFER_TYPE), is_mut=false, is_copy=false, is_own=false)
                                                         ns_members.push(ns_assign_decl)
@@ -604,17 +604,17 @@ expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws 
                                                 case NodeType.Declaration(enum_ns_decl):
                                                     enum_ns_members.push(enum_ns_decl.clone())
                                                     if enum_sub_stmt.params.len().gt(0) {
-                                                        enum_ns_val := cast(Expr, enum_sub_stmt.params.get_by_ref(0)?)
+                                                        enum_ns_val := cast(Expr, enum_sub_stmt.params.get(0)?)
                                                         catch (_err: IndexOutOfBoundsError) {
-                                                            panic(loc(), "enum_sub_stmt.params.get_by_ref(0) after len check")
+                                                            panic(loc(), "enum_sub_stmt.params.get(0) after len check")
                                                         }
                                                         enum_ns_default_values.set(enum_ns_decl.name, enum_ns_val)
                                                     }
                                                 case NodeType.Assignment(enum_assign_name):
                                                     if enum_sub_stmt.params.len().gt(0) {
-                                                        enum_assign_ns_val := cast(Expr, enum_sub_stmt.params.get_by_ref(0)?)
+                                                        enum_assign_ns_val := cast(Expr, enum_sub_stmt.params.get(0)?)
                                                         catch (_err: IndexOutOfBoundsError) {
-                                                            panic(loc(), "enum_sub_stmt.params.get_by_ref(0) after len check")
+                                                            panic(loc(), "enum_sub_stmt.params.get(0) after len check")
                                                         }
                                                         enum_ns_assign_decl := Declaration(name=enum_assign_name, value_type=ValueType.TCustom(INFER_TYPE), is_mut=false, is_copy=false, is_own=false)
                                                         enum_ns_members.push(enum_ns_assign_decl)
@@ -760,7 +760,7 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.NamespaceDef(ns_def):
         mut new_default_values := Map.new(Str, Expr)
         for name: Str in ns_def.default_values.keys {
-            value_expr := cast(Expr, ns_def.default_values.get_by_ref(name)?)
+            value_expr := cast(Expr, ns_def.default_values.get(name)?)
             catch (err: KeyNotFoundError) {
                 panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
             }
@@ -894,10 +894,10 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool throws Str
                     switch struct_arg.node_type {
                     case NodeType.NamedArg(_):
                         if struct_arg.params.len().gt(0) {
-                            atc := cast(Expr, struct_arg.params.get_by_ref(0)?)
+                            atc := cast(Expr, struct_arg.params.get(0)?)
                             arg_to_check = atc
                             catch (err5: IndexOutOfBoundsError) {
-                                panic(loc(), "struct_arg.params.get_by_ref(0): len > 0 checked: ", err5.msg)
+                                panic(loc(), "struct_arg.params.get(0): len > 0 checked: ", err5.msg)
                             }
                         }
                     case:
@@ -1055,8 +1055,8 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
     mut new_default_values := Map.new(Str, Expr)
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
-        name := cast(Str, struct_def.default_values.keys.get_by_ref(i)?)
-        value_expr := cast(Expr, struct_def.default_values.get_by_ref(name)?)
+        name := cast(Str, struct_def.default_values.keys.get(i)?)
+        value_expr := cast(Expr, struct_def.default_values.get(name)?)
 
         // Bug #40 fix: For method definitions, set function name context
         mut is_func := false
@@ -1253,7 +1253,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     switch value_type {
     case ValueType.TType(TTypeDef.TStructDef):
         if new_params.len().gt(0) {
-            expanded_param := cast(Expr, new_params.get_by_ref(0)?)
+            expanded_param := cast(Expr, new_params.get(0)?)
             switch expanded_param.node_type {
             case NodeType.StructDef(expanded_struct_def):
                 if not(context.scope_stack.has_struct(decl.name)) {
@@ -1272,7 +1272,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     // Determine if this is a compile-time constant
     // Only mut matters for constantness - copy/own are about ownership, orthogonal to comptime.
     // Any type can be comptime - the type doesn't matter, only how the value is computed.
-    first_param := cast(Expr, new_params.get_by_ref(0)?)
+    first_param := cast(Expr, new_params.get(0)?)
     is_comptime_const := not(decl.is_mut)
         .and(is_comptime_evaluable(context, first_param)?)
 
@@ -1284,7 +1284,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     switch value_type {
     case ValueType.TFunction:
         if new_params.len().gt(0) {
-            fp := cast(Expr, new_params.get_by_ref(0)?)
+            fp := cast(Expr, new_params.get(0)?)
             switch fp.node_type {
             case NodeType.FuncDef(func_def):
                 context.scope_stack.declare_func(decl.name, func_def)?
@@ -1368,8 +1368,8 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     }
 
     // Get the catch variable name and type
-    name_expr := cast(Expr, e.params.get_by_ref(0)?)
-    type_expr := cast(Expr, e.params.get_by_ref(1)?)
+    name_expr := cast(Expr, e.params.get(0)?)
+    type_expr := cast(Expr, e.params.get(1)?)
     mut var_name := ""
     mut type_name := ""
     switch name_expr.node_type {
@@ -1507,7 +1507,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             if func_def.is_ext() {
                 mut parts := combined_name.split(".")?
                 if parts.len().gt(0) {
-                    last_part := cast(Str, parts.get_by_ref(parts.len().sub(1))?)
+                    last_part := cast(Str, parts.get(parts.len().sub(1))?)
                     if last_part.eq("import") {
                         _ := eval_expr(context, new_e)?
                     }

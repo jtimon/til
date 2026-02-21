@@ -10,13 +10,13 @@ test_vec_u8 := proc() {
     dyn.push(U8.from_i64(42)?)
     dyn.push(U8.from_i64(255)?)
     assert_eq(loc(), 2, dyn.len())
-    val0 := cast(U8, dyn.get_by_ref(0)?)
+    val0 := cast(U8, dyn.get(0)?)
     test(loc(), val0.eq(U8.from_i64(42)?), "Value at index 0")
-    val1 := cast(U8, dyn.get_by_ref(1)?)
+    val1 := cast(U8, dyn.get(1)?)
     test(loc(), val1.eq(U8.from_i64(255)?), "Value at index 1")
 
     dyn.set(0, U8.from_i64(99)?)?
-    val := cast(U8, dyn.get_by_ref(0)?)
+    val := cast(U8, dyn.get(0)?)
     test(loc(), val.eq(U8.from_i64(99)?), "Set and get index 0")
 
     dyn.delete()
@@ -46,20 +46,20 @@ test_vec_str := proc() {
     dyn.push("foo")
     dyn.push("bar")
     assert_eq(loc(), 2, dyn.len())
-    val0 := cast(Str, dyn.get_by_ref(0)?)
+    val0 := cast(Str, dyn.get(0)?)
     test(loc(), val0.eq("foo"), "Value at index 0")
-    val1 := cast(Str, dyn.get_by_ref(1)?)
+    val1 := cast(Str, dyn.get(1)?)
     test(loc(), val1.eq("bar"), "Value at index 1")
 
     dyn.set(0, "baz")?
-    val := cast(Str, dyn.get_by_ref(0)?)
+    val := cast(Str, dyn.get(0)?)
     test(loc(), val.eq("baz"), "Set and get index 0")
 
     mut combined_str := ""
     // for s in dyn { // TODO support for loops for Arrays
     mut dyn_len := dyn.len()
     for i in 0..dyn_len {
-        s := cast(Str, dyn.get_by_ref(i)?)
+        s := cast(Str, dyn.get(i)?)
         combined_str = format(combined_str, s)
     }
     assert_eq_str(loc(), "bazbar", combined_str)
@@ -86,13 +86,13 @@ test_vec_bool := proc() {
     dyn.push(true)
     dyn.push(false)
     assert_eq(loc(), 2, dyn.len())
-    val0 := cast(Bool, dyn.get_by_ref(0)?)
+    val0 := cast(Bool, dyn.get(0)?)
     test(loc(), val0.eq(true), "Value at index 0")
-    val1 := cast(Bool, dyn.get_by_ref(1)?)
+    val1 := cast(Bool, dyn.get(1)?)
     test(loc(), val1.eq(false), "Value at index 1")
 
     dyn.set(0, false)?
-    val := cast(Bool, dyn.get_by_ref(0)?)
+    val := cast(Bool, dyn.get(0)?)
     test(loc(), val.eq(false), "Set and get index 0")
 
     dyn.delete()
@@ -117,13 +117,13 @@ test_vec_i64 := proc() {
     dyn.push(42)
     dyn.push(84)
     assert_eq(loc(), 2, dyn.len())
-    val0 := cast(I64, dyn.get_by_ref(0)?)
+    val0 := cast(I64, dyn.get(0)?)
     test(loc(), val0.eq(42), "Value at index 0")
-    val1 := cast(I64, dyn.get_by_ref(1)?)
+    val1 := cast(I64, dyn.get(1)?)
     test(loc(), val1.eq(84), "Value at index 1")
 
     dyn.set(0, 123)?
-    val := cast(I64, dyn.get_by_ref(0)?)
+    val := cast(I64, dyn.get(0)?)
     test(loc(), val.eq(123), "Set and get index 0")
 
     dyn.delete()
@@ -156,14 +156,14 @@ test_vec_vec2 := proc() {
 
     assert_eq(loc(), 2, dyn.len())
 
-    v0 := cast(Vec2, dyn.get_by_ref(0)?)
+    v0 := cast(Vec2, dyn.get(0)?)
     test(loc(), v0.x.eq(10), "v0.x should be 10")
     test(loc(), v0.y.eq(20), "v0.y should be 20")
 
     v3 := Vec2(x=50, y=60)
     dyn.set(0, v3)?
 
-    v_after_set := cast(Vec2, dyn.get_by_ref(0)?)
+    v_after_set := cast(Vec2, dyn.get(0)?)
     test(loc(), v_after_set.x.eq(50), "v_after_set.x should be 50")
     test(loc(), v_after_set.y.eq(60), "v_after_set.y should be 60")
 
@@ -200,9 +200,9 @@ test_vec_growth := proc() {
     test(loc(), dyn.cap.gteq(add(Vec.INIT_CAP, 5)), "Capacity should be at least len")
 
     // Verify all values are still correct after reallocation
-    val_0 := cast(I64, dyn.get_by_ref(0)?)
+    val_0 := cast(I64, dyn.get(0)?)
     test(loc(), val_0.eq(0), "First element should still be 0")
-    val_1 := cast(I64, dyn.get_by_ref(Vec.INIT_CAP)?)
+    val_1 := cast(I64, dyn.get(Vec.INIT_CAP)?)
     test(loc(), val_1.eq(mul(Vec.INIT_CAP, 10)), "Element after reallocation should be correct")
 
     dyn.delete()
@@ -224,7 +224,7 @@ test_vec_get_out_of_bounds := proc() {
     arr.push(84)
 
     // Try to get index that's out of bounds
-    _val := cast(I64, arr.get_by_ref(10)?)
+    _val := cast(I64, arr.get(10)?)
     panic(loc(), "Expected IndexOutOfBoundsError for get with invalid index")
 
     catch (err: IndexOutOfBoundsError) {
@@ -312,15 +312,15 @@ test_vec_extend := proc() {
     assert_eq(loc(), 3, src.len()) // src should be unchanged
 
     // Verify all values
-    val_0 := cast(I64, dest.get_by_ref(0)?)
+    val_0 := cast(I64, dest.get(0)?)
     assert_eq(loc(), 1, val_0)
-    val_1 := cast(I64, dest.get_by_ref(1)?)
+    val_1 := cast(I64, dest.get(1)?)
     assert_eq(loc(), 2, val_1)
-    val_2 := cast(I64, dest.get_by_ref(2)?)
+    val_2 := cast(I64, dest.get(2)?)
     assert_eq(loc(), 3, val_2)
-    val_3 := cast(I64, dest.get_by_ref(3)?)
+    val_3 := cast(I64, dest.get(3)?)
     assert_eq(loc(), 4, val_3)
-    val_4 := cast(I64, dest.get_by_ref(4)?)
+    val_4 := cast(I64, dest.get(4)?)
     assert_eq(loc(), 5, val_4)
 
     dest.delete()
@@ -346,9 +346,9 @@ test_vec_extend_empty := proc() {
 
     assert_eq(loc(), 2, dest.len())
 
-    val_0 := cast(Str, dest.get_by_ref(0)?)
+    val_0 := cast(Str, dest.get(0)?)
     assert_eq_str(loc(), "a", val_0)
-    val_1 := cast(Str, dest.get_by_ref(1)?)
+    val_1 := cast(Str, dest.get(1)?)
     assert_eq_str(loc(), "b", val_1)
 
     dest.delete()
@@ -377,27 +377,27 @@ test_vec_remove := proc() {
 
     assert_eq(loc(), 3, vec.len())
 
-    val_0 := cast(I64, vec.get_by_ref(0)?)
+    val_0 := cast(I64, vec.get(0)?)
     assert_eq(loc(), 10, val_0)
-    val_1 := cast(I64, vec.get_by_ref(1)?)
+    val_1 := cast(I64, vec.get(1)?)
     assert_eq(loc(), 30, val_1) // 30 shifted to index 1
-    val_2 := cast(I64, vec.get_by_ref(2)?)
+    val_2 := cast(I64, vec.get(2)?)
     assert_eq(loc(), 40, val_2) // 40 shifted to index 2
 
     // Remove first element
     vec.remove(0)?
 
     assert_eq(loc(), 2, vec.len())
-    val_3 := cast(I64, vec.get_by_ref(0)?)
+    val_3 := cast(I64, vec.get(0)?)
     assert_eq(loc(), 30, val_3)
-    val_4 := cast(I64, vec.get_by_ref(1)?)
+    val_4 := cast(I64, vec.get(1)?)
     assert_eq(loc(), 40, val_4)
 
     // Remove last element
     vec.remove(1)?
 
     assert_eq(loc(), 1, vec.len())
-    val_5 := cast(I64, vec.get_by_ref(0)?)
+    val_5 := cast(I64, vec.get(0)?)
     assert_eq(loc(), 30, val_5)
 
     vec.delete()
@@ -490,19 +490,19 @@ test_vec_enum_direct_push := proc() {
 
     assert_eq(loc(), 3, colors.len())
 
-    out_0 := cast(SimpleColor, colors.get_by_ref(0)?)
+    out_0 := cast(SimpleColor, colors.get(0)?)
     switch out_0 {
     case SimpleColor.Red: test(loc(), true, "colors[0] should be Red")
     case: test(loc(), false, "colors[0] should be Red")
     }
 
-    out_1 := cast(SimpleColor, colors.get_by_ref(1)?)
+    out_1 := cast(SimpleColor, colors.get(1)?)
     switch out_1 {
     case SimpleColor.Green: test(loc(), true, "colors[1] should be Green")
     case: test(loc(), false, "colors[1] should be Green")
     }
 
-    out_2 := cast(SimpleColor, colors.get_by_ref(2)?)
+    out_2 := cast(SimpleColor, colors.get(2)?)
     switch out_2 {
     case SimpleColor.Blue: test(loc(), true, "colors[2] should be Blue")
     case: test(loc(), false, "colors[2] should be Blue")
@@ -533,7 +533,7 @@ test_vec_enum_payload := proc() {
 
     assert_eq(loc(), 3, items.len())
 
-    result_0 := cast(PayloadEnum, items.get_by_ref(0)?)
+    result_0 := cast(PayloadEnum, items.get(0)?)
     switch result_0 {
     case PayloadEnum.Number(n):
         assert_eq(loc(), 42, n)
@@ -541,7 +541,7 @@ test_vec_enum_payload := proc() {
         test(loc(), false, "items[0] should be Number(42), got None")
     }
 
-    result_1 := cast(PayloadEnum, items.get_by_ref(1)?)
+    result_1 := cast(PayloadEnum, items.get(1)?)
     switch result_1 {
     case PayloadEnum.Number(n):
         assert_eq(loc(), 100, n)
@@ -549,7 +549,7 @@ test_vec_enum_payload := proc() {
         test(loc(), false, "items[1] should be Number(100), got None")
     }
 
-    result_2 := cast(PayloadEnum, items.get_by_ref(2)?)
+    result_2 := cast(PayloadEnum, items.get(2)?)
     switch result_2 {
     case PayloadEnum.None:
         test(loc(), true, "items[2] should be None")
@@ -586,9 +586,9 @@ test_vec_with_capacity := proc() {
     assert_eq(loc(), 10, vec.cap) // Should not have grown
 
     // Verify values
-    val_0 := cast(I64, vec.get_by_ref(0)?)
+    val_0 := cast(I64, vec.get(0)?)
     assert_eq(loc(), 0, val_0)
-    val_1 := cast(I64, vec.get_by_ref(9)?)
+    val_1 := cast(I64, vec.get(9)?)
     assert_eq(loc(), 9, val_1)
 
     // Push one more to trigger growth
@@ -628,10 +628,10 @@ test_sort_str_vec := proc() {
     sort_str_vec(variants)
 
     // Verify sorted order
-    v0 := cast(Str, variants.get_by_ref(0)?)
-    v1 := cast(Str, variants.get_by_ref(1)?)
-    v2 := cast(Str, variants.get_by_ref(2)?)
-    v3 := cast(Str, variants.get_by_ref(3)?)
+    v0 := cast(Str, variants.get(0)?)
+    v1 := cast(Str, variants.get(1)?)
+    v2 := cast(Str, variants.get(2)?)
+    v3 := cast(Str, variants.get(3)?)
 
     assert_eq_str(loc(), "apple", v0)
     assert_eq_str(loc(), "banana", v1)
@@ -662,29 +662,29 @@ test_vec_insert_at := proc() {
 
     assert_eq(loc(), 4, vec.len())
 
-    val_0 := cast(I64, vec.get_by_ref(0)?)
+    val_0 := cast(I64, vec.get(0)?)
     assert_eq(loc(), 10, val_0)
-    val_1 := cast(I64, vec.get_by_ref(1)?)
+    val_1 := cast(I64, vec.get(1)?)
     assert_eq(loc(), 20, val_1) // Newly inserted
-    val_2 := cast(I64, vec.get_by_ref(2)?)
+    val_2 := cast(I64, vec.get(2)?)
     assert_eq(loc(), 30, val_2) // Shifted right
-    val_3 := cast(I64, vec.get_by_ref(3)?)
+    val_3 := cast(I64, vec.get(3)?)
     assert_eq(loc(), 40, val_3) // Shifted right
 
     // Insert at beginning (index 0)
     vec.insert_at(0, 5)?
 
     assert_eq(loc(), 5, vec.len())
-    val_4 := cast(I64, vec.get_by_ref(0)?)
+    val_4 := cast(I64, vec.get(0)?)
     assert_eq(loc(), 5, val_4)
-    val_5 := cast(I64, vec.get_by_ref(1)?)
+    val_5 := cast(I64, vec.get(1)?)
     assert_eq(loc(), 10, val_5)
 
     // Insert at end (index = len)
     vec.insert_at(5, 50)?
 
     assert_eq(loc(), 6, vec.len())
-    val_6 := cast(I64, vec.get_by_ref(5)?)
+    val_6 := cast(I64, vec.get(5)?)
     assert_eq(loc(), 50, val_6)
 
     vec.delete()
@@ -698,11 +698,11 @@ test_vec_insert_at := proc() {
 
     assert_eq(loc(), 3, strs.len())
 
-    s_0 := cast(Str, strs.get_by_ref(0)?)
+    s_0 := cast(Str, strs.get(0)?)
     assert_eq_str(loc(), "a", s_0)
-    s_1 := cast(Str, strs.get_by_ref(1)?)
+    s_1 := cast(Str, strs.get(1)?)
     assert_eq_str(loc(), "b", s_1)
-    s_2 := cast(Str, strs.get_by_ref(2)?)
+    s_2 := cast(Str, strs.get(2)?)
     assert_eq_str(loc(), "c", s_2)
 
     strs.delete()
@@ -711,7 +711,7 @@ test_vec_insert_at := proc() {
     mut empty := Vec.new(I64)
     empty.insert_at(0, 42)?
     assert_eq(loc(), 1, empty.len())
-    val_7 := cast(I64, empty.get_by_ref(0)?)
+    val_7 := cast(I64, empty.get(0)?)
     assert_eq(loc(), 42, val_7)
     empty.delete()
 
@@ -745,9 +745,9 @@ test_vec_insert_at_growth_preserves_ptr_metadata := proc() {
     assert_eq(loc(), size_of(I64), vec.ptr.elem_size)
 
     // Verify data integrity after growth
-    val_0 := cast(I64, vec.get_by_ref(0)?)
+    val_0 := cast(I64, vec.get(0)?)
     assert_eq(loc(), 99, val_0)
-    val_1 := cast(I64, vec.get_by_ref(1)?)
+    val_1 := cast(I64, vec.get(1)?)
     assert_eq(loc(), 10, val_1)
 
     vec.delete()
@@ -790,16 +790,16 @@ test_vec_split_off := proc() {
     assert_eq(loc(), 3, vec.len())
     assert_eq(loc(), 2, tail.len())
 
-    val_0 := cast(I64, vec.get_by_ref(0)?)
+    val_0 := cast(I64, vec.get(0)?)
     assert_eq(loc(), 10, val_0)
-    val_1 := cast(I64, vec.get_by_ref(1)?)
+    val_1 := cast(I64, vec.get(1)?)
     assert_eq(loc(), 20, val_1)
-    val_2 := cast(I64, vec.get_by_ref(2)?)
+    val_2 := cast(I64, vec.get(2)?)
     assert_eq(loc(), 30, val_2)
 
-    val_3 := cast(I64, tail.get_by_ref(0)?)
+    val_3 := cast(I64, tail.get(0)?)
     assert_eq(loc(), 40, val_3)
-    val_4 := cast(I64, tail.get_by_ref(1)?)
+    val_4 := cast(I64, tail.get(1)?)
     assert_eq(loc(), 50, val_4)
 
     // Split at 0 (move everything)
@@ -825,33 +825,33 @@ test_vec_split_off := proc() {
 }
 test_vec_split_off()
 
-test_vec_get_by_ref := proc() {
+test_vec_get := proc() {
     mut v := Vec.new(I64)
     v.push(10)
     v.push(20)
     v.push(30)
 
-    // Read via get_by_ref
-    ref0 := v.get_by_ref(0)?
+    // Read via get
+    ref0 := v.get(0)?
     mut val := 0
     ref0.dereference(I64, val)
     assert_eq(loc(), 10, val)
 
-    ref2 := v.get_by_ref(2)?
+    ref2 := v.get(2)?
     ref2.dereference(I64, val)
     assert_eq(loc(), 30, val)
 
     // Ptr is borrowed (won't free vec memory)
-    test(loc(), ref0.is_borrowed.eq(1), "get_by_ref returns borrowed Ptr")
+    test(loc(), ref0.is_borrowed.eq(1), "get returns borrowed Ptr")
 
     // Out of bounds throws
     mut threw := false
-    _bad := v.get_by_ref(5)?
+    _bad := v.get(5)?
     catch (err: IndexOutOfBoundsError) {
         threw = true
     }
-    test(loc(), threw, "get_by_ref out of bounds throws")
+    test(loc(), threw, "get out of bounds throws")
 
     v.delete()
 }
-test_vec_get_by_ref()
+test_vec_get()

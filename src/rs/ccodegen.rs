@@ -5544,7 +5544,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 });
                 let cast_c_var_name = til_var_name_from_context(&decl.name, context);
                 let cast_c_type_name = value_type_to_c_name(&cast_var_type)?;
-                // Hoist the ptr_expr (may be a throwing call like get_by_ref)
+                // Hoist the ptr_expr (may be a throwing call like get)
                 let cast_ptr_str = emit_arg_string(cast_ptr_expr, None, false, output, indent, ctx, context)?;
                 // Emit inline pointer declaration (C99 block scoping shadows hoisted value-type)
                 if let Ok(cast_c_type) = til_type_to_c(&cast_var_type) {

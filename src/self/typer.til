@@ -48,7 +48,7 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
     _ := context.imports_typer_done.insert(path.clone())
 
     // Get stored AST from init phase
-    ast := cast(Expr, context.imported_asts.get_by_ref(path)?)
+    ast := cast(Expr, context.imported_asts.get(path)?)
     catch (err: KeyNotFoundError) {
         // This shouldn't happen - init phase should have stored the AST
         errors.push(format("typer: Import ", path, " not found in stored ASTs - init phase should have stored it"))
@@ -56,7 +56,7 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
     }
 
     // Get stored mode from init phase (Bug #41 fix)
-    file_mode := cast(ModeDef, context.imported_modes.get_by_ref(path)?)
+    file_mode := cast(ModeDef, context.imported_modes.get(path)?)
     catch (err: KeyNotFoundError) {
         // This shouldn't happen - init phase should have stored the mode
         errors.push(format("typer: Import ", path, " not found in stored modes - init phase should have stored it"))
@@ -171,8 +171,8 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
         }
 
         // Range operands are used
-        left_expr := cast(Expr, e.params.get_by_ref(0)?)
-        right_expr := cast(Expr, e.params.get_by_ref(1)?)
+        left_expr := cast(Expr, e.params.get(0)?)
+        right_expr := cast(Expr, e.params.get(1)?)
         errors.extend(check_types_with_context(context, left_expr, ExprContext.ValueUsed)?)
         errors.extend(check_types_with_context(context, right_expr, ExprContext.ValueUsed)?)
 
@@ -452,7 +452,7 @@ check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str
     // Remove symbols consumed in ALL branches (if there's both then and else)
     if branch_count.gteq(2) {
         if consumed_per_branch.len().gt(0) {
-            first := cast(Vec, consumed_per_branch.get_by_ref(0)?)
+            first := cast(Vec, consumed_per_branch.get(0)?)
             for entry: RemovedSymbol in first {
                 mut consumed_in_all := true
                 for branch_consumed: Vec in consumed_per_branch {
@@ -584,7 +584,7 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     if not(len_func.return_types.len().eq(1)) {
         errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".len()' must return I64")))
     } else {
-        ret_type := cast(ValueType, len_func.return_types.get_by_ref(0)?)
+        ret_type := cast(ValueType, len_func.return_types.get(0)?)
         switch ret_type {
         case ValueType.TCustom(ret_name):
             if not(ret_name.eq("I64")) {
@@ -598,14 +598,14 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         errors.push(e.error(context.path, "type", format("for-in loop: type '", type_name, "' does not have a 'len()' method.\nRequired: ", type_name, ".len(self) returns I64")))
     }
 
-    // Check TypeName.get_by_ref() exists with right signature
-    get_method := format(type_name, ".get_by_ref")
+    // Check TypeName.get() exists with right signature
+    get_method := format(type_name, ".get")
     mut get_func := SFuncDef()
     get_func = context.scope_stack.lookup_func(get_method)?
-    // Verify signature: get_by_ref(self, I64) returns Ptr throws IndexOutOfBoundsError
+    // Verify signature: get(self, I64) returns Ptr throws IndexOutOfBoundsError
     mut valid := get_func.args.len().gteq(2)
     if valid {
-        arg1 := cast(Declaration, get_func.args.get_by_ref(1)?)
+        arg1 := cast(Declaration, get_func.args.get(1)?)
         switch arg1.value_type {
         case ValueType.TCustom(arg1_name):
             if not(arg1_name.eq("I64")) {
@@ -620,7 +620,7 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         if get_func.return_types.len().eq(0) {
             valid = false
         } else {
-            get_ret_type := cast(ValueType, get_func.return_types.get_by_ref(0)?)
+            get_ret_type := cast(ValueType, get_func.return_types.get(0)?)
             switch get_ret_type {
             case ValueType.TCustom(ret_name):
                 if not(ret_name.eq("Ptr")) {
@@ -648,10 +648,10 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         }
     }
     if not(valid) {
-        errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".get_by_ref()' has wrong signature.\nRequired: ", type_name, ".get_by_ref(self, index: I64) returns Ptr throws IndexOutOfBoundsError")))
+        errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".get()' has wrong signature.\nRequired: ", type_name, ".get(self, index: I64) returns Ptr throws IndexOutOfBoundsError")))
     }
     catch (err: KeyNotFoundError) {
-        errors.push(e.error(context.path, "type", format("for-in loop: type '", type_name, "' does not have a 'get_by_ref()' method.\nRequired: ", type_name, ".get_by_ref(self, index: I64) returns Ptr throws IndexOutOfBoundsError")))
+        errors.push(e.error(context.path, "type", format("for-in loop: type '", type_name, "' does not have a 'get()' method.\nRequired: ", type_name, ".get(self, index: I64) returns Ptr throws IndexOutOfBoundsError")))
     }
 
     // Push scope for loop body, declare loop variable
@@ -785,7 +785,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
     if func_throws.and(not(does_throw)) {
         mut throw_types_str := ""
         for ti in 0..func_def.throw_types.len() {
-            tt := cast(ValueType, func_def.throw_types.get_by_ref(ti)?)
+            tt := cast(ValueType, func_def.throw_types.get(ti)?)
             catch (idx_err: IndexOutOfBoundsError) {
                 panic(loc(), "IndexOutOfBoundsError iterating throw_types: ", idx_err.msg)
             }
@@ -830,7 +830,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
 
         // Bug #61: Skip optional args before variadic when type doesn't match
         while def_arg_idx.lt(max_arg_def) {
-            current_def := cast(Declaration, func_def.args.get_by_ref(def_arg_idx)?)
+            current_def := cast(Declaration, func_def.args.get(def_arg_idx)?)
             catch (idx_err: IndexOutOfBoundsError) {
                 break
             }
@@ -886,7 +886,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
             has_default := not(NULL.eq(current_def.default_value.data))
             mut variadic_follows := false
             if def_arg_idx.add(1).lt(max_arg_def) {
-                next_def := cast(Declaration, func_def.args.get_by_ref(def_arg_idx.add(1))?)
+                next_def := cast(Declaration, func_def.args.get(def_arg_idx.add(1))?)
                 catch (idx_err: IndexOutOfBoundsError) {
                     panic(loc(), "IndexOutOfBoundsError after bounds check: ", idx_err.msg)
                 }
@@ -911,7 +911,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
             arg_idx = max_arg_def.sub(1)
         }
 
-        arg := cast(Declaration, func_def.args.get_by_ref(arg_idx)?)
+        arg := cast(Declaration, func_def.args.get(arg_idx)?)
         catch (idx_err: IndexOutOfBoundsError) {
             errors.push(e_clone.lang_error(context.path, "type", format("argument index ", I64.to_str(def_arg_idx), " out of bounds for function '", f_name, "'")))
             return errors
@@ -1137,7 +1137,7 @@ check_namespace_def := proc(mut context: Context, _e: Expr, ns_def: SNamespaceDe
     mut errors := Vec.new(Str)
 
     for member_decl: Declaration in ns_def.members {
-        inner_e := cast(Expr, ns_def.default_values.get_by_ref(member_decl.name)?)
+        inner_e := cast(Expr, ns_def.default_values.get(member_decl.name)?)
 
         switch inner_e.node_type {
         case NodeType.FuncDef(func_def):
@@ -1185,7 +1185,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     }
     mut has_variadic := false
     for i in 0..func_def.args.len() {
-        arg := cast(Declaration, func_def.args.get_by_ref(i)?)
+        arg := cast(Declaration, func_def.args.get(i)?)
 
         if has_variadic {
             errors.push(e.error(context.path, "type", format("Variadic argument '", arg.name, "' must be the last (only one variadic argument allowed).")))
@@ -1288,7 +1288,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
         mut is_declared := false
         mut decl_idx := 0
         while decl_idx.lt(func_def.throw_types.len()) {
-            declared := cast(ValueType, func_def.throw_types.get_by_ref(decl_idx)?)
+            declared := cast(ValueType, func_def.throw_types.get(decl_idx)?)
             if value_type_to_str(declared).eq(te.type_str) {
                 is_declared = true
             }
@@ -1302,7 +1302,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     // Warn about declared throws that are never thrown
     mut decl_throw_idx := 0
     while decl_throw_idx.lt(func_def.throw_types.len()) {
-        declared_throw := cast(ValueType, func_def.throw_types.get_by_ref(decl_throw_idx)?)
+        declared_throw := cast(ValueType, func_def.throw_types.get(decl_throw_idx)?)
         mut declared_str := value_type_to_str(declared_throw)
 
         mut is_thrown := false
@@ -1373,9 +1373,9 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     errors.push(e.error(context.path, "type", "Suggestion: Update returns section here"))
                 } else {
                     for i in 0..p.params.len() {
-                        expected_value_type := cast(ValueType, func_def.return_types.get_by_ref(i)?)
+                        expected_value_type := cast(ValueType, func_def.return_types.get(i)?)
 
-                        return_val_e := cast(Expr, p.params.get_by_ref(i)?)
+                        return_val_e := cast(Expr, p.params.get(i)?)
 
                         // Recursively check this return expression for throws
                         mut single_expr := Vec.new(Expr)
@@ -1460,7 +1460,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     if found_match {
                         // Remove matching entries (reverse to avoid index shift issues)
                         for ri in thrown_types.len().sub(1)..sub(0, 1) {
-                            te_remove := cast(ThrownType, thrown_types.get_by_ref(ri)?)
+                            te_remove := cast(ThrownType, thrown_types.get(ri)?)
                             if te_remove.type_str.eq(caught_type) {
                                 thrown_types.remove(ri)?
                             }
@@ -2167,7 +2167,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
             if var_name.contains(".") {
                 mut parts := var_name.split(".")?
                 if parts.len().gt(0) {
-                    base_var := cast(Str, parts.get_by_ref(0)?)
+                    base_var := cast(Str, parts.get(0)?)
                     // Bug #101: Mark base variable as used
                     context.scope_stack.mark_symbol_used(base_var)
                     mut base_info := context.scope_stack.lookup_symbol(base_var)?
@@ -2183,7 +2183,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
             // Field access assignment where the field itself isn't registered in symbols
             // With dynamic offset calculation, we need to validate against struct definition
             mut field_parts := var_name.split(".")?
-            field_base_var := cast(Str, field_parts.get_by_ref(0)?)
+            field_base_var := cast(Str, field_parts.get(0)?)
             // Bug #101: Mark base variable as used
             context.scope_stack.mark_symbol_used(field_base_var)
 
@@ -2205,7 +2205,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
                 mut pi := 1
                 while pi.lt(field_parts.len()) {
                     if not(has_error) {
-                        field_name := cast(Str, field_parts.get_by_ref(pi)?)
+                        field_name := cast(Str, field_parts.get(pi)?)
                         switch current_type {
                         case ValueType.TCustom(type_name):
                             mut field_struct_def := context.scope_stack.lookup_struct(type_name)?
@@ -2524,7 +2524,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
         }
 
         // Check default value
-        inner_e := cast(Expr, struct_def.default_values.get_by_ref(member_decl.name)?)
+        inner_e := cast(Expr, struct_def.default_values.get(member_decl.name)?)
 
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
@@ -2883,7 +2883,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                 mut new_combined_name := ""
                 mut j := 0
                 while j.lt(parts.len().sub(1)) {
-                    part := cast(Str, parts.get_by_ref(j)?)
+                    part := cast(Str, parts.get(j)?)
                     if j.gt(0) {
                         new_combined_name = format(new_combined_name, ".")
                     }
@@ -3021,7 +3021,7 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
     case NodeType.StructDef(struct_def):
         // Check if any default values call procs
         for key: Str in struct_def.default_values.keys {
-            default_expr := cast(Expr, struct_def.default_values.get_by_ref(key)?)
+            default_expr := cast(Expr, struct_def.default_values.get(key)?)
             if is_expr_calling_procs(context, default_expr)? {
                 return true
             }
@@ -3442,7 +3442,7 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         // First, resolve types and recurse into default_values
         mut new_default_values := Map.new(Str, Expr)
         for name: Str in struct_def.default_values.keys {
-            value_expr := cast(Expr, struct_def.default_values.get_by_ref(name)?)
+            value_expr := cast(Expr, struct_def.default_values.get(name)?)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
             }
@@ -3464,7 +3464,7 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
             if member_type_name.eq(INFER_TYPE) {
                 // Get resolved default_value for this member
                 mut has_default := true
-                default_value := cast(Expr, new_default_values.get_by_ref(member.name)?)
+                default_value := cast(Expr, new_default_values.get(member.name)?)
                 catch (err: KeyNotFoundError) {
                     has_default = false
                 }
@@ -3492,7 +3492,7 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
     case NodeType.NamespaceDef(ns_def):
         mut ns_new_default_values := Map.new(Str, Expr)
         for name: Str in ns_def.default_values.keys {
-            ns_value_expr := cast(Expr, ns_def.default_values.get_by_ref(name)?)
+            ns_value_expr := cast(Expr, ns_def.default_values.get(name)?)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
             }
@@ -3652,7 +3652,7 @@ resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     switch new_decl.value_type {
     case ValueType.TFunction(_):
         if decl_params.len().gt(0) {
-            decl_inner_e := cast(Expr, decl_params.get_by_ref(0)?)
+            decl_inner_e := cast(Expr, decl_params.get(0)?)
             switch decl_inner_e.node_type {
             case NodeType.FuncDef(func_def):
                 context.scope_stack.declare_func(new_decl.name, func_def)?

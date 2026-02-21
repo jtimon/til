@@ -8,7 +8,7 @@ test_array_static_u8 := proc() {
     stat.set(0, U8.from_i64(10)?)?
     stat.set(1, U8.from_i64(20)?)?
     stat.set(2, U8.from_i64(30)?)?
-    val := cast(U8, stat.get_by_ref(2)?)
+    val := cast(U8, stat.get(2)?)
     test(loc(), U8.from_i64(30)?.eq(val), "Get after set at index 2")
 
     // Uncomment to test panic behavior
@@ -37,7 +37,7 @@ test_array_static_str := proc() {
     stat.set(0, "hello")?
     stat.set(1, "world")?
     stat.set(2, "!")?
-    val := cast(Str, stat.get_by_ref(2)?)
+    val := cast(Str, stat.get(2)?)
     test(loc(), val.eq("!"), "Get after set at index 2")
 
     stat.delete()
@@ -80,7 +80,7 @@ test_array_static_bool := proc() {
     stat.set(0, true)?
     stat.set(1, false)?
     stat.set(2, true)?
-    val := cast(Bool, stat.get_by_ref(2)?)
+    val := cast(Bool, stat.get(2)?)
     test(loc(), val.eq(true), "Get after set at index 2")
 
     stat.delete()
@@ -101,7 +101,7 @@ test_array_static_i64 := proc() {
     stat.set(0, 100)?
     stat.set(1, 200)?
     stat.set(2, 300)?
-    val := cast(I64, stat.get_by_ref(2)?)
+    val := cast(I64, stat.get(2)?)
     test(loc(), val.eq(300), "Get after set at index 2")
 
     stat.delete()
@@ -131,7 +131,7 @@ test_array_static_vec2 := proc() {
     stat.set(1, v2)?
     stat.set(2, v3)?
 
-    v := cast(Vec2, stat.get_by_ref(2)?)
+    v := cast(Vec2, stat.get(2)?)
     assert_eq(loc(), 5, v.x)
     assert_eq(loc(), 6, v.y)
 

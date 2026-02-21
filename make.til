@@ -300,7 +300,7 @@ main := proc(args: ..Str) {
         println("Usage: make.til <target> [options]")
         exit(1)
     }
-    target := cast(Str, remaining_args.get_by_ref(0)?)
+    target := cast(Str, remaining_args.get(0)?)
     catch (err: IndexOutOfBoundsError) { panic(loc(), "remaining_args: len checked above: ", err.msg) }
     switch target {
     case "clean":
@@ -330,7 +330,7 @@ main := proc(args: ..Str) {
             println("Usage: make diff <file.til>")
             exit(1)
         }
-        file_path := cast(Str, args.get_by_ref(1)?)
+        file_path := cast(Str, args.get(1)?)
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         run_diff(file_path)
     case:

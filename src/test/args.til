@@ -235,10 +235,10 @@ test_mut_array := proc() {
     push_value(numbers, 84)
     assert_eq(loc(), 2, numbers.len())
 
-    val0 := cast(I64, numbers.get_by_ref(0)?)
+    val0 := cast(I64, numbers.get(0)?)
     assert_eq(loc(), 42, val0)
 
-    val1 := cast(I64, numbers.get_by_ref(1)?)
+    val1 := cast(I64, numbers.get(1)?)
     assert_eq(loc(), 84, val1)
 
     numbers.delete()

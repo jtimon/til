@@ -45,13 +45,13 @@ test_cast := proc() {
     vec.push(99)
 
     // Get a reference to element 0, cast to typed pointer alias
-    item := cast(I64, vec.get_by_ref(0)?)
+    item := cast(I64, vec.get(0)?)
 
     // item should now read the value from vec memory
     assert_eq(loc(), 42, item)
 
     // Get a reference to element 1
-    item2 := cast(I64, vec.get_by_ref(1)?)
+    item2 := cast(I64, vec.get(1)?)
 
     assert_eq(loc(), 99, item2)
 

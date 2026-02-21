@@ -34,16 +34,16 @@ make_poem_iterative := func(s1: Str, s2: Str) returns Str {
     silabes.set(1, s2)?
 
     verse := func(i0: I64, i1: I64, i2: I64, i3: I64, silabes: Array) returns Str {
-        s0 := cast(Str, silabes.get_by_ref(i0)?)
-        s1_v := cast(Str, silabes.get_by_ref(i1)?)
+        s0 := cast(Str, silabes.get(i0)?)
+        s1_v := cast(Str, silabes.get(i1)?)
         mut s2_v := ""
         if i2.eq(2) {
             s2_v = "lei"
         } else {
-            s2_v_alias := cast(Str, silabes.get_by_ref(i2)?)
+            s2_v_alias := cast(Str, silabes.get(i2)?)
             s2_v = s2_v_alias
         }
-        s3 := cast(Str, silabes.get_by_ref(i3)?)
+        s3 := cast(Str, silabes.get(i3)?)
 
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 

@@ -145,11 +145,11 @@ test_set_get := proc() {
     _ := s.insert("gamma")
 
     // Get elements by index (order is insertion order)
-    elem0 := cast(Str, s.get_by_ref(0)?)
+    elem0 := cast(Str, s.get(0)?)
     assert_eq_str(loc(), "alpha", elem0)
-    elem1 := cast(Str, s.get_by_ref(1)?)
+    elem1 := cast(Str, s.get(1)?)
     assert_eq_str(loc(), "beta", elem1)
-    elem2 := cast(Str, s.get_by_ref(2)?)
+    elem2 := cast(Str, s.get(2)?)
     assert_eq_str(loc(), "gamma", elem2)
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }

@@ -186,7 +186,7 @@ get_diatonic_index := proc(note_base: Str) returns I64 {
     mut i := 0
     target := note_base.to_lowercase()
     while i.lt(base_notes.len()) {
-        note := cast(Str, base_notes.get_by_ref(i)?)
+        note := cast(Str, base_notes.get(i)?)
         if note.eq(target) {
             return i
         }
@@ -208,7 +208,7 @@ get_diatonic_index_for_notation := proc(note_base: Str, notation: Str) returns I
         search_notes = create_base_notes_american()
     }
     while i.lt(search_notes.len()) {
-        note := cast(Str, search_notes.get_by_ref(i)?)
+        note := cast(Str, search_notes.get(i)?)
         if note.eq(target) {
             return i
         }
@@ -232,7 +232,7 @@ get_base_index := proc(note_base: Str) returns I64 {
 
 // Format a note given its diatonic index, chromatic position, and notes array
 format_note_with := proc(diatonic_idx: I64, chromatic_pos: I64, notes: Vec) returns Str {
-    mut note_name := cast(Str, notes.get_by_ref(diatonic_idx)?)
+    mut note_name := cast(Str, notes.get(diatonic_idx)?)
     natural_chromatic := diatonic_to_chromatic(diatonic_idx)
 
     mut diff := chromatic_pos.sub(natural_chromatic)
@@ -304,7 +304,7 @@ generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec
         }
         note := format_note_with(diatonic_pos, chromatic_pos, notes)
         result = result.concat(note)
-        step := cast(I64, steps.get_by_ref(k)?)
+        step := cast(I64, steps.get(k)?)
         chromatic_pos = chromatic_pos.add(step).mod(12)
         diatonic_pos = diatonic_pos.add(1).mod(7)
         k = k.add(1)
@@ -480,7 +480,7 @@ print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) 
     while k.lt(7) {
         scale_chromatic.push(chromatic_pos.clone())
         scale_diatonic.push(diatonic_pos.clone())
-        step := cast(I64, steps.get_by_ref(k)?)
+        step := cast(I64, steps.get(k)?)
         chromatic_pos = chromatic_pos.add(step).mod(12)
         diatonic_pos = diatonic_pos.add(1).mod(7)
         k = k.add(1)
@@ -495,14 +495,14 @@ print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) 
     mut degree := 0
     while degree.lt(7) {
         // Get chromatic positions for root, 3rd, 5th of this triad
-        root_chrom := cast(I64, scale_chromatic.get_by_ref(degree)?)
-        third_chrom := cast(I64, scale_chromatic.get_by_ref(degree.add(2).mod(7))?)
-        fifth_chrom := cast(I64, scale_chromatic.get_by_ref(degree.add(4).mod(7))?)
+        root_chrom := cast(I64, scale_chromatic.get(degree)?)
+        third_chrom := cast(I64, scale_chromatic.get(degree.add(2).mod(7))?)
+        fifth_chrom := cast(I64, scale_chromatic.get(degree.add(4).mod(7))?)
 
         // Get diatonic positions for note names
-        root_dia := cast(I64, scale_diatonic.get_by_ref(degree)?)
-        third_dia := cast(I64, scale_diatonic.get_by_ref(degree.add(2).mod(7))?)
-        fifth_dia := cast(I64, scale_diatonic.get_by_ref(degree.add(4).mod(7))?)
+        root_dia := cast(I64, scale_diatonic.get(degree)?)
+        third_dia := cast(I64, scale_diatonic.get(degree.add(2).mod(7))?)
+        fifth_dia := cast(I64, scale_diatonic.get(degree.add(4).mod(7))?)
 
         // Calculate intervals
         mut interval_to_3rd := third_chrom.sub(root_chrom)
@@ -569,7 +569,7 @@ print_triad_line := proc(label: Str, triads: Vec) {
             if i.gt(0) {
                 line = line.concat(", ")
             }
-            t := cast(Str, triads.get_by_ref(i)?)
+            t := cast(Str, triads.get(i)?)
             line = line.concat(t)
             i = i.add(1)
         }
@@ -596,7 +596,7 @@ get_position_note_name := proc(pos: I64, notes: Vec) returns Str {
     if diatonic.lt(0) {
         diatonic = diatonic.add(7)
     }
-    name := cast(Str, notes.get_by_ref(diatonic)?)
+    name := cast(Str, notes.get(diatonic)?)
 
     catch (err: IndexOutOfBoundsError) {
         return "?"
@@ -663,7 +663,7 @@ print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Ve
 
         // Move to next note
         if k.lt(7) {
-            step := cast(I64, steps.get_by_ref(k)?)
+            step := cast(I64, steps.get(k)?)
             chromatic_pos = chromatic_pos.add(step).mod(12)
             prev_diatonic = diatonic_pos
             diatonic_pos = diatonic_pos.add(1).mod(7)
@@ -680,7 +680,7 @@ print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Ve
     mut max_pos := I64.sub(0, 100)
     k = 0
     while k.lt(note_positions.len()) {
-        pos := cast(I64, note_positions.get_by_ref(k)?)
+        pos := cast(I64, note_positions.get(k)?)
         if pos.lt(min_pos) {
             min_pos = pos
         }
@@ -719,9 +719,9 @@ print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Ve
         // Build the row
         mut col := 0
         while col.lt(8) {
-            note_pos := cast(I64, note_positions.get_by_ref(col)?)
+            note_pos := cast(I64, note_positions.get(col)?)
 
-            note_name := cast(Str, note_names.get_by_ref(col)?)
+            note_name := cast(Str, note_names.get(col)?)
             acc := get_accidental(note_name)
 
             // Check if note is at this row
@@ -789,7 +789,7 @@ print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Ve
     mut label_line := "  "
     k = 0
     while k.lt(note_names.len()) {
-        mut name := cast(Str, note_names.get_by_ref(k)?)
+        mut name := cast(Str, note_names.get(k)?)
         // Add ' for octave note (last note)
         if k.eq(7) {
             name = name.concat("'")
@@ -849,7 +849,7 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str, notation: Str) {
     base_idx := diatonic_to_chromatic(root_diatonic)
     root_idx := apply_accidentals(base_idx, acc)
 
-    steps := cast(Vec, mode_intervals.get_by_ref(mode_index)?)
+    steps := cast(Vec, mode_intervals.get(mode_index)?)
 
     scale_str := generate_scale(root_idx, root_diatonic, steps, notes)
 

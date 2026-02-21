@@ -21,20 +21,9 @@ namespace:
         return self.start.sub(self.end)
     }
 
-    get := proc(self: I64Range, index: I64, mut out: Dynamic) throws IndexOutOfBoundsError {
+    get := proc(self: I64Range, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if index.gteq(self.len()) {
             throw IndexOutOfBoundsError(msg="I64Range.get: index out of bounds")
-        }
-        if self.end.gteq(self.start) {
-            out = self.start.add(index)  // Forward: 0..10 -> 0,1,2...
-        } else {
-            out = self.start.sub(index)  // Reverse: 10..0 -> 10,9,8...
-        }
-    }
-
-    get_by_ref := proc(self: I64Range, index: I64) returns Ptr throws IndexOutOfBoundsError {
-        if index.gteq(self.len()) {
-            throw IndexOutOfBoundsError(msg="I64Range.get_by_ref: index out of bounds")
         }
         mut p := Ptr.new_by_size(8)
         if self.end.gteq(self.start) {

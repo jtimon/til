@@ -178,7 +178,7 @@ contains heap pointers.
 
 - *returns borrow T*: The function returns a reference to data it does
   NOT own (or data that outlives the call). Caller must NOT delete.
-  Examples: ~get_by_ref~, ~lookup_func~, ~lookup_struct~.
+  Examples: ~get~ (previously ~get_by_ref~), ~lookup_func~, ~lookup_struct~.
 
 *** Runtime mechanism: Ptr.is_borrowed
 

@@ -38,7 +38,7 @@ test_mut_array := proc() {
 
     assert_eq(loc(), 1, arr.len())
 
-    value := cast(I64, arr.get_by_ref(0)?)
+    value := cast(I64, arr.get(0)?)
 
     assert_eq(loc(), 10, value)
 

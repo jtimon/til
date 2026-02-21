@@ -135,9 +135,9 @@ namespace:
     }
 
     /** Get borrowed Ptr to element at index. No copy - points into set memory. */
-    get_by_ref := proc(self: Set, index: I64) returns Ptr throws IndexOutOfBoundsError {
+    get := proc(self: Set, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if index.lt(0).or(not(index.lt(self._size))) {
-            throw IndexOutOfBoundsError(msg=format("Set.get_by_ref: index ", I64.to_str(index), " out of bounds (size: ", I64.to_str(self._size), ")"))
+            throw IndexOutOfBoundsError(msg=format("Set.get: index ", I64.to_str(index), " out of bounds (size: ", I64.to_str(self._size), ")"))
         }
         return self.elements.ptr.offset(index.mul(self.elements.ptr.elem_size))
     }

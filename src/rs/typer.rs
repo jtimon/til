@@ -501,11 +501,11 @@ fn check_forin_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>,
         }
     }
 
-    // Check TypeName.get_by_ref() exists with right signature
-    let get_method = format!("{}.get_by_ref", type_name);
+    // Check TypeName.get() exists with right signature
+    let get_method = format!("{}.get", type_name);
     match context.scope_stack.lookup_func(&get_method) {
         Some(func_def) => {
-            // Verify signature: get_by_ref(self, I64) returns Ptr throws IndexOutOfBoundsError
+            // Verify signature: get(self, I64) returns Ptr throws IndexOutOfBoundsError
             let mut throws_index_error = false;
             for t in &func_def.throw_types {
                 if *t == ValueType::TCustom("IndexOutOfBoundsError".to_string()) {
@@ -521,15 +521,15 @@ fn check_forin_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>,
 
             if !valid {
                 errors.push(e.error(&context.path, "type", &format!(
-                    "for-in loop: '{}.get_by_ref()' has wrong signature.\n\
-                     Required: {}.get_by_ref(self, index: I64) returns Ptr throws IndexOutOfBoundsError",
+                    "for-in loop: '{}.get()' has wrong signature.\n\
+                     Required: {}.get(self, index: I64) returns Ptr throws IndexOutOfBoundsError",
                     type_name, type_name)));
             }
         },
         None => {
             errors.push(e.error(&context.path, "type", &format!(
-                "for-in loop: type '{}' does not have a 'get_by_ref()' method.\n\
-                 Required: {}.get_by_ref(self, index: I64) returns Ptr throws IndexOutOfBoundsError",
+                "for-in loop: type '{}' does not have a 'get()' method.\n\
+                 Required: {}.get(self, index: I64) returns Ptr throws IndexOutOfBoundsError",
                 type_name, type_name)));
         }
     }

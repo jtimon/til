@@ -167,7 +167,7 @@ namespace:
     }
 
     /** Get borrowed Ptr to value for given key. No copy - points into map memory. */
-    get_by_ref := proc(self: Map, key: Dynamic) returns Ptr throws KeyNotFoundError {
+    get := proc(self: Map, key: Dynamic) returns Ptr throws KeyNotFoundError {
         search := self.binary_search(key)
         if search.found {
             return self.values.ptr.offset(search.index.mul(self.values.ptr.elem_size))

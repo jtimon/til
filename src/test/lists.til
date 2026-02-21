@@ -58,15 +58,15 @@ test_list_get := proc() {
     list.push(Bool, false)?
 
     // Get I64 at index 0
-    val0 := cast(I64, list.get_by_ref(0)?)
+    val0 := cast(I64, list.get(0)?)
     test(loc(), val0.eq(100), "Value at index 0")
 
     // Get Str at index 1
-    val1 := cast(Str, list.get_by_ref(1)?)
+    val1 := cast(Str, list.get(1)?)
     test(loc(), val1.eq("world"), "Value at index 1")
 
     // Get Bool at index 2
-    val2 := cast(Bool, list.get_by_ref(2)?)
+    val2 := cast(Bool, list.get(2)?)
     test(loc(), val2.eq(false), "Value at index 2")
 
     catch (err: IndexOutOfBoundsError) {
@@ -95,7 +95,7 @@ test_list_set_same_size := proc() {
         exit(1)
     }
 
-    val := cast(I64, list.get_by_ref(1)?)
+    val := cast(I64, list.get(1)?)
     test(loc(), val.eq(999), "Set and get index 1")
 
     catch (err: IndexOutOfBoundsError) {
@@ -125,11 +125,11 @@ test_list_set_different_size := proc() {
     }
 
     // Verify element at index 1 is now Str
-    val := cast(Str, list.get_by_ref(1)?)
+    val := cast(Str, list.get(1)?)
     test(loc(), val.eq("replaced"), "Set different size at index 1")
 
     // Verify element at index 2 is still correct
-    val2 := cast(I64, list.get_by_ref(2)?)
+    val2 := cast(I64, list.get(2)?)
     test(loc(), val2.eq(3), "Element at index 2 after set")
 
     catch (err: IndexOutOfBoundsError) {
@@ -162,12 +162,12 @@ test_list_with_struct := proc() {
     assert_eq(loc(), 3, list.len())
 
     // Get Vec2 at index 0
-    result := cast(Vec2, list.get_by_ref(0)?)
+    result := cast(Vec2, list.get(0)?)
     test(loc(), result.x.eq(10), "Vec2.x at index 0")
     test(loc(), result.y.eq(20), "Vec2.y at index 0")
 
     // Get I64 at index 1
-    num := cast(I64, list.get_by_ref(1)?)
+    num := cast(I64, list.get(1)?)
     test(loc(), num.eq(42), "I64 at index 1")
 
     catch (err: IndexOutOfBoundsError) {
@@ -207,7 +207,7 @@ test_list_out_of_bounds := proc() {
 
     list.push(I64, 10)?
 
-    _val := cast(I64, list.get_by_ref(5)?)
+    _val := cast(I64, list.get(5)?)
     panic(loc(), "Expected IndexOutOfBoundsError")
 
     catch (err: IndexOutOfBoundsError) {
@@ -235,10 +235,10 @@ test_list_multiple_pushes := proc() {
     test(loc(), list.len().eq(10), "List holds 10 elements")
 
     // Verify values are correct
-    val0 := cast(I64, list.get_by_ref(0)?)
+    val0 := cast(I64, list.get(0)?)
     test(loc(), val0.eq(0), "First element")
 
-    val9 := cast(I64, list.get_by_ref(9)?)
+    val9 := cast(I64, list.get(9)?)
     test(loc(), val9.eq(9), "Last element")
 
     catch (err: IndexOutOfBoundsError) {
@@ -266,12 +266,12 @@ test_nested_lists := proc() {
     assert_eq(loc(), 2, outer.len())
 
     // Get the nested list (zero-copy reference into outer's data buffer)
-    retrieved_inner := cast(List, outer.get_by_ref(0)?)
+    retrieved_inner := cast(List, outer.get(0)?)
 
     test(loc(), retrieved_inner.len().eq(2), "Nested list length")
 
     // Get value from nested list
-    nested_val := cast(I64, retrieved_inner.get_by_ref(0)?)
+    nested_val := cast(I64, retrieved_inner.get(0)?)
     test(loc(), nested_val.eq(1), "Value from nested list")
 
     catch (err: IndexOutOfBoundsError) {

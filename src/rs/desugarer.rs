@@ -213,14 +213,14 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Build: _for_i = add(_for_i, 1)
     let inc_stmt = make_assign(&index_var_name, make_call("add", vec![make_id(&index_var_name, line, col), make_num("1", line, col)], line, col), line, col);
 
-    // Bug #144: All types use get_by_ref + cast (zero-copy for all types)
-    // Build: _ref_forin_N := get_by_ref(collection, _for_i)
+    // Bug #144: All types use get + cast (zero-copy for all types)
+    // Build: _ref_forin_N := get(collection, _for_i)
     let ref_var_name = make_temp_name("_ref_forin", func_name, forin_id);
-    let get_by_ref_call = make_call("get_by_ref", vec![
+    let get_call = make_call("get", vec![
         collection_expr.clone(),
         make_id(&index_var_name, line, col),
     ], line, col);
-    let ref_decl = make_decl(&ref_var_name, ValueType::TCustom("Ptr".to_string()), false, get_by_ref_call, line, col);
+    let ref_decl = make_decl(&ref_var_name, ValueType::TCustom("Ptr".to_string()), false, get_call, line, col);
 
     // Build: item := cast(Type, _ref_forin_N)
     let cast_call = make_call("cast", vec![

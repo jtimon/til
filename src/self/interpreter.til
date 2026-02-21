@@ -161,7 +161,7 @@ read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type
                     mut nested_values := read_struct_primitive_fields(ctx, field_id, type_name, nested_key, e)?
                     // Copy nested values to values map
                     for k: Str in nested_values.keys {
-                        v := cast(Str, nested_values.get_by_ref(k)?)
+                        v := cast(Str, nested_values.get(k)?)
                         values.set(k, v)
                     }
                     catch (err: KeyNotFoundError) {
@@ -187,7 +187,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
         if decl.is_mut {
             // Check if default_values has this field
             if struct_def.default_values.contains_key(decl.name) {
-                default_expr := cast(Expr, struct_def.default_values.get_by_ref(decl.name)?)
+                default_expr := cast(Expr, struct_def.default_values.get(decl.name)?)
 
                 // For nested struct types, eagerly create template BEFORE evaluating default
                 // This handles forward references: Inner1's template is created before Inner1() is evaluated
@@ -248,7 +248,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                             nested = eval_struct_defaults(ctx, type_name, e)?
                             // Iterate nested map and insert with prefix
                             for k: Str in nested.keys {
-                                v := cast(Str, nested.get_by_ref(k)?)
+                                v := cast(Str, nested.get(k)?)
                                 defaults.set(format(decl.name, ".", k), v)
                             }
 
@@ -257,7 +257,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                             instance_id := res.value
                             mut primitive_values := read_struct_primitive_fields(ctx, instance_id, type_name, decl.name, e)?
                             for prim_k: Str in primitive_values.keys {
-                                prim_v := cast(Str, primitive_values.get_by_ref(prim_k)?)
+                                prim_v := cast(Str, primitive_values.get(prim_k)?)
                                 defaults.set(prim_k, prim_v)
                             }
 
@@ -280,7 +280,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
 create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) returns I64 throws Str {
     // Check if template already exists (e.g., from a previous import)
     if g_heap.default_instances.contains_key(struct_type) {
-        offset := cast(I64, g_heap.default_instances.get_by_ref(struct_type)?)
+        offset := cast(I64, g_heap.default_instances.get(struct_type)?)
         catch (err: KeyNotFoundError) { throw err.msg }
         return offset
     }
@@ -301,7 +301,7 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
     if result.heap_mappings.len().eq(0) {
         throw e.lang_error(ctx.path, "create_default_instance", "No heap mapping for template")
     }
-    first_mapping := cast(EvalHeapMapping, result.heap_mappings.get_by_ref(0)?)
+    first_mapping := cast(EvalHeapMapping, result.heap_mappings.get(0)?)
     template_offset := first_mapping.offset
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
@@ -317,7 +317,7 @@ insert_struct_instance := proc(mut ctx: Context, id: Str, type_name: Str, e: Exp
     if not(g_heap.default_instances.contains_key(type_name)) {
         throw e.lang_error(ctx.path, "insert_struct_instance", format("template for '", type_name, "' not found"))
     }
-    template_offset := cast(I64, g_heap.default_instances.get_by_ref(type_name)?)
+    template_offset := cast(I64, g_heap.default_instances.get(type_name)?)
     catch (err: KeyNotFoundError) { throw err.msg }
     EvalHeap.insert_struct(ctx, id, type_name, template_offset, e)?
 }
@@ -604,8 +604,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
     if context.scope_stack.is_enum_constructor(combined_name) {
         // Extract enum_type and variant_name
         parts := combined_name.split(".")?
-        enum_type := cast(Str, parts.get_by_ref(0)?)
-        variant_name := cast(Str, parts.get_by_ref(1)?)
+        enum_type := cast(Str, parts.get(0)?)
+        variant_name := cast(Str, parts.get(1)?)
 
         // Get the enum definition to check if this variant has a payload type
         enum_def := context.scope_stack.lookup_enum(enum_type)?
@@ -864,7 +864,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
         if parts2.len().eq(0) {
             throw e.lang_error(context.path, "eval", "Somehow function without name")
         }
-        last_name := cast(Str, parts2.get_by_ref(parts2.len().sub(1))?)
+        last_name := cast(Str, parts2.get(parts2.len().sub(1))?)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return eval_core_func_proc_call(last_name, context, new_fcall_e, is_proc)?
     }
@@ -987,7 +987,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             if str_expr_heap_offset.gt(0) {
                 str_decl_last_idx := context.scope_stack.frames.len().sub(1)
-                mut str_decl_last_frame := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(str_decl_last_idx)?)
+                mut str_decl_last_frame := cast(ScopeFrame, context.scope_stack.frames.get(str_decl_last_idx)?)
                 str_decl_last_frame.heap_index.set(declaration.name, str_expr_heap_offset)
                 return EvalResult.new("")
             }
@@ -1074,7 +1074,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     throw e.lang_error(context.path, "eval", format("Could not find heap index for '", struct_expr_result_str, "'"))
                 }
                 struct_last_idx := context.scope_stack.frames.len().sub(1)
-                mut struct_last_frame := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(struct_last_idx)?)
+                mut struct_last_frame := cast(ScopeFrame, context.scope_stack.frames.get(struct_last_idx)?)
                 struct_last_frame.heap_index.set(declaration.name, struct_offset)
             } else {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(custom_symbol.value_type), "'. Only 'enum' and 'struct' custom types allowed."))
@@ -1106,7 +1106,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             for member_decl: Declaration in struct_def.members {
                 if not(member_decl.is_mut) {
                     combined_name := format(declaration.name, ".", member_decl.name)
-                    default_value := cast(Expr, struct_def.default_values.get_by_ref(member_decl.name)?)
+                    default_value := cast(Expr, struct_def.default_values.get(member_decl.name)?)
                     catch (err: KeyNotFoundError) {
                         throw e.lang_error(context.path, "eval", format("Struct member '", declaration.name, ".", member_decl.name, "' expected to have default value."))
                     }
@@ -1184,7 +1184,7 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
     if var_name.contains(".") {
         parts := var_name.split(".")?
         if parts.len().gt(0) {
-            bvn := cast(Str, parts.get_by_ref(0)?)
+            bvn := cast(Str, parts.get(0)?)
             base_var_name = bvn
         }
     }
@@ -1720,7 +1720,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
 
                             if found_offset {
                                 lf_idx := context.scope_stack.frames.len().sub(1)
-                                mut lf := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(lf_idx)?)
+                                mut lf := cast(ScopeFrame, context.scope_stack.frames.get(lf_idx)?)
                                 lf.heap_index.set(var_name.clone(), offset)
 
                                 // Copy ALL field mappings (including nested) from thrown instance to catch variable
@@ -1746,7 +1746,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                     if found_key {
                                         dest_key := src_key.replacen(source_prefix, dest_prefix, 1)
                                         lf3_idx := context.scope_stack.frames.len().sub(1)
-                                        mut lf3 := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(lf3_idx)?)
+                                        mut lf3 := cast(ScopeFrame, context.scope_stack.frames.get(lf3_idx)?)
                                         lf3.heap_index.set(dest_key, src_offset)
                                     }
                                 }
@@ -1790,7 +1790,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         catch (err: KeyNotFoundError) { }
                                         if base_found {
                                             lf4_idx := context.scope_stack.frames.len().sub(1)
-                                            mut lf4 := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(lf4_idx)?)
+                                            mut lf4 := cast(ScopeFrame, context.scope_stack.frames.get(lf4_idx)?)
                                             lf4.heap_index.set(var_name, base_offset)
                                         }
 
@@ -2115,7 +2115,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 for ref_caller_frame: ScopeFrame in context.scope_stack.frames {
                                     for ref_skey: Str in ref_caller_frame.symbols.keys {
                                         if ref_skey.starts_with(ref_prefix) {
-                                            ref_svalue := cast(SymbolInfo, ref_caller_frame.symbols.get_by_ref(ref_skey)?)
+                                            ref_svalue := cast(SymbolInfo, ref_caller_frame.symbols.get(ref_skey)?)
                                             ref_new_skey := ref_skey.replacen(ref_prefix, ref_replacement_prefix, 1)
                                             ref_field_symbols_to_copy.push(SymbolEntry(name=ref_new_skey, info=ref_svalue.clone()))
                                         }
@@ -2255,11 +2255,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         for pbr_caller_frame: ScopeFrame in context.scope_stack.frames {
                                             for pbr_skey: Str in pbr_caller_frame.symbols.keys {
                                                 if pbr_skey.starts_with(pbr_prefix) {
-                                                    pbr_svalue := cast(SymbolInfo, pbr_caller_frame.symbols.get_by_ref(pbr_skey)?)
+                                                    pbr_svalue := cast(SymbolInfo, pbr_caller_frame.symbols.get(pbr_skey)?)
                                                     pbr_new_skey := pbr_skey.replacen(pbr_prefix, pbr_replacement_prefix, 1)
                                                     pbr_field_symbols_to_copy.push(SymbolEntry(name=pbr_new_skey, info=pbr_svalue.clone()))
                                                     catch (err: KeyNotFoundError) {
-                                                        panic(loc(), "symbols.get_by_ref: key from .keys iteration: ", err.msg)
+                                                        panic(loc(), "symbols.get: key from .keys iteration: ", err.msg)
                                                     }
                                                 }
                                             }
@@ -2390,7 +2390,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         // Get the second-to-last frame (caller's frame)
                         thrown_frame_count := context.scope_stack.frames.len()
                         if thrown_frame_count.gteq(2) {
-                            mut thrown_caller_frame := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(thrown_frame_count.sub(2))?)
+                            mut thrown_caller_frame := cast(ScopeFrame, context.scope_stack.frames.get(thrown_frame_count.sub(2))?)
                             thrown_caller_frame.heap_index.set(result.value.clone(), base_offset)
                         }
                     }
@@ -2409,7 +2409,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         }
                         if throw_src_symbol_found {
                             if throw_frame_count.gt(1) {
-                                mut throw_sym_caller_frame := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(throw_frame_count.sub(2))?)
+                                mut throw_sym_caller_frame := cast(ScopeFrame, context.scope_stack.frames.get(throw_frame_count.sub(2))?)
                                 throw_sym_caller_frame.symbols.set(throw_sym_key, throw_src_symbol.clone())
                             }
                         }
@@ -2429,7 +2429,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     mut saved_return_offset := 0
     mut has_saved_return_offset := false
     if func_def.return_types.len().eq(1) {
-        return_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
+        return_type := cast(ValueType, func_def.return_types.get(0)?)
         mut is_tcustom := false
         mut custom_type_name := ""
         switch return_type {
@@ -2465,7 +2465,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     mut saved_enum_value := EnumVal()
     mut has_saved_enum_value := false
     if func_def.return_types.len().eq(1) {
-        ret_return_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
+        ret_return_type := cast(ValueType, func_def.return_types.get(0)?)
         mut ret_is_tcustom := false
         mut ret_custom_type_name := ""
         switch ret_return_type {
@@ -2621,7 +2621,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             _ := EvalHeap.insert_enum(context, c.source_name, writeback_enum_val.enum_type, format(writeback_enum_val.enum_type, ".", writeback_enum_val.enum_name), e)?
         case MutArgValue.Struct(struct_data):
             lf12_idx := context.scope_stack.frames.len().sub(1)
-            mut lf12 := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(lf12_idx)?)
+            mut lf12 := cast(ScopeFrame, context.scope_stack.frames.get(lf12_idx)?)
             lf12.heap_index.set(c.source_name.clone(), struct_data.offset)
             // Bug #160: map_instance_fields removed - type checker handles symbol registration
         }
@@ -2630,7 +2630,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     // If function returns a user-defined struct or enum, copy it back to caller frame as temp return val
     // NOTE: Frame already popped above, using saved_return_offset and saved_enum_value
     if func_def.return_types.len().eq(1) {
-        copy_ret_return_type := cast(ValueType, func_def.return_types.get_by_ref(0)?)
+        copy_ret_return_type := cast(ValueType, func_def.return_types.get(0)?)
         mut copy_ret_is_tcustom := false
         mut copy_ret_custom_type_name := ""
         switch copy_ret_return_type {
@@ -2680,7 +2680,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                         // Share the base offset in caller's frame
                         lf13_idx := context.scope_stack.frames.len().sub(1)
-                        mut lf13 := cast(ScopeFrame, context.scope_stack.frames.get_by_ref(lf13_idx)?)
+                        mut lf13 := cast(ScopeFrame, context.scope_stack.frames.get(lf13_idx)?)
                         lf13.heap_index.set(return_instance.clone(), copy_ret_offset)
 
                         return EvalResult.new_return(return_instance) // CLEANUP SITE 4: Return struct instance
@@ -3111,7 +3111,7 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         throw e.error(context.path, "eval", format(
             "Import ", path, " not found in stored ASTs - init phase should have stored it"))
     }
-    mut ast := cast(Expr, context.imported_asts.get_by_ref(path)?)
+    mut ast := cast(Expr, context.imported_asts.get(path)?)
     catch (err: KeyNotFoundError) {
         throw e.error(context.path, "eval", format(
             "Import ", path, " not found in stored ASTs - init phase should have stored it"))
