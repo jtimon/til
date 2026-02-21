@@ -1065,6 +1065,123 @@ func_struct_field_type_arg : proc(mut context: Context, e: Expr) returns EvalRes
     }
 }
 
+// ---------- Enum introspection functions (Issue #106)
+
+func_enum_variant_count : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+    validate_arg_count(context.path, e, "__enum_variant_count", 1, false)?
+
+    result1 := eval_expr(context, e.get(1)?)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    enum_def := context.scope_stack.lookup_enum(type_name)?
+    return EvalResult.new(enum_def.variants.len().to_str())
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_count: type '", type_name, "' not found"))
+    }
+}
+
+func_enum_variant_name : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+    validate_arg_count(context.path, e, "__enum_variant_name", 2, false)?
+
+    result1 := eval_expr(context, e.get(1)?)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    result2 := eval_expr(context, e.get(2)?)?
+    if result2.is_throw { return result2 }
+    index := I64.from_str(result2.value)
+
+    enum_def := context.scope_stack.lookup_enum(type_name)?
+    if index.lt(enum_def.variants.len()) {
+        variant := cast(EnumVariant, enum_def.variants.get(index)?)
+        return EvalResult.new(variant.name)
+    } else {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_name: index ", index.to_str(), " out of bounds for '", type_name, "' with ", enum_def.variants.len().to_str(), " variants"))
+    }
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_name: type '", type_name, "' not found"))
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_name: ", err.msg))
+    }
+}
+
+func_enum_variant_has_payload : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+    validate_arg_count(context.path, e, "__enum_variant_has_payload", 2, false)?
+
+    result1 := eval_expr(context, e.get(1)?)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    result2 := eval_expr(context, e.get(2)?)?
+    if result2.is_throw { return result2 }
+    index := I64.from_str(result2.value)
+
+    enum_def := context.scope_stack.lookup_enum(type_name)?
+    if index.lt(enum_def.variants.len()) {
+        variant := cast(EnumVariant, enum_def.variants.get(index)?)
+        if not(NULL.eq(variant.payload_type.data)) {
+            return EvalResult.new("1")
+        } else {
+            return EvalResult.new("0")
+        }
+    } else {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_has_payload: index ", index.to_str(), " out of bounds for '", type_name, "' with ", enum_def.variants.len().to_str(), " variants"))
+    }
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_has_payload: type '", type_name, "' not found"))
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_has_payload: ", err.msg))
+    }
+}
+
+func_enum_variant_payload_type : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+    validate_arg_count(context.path, e, "__enum_variant_payload_type", 2, false)?
+
+    result1 := eval_expr(context, e.get(1)?)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    result2 := eval_expr(context, e.get(2)?)?
+    if result2.is_throw { return result2 }
+    index := I64.from_str(result2.value)
+
+    enum_def := context.scope_stack.lookup_enum(type_name)?
+    if index.lt(enum_def.variants.len()) {
+        variant := cast(EnumVariant, enum_def.variants.get(index)?)
+        if not(NULL.eq(variant.payload_type.data)) {
+            mut vt : ValueType = ValueType.TCustom("")
+            memcpy(to_ptr(vt), variant.payload_type.data, size_of(ValueType))
+            switch vt {
+                case ValueType.TCustom(s):
+                    return EvalResult.new(s)
+                case ValueType.TMulti(s):
+                    return EvalResult.new(s)
+                case ValueType.TType(t):
+                    return EvalResult.new(enum_to_str(t))
+                case ValueType.TFunction(f):
+                    return EvalResult.new(enum_to_str(f))
+            }
+        } else {
+            return EvalResult.new("")
+        }
+    } else {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_payload_type: index ", index.to_str(), " out of bounds for '", type_name, "' with ", enum_def.variants.len().to_str(), " variants"))
+    }
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_payload_type: type '", type_name, "' not found"))
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "eval", format("__enum_variant_payload_type: ", err.msg))
+    }
+}
+
 func_exit : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
     validate_arg_count(context.path, e, "exit", 1, false)?
 

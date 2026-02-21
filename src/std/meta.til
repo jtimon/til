@@ -45,6 +45,32 @@ struct_def_of : proc(type_name: Str) returns SStructDef = {
     return def
 }
 
+// Enum introspection primitives (Issue #106)
+__enum_variant_count        : ext_func(type_name: Str) returns I64 = {}
+__enum_variant_name         : ext_func(type_name: Str, index: I64) returns Str = {}
+__enum_variant_has_payload  : ext_func(type_name: Str, index: I64) returns I64 = {}
+__enum_variant_payload_type : ext_func(type_name: Str, index: I64) returns Str = {}
+
+// Build an SEnumDef for the named type by querying scope_stack via ext functions
+enum_def_of : proc(type_name: Str) returns SEnumDef = {
+    mut def := SEnumDef()
+    n := __enum_variant_count(type_name)
+    for i in 0..n {
+        mut variant := EnumVariant()
+        variant.name = __enum_variant_name(type_name, i)
+        has_payload := __enum_variant_has_payload(type_name, i)
+        if has_payload.eq(1) {
+            payload_str := __enum_variant_payload_type(type_name, i)
+            variant.payload_type.data = malloc(size_of(ValueType))?
+            mut vt := ValueType.TCustom(payload_str)
+            memcpy(variant.payload_type.data, to_ptr(vt), size_of(ValueType))
+        }
+        def.variants.push(variant)
+    }
+    catch (err: BadAlloc) { panic(loc(), "enum_def_of: malloc failed") }
+    return def
+}
+
 // Introspection - Runtime type information utilities
 //
 // This struct acts as a namespace (has no mutable fields).

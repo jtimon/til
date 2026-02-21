@@ -1181,7 +1181,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         switch inner_e.node_type {
         case NodeType.EnumDef(enum_def):
             context.scope_stack.declare_enum(decl.name, enum_def)?
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=true))?
             return e.clone()
         case:
             throw e.lang_error(context.path, "precomp", format("Cannot declare '", decl.name, "' of type '", value_type_to_str(decl.value_type), "', expected enum definition."))

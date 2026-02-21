@@ -2861,6 +2861,14 @@ eval_core_func_proc_call : proc(name: Str, mut context: Context, e: Expr, is_pro
         return func_struct_field_type_kind(context, e)?
     case "__struct_field_type_arg":
         return func_struct_field_type_arg(context, e)?
+    case "__enum_variant_count":
+        return func_enum_variant_count(context, e)?
+    case "__enum_variant_name":
+        return func_enum_variant_name(context, e)?
+    case "__enum_variant_has_payload":
+        return func_enum_variant_has_payload(context, e)?
+    case "__enum_variant_payload_type":
+        return func_enum_variant_payload_type(context, e)?
     case:
         if is_proc {
             throw e.lang_error(context.path, "eval", format("Core procedure '", name, "' not implemented."))

@@ -2586,6 +2586,10 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "__struct_field_is_mut" => ext::func_struct_field_is_mut(context, &e),
         "__struct_field_type_kind" => ext::func_struct_field_type_kind(context, &e),
         "__struct_field_type_arg" => ext::func_struct_field_type_arg(context, &e),
+        "__enum_variant_count" => ext::func_enum_variant_count(context, &e),
+        "__enum_variant_name" => ext::func_enum_variant_name(context, &e),
+        "__enum_variant_has_payload" => ext::func_enum_variant_has_payload(context, &e),
+        "__enum_variant_payload_type" => ext::func_enum_variant_payload_type(context, &e),
         _ => {
             if is_proc {
                 Err(e.lang_error(&context.path, "eval", &format!("Core procedure '{}' not implemented.", name)))

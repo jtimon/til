@@ -854,7 +854,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         match &inner_e.node_type {
             NodeType::EnumDef(enum_def) => {
                 context.scope_stack.declare_enum(decl.name.clone(), enum_def.clone());
-                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: true });
                 return Ok(e.clone());
             },
             _ => return Err(e.lang_error(&context.path, "precomp", &format!("Cannot declare '{}' of type '{}', expected enum definition.",

@@ -227,3 +227,25 @@ first_field_name : macro(T: Type) returns Str = {
     return m.name
 }
 assert_eq_str(loc(), "x", first_field_name(Point105))
+
+// Issue #106: enum_def_of - inspect enum definitions at compile time
+
+Color106 := enum { Red, Green, Blue }
+TaggedVal106 := enum { None, Some: I64 }
+
+// Count variants
+count_variants : macro(T: Type) returns I64 = {
+    def := enum_def_of(type_as_str(T))
+    return def.variants.len()
+}
+assert_eq(loc(), 3, count_variants(Color106))
+assert_eq(loc(), 2, count_variants(TaggedVal106))
+
+// Get first variant name
+first_variant_name : macro(T: Type) returns Str = {
+    def := enum_def_of(type_as_str(T))
+    v := cast(EnumVariant, def.variants.get(0)?)
+    return v.name
+}
+assert_eq_str(loc(), "Red", first_variant_name(Color106))
+assert_eq_str(loc(), "None", first_variant_name(TaggedVal106))

@@ -5,7 +5,7 @@ use std::convert::TryInto;
 use crate::rs::init::Context;
 use crate::rs::parser::{
     Expr, NodeType, Literal, ValueType,
-    get_combined_name,
+    get_combined_name, value_type_to_str,
 };
 use crate::rs::eval_heap::EvalHeap;
 use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context};
@@ -1224,6 +1224,97 @@ pub fn func_struct_field_type_arg(context: &mut Context, e: &Expr) -> Result<Eva
     } else {
         Err(e.lang_error(&context.path, "eval", &format!(
             "__struct_field_type_arg: type '{}' not found", type_name
+        )))
+    }
+}
+
+// ---------- Enum introspection functions (Issue #106)
+
+pub fn func_enum_variant_count(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__enum_variant_count", 1, false)?;
+
+    let type_name = eval_or_throw!(context, e.get(1)?);
+
+    if let Some(enum_def) = context.scope_stack.lookup_enum(&type_name) {
+        Ok(EvalResult::new(&format!("{}", enum_def.variants.len())))
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__enum_variant_count: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_enum_variant_name(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__enum_variant_name", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.get(1)?);
+    let index_str = eval_or_throw!(context, e.get(2)?);
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__enum_variant_name: invalid index '{}'", index_str)))?;
+
+    if let Some(enum_def) = context.scope_stack.lookup_enum(&type_name) {
+        if index < enum_def.variants.len() {
+            Ok(EvalResult::new(&enum_def.variants[index].name))
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__enum_variant_name: index {} out of bounds for '{}' with {} variants",
+                index, type_name, enum_def.variants.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__enum_variant_name: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_enum_variant_has_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__enum_variant_has_payload", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.get(1)?);
+    let index_str = eval_or_throw!(context, e.get(2)?);
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__enum_variant_has_payload: invalid index '{}'", index_str)))?;
+
+    if let Some(enum_def) = context.scope_stack.lookup_enum(&type_name) {
+        if index < enum_def.variants.len() {
+            Ok(EvalResult::new(if enum_def.variants[index].payload_type.is_some() { "1" } else { "0" }))
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__enum_variant_has_payload: index {} out of bounds for '{}' with {} variants",
+                index, type_name, enum_def.variants.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__enum_variant_has_payload: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_enum_variant_payload_type(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__enum_variant_payload_type", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.get(1)?);
+    let index_str = eval_or_throw!(context, e.get(2)?);
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__enum_variant_payload_type: invalid index '{}'", index_str)))?;
+
+    if let Some(enum_def) = context.scope_stack.lookup_enum(&type_name) {
+        if index < enum_def.variants.len() {
+            match &enum_def.variants[index].payload_type {
+                Some(vt) => Ok(EvalResult::new(&value_type_to_str(vt))),
+                None => Ok(EvalResult::new("")),
+            }
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__enum_variant_payload_type: index {} out of bounds for '{}' with {} variants",
+                index, type_name, enum_def.variants.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__enum_variant_payload_type: type '{}' not found", type_name
         )))
     }
 }

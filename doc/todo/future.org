@@ -1328,6 +1328,20 @@ test(loc(), opt.is_some(), "is_some")
 - src/self/interpreter.til, src/self/init.til, src/self/parser.til, src/self/precomp.til, src/self/preinit.til
 - src/std/typed_option.til (new), src/test/macros.til
 
+**** Completed (2026-02-21) -- enum_def_of: runtime enum introspection
+- [X] 4 ext functions: ~__enum_variant_count~, ~__enum_variant_name~,
+  ~__enum_variant_has_payload~, ~__enum_variant_payload_type~
+- [X] Implemented in src/rs/ext.rs and ported to src/self/ext.til
+- [X] Dispatch in src/rs/interpreter.rs and src/self/interpreter.til
+- [X] Ext function declarations in src/std/meta.til
+- [X] ~enum_def_of(type_name)~ proc in src/std/meta.til: builds SEnumDef
+  on eval heap by calling ext functions
+- [X] Tests in src/test/macros.til: ~count_variants~ and ~first_variant_name~
+  macros that inspect enum definitions at compile time
+- [X] Fix: enum declarations now marked ~is_comptime_const: true~ in precomp
+  (was false, preventing enum type names from being passed to macros)
+- [X] All changes ported to both Rust and TIL, all 93 tests pass
+
 **** What remains
 - Anonymous enum as inline arguments: =some_function(enum {A, B})=
 - Multiple type parameters in enum macros
