@@ -15,7 +15,7 @@ MethodResult := struct {
 /// Check if a value type has no fields (no delete/clone needed).
 /// - I64, U8: true built-in primitives
 /// - Dynamic, Type: empty structs with no fields
-is_primitive_type := func(vt: ValueType) returns Bool {
+is_primitive_type : func(vt: ValueType) returns Bool = {
     switch vt {
     case ValueType.TCustom(name):
         if name.eq("I64") { return true }
@@ -30,8 +30,8 @@ is_primitive_type := func(vt: ValueType) returns Bool {
 
 /// Generate a delete() method for a struct.
 /// The method calls field.delete() for each mutable field in reverse declaration order.
-generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns MethodResult {
-    // Build: delete := proc(mut self: StructName) { self.field_n.delete(); ... self.field_0.delete(); }
+generate_delete_method : func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns MethodResult = {
+    // Build: delete : proc(mut self: StructName) = { self.field_n.delete(); ... self.field_0.delete(); }
 
     // Check if there will be any delete calls (determines if we use _self or self)
     mut has_non_primitive_fields := false
@@ -113,8 +113,8 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
 
 /// Generate a clone() method for a struct.
 /// The method returns a new instance with each mutable field cloned.
-generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns MethodResult {
-    // Build: clone := func(self: StructName) returns StructName { return StructName(field1 = self.field1.clone(), ...) }
+generate_clone_method : func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns MethodResult = {
+    // Build: clone : func(self: StructName) returns StructName = { return StructName(field1 = self.field1.clone(), ...) }
 
     // Use _self when no mut fields (body won't reference self)
     mut has_mut_fields := false
@@ -212,7 +212,7 @@ generate_clone_method := func(struct_name: Str, struct_def: SStructDef, line: I6
 }
 
 /// Generate a delete() method for an enum - no-op since enums are value types.
-generate_enum_delete_method := func(enum_name: Str, line: I64, col: I64) returns Expr {
+generate_enum_delete_method : func(enum_name: Str, line: I64, col: I64) returns Expr = {
     self_decl := Declaration(
         name="_self",
         value_type=ValueType.TCustom(enum_name),
@@ -237,7 +237,7 @@ generate_enum_delete_method := func(enum_name: Str, line: I64, col: I64) returns
 }
 
 /// Generate a clone() method for an enum - returns self since enums are value types.
-generate_enum_clone_method := func(enum_name: Str, line: I64, col: I64) returns Expr {
+generate_enum_clone_method : func(enum_name: Str, line: I64, col: I64) returns Expr = {
     self_decl := Declaration(
         name="self",
         value_type=ValueType.TCustom(enum_name),
@@ -271,7 +271,7 @@ generate_enum_clone_method := func(enum_name: Str, line: I64, col: I64) returns 
 
 /// Issue #106: Generate delete/clone methods for a macro-expanded enum.
 /// Returns StructMethodsResult with needs_methods=true and ns_block set if methods needed.
-generate_enum_methods := func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: Bool, line: I64, col: I64) returns StructMethodsResult {
+generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: Bool, line: I64, col: I64) returns StructMethodsResult = {
     needs_delete := not(ns_has_delete)
     needs_clone := not(ns_has_clone)
 
@@ -323,7 +323,7 @@ generate_enum_methods := func(enum_name: Str, ns_has_delete: Bool, ns_has_clone:
 
 /// Collect all methods defined in namespace blocks.
 /// Returns a Set of "TypeName.methodName" strings.
-collect_namespace_methods := func(ast: Expr) returns Set {
+collect_namespace_methods : func(ast: Expr) returns Set = {
     mut methods := Set.new(Str)
 
     switch ast.node_type {
@@ -354,7 +354,7 @@ StructNeedingMethods := struct {
 }
 
 /// Collect all structs that need auto-generated methods.
-collect_structs_needing_methods := func(ast: Expr, namespace_methods: Set) returns Vec throws Str {
+collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) returns Vec throws Str = {
     mut structs := Vec.new(StructNeedingMethods)
 
     switch ast.node_type {
@@ -426,7 +426,7 @@ StructMethodsResult := struct {
 
 /// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
 /// Returns StructMethodsResult with needs_methods=true and ns_block set if methods needed.
-generate_struct_methods := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns StructMethodsResult {
+generate_struct_methods : func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns StructMethodsResult = {
     // Check if delete/clone are already defined inline
     mut has_delete := false
     mut has_clone := false
@@ -458,7 +458,7 @@ generate_struct_methods := func(struct_name: Str, struct_def: SStructDef, line: 
 }
 
 /// Generate a namespace block with auto-generated methods for a struct.
-generate_namespace_block := func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64, needs_delete: Bool, needs_clone: Bool) returns Expr {
+generate_namespace_block : func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64, needs_delete: Bool, needs_clone: Bool) returns Expr = {
     mut members := Vec.new(Declaration)
     mut default_values := Map.new(Str, Expr)
 
@@ -484,7 +484,7 @@ generate_namespace_block := func(struct_name: Str, struct_def: SStructDef, line:
 }
 
 /// Recursively process expression (for nested function bodies, etc.)
-preinit_expr_inner := func(e: Expr) returns Expr throws Str {
+preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
     switch e.node_type {
     case NodeType.FuncDef(func_def):
         mut new_body := Vec.new(Expr)
@@ -578,7 +578,7 @@ preinit_expr_inner := func(e: Expr) returns Expr throws Str {
 /// Preinit phase entry point.
 /// For structs: generates namespace blocks with delete/clone methods.
 /// For enums: adds delete/clone directly to the enum definition.
-preinit_expr := func(e: Expr) returns Expr throws Str {
+preinit_expr : func(e: Expr) returns Expr throws Str = {
     // For Body nodes (the AST root), do the two-pass approach
     switch e.node_type {
     case NodeType.Body:

@@ -7,17 +7,17 @@ MyNamespace := struct {
     field_static_int : I64 = 42
 
 namespace:
-    proc_static := proc() {
+    proc_static : proc() = {
         // Side effects (non memoizable effects) are allowed in procs
         assert_eq(loc(), 42, MyNamespace.field_static_int)
     }
 
-    func_static_str := func() returns Str {
+    func_static_str : func() returns Str = {
         return "func 'func_static_str' in struct 'MyNamespace' has been called"
     }
 }
 
-test_namespace_fields := proc() {
+test_namespace_fields : proc() = {
     assert_eq_str(loc(), "hello MyNamespace.field_static_str", MyNamespace.field_static_str)
     assert_eq(loc(), 42, MyNamespace.field_static_int)
     test(loc(), MyNamespace.field_static_bool, "field_static_bool should be true")

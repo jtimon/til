@@ -8,7 +8,7 @@ my_int_b :=  2
 
 // Test Universal Function Call System (UFCS)
 
-test_ufcs := proc () {
+test_ufcs : proc () = {
     // assert(loc(), not(my_int_a.int_eq(0))) // TODO FIX this should be caught at typer pahse
     assert(loc(), not(my_int_a.eq(0)))
     assert(loc(), not(false))
@@ -25,7 +25,7 @@ test_ufcs := proc () {
     // test(loc(), true.and(true), "true.and(true) == true") // TODO implement UFCS (Uniform Function Call Syntax) for literals
     // test(loc(), and(true, true).and(true)), "and(true, true).and(true)) == true") // TODO implement UFCS (Uniform Function Call Syntax) for func calls results
 
-    xor2 := func(a: Bool, b: Bool) returns Bool {
+    xor2 : func(a: Bool, b: Bool) returns Bool = {
         return a.and(not(b)).or(b.and(not(a)))
     }
     // my_true.xor2(false) // TODO FIX
@@ -36,7 +36,7 @@ test_ufcs := proc () {
     assert(loc(), not(xor2(false, false)))
 
     // UFCS on function call return values
-    xor3 := func(a: Bool, b: Bool) returns Bool {
+    xor3 : func(a: Bool, b: Bool) returns Bool = {
         return a.and(not(b)).or(b.and(not(a)))
     }
     assert(loc(), xor3(true, false))
@@ -50,7 +50,7 @@ test_ufcs := proc () {
 test_ufcs()
 
 // Test chained method calls (NEW functionality!)
-test_ufcs_chaining := proc () {
+test_ufcs_chaining : proc () = {
     // Simple chain: (1 + 2) + 3 = 6
     result := add(1, 2).add(3)
     assert_eq(loc(), 6, result)
@@ -71,7 +71,7 @@ test_ufcs_chaining := proc () {
 test_ufcs_chaining()
 
 // Test UFCS on function call return values
-test_ufcs_on_function_results := proc () {
+test_ufcs_on_function_results : proc () = {
     // Test with Str methods on function results
     source := "hello.world"
 
@@ -102,7 +102,7 @@ test_ufcs_on_function_results := proc () {
 test_ufcs_on_function_results()
 
 // Test long chains mixing function calls and methods (NEW functionality!)
-test_ufcs_long_chains := proc () {
+test_ufcs_long_chains : proc () = {
     // Long arithmetic chains: ((1 + 2) + 3) + 4 = 10
     result1 := add(1, 2).add(3).add(4)
     assert_eq(loc(), 10, result1)
@@ -130,7 +130,7 @@ test_ufcs_long_chains := proc () {
 test_ufcs_long_chains()
 
 // Test UFCS with Str operations (NEW functionality!)
-test_ufcs_str_chains := proc () {
+test_ufcs_str_chains : proc () = {
     text := "hello world"
 
     // Chain Str operations
@@ -154,7 +154,7 @@ test_ufcs_str_chains := proc () {
 test_ufcs_str_chains()
 
 // Test edge cases for UFCS
-test_ufcs_edge_cases := proc () {
+test_ufcs_edge_cases : proc () = {
     // Nested function calls with UFCS
     result := add(mul(2, 3), 4).add(10)
     assert_eq(loc(), 20, result)
@@ -183,7 +183,7 @@ TestUfcsEnum := enum {
 }
 
 // Define a standalone function that takes the enum as first arg
-test_ufcs_enum_to_int := func(e: TestUfcsEnum) returns I64 {
+test_ufcs_enum_to_int : func(e: TestUfcsEnum) returns I64 = {
     switch e {
     case TestUfcsEnum.A: return 1
     case TestUfcsEnum.B: return 2
@@ -192,7 +192,7 @@ test_ufcs_enum_to_int := func(e: TestUfcsEnum) returns I64 {
     return 0
 }
 
-test_ufcs_with_enums := proc() {
+test_ufcs_with_enums : proc() = {
     // Test traditional call
     val1 := TestUfcsEnum.A
     result1 := test_ufcs_enum_to_int(val1)
@@ -216,7 +216,7 @@ TestStructWithArray := struct {
     mut name: Str = "test"
 }
 
-test_ufcs_with_struct_fields := proc() {
+test_ufcs_with_struct_fields : proc() = {
     mut s := TestStructWithArray()
 
     // Demonstration of Bug #10: UFCS Does Not Work on Struct Fields
@@ -254,7 +254,7 @@ TestExpr := struct {
     mut line: I64 = 0
 }
 
-test_ufcs_exact_parser_pattern := proc() {
+test_ufcs_exact_parser_pattern : proc() = {
     mut e := TestExpr()
 
     // Bug #10: These patterns from parser.til ALL FAIL
@@ -285,7 +285,7 @@ test_ufcs_with_struct_fields()
 test_ufcs_exact_parser_pattern()
 
 // Bug #10 FIX VERIFICATION: Field access and method calls now work!
-test_bug10_fixed := proc() {
+test_bug10_fixed : proc() = {
     mut s := TestStructWithArray()
 
     // FIXED: Can access fields through multiple levels
@@ -309,7 +309,7 @@ test_bug10_fixed := proc() {
 test_bug10_fixed()
 
 // Bug #10 FIX: Parser patterns now compile and run
-test_bug10_parser_patterns_fixed := proc() {
+test_bug10_parser_patterns_fixed : proc() = {
     mut e := TestExpr()
 
     // PATTERN 1 FIXED: if i.lt(e.params.len) { }
@@ -345,7 +345,7 @@ TestPatternStruct := struct {
     mut items: Vec = Vec.new(I64)
 }
 
-test_ufcs_struct_field_in_pattern_match := proc() {
+test_ufcs_struct_field_in_pattern_match : proc() = {
     mut val := TestPatternEnum.TypeB("test")
 
     switch val {
@@ -365,7 +365,7 @@ test_ufcs_struct_field_in_pattern_match := proc() {
 test_ufcs_struct_field_in_pattern_match()
 
 // Bug #28 additional coverage: UFCS directly on binding variable
-test_ufcs_on_binding_variable := proc() {
+test_ufcs_on_binding_variable : proc() = {
     val := TestPatternEnum.TypeC(42)
     mut result := 0
     switch val {
@@ -379,7 +379,7 @@ test_ufcs_on_binding_variable := proc() {
 test_ufcs_on_binding_variable()
 
 // Bug #28 additional coverage: UFCS in nested switch with bindings
-test_ufcs_in_nested_switch_with_bindings := proc() {
+test_ufcs_in_nested_switch_with_bindings : proc() = {
     outer := TestPatternEnum.TypeC(1)
     inner := TestPatternEnum.TypeB("test")
     mut result := ""
@@ -399,7 +399,7 @@ test_ufcs_in_nested_switch_with_bindings := proc() {
 test_ufcs_in_nested_switch_with_bindings()
 
 // Bug #28 additional coverage: UFCS chain on binding variable
-test_ufcs_chain_on_binding := proc() {
+test_ufcs_chain_on_binding : proc() = {
     val := TestPatternEnum.TypeC(5)
     mut result := false
     switch val {
@@ -415,10 +415,10 @@ test_ufcs_chain_on_binding()
 // Bug #123: UFCS on recursive nested function results
 // Previously, UFCS method resolution failed on recursive nested function results
 // because the function's return type wasn't registered before transforming its body.
-test_ufcs_recursive_nested_functions := proc() {
+test_ufcs_recursive_nested_functions : proc() = {
     // This used to fail with "Undefined symbol 'add'" or C codegen errors
     // Now works because ufcs_declaration pre-registers function definitions
-    fib := func(n: I64) returns I64 {
+    fib : func(n: I64) returns I64 = {
         if lt(n, 2) {
             return n
         }
@@ -433,7 +433,7 @@ test_ufcs_recursive_nested_functions := proc() {
     assert_eq(loc(), 55, fib(10))
 
     // Test with another recursive function using different UFCS methods
-    factorial := func(n: I64) returns I64 {
+    factorial : func(n: I64) returns I64 = {
         if n.lteq(1) {
             return 1
         }

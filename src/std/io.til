@@ -12,10 +12,10 @@ WriteError := struct {
 }
 
 /** Read a line from stdin, using the given prompt. Throws on error. */
-input_read_line := ext_proc(prompt: Str) returns Str throws ReadError {}
+input_read_line : ext_proc(prompt: Str) returns Str throws ReadError = {}
 
 /** Read entire file contents as a string. Throws if file cannot be read. */
-readfile := ext_proc(path: Str) returns Str throws ReadError {}
+readfile : ext_proc(path: Str) returns Str throws ReadError = {}
 
 /** Write contents to file, creating or overwriting. Throws on failure. */
-writefile := ext_proc(path: Str, contents: Str) throws WriteError {}
+writefile : ext_proc(path: Str, contents: Str) throws WriteError = {}

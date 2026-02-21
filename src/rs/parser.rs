@@ -1315,6 +1315,17 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                     return parse_declaration(lexer, false, false, type_name, true)
                 }
                 TokenType::Equal => {
+                    // Issue #91: reject ':= func/proc' — use ': func(...) = { }' instead
+                    let after_eq = lexer.peek_ahead(3)?;
+                    match after_eq.token_type {
+                        TokenType::Func | TokenType::Proc | TokenType::FuncExt
+                        | TokenType::ProcExt | TokenType::Macro => {
+                            return Err(t.error(&lexer.path, &format!(
+                                "Use 'name : {}(...) = {{}}' syntax instead of 'name := {}(...) {{}}'.",
+                                after_eq.token_str, after_eq.token_str)));
+                        },
+                        _ => {}
+                    }
                     return parse_declaration(lexer, false, false, INFER_TYPE, false)
                 },
                 // Issue #91: name : func(...) = { body }
@@ -1944,6 +1955,17 @@ fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
             return parse_declaration(lexer, true, false, type_name, true)
         }
         TokenType::Equal => {
+            // Issue #91: reject 'mut name := func/proc' — use ': func(...) = { }' instead
+            let after_eq = lexer.peek_ahead(3)?;
+            match after_eq.token_type {
+                TokenType::Func | TokenType::Proc | TokenType::FuncExt
+                | TokenType::ProcExt | TokenType::Macro => {
+                    return Err(t.error(&lexer.path, &format!(
+                        "Use 'name : {}(...) = {{}}' syntax instead of 'mut name := {}(...) {{}}'.",
+                        after_eq.token_str, after_eq.token_str)));
+                },
+                _ => {}
+            }
             return parse_declaration(lexer, true, false, INFER_TYPE, false)
         },
         _ => {

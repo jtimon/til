@@ -4,14 +4,14 @@ import("core.set")
 
 // Test Set - Dynamic collection of unique elements
 
-test_set_new := proc() {
+test_set_new : proc() = {
     mut s := Set.new(Str)
     assert_eq(loc(), 0, s.len())
     assert(loc(), not(s.contains("hello")))
 }
 test_set_new()
 
-test_set_insert := proc() {
+test_set_insert : proc() = {
     mut s := Set.new(Str)
 
     // First insert should succeed
@@ -34,7 +34,7 @@ test_set_insert := proc() {
 }
 test_set_insert()
 
-test_set_contains := proc() {
+test_set_contains : proc() = {
     mut s := Set.new(Str)
     _ := s.insert("apple")
     _ := s.insert("banana")
@@ -49,7 +49,7 @@ test_set_contains := proc() {
 }
 test_set_contains()
 
-test_set_remove := proc() {
+test_set_remove : proc() = {
     mut s := Set.new(Str)
     _ := s.insert("one")
     _ := s.insert("two")
@@ -81,7 +81,7 @@ test_set_remove := proc() {
 }
 test_set_remove()
 
-test_set_i64 := proc() {
+test_set_i64 : proc() = {
     mut s := Set.new(I64)
 
     _ := s.insert(42)
@@ -107,7 +107,7 @@ test_set_i64 := proc() {
 }
 test_set_i64()
 
-test_set_clone := proc() {
+test_set_clone : proc() = {
     mut s := Set.new(Str)
     _ := s.insert("a")
     _ := s.insert("b")
@@ -126,7 +126,7 @@ test_set_clone := proc() {
 }
 test_set_clone()
 
-test_set_delete := proc() {
+test_set_delete : proc() = {
     mut s := Set.new(Str)
     _ := s.insert("x")
     _ := s.insert("y")
@@ -138,7 +138,7 @@ test_set_delete := proc() {
 }
 test_set_delete()
 
-test_set_get := proc() {
+test_set_get : proc() = {
     mut s := Set.new(Str)
     _ := s.insert("alpha")
     _ := s.insert("beta")

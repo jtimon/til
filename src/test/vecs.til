@@ -2,7 +2,7 @@ mode test
 
 import("core.vec")
 
-test_vec_u8 := proc() {
+test_vec_u8 : proc() = {
     mut dyn := Vec.new(U8)
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
@@ -38,7 +38,7 @@ test_vec_u8 := proc() {
 }
 test_vec_u8()
 
-test_vec_str := proc() {
+test_vec_str : proc() = {
     mut dyn := Vec.new(Str)
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
@@ -78,7 +78,7 @@ test_vec_str := proc() {
 }
 test_vec_str()
 
-test_vec_bool := proc() {
+test_vec_bool : proc() = {
     mut dyn := Vec.new(Bool)
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
@@ -109,7 +109,7 @@ test_vec_bool := proc() {
 }
 test_vec_bool()
 
-test_vec_i64 := proc() {
+test_vec_i64 : proc() = {
     mut dyn := Vec.new(I64)
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
@@ -145,7 +145,7 @@ Vec2 := struct {
     mut y : I64 = 0
 }
 
-test_vec_vec2 := proc() {
+test_vec_vec2 : proc() = {
     mut dyn := Vec.new(Vec2) // TODO More ergonomic constructor
     assert_eq(loc(), 0, dyn.len())
 
@@ -182,7 +182,7 @@ test_vec_vec2 := proc() {
 test_vec_vec2()
 
 // Test Array growth/reallocation beyond initial capacity
-test_vec_growth := proc() {
+test_vec_growth : proc() = {
     mut dyn := Vec.new(I64)
 
     initial_cap := dyn.cap
@@ -217,7 +217,7 @@ test_vec_growth := proc() {
 test_vec_growth()
 
 // Test IndexOutOfBoundsError for get
-test_vec_get_out_of_bounds := proc() {
+test_vec_get_out_of_bounds : proc() = {
     mut arr := Vec.new(I64)
 
     arr.push(42)
@@ -237,7 +237,7 @@ test_vec_get_out_of_bounds := proc() {
 test_vec_get_out_of_bounds()
 
 // Test IndexOutOfBoundsError for set
-test_vec_set_out_of_bounds := proc() {
+test_vec_set_out_of_bounds : proc() = {
     mut arr := Vec.new(I64)
 
     arr.push(42)
@@ -255,7 +255,7 @@ test_vec_set_out_of_bounds := proc() {
 }
 test_vec_set_out_of_bounds()
 
-test_vec_pop := proc() {
+test_vec_pop : proc() = {
     mut stack := Vec.new(I64)
 
     // Push some values
@@ -293,7 +293,7 @@ test_vec_pop := proc() {
 }
 test_vec_pop()
 
-test_vec_extend := proc() {
+test_vec_extend : proc() = {
     mut dest := Vec.new(I64)
     dest.push(1)
     dest.push(2)
@@ -335,7 +335,7 @@ test_vec_extend := proc() {
 }
 test_vec_extend()
 
-test_vec_extend_empty := proc() {
+test_vec_extend_empty : proc() = {
     mut dest := Vec.new(Str)
     dest.push("a")
     dest.push("b")
@@ -363,7 +363,7 @@ test_vec_extend_empty := proc() {
 }
 test_vec_extend_empty()
 
-test_vec_remove := proc() {
+test_vec_remove : proc() = {
     mut vec := Vec.new(I64)
     vec.push(10)
     vec.push(20)
@@ -411,7 +411,7 @@ test_vec_remove := proc() {
 }
 test_vec_remove()
 
-test_vec_remove_out_of_bounds := proc() {
+test_vec_remove_out_of_bounds : proc() = {
     mut vec := Vec.new(I64)
     vec.push(42)
 
@@ -428,7 +428,7 @@ test_vec_remove_out_of_bounds := proc() {
 }
 test_vec_remove_out_of_bounds()
 
-test_vec_contains := proc() {
+test_vec_contains : proc() = {
     // Test with I64
     mut nums := Vec.new(I64)
     nums.push(10)
@@ -476,7 +476,7 @@ PayloadEnum := enum {
     Number: I64,
 }
 
-test_vec_enum_direct_push := proc() {
+test_vec_enum_direct_push : proc() = {
     // Bug #37: Test that direct enum constructor push works
     mut colors := Vec.new(SimpleColor)
 
@@ -519,7 +519,7 @@ test_vec_enum_direct_push := proc() {
 // Bug #37 test - should fail until bug is fixed
 test_vec_enum_direct_push()
 
-test_vec_enum_payload := proc() {
+test_vec_enum_payload : proc() = {
     // Bug #38: Test that enum payloads are preserved through Vec storage
     mut items := Vec.new(PayloadEnum)
 
@@ -567,7 +567,7 @@ test_vec_enum_payload := proc() {
 }
 test_vec_enum_payload()
 
-test_vec_with_capacity := proc() {
+test_vec_with_capacity : proc() = {
     // Test with_capacity creates vec with pre-allocated memory
     mut vec := Vec.with_capacity(I64, 10)
 
@@ -618,7 +618,7 @@ test_vec_with_capacity := proc() {
 }
 test_vec_with_capacity()
 
-test_sort_str_vec := proc() {
+test_sort_str_vec : proc() = {
     mut variants := Vec.new(Str)
     variants.push("zebra")
     variants.push("apple")
@@ -648,7 +648,7 @@ test_sort_str_vec := proc() {
 }
 test_sort_str_vec()
 
-test_vec_insert_at := proc() {
+test_vec_insert_at : proc() = {
     // Test insert_at with I64
     mut vec := Vec.new(I64)
     vec.push(10)
@@ -727,7 +727,7 @@ test_vec_insert_at()
 // Previously insert_at used Ptr.new_by_size() directly instead of _alloc_ptr(), so the
 // grown Ptr lost elem_size/elem_type. This caused Map (which uses insert_at) to read
 // ptr.elem_size as 0.
-test_vec_insert_at_growth_preserves_ptr_metadata := proc() {
+test_vec_insert_at_growth_preserves_ptr_metadata : proc() = {
     mut vec := Vec.new(I64)
     // Vec starts with cap=0, so the very first insert_at triggers growth
     vec.insert_at(0, 10)?
@@ -760,7 +760,7 @@ test_vec_insert_at_growth_preserves_ptr_metadata := proc() {
 }
 test_vec_insert_at_growth_preserves_ptr_metadata()
 
-test_vec_insert_at_out_of_bounds := proc() {
+test_vec_insert_at_out_of_bounds : proc() = {
     mut vec := Vec.new(I64)
     vec.push(42)
 
@@ -777,7 +777,7 @@ test_vec_insert_at_out_of_bounds := proc() {
 }
 test_vec_insert_at_out_of_bounds()
 
-test_vec_split_off := proc() {
+test_vec_split_off : proc() = {
     mut vec := Vec.new(I64)
     vec.push(10)
     vec.push(20)
@@ -825,7 +825,7 @@ test_vec_split_off := proc() {
 }
 test_vec_split_off()
 
-test_vec_get := proc() {
+test_vec_get : proc() = {
     mut v := Vec.new(I64)
     v.push(10)
     v.push(20)

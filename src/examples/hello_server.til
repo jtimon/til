@@ -1,15 +1,15 @@
 mode server
 
-home_route := func() returns Str {
+home_route : func() returns Str = {
     return "Welcome to the Home Page!"
 }
 
-about_route := func() returns Str {
+about_route : func() returns Str = {
     return "This is all about mode server"
 }
 
 // Main procedure that takes the URL and port as arguments
-main := proc(url: Str, port: Str) {
+main : proc(url: Str, port: Str) = {
     // Register static routes
     register_route("/", home_route)       // Home page route
     register_route("/about", about_route) // About page route

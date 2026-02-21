@@ -13,15 +13,15 @@ Str := struct {
     mut cap      : I64 = 0      // Allocated capacity (0 = literal/unowned, >0 = owned)
 
 namespace:
-    len := func(self: Str) returns I64 {
+    len : func(self: Str) returns I64 = {
         return self._len
     }
 
-    is_empty := func(self: Str) returns Bool {
+    is_empty : func(self: Str) returns Bool = {
         return self._len.eq(0)
     }
 
-    eq := func(self: Str, other: Str) returns Bool {
+    eq : func(self: Str, other: Str) returns Bool = {
         if not(self._len.eq(other._len)) {
             return false
         }
@@ -40,11 +40,11 @@ namespace:
         return true
     }
 
-    to_i64 := func(self: Str) returns I64 {
+    to_i64 : func(self: Str) returns I64 = {
         return I64.from_str(self)
     }
 
-    clone := func(self: Str) returns Str {
+    clone : func(self: Str) returns Str = {
         mut cloned := Str()
         cloned._len = self._len
         cloned.cap = cloned._len.add(1)  // Allocated capacity
@@ -57,7 +57,7 @@ namespace:
         return cloned
     }
 
-    delete := proc(mut self: Str) {
+    delete : proc(mut self: Str) = {
         // Only free if the string is owned (cap > 0)
         if self.cap.gt(0) {
             self.c_string.delete()
@@ -68,7 +68,7 @@ namespace:
     }
 
     /// Convert a single byte to a 1-character string
-    from_byte := func(byte: U8) returns Str {
+    from_byte : func(byte: U8) returns Str = {
         mut s := Str()
         s.c_string = Ptr.new_by_size(2)  // 1 byte + null terminator
         s.c_string.is_borrowed = 0
@@ -81,11 +81,11 @@ namespace:
     }
 
     /** Append a string to self (mutates self). Equivalent to Rust's push_str. */
-    push_str := proc(mut self: Str, s: Str) {
+    push_str : proc(mut self: Str, s: Str) = {
         self = self.concat(s)
     }
 
-    size := func(self: Str) returns I64 {
+    size : func(self: Str) returns I64 = {
         return self._len
     }
 
@@ -93,7 +93,7 @@ namespace:
      *  Returns false for empty strings or strings containing non-uppercase chars.
      *  To check only the first character, use: str.get_substr(0, 1).is_uppercase()
      */
-    is_uppercase := func(self: Str) returns Bool {
+    is_uppercase : func(self: Str) returns Bool = {
         if self._len.eq(0) {
             return false
         }
@@ -116,7 +116,7 @@ namespace:
     /** Convert string to lowercase (a-z).
      *  Only converts ASCII uppercase letters (A-Z to a-z).
      */
-    to_lowercase := func(self: Str) returns Str {
+    to_lowercase : func(self: Str) returns Str = {
         mut result := self.clone()
         for i in 0..result._len {
             mut byte : U8 = 0
@@ -140,7 +140,7 @@ namespace:
         return result
     }
 
-    contains := func(self: Str, needle: Str) returns Bool {
+    contains : func(self: Str, needle: Str) returns Bool = {
         # Returns true if needle is found in self
         if needle.len().gt(self.len()) {
             return false
@@ -171,7 +171,7 @@ namespace:
         return false
     }
 
-    find := func(self: Str, needle: Str) returns I64 {
+    find : func(self: Str, needle: Str) returns I64 = {
         # Returns the first index where needle starts in self, or -1 if not found
         if needle.len().gt(self.len()) {
             return I64.sub(0, 1)
@@ -213,7 +213,7 @@ namespace:
         return I64.sub(0, 1)
     }
 
-    rfind := func(self: Str, needle: Str) returns I64 {
+    rfind : func(self: Str, needle: Str) returns I64 = {
         # Returns the last index where needle starts in self, or I64.sub(0, 1) if not found
         if needle.len().gt(self.len()) {
             return I64.sub(0, 1)
@@ -245,7 +245,7 @@ namespace:
         return last_found
     }
 
-    replace := func(self: Str, from: Str, to: Str) returns Str {
+    replace : func(self: Str, from: Str, to: Str) returns Str = {
         # Replace all occurrences of 'from' with 'to' in self
         if from.len().eq(0) {
             return self.clone()
@@ -327,7 +327,7 @@ namespace:
     }
 
     /** Get byte value at index */
-    char_at := func(self: Str, index: I64) returns U8 {
+    char_at : func(self: Str, index: I64) returns U8 = {
         mut result: U8 = 0
         if index.lt(0) {
             return result
@@ -340,7 +340,7 @@ namespace:
     }
 
     /** Lexicographic comparison: returns negative if self < other, 0 if equal, positive if self > other */
-    cmp := func(self: Str, other: Str) returns I64 {
+    cmp : func(self: Str, other: Str) returns I64 = {
         mut min_len := self.len()
         if other.len().lt(min_len) {
             min_len = other.len()
@@ -361,29 +361,29 @@ namespace:
     }
 
     /** Less than comparison */
-    lt := func(self: Str, other: Str) returns Bool {
+    lt : func(self: Str, other: Str) returns Bool = {
         return self.cmp(other).lt(0)
     }
 
     /** Greater than comparison */
-    gt := func(self: Str, other: Str) returns Bool {
+    gt : func(self: Str, other: Str) returns Bool = {
         return self.cmp(other).gt(0)
     }
 
     /** Less than or equal comparison */
-    lteq := func(self: Str, other: Str) returns Bool {
+    lteq : func(self: Str, other: Str) returns Bool = {
         return self.cmp(other).lteq(0)
     }
 
     /** Greater than or equal comparison */
-    gteq := func(self: Str, other: Str) returns Bool {
+    gteq : func(self: Str, other: Str) returns Bool = {
         return self.cmp(other).gteq(0)
     }
 
     /** Increment single-character string (e.g., "a" -> "b").
      *  Only works on single-character strings. Wraps on overflow.
      *  Allocates new memory to handle string literals in read-only memory. */
-    inc := proc(mut self: Str) {
+    inc : proc(mut self: Str) = {
         if self.len().eq(1) {
             mut byte_val : U8 = 0
             memcpy(to_ptr(byte_val), self.c_string.data, 1)
@@ -402,7 +402,7 @@ namespace:
     /** Decrement single-character string (e.g., "b" -> "a").
      *  Only works on single-character strings. Wraps on underflow.
      *  Allocates new memory to handle string literals in read-only memory. */
-    dec := proc(mut self: Str) {
+    dec : proc(mut self: Str) = {
         if self.len().eq(1) {
             mut byte_val : U8 = 0
             memcpy(to_ptr(byte_val), self.c_string.data, 1)
@@ -419,7 +419,7 @@ namespace:
     }
 
     /** Replace first n occurrences of 'from' with 'to' */
-    replacen := func(self: Str, from: Str, to: Str, n: I64) returns Str {
+    replacen : func(self: Str, from: Str, to: Str, n: I64) returns Str = {
         if from.len().eq(0) {
             return self.clone()
         }
@@ -450,7 +450,7 @@ namespace:
         return result
     }
 
-    split := func(self: Str, delimiter: Str) returns Vec throws IndexOutOfBoundsError {
+    split : func(self: Str, delimiter: Str) returns Vec throws IndexOutOfBoundsError = {
         # Split string by delimiter, return Vec of Str
         mut parts := Vec.new(Str)
 
@@ -504,7 +504,7 @@ namespace:
     }
 
     /** Repeat the string n times. */
-    repeat := func(self: Str, n: I64) returns Str {
+    repeat : func(self: Str, n: I64) returns Str = {
         if n.lteq(0) {
             return ""
         }
@@ -533,7 +533,7 @@ namespace:
     /** FNV-1a hash function for strings.
      *  Returns a 64-bit hash value.
      *  Good distribution, simple implementation. */
-    hash := func(self: Str) returns I64 {
+    hash : func(self: Str) returns I64 = {
         // FNV-1a 64-bit constants (signed representation of unsigned values)
         // Unsigned 14695981039346656037 = signed -3750763034362895579
         FNV_OFFSET_BASIS : I64 = sub(0, 3750763034362895579)
@@ -553,7 +553,7 @@ namespace:
 }
 
 /** Get a substring from start (inclusive) to end (exclusive). */
-get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError {
+get_substr : func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError = {
 
     if start.lt(0) {
         throw IndexOutOfBoundsError(msg=format(loc(), "get_substr: start index ", start.to_str(), " cannot be negative"))
@@ -586,12 +586,12 @@ get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBo
 }
 
 /** Get a single character at position pos as a Str. */
-get_char := func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError {
+get_char : func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError = {
     return s.get_substr(pos, pos.add(1))?
 }
 
 /** Check if string starts with the given prefix. */
-starts_with := func(s: Str, prefix: Str) returns Bool {
+starts_with : func(s: Str, prefix: Str) returns Bool = {
     if prefix.len().gt(s.len()) {
         return false
     }
@@ -610,7 +610,7 @@ starts_with := func(s: Str, prefix: Str) returns Bool {
 }
 
 /** Check if string ends with the given suffix. */
-ends_with := func(s: Str, suffix: Str) returns Bool {
+ends_with : func(s: Str, suffix: Str) returns Bool = {
     if suffix.len().gt(s.len()) {
         return false
     }
@@ -630,7 +630,7 @@ ends_with := func(s: Str, suffix: Str) returns Bool {
 }
 
 /** Returns rest of string after prefix, or empty string if no match. */
-strip_prefix := func(s: Str, prefix: Str) returns Str {
+strip_prefix : func(s: Str, prefix: Str) returns Str = {
     if not(starts_with(s, prefix)) {
         return ""
     }
@@ -642,7 +642,7 @@ strip_prefix := func(s: Str, prefix: Str) returns Str {
 }
 
 /** Returns rest of string before suffix, or empty string if no match. */
-strip_suffix := func(s: Str, suffix: Str) returns Str {
+strip_suffix : func(s: Str, suffix: Str) returns Str = {
     if not(ends_with(s, suffix)) {
         return ""
     }
@@ -657,7 +657,7 @@ strip_suffix := func(s: Str, suffix: Str) returns Str {
  * Simple 2-argument string concatenation that panics on error.
  * Use this in catch blocks where throwing is not allowed.
  */
-concat := func(a: Str, b: Str) returns Str {
+concat : func(a: Str, b: Str) returns Str = {
     mut result := Str()
     result._len = a._len.add(b._len)
 
@@ -679,7 +679,7 @@ concat := func(a: Str, b: Str) returns Str {
 }
 
 /** Format a prefix with variadic string arguments, concatenating them all. */
-format := func(prefix: Str, args: ..Str) returns Str {
+format : func(prefix: Str, args: ..Str) returns Str = {
     mut result := Str()
     result._len = prefix._len
 
@@ -711,7 +711,7 @@ format := func(prefix: Str, args: ..Str) returns Str {
 }
 
 /** Join a Vec of Str with a separator. */
-join := func(parts: Vec, sep: Str) returns Str {
+join : func(parts: Vec, sep: Str) returns Str = {
     if parts.is_empty() {
         return ""
     }

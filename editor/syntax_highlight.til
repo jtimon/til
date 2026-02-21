@@ -27,9 +27,9 @@ my_lit_str2 : Str = "aaaaa"
 my_lit_bool := true
 my_bool := blabla("bla")
 
-test_switch_enum := macro(arg1: Type, arg2: Type, arg3: Type) returns Str {
+test_switch_enum : macro(arg1: Type, arg2: Type, arg3: Type) returns Str = {
 }
-test_switch_enum := proc(mut arg1: Type, mut arg2: Type, mut arg3: Type) returns Str {
+test_switch_enum : proc(mut arg1: Type, mut arg2: Type, mut arg3: Type) returns Str = {
     // darker green (test_switch_enum), yellow (to_switch), blue (mut, returns), red (ExampleEnum, Str)
     mut to_return : Str = ""
     // yellow (to_return), red (Str)

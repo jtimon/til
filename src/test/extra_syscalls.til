@@ -4,7 +4,7 @@ import("std.sys")
 import("core.vec")
 
 // Test list_dir wrapper (uses list_dir_raw + split)
-test_list_dir := proc() {
+test_list_dir : proc() = {
     files := list_dir("src/test")?
     if files.len().lt(10) {
         panic(loc(), "list_dir should find many files in src/test")
@@ -26,7 +26,7 @@ test_list_dir := proc() {
 test_list_dir()
 
 // Test glob_files wrapper (uses list_dir + ends_with filter)
-test_glob_files := proc() {
+test_glob_files : proc() = {
     files := glob_files("src/test/*.til")?
     // Should find many .til files
     if files.len().lt(10) {

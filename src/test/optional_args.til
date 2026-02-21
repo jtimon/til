@@ -3,9 +3,9 @@ mode test
 // === Named Arguments Tests ===
 
 // Helper function for testing
-minus := func(a: I64, b: I64) returns I64 { return sub(a, b) }
+minus : func(a: I64, b: I64) returns I64 = { return sub(a, b) }
 
-test_named_args_basic := proc() {
+test_named_args_basic : proc() = {
     // Positional (existing behavior)
     assert_eq(loc(), 7, minus(10, 3))
 
@@ -23,21 +23,21 @@ test_named_args_basic()
 // === Optional Arguments Tests ===
 
 // Function with one optional argument
-greet := func(name: Str, greeting: Str = "Hello") returns Str {
+greet : func(name: Str, greeting: Str = "Hello") returns Str = {
     return format(greeting, ", ", name, "!")
 }
 
 // Function with all optional arguments
-make_point := func(x: I64 = 0, y: I64 = 0) returns I64 {
+make_point : func(x: I64 = 0, y: I64 = 0) returns I64 = {
     return add(x, y)  // Just return sum for testing
 }
 
 // Function with mixed required and optional
-compute := func(a: I64, b: I64, c: I64 = 10) returns I64 {
+compute : func(a: I64, b: I64, c: I64 = 10) returns I64 = {
     return add(add(a, b), c)
 }
 
-test_optional_args_basic := proc() {
+test_optional_args_basic : proc() = {
     // Use default value
     assert_eq_str(loc(), "Hello, World!", greet("World"))
 
@@ -48,7 +48,7 @@ test_optional_args_basic := proc() {
     assert_eq_str(loc(), "Hey, World!", greet("World", greeting="Hey"))
 }
 
-test_optional_args_all_optional := proc() {
+test_optional_args_all_optional : proc() = {
     // All defaults
     assert_eq(loc(), 0, make_point())
 
@@ -65,7 +65,7 @@ test_optional_args_all_optional := proc() {
     assert_eq(loc(), 15, make_point(y=10, x=5))
 }
 
-test_optional_args_mixed := proc() {
+test_optional_args_mixed : proc() = {
     // Required args only, use default for c
     assert_eq(loc(), 13, compute(1, 2))  // 1 + 2 + 10
 

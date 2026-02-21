@@ -2,7 +2,7 @@ mode test
 
 import("core.ptr")
 
-test_pointers := proc() {
+test_pointers : proc() = {
     // Note: Ptr.new_by_size(0) now panics internally instead of throwing BadAlloc
     // So we can't test for the error being thrown - removed that test
 
@@ -39,7 +39,7 @@ test_pointers := proc() {
 }
 test_pointers()
 
-test_cast := proc() {
+test_cast : proc() = {
     mut vec := Vec.new(I64)
     vec.push(42)
     vec.push(99)

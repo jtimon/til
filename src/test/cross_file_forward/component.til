@@ -10,12 +10,12 @@ Component := struct {
 
 namespace:
     /** Attach this component to an entity */
-    attach_to := proc(mut self: Component, entity: Entity) {
+    attach_to : proc(mut self: Component, entity: Entity) = {
         self.owner_id = entity.id
     }
 
     /** Create a component already attached to an entity */
-    new_attached := proc(name: Str, value: I64, entity: Entity) returns Component {
+    new_attached : proc(name: Str, value: I64, entity: Entity) returns Component = {
         return Component(name=name, value=value, owner_id=entity.id)
     }
 }

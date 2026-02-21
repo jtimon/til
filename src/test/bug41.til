@@ -6,7 +6,7 @@ mode test
 
 import("test.bug41_liba_helper")
 
-test_bug41 := proc() {
+test_bug41 : proc() = {
     result := print_debug("hello from bug41 test")
     assert_eq(loc(), 42, result)
     println("Bug #41 test passed!")

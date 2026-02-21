@@ -17,7 +17,7 @@ ModeDef := struct {
 
 }
 
-can_be_imported := func(mode_def: ModeDef) returns Bool {
+can_be_imported : func(mode_def: ModeDef) returns Bool = {
     if mode_def.needs_main_proc { return false }  // TODO think harder, why not?
     if mode_def.allows_base_calls { return false }
     if mode_def.allows_base_anything { return false }
@@ -25,7 +25,7 @@ can_be_imported := func(mode_def: ModeDef) returns Bool {
 }
 
 // TODO: Add Vec literals so we can use vec!["panic"] instead of creating a Vec and pushing
-mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef throws Str {
+mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throws Str = {
     switch mode_name {
     case "lib":
         mut lib_allowed := Vec.new(Str)
@@ -141,7 +141,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
     }
 }
 
-parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str {
+parse_mode : func(path: Str, mut lexer: Lexer) returns ModeDef throws Str = {
     _ := lexer.expect(TokenType.Mode)?  // Add one for mode
 
     t := lexer.peek()?

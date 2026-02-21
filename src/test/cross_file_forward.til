@@ -16,7 +16,7 @@ import("core.vec")
 import("test.cross_file_forward.entity")
 import("test.cross_file_forward.component")
 
-test_cross_file_circular_imports := proc() {
+test_cross_file_circular_imports : proc() = {
     // Create an entity
     mut player := Entity.new(1, "Player")
 

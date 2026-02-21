@@ -3,11 +3,11 @@ mode lib
 // Compile-time external functions
 
 // Source location
-loc   := ext_func() returns Str {}  // Returns "<file>:<line>:<col>:"
-_file := ext_func() returns Str {}  // Returns current file path
-_line := ext_func() returns I64 {}  // Returns current line number
-_col  := ext_func() returns I64 {}  // Returns current column number
+loc   : ext_func() returns Str = {}  // Returns "<file>:<line>:<col>:"
+_file : ext_func() returns Str = {}  // Returns current file path
+_line : ext_func() returns I64 = {}  // Returns current line number
+_col  : ext_func() returns I64 = {}  // Returns current column number
 
 // Import paths use dots (like Python, Java, etc.) for cross-platform compatibility
 // Example: import("std.io") resolves to src/std/io.til (Unix) or src\std\io.til (Windows)
-import := ext_proc(path: Str) {}
+import : ext_proc(path: Str) = {}

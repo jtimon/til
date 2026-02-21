@@ -1,23 +1,23 @@
 mode test
 
-// function_pointer_test := proc() {
+// function_pointer_test : proc() = {
 //     // Declare a BinaryIntFunc type for functions that take two I64 and return an I64
 //     BinaryIntFunc := func(a: I64, b: I64) returns I64;
 
 //     // Define a function that takes a BinaryIntFunc and two I64 arguments
-//     bin_op_i64 := func(op: BinaryIntFunc, a: I64, b: I64) returns I64 {
+//     bin_op_i64 : func(op: BinaryIntFunc, a: I64, b: I64) returns I64 = {
 //         return op(a, b)
 //     };
 
 //     // Define an add function of type BinaryIntFunc
 //     // add2 : BinaryIntFunc = func(a: I64, b: I64) returns I64 { // TODO FIX syntax
-//     add2 := func(a: I64, b: I64) returns I64 {
+//     add2 : func(a: I64, b: I64) returns I64 = {
 //         return a.add(b)
 //     };
 
 //     // Define a subtract function of type BinaryIntFunc
 //     // subtract : BinaryIntFunc = func(a: I64, b: I64) returns I64 { // TODO FIX syntax
-//     subtract := func(a: I64, b: I64) returns I64 {
+//     subtract : func(a: I64, b: I64) returns I64 = {
 //         return a.sub(b)
 //     };
 
@@ -29,11 +29,11 @@ mode test
 // Map test - for discussion
 // IntTransform := func(x: I64) returns I64
 //
-// double := func(x: I64) returns I64 {
+// double : func(x: I64) returns I64 = {
 //     return x.mul(2)
 // }
 //
-// map_basic_test := proc() {
+// map_basic_test : proc() = {
 //     numbers := Vec(I64)
 //     numbers.push(1)
 //     numbers.push(2)
@@ -48,7 +48,7 @@ mode test
 // map_basic_test()
 //
 // // Map with lookup and default - the pattern we need for ccodegen
-// map_with_default_test := proc() {
+// map_with_default_test : proc() = {
 //     lookup := Map(I64, Str)
 //     lookup.set(1, "one")
 //     lookup.set(3, "three")

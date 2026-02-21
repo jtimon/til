@@ -18,7 +18,7 @@ test(loc(),  c4.eq(I64.add(2, 2)), "2 + 2 = 4")
 test(loc(),  c4.eq(I64.mul(2, 2)), "2 * 2 = 4")
 
 // Testing inc and dec (UFCS: val.inc() -> inc(val))
-test_inc_dec := proc() {
+test_inc_dec : proc() = {
     mut val := 41
     val.inc() // Equivalent to I64.inc(val)
     test(loc(), val.eq(42), "41.inc() == 42")
@@ -53,7 +53,7 @@ test(loc(), I64.sub(0, cNeg2).eq(2), "0 - (-2) = 2")
 
 // TODO: Safe wrappers for future throws (core mul/div wrap for now; add explicit checks post-selfhost)
 # DivideByZero := struct {}
-# safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+# safe_div : func(a: I64, b: I64) returns I64 throws DivideByZero = {
 #     if I64.eq(b, 0) { throw DivideByZero() }
 #     return div(a, b)
 # }
@@ -61,7 +61,7 @@ test(loc(), I64.sub(0, cNeg2).eq(2), "0 - (-2) = 2")
 # // Tests: Wrap in catch + flag, e.g., test_safe_div() proc as before
 
 // Chaining and precedence (UFCS dots for "methods")
-test_chaining := proc() {
+test_chaining : proc() = {
     mut val := 5
     val = val.add(3)
     val = val.mul(2)
@@ -87,7 +87,7 @@ test(loc(), I64.mod(10, I64.sub(0, 3)).eq(1), "10 % -3 = 1 (toward zero)")
 // Division and modulo by zero tests
 // Current behavior: Returns 0 for div/mod by zero (safe default)
 // Future: Post-self-hosting may add optional DivideByZero error
-test_divmod_by_zero := proc() {
+test_divmod_by_zero : proc() = {
     // Division by zero returns 0
     test(loc(), I64.div(10, 0).eq(0), "div(10, 0) returns 0 (safe default)")
     test(loc(), I64.div(0, 0).eq(0), "div(0, 0) returns 0")
@@ -101,7 +101,7 @@ test_divmod_by_zero := proc() {
 test_divmod_by_zero()
 
 // U8 increment and decrement tests
-test_u8_inc_dec := proc() {
+test_u8_inc_dec : proc() = {
     mut val : U8 = 41
     val.inc()
     u8_42 : U8 = 42
@@ -125,7 +125,7 @@ test_u8_inc_dec := proc() {
 test_u8_inc_dec()
 
 // U8 comparison tests (gteq, lteq)
-test_u8_comparisons := proc() {
+test_u8_comparisons : proc() = {
     a : U8 = 10
     b : U8 = 20
     c : U8 = 10
@@ -151,7 +151,7 @@ test_u8_comparisons := proc() {
 test_u8_comparisons()
 
 // U8 arithmetic tests
-test_u8_arithmetic := proc() {
+test_u8_arithmetic : proc() = {
     u8_2 : U8 = 2
     u8_4 : U8 = 4
     u8_42 : U8 = 42

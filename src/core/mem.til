@@ -4,14 +4,14 @@ BadAlloc := struct {}
 
 // Memory operations
 NULL   := 0
-size_of := ext_func(type: Type) returns I64 {}
-to_ptr := ext_func(var_identifier: Dynamic) returns I64 {}
-type_as_str := ext_func(type: Type) returns Str {}
+size_of : ext_func(type: Type) returns I64 = {}
+to_ptr : ext_func(var_identifier: Dynamic) returns I64 = {}
+type_as_str : ext_func(type: Type) returns Str = {}
 // TODO Use throws for memory operations, don't return 0 from malloc
-malloc := ext_func(size: I64) returns I64 throws BadAlloc {}
-free   := ext_func(ptr: I64) {}
-memcpy := ext_func(dest: I64, src: I64, size: I64) {}
-memcmp := func(ptr1: I64, ptr2: I64, size: I64) returns I64 {
+malloc : ext_func(size: I64) returns I64 throws BadAlloc = {}
+free   : ext_func(ptr: I64) = {}
+memcpy : ext_func(dest: I64, src: I64, size: I64) = {}
+memcmp : func(ptr1: I64, ptr2: I64, size: I64) returns I64 = {
     for i in 0..size {
         mut byte1 : U8 = 0
         mut byte2 : U8 = 0
@@ -27,13 +27,13 @@ memcmp := func(ptr1: I64, ptr2: I64, size: I64) returns I64 {
     }
     return 0
 }
-memset := ext_func(dest: I64, value: U8, size: I64) {}
+memset : ext_func(dest: I64, value: U8, size: I64) = {}
 
 // dont_delete(var) - directive for the garbager, not a real function.
 // Tells Step 10 (auto-delete) to skip deletion of this variable.
 // Stripped from AST by the garbager phase before execution.
-dont_delete := ext_func(var_identifier: Dynamic) {}
+dont_delete : ext_func(var_identifier: Dynamic) = {}
 
 // cast(Type, Ptr) - expression syntax for pointer aliasing.
 // Returns a typed alias to the data at ptr.data address.
-cast := ext_func(type_name: Type, ptr: Dynamic) returns Dynamic {}
+cast : ext_func(type_name: Type, ptr: Dynamic) returns Dynamic = {}

@@ -10,7 +10,7 @@ Vec2 := struct {
 }
 
 // Test Map<I64, I64>
-test_map_i64_to_i64 := proc() {
+test_map_i64_to_i64 : proc() = {
     mut ages := Map.new(I64, I64)
     ages.insert(100, 30)?
     ages.insert(200, 25)?
@@ -36,7 +36,7 @@ test_map_i64_to_i64 := proc() {
 }
 
 // Test Map<Str, Vec2>
-test_map_str_to_vec2 := proc() {
+test_map_str_to_vec2 : proc() = {
     mut positions := Map.new(Str, Vec2)
     mut player_pos := Vec2(x=10, y=20)
     positions.insert("player", player_pos)?
@@ -69,7 +69,7 @@ test_map_str_to_vec2 := proc() {
 }
 
 // Test Map<Str, Vec<Str>>
-test_map_str_to_vec_str := proc() {
+test_map_str_to_vec_str : proc() = {
     mut lists := Map.new(Str, Vec)
 
     mut fruits := Vec.new(Str)
@@ -114,7 +114,7 @@ test_map_str_to_vec_str := proc() {
 }
 
 // Test Map<U8, Bool>
-test_map_u8_to_bool := proc() {
+test_map_u8_to_bool : proc() = {
     mut flags := Map.new(U8, Bool)
     flags.insert(U8.from_i64(10)?, true)?
     flags.insert(U8.from_i64(20)?, false)?
@@ -146,7 +146,7 @@ test_map_u8_to_bool := proc() {
 }
 
 // Test insert() - should throw on duplicate keys
-test_map_insert_duplicate := proc() {
+test_map_insert_duplicate : proc() = {
     mut ages := Map.new(Str, I64)
     ages.insert("Alice", 30)?
     ages.insert("Alice", 35)?
@@ -156,7 +156,7 @@ test_map_insert_duplicate := proc() {
 }
 
 // Test set() - should overwrite existing keys
-test_map_set := proc() {
+test_map_set : proc() = {
     mut ages := Map.new(Str, I64)
     ages.set("Alice", 30)
     ages.set("Alice", 35)
@@ -174,7 +174,7 @@ test_map_set := proc() {
 }
 
 // Test get() with non-existent key
-test_map_get_missing := proc() {
+test_map_get_missing : proc() = {
     mut ages := Map.new(Str, I64)
     ages.insert("Alice", 30)?
 
@@ -190,7 +190,7 @@ test_map_get_missing := proc() {
 }
 
 // Test contains_key()
-test_map_contains_key := proc() {
+test_map_contains_key : proc() = {
     mut ages := Map.new(Str, I64)
     ages.insert("Alice", 30)?
     ages.insert("Bob", 25)?
@@ -209,7 +209,7 @@ test_map_contains_key := proc() {
 
 // Test position() method
 // Note: Map is sorted by key, so positions are in sorted order (blue < green < red)
-test_map_position := proc() {
+test_map_position : proc() = {
     mut colors := Map.new(Str, I64)
     colors.insert("red", 1)?
     colors.insert("green", 2)?
@@ -232,7 +232,7 @@ test_map_position := proc() {
 }
 
 // Test empty Map operations
-test_map_empty := proc() {
+test_map_empty : proc() = {
     mut m := Map.new(Str, I64)
     test(loc(), m.len().eq(0), "Empty map should have size 0")
     test(loc(), not(m.contains_key("anything")), "Empty map should not contain any key")
@@ -243,7 +243,7 @@ test_map_empty := proc() {
 }
 
 // Test Map growth/reallocation beyond initial capacity
-test_map_growth := proc() {
+test_map_growth : proc() = {
     mut ages := Map.new(I64, I64)
 
     // Array.INIT_DYN_CAP is 16, so insert 20 elements to trigger reallocation
@@ -282,7 +282,7 @@ test_map_growth := proc() {
 }
 
 // Test Map.delete() properly resets size
-test_map_delete := proc() {
+test_map_delete : proc() = {
     mut m := Map.new(Str, I64)
 
     m.insert("a", 1)?
@@ -301,7 +301,7 @@ test_map_delete := proc() {
 }
 
 // Test len() tracks correctly through various operations
-test_map_len_tracking := proc() {
+test_map_len_tracking : proc() = {
     mut m := Map.new(Str, I64)
 
     test(loc(), m.len().eq(0), "Empty map should have len 0")
@@ -330,7 +330,7 @@ test_map_len_tracking := proc() {
 }
 
 // Test multiple set() overwrites
-test_map_multiple_overwrites := proc() {
+test_map_multiple_overwrites : proc() = {
     mut m := Map.new(Str, I64)
 
     m.set("key", 1)
@@ -356,7 +356,7 @@ test_map_multiple_overwrites := proc() {
 }
 
 // Test insertion order is preserved after growth
-test_map_order_after_growth := proc() {
+test_map_order_after_growth : proc() = {
     mut m := Map.new(I64, Str)
 
     // Insert 20 keys to trigger reallocation
@@ -382,7 +382,7 @@ test_map_order_after_growth := proc() {
 }
 
 // Test direct .keys field access
-test_map_keys_field := proc() {
+test_map_keys_field : proc() = {
     mut m := Map.new(Str, I64)
     m.insert("alice", 30)?
     m.insert("bob", 25)?
@@ -412,7 +412,7 @@ test_map_keys_field := proc() {
 }
 
 // Test Map.remove
-test_map_remove := proc() {
+test_map_remove : proc() = {
     mut m := Map.new(Str, I64)
     m.insert("alice", 30)?
     m.insert("bob", 25)?
@@ -464,7 +464,7 @@ test_map_remove := proc() {
 // ============================================================================
 
 // Test HashMap<Str, I64>
-test_hashmap_str_to_i64 := proc() {
+test_hashmap_str_to_i64 : proc() = {
     mut ages := HashMap.new(Str, I64)
     ages.insert("Alice", 30)?
     ages.insert("Bob", 25)?
@@ -494,7 +494,7 @@ test_hashmap_str_to_i64 := proc() {
 }
 
 // Test HashMap<I64, I64>
-test_hashmap_i64_to_i64 := proc() {
+test_hashmap_i64_to_i64 : proc() = {
     mut ages := HashMap.new(I64, I64)
     ages.insert(100, 30)?
     ages.insert(200, 25)?
@@ -519,7 +519,7 @@ test_hashmap_i64_to_i64 := proc() {
 }
 
 // Test HashMap<Str, Vec2>
-test_hashmap_str_to_vec2 := proc() {
+test_hashmap_str_to_vec2 : proc() = {
     mut positions := HashMap.new(Str, Vec2)
     mut player_pos := Vec2(x=10, y=20)
     positions.insert("player", player_pos)?
@@ -548,7 +548,7 @@ test_hashmap_str_to_vec2 := proc() {
 }
 
 // Test HashMap insert() - should throw on duplicate keys
-test_hashmap_insert_duplicate := proc() {
+test_hashmap_insert_duplicate : proc() = {
     mut ages := HashMap.new(Str, I64)
     ages.insert("Alice", 30)?
     ages.insert("Alice", 35)?
@@ -558,7 +558,7 @@ test_hashmap_insert_duplicate := proc() {
 }
 
 // Test HashMap set() - should overwrite existing keys
-test_hashmap_set := proc() {
+test_hashmap_set : proc() = {
     mut ages := HashMap.new(Str, I64)
     ages.set("Alice", 30)
     ages.set("Alice", 35)
@@ -577,7 +577,7 @@ test_hashmap_set := proc() {
 }
 
 // Test HashMap get() with non-existent key
-test_hashmap_get_missing := proc() {
+test_hashmap_get_missing : proc() = {
     mut ages := HashMap.new(Str, I64)
     ages.insert("Alice", 30)?
 
@@ -594,7 +594,7 @@ test_hashmap_get_missing := proc() {
 }
 
 // Test HashMap contains_key()
-test_hashmap_contains_key := proc() {
+test_hashmap_contains_key : proc() = {
     mut ages := HashMap.new(Str, I64)
     ages.insert("Alice", 30)?
     ages.insert("Bob", 25)?
@@ -613,7 +613,7 @@ test_hashmap_contains_key := proc() {
 }
 
 // Test empty HashMap operations
-test_hashmap_empty := proc() {
+test_hashmap_empty : proc() = {
     mut m := HashMap.new(Str, I64)
     test(loc(), m.len().eq(0), "Empty HashMap should have size 0")
     test(loc(), m.is_empty(), "Empty HashMap is_empty() should be true")
@@ -623,7 +623,7 @@ test_hashmap_empty := proc() {
 }
 
 // Test HashMap growth/resize beyond initial capacity
-test_hashmap_growth := proc() {
+test_hashmap_growth : proc() = {
     mut ages := HashMap.new(I64, I64)
 
     // Initial bucket count is 16, load factor 0.75 = 12 entries before resize
@@ -664,7 +664,7 @@ test_hashmap_growth := proc() {
 }
 
 // Test HashMap.clear()
-test_hashmap_clear := proc() {
+test_hashmap_clear : proc() = {
     mut m := HashMap.new(Str, I64)
 
     m.insert("a", 1)?
@@ -691,7 +691,7 @@ test_hashmap_clear := proc() {
 }
 
 // Test HashMap len() tracks correctly through various operations
-test_hashmap_len_tracking := proc() {
+test_hashmap_len_tracking : proc() = {
     mut m := HashMap.new(Str, I64)
 
     test(loc(), m.len().eq(0), "Empty HashMap should have len 0")
@@ -721,7 +721,7 @@ test_hashmap_len_tracking := proc() {
 }
 
 // Test multiple set() overwrites
-test_hashmap_multiple_overwrites := proc() {
+test_hashmap_multiple_overwrites : proc() = {
     mut m := HashMap.new(Str, I64)
 
     m.set("key", 1)
@@ -748,7 +748,7 @@ test_hashmap_multiple_overwrites := proc() {
 }
 
 // Test HashMap with many string keys (stress test for hash distribution)
-test_hashmap_many_strings := proc() {
+test_hashmap_many_strings : proc() = {
     mut m := HashMap.new(Str, I64)
 
     // Insert 50 different string keys
@@ -788,7 +788,7 @@ test_hashmap_many_strings := proc() {
 }
 
 // Test HashMap.remove
-test_hashmap_remove := proc() {
+test_hashmap_remove : proc() = {
     mut m := HashMap.new(Str, I64)
     m.insert("alice", 30)?
     m.insert("bob", 25)?
@@ -874,7 +874,7 @@ test_hashmap_multiple_overwrites()
 test_hashmap_many_strings()
 test_hashmap_remove()
 
-test_map_get := proc() {
+test_map_get : proc() = {
     mut m := Map.new(Str, I64)
     m.set("a", 10)
     m.set("b", 20)
@@ -895,7 +895,7 @@ test_map_get := proc() {
     m.delete()
 }
 
-test_hashmap_get := proc() {
+test_hashmap_get : proc() = {
     mut m := HashMap.new(Str, I64)
     m.set("x", 42)
     m.set("y", 99)

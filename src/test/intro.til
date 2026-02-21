@@ -29,8 +29,8 @@ abc_proc(true, true, true)
 abc_proc(false, false, false)
 
 // Procedures or procs can be declared and directly called in most modes including script
-abc_proc := proc(a: Bool, b: Bool, c: Bool) {
-    abc := proc(_a: Bool, _b: Bool, _c: Bool) {
+abc_proc : proc(a: Bool, b: Bool, c: Bool) = {
+    abc : proc(_a: Bool, _b: Bool, _c: Bool) = {
         // Test that nested procs work
         test(loc(), true, "nested proc should execute")
     }
@@ -38,7 +38,7 @@ abc_proc := proc(a: Bool, b: Bool, c: Bool) {
 }
 
 // Pure functions or funcs are similar to procs, but they can't have side effects, thus they cannot call to procedures
-my_func := func(a: Bool, b: Bool) returns Bool {
+my_func : func(a: Bool, b: Bool) returns Bool = {
     // println("proc") // fails, funcs cannot call procs, println is a core proc
     // abc_proc() // fails, funcs cannot call procs, abc_proc is a custom proc
     // return 42 // fails, because 42 is not a Bool
@@ -47,7 +47,7 @@ my_func := func(a: Bool, b: Bool) returns Bool {
 test(loc(), my_func(true, true), "my_func(true, true) didn't return true")
 
 // return can be used in functions that don't return anything to exit early
-exit_early_return := proc(a: Bool) returns I64 {
+exit_early_return : proc(a: Bool) returns I64 = {
     if a {
         return 1
     }
@@ -57,25 +57,25 @@ test(loc(), exit_early_return(false).eq(2), "should not exit early")
 test(loc(), exit_early_return(true).eq(1), "should exit early")
 
 // Functions can return multiple values
-my_func_multi := func(a: Bool, b: Bool) returns Bool, Bool {
+my_func_multi : func(a: Bool, b: Bool) returns Bool, Bool = {
     return a, b
 }
 // _a, _b := my_func_multi(true, true) // TODO multiple declarations
 // _a, _b = my_func_multi(true, true) // TODO multiple assignments
 
 // Macros are evaluated at compile-time (Issue #88)
-my_macro := macro(a: I64, b: I64) returns I64 {
+my_macro : macro(a: I64, b: I64) returns I64 = {
     return a.add(b)
 }
 assert_eq(loc(), 7, my_macro(3, 4))
 
-my_str_func := func(a: Str) returns Str {
+my_str_func : func(a: Str) returns Str = {
     return a
 }
 arg_test_str := "strings can be passed as arguments and returned"
 assert_eq_str(loc(), my_str_func(arg_test_str), arg_test_str)
 
-main := proc() {
+main : proc() = {
     mut my_bool := true
     my_bool = my_func(my_bool, my_func(true, my_func(true, true)))
     res := my_func(true, true)
@@ -90,7 +90,7 @@ main()
 // panic(loc(), "panic panics when uncommented") // fails, because it panics
 
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
-// mut assertm2 := proc(cond: Bool, msg: Str) {}
+// mut assertm2 : proc(cond: Bool, msg: Str) = {}
 
 // TODO more built-in data types:
 
@@ -99,11 +99,11 @@ main()
 // my_list := (true, 1111, "hello")
 
 // TODO undeclared custom arguments should fail at compile time
-// test_fails_example := proc(example: Str, msg: Str) {
+// test_fails_example : proc(example: Str, msg: Str) = {
 //   eval_example_result : Str = _eval_string(example)
 //   println(eval_example_result)
 // }
-// test_fails_example("enum_func_fails := func(a: ExampleEnum) returns ExampleEnum {}", "TODO implement test_fails_example() in the core")
+// test_fails_example("enum_func_fails : func(a: ExampleEnum) returns ExampleEnum = {}", "TODO implement test_fails_example() in the core")
 
 // TODO implement aliases
 // Note aliases can be used before declared (once implemented):

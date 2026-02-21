@@ -3,7 +3,7 @@ mode test
 import("std.sys")
 
 // Test file_mtime on existing file
-test_file_mtime_exists := proc() {
+test_file_mtime_exists : proc() = {
     // This test file itself should exist
     mtime := file_mtime("src/test/syscalls.til")
     if mtime.lt(0) {
@@ -17,7 +17,7 @@ test_file_mtime_exists := proc() {
 test_file_mtime_exists()
 
 // Test file_mtime on non-existing file
-test_file_mtime_not_exists := proc() {
+test_file_mtime_not_exists : proc() = {
     mtime := file_mtime("nonexistent_file_12345.xyz")
     neg_one := sub(0, 1)
     if not(mtime.eq(neg_one)) {
@@ -27,7 +27,7 @@ test_file_mtime_not_exists := proc() {
 test_file_mtime_not_exists()
 
 // Test list_dir_raw on existing directory
-test_list_dir_raw_exists := proc() {
+test_list_dir_raw_exists : proc() = {
     raw := list_dir_raw("src/test")?
     if raw.len().lt(1) {
         panic(loc(), "list_dir_raw returned empty for src/test which has many files")
@@ -42,7 +42,7 @@ test_list_dir_raw_exists := proc() {
 test_list_dir_raw_exists()
 
 // Test list_dir_raw on non-existing directory (should throw IOError)
-test_list_dir_raw_not_exists := proc() {
+test_list_dir_raw_not_exists : proc() = {
     _raw := list_dir_raw("nonexistent_directory_12345")?
     // If we get here, no error was thrown - that's wrong
     panic(loc(), "list_dir_raw should throw IOError for non-existing directory")
@@ -54,7 +54,7 @@ test_list_dir_raw_not_exists := proc() {
 test_list_dir_raw_not_exists()
 
 // Test run_cmd captures output correctly
-test_run_cmd_output := proc() {
+test_run_cmd_output : proc() = {
     mut output := ""
     exit_code := output.run_cmd("bash", "-c", "echo hello")
     if not(exit_code.eq(0)) {

@@ -7,7 +7,7 @@ mode test
 import("core.str")
 import("core.vec")
 
-test_continue_in_for := proc() {
+test_continue_in_for : proc() = {
     // Should print 0,1,2,3,4,6,7,8,9 (skipping 5)
     mut result := Vec.new(I64)
     for i in 0..10 {
@@ -38,7 +38,7 @@ test_continue_in_for := proc() {
     }
 }
 
-test_continue_in_reverse_for := proc() {
+test_continue_in_reverse_for : proc() = {
     // Test continue in reverse for loop (10..0)
     mut result := Vec.new(I64)
     for i in 9..sub(0, 1) {

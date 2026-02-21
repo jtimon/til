@@ -3,7 +3,7 @@ mode test
 import("test.helpers.circular_a")
 import("test.helpers.circular_b")
 
-test_circular := proc() {
+test_circular : proc() = {
     a := TypeA(val=42)
 
     b := TypeB(val=100)

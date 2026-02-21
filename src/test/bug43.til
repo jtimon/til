@@ -10,7 +10,7 @@ Frame := struct {
     mut funcs: Map = Map.new(Str, I64)
 }
 
-test_map_get_in_struct := proc() {
+test_map_get_in_struct : proc() = {
     println("test_map_get_in_struct")
 
     mut frame := Frame()

@@ -7,7 +7,7 @@ import("self.parser")
 import("self.init")
 import("self.typer")
 
-test_bug47 := proc() {
+test_bug47 : proc() = {
     source := "mode script; println(42)"
     path := "test"
 

@@ -12,7 +12,7 @@ import("core.vec")
 mut g_cc := ""
 
 // Get --cc flag string for commands (returns "" if not set, " --cc=X" if set)
-get_cc_flag := func() returns Str {
+get_cc_flag : func() returns Str = {
     if g_cc.is_empty() {
         return ""
     }
@@ -20,7 +20,7 @@ get_cc_flag := func() returns Str {
 }
 
 // Run command with streaming output (prints as it goes)
-run_stream_cmd := proc(cmd: Str) returns I64 {
+run_stream_cmd : proc(cmd: Str) returns I64 = {
     println(cmd)
     pid := spawn_cmd(cmd)?
     status := wait_cmd(pid)
@@ -33,12 +33,12 @@ run_stream_cmd := proc(cmd: Str) returns I64 {
     return status
 }
 
-run_clean := proc() {
+run_clean : proc() = {
     _ := run_stream_cmd("rm -rf bin/* gen/*")
 }
 
 // REPL = Read-Eval-Print-Loop
-run_repl := proc() {
+run_repl : proc() = {
     _ := run_stream_cmd("rlwrap ./bin/rstil repl")
 }
 
@@ -47,7 +47,7 @@ run_repl := proc() {
  * Returns true if target doesn't exist or any dependency is newer than target.
  * Used only for non-.til dependencies (Rust files, etc.)
  */
-needs_rebuild := proc(target: Str, deps: Vec) returns Bool {
+needs_rebuild : proc(target: Str, deps: Vec) returns Bool = {
     target_mtime := file_mtime(target)
     if target_mtime.eq(I64_MINUS1) {
         return true  // target doesn't exist
@@ -61,7 +61,7 @@ needs_rebuild := proc(target: Str, deps: Vec) returns Bool {
     return false
 }
 
-build_rstil := proc() {
+build_rstil : proc() = {
     // Check if rstil needs rebuilding (Rust files - not tracked by til build)
     mut deps := Vec.new(Str)
     deps.push("src/rstil.rs")
@@ -82,7 +82,7 @@ build_rstil := proc() {
     }
 }
 
-build_rstil_til := proc() {
+build_rstil_til : proc() = {
     // .til dependency tracking is automatic via `rstil build`
     // But automatic tracking only knows about .til files, not the compiler itself.
     // If bin/rstil changed, we must force rebuild even if .til files are unchanged.
@@ -109,7 +109,7 @@ build_rstil_til := proc() {
 // WARNING: This target currently hangs!
 // ./bin/rs/til translate src/til.til takes >2min and doesn't complete
 // Bug #141: til outputs to bin/til/ and gen/til/c/
-build_til_til := proc() {
+build_til_til : proc() = {
     mut status := 0
     status = run_stream_cmd("./bin/rs/til build src/til.til")
     if status.eq(0).not() {
@@ -119,7 +119,7 @@ build_til_til := proc() {
     println("til_til C output: gen/til/c/til.c")
 }
 
-build_test_runner := proc() {
+build_test_runner : proc() = {
     build_rstil_til()
     // .til dependency tracking is automatic via `rstil build`
     // Bug #141: rstil outputs to bin/rs/
@@ -130,7 +130,7 @@ build_test_runner := proc() {
     }
 }
 
-build_tests := proc() {
+build_tests : proc() = {
     build_test_runner()  // tests.til spawns test_runner for each test
     // .til dependency tracking is automatic via `rstil build`
     mut status := 0
@@ -140,7 +140,7 @@ build_tests := proc() {
     }
 }
 
-run_tests := proc() {
+run_tests : proc() = {
     build_tests()
     mut status := 0
     // Issue #131: Pass --cc flag to tests
@@ -155,7 +155,7 @@ run_tests := proc() {
     }
 }
 
-run_regen := proc() {
+run_regen : proc() = {
     build_tests()
     mut status := 0
     // Issue #131: Pass --cc flag to tests
@@ -167,13 +167,13 @@ run_regen := proc() {
     }
 }
 
-run_benchmark := proc() {
+run_benchmark : proc() = {
     run_tests()
     _ := run_stream_cmd("cp gen/totals.org doc/totals.org")
     println("Benchmark saved to doc/totals.org, can be committed")
 }
 
-run_mem_report := proc() {
+run_mem_report : proc() = {
     build_tests()
     cc_flag := get_cc_flag()
     // Write flag file so compiled tests/test_runner can detect --mem-report
@@ -194,7 +194,7 @@ run_mem_report := proc() {
     catch (err: WriteError) { panic(loc(), err.msg) }
 }
 
-run_test_cross := proc() {
+run_test_cross : proc() = {
     mut status := 0
     println("=== Cross-compilation tests ===")
     // Bug #141: rstil outputs to bin/rs/
@@ -214,7 +214,7 @@ run_test_cross := proc() {
 
 // Build til with debug symbols and run gdb
 // Bug #141: rstil outputs to gen/rs/c/
-build_til_debug := proc() {
+build_til_debug : proc() = {
     build_rstil_til()
     mut status := 0
     status = run_stream_cmd("gcc -g -O0 -o bin/til_debug gen/rs/c/til.c -lm -I src")
@@ -225,7 +225,7 @@ build_til_debug := proc() {
 }
 
 // Compare C output from rstil vs til for a given file
-run_diff := proc(file_path: Str) {
+run_diff : proc(file_path: Str) = {
     build_rstil_til()
     mut status := 0
     status = run_stream_cmd(concat("./bin/rstil interpret src/til_diff.til ", file_path))
@@ -234,7 +234,7 @@ run_diff := proc(file_path: Str) {
     }
 }
 
-go_build_yourself := proc(args: Vec) {
+go_build_yourself : proc(args: Vec) = {
     mut deps := Vec.new(Str)
     deps.push("make.til")
     deps.push("bin/rstil")
@@ -274,7 +274,7 @@ go_build_yourself := proc(args: Vec) {
     exit(exit_code)
 }
 
-main := proc(args: ..Str) {
+main : proc(args: ..Str) = {
     // Self-rebuild check (before any arg parsing)
     mut args_vec := Vec.new(Str)
     for arg: Str in args { args_vec.push(arg) }

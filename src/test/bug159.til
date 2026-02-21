@@ -10,7 +10,7 @@ Container := struct {
 
 // Test shallow copy bug by modifying an existing element (not pushing)
 // This avoids reallocation which could mask the bug
-test_shallow_copy_bug := proc() {
+test_shallow_copy_bug : proc() = {
     mut original := Container()
     original.items.push(10)
     original.items.push(20)

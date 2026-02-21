@@ -9,7 +9,7 @@ Entity := struct {
     mut components: Vec = Vec()  // Will hold Component instances
 
 namespace:
-    new := proc(id: I64, name: Str) returns Entity {
+    new : proc(id: I64, name: Str) returns Entity = {
         mut e := Entity()
         e.id = id
         e.name = name
@@ -17,11 +17,11 @@ namespace:
         return e
     }
 
-    add_component := proc(mut self: Entity, comp: Component) {
+    add_component : proc(mut self: Entity, comp: Component) = {
         self.components.push(comp)
     }
 
-    get_component := proc(self: Entity, index: I64) returns Component throws IndexOutOfBoundsError {
+    get_component : proc(self: Entity, index: I64) returns Component throws IndexOutOfBoundsError = {
         comp := cast(Component, self.components.get(index)?)
         // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
         return comp.clone()

@@ -12,7 +12,7 @@ Lang := enum {
     // Future: Mojo, WASM, etc.
 }
 
-lang_from_str := func(s: Str) returns Lang throws Str {
+lang_from_str : func(s: Str) returns Lang throws Str = {
     switch s.to_lowercase() {
     case "c":
         return Lang.C
@@ -25,7 +25,7 @@ lang_from_str := func(s: Str) returns Lang throws Str {
     }
 }
 
-lang_to_str := func(lang: Lang) returns Str {
+lang_to_str : func(lang: Lang) returns Str = {
     switch lang {
     case Lang.C:
         return "c"
@@ -36,7 +36,7 @@ lang_to_str := func(lang: Lang) returns Str {
     }
 }
 
-lang_file_extension := func(lang: Lang) returns Str {
+lang_file_extension : func(lang: Lang) returns Str = {
     switch lang {
     case Lang.C:
         return "c"
@@ -60,7 +60,7 @@ Target := enum {
     TempleosX86,
 }
 
-target_from_str := func(s: Str) returns Target throws Str {
+target_from_str : func(s: Str) returns Target throws Str = {
     switch s.to_lowercase() {
     case "linux-x64":
         return Target.LinuxX64
@@ -113,7 +113,7 @@ target_from_str := func(s: Str) returns Target throws Str {
     }
 }
 
-target_to_str := func(target: Target) returns Str {
+target_to_str : func(target: Target) returns Str = {
     switch target {
     case Target.LinuxX64:
         return "linux-x64"
@@ -136,7 +136,7 @@ target_to_str := func(target: Target) returns Str {
 
 // ---------- Target/Lang compatibility
 
-default_lang_for_target := func(target: Target) returns Lang {
+default_lang_for_target : func(target: Target) returns Lang = {
     switch target {
     case Target.TempleosX86:
         return Lang.HolyC
@@ -157,7 +157,7 @@ default_lang_for_target := func(target: Target) returns Lang {
     }
 }
 
-supported_langs_for_target := func(target: Target) returns Vec {
+supported_langs_for_target : func(target: Target) returns Vec = {
     mut result := Vec.new(Lang)
     switch target {
     case Target.TempleosX86:
@@ -170,7 +170,7 @@ supported_langs_for_target := func(target: Target) returns Vec {
     return result
 }
 
-is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
+is_lang_supported_for_target : func(lang: Lang, target: Target) returns Bool = {
     supported := supported_langs_for_target(target)
     lang_str := lang_to_str(lang)
     for l: Lang in supported {
@@ -181,7 +181,7 @@ is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
     return false
 }
 
-validate_lang_for_target := func(lang: Lang, target: Target) throws Str {
+validate_lang_for_target : func(lang: Lang, target: Target) throws Str = {
     if is_lang_supported_for_target(lang, target) {
         return
     }
@@ -200,11 +200,11 @@ validate_lang_for_target := func(lang: Lang, target: Target) throws Str {
 // ---------- Toolchain commands
 
 // Check if a compiler command is clang (for warning flag selection)
-is_clang := func(cmd: Str) returns Bool {
+is_clang : func(cmd: Str) returns Bool = {
     return cmd.contains("clang")
 }
 
-toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
+toolchain_command : func(target: Target, lang: Lang) returns Str throws Str = {
     // TODO Issue #131: Add TIL_CC environment variable support when TIL has getenv()
     switch target {
     // Linux: gcc by default
@@ -266,7 +266,7 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
 }
 
 // Note: Must be proc because it calls other procs (is_clang, push_*_flags)
-toolchain_extra_args := proc(target: Target, _lang: Lang, compiler: Str) returns Vec {
+toolchain_extra_args : proc(target: Target, _lang: Lang, compiler: Str) returns Vec = {
     // Bug #99: -Wall -Wextra -Werror with suppressions for unfixed warnings.
     // Remove suppressions as warnings get fixed.
     // Note: Some flags are compiler-specific (gcc vs clang)
@@ -310,7 +310,7 @@ toolchain_extra_args := proc(target: Target, _lang: Lang, compiler: Str) returns
 }
 
 // Helper: push common warning flags (work on both gcc and clang)
-push_common_flags := proc(mut result: Vec) {
+push_common_flags : proc(mut result: Vec) = {
     result.push("-Wall")
     result.push("-Wextra")
     result.push("-Werror")
@@ -322,7 +322,7 @@ push_common_flags := proc(mut result: Vec) {
 }
 
 // Helper: push clang-specific flags
-push_clang_flags := proc(mut result: Vec) {
+push_clang_flags : proc(mut result: Vec) = {
     result.push("-Wno-sometimes-uninitialized")   // clang-specific warning about exception control flow
     result.push("-Wno-self-assign")               // til_result = til_result patterns in generated code
     // REMOVED: -Wno-c23-extensions - fixed by always emitting parameter names
@@ -331,11 +331,11 @@ push_clang_flags := proc(mut result: Vec) {
 }
 
 // Helper: push GCC-specific flags
-push_gcc_flags := proc(mut _result: Vec) {
+push_gcc_flags : proc(mut _result: Vec) = {
     // Bug #140: -Wno-dangling-pointer removed - fixed by Bug #143 hoisting architecture
 }
 
-executable_extension := func(target: Target) returns Str {
+executable_extension : func(target: Target) returns Str = {
     switch target {
     case Target.WindowsX64:
         return ".exe"
@@ -348,7 +348,7 @@ executable_extension := func(target: Target) returns Str {
 
 // ---------- Detect current platform
 
-detect_current_target := func() returns Target {
+detect_current_target : func() returns Target = {
     // Use uname to detect OS and architecture (TIL has no cfg macros like Rust)
     mut uname_s := ""
     _ := uname_s.run_cmd("uname", "-s")

@@ -14,7 +14,7 @@ UnknownModeError := struct {
 }
 
 // TODO implement debug_format to call from funcs, also implement modes pure and pura
-mode_from_name := proc(mode_name: Str) returns ModeDef throws UnknownModeError {
+mode_from_name : proc(mode_name: Str) returns ModeDef throws UnknownModeError = {
     mut md := ModeDef()
     md.name = mode_name
 

@@ -9,7 +9,7 @@ import("self.init")
 // Translated from src/rs/typer.rs
 
 // Helper function to extract does_throw from an FCall node type (Issue #132)
-get_fcall_does_throw := func(e: Expr) returns Bool {
+get_fcall_does_throw : func(e: Expr) returns Bool = {
     switch e.node_type {
     case NodeType.FCall(does_throw):
         return does_throw
@@ -34,7 +34,7 @@ ThrownType := struct {
 // Type-check an imported file's AST.
 // Called when the typer encounters an import() call.
 // The AST was stored during init phase; we just run type checking on it.
-typer_import_declarations := proc(mut context: Context, import_path_str: Str) returns Vec {
+typer_import_declarations : proc(mut context: Context, import_path_str: Str) returns Vec = {
     mut errors := Vec.new(Str)
     mut path := import_path_to_file_path(import_path_str)
 
@@ -86,7 +86,7 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
     return result.errors
 }
 
-check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Vec {
+check_enum_def : proc(context: Context, e: Expr, enum_def: SEnumDef) returns Vec = {
     mut errors := Vec.new(Str)
     if not(e.params.len().eq(0)) {
         e.exit_error("type", "in check_enum_def(): enum declarations don't have any parameters in the tree.")
@@ -141,12 +141,12 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
 
 // Internal entry point: assumes Body-level context (return values discarded at statement level)
 // Note: Prefer type_check() which also resolves INFER_TYPE in the AST.
-check_types := proc(mut context: Context, e: Expr) returns Vec throws Str {
+check_types : proc(mut context: Context, e: Expr) returns Vec throws Str = {
     return check_types_with_context(context, e, ExprContext.ValueDiscarded)?
 }
 
 // Internal type checker with context tracking for return value usage
-check_types_with_context := proc(mut context: Context, e: Expr, expr_context: ExprContext) returns Vec throws Str {
+check_types_with_context : proc(mut context: Context, e: Expr, expr_context: ExprContext) returns Vec throws Str = {
     mut errors := Vec.new(Str)
     switch e.node_type {
     case NodeType.Body:
@@ -354,7 +354,7 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
 
 // Helper function to validate conditional statement parameters
 // Returns empty string if OK, error message if validation fails
-validate_conditional_params := proc(_path: Str, e: Expr, stmt_type: Str, min: I64, max: I64) returns Str {
+validate_conditional_params : proc(_path: Str, e: Expr, stmt_type: Str, min: I64, max: I64) returns Str = {
     if e.params.len().lt(min).or(e.params.len().gt(max)) {
         if min.eq(max) {
             e.exit_error("type", format(stmt_type, " nodes must have exactly ", I64.to_str(min), " parameters."))
@@ -367,7 +367,7 @@ validate_conditional_params := proc(_path: Str, e: Expr, stmt_type: Str, min: I6
 
 // Helper function to validate function/procedure argument counts
 // Returns empty string if OK, error message if validation fails
-validate_func_arg_count := func(path: Str, e: Expr, f_name: Str, func_def: SFuncDef) returns Str {
+validate_func_arg_count : func(path: Str, e: Expr, f_name: Str, func_def: SFuncDef) returns Str = {
     provided_args := e.params.len().sub(1)
 
     // Count required args (those without default values)
@@ -403,7 +403,7 @@ validate_func_arg_count := func(path: Str, e: Expr, f_name: Str, func_def: SFunc
 // begin_removal_tracking, end_removal_tracking, removal_mark,
 // drain_removals_since, restore_removed.
 
-check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str {
+check_if_statement : proc(mut context: Context, e: Expr) returns Vec throws Str = {
     mut errors := Vec.new(Str)
     err := validate_conditional_params(context.path, e, "if", 2, 3)
     if not(err.eq("")) {
@@ -480,7 +480,7 @@ check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str
     return errors
 }
 
-check_while_statement := proc(mut context: Context, e: Expr) returns Vec throws Str {
+check_while_statement : proc(mut context: Context, e: Expr) returns Vec throws Str = {
     mut errors := Vec.new(Str)
     err := validate_conditional_params(context.path, e, "while", 2, 2)
     if not(err.eq("")) {
@@ -517,7 +517,7 @@ check_while_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     return errors
 }
 
-check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws Str {
+check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws Str = {
     mut errors := Vec.new(Str)
 
     // e.params[0] = Identifier(var_name)
@@ -672,7 +672,7 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     return errors
 }
 
-check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec throws Str {
+check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec throws Str = {
     mut errors := Vec.new(Str)
     mut f_name := get_func_name_in_call(e)?
     // Bug #101: Mark the function name as used (for local function declarations)
@@ -1000,7 +1000,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
 
                             if not(has_clone) {
                                 errors.push(arg_expr.error(context.path, "type", format(
-                                    "Cannot pass struct '", type_name, "' to copy parameter '", arg.name, "' of function '", f_name, "'.\nReason: struct '", type_name, "' does not implement clone() method.\nSuggestion: add 'clone := func(self: ", type_name, ") returns ", type_name, " { ... }' to struct '", type_name, "'."
+                                    "Cannot pass struct '", type_name, "' to copy parameter '", arg.name, "' of function '", f_name, "'.\nReason: struct '", type_name, "' does not implement clone() method.\nSuggestion: add 'clone : func(self: ", type_name, ") returns ", type_name, " = { ... }' to struct '", type_name, "'."
                                 )))
                             }
                         }
@@ -1088,7 +1088,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
 }
 
 // Check if a function call's return value is being used correctly (Bug #8 fix)
-check_fcall_return_usage := proc(context: Context, e: Expr, expr_context: ExprContext) returns Vec throws Str {
+check_fcall_return_usage : proc(context: Context, e: Expr, expr_context: ExprContext) returns Vec throws Str = {
     mut errors := Vec.new(Str)
 
     // Get the function definition to check if it returns a value
@@ -1133,7 +1133,7 @@ check_fcall_return_usage := proc(context: Context, e: Expr, expr_context: ExprCo
 }
 
 // Issue #108: Check namespace definition function bodies
-check_namespace_def := proc(mut context: Context, _e: Expr, ns_def: SNamespaceDef) returns Vec throws Str {
+check_namespace_def : proc(mut context: Context, _e: Expr, ns_def: SNamespaceDef) returns Vec throws Str = {
     mut errors := Vec.new(Str)
 
     for member_decl: Declaration in ns_def.members {
@@ -1158,7 +1158,7 @@ check_namespace_def := proc(mut context: Context, _e: Expr, ns_def: SNamespaceDe
     return errors
 }
 
-has_type_params := func(func_def: SFuncDef) returns Bool {
+has_type_params : func(func_def: SFuncDef) returns Bool = {
     for arg: Declaration in func_def.args {
         switch arg.value_type {
         case ValueType.TCustom(type_name):
@@ -1171,7 +1171,7 @@ has_type_params := func(func_def: SFuncDef) returns Bool {
     return false
 }
 
-check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr) returns Vec throws Str {
+check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) returns Vec throws Str = {
     mut errors := Vec.new(Str)
     // Bug #101: Save outer function's tracking state for nested function support
     mut saved_function_locals := context.scope_stack.function_locals.clone()
@@ -1338,7 +1338,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     return errors
 }
 
-check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFuncDef, body: Vec, mut thrown_types: Vec, mut return_found: Bool) returns Vec throws Str {
+check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncDef, body: Vec, mut thrown_types: Vec, mut return_found: Bool) returns Vec throws Str = {
 
     mut errors := Vec.new(Str)
     returns_len := func_def.return_types.len()
@@ -1963,7 +1963,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
     return errors
 }
 
-check_catch_statement := proc(mut context: Context, e: Expr) returns Vec throws Str {
+check_catch_statement : proc(mut context: Context, e: Expr) returns Vec throws Str = {
     mut errors := Vec.new(Str)
 
     if not(e.params.len().eq(3)) {
@@ -2031,7 +2031,7 @@ check_catch_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     return errors
 }
 
-check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Vec throws Str {
+check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) returns Vec throws Str = {
     mut errors := Vec.new(Str)
     if not(e.params.len().eq(1)) {
         errors.push(e.error(context.path, "type", format("in declaration of ", decl.name, ", declaration nodes must take exactly 1 parameter.")))
@@ -2133,7 +2133,7 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
     return errors
 }
 
-check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns Vec throws Str {
+check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Vec throws Str = {
     mut errors := Vec.new(Str)
     if not(e.params.len().eq(1)) {
         errors.push(e.error(context.path, "type", format("in assignment to ", var_name, ", assignments must take exactly one value, not ", I64.to_str(e.params.len()), ".")))
@@ -2253,7 +2253,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
     return errors
 }
 
-check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws Str {
+check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws Str = {
     mut errors := Vec.new(Str)
 
     mut switch_expr := e.get(0)?
@@ -2460,7 +2460,7 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     return errors
 }
 
-check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) returns Vec {
+check_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef) returns Vec = {
     mut errors := Vec.new(Str)
 
     if not(e.params.len().eq(0)) {
@@ -2532,7 +2532,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
                 // They must be moved to a namespace block.
                 errors.push(inner_e.error(context.path, "type", format(
                     "Function '", member_decl.name, "' is defined inside struct. Functions must be in namespace blocks.\n",
-                    "Move this function outside the struct into: namespace ", struct_name, " { ", member_decl.name, " := func(...) { ... } }"
+                    "Move this function outside the struct into: namespace ", struct_name, " { ", member_decl.name, " : func(...) = { ... } }"
                 )))
             case:
                 // For other types of members, check type and purity
@@ -2713,7 +2713,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
             errors.push(e.error(context.path, "type", format(
                 "Collection-like struct '", struct_name, "' has ", methods_str, " method(s) but no len() method.\n",
                 "Reason: Collection types must provide a way to query their size.\n",
-                "Suggestion: add 'len := func(self: ", struct_name, ") returns I64 { ... }' to struct '", struct_name, "'."
+                "Suggestion: add 'len : func(self: ", struct_name, ") returns I64 = { ... }' to struct '", struct_name, "'."
             )))
         }
 
@@ -2755,7 +2755,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
             errors.push(e.error(context.path, "type", format(
                 "Collection-like struct '", struct_name, "' has ", size_methods_str, " method(s) but no size() method.\n",
                 "Reason: Collection types must provide their size in bytes.\n",
-                "Suggestion: add 'size := func(self: ", struct_name, ") returns I64 { ... }' to struct '", struct_name, "'.\n",
+                "Suggestion: add 'size : func(self: ", struct_name, ") returns I64 = { ... }' to struct '", struct_name, "'.\n",
                 "Note: size() should return the total size in bytes, not element count (use len() for that)."
             )))
         }
@@ -2767,7 +2767,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
 // Returns SFuncDef if function found
 // Throws KeyNotFoundError for struct/enum instantiation (Ok(None) case)
 // Throws Str for errors
-get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr) returns SFuncDef throws Str, KeyNotFoundError {
+get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) returns SFuncDef throws Str, KeyNotFoundError = {
     // Check if it's an FCall
     mut is_fcall := false
     switch fcall_expr.node_type {
@@ -2996,7 +2996,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
     throw "get_func_def_for_fcall_with_expr: unexpected code path"
 }
 
-get_func_def_for_fcall := proc(context: Context, fcall_expr_: Expr) returns SFuncDef throws Str, KeyNotFoundError {
+get_func_def_for_fcall : proc(context: Context, fcall_expr_: Expr) returns SFuncDef throws Str, KeyNotFoundError = {
     mut fcall_expr := fcall_expr_
     return get_func_def_for_fcall_with_expr(context, fcall_expr)?
 }
@@ -3008,7 +3008,7 @@ get_func_def_for_fcall := proc(context: Context, fcall_expr_: Expr) returns SFun
 
 // ---------- Type checking
 
-is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str {
+is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str = {
     switch e.node_type {
     case NodeType.Body:
         for se: Expr in e.params {
@@ -3180,7 +3180,7 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
     return false
 }
 
-func_proc_has_multi_arg := func(func_def: SFuncDef) returns Bool {
+func_proc_has_multi_arg : func(func_def: SFuncDef) returns Bool = {
     for a: Declaration in func_def.args {
         switch a.value_type {
         case ValueType.TMulti(multi_type):
@@ -3192,7 +3192,7 @@ func_proc_has_multi_arg := func(func_def: SFuncDef) returns Bool {
     return false
 }
 
-basic_mode_checks := proc(context: Context, e: Expr) returns Vec throws Str {
+basic_mode_checks : proc(context: Context, e: Expr) returns Vec throws Str = {
     mut errors := Vec.new(Str)
 
     switch e.node_type {
@@ -3260,7 +3260,7 @@ TypeCheckResult := struct {
 // Runs type checking and resolves all INFER_TYPE references in the AST.
 // Returns the resolved AST and any type errors found.
 // After this function, no INFER_TYPE should remain in the returned AST.
-type_check := proc(mut context: Context, e: Expr) returns TypeCheckResult throws Str {
+type_check : proc(mut context: Context, e: Expr) returns TypeCheckResult throws Str = {
     mut result := TypeCheckResult()
     result.errors = check_types(context, e)?
     // If check_types found errors, don't try to resolve types - just return the errors.
@@ -3274,7 +3274,7 @@ type_check := proc(mut context: Context, e: Expr) returns TypeCheckResult throws
 }
 
 // Helper: recurse into params and return new params vec
-resolve_params := proc(mut context: Context, e: Expr) returns Vec throws Str {
+resolve_params : proc(mut context: Context, e: Expr) returns Vec throws Str = {
     mut result := Vec.new(Expr)
     for param: Expr in e.params {
         result.push(resolve_inferred_types(context, param)?)
@@ -3289,7 +3289,7 @@ resolve_params := proc(mut context: Context, e: Expr) returns Vec throws Str {
 // After this pass, no INFER_TYPE should remain in the AST, allowing
 // post-typer phases (sugar, precomp, ccodegen) to read types directly
 // without needing type inference.
-resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throws Str {
+resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     switch e.node_type {
     case NodeType.Declaration(decl):
         return resolve_declaration(context, e, decl)?
@@ -3594,7 +3594,7 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
 }
 
 // Helper: resolve Declaration node
-resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str {
+resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str = {
     // Check if this declaration has INFER_TYPE
     mut resolved_type := decl.value_type
     mut decl_type_name := ""
@@ -3670,7 +3670,7 @@ resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
 }
 
 // Helper: resolve FuncDef node
-resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
+resolve_funcdef : proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str = {
     // Skip body resolution for macros with Type parameters
     if func_def.is_macro() {
         if has_type_params(func_def) {

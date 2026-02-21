@@ -10,18 +10,18 @@ I64Range := struct {
 
 namespace:
     // Required by collection interface
-    size := func(_self: I64Range) returns I64 {
+    size : func(_self: I64Range) returns I64 = {
         return 16  // Two I64 fields (8 bytes each)
     }
 
-    len := func(self: I64Range) returns I64 {
+    len : func(self: I64Range) returns I64 = {
         if self.end.gteq(self.start) {
             return self.end.sub(self.start)
         }
         return self.start.sub(self.end)
     }
 
-    get := proc(self: I64Range, index: I64) returns Ptr throws IndexOutOfBoundsError {
+    get : proc(self: I64Range, index: I64) returns Ptr throws IndexOutOfBoundsError = {
         if index.gteq(self.len()) {
             throw IndexOutOfBoundsError(msg="I64Range.get: index out of bounds")
         }

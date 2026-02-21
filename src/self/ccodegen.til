@@ -12,7 +12,7 @@ import("self.eval_heap")  // For EvalHeap.extract_vec_contents, g_heap
 TIL_PREFIX := "til_"
 
 // Helper: Sort Vec<EnumVariant> by name field in-place (simple bubble sort)
-sort_enum_variants := proc(mut v: Vec) {
+sort_enum_variants : proc(mut v: Vec) = {
     mut n := v.len()
     while gt(n, 1) {
         mut new_n := 0
@@ -75,14 +75,14 @@ CodegenContext := struct {
     mut ret_var_alias: Str = ""
 
 namespace:
-    new := func() returns CodegenContext {
+    new : func() returns CodegenContext = {
         return CodegenContext()
     }
 }
 
 // Generate unique mangled name using context counter (deterministic)
 // Includes function name prefix for uniqueness across functions
-next_mangled := func(mut ctx: CodegenContext) returns Str {
+next_mangled : func(mut ctx: CodegenContext) returns Str = {
     n := ctx.mangling_counter
     ctx.mangling_counter = ctx.mangling_counter.add(1)
     func_name := ctx.current_function_name
@@ -98,7 +98,7 @@ next_mangled := func(mut ctx: CodegenContext) returns Str {
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
 // Exceptions: C keywords (true, false), pointer deref (*name), and generated names (_ prefix)
-til_name := func(name: Str) returns Str {
+til_name : func(name: Str) returns Str = {
     mut result := name
     switch name {
     case "true":
@@ -116,7 +116,7 @@ til_name := func(name: Str) returns Str {
 // Bug #97: Returns the type-mangled C name for a variable
 // e.g., til_var_name("x", "Str") -> "til_Str_x"
 // Exceptions: C keywords (true, false), pointer deref (*name), and generated names (_ prefix)
-til_var_name := func(name: Str, type_name: Str) returns Str {
+til_var_name : func(name: Str, type_name: Str) returns Str = {
     switch name {
     case "true":
         return name
@@ -132,7 +132,7 @@ til_var_name := func(name: Str, type_name: Str) returns Str {
 }
 
 // Bug #97: Convert a ValueType to a short string for use in variable name mangling
-value_type_to_c_prefix := func(vt: ValueType) returns Str {
+value_type_to_c_prefix : func(vt: ValueType) returns Str = {
     switch vt {
     case ValueType.TCustom(name):
         return name
@@ -146,7 +146,7 @@ value_type_to_c_prefix := func(vt: ValueType) returns Str {
 }
 
 // Bug #97: Get the type-mangled C name for a variable by looking up its type
-til_var_name_from_context := func(name: Str, context: Context) returns Str {
+til_var_name_from_context : func(name: Str, context: Context) returns Str = {
     if name.eq("true").or(name.eq("false")).or(name.starts_with("*")).or(name.starts_with("_")) {
         return name
     }
@@ -160,7 +160,7 @@ til_var_name_from_context := func(name: Str, context: Context) returns Str {
 }
 
 // Bug #168: Resolve a variable name, mapping ret_var_alias to "_ret"
-resolve_var_name := func(name: Str, ctx: CodegenContext, context: Context) returns Str {
+resolve_var_name : func(name: Str, ctx: CodegenContext, context: Context) returns Str = {
     if not(ctx.ret_var_alias.is_empty()) {
         if name.eq(ctx.ret_var_alias) {
             return "_ret"
@@ -170,7 +170,7 @@ resolve_var_name := func(name: Str, ctx: CodegenContext, context: Context) retur
 }
 
 // Bug #168: Recursively collect Return nodes from AST, skipping nested FuncDefs
-collect_return_exprs := proc(stmts: Vec, mut out: Vec) {
+collect_return_exprs : proc(stmts: Vec, mut out: Vec) = {
     for expr: Expr in stmts {
         switch expr.node_type {
         case NodeType.Return:
@@ -186,7 +186,7 @@ collect_return_exprs := proc(stmts: Vec, mut out: Vec) {
 
 // Bug #168: Check if a variable is reassigned (full assignment, not field write)
 // anywhere in the function body. Skips nested FuncDefs.
-has_reassignment_of := proc(stmts: Vec, var_name: Str) returns Bool {
+has_reassignment_of : proc(stmts: Vec, var_name: Str) returns Bool = {
     for expr: Expr in stmts {
         switch expr.node_type {
         case NodeType.Assignment(name):
@@ -207,7 +207,7 @@ has_reassignment_of := proc(stmts: Vec, var_name: Str) returns Bool {
 
 // Bug #168: Pre-scan function body to find a single return variable that can be
 // placed directly into _ret. Returns the var name or "" if not applicable.
-find_ret_var_for_placement := proc(func_def: SFuncDef) returns Str throws Str {
+find_ret_var_for_placement : proc(func_def: SFuncDef) returns Str throws Str = {
     // Must be a throwing function with struct/enum return type
     if func_def.throw_types.is_empty() {
         return ""
@@ -293,7 +293,7 @@ find_ret_var_for_placement := proc(func_def: SFuncDef) returns Str throws Str {
 
 // Emit a struct literal, using compound literal syntax if already_declared
 // e.g., " = {0}" vs " = (til_TypeName){0}"
-emit_struct_literal_assign := proc(mut output: Str, type_name: Str, already_declared: Bool, literal_content: Str) {
+emit_struct_literal_assign : proc(mut output: Str, type_name: Str, already_declared: Bool, literal_content: Str) = {
     output.push_str(" = ")
     if already_declared {
         output.push_str("(")
@@ -306,7 +306,7 @@ emit_struct_literal_assign := proc(mut output: Str, type_name: Str, already_decl
 
 // Start a struct literal assignment - caller will emit content and closing brace
 // e.g., " = " vs " = (til_TypeName)"
-emit_struct_literal_start := proc(mut output: Str, type_name: Str, already_declared: Bool) {
+emit_struct_literal_start : proc(mut output: Str, type_name: Str, already_declared: Bool) = {
     output.push_str(" = ")
     if already_declared {
         output.push_str("(")
@@ -317,7 +317,7 @@ emit_struct_literal_start := proc(mut output: Str, type_name: Str, already_decla
 
 // Returns the C name for a TIL function - adds TIL_PREFIX and converts dots to underscores
 // Used for function names like Array.len -> til_Array_len
-til_func_name := func(name: Str) returns Str {
+til_func_name : func(name: Str) returns Str = {
     result := format(TIL_PREFIX, name.replace(".", "_"))
 
     return result
@@ -328,7 +328,7 @@ til_func_name := func(name: Str) returns Str {
 // - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
 // - Identifier("Vec") with params = [Identifier("new")] -> "Vec_new" (from parser)
 // Returns the C-ready name with underscores (not dots)
-get_func_name_string := func(first_param: Expr) returns Str throws Str {
+get_func_name_string : func(first_param: Expr) returns Str throws Str = {
     switch first_param.node_type {
     case NodeType.Identifier(name):
         if first_param.params.is_empty() {
@@ -354,7 +354,7 @@ get_func_name_string := func(first_param: Expr) returns Str throws Str {
 // Get TIL function name from FCall's first param (for scope lookups)
 // Returns the dot-separated name like "Vec.new" or "I64.inc"
 // This avoids the fragile .replacen('_', ".", 1) hack which breaks on type names with underscores
-get_til_func_name_string := func(first_param: Expr) returns Str throws Str {
+get_til_func_name_string : func(first_param: Expr) returns Str throws Str = {
     switch first_param.node_type {
     case NodeType.Identifier(name):
         if first_param.params.is_empty() {
@@ -383,7 +383,7 @@ get_til_func_name_string := func(first_param: Expr) returns Str throws Str {
 /// Returns the type name if it is, so it can be emitted as a string literal
 /// Matches interpreter.rs behavior (line 1703-1713)
 /// Only matches STANDALONE identifiers - not field access like Vec.INIT_CAP
-get_type_arg_name := func(expr: Expr, context: Context) returns Str throws KeyNotFoundError {
+get_type_arg_name : func(expr: Expr, context: Context) returns Str throws KeyNotFoundError = {
     switch expr.node_type {
     case NodeType.Identifier(name):
         // Only match standalone identifiers (no field access)
@@ -407,7 +407,7 @@ get_type_arg_name := func(expr: Expr, context: Context) returns Str throws KeyNo
 // Uses get_func_def_for_fcall_with_expr from typer.rs which handles all cases correctly
 // (regular functions, struct methods, UFCS - though UFCS is already resolved by precomp)
 // Returns None for struct/enum constructors
-get_fcall_func_def := proc(context: Context, fcall_expr: Expr) returns SFuncDef throws KeyNotFoundError {
+get_fcall_func_def : proc(context: Context, fcall_expr: Expr) returns SFuncDef throws KeyNotFoundError = {
     mut expr_clone := fcall_expr.clone()
     result := get_func_def_for_fcall_with_expr(context, expr_clone)?
 
@@ -420,7 +420,7 @@ get_fcall_func_def := proc(context: Context, fcall_expr: Expr) returns SFuncDef 
 /// - copy params: pass by value (copy is made)
 /// - Type params: already pointers (const char*), pass by value
 /// - All other const/own/mut params (including Dynamic): pass by pointer
-param_needs_by_ref := func(param: Declaration) returns Bool {
+param_needs_by_ref : func(param: Declaration) returns Bool = {
     if param.is_copy {
         return false
     }
@@ -438,7 +438,7 @@ param_needs_by_ref := func(param: Declaration) returns Bool {
 
 /// Extract struct field type dependencies for topological sorting
 /// Returns the type name if it's a custom type that needs to be defined first
-get_field_type_dependency := func(value_type: ValueType) returns Str throws KeyNotFoundError {
+get_field_type_dependency : func(value_type: ValueType) returns Str throws KeyNotFoundError = {
     switch value_type {
     case ValueType.TCustom(name):
         // I64 and U8 are primitives, not struct dependencies
@@ -459,7 +459,7 @@ get_field_type_dependency := func(value_type: ValueType) returns Str throws KeyN
 }
 
 /// Get struct dependencies (other struct types used as fields)
-get_struct_dependencies := func(expr: Expr) returns Vec throws Str {
+get_struct_dependencies : func(expr: Expr) returns Vec throws Str = {
     mut deps := Vec.new(Str)
     switch expr.node_type {
     case NodeType.Declaration:
@@ -488,7 +488,7 @@ get_struct_dependencies := func(expr: Expr) returns Vec throws Str {
 }
 
 /// Get struct name from a struct declaration expression
-get_struct_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
+get_struct_name : func(expr: Expr) returns Str throws KeyNotFoundError, Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -508,7 +508,7 @@ get_struct_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
 }
 
 /// Get enum dependencies (types used in payloads) as a Vec
-get_enum_dependencies := func(expr: Expr) returns Vec throws Str {
+get_enum_dependencies : func(expr: Expr) returns Vec throws Str = {
     mut deps := Vec.new(Str)
     switch expr.node_type {
     case NodeType.Declaration:
@@ -542,7 +542,7 @@ get_enum_dependencies := func(expr: Expr) returns Vec throws Str {
 }
 
 /// Get enum name from an enum-with-payloads declaration expression
-get_enum_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
+get_enum_name : func(expr: Expr) returns Str throws KeyNotFoundError, Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -562,7 +562,7 @@ get_enum_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
 }
 
 /// Get dependencies for a type (struct or enum-with-payloads)
-get_type_dependencies := func(expr: Expr) returns Vec throws Str {
+get_type_dependencies : func(expr: Expr) returns Vec throws Str = {
     if is_struct_declaration(expr)? {
         return get_struct_dependencies(expr)?
     } else if is_enum_declaration(expr)?.and(is_enum_with_payloads(expr)?) {
@@ -573,7 +573,7 @@ get_type_dependencies := func(expr: Expr) returns Vec throws Str {
 }
 
 /// Get name for a type (struct or enum-with-payloads)
-get_type_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
+get_type_name : func(expr: Expr) returns Str throws KeyNotFoundError, Str = {
     if is_struct_declaration(expr)? {
         return get_struct_name(expr)?
     } else if is_enum_declaration(expr)?.and(is_enum_with_payloads(expr)?) {
@@ -585,7 +585,7 @@ get_type_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
 
 /// Topologically sort type declarations (structs and enums-with-payloads) by their dependencies
 /// Returns indices into the original vector in sorted order
-topological_sort_types := func(types: Vec) returns Vec throws Str {
+topological_sort_types : func(types: Vec) returns Vec throws Str = {
     // Build name -> index map
     mut name_to_idx := Map.new(Str, I64)
     mut idx := 0
@@ -707,7 +707,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
 /// Hoist variadic arguments into a til_Array
 /// Returns the array variable name, or None if no variadic args
 /// Also returns the element type for use in Array.delete
-hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted: Map, regular_count: I64, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+hoist_variadic_args : proc(elem_type: Str, variadic_args: Vec, already_hoisted: Map, regular_count: I64, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     indent_str := repeat("    ", indent)
     arr_var := next_mangled(ctx)
     err_suffix := next_mangled(ctx)
@@ -861,7 +861,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
 
 /// Detect if an expression is a variadic function call
 /// Returns VariadicFCallInfo if it's a variadic call
-detect_variadic_fcall := func(expr: Expr, ctx: CodegenContext) returns VariadicFCallInfo throws KeyNotFoundError {
+detect_variadic_fcall : func(expr: Expr, ctx: CodegenContext) returns VariadicFCallInfo throws KeyNotFoundError = {
     if expr.params.is_empty() {
         throw KeyNotFoundError(msg="Not variadic")
     }
@@ -882,7 +882,7 @@ detect_variadic_fcall := func(expr: Expr, ctx: CodegenContext) returns VariadicF
 /// Check if an expression is a pure lvalue (simple identifier or field access chain)
 /// A pure lvalue can use & directly without hoisting.
 /// Returns false for FCall results, enum constructors, and struct constructors.
-is_pure_lvalue := func(arg: Expr, context: Context) returns Bool throws Str {
+is_pure_lvalue : func(arg: Expr, context: Context) returns Bool throws Str = {
     switch arg.node_type {
     case NodeType.Identifier(name):
         if arg.params.is_empty() {
@@ -937,7 +937,7 @@ is_pure_lvalue := func(arg: Expr, context: Context) returns Bool throws Str {
 /// This is the core of the single-pass hoist+emit approach (Bug #143 fix).
 /// By processing each arg once and returning the string directly, we avoid
 /// the need for expression identity tracking.
-emit_arg_string := proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hoist_output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+emit_arg_string : proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hoist_output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     indent_str := repeat("    ", indent)
 
     // Check if arg is a type identifier - emit as string literal
@@ -1053,7 +1053,7 @@ emit_arg_string := proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hois
 }
 
 /// Helper for emit_arg_string: Handle Dynamic params
-emit_arg_string_dynamic := proc(arg: Expr, mut hoist_output: Str, indent: I64, indent_str: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+emit_arg_string_dynamic : proc(arg: Expr, mut hoist_output: Str, indent: I64, indent_str: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     // Check if it's a pure lvalue
     if is_pure_lvalue(arg, context)? {
         switch arg.node_type {
@@ -1127,7 +1127,7 @@ emit_arg_string_dynamic := proc(arg: Expr, mut hoist_output: Str, indent: I64, i
 }
 
 /// Helper for emit_arg_string: Handle by-ref params
-emit_arg_string_by_ref := proc(arg: Expr, mut hoist_output: Str, indent: I64, indent_str: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+emit_arg_string_by_ref : proc(arg: Expr, mut hoist_output: Str, indent: I64, indent_str: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     // Check if it's a pure lvalue
     if is_pure_lvalue(arg, context)? {
         switch arg.node_type {
@@ -1218,7 +1218,7 @@ emit_arg_string_by_ref := proc(arg: Expr, mut hoist_output: Str, indent: I64, in
 }
 
 /// Helper: Emit a throwing FCall arg, hoisting it and returning temp var string
-emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param_by_ref: Bool, mut hoist_output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+emit_throwing_arg_string : proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param_by_ref: Bool, mut hoist_output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     indent_str := repeat("    ", indent)
 
     // Check for variadic EARLY so we can use by_ref=false for variadic args
@@ -1402,7 +1402,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
 }
 
 /// Helper: Emit error propagation code
-emit_error_propagation := proc(throw_types: Vec, temp_suffix: Str, mut output: Str, indent: I64, ctx: CodegenContext, context: Context) {
+emit_error_propagation : proc(throw_types: Vec, temp_suffix: Str, mut output: Str, indent: I64, ctx: CodegenContext, context: Context) = {
     indent_str := repeat("    ", indent)
 
     output.push_str(indent_str)
@@ -1455,7 +1455,7 @@ emit_error_propagation := proc(throw_types: Vec, temp_suffix: Str, mut output: S
 
 /// Helper: Emit error handling - checks for local catches first, then propagates
 /// This replaces emit_error_propagation for throwing calls that need catch support
-emit_error_handling := proc(throw_types: Vec, temp_suffix: Str, mut output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+emit_error_handling : proc(throw_types: Vec, temp_suffix: Str, mut output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str = {
     indent_str := repeat("    ", indent)
 
     // Check if there are local catch labels for any of these error types
@@ -1511,7 +1511,7 @@ emit_error_handling := proc(throw_types: Vec, temp_suffix: Str, mut output: Str,
 }
 
 /// Helper: Format a hoisted temp var with appropriate prefix for param type
-format_hoisted_result := func(temp_var: Str, param_type: Ptr, param_by_ref: Bool) returns Str {
+format_hoisted_result : func(temp_var: Str, param_type: Ptr, param_by_ref: Bool) returns Str = {
     mut is_dynamic := false
     if not(param_type.is_null()) {
         mut pt := ValueType.TCustom(INFER_TYPE)
@@ -1534,7 +1534,7 @@ format_hoisted_result := func(temp_var: Str, param_type: Ptr, param_by_ref: Bool
 }
 
 /// Helper: Emit a non-throwing variadic FCall arg
-emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: Ptr, param_by_ref: Bool, mut hoist_output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Ptr, param_by_ref: Bool, mut hoist_output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     indent_str := repeat("    ", indent)
 
     // Get function definition
@@ -1659,7 +1659,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
 
 /// Helper: Build variadic array using pre-computed arg strings
 /// Mirrors hoist_variadic_args but uses pre-computed arg_strings instead of emit_expr
-emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_variadic_array_with_strings : proc(elem_type: Str, arg_strings: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str = {
     indent_str := repeat("    ", indent)
     arr_var := next_mangled(ctx)
     err_suffix := next_mangled(ctx)
@@ -1779,7 +1779,7 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, mut o
 }
 
 /// Helper: Emit a non-throwing, non-variadic FCall, recursively processing args
-emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     // Check if this is a struct constructor - emit directly via emit_expr
     // (emit_expr handles struct constructors properly as compound literals)
     if arg.params.is_empty() {
@@ -2106,7 +2106,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
 }
 
 /// Helper: Get C type for an expression (for hoisting declarations)
-get_c_type_for_expr := proc(arg: Expr, context: Context) returns Str throws Str {
+get_c_type_for_expr : proc(arg: Expr, context: Context) returns Str throws Str = {
     switch arg.node_type {
     case NodeType.LLiteral(lit):
         switch lit {
@@ -2255,7 +2255,7 @@ get_c_type_for_expr := proc(arg: Expr, context: Context) returns Str throws Str 
 
 
 // Emit C code from AST (multi-pass architecture)
-emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
+emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     mut output := ""
     mut ctx := CodegenContext.new()
 
@@ -2615,7 +2615,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
 }
 
 // Check if an expression is a struct declaration (Name := struct {...})
-is_struct_declaration := func(expr: Expr) returns Bool throws Str {
+is_struct_declaration : func(expr: Expr) returns Bool throws Str = {
     switch expr.node_type {
     case NodeType.Declaration:
         if not(expr.params.is_empty()) {
@@ -2634,7 +2634,7 @@ is_struct_declaration := func(expr: Expr) returns Bool throws Str {
 }
 
 // Issue #108: Check if expression is a namespace definition
-is_namespace_definition := func(expr: Expr) returns Bool {
+is_namespace_definition : func(expr: Expr) returns Bool = {
     switch expr.node_type {
     case NodeType.NamespaceDef(_ns_def):
         return true
@@ -2644,7 +2644,7 @@ is_namespace_definition := func(expr: Expr) returns Bool {
 }
 
 // Check if an expression is an enum declaration (Name := enum {...})
-is_enum_declaration := func(expr: Expr) returns Bool throws Str {
+is_enum_declaration : func(expr: Expr) returns Bool throws Str = {
     switch expr.node_type {
     case NodeType.Declaration:
         if not(expr.params.is_empty()) {
@@ -2664,7 +2664,7 @@ is_enum_declaration := func(expr: Expr) returns Bool throws Str {
 
 // Check if an expression is a top-level constant declaration (name := literal)
 // Constants are non-mut declarations with literal values (numbers, strings, bools)
-is_constant_declaration := func(expr: Expr) returns Bool throws Str {
+is_constant_declaration : func(expr: Expr) returns Bool throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Must not be mutable
@@ -2705,7 +2705,7 @@ is_constant_declaration := func(expr: Expr) returns Bool throws Str {
 // Check if an expression is a function call that uses out-params (i.e., the function throws)
 // Such calls cannot be used inline in struct initializers - they need separate statements
 // Emit a top-level constant declaration at file scope
-emit_constant_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, context: Context) throws Str {
+emit_constant_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, context: Context) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -2794,7 +2794,7 @@ emit_constant_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenC
 // Check if an expression is a non-constant top-level declaration that needs to be a global
 // These are declarations that are NOT: functions, structs, enums, or literal constants
 // but are still non-mut and could be referenced from function bodies
-is_global_declaration := func(expr: Expr) returns Bool throws Str {
+is_global_declaration : func(expr: Expr) returns Bool throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Skip true/false declarations - they're handled specially
@@ -2838,7 +2838,7 @@ is_global_declaration := func(expr: Expr) returns Bool throws Str {
 
 // Emit a global declaration as a static variable at file scope (type only, no initializer)
 // The initializer will be emitted in main()
-emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, context: Context) {
+emit_global_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, context: Context) = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -2903,7 +2903,7 @@ emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
 
 // Collect function info (throw types, return types, names) from AST into context
 // Handles both top-level functions and struct methods
-collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
+collect_func_info : proc(expr: Expr, mut ctx: CodegenContext) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -2934,7 +2934,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
 
 // Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
 // This populates ctx.nested_func_names and ctx.hoisted_prototypes before we emit function bodies
-collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, context: Context, parent_func_name: Str) throws Str {
+collect_nested_func_info : proc(expr: Expr, mut ctx: CodegenContext, context: Context, parent_func_name: Str) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3000,7 +3000,7 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, context: C
 
 // Emit a struct declaration as a C struct (only mut fields become struct fields)
 // Forward declarations are emitted separately, so we use "struct Name { ... };" here
-emit_struct_declaration := proc(expr: Expr, mut output: Str) throws Str {
+emit_struct_declaration : proc(expr: Expr, mut output: Str) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
@@ -3041,7 +3041,7 @@ emit_struct_declaration := proc(expr: Expr, mut output: Str) throws Str {
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
 // Also emits size_of constant: til_size_of_StructName = sizeof(til_StructName)
-emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_struct_constants : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3105,7 +3105,7 @@ emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
 }
 
 // Emit size_of constant for an enum: til_size_of_EnumName = sizeof(til_EnumName)
-emit_enum_size_of_constant := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext) throws Str {
+emit_enum_size_of_constant : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3133,7 +3133,7 @@ emit_enum_size_of_constant := proc(expr: Expr, mut output: Str, mut ctx: Codegen
 }
 
 // Emit til_size_of function for runtime type size lookup
-emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
+emit_size_of_function : proc(mut output: Str, ctx: CodegenContext) = {
     output.push_str("\n")
     output.push_str("static inline ")
     output.push_str(TIL_PREFIX)
@@ -3161,7 +3161,7 @@ emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
 
 // Bug #133 fix: Emit static arrays for precomputed heap values (Vec, List, etc.)
 // This serializes interpreter heap contents to static C arrays so Ptr fields can reference them
-emit_precomputed_static_arrays := proc(mut output: Str, mut ctx: CodegenContext, context: Context) throws Str {
+emit_precomputed_static_arrays : proc(mut output: Str, mut ctx: CodegenContext, context: Context) throws Str = {
     if context.precomputed_heap_values.is_empty() {
         return
     }
@@ -3177,7 +3177,7 @@ emit_precomputed_static_arrays := proc(mut output: Str, mut ctx: CodegenContext,
 }
 
 // Emit static arrays for a single precomputed Vec
-emit_precomputed_vec_static := proc(mut output: Str, mut ctx: CodegenContext, context: Context, phv: PrecomputedHeapValue) throws Str {
+emit_precomputed_vec_static : proc(mut output: Str, mut ctx: CodegenContext, context: Context, phv: PrecomputedHeapValue) throws Str = {
     // Extract Vec contents from EvalHeap
     contents := EvalHeap.extract_vec_contents(context, phv.instance_name)?
 
@@ -3236,7 +3236,7 @@ emit_precomputed_vec_static := proc(mut output: Str, mut ctx: CodegenContext, co
 
 // Recursive helper to emit static arrays for Vec contents
 // Handles nested types by recursively emitting inner elements first
-emit_precomputed_vec_recursive := proc(mut output: Str, mut ctx: CodegenContext, context: Context, var_name: Str, contents: VecContents) throws Str {
+emit_precomputed_vec_recursive : proc(mut output: Str, mut ctx: CodegenContext, context: Context, var_name: Str, contents: VecContents) throws Str = {
     elem_type := contents.element_type_name
     elem_count := contents.element_bytes.len()
 
@@ -3324,7 +3324,7 @@ emit_precomputed_vec_recursive := proc(mut output: Str, mut ctx: CodegenContext,
 
 // Emit static arrays for Vec containing nested types (Vec<Vec<T>>, Vec<List<T>>, etc.)
 // First recursively emits inner element data, then emits outer array with patched pointers
-emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenContext, context: Context, var_name: Str, contents: VecContents) throws Str {
+emit_precomputed_nested_vec_static : proc(mut output: Str, mut ctx: CodegenContext, context: Context, var_name: Str, contents: VecContents) throws Str = {
     elem_type := contents.element_type_name
     elem_count := contents.element_bytes.len()
 
@@ -3449,7 +3449,7 @@ emit_precomputed_nested_vec_static := proc(mut output: Str, mut ctx: CodegenCont
 }
 
 // Helper to convert 8 bytes to I64 (little endian)
-bytes_to_i64 := func(bytes: Vec) returns I64 {
+bytes_to_i64 : func(bytes: Vec) returns I64 = {
     mut result := 0
     mut multiplier := 1  // 256^0 = 1
     for i in 0..8 {
@@ -3465,7 +3465,7 @@ bytes_to_i64 := func(bytes: Vec) returns I64 {
 }
 
 // Emit static arrays for Vec<Str> - two-level: string literals + Str structs
-emit_precomputed_vec_str_static := proc(mut output: Str, mut _ctx: CodegenContext, context: Context, var_name: Str, contents: VecContents) throws Str {
+emit_precomputed_vec_str_static : proc(mut output: Str, mut _ctx: CodegenContext, context: Context, var_name: Str, contents: VecContents) throws Str = {
     elem_count := contents.element_bytes.len()
     ptr_size := context.get_type_size("Ptr")?
 
@@ -3541,7 +3541,7 @@ emit_precomputed_vec_str_static := proc(mut output: Str, mut _ctx: CodegenContex
 }
 
 // Helper to read I64 from bytes at an offset
-bytes_to_i64_from_offset := func(bytes: Vec, offset: I64) returns I64 {
+bytes_to_i64_from_offset : func(bytes: Vec, offset: I64) returns I64 = {
     mut result := 0
     mut multiplier := 1  // 256^0 = 1
     for i in 0..8 {
@@ -3557,7 +3557,7 @@ bytes_to_i64_from_offset := func(bytes: Vec, offset: I64) returns I64 {
 }
 
 // Convert a byte to a 2-digit hex string
-hex_byte := func(b: U8) returns Str {
+hex_byte : func(b: U8) returns Str = {
     hex_chars := "0123456789abcdef"
     high := b.to_i64().div(16)  // equivalent to >> 4
     low := I64.and(b.to_i64(), 15)  // mask low 4 bits
@@ -3569,7 +3569,7 @@ hex_byte := func(b: U8) returns Str {
 
 // Bug #133 fix: Emit assignment for a precomputed Vec with patched Ptr fields
 // Check if an enum has any payloads
-enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
+enum_has_payloads : func(enum_def: SEnumDef) returns Bool = {
     for v: EnumVariant in enum_def.variants {
         if not(v.payload_type.is_null()) {
             return true
@@ -3579,7 +3579,7 @@ enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
 }
 
 // Check if an expression is an enum declaration with payloads
-is_enum_with_payloads := func(expr: Expr) returns Bool throws Str {
+is_enum_with_payloads : func(expr: Expr) returns Bool throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3597,7 +3597,7 @@ is_enum_with_payloads := func(expr: Expr) returns Bool throws Str {
 }
 
 // Emit an enum with payloads as a tagged union
-emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: Str) throws Str {
+emit_enum_with_payloads : proc(enum_name: Str, enum_def: SEnumDef, mut output: Str) throws Str = {
     // Sort variants by name for deterministic output
     mut variants := Vec.new(EnumVariant)
     for v: EnumVariant in enum_def.variants {
@@ -3716,7 +3716,7 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: 
 
 // Emit an enum declaration as a C typedef enum (for simple enums without payloads)
 // or as a tagged union struct (for enums with payloads)
-emit_enum_declaration := proc(expr: Expr, mut output: Str) throws Str {
+emit_enum_declaration : proc(expr: Expr, mut output: Str) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3791,7 +3791,7 @@ emit_enum_declaration := proc(expr: Expr, mut output: Str) throws Str {
 // Takes a const pointer since we only read the enum
 // For simple enums: til_Str til_EnumName_to_str(const til_EnumName* e)
 // For enums with payloads: til_Str til_EnumName_to_str(const til_EnumName* e)
-emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, mut output: Str) throws Str {
+emit_enum_to_str_function : proc(enum_name: Str, enum_def: SEnumDef, mut output: Str) throws Str = {
     has_payloads := enum_has_payloads(enum_def)
     mut variants := Vec.new(Str)
     for v: EnumVariant in enum_def.variants {
@@ -3845,7 +3845,7 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, mut output
 }
 
 // Emit _to_str function for an enum declaration node
-emit_enum_to_str_for_declaration := proc(expr: Expr, mut output: Str, context: Context) throws Str {
+emit_enum_to_str_for_declaration : proc(expr: Expr, mut output: Str, context: Context) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         enum_name := decl.name
@@ -3865,7 +3865,7 @@ emit_enum_to_str_for_declaration := proc(expr: Expr, mut output: Str, context: C
 }
 
 // Issue #108: Emit enum method prototypes (delete/clone)
-emit_enum_method_prototypes := proc(expr: Expr, context: Context, mut output: Str) throws Str {
+emit_enum_method_prototypes : proc(expr: Expr, context: Context, mut output: Str) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3895,7 +3895,7 @@ emit_enum_method_prototypes := proc(expr: Expr, context: Context, mut output: St
 }
 
 // Issue #108: Emit enum method bodies (delete/clone)
-emit_enum_method_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_enum_method_bodies : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3932,7 +3932,7 @@ emit_enum_method_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
 }
 
 // Emit a struct/namespace/enum function body with mangled name: TypeName_funcname
-emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: SFuncDef, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: SFuncDef, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // Skip external functions
     if func_def.is_ext() {
         return
@@ -4045,7 +4045,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
 }
 
 // Issue #108: Emit namespace function prototypes (forward declarations)
-emit_namespace_func_prototypes := proc(expr: Expr, context: Context, mut output: Str) throws Str {
+emit_namespace_func_prototypes : proc(expr: Expr, context: Context, mut output: Str) throws Str = {
     switch expr.node_type {
     case NodeType.NamespaceDef(ns_def):
         type_name := til_name(ns_def.type_name)
@@ -4067,7 +4067,7 @@ emit_namespace_func_prototypes := proc(expr: Expr, context: Context, mut output:
 }
 
 // Issue #108: Emit namespace function bodies
-emit_namespace_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_namespace_func_bodies : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str = {
     switch expr.node_type {
     case NodeType.NamespaceDef(ns_def):
         type_name := til_name(ns_def.type_name)
@@ -4087,7 +4087,7 @@ emit_namespace_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: Codegen
 }
 
 // Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
-til_type_to_c := func(til_type: ValueType) returns Str throws Str {
+til_type_to_c : func(til_type: ValueType) returns Str throws Str = {
     switch til_type {
     case ValueType.TCustom(name):
         if name.eq(INFER_TYPE) {
@@ -4106,7 +4106,7 @@ til_type_to_c := func(til_type: ValueType) returns Str throws Str {
 }
 
 // Helper to get C type name for a ValueType (for error struct definitions)
-value_type_to_c_name := func(vt: ValueType) returns Str throws Str {
+value_type_to_c_name : func(vt: ValueType) returns Str throws Str = {
     switch vt {
     case ValueType.TCustom(name):
         // All types get TIL_PREFIX
@@ -4119,7 +4119,7 @@ value_type_to_c_name := func(vt: ValueType) returns Str throws Str {
 // Issue #117: Recursively collect struct local declarations from a function body.
 // Collects (var_name, type_name) pairs for all TCustom declarations, recursing
 // into Body nodes (if/while/for children) but not into FuncDef (nested functions).
-collect_struct_locals_inner := proc(stmts: Vec, mut local_vars: Vec, mut local_types: Vec, mut seen: Set) {
+collect_struct_locals_inner : proc(stmts: Vec, mut local_vars: Vec, mut local_types: Vec, mut seen: Set) = {
     for stmt: Expr in stmts {
         switch stmt.node_type {
         case NodeType.Declaration(decl):
@@ -4162,7 +4162,7 @@ collect_struct_locals_inner := proc(stmts: Vec, mut local_vars: Vec, mut local_t
 }
 
 // Issue #117: Check if a function body contains any Catch nodes (top-level only).
-body_has_catch := func(stmts: Vec) returns Bool {
+body_has_catch : func(stmts: Vec) returns Bool = {
     for stmt: Expr in stmts {
         switch stmt.node_type {
         case NodeType.Catch:
@@ -4177,7 +4177,7 @@ body_has_catch := func(stmts: Vec) returns Bool {
 // For functions with catch blocks, all struct locals need to be declared
 // at the top of the function with zero-init, so that goto (from throws)
 // can't skip past their declarations, making function-end deletes safe.
-emit_hoisted_locals := proc(stmts: Vec, mut output: Str, mut ctx: CodegenContext) throws Str {
+emit_hoisted_locals : proc(stmts: Vec, mut output: Str, mut ctx: CodegenContext) throws Str = {
     if not(body_has_catch(stmts)) {
         return
     }
@@ -4212,7 +4212,7 @@ emit_hoisted_locals := proc(stmts: Vec, mut output: Str, mut ctx: CodegenContext
 
 // Issue #119: Check if a throw type refers to an empty struct (no fields)
 // For empty structs, we don't need to pass error parameters - just the status code
-is_empty_error_struct := func(context: Context, throw_type: ValueType) returns Bool {
+is_empty_error_struct : func(context: Context, throw_type: ValueType) returns Bool = {
     switch throw_type {
     case ValueType.TCustom(type_name):
         struct_def_opt := context.scope_stack.lookup_struct(type_name)?
@@ -4239,7 +4239,7 @@ is_empty_error_struct := func(context: Context, throw_type: ValueType) returns B
 // For non-throwing:
 //   RetType func_name(args...)
 // Issue #119: Empty struct errors don't get parameters - only status code matters
-emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context, mut output: Str) throws Str {
+emit_func_signature : proc(func_name: Str, func_def: SFuncDef, context: Context, mut output: Str) throws Str = {
     is_throwing := not(func_def.throw_types.is_empty())
 
     if is_throwing {
@@ -4367,7 +4367,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
 }
 
 // Emit a function prototype (forward declaration)
-emit_func_prototype := proc(expr: Expr, context: Context, mut output: Str) throws Str {
+emit_func_prototype : proc(expr: Expr, context: Context, mut output: Str) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -4395,7 +4395,7 @@ emit_func_prototype := proc(expr: Expr, context: Context, mut output: Str) throw
 }
 
 // Check if an expression is a function declaration (name := proc/func)
-is_func_declaration := func(expr: Expr) returns Bool throws Str {
+is_func_declaration : func(expr: Expr) returns Bool throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -4413,7 +4413,7 @@ is_func_declaration := func(expr: Expr) returns Bool throws Str {
 }
 
 // Emit a function declaration as a C function
-emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -4545,7 +4545,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
     throw "emit_func_declaration: not a function declaration"
 }
 
-emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_expr : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // Bug #143: Hoisting now happens via emit_arg_string at the call site
     // Expressions are processed once and the result is used directly
 
@@ -4701,7 +4701,7 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     }
 }
 
-emit_body := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_body : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // Bug #44 fix: Save and restore local_catch_labels around nested blocks
     // Without this, nested blocks clear the outer catches when processing their
     // own throwing calls, causing missing status checks for outer throwing calls.
@@ -4714,7 +4714,7 @@ emit_body := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
 
 /// Emit a sequence of statements with catch pattern detection
 /// This is the core logic shared between emit_body and emit_func_declaration
-emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     mut i := 0
     indent_str := repeat("    ", indent)
 
@@ -5112,7 +5112,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
 /// Get the function name from an FCall expression (returns underscore format like Type_method)
 /// This returns the name WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
-get_fcall_func_name := func(expr: Expr) returns Str throws Str {
+get_fcall_func_name : func(expr: Expr) returns Str throws Str = {
     // get_func_name_string already handles both nested identifiers (Type.method)
     // and precomp'd strings ("Type.method"), returning "Type_method" format
     first_param := expr.get(0)?
@@ -5122,7 +5122,7 @@ get_fcall_func_name := func(expr: Expr) returns Str throws Str {
 
 /// Pre-scan function body to collect all catch blocks
 /// Returns all catch blocks found in the statements
-prescan_func_level_catches := func(stmts: Vec) returns Vec {
+prescan_func_level_catches : func(stmts: Vec) returns Vec = {
     mut catches := Vec.new(Expr)
 
     // Collect ALL catch blocks - we'll register them all for local throw handling
@@ -5140,7 +5140,7 @@ prescan_func_level_catches := func(stmts: Vec) returns Vec {
 
 /// Emit a non-throwing variadic function call at statement level
 /// Handles constructing the variadic array and cleaning it up after the call
-emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     indent_str := repeat("    ", indent)
 
     // Get function name
@@ -5359,7 +5359,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 }
 
 /// Emit a call to a throwing function with catch handling
-emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     indent_str := repeat("    ", indent)
 
     // Get function name
@@ -5735,7 +5735,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 // Bug #168: Compute destination pointer expression for throwing calls.
 // Returns the address expression to pass directly as _ret instead of using _ret_N temp.
 // Returns "" when result is discarded (need temp as sink).
-build_dest_ptr_expr := func(decl_name: Str, assign_name: Str, ctx: CodegenContext, context: Context) returns Str throws Str {
+build_dest_ptr_expr : func(decl_name: Str, assign_name: Str, ctx: CodegenContext, context: Context) returns Str throws Str = {
     if not(decl_name.eq("")) {
         if decl_name.eq("_") {
             return ""
@@ -5779,7 +5779,7 @@ build_dest_ptr_expr := func(decl_name: Str, assign_name: Str, ctx: CodegenContex
 
 /// Emit a throwing function call that propagates errors to the caller (no catch blocks)
 /// This is used when a throwing function calls another throwing function without catching
-emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     indent_str := repeat("    ", indent)
 
     // Get function name
@@ -6096,7 +6096,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
 /// Emit a throwing function call that uses goto for error handling
 /// Used when there are outer catch blocks registered in ctx.local_catch_labels
-emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     indent_str := repeat("    ", indent)
 
     // Get function name
@@ -6433,7 +6433,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 }
 
-emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
     if not(expr.params.is_empty()) {
         first_param := expr.get(0)?
@@ -7079,7 +7079,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
 // Check if an expression is a struct construction call (TypeName() or TypeName(x=1, y=2))
 // Returns the type name if it is, empty string otherwise
-get_struct_construction_type := func(expr: Expr, context: Context) returns Str throws Str {
+get_struct_construction_type : func(expr: Expr, context: Context) returns Str throws Str = {
     switch expr.node_type {
     case NodeType.FCall(_):
         if not(expr.params.is_empty()) {
@@ -7125,7 +7125,7 @@ get_struct_construction_type := func(expr: Expr, context: Context) returns Str t
 // Returns the type name if it is, empty string otherwise
 // AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
 // AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
-get_enum_construction_type := func(expr: Expr, context: Context) returns Str throws Str {
+get_enum_construction_type : func(expr: Expr, context: Context) returns Str throws Str = {
     // Check FCall case: Type.Variant(value) or Type.Variant()
     switch expr.node_type {
     case NodeType.FCall(_):
@@ -7184,7 +7184,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str thr
     return ""
 }
 
-emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_funcdef : proc(_func_def: SFuncDef, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // For now, just inline the function body (we're inside main anyway)
     // TODO: proper function generation with prototypes
     indent_str := repeat("    ", indent)
@@ -7197,7 +7197,7 @@ emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, mut output: Str, indent: I
     output.push_str("}\n")
 }
 
-emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_assignment : proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     indent_str := repeat("    ", indent)
 
     // Bug #143: Use emit_arg_string to handle RHS hoisting
@@ -7292,7 +7292,7 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
     }
 }
 
-emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     indent_str := repeat("    ", indent)
     is_throwing := not(ctx.current_throw_types.is_empty())
 
@@ -7494,7 +7494,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
     }
 }
 
-emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_throw : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // Throw: params[0] = the value to throw (typically a struct constructor like DivideByZero())
     if expr.params.is_empty() {
         throw "ccodegen: throw requires a value"
@@ -7666,7 +7666,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
 }
 
-emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
     if expr.params.len().lt(2) {
         throw "ccodegen: If requires condition and body"
@@ -7799,7 +7799,7 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
     }
 }
 
-emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // While: params[0] = condition, params[1] = body
     if expr.params.len().lt(2) {
         throw "ccodegen: While requires condition and body"
@@ -7909,13 +7909,13 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     output.push_str("}\n")
 }
 
-emit_break := proc(_expr: Expr, mut output: Str, indent: I64) {
+emit_break : proc(_expr: Expr, mut output: Str, indent: I64) = {
     indent_str := repeat("    ", indent)
     output.push_str(indent_str)
     output.push_str("break;\n")
 }
 
-emit_continue := proc(_expr: Expr, mut output: Str, indent: I64) {
+emit_continue : proc(_expr: Expr, mut output: Str, indent: I64) = {
     indent_str := repeat("    ", indent)
     output.push_str(indent_str)
     output.push_str("continue;\n")
@@ -7963,7 +7963,7 @@ VariadicFCallInfo := struct {
 
 /// Collect all variable declarations in a body (recursively) for hoisting
 /// Returns Vec of CollectedDeclaration structs
-collect_declarations_in_body := proc(body: Expr, mut context: Context) returns Vec throws Str {
+collect_declarations_in_body : proc(body: Expr, mut context: Context) returns Vec throws Str = {
     mut decls := Vec.new(CollectedDeclaration)
     // Track collected declarations for lookups during type inference
     mut collected := Map.new(Str, ValueType)
@@ -7980,7 +7980,7 @@ collect_declarations_in_body := proc(body: Expr, mut context: Context) returns V
     return decls
 }
 
-collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected: Map, mut context: Context) throws Str {
+collect_declarations_recursive : proc(expr: Expr, mut decls: Vec, mut collected: Map, mut context: Context) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // INFER_TYPE should have been resolved by typer
@@ -8043,7 +8043,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
 
 }
 
-emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // First param is the function name (or Type.method for type-qualified calls)
     if expr.params.is_empty() {
         throw "ccodegen: FCall with no params"
@@ -8847,7 +8847,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
 // Emit a Str literal as a compound literal
 // is_borrowed=1 for string literals (they point to static .rodata, don't free)
-emit_str_literal := proc(s: Str, mut output: Str) {
+emit_str_literal : proc(s: Str, mut output: Str) = {
     // Str { c_string: Ptr { data: I64, is_borrowed: I64 }, _len: I64, cap: I64 }
     output.push_str("((")
     output.push_str(TIL_PREFIX)
@@ -8896,7 +8896,7 @@ emit_str_literal := proc(s: Str, mut output: Str) {
     output.push_str(", 0})")
 }
 
-emit_literal := proc(lit: Literal, mut output: Str, context: Context) throws Str {
+emit_literal : proc(lit: Literal, mut output: Str, context: Context) throws Str = {
     switch lit {
     case Literal.Str(s):
         _has_str := context.scope_stack.lookup_struct("Str")?

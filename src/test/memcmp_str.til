@@ -6,7 +6,7 @@ mode test
 // varies between interpreter and compiler, so we only test the deterministic
 // case: different strings always produce non-zero memcmp.
 
-test_memcmp_str := proc() {
+test_memcmp_str : proc() = {
     mut s1 := "hello"
     mut s2 := "hello"
     mut s3 := "world"

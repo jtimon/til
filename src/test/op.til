@@ -16,7 +16,7 @@ test(loc(), add(1, 2, 3, 4).eq(10), "add: add(1, 2, 3, 4) == 10")
 test(loc(), add(10, 20, 30, 40, 50).eq(150), "add: add(10, 20, 30, 40, 50) == 150")
 
 // U8.add - binary method in U8 struct namespace
-test_u8_add := proc() {
+test_u8_add : proc() = {
     x : U8 = 1
     y : U8 = 2
     z := U8.add(x, y)

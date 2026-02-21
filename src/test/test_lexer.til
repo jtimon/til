@@ -5,7 +5,7 @@ import("self.lexer")
 // ===== scan_tokens tests =====
 // Test that escape sequences are properly processed by the lexer
 
-test_newline_escape := proc() {
+test_newline_escape : proc() = {
     mut source := "\"\\n\""
     mut tokens := scan_tokens(source)?
 
@@ -27,7 +27,7 @@ test_newline_escape := proc() {
 }
 test_newline_escape()
 
-test_tab_escape := proc() {
+test_tab_escape : proc() = {
     mut source := "\"\\t\""
     mut tokens := scan_tokens(source)?
 
@@ -49,7 +49,7 @@ test_tab_escape := proc() {
 }
 test_tab_escape()
 
-test_carriage_return_escape := proc() {
+test_carriage_return_escape : proc() = {
     mut source := "\"\\r\""
     mut tokens := scan_tokens(source)?
 
@@ -71,7 +71,7 @@ test_carriage_return_escape := proc() {
 }
 test_carriage_return_escape()
 
-test_null_escape := proc() {
+test_null_escape : proc() = {
     mut source := "\"\\0\""
     mut tokens := scan_tokens(source)?
 
@@ -93,7 +93,7 @@ test_null_escape := proc() {
 }
 test_null_escape()
 
-test_multiple_escapes := proc() {
+test_multiple_escapes : proc() = {
     mut source := "\"hello\\nworld\\ttab\""
     mut tokens := scan_tokens(source)?
 
@@ -115,7 +115,7 @@ test_multiple_escapes := proc() {
 }
 test_multiple_escapes()
 
-test_unknown_escape := proc() {
+test_unknown_escape : proc() = {
     // Unknown escape sequences should keep the backslash
     mut source := "\"\\x\""
     mut tokens := scan_tokens(source)?
@@ -140,7 +140,7 @@ test_unknown_escape()
 
 // ===== Lexer class tests =====
 
-test_lexer_peek := proc() {
+test_lexer_peek : proc() = {
     // Create a simple test file
     mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
@@ -170,7 +170,7 @@ test_lexer_peek := proc() {
 }
 test_lexer_peek()
 
-test_lexer_advance := proc() {
+test_lexer_advance : proc() = {
     mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // First token should be "mode"
@@ -200,7 +200,7 @@ test_lexer_advance := proc() {
 }
 test_lexer_advance()
 
-test_lexer_peek_ahead := proc() {
+test_lexer_peek_ahead : proc() = {
     mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // Peek ahead by 1 (should be "script" while current is still "mode")
@@ -229,7 +229,7 @@ test_lexer_peek_ahead := proc() {
 }
 test_lexer_peek_ahead()
 
-test_lexer_next := proc() {
+test_lexer_next : proc() = {
     mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // next() returns peek_ahead(1), so it returns the next token
@@ -258,7 +258,7 @@ test_lexer_next := proc() {
 }
 test_lexer_next()
 
-test_lexer_previous := proc() {
+test_lexer_previous : proc() = {
     mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // Advance to "script"
@@ -288,7 +288,7 @@ test_lexer_previous := proc() {
 }
 test_lexer_previous()
 
-test_lexer_len := proc() {
+test_lexer_len : proc() = {
     mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // empty.til should have at least 2 tokens: "mode" and "script"
@@ -308,7 +308,7 @@ test_lexer_len := proc() {
 }
 test_lexer_len()
 
-test_lexer_get_token := proc() {
+test_lexer_get_token : proc() = {
     mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // Get token at index 0
@@ -332,7 +332,7 @@ test_lexer_get_token := proc() {
 test_lexer_get_token()
 
 // Test namespace keyword is recognized (Issue #108)
-test_namespace_keyword := proc() {
+test_namespace_keyword : proc() = {
     mut source := "namespace"
     mut tokens := scan_tokens(source)?
 

@@ -6,7 +6,7 @@ Color := enum {
     // other: I64, // TODO support tagged unions
 }
 
-test_size_of := proc() {
+test_size_of : proc() = {
     assert_eq(loc(), size_of(U8), 1)
     assert_eq(loc(), size_of(Bool), 1)
     assert_eq(loc(), size_of(I64), 8)
@@ -16,7 +16,7 @@ test_size_of := proc() {
 }
 test_size_of()
 
-test_to_ptr := proc() {
+test_to_ptr : proc() = {
     mut x : I64 = 256
     test(loc(), gt(to_ptr(x), 0), "to_ptr(I64) should return non-zero")
 
@@ -31,7 +31,7 @@ test_to_ptr := proc() {
 }
 test_to_ptr()
 
-test_type_as_str := proc() {
+test_type_as_str : proc() = {
     assert_eq_str(loc(), "I64", type_as_str(I64))
     assert_eq_str(loc(), "Bool", type_as_str(Bool))
     assert_eq_str(loc(), "Str", type_as_str(Str))
@@ -40,7 +40,7 @@ test_type_as_str := proc() {
 }
 test_type_as_str()
 
-test_malloc := proc() {
+test_malloc : proc() = {
     mut p := malloc(16)?
     test(loc(), gt(p, 0), "malloc: pointer address should be non-zero")
     free(p)
@@ -50,7 +50,7 @@ test_malloc := proc() {
 }
 test_malloc()
 
-test_free := proc() {
+test_free : proc() = {
     mut p := malloc(8)?
     free(p)
     catch(err: BadAlloc) {
@@ -59,7 +59,7 @@ test_free := proc() {
 }
 test_free()
 
-test_memset := proc() {
+test_memset : proc() = {
     mut p := malloc(8)?
     memset(p, U8.from_i64(0)?, 8)
     free(p)
@@ -72,7 +72,7 @@ test_memset := proc() {
 }
 test_memset()
 
-test_memcpy := proc() {
+test_memcpy : proc() = {
     mut p1 := malloc(8)?
     mut p2 := malloc(8)?
     memset(p1, U8.from_i64(42)?, 8)
@@ -88,7 +88,7 @@ test_memcpy := proc() {
 }
 test_memcpy()
 
-test_memcmp_i64 := proc() {
+test_memcmp_i64 : proc() = {
     mut a := 42
     mut b := 42
     mut c := 99
@@ -106,7 +106,7 @@ test_memcmp_i64()
 // NOTE: test_memcmp_str moved to memcmp_str_interpreted.til and memcmp_str_compiled.til
 // because string literal pooling differs between interpreter and compiled C
 
-test_memcmp_bool := proc() {
+test_memcmp_bool : proc() = {
     mut t1 := true
     mut t2 := true
     mut f1 := false

@@ -31,7 +31,7 @@ mut g_mem_report := false
 // Looks for "Elapsed (wall clock) time (h:mm:ss or m:ss): M:SS.SS"
 // Format: m:ss.ss (under 1 hour) or h:mm:ss (over 1 hour)
 // Returns milliseconds, or -1 if parsing fails
-parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
+parse_time_ms : func(time_output: Str) returns I64 throws IndexOutOfBoundsError = {
     lines := time_output.split("\n")?
     for line: Str in lines {
         if line.find("Elapsed (wall clock)").gt(I64_MINUS1) {
@@ -80,7 +80,7 @@ parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError
 // Parse max RSS from /usr/bin/time -v output
 // Looks for "Maximum resident set size (kbytes): N"
 // Returns kilobytes, or -1 if parsing fails
-parse_maxrss_kb := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
+parse_maxrss_kb : func(time_output: Str) returns I64 throws IndexOutOfBoundsError = {
     lines := time_output.split("\n")?
     for line: Str in lines {
         if line.find("Maximum resident set size").gt(I64_MINUS1) {
@@ -96,7 +96,7 @@ parse_maxrss_kb := func(time_output: Str) returns I64 throws IndexOutOfBoundsErr
 }
 
 // Format milliseconds as "0.042s"
-format_time := func(ms: I64) returns Str {
+format_time : func(ms: I64) returns Str = {
     if ms.lt(0) {
         return "N/A"
     }
@@ -113,7 +113,7 @@ format_time := func(ms: I64) returns Str {
 // path: src/test/foo.til -> gen/out/test/foo
 // mode: rs_interpreted, til_compiled, etc.
 // args: "help" -> ".help", "help foo" -> ".help_foo", "" -> ""
-get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
+get_actual_path : func(path: Str, test_mode: Str, cmd_args: Str) returns Str = {
     // Convert src/test/foo.til -> gen/out/test/foo
     base := path.replace(".til", "").replace("src/", "gen/out/")
 
@@ -128,7 +128,7 @@ get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
 
 // Get expected .out file path (same as tests.til's get_out_path)
 // For common tests, both modes compare against .interpreted.out
-get_expected_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
+get_expected_path : func(path: Str, test_mode: Str, cmd_args: Str) returns Str = {
     base := path.replace(".til", "").replace("src/", "gen/out/")
     mut suffix := ""
     if not(cmd_args.eq("")) {
@@ -138,7 +138,7 @@ get_expected_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str 
 }
 
 // Format expected file content
-format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str {
+format_expected : func(cmd_args: Str, exit_code: I64, output: Str) returns Str = {
     mut result := "args: "
     result = result.concat(cmd_args).concat("\n")
     result = result.concat("expected_status: ").concat(exit_code.to_str()).concat("\n")
@@ -150,7 +150,7 @@ format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str 
 // Get command prefix for running a test
 // Bug #141: Use bin/rs/til (til built by rstil) for til modes
 // Issue #131: Include --cc flag for compiled modes
-get_cmd_prefix := func(test_mode: Str) returns Str {
+get_cmd_prefix : func(test_mode: Str) returns Str = {
     // Build --cc suffix for compiled modes
     mut cc_suffix := ""
     if not(g_cc.is_empty()) {
@@ -173,7 +173,7 @@ get_cmd_prefix := func(test_mode: Str) returns Str {
 
 // Get build command prefix for compiled modes
 // Returns "" for interpreted modes (no build step needed)
-get_build_prefix := func(test_mode: Str) returns Str {
+get_build_prefix : func(test_mode: Str) returns Str = {
     mut cc_suffix := ""
     if not(g_cc.is_empty()) {
         cc_suffix = concat(" --cc=", g_cc)
@@ -193,7 +193,7 @@ get_build_prefix := func(test_mode: Str) returns Str {
 // Output goes to mut output param, time goes to mut time_ms param
 // Linux: /usr/bin/time -v for wall-clock time and max RSS
 // macOS: bash builtin time with TIMEFORMAT for wall-clock time (no RSS)
-run_timed := proc(mut output: Str, mut time_ms: I64, mut maxrss_kb: I64, cmd: Str) returns I64 {
+run_timed : proc(mut output: Str, mut time_ms: I64, mut maxrss_kb: I64, cmd: Str) returns I64 = {
     // Build wrapped command based on OS
     mut wrapped := ""
     if g_is_linux {
@@ -303,7 +303,7 @@ run_timed := proc(mut output: Str, mut time_ms: I64, mut maxrss_kb: I64, cmd: St
 }
 
 // Ensure parent directory exists
-ensure_parent_dir := proc(file_path: Str) {
+ensure_parent_dir : proc(file_path: Str) = {
     mut last_slash := 0
     for i in 0..file_path.len() {
         if file_path.get_char(i)?.eq("/") {
@@ -320,7 +320,7 @@ ensure_parent_dir := proc(file_path: Str) {
 }
 
 // Regenerate .out file for a test
-do_regen := proc(test_mode: Str, out_mode: Str, file: Str, cmd_args: Str) {
+do_regen : proc(test_mode: Str, out_mode: Str, file: Str, cmd_args: Str) = {
     cmd_prefix := get_cmd_prefix(test_mode)
     if cmd_prefix.eq("") {
         panic(loc(), format("Unknown mode '", test_mode, "'"))
@@ -355,7 +355,7 @@ do_regen := proc(test_mode: Str, out_mode: Str, file: Str, cmd_args: Str) {
 // Run test and compare against .out file (with timing)
 // For compiled modes: builds first (timed separately), then runs (timed separately)
 // Output format: PASS <build_ms> <run_ms> <maxrss_kb>
-do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, cmd_args: Str) {
+do_test : proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, cmd_args: Str) = {
     is_compiled := test_mode.find("compiled").gt(I64_MINUS1)
 
     // Step 1: Build (compiled modes only)
@@ -537,7 +537,7 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
 
 // test_mode: rs_interpreted, rs_compiled, til_interpreted, til_compiled
 // out_mode: which .out file to compare against (e.g., rs_interpreted, til_interpreted)
-main := proc(args: ..Str) {
+main : proc(args: ..Str) = {
     detect_os()
 
     if args.len().lt(5) {

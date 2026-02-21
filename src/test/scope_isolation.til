@@ -4,10 +4,10 @@ mode test
 // These should pass with both context cloning and scope stack approaches
 
 // Test 1: Basic scope isolation - local variables shouldn't leak
-test_basic_isolation := proc() {
+test_basic_isolation : proc() = {
     outer_var := 42
 
-    inner_func := func() returns I64 {
+    inner_func : func() returns I64 = {
         inner_var := 100
         return inner_var
     }
@@ -19,10 +19,10 @@ test_basic_isolation := proc() {
 test_basic_isolation()
 
 // Test 2: Parameter shadowing - parameters should shadow parent scope variables
-test_parameter_shadowing := proc() {
+test_parameter_shadowing : proc() = {
     x := 10
 
-    shadow_func := func(x: I64) returns I64 {
+    shadow_func : func(x: I64) returns I64 = {
         // This 'x' is the parameter, not the outer 'x'
         return add(x, 1)
     }
@@ -34,8 +34,8 @@ test_parameter_shadowing := proc() {
 test_parameter_shadowing()
 
 // Test 3: Nested function calls with same variable names
-test_nested_same_names := proc() {
-    compute := func(n: I64) returns I64 {
+test_nested_same_names : proc() = {
+    compute : func(n: I64) returns I64 = {
         if n.eq(0) {
             return 1
         }
@@ -43,7 +43,7 @@ test_nested_same_names := proc() {
         return temp
     }
 
-    wrapper := func(n: I64) returns I64 {
+    wrapper : func(n: I64) returns I64 = {
         temp := add(n, 5)  // Different 'temp' than in compute()
         inner_result := compute(temp)
         return add(inner_result, temp)
@@ -56,8 +56,8 @@ test_nested_same_names := proc() {
 test_nested_same_names()
 
 // Test 4: Simple recursion
-test_simple_recursion := proc() {
-    factorial := func(n: I64) returns I64 {
+test_simple_recursion : proc() = {
+    factorial : func(n: I64) returns I64 = {
         if lteq(n, 1) {
             return 1
         }
@@ -70,10 +70,10 @@ test_simple_recursion := proc() {
 test_simple_recursion()
 
 // Test 5: Mut parameter DOES modify caller's variable (pass-by-reference)
-test_mut_parameter_passbyref := proc() {
+test_mut_parameter_passbyref : proc() = {
     mut original := 100
 
-    modify_param := proc(mut n: I64) {
+    modify_param : proc(mut n: I64) = {
         n = add(n, 50)
         // n is now 150 inside this function
     }
@@ -85,8 +85,8 @@ test_mut_parameter_passbyref := proc() {
 test_mut_parameter_passbyref()
 
 // Test 6: Multiple sequential calls don't interfere
-test_sequential_calls := proc() {
-    add_ten := func(x: I64) returns I64 {
+test_sequential_calls : proc() = {
+    add_ten : func(x: I64) returns I64 = {
         return add(x, 10)
     }
 
@@ -101,10 +101,10 @@ test_sequential_calls := proc() {
 test_sequential_calls()
 
 // Test 7: Bool parameter shadowing (specific test for Bool since it's a struct)
-test_bool_parameter_shadowing := proc() {
+test_bool_parameter_shadowing : proc() = {
     flag := true
 
-    negate_bool := func(flag: Bool) returns Bool {
+    negate_bool : func(flag: Bool) returns Bool = {
         return not(flag)
     }
 
@@ -115,10 +115,10 @@ test_bool_parameter_shadowing := proc() {
 test_bool_parameter_shadowing()
 
 // Test 8: Str parameter shadowing (specific test for Str since it's a struct)
-test_str_parameter_shadowing := proc() {
+test_str_parameter_shadowing : proc() = {
     msg := "outer"
 
-    get_length := func(msg: Str) returns I64 {
+    get_length : func(msg: Str) returns I64 = {
         return msg.len()
     }
 

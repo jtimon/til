@@ -8,9 +8,9 @@ import("core.i64")
 // the function BEFORE transforming its body, allowing recursive calls to resolve
 // UFCS on the function's return type.
 
-bug123_test := proc() {
+bug123_test : proc() = {
     // WORKS - explicit I64.add()
-    fib_explicit := func(n: I64) returns I64 {
+    fib_explicit : func(n: I64) returns I64 = {
         if lt(n, 2) {
             return n
         }
@@ -18,7 +18,7 @@ bug123_test := proc() {
     }
 
     // Bug #123 fixed - UFCS on recursive nested function result now works
-    fib_ufcs := func(n: I64) returns I64 {
+    fib_ufcs : func(n: I64) returns I64 = {
         if lt(n, 2) {
             return n
         }

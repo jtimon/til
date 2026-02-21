@@ -24,7 +24,7 @@ Expr := struct {
     mut line: I64 = 0
 }
 
-test_vec_iteration := proc() {
+test_vec_iteration : proc() = {
     mut parent := Expr()
 
     mut child1 := Expr(node_type=NodeType.Body, line=1)

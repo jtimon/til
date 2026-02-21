@@ -6,14 +6,14 @@ mut text_color := "white"
 mut button_color := "gray"
 
 // Change the theme color
-set_theme := proc(new_bg: Str, new_text: Str, new_button: Str) {
+set_theme : proc(new_bg: Str, new_text: Str, new_button: Str) = {
     background_color := new_bg
     text_color := new_text
     button_color := new_button
     println("Theme updated!")
 }
 
-main := proc() {
+main : proc() = {
     // Set a new theme
     set_theme("black", "green", "blue")
 }

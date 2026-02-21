@@ -3,15 +3,15 @@ mode test
 // Test that function purity rules are enforced properly
 // funcs cannot call procs, including indirectly through arguments
 
-pure_func := func(x: I64) returns I64 {
+pure_func : func(x: I64) returns I64 = {
     return add(x, 10)
 }
 
-another_pure_func := func(a: I64, b: I64) returns I64 {
+another_pure_func : func(a: I64, b: I64) returns I64 = {
     return add(a, b)
 }
 
-impure_proc := proc() returns I64 {
+impure_proc : proc() returns I64 = {
     println("Side effect in proc!")
     return 42
 }
@@ -19,26 +19,26 @@ impure_proc := proc() returns I64 {
 // Test 1: Direct proc call in func - should be caught
 // This test is commented out because it should fail to compile:
 //
-// test_direct_proc_call := func() returns I64 {
+// test_direct_proc_call : func() returns I64 = {
 //     return impure_proc()  // ERROR: func calling proc directly
 // }
 
 // Test 2: Proc call as argument to func call - should be caught
 // This test is also commented out because it should fail to compile:
 //
-// test_proc_as_arg := func() returns I64 {
+// test_proc_as_arg : func() returns I64 = {
 //     return pure_func(impure_proc())  // ERROR: proc call as arg
 // }
 
 // Test 3: Multiple levels of nesting - should be caught
 // This test is also commented out because it should fail to compile:
 //
-// test_nested_proc_as_arg := func() returns I64 {
+// test_nested_proc_as_arg : func() returns I64 = {
 //     return another_pure_func(pure_func(10), impure_proc())  // ERROR: proc in 2nd arg
 // }
 
 // Test 4: Valid pure function calls are OK
-test_pure_composition := func() returns I64 {
+test_pure_composition : func() returns I64 = {
     return another_pure_func(pure_func(10), pure_func(20))  // OK: all funcs
 }
 
@@ -46,7 +46,7 @@ mut result := test_pure_composition()
 assert_eq(loc(), 50, result)  // (10+10) + (20+10) = 50
 
 // Test 5: Proc can call other procs (that's fine)
-proc_can_call_proc := proc() returns I64 {
+proc_can_call_proc : proc() returns I64 = {
     return impure_proc()  // OK: proc calling proc
 }
 

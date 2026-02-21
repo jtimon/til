@@ -26,7 +26,7 @@ doesn't break with nesting like C // REM nested comments don't work properly in 
 
 // 'if' statements:
 
-test_if_statement := proc() {
+test_if_statement : proc() = {
     if not(gt(4, 2)) {
         panic(loc(), "'gt(4, 2)' (aka '4 > 2') is not true") // Obviously this should never happen
     }
@@ -36,7 +36,7 @@ test_if_statement()
 
 // 'if/elif/else/' statements:
 
-test_if_elif_else := proc() {
+test_if_elif_else : proc() = {
     mut result := ""
     // if 42 { // fails because ints are not allowed for conditions, only bool
     if gt(2, 4) {
@@ -51,7 +51,7 @@ test_if_elif_else := proc() {
 test_if_elif_else()
 
 // while loops:
-test_while_loop := proc() {
+test_while_loop : proc() = {
     mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
     mut count := 0
     // while 42 { // fails, because while expects a bool first, not an int
@@ -65,7 +65,7 @@ test_while_loop := proc() {
 test_while_loop()
 
 // for loops:
-test_for_loop := proc() {
+test_for_loop : proc() = {
     mut sum := 0
     for i in 0..5 {
         sum = add(sum, i)
@@ -76,8 +76,8 @@ test_for_loop()
 
 // switch statements:
 
-test_int_switch := proc() {
-    check_answer := proc(to_switch: I64) returns Bool {
+test_int_switch : proc() = {
+    check_answer : proc(to_switch: I64) returns Bool = {
         switch to_switch {
         case add(40, 2):
             return true; // semicolons are optional here too
@@ -94,8 +94,8 @@ test_int_switch := proc() {
 }
 test_int_switch()
 
-test_int_range := proc() {
-    classify_range := proc(x: I64) returns I64 {
+test_int_range : proc() = {
+    classify_range : proc(x: I64) returns I64 = {
         switch x {
         case 1..5:
             return 1 // between 1 and 5
@@ -115,7 +115,7 @@ test_int_range := proc() {
 }
 test_int_range()
 
-test_for_loop_range := proc(min_range : I64, max_range : I64) {
+test_for_loop_range : proc(min_range : I64, max_range : I64) = {
 
     mut sum_for := 0
     for i in min_range..max_range {
@@ -143,24 +143,24 @@ test_for_loop_range(3, 5)
 test_for_loop_range(4, 2) // reverse range: 4, 3 = 7
 
 // Test: Nested function returns and stack frame handling
-test_nested_function_returns := proc() {
+test_nested_function_returns : proc() = {
     // Simple return (baseline)
-    test_simple := proc() returns I64 {
+    test_simple : proc() returns I64 = {
         return 42
     }
     assert_eq(loc(), 42, test_simple())
 
     // Nested function calls with returns
-    inner_function := proc() returns I64 {
+    inner_function : proc() returns I64 = {
         return 100
     }
 
-    middle_function := proc() returns I64 {
+    middle_function : proc() returns I64 = {
         mut val := inner_function()
         return add(val, 10)  // Should return 110
     }
 
-    outer_function := proc() returns I64 {
+    outer_function : proc() returns I64 = {
         mut val := middle_function()
         return add(val, 1)  // Should return 111
     }
@@ -168,21 +168,21 @@ test_nested_function_returns := proc() {
     assert_eq(loc(), 111, outer_function())
 
     // Deep nesting (4+ levels)
-    level_4 := proc() returns I64 {
+    level_4 : proc() returns I64 = {
         return 4
     }
 
-    level_3 := proc() returns I64 {
+    level_3 : proc() returns I64 = {
         mut v := level_4()
         return add(v, 3)  // Should be 7
     }
 
-    level_2 := proc() returns I64 {
+    level_2 : proc() returns I64 = {
         mut v := level_3()
         return add(v, 2)  // Should be 9
     }
 
-    level_1 := proc() returns I64 {
+    level_1 : proc() returns I64 = {
         mut v := level_2()
         return add(v, 1)  // Should be 10
     }
@@ -190,7 +190,7 @@ test_nested_function_returns := proc() {
     assert_eq(loc(), 10, level_1())
 
     // Test with simple helper function
-    add_ten_helper := func(x: I64) returns I64 {
+    add_ten_helper : func(x: I64) returns I64 = {
         return add(x, 10)
     }
 
@@ -200,7 +200,7 @@ test_nested_function_returns()
 
 // break and continue statements:
 
-test_break_in_while := proc() {
+test_break_in_while : proc() = {
     mut sum := 0
     mut i := 0
     while lt(i, 10) {
@@ -216,7 +216,7 @@ test_break_in_while := proc() {
 }
 test_break_in_while()
 
-test_continue_in_while := proc() {
+test_continue_in_while : proc() = {
     mut sum := 0
     mut i := 0
     while lt(i, 10) {
@@ -231,7 +231,7 @@ test_continue_in_while := proc() {
 }
 test_continue_in_while()
 
-test_break_in_for := proc() {
+test_break_in_for : proc() = {
     mut sum := 0
     for i in 0..10 {
         if i.eq(5) {
@@ -245,7 +245,7 @@ test_break_in_for := proc() {
 test_break_in_for()
 
 // continue in for loops works correctly (verified 2026-01-11)
-test_continue_in_for := proc() {
+test_continue_in_for : proc() = {
     mut sum := 0
     for i in 0..10 {
         if i.eq(5) {
@@ -258,7 +258,7 @@ test_continue_in_for := proc() {
 }
 test_continue_in_for()
 
-test_nested_loop_break := proc() {
+test_nested_loop_break : proc() = {
     // break only breaks innermost loop
     mut outer_count := 0
     mut inner_count := 0
@@ -282,7 +282,7 @@ test_nested_loop_break := proc() {
 }
 test_nested_loop_break()
 
-test_break_after_statements := proc() {
+test_break_after_statements : proc() = {
     mut a := 0
     mut b := 0
     mut i := 0
@@ -307,12 +307,12 @@ Point136 := struct {
     mut y: I64 = 0
 
 namespace:
-    eq := func(a: Point136, b: Point136) returns Bool {
+    eq : func(a: Point136, b: Point136) returns Bool = {
         return a.x.eq(b.x).and(a.y.eq(b.y))
     }
 }
 
-test_switch_struct_eq := proc() {
+test_switch_struct_eq : proc() = {
     p := Point136(x=5, y=10)
 
     // Test matching case

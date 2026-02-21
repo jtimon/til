@@ -43,7 +43,7 @@ Map := struct {
 namespace:
     /** Create new empty map with specified key and value types.
      *  Example: Map.new(Str, I64) */
-    new := proc(KeyType: Type, ValueType: Type) returns Map {
+    new : proc(KeyType: Type, ValueType: Type) returns Map = {
         mut m := Map()
         m.keys = Vec.new_from_type_info(type_as_str(KeyType), size_of(KeyType))
         m.values = Vec.new_from_type_info(type_as_str(ValueType), size_of(ValueType))
@@ -54,7 +54,7 @@ namespace:
     /** Compare two keys. Returns -1 if a < b, 0 if a == b, 1 if a > b.
      *  For Str keys, uses lexicographic comparison via Str.cmp().
      *  For other types, uses memcmp on raw bytes. */
-    compare_keys := func(self: Map, key_a_ptr: I64, key_b_ptr: I64) returns I64 {
+    compare_keys : func(self: Map, key_a_ptr: I64, key_b_ptr: I64) returns I64 = {
         if self.keys._is_str_type() {
             // For Str keys, use Str.cmp() for proper lexicographic ordering
             mut a := ""
@@ -78,7 +78,7 @@ namespace:
     /** Binary search for key. Returns BinarySearchResult with found flag and index.
      *  If found: index is where the key is.
      *  If not found: index is where the key should be inserted. */
-    binary_search := func(self: Map, key: Dynamic) returns BinarySearchResult {
+    binary_search : func(self: Map, key: Dynamic) returns BinarySearchResult = {
         mut result := BinarySearchResult()
 
         if self._size.eq(0) {
@@ -123,7 +123,7 @@ namespace:
     /** Insert new key-value pair.
      *  Throws DuplicatedKeyError if key already exists.
      *  Use set() instead if you want to overwrite existing keys. */
-    insert := proc(mut self: Map, own key: Dynamic, own value: Dynamic) throws DuplicatedKeyError {
+    insert : proc(mut self: Map, own key: Dynamic, own value: Dynamic) throws DuplicatedKeyError = {
         dont_delete(key)
         dont_delete(value)
         search := self.binary_search(key)
@@ -145,7 +145,7 @@ namespace:
     /** Set key-value pair.
      *  Overwrites value if key already exists.
      *  Creates new entry if key doesn't exist. */
-    set := proc(mut self: Map, own key: Dynamic, own value: Dynamic) {
+    set : proc(mut self: Map, own key: Dynamic, own value: Dynamic) = {
         dont_delete(key)
         dont_delete(value)
         search := self.binary_search(key)
@@ -167,7 +167,7 @@ namespace:
     }
 
     /** Get borrowed Ptr to value for given key. No copy - points into map memory. */
-    get := proc(self: Map, key: Dynamic) returns Ptr throws KeyNotFoundError {
+    get : proc(self: Map, key: Dynamic) returns Ptr throws KeyNotFoundError = {
         search := self.binary_search(key)
         if search.found {
             return self.values.ptr.offset(search.index.mul(self.values.ptr.elem_size))
@@ -176,13 +176,13 @@ namespace:
     }
 
     /** Check if key exists in map. */
-    contains_key := proc(self: Map, key: Dynamic) returns Bool {
+    contains_key : proc(self: Map, key: Dynamic) returns Bool = {
         search := self.binary_search(key)
         return search.found
     }
 
     /** Remove key from map. Does nothing if key doesn't exist. */
-    remove := proc(mut self: Map, key: Dynamic) {
+    remove : proc(mut self: Map, key: Dynamic) = {
         search := self.binary_search(key)
 
         if search.found {
@@ -200,7 +200,7 @@ namespace:
     /** Get position (index) of key in sorted order.
      *  Returns -1 if key not found.
      *  Note: This returns the sorted position, not insertion order. */
-    position := proc(self: Map, key: Dynamic) returns I64 {
+    position : proc(self: Map, key: Dynamic) returns I64 = {
         search := self.binary_search(key)
         if search.found {
             return search.index
@@ -209,31 +209,31 @@ namespace:
     }
 
     /** Get number of entries in map. */
-    len := proc(self: Map) returns I64 {
+    len : proc(self: Map) returns I64 = {
         return self._size
     }
 
     /** Check if map is empty. */
-    is_empty := func(self: Map) returns Bool {
+    is_empty : func(self: Map) returns Bool = {
         return self._size.eq(0)
     }
 
     /** Clear all entries from map (reset to empty). */
-    clear := proc(mut self: Map) {
+    clear : proc(mut self: Map) = {
         self._size = 0
         self.keys._len = 0
         self.values._len = 0
     }
 
     /** Get total size in bytes (keys + values). */
-    size := func(self: Map) returns I64 {
+    size : func(self: Map) returns I64 = {
         mut keys_size := mul(self._size, self.keys.ptr.elem_size)
         mut values_size := mul(self._size, self.values.ptr.elem_size)
         return add(keys_size, values_size)
     }
 
     /** Free map memory and reset. */
-    delete := proc(mut self: Map) {
+    delete : proc(mut self: Map) = {
         mut keys_arr := self.keys
         keys_arr.delete()
 
@@ -244,7 +244,7 @@ namespace:
     }
 
     // Bug #36 fix: Now we can inline throwing functions in struct literal params
-    clone := func(self: Map) returns Map {
+    clone : func(self: Map) returns Map = {
         return Map(
             keys=self.keys.clone(),
             values=self.values.clone(),

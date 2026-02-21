@@ -13,12 +13,12 @@ import("self.parser")
 // ============================================================================
 
 /// Create an identifier expression
-make_id := func(name: Str, line: I64, col: I64) returns Expr {
+make_id : func(name: Str, line: I64, col: I64) returns Expr = {
     return Expr.new_explicit(NodeType.Identifier(name), Vec.new(Expr), line, col)
 }
 
 /// Create a function call: name(args...)
-make_call := func(name: Str, args: Vec, line: I64, col: I64) returns Expr {
+make_call : func(name: Str, args: Vec, line: I64, col: I64) returns Expr = {
     mut params := Vec.new(Expr)
     params.push(make_id(name, line, col))
     for arg: Expr in args { params.push(arg) }
@@ -26,22 +26,22 @@ make_call := func(name: Str, args: Vec, line: I64, col: I64) returns Expr {
 }
 
 /// Create a string literal
-make_str := func(s: Str, line: I64, col: I64) returns Expr {
+make_str : func(s: Str, line: I64, col: I64) returns Expr = {
     return Expr.new_explicit(NodeType.LLiteral(Literal.Str(s)), Vec.new(Expr), line, col)
 }
 
 /// Create a number literal
-make_num := func(n: Str, line: I64, col: I64) returns Expr {
+make_num : func(n: Str, line: I64, col: I64) returns Expr = {
     return Expr.new_explicit(NodeType.LLiteral(Literal.Number(n)), Vec.new(Expr), line, col)
 }
 
 /// Create a body block
-make_body := func(stmts: Vec, line: I64, col: I64) returns Expr {
+make_body : func(stmts: Vec, line: I64, col: I64) returns Expr = {
     return Expr.new_explicit(NodeType.Body, stmts, line, col)
 }
 
 /// Create an if expression (with optional else via else_body_ptr)
-make_if := func(cond: Expr, then_body: Expr, else_body_ptr: Ptr, line: I64, col: I64) returns Expr {
+make_if : func(cond: Expr, then_body: Expr, else_body_ptr: Ptr, line: I64, col: I64) returns Expr = {
     mut params := Vec.new(Expr)
     params.push(cond)
     params.push(then_body)
@@ -54,7 +54,7 @@ make_if := func(cond: Expr, then_body: Expr, else_body_ptr: Ptr, line: I64, col:
 }
 
 /// Create a variable declaration with initializer
-make_decl := func(name: Str, value_type: ValueType, is_mut: Bool, init: Expr, line: I64, col: I64) returns Expr {
+make_decl : func(name: Str, value_type: ValueType, is_mut: Bool, init: Expr, line: I64, col: I64) returns Expr = {
     decl := Declaration(name=name, value_type=value_type, is_mut=is_mut, is_copy=false, is_own=false)
     mut params := Vec.new(Expr)
     params.push(init)
@@ -62,21 +62,21 @@ make_decl := func(name: Str, value_type: ValueType, is_mut: Bool, init: Expr, li
 }
 
 /// Create an assignment statement
-make_assign := func(name: Str, value: Expr, line: I64, col: I64) returns Expr {
+make_assign : func(name: Str, value: Expr, line: I64, col: I64) returns Expr = {
     mut params := Vec.new(Expr)
     params.push(value)
     return Expr.new_explicit(NodeType.Assignment(name), params, line, col)
 }
 
 /// Create an identifier with nested field access: name.field1.field2...
-make_field_access := func(name: Str, fields: Vec, line: I64, col: I64) returns Expr {
+make_field_access : func(name: Str, fields: Vec, line: I64, col: I64) returns Expr = {
     mut field_params := Vec.new(Expr)
     for field: Str in fields { field_params.push(make_id(field, line, col)) }
     return Expr.new_explicit(NodeType.Identifier(name), field_params, line, col)
 }
 
 /// Generate a unique temp variable name with optional function prefix
-make_temp_name := func(prefix: Str, func_name: Str, id: I64) returns Str {
+make_temp_name : func(prefix: Str, func_name: Str, id: I64) returns Str = {
     if func_name.len().gt(0) {
         return format(prefix, "_", func_name, "_", I64.to_str(id))
     } else {
@@ -85,7 +85,7 @@ make_temp_name := func(prefix: Str, func_name: Str, id: I64) returns Str {
 }
 
 /// Build: eq(var_name, enum_to_str(case_pattern))
-build_enum_eq_condition := func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr {
+build_enum_eq_condition : func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr = {
     mut args := Vec.new(Expr)
     args.push(case_pattern.clone())
     case_val_str := make_call("enum_to_str", args, line, col)
@@ -96,7 +96,7 @@ build_enum_eq_condition := func(var_name: Str, case_pattern: Expr, line: I64, co
 }
 
 /// Build: eq(var_name, case_pattern)
-build_eq_condition := func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr {
+build_eq_condition : func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr = {
     mut args := Vec.new(Expr)
     args.push(make_id(var_name, line, col))
     args.push(case_pattern.clone())
@@ -110,7 +110,7 @@ VariantInfo := struct {
 }
 
 /// Parse variant name from Pattern's variant_name field (e.g., "Color.Green" -> ("Color", "Green"))
-parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
+parse_pattern_variant_name : func(variant_name: Str) returns VariantInfo = {
     dot_pos := variant_name.rfind(".")
     if dot_pos.gteq(0) {
         type_name := variant_name.get_substr(0, dot_pos)?
@@ -127,7 +127,7 @@ parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
 }
 
 /// Extract variant info from a case pattern expression (Identifier with nested params)
-get_case_variant_info := func(expr: Expr) returns VariantInfo throws Str {
+get_case_variant_info : func(expr: Expr) returns VariantInfo throws Str = {
     switch expr.node_type {
     case NodeType.FCall(_):
         // FCall for Type.Variant (without payload extraction)
@@ -170,7 +170,7 @@ get_case_variant_info := func(expr: Expr) returns VariantInfo throws Str {
 
 /// Get the payload type from an enum definition for a given variant
 /// Returns Ptr to ValueType (NULL if not found or no payload)
-get_payload_type_for_variant := func(context: Context, enum_name: Str, variant_name: Str) returns Ptr throws KeyNotFoundError {
+get_payload_type_for_variant : func(context: Context, enum_name: Str, variant_name: Str) returns Ptr throws KeyNotFoundError = {
     enum_def := context.scope_stack.lookup_enum(enum_name)?
     for v: EnumVariant in enum_def.variants {
         if v.name.eq(variant_name) {
@@ -186,7 +186,7 @@ get_payload_type_for_variant := func(context: Context, enum_name: Str, variant_n
 /// Used to rename payload binding variables to unique names to avoid conflicts
 /// Stops at shadowing constructs (inner Patterns, Declarations with same name)
 /// IMPORTANT: Does NOT rename inside an Identifier's params - those are field names, not variable refs
-rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns Expr throws Str {
+rename_identifier_in_expr : func(e: Expr, old_name: Str, new_name: Str) returns Expr throws Str = {
     switch e.node_type {
     case NodeType.Identifier(name):
         if name.eq(old_name) {
@@ -290,7 +290,7 @@ rename_identifier_in_expr := func(e: Expr, old_name: Str, new_name: Str) returns
 
 /// Search all enums in scope to find which one contains a variant with the given name
 /// Returns the enum type name if found, empty string if not found or ambiguous
-find_enum_for_variant := func(context: Context, variant_name: Str) returns Str throws Str {
+find_enum_for_variant : func(context: Context, variant_name: Str) returns Str throws Str = {
     mut found_type := ""
     for frame_i in context.scope_stack.frames.len().sub(1)..sub(0, 1) {
         frame := cast(ScopeFrame, context.scope_stack.frames.get(frame_i)?)
@@ -318,7 +318,7 @@ find_enum_for_variant := func(context: Context, variant_name: Str) returns Str t
 
 /// Detect if a switch is an enum switch by looking at case patterns
 /// Returns (is_enum, enum_type_name) if we can determine it from patterns
-detect_enum_switch_from_cases := func(context: Context, e: Expr) returns VariantInfo throws Str {
+detect_enum_switch_from_cases : func(context: Context, e: Expr) returns VariantInfo throws Str = {
     // Look at case patterns (params[1], params[3], params[5], ...)
     mut i := 1
     while i.lt(e.params.len()) {
@@ -403,7 +403,7 @@ detect_enum_switch_from_cases := func(context: Context, e: Expr) returns Variant
 /// For non-enum switches, returns the type based on literals (I64, Str, Bool)
 /// For enum switches, returns None (caller should use enum_type_name from detect_enum_switch_from_cases)
 /// Returns Ptr to ValueType (NULL if cannot infer)
-infer_switch_type_from_cases := func(e: Expr) returns Ptr throws Str {
+infer_switch_type_from_cases : func(e: Expr) returns Ptr throws Str = {
     // Look at case patterns (params[1], params[3], params[5], ...)
     mut i := 1
     while i.lt(e.params.len()) {
@@ -489,7 +489,7 @@ infer_switch_type_from_cases := func(e: Expr) returns Ptr throws Str {
 }
 
 /// Build: eq(var_name, "literal_str")
-build_str_eq_call := func(var_name: Str, literal_str: Str, line: I64, col: I64) returns Expr {
+build_str_eq_call : func(var_name: Str, literal_str: Str, line: I64, col: I64) returns Expr = {
     mut args := Vec.new(Expr)
     args.push(make_id(var_name, line, col))
     args.push(make_str(literal_str, line, col))
@@ -503,7 +503,7 @@ build_str_eq_call := func(var_name: Str, literal_str: Str, line: I64, col: I64) 
 /// case_index: index of this case within the switch (for generating unique payload names)
 /// func_name: current function name for generating unique names
 /// For nested patterns like ValueType.TType(TTypeDef.TEnumDef), inner_condition checks the inner enum
-build_case_condition := proc(
+build_case_condition : proc(
     context: Context,
     case_pattern: Expr,
     switch_var_name: Str,
@@ -521,7 +521,7 @@ build_case_condition := proc(
     mut rename_new_name: Str,
     mut inner_condition: Expr,
     mut has_inner_condition: Bool
-) throws Str {
+) throws Str = {
     switch case_pattern.node_type {
     case NodeType.Pattern(pattern_info):
         // Enum pattern with payload binding: case Type.Variant(x):
@@ -816,7 +816,7 @@ build_case_condition := proc(
 ///     if eq(_switch_val, 1) { body1 }
 ///     else if and(gteq(_switch_val, 2), lteq(_switch_val, 5)) { body2 }
 ///     else { default } }
-desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
+desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     // Switch: params[0] = switch expression
     // params[1..] = alternating [case_pattern, body, case_pattern, body, ...]
     if e.params.len().eq(0) {
@@ -1279,7 +1279,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 /// Used when generating placeholder values for enum variant payloads in for-in loops.
 /// Bug #33: for-in loops don't work with enum collections
 /// Bug #86: Handle enum payload types recursively
-build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64) returns Expr {
+build_default_value : func(context: Context, vt: ValueType, line: I64, col: I64) returns Expr = {
     switch vt {
     case ValueType.TCustom(type_name):
         if type_name.eq("I64") {
@@ -1354,7 +1354,7 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
 //     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 ///     body
 /// }
-desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns Expr throws Str {
+desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns Expr throws Str = {
     // Extract var_name from params[0]
     if e.params.len().lt(1) {
         throw e.lang_error(context.path, "desugar", "ForIn: missing loop variable")
@@ -1498,7 +1498,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
 }
 
 /// Desugarer phase entry point: Recursively desugar ForIn loops and Switch statements.
-desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
+desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     switch e.node_type {
     // ForIn desugaring: for VAR: TYPE in COLLECTION { body } -> while loop
     case NodeType.ForIn(var_type_name):

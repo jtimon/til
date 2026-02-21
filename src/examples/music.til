@@ -7,7 +7,7 @@
 
 mode cli
 
-create_chromatic := func() returns Vec {
+create_chromatic : func() returns Vec = {
     mut v := Vec.new(Str)
     v.push("do")
     v.push("do#")
@@ -25,7 +25,7 @@ create_chromatic := func() returns Vec {
 }
 
 // Solfege notation: do, re, mi, fa, sol, la, si
-create_notes_solfege := func() returns Vec {
+create_notes_solfege : func() returns Vec = {
     mut v := Vec.new(Str)
     v.push("do")
     v.push("re")
@@ -38,7 +38,7 @@ create_notes_solfege := func() returns Vec {
 }
 
 // American notation: C, D, E, F, G, A, B
-create_notes_american := func() returns Vec {
+create_notes_american : func() returns Vec = {
     mut v := Vec.new(Str)
     v.push("C")
     v.push("D")
@@ -51,7 +51,7 @@ create_notes_american := func() returns Vec {
 }
 
 // Get notes array for given notation
-get_notes_for_notation := proc(notation: Str) returns Vec {
+get_notes_for_notation : proc(notation: Str) returns Vec = {
     if notation.eq("american") {
         return create_notes_american()
     }
@@ -59,7 +59,7 @@ get_notes_for_notation := proc(notation: Str) returns Vec {
 }
 
 // Base notes for American input parsing (lowercase)
-create_base_notes_american := func() returns Vec {
+create_base_notes_american : func() returns Vec = {
     mut v := Vec.new(Str)
     v.push("c")
     v.push("d")
@@ -72,14 +72,14 @@ create_base_notes_american := func() returns Vec {
 }
 
 // Input always uses solfege (user types do, re, mi, etc.)
-create_base_notes := func() returns Vec {
+create_base_notes : func() returns Vec = {
     return create_notes_solfege()
 }
 
 // Mode intervals ordered from brightest to darkest.
 // Major tonality: lydian, ionian, mixolydian (have major 3rd)
 // Minor tonality: dorian, aeolian, phrygian, locrian (have minor 3rd)
-create_mode_intervals := func() returns Vec {
+create_mode_intervals : func() returns Vec = {
     mut all := Vec.new(Vec)
 
     // Lydian - brightest (major, raised 4th degree)
@@ -168,7 +168,7 @@ mode_intervals := create_mode_intervals()
 
 // Maps diatonic index (0-6) to chromatic index (0-11)
 // do=0, re=2, mi=4, fa=5, sol=7, la=9, si=11
-diatonic_to_chromatic := func(diatonic_idx: I64) returns I64 {
+diatonic_to_chromatic : func(diatonic_idx: I64) returns I64 = {
     switch diatonic_idx {
     case 0: return 0   // do
     case 1: return 2   // re
@@ -182,7 +182,7 @@ diatonic_to_chromatic := func(diatonic_idx: I64) returns I64 {
 }
 
 // Returns diatonic index (0-6) for a base note name (solfege)
-get_diatonic_index := proc(note_base: Str) returns I64 {
+get_diatonic_index : proc(note_base: Str) returns I64 = {
     mut i := 0
     target := note_base.to_lowercase()
     while i.lt(base_notes.len()) {
@@ -200,7 +200,7 @@ get_diatonic_index := proc(note_base: Str) returns I64 {
 }
 
 // Returns diatonic index (0-6) for a base note name, using given notation
-get_diatonic_index_for_notation := proc(note_base: Str, notation: Str) returns I64 {
+get_diatonic_index_for_notation : proc(note_base: Str, notation: Str) returns I64 = {
     mut i := 0
     target := note_base.to_lowercase()
     mut search_notes := base_notes
@@ -222,7 +222,7 @@ get_diatonic_index_for_notation := proc(note_base: Str, notation: Str) returns I
 }
 
 // Returns chromatic index for a base note name
-get_base_index := proc(note_base: Str) returns I64 {
+get_base_index : proc(note_base: Str) returns I64 = {
     diatonic := get_diatonic_index(note_base)
     if diatonic.lt(0) {
         return diatonic
@@ -231,7 +231,7 @@ get_base_index := proc(note_base: Str) returns I64 {
 }
 
 // Format a note given its diatonic index, chromatic position, and notes array
-format_note_with := proc(diatonic_idx: I64, chromatic_pos: I64, notes: Vec) returns Str {
+format_note_with : proc(diatonic_idx: I64, chromatic_pos: I64, notes: Vec) returns Str = {
     mut note_name := cast(Str, notes.get(diatonic_idx)?)
     natural_chromatic := diatonic_to_chromatic(diatonic_idx)
 
@@ -265,11 +265,11 @@ format_note_with := proc(diatonic_idx: I64, chromatic_pos: I64, notes: Vec) retu
 }
 
 // Format a note using default solfege notation
-format_note := proc(diatonic_idx: I64, chromatic_pos: I64) returns Str {
+format_note : proc(diatonic_idx: I64, chromatic_pos: I64) returns Str = {
     return format_note_with(diatonic_idx, chromatic_pos, base_notes)
 }
 
-apply_accidentals := proc(base_idx: I64, acc_str: Str) returns I64 {
+apply_accidentals : proc(base_idx: I64, acc_str: Str) returns I64 = {
     mut semitones := 0
     mut j := 0
     while j.lt(acc_str.len()) {
@@ -293,7 +293,7 @@ apply_accidentals := proc(base_idx: I64, acc_str: Str) returns I64 {
     return idx
 }
 
-generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) returns Str {
+generate_scale : proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) returns Str = {
     mut result := ""
     mut chromatic_pos := root_idx
     mut diatonic_pos := root_diatonic
@@ -321,7 +321,7 @@ generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec
     return result
 }
 
-canonical_mode := proc(mode_arg: Str) returns Str {
+canonical_mode : proc(mode_arg: Str) returns Str = {
     mut lower := mode_arg.to_lowercase()
 
     switch lower {
@@ -354,7 +354,7 @@ canonical_mode := proc(mode_arg: Str) returns Str {
 }
 
 // Index matches order in create_mode_intervals (brightest to darkest)
-mode_index_from_canonical := proc(canonical: Str) returns I64 {
+mode_index_from_canonical : proc(canonical: Str) returns I64 = {
     switch canonical {
     case "lydian":     return 0  // brightest (major)
     case "ionian":     return 1  // major
@@ -368,7 +368,7 @@ mode_index_from_canonical := proc(canonical: Str) returns I64 {
     }
 }
 
-localized_mode_name := proc(canonical: Str, lang: Str) returns Str {
+localized_mode_name : proc(canonical: Str, lang: Str) returns Str = {
     mut lower_lang := lang.to_lowercase()
 
     switch canonical {
@@ -435,7 +435,7 @@ localized_mode_name := proc(canonical: Str, lang: Str) returns Str {
 
 // Returns the triad type based on intervals from root to 3rd and 3rd to 5th
 // mayor: 4+3, menor: 3+4, aumentado: 4+4, disminuido: 3+3
-get_triad_type := func(interval_to_3rd: I64, interval_to_5th: I64) returns Str {
+get_triad_type : func(interval_to_3rd: I64, interval_to_5th: I64) returns Str = {
     if interval_to_3rd.eq(4).and(interval_to_5th.eq(7)) {
         return "mayor"
     } else if interval_to_3rd.eq(3).and(interval_to_5th.eq(7)) {
@@ -449,7 +449,7 @@ get_triad_type := func(interval_to_3rd: I64, interval_to_5th: I64) returns Str {
 }
 
 // Get the roman numeral for a scale degree (1-7)
-get_roman := func(degree: I64, triad_type: Str) returns Str {
+get_roman : func(degree: I64, triad_type: Str) returns Str = {
     mut roman := ""
     switch degree {
     case 1: roman = "I"
@@ -469,7 +469,7 @@ get_roman := func(degree: I64, triad_type: Str) returns Str {
 }
 
 // Build triads for a scale and print them grouped by type
-print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) {
+print_triads : proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) = {
     // Build array of chromatic positions for each scale degree
     mut scale_chromatic := Vec.new(I64)
     mut scale_diatonic := Vec.new(I64)
@@ -559,7 +559,7 @@ print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) 
     }
 }
 
-print_triad_line := proc(label: Str, triads: Vec) {
+print_triad_line : proc(label: Str, triads: Vec) = {
     mut line := label
     if triads.len().eq(0) {
         line = line.concat("-")
@@ -584,12 +584,12 @@ print_triad_line := proc(label: Str, triads: Vec) {
 // Get staff position for a note (mi=0, fa=1, sol=2, la=3, si=4, do'=5, etc.)
 // Lines are at even positions: 0(mi), 2(sol), 4(si), 6(re'), 8(fa')
 // Spaces are at odd positions: 1(fa), 3(la), 5(do'), 7(mi')
-get_staff_position := func(diatonic_idx: I64, octave: I64) returns I64 {
+get_staff_position : func(diatonic_idx: I64, octave: I64) returns I64 = {
     return diatonic_idx.sub(2).add(octave.mul(7))
 }
 
 // Get natural note name for a staff position (for side labels)
-get_position_note_name := proc(pos: I64, notes: Vec) returns Str {
+get_position_note_name : proc(pos: I64, notes: Vec) returns Str = {
     // Map position back to diatonic: pos = diatonic - 2 + octave*7
     // So diatonic = (pos + 2) mod 7
     mut diatonic := pos.add(2).mod(7)
@@ -605,7 +605,7 @@ get_position_note_name := proc(pos: I64, notes: Vec) returns Str {
 }
 
 // Extract accidental from a note name (e.g., "fa#" -> "#", "sib" -> "b", "do" -> "")
-get_accidental := proc(note_name: Str) returns Str {
+get_accidental : proc(note_name: Str) returns Str = {
     mut acc := ""
     mut i := 0
     while i.lt(note_name.len()) {
@@ -622,7 +622,7 @@ get_accidental := proc(note_name: Str) returns Str {
 }
 
 // Pad string to width (right-aligned for notes)
-pad_right := func(s: Str, width: I64) returns Str {
+pad_right : func(s: Str, width: I64) returns Str = {
     mut result := s
     while result.len().lt(width) {
         result = result.concat(" ")
@@ -631,7 +631,7 @@ pad_right := func(s: Str, width: I64) returns Str {
 }
 
 // Repeat a character n times
-repeat_char := func(ch: Str, n: I64) returns Str {
+repeat_char : func(ch: Str, n: I64) returns Str = {
     mut result := ""
     mut i := 0
     while i.lt(n) {
@@ -641,7 +641,7 @@ repeat_char := func(ch: Str, n: I64) returns Str {
     return result
 }
 
-print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) {
+print_pentagram : proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) = {
     // Build scale notes with their staff positions
     mut note_names := Vec.new(Str)
     mut note_positions := Vec.new(I64)
@@ -804,7 +804,7 @@ print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Ve
     }
 }
 
-print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str, notation: Str) {
+print_scale : proc(mode_arg: Str, root_arg: Str, lang: Str, notation: Str) = {
     mut canon := canonical_mode(mode_arg)
     if canon.eq("") {
         msg := "Unknown mode: "
@@ -866,7 +866,7 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str, notation: Str) {
     }
 }
 
-usage := proc(lang: Str) {
+usage : proc(lang: Str) = {
     mut lower_lang := lang.to_lowercase()
     if lower_lang.eq("en") {
         println("Usage: ./bin/til music.til [-lang=pt|en|es] [-notation=solfege|american] <mode> [root]")
@@ -889,7 +889,7 @@ usage := proc(lang: Str) {
     }
 }
 
-main := proc(args: ..Str) {
+main : proc(args: ..Str) = {
     mut lang := "pt"
     mut notation := "solfege"
     mut mode_arg := ""

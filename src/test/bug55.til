@@ -10,7 +10,7 @@ Item := struct {
     mut count: I64 = 0
 }
 
-test_clone_in_struct_literal_pushed_to_vec := proc() {
+test_clone_in_struct_literal_pushed_to_vec : proc() = {
     mut items := Vec.new(Item)
     original := "hello"
     // This triggers Bug #55 - clone inside struct literal passed to push

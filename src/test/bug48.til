@@ -3,15 +3,15 @@ mode test
 // Bug #48: Typer should reject passing literals to mut params
 // All these should be caught by typer, not eval or GCC
 
-test_mut_i64 := proc(mut n: I64) {
+test_mut_i64 : proc(mut n: I64) = {
     n = 99
 }
 
-test_mut_u8 := proc(mut b: U8) {
+test_mut_u8 : proc(mut b: U8) = {
     b = 1
 }
 
-test_mut_str := proc(mut s: Str) {
+test_mut_str : proc(mut s: Str) = {
     s = "changed"
 }
 

@@ -3,13 +3,13 @@ mode test
 import("self.mode")
 
 // Create a dummy token for testing mode_from_name (which requires a Token for error reporting)
-make_dummy_token := func() returns Token {
+make_dummy_token : func() returns Token = {
     return Token(token_type=TokenType.Mode, token_str="test")
 }
 dummy_token := make_dummy_token()
 
 // Test can_be_imported function
-test_can_be_imported := proc() {
+test_can_be_imported : proc() = {
     // lib mode can be imported
     lib_mode := mode_from_name("lib", "test", dummy_token)?
     assert(loc(), can_be_imported(lib_mode))
@@ -39,7 +39,7 @@ test_can_be_imported := proc() {
 test_can_be_imported()
 
 // Test mode_from_name function for lib mode
-test_mode_lib := proc() {
+test_mode_lib : proc() = {
     m := mode_from_name("lib", "test", dummy_token)?
 
     assert_eq_str(loc(), "lib", m.name)
@@ -59,7 +59,7 @@ test_mode_lib := proc() {
 test_mode_lib()
 
 // Test mode_from_name function for pure mode
-test_mode_pure := proc() {
+test_mode_pure : proc() = {
     m := mode_from_name("pure", "test", dummy_token)?
 
     assert_eq_str(loc(), "pure", m.name)
@@ -79,7 +79,7 @@ test_mode_pure := proc() {
 test_mode_pure()
 
 // Test mode_from_name function for script mode
-test_mode_script := proc() {
+test_mode_script : proc() = {
     m := mode_from_name("script", "test", dummy_token)?
 
     assert_eq_str(loc(), "script", m.name)
@@ -99,7 +99,7 @@ test_mode_script := proc() {
 test_mode_script()
 
 // Test mode_from_name function for cli mode
-test_mode_cli := proc() {
+test_mode_cli : proc() = {
     m := mode_from_name("cli", "test", dummy_token)?
 
     assert_eq_str(loc(), "cli", m.name)
@@ -119,7 +119,7 @@ test_mode_cli := proc() {
 test_mode_cli()
 
 // Test mode_from_name function for test mode
-test_mode_test := proc() {
+test_mode_test : proc() = {
     m := mode_from_name("test", "test", dummy_token)?
 
     assert_eq_str(loc(), "test", m.name)
@@ -148,7 +148,7 @@ test_mode_test := proc() {
 test_mode_test()
 
 // Test mode_from_name with invalid mode
-test_mode_invalid := proc() {
+test_mode_invalid : proc() = {
     mut threw_error := false
 
     _m := mode_from_name("invalid_mode", "test", dummy_token)?

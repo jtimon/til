@@ -1,6 +1,6 @@
 mode liba
 
-hello := func() returns Str {
+hello : func() returns Str = {
     println("Hello from liba mode on compile time, calls to this func will be constfolded")
     return "Hello World!"
 }

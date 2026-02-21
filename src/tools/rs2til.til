@@ -16,7 +16,7 @@ TranslatorState := struct {
 }
 
 // Check if at end
-is_eof := func(state: TranslatorState) returns Bool {
+is_eof : func(state: TranslatorState) returns Bool = {
     if state.pos.gteq(state.tokens.len()) {
         return true
     }
@@ -35,7 +35,7 @@ is_eof := func(state: TranslatorState) returns Bool {
 }
 
 // Peek current token
-peek := func(state: TranslatorState) returns Token {
+peek : func(state: TranslatorState) returns Token = {
     mut t := Token()
     state.tokens.get(state.pos, t)
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -43,7 +43,7 @@ peek := func(state: TranslatorState) returns Token {
 }
 
 // Advance to next token
-next_token := proc(mut state: TranslatorState) returns Token {
+next_token : proc(mut state: TranslatorState) returns Token = {
     mut t := Token()
     state.tokens.get(state.pos, t)
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -52,7 +52,7 @@ next_token := proc(mut state: TranslatorState) returns Token {
 }
 
 // Check if current token matches expected type
-check := func(state: TranslatorState, token_type: TokenType) returns Bool {
+check : func(state: TranslatorState, token_type: TokenType) returns Bool = {
     if state.pos.gteq(state.tokens.len()) {
         return false
     }
@@ -100,7 +100,7 @@ check := func(state: TranslatorState, token_type: TokenType) returns Bool {
 }
 
 // Check if current token is a specific reserved word
-check_reserved := func(state: TranslatorState, word: Str) returns Bool {
+check_reserved : func(state: TranslatorState, word: Str) returns Bool = {
     if state.pos.gteq(state.tokens.len()) {
         return false
     }
@@ -114,7 +114,7 @@ check_reserved := func(state: TranslatorState, word: Str) returns Bool {
 }
 
 // Expect a token type or throw error
-expect := proc(mut state: TranslatorState, token_type: TokenType, msg: Str) returns Token throws Str {
+expect : proc(mut state: TranslatorState, token_type: TokenType, msg: Str) returns Token throws Str = {
     if check(state, token_type) {
         return next_token(state)
     }
@@ -122,8 +122,8 @@ expect := proc(mut state: TranslatorState, token_type: TokenType, msg: Str) retu
     throw format("Line ", t.line.to_str(), ": Expected ", msg, ", got '", t.token_str, "'")
 }
 
-// Translate a function definition: fn name() {} -> name := proc() {}
-translate_fn := proc(mut state: TranslatorState) returns Str throws Str {
+// Translate a function definition: fn name() {} -> name : proc() = {}
+translate_fn : proc(mut state: TranslatorState) returns Str throws Str = {
     // Skip 'fn'
     _ := next_token(state)
 
@@ -138,15 +138,15 @@ translate_fn := proc(mut state: TranslatorState) returns Str throws Str {
     _ := expect(state, TokenType.LeftBrace, "{")
     _ := expect(state, TokenType.RightBrace, "}")
 
-    // Generate TIL: name := proc() {}
-    result := format(name_token.token_str, " := proc() {}\n")
+    // Generate TIL: name : proc() = {}
+    result := format(name_token.token_str, " : proc() = {}\n")
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: I64_Overflow) { throw err.msg }
     return result
 }
 
 // Translate source code
-translate := proc(source: Str) returns Str throws Str {
+translate : proc(source: Str) returns Str throws Str = {
     reserved := get_reserved_words()
     tokens := scan_tokens(source, reserved)
 
@@ -168,7 +168,7 @@ translate := proc(source: Str) returns Str throws Str {
 }
 
 // Main entry point
-main := proc(input_file: Str) {
+main : proc(input_file: Str) = {
     source := readfile(input_file)
     output := translate(source)
     print(output)

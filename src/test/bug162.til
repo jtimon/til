@@ -15,16 +15,16 @@ OwnTestStruct := struct {
     mut y: I64 = 0
 }
 
-consume_struct := proc(own v: OwnTestStruct) returns I64 {
+consume_struct : proc(own v: OwnTestStruct) returns I64 = {
     return add(v.x, v.y)
 }
 
-consume_i64 := proc(own n: I64) returns I64 {
+consume_i64 : proc(own n: I64) returns I64 = {
     return mul(n, 2)
 }
 
 // Test 1: own should accept const variables (not just mut)
-test_own_const := proc() {
+test_own_const : proc() = {
     original := OwnTestStruct(x=1, y=2)
     result := consume_struct(original)
     assert_eq(loc(), 3, result)
@@ -32,7 +32,7 @@ test_own_const := proc() {
 }
 
 // Test 2: own consumption in if-branch should not affect else-branch
-test_own_if_else := proc() {
+test_own_if_else : proc() = {
     mut x := 42
     mut result := 0
     if true {
@@ -46,7 +46,7 @@ test_own_if_else := proc() {
 }
 
 // Test 3: own consumption in both branches - variable should be consumed after
-test_own_both_branches := proc() {
+test_own_both_branches : proc() = {
     mut x := 10
     mut result := 0
     if true {
@@ -61,7 +61,7 @@ test_own_both_branches := proc() {
 }
 
 // Test 4: own consumption after if (not inside) - should work normally
-test_own_after_if := proc() {
+test_own_after_if : proc() = {
     mut x := 5
     if true {
         // don't consume x here
@@ -72,7 +72,7 @@ test_own_after_if := proc() {
 }
 
 // Test 5: own with Vec.push (real-world usage from #117)
-test_own_vec_push := proc() {
+test_own_vec_push : proc() = {
     mut v := Vec.new(I64)
     x := 42
     v.push(x)  // push takes Dynamic, but once it takes own, const should work
@@ -89,7 +89,7 @@ test_own_vec_push := proc() {
 // Test 6: UFCS on variable consumed by own param later in function
 // Reproduces init.til workaround: name.eq("_") fails when name is consumed
 // by TWO set() calls (one with clone, one direct)
-test_ufcs_before_own_consumption := proc() {
+test_ufcs_before_own_consumption : proc() = {
     mut m1 := Map.new(Str, I64)
     mut m2 := Map.new(Str, I64)
     name := "hello"
@@ -116,7 +116,7 @@ test_ufcs_before_own_consumption := proc() {
 
 // Test 7: Inline .clone() as argument to function taking own param
 // Reproduces init.til workaround: name.clone() can't be inlined into set()
-test_inline_clone_to_own := proc() {
+test_inline_clone_to_own : proc() = {
     mut m1 := Map.new(Str, I64)
     mut m2 := Map.new(Str, I64)
     name := "world"
