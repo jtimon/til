@@ -1226,7 +1226,21 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             return EvalResult.new("")
         case:
-            throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(declaration.value_type), "', expected '", value_type_to_str(value_type), "' definition."))
+            // Issue #91: Function pointer value from expression (e.g., op := get_op(0))
+            // Evaluate the expression to get the function name, then register the func def
+            result := eval_expr(context, inner_e)?
+            if result.is_throw {
+                return result
+            }
+            func_name := result.value
+            fptr_fd := context.scope_stack.lookup_func(func_name)?
+            fptr_fd_clone := fptr_fd.clone()
+            context.scope_stack.declare_func(declaration.name, fptr_fd_clone)?
+            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            return EvalResult.new("")
+            catch (err: KeyNotFoundError) {
+                throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "': returned function '", func_name, "' not found."))
+            }
         }
     case ValueType.TMulti(types):
         throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(declaration.value_type), "'"))

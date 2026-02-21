@@ -1794,8 +1794,15 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     context.scope_stack.declare_func(decl.name, registered_func_def)?
                 case:
-                    errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
-                    return errors
+                    // Issue #91: If this is a FuncSig reference (function pointer value
+                    // from a call or variable), declare as symbol only -- the function
+                    // def will be resolved at runtime
+                    if init_is_sig_ref {
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    } else {
+                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        return errors
+                    }
                 }
             case FunctionType.FTFuncExt:
                 switch inner_e.node_type {
@@ -1803,8 +1810,12 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     context.scope_stack.declare_func(decl.name, func_def.clone())?
                 case:
-                    errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
-                    return errors
+                    if init_is_sig_ref {
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    } else {
+                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        return errors
+                    }
                 }
             case FunctionType.FTProc:
                 switch inner_e.node_type {
@@ -1827,8 +1838,12 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     context.scope_stack.declare_func(decl.name, registered_proc_def)?
                 case:
-                    errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
-                    return errors
+                    if init_is_sig_ref {
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    } else {
+                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        return errors
+                    }
                 }
             case FunctionType.FTProcExt:
                 switch inner_e.node_type {
@@ -1836,8 +1851,12 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     context.scope_stack.declare_func(decl.name, func_def.clone())?
                 case:
-                    errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
-                    return errors
+                    if init_is_sig_ref {
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    } else {
+                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        return errors
+                    }
                 }
             case FunctionType.FTMacro:
                 switch inner_e.node_type {
@@ -1845,8 +1864,12 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     context.scope_stack.declare_func(decl.name, func_def.clone())?
                 case:
-                    errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
-                    return errors
+                    if init_is_sig_ref {
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    } else {
+                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        return errors
+                    }
                 }
             }
 

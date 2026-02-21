@@ -1333,8 +1333,15 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                 context.scope_stack.declare_func(decl.name.to_string(), registered_func_def);
                             },
                             _ => {
-                                errors.push(e.lang_error(&context.path, "init", &format!("{}s should have definitions", value_type_to_str(&value_type))));
-                                return Ok(errors);
+                                // Issue #91: If this is a FuncSig reference (function pointer value
+                                // from a call or variable), declare as symbol only -- the function
+                                // def will be resolved at runtime
+                                if is_sig_ref {
+                                    context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                                } else {
+                                    errors.push(e.lang_error(&context.path, "init", &format!("{}s should have definitions", value_type_to_str(&value_type))));
+                                    return Ok(errors);
+                                }
                             },
                         }
                     }

@@ -37,12 +37,15 @@ time timeout 300 make benchmark
 
 Why: When something fails, you need to see the FULL output. Filtering hides critical error messages and forces re-running the entire command.
 
+## CRITICAL: Always make clean Before make benchmark
+**ALWAYS** run `make clean` before `make benchmark`. No exceptions.
+
 ## CRITICAL: Always Use Memory Limit
 **EVERY** `make benchmark` must use the memory limit:
 ```bash
-systemd-run --user --scope -p MemoryMax=40G -p MemorySwapMax=0 make benchmark > tmp/build_output.txt 2>&1
+make clean && systemd-run --user --scope -p MemoryMax=40G -p MemorySwapMax=0 make benchmark > tmp/build_output.txt 2>&1
 ```
-Do NOT forget this. Do NOT drop it.
+Do NOT forget `make clean`. Do NOT forget the memory limit.
 
 ## CRITICAL: Always Capture Benchmark Output
 **ALWAYS** redirect `make benchmark` output to `tmp/build_output.txt`:

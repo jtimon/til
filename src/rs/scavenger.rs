@@ -187,6 +187,7 @@ fn rebuild_namespace_without_unreachable_methods(ns_def: &crate::rs::parser::SNa
 /// Issue #91: Recursively collect function names passed as FuncSig arguments.
 /// When `apply_op(add2, 3, 5)` is called and `apply_op`'s first param is FuncSig-typed,
 /// `add2` is a function reference that must be marked reachable.
+/// Also handles `return add2` where the return type is FuncSig.
 fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<String>) -> Result<(), String> {
     match &e.node_type {
         NodeType::FCall(_) => {
@@ -214,6 +215,23 @@ fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<S
             }
             // Recurse into arguments
             for param in &e.params[1..] {
+                collect_func_ptr_references(param, context, refs)?;
+            }
+        }
+        // Issue #91: `return add2` where add2 is a function name
+        NodeType::Return => {
+            if !e.params.is_empty() {
+                let ret_expr = e.get(0)?;
+                let ret_name = get_combined_name_from_identifier(ret_expr);
+                if !ret_name.is_empty() && context.scope_stack.has_func(&ret_name) {
+                    refs.insert(ret_name);
+                }
+            }
+        }
+        // Issue #91: `op := get_op(0)` - declaration with FuncSig type where
+        // the initializer is an FCall that returns a function
+        NodeType::Declaration(_) => {
+            for param in &e.params {
                 collect_func_ptr_references(param, context, refs)?;
             }
         }
@@ -462,6 +480,16 @@ fn compute_reachable(
             if parts.len() == 1 && context.scope_stack.has_enum(&func_name) {
                 // Enum type reference - no body to walk
                 continue;
+            }
+
+            // Issue #91: Check if this is a function pointer variable (e.g., op := get_op(0))
+            // Function pointer variables are symbols with TFunction type but no func def
+            if let Some(sym) = context.scope_stack.lookup_symbol(&func_name) {
+                if let ValueType::TFunction(_) = sym.value_type {
+                    // Function pointer variable - the actual function it points to
+                    // should already be reachable through the assignment source
+                    continue;
+                }
             }
 
             // Check if this is an unresolved UFCS call (e.g., s.len or obj.field.len where s/obj is a variable)

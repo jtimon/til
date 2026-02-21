@@ -181,6 +181,7 @@ rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def:
 /// Issue #91: Recursively collect function names passed as FuncSig arguments.
 /// When `apply_op(add2, 3, 5)` is called and `apply_op`'s first param is FuncSig-typed,
 /// `add2` is a function reference that must be marked reachable.
+/// Also handles `return add2` where the return type is FuncSig.
 collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) throws Str = {
     switch e.node_type {
     case NodeType.FCall(_):
@@ -223,6 +224,22 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
         while fptr_i.lt(e.params.len()) {
             collect_func_ptr_references(e.get(fptr_i)?, context, refs)?
             fptr_i.inc()
+        }
+    // Issue #91: `return add2` where add2 is a function name
+    case NodeType.Return:
+        if e.params.len().gt(0) {
+            ret_expr := e.get(0)?
+            dont_delete(ret_expr)
+            ret_name := get_combined_name_from_identifier(ret_expr)?
+            if ret_name.len().gt(0).and(context.scope_stack.has_func(ret_name)) {
+                _ := refs.insert(ret_name)
+            }
+        }
+    // Issue #91: `op := get_op(0)` - declaration with FuncSig type where
+    // the initializer is an FCall that returns a function
+    case NodeType.Declaration(_):
+        for param: Expr in e.params {
+            collect_func_ptr_references(param, context, refs)?
         }
     case NodeType.FuncDef(func_def):
         for stmt: Expr in func_def.body {
@@ -530,6 +547,24 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                     continue
                     catch (err: KeyNotFoundError) {
                     }
+                }
+
+                // Issue #91: Check if this is a function pointer variable (e.g., op := get_op(0))
+                // Function pointer variables are symbols with TFunction type but no func def
+                mut is_fptr_var := false
+                fptr_sym := context.scope_stack.lookup_symbol(func_name)?
+                switch fptr_sym.value_type {
+                case ValueType.TFunction(_):
+                    // Function pointer variable - the actual function it points to
+                    // should already be reachable through the assignment source
+                    is_fptr_var = true
+                case:
+                }
+                catch (err: KeyNotFoundError) {
+                    // REM: symbol not found
+                }
+                if is_fptr_var {
+                    continue
                 }
 
                 {

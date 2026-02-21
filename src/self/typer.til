@@ -1505,8 +1505,88 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
 
                         mut actual_value_type := get_value_type(context, return_val_e)?
                         if not(value_type_to_str(expected_value_type).eq(value_type_to_str(actual_value_type))) {
-                            errors.push(return_val_e.error(context.path, "type", format("Return value in pos ", I64.to_str(i), " expected to be '", value_type_to_str(expected_value_type), "', but found '", value_type_to_str(actual_value_type), "' instead")))
-                            errors.push(e.error(context.path, "type", "Suggestion: Update returns section here"))
+                            // Issue #91: Allow returning functions where FuncSig return type is expected
+                            mut funcsig_return_ok := false
+                            switch expected_value_type {
+                            case ValueType.TCustom(ret_tn):
+                                mut ret_is_func_sig := false
+                                ret_sym := context.scope_stack.lookup_symbol(ret_tn)?
+                                switch ret_sym.value_type {
+                                case ValueType.TType(TTypeDef.TFuncSig):
+                                    ret_is_func_sig = true
+                                case:
+                                }
+                                catch (err: KeyNotFoundError) {
+                                    // REM: symbol not found
+                                }
+                                if ret_is_func_sig {
+                                    switch return_val_e.node_type {
+                                    case NodeType.Identifier(_ret_name):
+                                        ret_combined := get_combined_name(context.path, return_val_e)?
+                                        mut ret_expected_fd_found := false
+                                        mut ret_found_fd_found := false
+                                        mut ret_expected_fd := SFuncDef()
+                                        mut ret_found_fd := SFuncDef()
+                                        ret_expected_fd = context.scope_stack.lookup_func(ret_tn)?
+                                        ret_expected_fd_found = true
+                                        catch (err: KeyNotFoundError) { }
+                                        ret_found_fd = context.scope_stack.lookup_func(ret_combined)?
+                                        ret_found_fd_found = true
+                                        catch (err: KeyNotFoundError) { }
+                                        if ret_expected_fd_found.and(ret_found_fd_found) {
+                                            mut ret_args_match := ret_expected_fd.args.len().eq(ret_found_fd.args.len())
+                                            if ret_args_match {
+                                                for ret_ai in 0..ret_expected_fd.args.len() {
+                                                    ret_ea := cast(Declaration, ret_expected_fd.args.get(ret_ai)?)
+                                                    ret_fa := cast(Declaration, ret_found_fd.args.get(ret_ai)?)
+                                                    if not(value_type_to_str(ret_ea.value_type).eq(value_type_to_str(ret_fa.value_type))) {
+                                                        ret_args_match = false
+                                                    }
+                                                }
+                                            }
+                                            mut ret_func_kind_match := ret_expected_fd.is_proc().eq(ret_found_fd.is_proc())
+                                            mut ret_returns_match := true
+                                            if not(ret_expected_fd.return_types.len().eq(ret_found_fd.return_types.len())) {
+                                                ret_returns_match = false
+                                            } else {
+                                                for ret_ri in 0..ret_expected_fd.return_types.len() {
+                                                    ret_er := cast(ValueType, ret_expected_fd.return_types.get(ret_ri)?)
+                                                    ret_fr := cast(ValueType, ret_found_fd.return_types.get(ret_ri)?)
+                                                    if not(value_type_to_str(ret_er).eq(value_type_to_str(ret_fr))) {
+                                                        ret_returns_match = false
+                                                    }
+                                                }
+                                            }
+                                            mut ret_throws_match := true
+                                            if not(ret_expected_fd.throw_types.len().eq(ret_found_fd.throw_types.len())) {
+                                                ret_throws_match = false
+                                            } else {
+                                                for ret_ti in 0..ret_expected_fd.throw_types.len() {
+                                                    ret_et := cast(ValueType, ret_expected_fd.throw_types.get(ret_ti)?)
+                                                    ret_ft := cast(ValueType, ret_found_fd.throw_types.get(ret_ti)?)
+                                                    if not(value_type_to_str(ret_et).eq(value_type_to_str(ret_ft))) {
+                                                        ret_throws_match = false
+                                                    }
+                                                }
+                                            }
+                                            funcsig_return_ok = ret_args_match.and(ret_returns_match).and(ret_throws_match).and(ret_func_kind_match)
+                                            if not(funcsig_return_ok).and(not(ret_func_kind_match)) {
+                                                mut expected_kind := "func"
+                                                if ret_expected_fd.is_proc() { expected_kind = "proc" }
+                                                mut found_kind := "func"
+                                                if ret_found_fd.is_proc() { found_kind = "proc" }
+                                                errors.push(return_val_e.error(context.path, "type", format("Cannot return '", _ret_name, "' (", found_kind, ") where '", ret_tn, "' (", expected_kind, ") is expected")))
+                                            }
+                                        }
+                                    case:
+                                    }
+                                }
+                            case:
+                            }
+                            if not(funcsig_return_ok) {
+                                errors.push(return_val_e.error(context.path, "type", format("Return value in pos ", I64.to_str(i), " expected to be '", value_type_to_str(expected_value_type), "', but found '", value_type_to_str(actual_value_type), "' instead")))
+                                errors.push(e.error(context.path, "type", "Suggestion: Update returns section here"))
+                            }
                         }
                         catch (err: Str) {
                             errors.push(err)

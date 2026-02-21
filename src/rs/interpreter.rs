@@ -1107,8 +1107,24 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                     return Ok(EvalResult::new(""))
                 },
 
-                _ => return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}', expected '{}' definition.",
-                                                         &declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type)))),
+                _ => {
+                    // Issue #91: Function pointer value from expression (e.g., op := get_op(0))
+                    // Evaluate the expression to get the function name, then register the func def
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result);
+                    }
+                    let func_name = &result.value;
+                    if let Some(func_def) = context.scope_stack.lookup_func(func_name) {
+                        let fd_clone = func_def.clone();
+                        context.scope_stack.declare_func(declaration.name.to_string(), fd_clone);
+                        context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                        return Ok(EvalResult::new(""))
+                    } else {
+                        return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}': returned function '{}' not found.",
+                                                                 &declaration.name, func_name)));
+                    }
+                },
             }
         },
 

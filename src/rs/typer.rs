@@ -1138,10 +1138,45 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                             match get_value_type(&context, return_val_e) {
                                 Ok(actual_value_type) => {
                                     if expected_value_type != &actual_value_type {
-                                        errors.push(return_val_e.error(&context.path,
-                                            "type", &format!("Return value in pos {} expected to be '{}', but found '{}' instead",
-                                                             i, value_type_to_str(&expected_value_type), value_type_to_str(&actual_value_type))));
-                                        errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
+                                        // Issue #91: Allow returning functions where FuncSig return type is expected
+                                        let mut funcsig_return_ok = false;
+                                        if let ValueType::TCustom(ref tn) = expected_value_type {
+                                            if context.scope_stack.lookup_symbol(tn)
+                                                .map(|s| s.value_type == ValueType::TType(TTypeDef::TFuncSig))
+                                                .unwrap_or(false)
+                                            {
+                                                // Expected is a FuncSig type - look up the returned function's def
+                                                if let NodeType::Identifier(ref _name) = return_val_e.node_type {
+                                                    let combined = crate::rs::parser::get_combined_name(&context.path, return_val_e)?;
+                                                    if let (Some(expected_fd), Some(found_fd)) = (
+                                                        context.scope_stack.lookup_func(tn),
+                                                        context.scope_stack.lookup_func(&combined),
+                                                    ) {
+                                                        let args_match = expected_fd.args.len() == found_fd.args.len()
+                                                            && expected_fd.args.iter().zip(found_fd.args.iter())
+                                                                .all(|(a, b)| a.value_type == b.value_type);
+                                                        let func_kind_match = expected_fd.is_proc() == found_fd.is_proc();
+                                                        funcsig_return_ok = args_match
+                                                            && expected_fd.return_types == found_fd.return_types
+                                                            && expected_fd.throw_types == found_fd.throw_types
+                                                            && func_kind_match;
+                                                        if !funcsig_return_ok && !func_kind_match {
+                                                            let expected_kind = if expected_fd.is_proc() { "proc" } else { "func" };
+                                                            let found_kind = if found_fd.is_proc() { "proc" } else { "func" };
+                                                            errors.push(return_val_e.error(&context.path,
+                                                                "type", &format!("Cannot return '{}' ({}) where '{}' ({}) is expected",
+                                                                    _name, found_kind, tn, expected_kind)));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if !funcsig_return_ok {
+                                            errors.push(return_val_e.error(&context.path,
+                                                "type", &format!("Return value in pos {} expected to be '{}', but found '{}' instead",
+                                                                 i, value_type_to_str(&expected_value_type), value_type_to_str(&actual_value_type))));
+                                            errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
+                                        }
                                     }
                                 },
                                 Err(error_string) => {

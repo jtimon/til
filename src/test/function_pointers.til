@@ -59,3 +59,23 @@ compose_and_apply : func(outer: BinaryIntOp, inner: BinaryIntOp, a: I64, b: I64)
 assert_eq(loc(), 16, compose_and_apply(add2, add2, 3, 5))
 assert_eq(loc(), 225, compose_and_apply(multiply, multiply, 3, 5))
 
+// Issue #91: Returning functions from functions
+get_op : func(which: I64) returns BinaryIntOp = {
+    if which.eq(0) { return add2 }
+    return subtract
+}
+op := get_op(0)
+assert_eq(loc(), 8, op(3, 5))
+op2 := get_op(1)
+assert_eq(loc(), 6, op2(10, 4))
+
+// Return function through multiple calls
+get_op2 : func(which: I64) returns BinaryIntOp = {
+    if which.eq(0) { return add2 }
+    if which.eq(1) { return subtract }
+    return multiply
+}
+op3 := get_op2(2)
+assert_eq(loc(), 15, op3(3, 5))
+
+

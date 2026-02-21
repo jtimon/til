@@ -6256,6 +6256,27 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 }
             }
 
+            // Issue #91: If returning a function name where return type is FuncSig,
+            // emit the C function name directly (function names decay to pointers in C)
+            let ret_is_func_sig = ctx.current_return_types.first()
+                .and_then(|rt| if let ValueType::TCustom(ref tn) = rt { Some(tn.clone()) } else { None })
+                .map(|tn| is_func_sig_type(&tn, context))
+                .unwrap_or(false);
+            if ret_is_func_sig {
+                if let NodeType::Identifier(ref func_name) = return_expr.node_type {
+                    if return_expr.params.is_empty() {
+                        let return_str = til_name(func_name);
+                        output.push_str(&indent_str);
+                        output.push_str("*_ret = ");
+                        output.push_str(&return_str);
+                        output.push_str(";\n");
+                        output.push_str(&indent_str);
+                        output.push_str("return 0;\n");
+                        return Ok(());
+                    }
+                }
+            }
+
             // Bug #143: Use emit_arg_string to handle hoisting
             let return_str = emit_arg_string(return_expr, None, false, output, indent, ctx, context)?;
 
@@ -6343,6 +6364,27 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str(&temp_var);
                     output.push_str(";\n");
                     return Ok(());
+                }
+            }
+        }
+
+        // Issue #91: If returning a function name where return type is FuncSig,
+        // emit the C function name directly (function names decay to pointers in C)
+        if !expr.params.is_empty() {
+            let return_expr = expr.get(0)?;
+            let ret_is_func_sig = ctx.current_return_types.first()
+                .and_then(|rt| if let ValueType::TCustom(ref tn) = rt { Some(tn.clone()) } else { None })
+                .map(|tn| is_func_sig_type(&tn, context))
+                .unwrap_or(false);
+            if ret_is_func_sig {
+                if let NodeType::Identifier(ref func_name) = return_expr.node_type {
+                    if return_expr.params.is_empty() {
+                        output.push_str(&indent_str);
+                        output.push_str("return ");
+                        output.push_str(&til_name(func_name));
+                        output.push_str(";\n");
+                        return Ok(());
+                    }
                 }
             }
         }

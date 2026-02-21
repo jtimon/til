@@ -7568,6 +7568,39 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 return
             }
 
+            // Issue #91: If returning a function name where return type is FuncSig,
+            // emit the C function name directly (function names decay to pointers in C)
+            mut thr_ret_is_func_sig := false
+            if ctx.current_return_types.len().gt(0) {
+                thr_ret_type := cast(ValueType, ctx.current_return_types.get(0)?)
+                switch thr_ret_type {
+                case ValueType.TCustom(thr_ret_tn):
+                    thr_ret_is_func_sig = is_func_sig_type(thr_ret_tn, context)
+                case:
+                }
+            }
+            if thr_ret_is_func_sig {
+                mut thr_is_func_ident := false
+                mut thr_func_ident_name := ""
+                switch thr_return_expr.node_type {
+                case NodeType.Identifier(thr_fname):
+                    if thr_return_expr.params.is_empty() {
+                        thr_is_func_ident = true
+                        thr_func_ident_name = thr_fname
+                    }
+                case:
+                }
+                if thr_is_func_ident {
+                    output.push_str(indent_str)
+                    output.push_str("*_ret = ")
+                    output.push_str(til_name(thr_func_ident_name))
+                    output.push_str(";\n")
+                    output.push_str(indent_str)
+                    output.push_str("return 0;\n")
+                    return
+                }
+            }
+
             // Bug #143: Use emit_arg_string to handle hoisting
             return_str := emit_arg_string(thr_return_expr, Ptr(), false, output, indent, ctx, context)?
 
@@ -7702,6 +7735,41 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     return
                 }
             case:
+            }
+        }
+
+        // Issue #91: If returning a function name where return type is FuncSig,
+        // emit the C function name directly (function names decay to pointers in C)
+        if not(expr.params.is_empty()) {
+            nv_return_expr := expr.get(0)?
+            dont_delete(nv_return_expr)
+            mut nv_ret_is_func_sig := false
+            if ctx.current_return_types.len().gt(0) {
+                nv_ret_type := cast(ValueType, ctx.current_return_types.get(0)?)
+                switch nv_ret_type {
+                case ValueType.TCustom(nv_ret_tn):
+                    nv_ret_is_func_sig = is_func_sig_type(nv_ret_tn, context)
+                case:
+                }
+            }
+            if nv_ret_is_func_sig {
+                mut nv_is_func_ident := false
+                mut nv_func_ident_name := ""
+                switch nv_return_expr.node_type {
+                case NodeType.Identifier(nv_fname):
+                    if nv_return_expr.params.is_empty() {
+                        nv_is_func_ident = true
+                        nv_func_ident_name = nv_fname
+                    }
+                case:
+                }
+                if nv_is_func_ident {
+                    output.push_str(indent_str)
+                    output.push_str("return ")
+                    output.push_str(til_name(nv_func_ident_name))
+                    output.push_str(";\n")
+                    return
+                }
             }
         }
 
