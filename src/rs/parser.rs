@@ -514,9 +514,31 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                     return Err(t.error(&lexer.path, &format!("Expected ',', found identifier '{}'.", t.token_str)));
                 }
                 if expect_name {
-                    arg_name = t.token_str.to_string();
-                    expect_colon = true;
-                    expect_name = false;
+                    // Issue #91: Lookahead to distinguish named param (name: Type)
+                    // from type-only param (Type) in normal form like func(I64, I64)
+                    let lookahead = lexer.peek_ahead(1)?;
+                    if lookahead.token_type == TokenType::Colon {
+                        // Named param: this identifier is the parameter name
+                        arg_name = t.token_str.to_string();
+                        expect_colon = true;
+                        expect_name = false;
+                    } else {
+                        // Type-only param (normal form): no name, just the type
+                        let arg_type = str_to_value_type(&t.token_str);
+                        lexer.advance(1)?;
+                        t = lexer.peek();
+                        args.push(Declaration {
+                            name: "".to_string(),
+                            value_type: arg_type,
+                            is_mut: false,
+                            is_copy: false,
+                            is_own: false,
+                            default_value: None,
+                        });
+                        expect_comma = true;
+                        expect_name = false;
+                        continue;
+                    }
                 } else {
                     let arg_type = if is_variadic {
                         is_variadic = false;
@@ -719,6 +741,41 @@ fn func_proc_throws(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     }
 }
 
+// Issue #91: Parse binding tuple `(a, b, c)` for normal form function definitions
+// e.g. `func(I64, I64) returns I64 = (a, b) { body }`
+fn parse_binding_tuple(lexer: &mut Lexer) -> Result<Vec<String>, String> {
+    lexer.expect(TokenType::LeftParen)?;
+    let mut names: Vec<String> = Vec::new();
+    let mut expect_comma = false;
+    loop {
+        let t = lexer.peek();
+        match t.token_type {
+            TokenType::RightParen => {
+                lexer.advance(1)?;
+                return Ok(names);
+            },
+            TokenType::Comma => {
+                if !expect_comma {
+                    return Err(t.error(&lexer.path, "Unexpected ',' in binding tuple."));
+                }
+                lexer.advance(1)?;
+                expect_comma = false;
+            },
+            TokenType::Identifier => {
+                if expect_comma {
+                    return Err(t.error(&lexer.path, &format!("Expected ',' before '{}' in binding tuple.", t.token_str)));
+                }
+                names.push(t.token_str.clone());
+                lexer.advance(1)?;
+                expect_comma = true;
+            },
+            _ => {
+                return Err(t.error(&lexer.path, &format!("Expected identifier or ')' in binding tuple, found '{:?}'.", t.token_type)));
+            },
+        }
+    }
+}
+
 fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) -> Result<Expr, String> {
 
     lexer.advance(1)?;
@@ -729,7 +786,7 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) ->
     if t.token_type != TokenType::LeftParen {
         return Err(t.error(&lexer.path, &format!("expected '(' after 'func', found '{:?}'.", t.token_type)));
     }
-    let args = parse_func_proc_args(lexer)?;
+    let mut args = parse_func_proc_args(lexer)?;
     let return_types = func_proc_returns(lexer)?;
     let throw_types = func_proc_throws(lexer)?;
 
@@ -737,30 +794,77 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) ->
     let saved_loop_counter = save_loop_var_counter();
     reset_loop_var_counter();
 
-    // Issue #91: Check for new syntax `= { body }` vs current `{ body }`
+    // Issue #91: Check for new syntax `= (binding) { body }` or `= { body }` vs current `{ body }`
     // After returns/throws, lexer is either past '{' (current) or at '=' (new)
     let next = lexer.peek();
     let body = if next.token_type == TokenType::Equal {
-        // New syntax: name : func(...) = { body }
         lexer.advance(1)?; // consume '='
-        let brace = lexer.peek();
-        if brace.token_type != TokenType::LeftBrace {
-            restore_loop_var_counter(saved_loop_counter);
-            return Err(brace.error(&lexer.path, "Expected '{{' after '=' in function definition"));
-        }
-        lexer.advance(1)?; // consume '{'
-        match parse_body(lexer, TokenType::RightBrace) {
-            Ok(body) => {
-                if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
-                    restore_loop_var_counter(saved_loop_counter);
-                    return Err(t.error(&lexer.path, "ext_func/ext_proc cannot have a body"));
-                }
-                body.params
-            },
-            Err(err_str) => {
+        let after_eq = lexer.peek();
+        if after_eq.token_type == TokenType::LeftParen {
+            // Normal form binding tuple: = (a, b) { body }
+            let binding_names = parse_binding_tuple(lexer)?;
+            if binding_names.len() != args.len() {
                 restore_loop_var_counter(saved_loop_counter);
-                return Err(err_str);
-            },
+                return Err(after_eq.error(&lexer.path, &format!(
+                    "Binding tuple has {} names but signature has {} parameters.",
+                    binding_names.len(), args.len())));
+            }
+            for (i, name) in binding_names.iter().enumerate() {
+                if !args[i].name.is_empty() {
+                    restore_loop_var_counter(saved_loop_counter);
+                    return Err(after_eq.error(&lexer.path, &format!(
+                        "Parameter '{}' already has a name from signature; cannot also have binding name '{}'.",
+                        args[i].name, name)));
+                }
+                args[i].name = name.clone();
+            }
+            // Expect '{' after binding tuple
+            let brace = lexer.peek();
+            if brace.token_type != TokenType::LeftBrace {
+                restore_loop_var_counter(saved_loop_counter);
+                return Err(brace.error(&lexer.path, "Expected '{{' after binding tuple in function definition"));
+            }
+            lexer.advance(1)?; // consume '{'
+            match parse_body(lexer, TokenType::RightBrace) {
+                Ok(body) => {
+                    if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
+                        restore_loop_var_counter(saved_loop_counter);
+                        return Err(t.error(&lexer.path, "ext_func/ext_proc cannot have a body"));
+                    }
+                    body.params
+                },
+                Err(err_str) => {
+                    restore_loop_var_counter(saved_loop_counter);
+                    return Err(err_str);
+                },
+            }
+        } else if after_eq.token_type == TokenType::LeftBrace {
+            // Sugar form: = { body } — names already in args from signature
+            // Validate: all params must have names (no type-only params without binding)
+            for arg in &args {
+                if arg.name.is_empty() {
+                    restore_loop_var_counter(saved_loop_counter);
+                    return Err(after_eq.error(&lexer.path,
+                        "Type-only parameters require a binding tuple: = (name, ...) {{ body }}"));
+                }
+            }
+            lexer.advance(1)?; // consume '{'
+            match parse_body(lexer, TokenType::RightBrace) {
+                Ok(body) => {
+                    if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
+                        restore_loop_var_counter(saved_loop_counter);
+                        return Err(t.error(&lexer.path, "ext_func/ext_proc cannot have a body"));
+                    }
+                    body.params
+                },
+                Err(err_str) => {
+                    restore_loop_var_counter(saved_loop_counter);
+                    return Err(err_str);
+                },
+            }
+        } else {
+            restore_loop_var_counter(saved_loop_counter);
+            return Err(after_eq.error(&lexer.path, "Expected '{{' or '(' after '=' in function definition"));
         }
     } else {
         // Current syntax: '{' already consumed by returns/throws

@@ -782,11 +782,30 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 throw t.error(lexer.path, format("Expected ',', found identifier '", t.token_str, "'."))
             }
             if expect_name {
-                arg_name = t.token_str
-                expect_colon = true
-                expect_name = false
-                lexer.advance(1)?
-                t = lexer.peek()?
+                // Issue #91: Lookahead to distinguish named param (name: Type)
+                // from type-only param (Type) in normal form like func(I64, I64)
+                lookahead := lexer.peek_ahead(1)?
+                lookahead_tt := lookahead.token_type
+                switch lookahead_tt {
+                case TokenType.Colon:
+                    // Named param: this identifier is the parameter name
+                    arg_name = t.token_str
+                    expect_colon = true
+                    expect_name = false
+                    lexer.advance(1)?
+                    t = lexer.peek()?
+                case:
+                    // Type-only param (normal form): no name, just the type
+                    mut type_only_decl := Declaration()
+                    type_only_decl.name = ""
+                    type_only_decl.value_type = str_to_value_type(t.token_str)
+                    args.push(type_only_decl)
+                    lexer.advance(1)?
+                    t = lexer.peek()?
+                    expect_comma = true
+                    expect_name = false
+                    continue
+                }
             } else {
                 mut decl := Declaration()
                 decl.name = arg_name
@@ -999,6 +1018,39 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
     }
 }
 
+// Issue #91: Parse binding tuple `(a, b, c)` for normal form function definitions
+// e.g. `func(I64, I64) returns I64 = (a, b) { body }`
+parse_binding_tuple := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError {
+    _ := lexer.expect(TokenType.LeftParen)?
+    mut names := Vec.new(Str)
+    mut expect_comma := false
+    while true {
+        t := lexer.peek()?
+        tt := t.token_type
+        switch tt {
+        case TokenType.RightParen:
+            lexer.advance(1)?
+            return names
+        case TokenType.Comma:
+            if not(expect_comma) {
+                throw t.error(lexer.path, "Unexpected ',' in binding tuple.")
+            }
+            lexer.advance(1)?
+            expect_comma = false
+        case TokenType.Identifier:
+            if expect_comma {
+                throw t.error(lexer.path, format("Expected ',' before '", t.token_str, "' in binding tuple."))
+            }
+            names.push(t.token_str)
+            lexer.advance(1)?
+            expect_comma = true
+        case:
+            throw t.error(lexer.path, format("Expected identifier or ')' in binding tuple, found '", token_type_to_str(t.token_type), "'."))
+        }
+    }
+    return names
+}
+
 parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType) returns Expr throws Str {
     lexer.advance(1)?
     t := lexer.peek()?
@@ -1012,7 +1064,7 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     case:
         throw t.error(lexer.path, format("expected '(' after 'func', found '", token_type_to_str(t.token_type), "'."))
     }
-    args := parse_func_proc_args(lexer)?
+    mut args := parse_func_proc_args(lexer)?
     return_types := func_proc_returns(lexer)?
     throw_types := func_proc_throws(lexer)?
 
@@ -1020,26 +1072,71 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     saved_loop_counter := save_loop_var_counter()
     mut _ignore := reset_loop_var_counter()
 
-    // Issue #91: Check for new syntax `= { body }` vs current `{ body }`
+    // Issue #91: Check for new syntax `= (binding) { body }` or `= { body }` vs current `{ body }`
     // After returns/throws, lexer is either past '{' (current) or at '=' (new)
     next := lexer.peek()?
     next_tt := next.token_type
     mut body := Vec.new(Expr)
     switch next_tt {
     case TokenType.Equal:
-        // New syntax: name : func(...) = { body }
         lexer.advance(1)? // consume '='
-        brace := lexer.peek()?
-        brace_tt := brace.token_type
-        switch brace_tt {
+        after_eq := lexer.peek()?
+        after_eq_tt := after_eq.token_type
+        switch after_eq_tt {
+        case TokenType.LeftParen:
+            // Normal form binding tuple: = (a, b) { body }
+            binding_names := parse_binding_tuple(lexer)?
+            if not(binding_names.len().eq(args.len())) {
+                _ignore = restore_loop_var_counter(saved_loop_counter)
+                throw after_eq.error(lexer.path, format("Binding tuple has ", binding_names.len().to_str(), " names but signature has ", args.len().to_str(), " parameters."))
+            }
+            // Build new args with names from binding tuple
+            mut new_args := Vec.new(Declaration)
+            mut bind_i := 0
+            for arg: Declaration in args {
+                bname := cast(Str, binding_names.get(bind_i)?)
+                if arg.name.len().gt(0) {
+                    _ignore = restore_loop_var_counter(saved_loop_counter)
+                    throw after_eq.error(lexer.path, format("Parameter '", arg.name, "' already has a name from signature; cannot also have binding name '", bname, "'."))
+                }
+                mut new_decl := Declaration()
+                new_decl.name = bname
+                new_decl.value_type = arg.value_type
+                new_decl.is_mut = arg.is_mut
+                new_decl.is_copy = arg.is_copy
+                new_decl.is_own = arg.is_own
+                new_args.push(new_decl)
+                bind_i = bind_i.add(1)
+            }
+            args = new_args
+            // Expect '{' after binding tuple
+            bind_brace := lexer.peek()?
+            bind_brace_tt := bind_brace.token_type
+            switch bind_brace_tt {
+            case TokenType.LeftBrace:
+                lexer.advance(1)? // consume '{'
+            case:
+                _ignore = restore_loop_var_counter(saved_loop_counter)
+                throw bind_brace.error(lexer.path, "Expected '{{' after binding tuple in function definition")
+            }
+            bind_body_expr := parse_body(lexer, TokenType.RightBrace)?
+            body = bind_body_expr.params
         case TokenType.LeftBrace:
+            // Sugar form: = { body } -- names already in args from signature
+            // Validate: all params must have names (no type-only params without binding)
+            for sugar_arg: Declaration in args {
+                if sugar_arg.name.len().eq(0) {
+                    _ignore = restore_loop_var_counter(saved_loop_counter)
+                    throw after_eq.error(lexer.path, "Type-only parameters require a binding tuple: = (name, ...) {{ body }}")
+                }
+            }
             lexer.advance(1)? // consume '{'
+            sugar_body_expr := parse_body(lexer, TokenType.RightBrace)?
+            body = sugar_body_expr.params
         case:
             _ignore = restore_loop_var_counter(saved_loop_counter)
-            throw brace.error(lexer.path, "Expected '{{' after '=' in function definition")
+            throw after_eq.error(lexer.path, "Expected '{{' or '(' after '=' in function definition")
         }
-        body_expr := parse_body(lexer, TokenType.RightBrace)?
-        body = body_expr.params
     case:
         // Current syntax: '{' already consumed by returns/throws
         curr_body_expr := parse_body(lexer, TokenType.RightBrace)?
