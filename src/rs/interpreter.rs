@@ -1873,6 +1873,24 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             ValueType::TCustom(ref custom_type_name) => {
                 let current_arg = e.get(param_index)?;
 
+                // Issue #91: Handle function-typed parameters
+                // If parameter type is a FuncSig, the argument is a function name -
+                // register the function def in the callee frame under the parameter name
+                if let Some(type_sym) = context.scope_stack.lookup_symbol(custom_type_name) {
+                    if type_sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                        if let NodeType::Identifier(_) = &current_arg.node_type {
+                            let combined_arg_name = get_combined_name(&context.path, current_arg)?;
+                            if let Some(arg_func_def) = context.scope_stack.lookup_func(&combined_arg_name) {
+                                function_frame.funcs.insert(arg.name.clone(), arg_func_def.clone());
+                                param_index += 1;
+                                continue;
+                            }
+                        }
+                        return Err(e.lang_error(&context.path, "eval",
+                            &format!("Expected function name for parameter '{}'", arg.name)));
+                    }
+                }
+
                 // Special handling for Dynamic parameters: don't evaluate, just copy the value
                 // When a type like I64, U8, Str is passed to a Dynamic/Type parameter,
                 // store the type name as a string so size_of(T) and type_as_str(T) can use it

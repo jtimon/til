@@ -788,6 +788,10 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
             && matches!(&arg_expr.node_type, NodeType::LLiteral(Literal::Number(_)));
         match arg_expected_type {
             ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type-typed argument
+            // Issue #91: Accept function values for FuncSig-typed parameters
+            ValueType::TCustom(tn) if context.scope_stack.lookup_symbol(tn)
+                .map(|s| s.value_type == ValueType::TType(TTypeDef::TFuncSig))
+                .unwrap_or(false) => {},
             ValueType::TCustom(tn) if tn == INFER_TYPE => {
                 errors.push(e.error(&context.path, "type", &format!(
                     "calling func/proc '{}' declared arg {} without type, but type inference in args is not supported.\n\
@@ -913,9 +917,13 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                         // Valid: enum type
                         context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
                     },
+                    ValueType::TType(TTypeDef::TFuncSig) => {
+                        // Issue #91: Valid: function signature type as parameter
+                        context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
+                    },
                     _ => {
                         // Invalid: not a type, it's a value or something else
-                        errors.push(e.error(&context.path, "type", &format!("Argument '{}' has type '{}' which is not a valid type (expected struct or enum)", &arg.name, &custom_type_name)));
+                        errors.push(e.error(&context.path, "type", &format!("Argument '{}' has type '{}' which is not a valid type (expected struct, enum, or function signature)", &arg.name, &custom_type_name)));
                     },
                 }
             },
@@ -2328,6 +2336,19 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
             // Regular function call - check if it exists
             if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
                 return Ok(Some(func_def.clone()))
+            }
+
+            // Issue #91: Check if this is a call through a function-typed parameter
+            if let Some(sym) = context.scope_stack.lookup_symbol(&combined_name) {
+                if let ValueType::TCustom(ref type_name) = sym.value_type {
+                    if let Some(type_sym) = context.scope_stack.lookup_symbol(type_name) {
+                        if type_sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                            if let Some(sig_fd) = context.scope_stack.lookup_func(type_name) {
+                                return Ok(Some(sig_fd.clone()));
+                            }
+                        }
+                    }
+                }
             }
 
             if let Some(_struct_def) = context.scope_stack.lookup_struct(&combined_name) {

@@ -1995,6 +1995,35 @@ eval_user_func_proc_call : proc(func_def: SFuncDef, name: Str, mut context: Cont
             case ValueType.TCustom(custom_type_name):
                 current_arg := e.get(param_index)?
 
+                // Issue #91: Handle function-typed parameters
+                // If parameter type is a FuncSig, the argument is a function name -
+                // register the function def in the callee frame under the parameter name
+                mut is_func_sig_param := false
+                type_sym := context.scope_stack.lookup_symbol(custom_type_name)?
+                switch type_sym.value_type {
+                case ValueType.TType(TTypeDef.TFuncSig):
+                    is_func_sig_param = true
+                case:
+                }
+                catch (err: KeyNotFoundError) {
+                    // REM: type not found in scope, not a FuncSig-typed parameter
+                }
+                if is_func_sig_param {
+                    switch current_arg.node_type {
+                    case NodeType.Identifier(arg_func_id):
+                        combined_arg_name := get_combined_name(context.path, current_arg)?
+                        arg_func_def := context.scope_stack.lookup_func(combined_arg_name)?
+                        function_frame.funcs.set(arg.name, arg_func_def)
+                        param_index = param_index.add(1)
+                        continue
+                        catch (err: KeyNotFoundError) {
+                            // REM: function not found, fall through to error below
+                        }
+                    case:
+                    }
+                    throw e.lang_error(context.path, "eval", format("Expected function name for parameter '", arg.name, "'"))
+                }
+
                 // Special handling for Dynamic parameters: don't evaluate, just copy the value
                 // When a type like I64, U8, Str is passed to a Dynamic/Type parameter,
                 // store the type name as a string so size_of(T) and type_as_str(T) can use it

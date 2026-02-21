@@ -1045,11 +1045,24 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                     "calling func/proc '", f_name, "' declared arg ", arg.name, " without type, but type inference in args is not supported.\nSuggestion: the arg should be '", arg.name, " : ", value_type_to_str(found_type), ",' instead of just '", arg.name, "'.\nAlternative option: the arg could be '", arg.name, " : Dynamic,' for dynamic arguments."
                 )))
             } else {
-                // Check type match
-                if not(value_type_to_str(arg_expected_type).eq(value_type_to_str(found_type))).and(not(arg_is_u8_i64_coercion)) {
-                    errors.push(e_clone.error(context.path, "type", format(
-                        "calling function '", f_name, "' expects '", value_type_to_str(arg_expected_type), "' for arg '", arg.name, "', but '", value_type_to_str(found_type), "' was provided."
-                    )))
+                // Issue #91: Check if expected type is a FuncSig - accept function values
+                mut is_funcsig_param := false
+                fsig_sym := context.scope_stack.lookup_symbol(tn)?
+                switch fsig_sym.value_type {
+                case ValueType.TType(TTypeDef.TFuncSig):
+                    is_funcsig_param = true
+                case:
+                }
+                catch (err: KeyNotFoundError) {
+                    // REM: type not found, not a FuncSig
+                }
+                if not(is_funcsig_param) {
+                    // Check type match
+                    if not(value_type_to_str(arg_expected_type).eq(value_type_to_str(found_type))).and(not(arg_is_u8_i64_coercion)) {
+                        errors.push(e_clone.error(context.path, "type", format(
+                            "calling function '", f_name, "' expects '", value_type_to_str(arg_expected_type), "' for arg '", arg.name, "', but '", value_type_to_str(found_type), "' was provided."
+                        )))
+                    }
                 }
             }
         case:
@@ -1225,9 +1238,12 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
             case ValueType.TType(TTypeDef.TEnumDef):
                 // Valid: enum type
                 context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
+            case ValueType.TType(TTypeDef.TFuncSig):
+                // Issue #91: Valid: function signature type as parameter
+                context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
             case:
                 // Invalid: not a type, it's a value or something else
-                errors.push(e.error(context.path, "type", format("Argument '", arg.name, "' has type '", custom_type_name, "' which is not a valid type (expected struct or enum)")))
+                errors.push(e.error(context.path, "type", format("Argument '", arg.name, "' has type '", custom_type_name, "' which is not a valid type (expected struct, enum, or function signature)")))
             }
         case:
             context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
@@ -2882,6 +2898,26 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
         }
         if func_found {
             return func_def
+        }
+
+        // Issue #91: Check if this is a call through a function-typed parameter
+        sym := context.scope_stack.lookup_symbol(combined_name)?
+        switch sym.value_type {
+        case ValueType.TCustom(fp_type_name):
+            type_sym := context.scope_stack.lookup_symbol(fp_type_name)?
+            switch type_sym.value_type {
+            case ValueType.TType(TTypeDef.TFuncSig):
+                sig_fd := context.scope_stack.lookup_func(fp_type_name)?
+                return sig_fd
+            case:
+            }
+            catch (err: KeyNotFoundError) {
+                // REM: type symbol or func not found, skip
+            }
+        case:
+        }
+        catch (err: KeyNotFoundError) {
+            // REM: symbol not found, not a function-typed parameter
         }
 
         // Check for struct instantiation

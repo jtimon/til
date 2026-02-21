@@ -751,6 +751,15 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 }
             },
             ValueType::TCustom(custom_type_name) => {
+                // Issue #91: Check if this is a call through a function-typed parameter
+                if let Some(type_sym) = context.scope_stack.lookup_symbol(custom_type_name) {
+                    if type_sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                        if let Some(sig_fd) = context.scope_stack.lookup_func(custom_type_name) {
+                            return value_type_func_proc(&context.path, &e, &f_name, &sig_fd);
+                        }
+                    }
+                }
+
                 // Check if it's an enum first
                 if context.scope_stack.has_enum(custom_type_name) {
                     // It's an enum - try UFCS method call

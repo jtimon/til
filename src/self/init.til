@@ -1075,6 +1075,18 @@ get_fcall_value_type : func(context: Context, e: Expr) returns ValueType throws 
             throw e.lang_error(context.path, "init", format("Expected identifier after '", f_name, ".' found '", enum_to_str(enum_after_dot_expr.node_type), "'"))
         }
     case ValueType.TCustom(custom_type_name):
+            // Issue #91: Check if this is a call through a function-typed parameter
+            fptr_type_sym := context.scope_stack.lookup_symbol(custom_type_name)?
+            switch fptr_type_sym.value_type {
+            case ValueType.TType(TTypeDef.TFuncSig):
+                fptr_sig_fd := context.scope_stack.lookup_func(custom_type_name)?
+                return value_type_func_proc(context.path, e, f_name, fptr_sig_fd)?
+            case:
+            }
+            catch (err: KeyNotFoundError) {
+                // REM: type symbol not found, not a FuncSig
+            }
+
             # Check if it's an enum first
             mut found_enum := false
             mut custom_enum_def := SEnumDef()

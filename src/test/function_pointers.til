@@ -24,3 +24,15 @@ BinaryIntProc := proc(I64, I64) returns I64 {}
 add_proc : BinaryIntProc = (a, b) { return a.add(b) }
 assert_eq(loc(), 7, add_proc(3, 4))
 
+// Issue #91: Pass functions as arguments (higher-order)
+apply_op : func(op: BinaryIntOp, a: I64, b: I64) returns I64 = {
+    return op(a, b)
+}
+assert_eq(loc(), 8, apply_op(add2, 3, 5))
+assert_eq(loc(), 6, apply_op(subtract, 10, 4))
+assert_eq(loc(), 15, apply_op(multiply, 3, 5))
+
+// Multiple calls to same higher-order function with different functions
+assert_eq(loc(), 0, apply_op(subtract, 5, 5))
+assert_eq(loc(), 30, apply_op(multiply, 5, 6))
+
