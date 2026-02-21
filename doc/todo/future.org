@@ -914,7 +914,7 @@ Dynamic~, but could be implemented independently as a narrower feature for macro
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
 :IMPACT: Language feature, polymorphism, higher-order programming
-:STATUS: Open - implementation plan ready (2026-02-18), leverages #105/#106 patterns (2026-02-21)
+:STATUS: In progress - new syntax done (2026-02-21), leverages #105/#106 patterns
 :RELATED: Bug #90 (semicolon/body syntax), Bug #159 (needs func ptrs for deep clone/delete), Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), src/test/function_pointers.til, doc/first_class.org
 :END:
 
@@ -998,20 +998,26 @@ add := func(a: I64, b: I64) returns I64 {
 Only "ambiguity": ~func() {}~ is always parsed as a function with empty body,
 never as a type. This is the natural interpretation and harmless.
 
-**** Future syntax direction (documented, not implemented now)
-Move the full signature into the type position of the declaration:
+**** New unified syntax (DONE - b1264693, 2026-02-21)
+Parser now accepts the unified ~name : Type = value~ syntax for functions,
+as designed in doc/first_class.org:
 #+BEGIN_SRC til
+// New syntax (signature is the type, body is the value):
 my_double : func(a: I64) returns I64 = {
     return a.mul(2)
 }
-my_func_ptr : func(a: I64) returns I64   // no initializer = type only
-my_caller : func(a: I64, f: func(I64) returns I64) returns I64 = {
-    return f(a)
+// Old syntax still works:
+my_double := func(a: I64) returns I64 {
+    return a.mul(2)
 }
 #+END_SRC
-This is more disruptive (changes all function declarations) and deferred.
-When done, parameter names in function types become optional:
-~func(I64) returns I64~ and ~func(a: I64) returns I64~ are both valid types.
+Both syntaxes produce the same AST (Declaration + FuncDef). Parser-only change,
+no typer/interpreter/ccodegen modifications. Handles all combinations: func,
+proc, ext_func, ext_proc, macro, with returns and/or throws.
+
+Next: bodyless declarations (~my_func_ptr : func(a: I64) returns I64~ with no
+~= { }~) for function pointer types. Parameter names become optional in types:
+~func(I64) returns I64~ and ~func(a: I64) returns I64~ are both valid.
 See also Bug #90.
 
 *** Existing Infrastructure (as of 2026-02-21)
@@ -1067,6 +1073,10 @@ means #91 needs:
 
 - *Signature matching*: When passing ~add~ where ~BinaryOp~ is expected, verify
   signatures match (arg types, return type, throws, func/proc kind).
+
+What is done:
+- Parser: new unified syntax ~name : func(...) = { body }~ (b1264693)
+- Reusable patterns from #105 (structs) and #106 (enums) documented above
 
 What is missing:
 - Parser: bodyless function declarations (type decls) -- needs lookahead fix

@@ -867,6 +867,13 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
     mut end_found := false
     mut return_types := Vec.new(ValueType)
     mut t := lexer.peek()?
+    // Issue #91: Don't consume '=' (new syntax: `func() = { body }`)
+    tt_early := t.token_type
+    switch tt_early {
+    case TokenType.Equal:
+        return return_types
+    case:
+    }
     lexer.advance(1)?
     tt := t.token_type
     switch tt {
@@ -887,6 +894,10 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
         case TokenType.LeftBrace:
             end_found = true
             lexer.advance(1)?
+        // Issue #91: new syntax `name : func(...) returns T = { body }`
+        case TokenType.Equal:
+            end_found = true
+            // Don't advance - parse_func_proc_definition handles '='
         case TokenType.Comma:
             if expect_comma {
                 _ := lexer.expect(TokenType.Comma)?
@@ -930,7 +941,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
     if end_found {
         return return_types
     } else {
-        throw t.error(lexer.path, "Expected '{{' or 'throws' after return values.")
+        throw t.error(lexer.path, "Expected '{{', '=' or 'throws' after return values.")
     }
 }
 
@@ -955,6 +966,10 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
         case TokenType.LeftBrace:
             end_found = true
             lexer.advance(1)?
+        // Issue #91: new syntax `name : func(...) throws E = { body }`
+        case TokenType.Equal:
+            end_found = true
+            // Don't advance - parse_func_proc_definition handles '='
         case TokenType.Comma:
             if expect_comma {
                 expect_comma = false
@@ -980,7 +995,7 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
     if end_found {
         return return_types
     } else {
-        throw t.error(lexer.path, "Expected '{{' after throw values.")
+        throw t.error(lexer.path, "Expected '{{' or '=' after throw values.")
     }
 }
 
@@ -1005,8 +1020,31 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     saved_loop_counter := save_loop_var_counter()
     mut _ignore := reset_loop_var_counter()
 
-    body_expr := parse_body(lexer, TokenType.RightBrace)?
-    body := body_expr.params
+    // Issue #91: Check for new syntax `= { body }` vs current `{ body }`
+    // After returns/throws, lexer is either past '{' (current) or at '=' (new)
+    next := lexer.peek()?
+    next_tt := next.token_type
+    mut body := Vec.new(Expr)
+    switch next_tt {
+    case TokenType.Equal:
+        // New syntax: name : func(...) = { body }
+        lexer.advance(1)? // consume '='
+        brace := lexer.peek()?
+        brace_tt := brace.token_type
+        switch brace_tt {
+        case TokenType.LeftBrace:
+            lexer.advance(1)? // consume '{'
+        case:
+            _ignore = restore_loop_var_counter(saved_loop_counter)
+            throw brace.error(lexer.path, "Expected '{{' after '=' in function definition")
+        }
+        body_expr := parse_body(lexer, TokenType.RightBrace)?
+        body = body_expr.params
+    case:
+        // Current syntax: '{' already consumed by returns/throws
+        curr_body_expr := parse_body(lexer, TokenType.RightBrace)?
+        body = curr_body_expr.params
+    }
 
     _ignore = restore_loop_var_counter(saved_loop_counter)
 
@@ -1480,6 +1518,18 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
     return to_return
 }
 
+// Issue #91: helper for `name : func/proc(...) = { body }` syntax
+parse_colon_func_def := func(mut lexer: Lexer, t: Token, identifier: Str, func_type: FunctionType) returns Expr throws Str {
+    lexer.advance(2)? // past name and colon, now at func/proc
+    func_expr := parse_func_proc_definition(lexer, func_type)?
+    mut decl := Declaration()
+    decl.name = identifier
+    decl.value_type = str_to_value_type(INFER_TYPE)
+    mut children := Vec.new(Expr)
+    children.push(func_expr)
+    return Expr.new_parse(NodeType.Declaration(decl), t.clone(), children)
+}
+
 parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()?
     mut next_t := lexer.next()?
@@ -1538,8 +1588,19 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, In
             return parse_declaration(lexer, false, false, type_name, true)?
         case TokenType.Equal:
             return parse_declaration(lexer, false, false, INFER_TYPE, false)?
+        // Issue #91: name : func(...) = { body }
+        case TokenType.Func:
+            return parse_colon_func_def(lexer, t, identifier, FunctionType.FTFunc)?
+        case TokenType.Proc:
+            return parse_colon_func_def(lexer, t, identifier, FunctionType.FTProc)?
+        case TokenType.FuncExt:
+            return parse_colon_func_def(lexer, t, identifier, FunctionType.FTFuncExt)?
+        case TokenType.ProcExt:
+            return parse_colon_func_def(lexer, t, identifier, FunctionType.FTProcExt)?
+        case TokenType.Macro:
+            return parse_colon_func_def(lexer, t, identifier, FunctionType.FTMacro)?
         case:
-            throw t.error(lexer.path, format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
+            throw t.error(lexer.path, format("Expected Type, '=' or func/proc after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
         }
     case:
         throw t.error(lexer.path, format("Expected '(', ':' or '=' after identifier in statement, found '", token_type_to_str(next_token_type), "'."))

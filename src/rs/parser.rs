@@ -597,6 +597,10 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     let mut end_found = false;
     let mut return_types : Vec<ValueType> = Vec::new();
     let mut t = lexer.peek();
+    // Issue #91: Don't consume '=' (new syntax: `func() = { body }`)
+    if t.token_type == TokenType::Equal {
+        return Ok(return_types);
+    }
     lexer.advance(1)?;
     if t.token_type != TokenType::Returns {
         return Ok(return_types);
@@ -608,6 +612,11 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
             TokenType::Throws | TokenType::LeftBrace => {
                 end_found = true;
                 lexer.advance(1)?;
+            },
+            // Issue #91: new syntax `name : func(...) returns T = { body }`
+            TokenType::Equal => {
+                end_found = true;
+                // Don't advance - parse_func_proc_definition handles '='
             },
             TokenType::Comma => {
                 if expect_comma {
@@ -655,7 +664,7 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     if end_found {
         return Ok(return_types);
     } else {
-        return Err(t.error(&lexer.path, "Expected '{{' or 'throws' after return values."));
+        return Err(t.error(&lexer.path, "Expected '{{', '=' or 'throws' after return values."));
     }
 }
 
@@ -674,6 +683,11 @@ fn func_proc_throws(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
             TokenType::LeftBrace => {
                 end_found = true;
                 lexer.advance(1)?;
+            },
+            // Issue #91: new syntax `name : func(...) throws E = { body }`
+            TokenType::Equal => {
+                end_found = true;
+                // Don't advance - parse_func_proc_definition handles '='
             },
             TokenType::Comma => {
                 if expect_comma {
@@ -701,7 +715,7 @@ fn func_proc_throws(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     if end_found {
         return Ok(return_types);
     } else {
-        return Err(t.error(&lexer.path, "Expected '{{' after throw values."));
+        return Err(t.error(&lexer.path, "Expected '{{' or '=' after throw values."));
     }
 }
 
@@ -723,19 +737,46 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) ->
     let saved_loop_counter = save_loop_var_counter();
     reset_loop_var_counter();
 
-    let body = match parse_body(lexer, TokenType::RightBrace) {
-        Ok(body) => {
-            // ext_func/ext_proc cannot have a body
-            if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
-                restore_loop_var_counter(saved_loop_counter);
-                return Err(t.error(&lexer.path, "ext_func/ext_proc cannot have a body"));
-            }
-            body.params
-        },
-        Err(err_str) => {
+    // Issue #91: Check for new syntax `= { body }` vs current `{ body }`
+    // After returns/throws, lexer is either past '{' (current) or at '=' (new)
+    let next = lexer.peek();
+    let body = if next.token_type == TokenType::Equal {
+        // New syntax: name : func(...) = { body }
+        lexer.advance(1)?; // consume '='
+        let brace = lexer.peek();
+        if brace.token_type != TokenType::LeftBrace {
             restore_loop_var_counter(saved_loop_counter);
-            return Err(err_str);
-        },
+            return Err(brace.error(&lexer.path, "Expected '{{' after '=' in function definition"));
+        }
+        lexer.advance(1)?; // consume '{'
+        match parse_body(lexer, TokenType::RightBrace) {
+            Ok(body) => {
+                if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
+                    restore_loop_var_counter(saved_loop_counter);
+                    return Err(t.error(&lexer.path, "ext_func/ext_proc cannot have a body"));
+                }
+                body.params
+            },
+            Err(err_str) => {
+                restore_loop_var_counter(saved_loop_counter);
+                return Err(err_str);
+            },
+        }
+    } else {
+        // Current syntax: '{' already consumed by returns/throws
+        match parse_body(lexer, TokenType::RightBrace) {
+            Ok(body) => {
+                if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
+                    restore_loop_var_counter(saved_loop_counter);
+                    return Err(t.error(&lexer.path, "ext_func/ext_proc cannot have a body"));
+                }
+                body.params
+            },
+            Err(err_str) => {
+                restore_loop_var_counter(saved_loop_counter);
+                return Err(err_str);
+            },
+        }
     };
 
     restore_loop_var_counter(saved_loop_counter);
@@ -1172,8 +1213,24 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                 TokenType::Equal => {
                     return parse_declaration(lexer, false, false, INFER_TYPE, false)
                 },
+                // Issue #91: name : func(...) = { body }
+                TokenType::Func | TokenType::Proc | TokenType::FuncExt
+                | TokenType::ProcExt | TokenType::Macro => {
+                    let func_type = match next_next_token_type {
+                        TokenType::Func => FunctionType::FTFunc,
+                        TokenType::Proc => FunctionType::FTProc,
+                        TokenType::FuncExt => FunctionType::FTFuncExt,
+                        TokenType::ProcExt => FunctionType::FTProcExt,
+                        TokenType::Macro => FunctionType::FTMacro,
+                        _ => unreachable!(),
+                    };
+                    lexer.advance(2)?; // past name and colon, now at func/proc
+                    let func_expr = parse_func_proc_definition(lexer, func_type)?;
+                    let decl = Declaration{name: identifier.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: false, is_copy: false, is_own: false, default_value: None};
+                    return Ok(Expr::new_parse(NodeType::Declaration(decl), t.clone(), vec![func_expr]))
+                },
                 _ => {
-                    Err(t.error(&lexer.path, &format!("Expected Type or '=' after '{} :' in statement, found '{:?}'.", identifier, next_next_token_type)))
+                    Err(t.error(&lexer.path, &format!("Expected Type, '=' or func/proc after '{} :' in statement, found '{:?}'.", identifier, next_next_token_type)))
                 },
             }
 
