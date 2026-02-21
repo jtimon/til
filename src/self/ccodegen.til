@@ -940,6 +940,26 @@ is_pure_lvalue : func(arg: Expr, context: Context) returns Bool throws Str = {
 emit_arg_string : proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hoist_output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     indent_str := repeat("    ", indent)
 
+    // Issue #91: Check if param is a FuncSig type and arg is a function name
+    // Function names decay to function pointers in C, just emit til_funcname
+    if not(param_type.is_null()) {
+        mut pt_check := ValueType.TCustom(INFER_TYPE)
+        param_type.dereference(ValueType, pt_check)
+        switch pt_check {
+        case ValueType.TCustom(pt_name):
+            if is_func_sig_type(pt_name, context) {
+                switch arg.node_type {
+                case NodeType.Identifier(arg_name):
+                    if arg.params.is_empty() {
+                        return til_name(arg_name)
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    }
+
     // Check if arg is a type identifier - emit as string literal
     mut type_name_result := ""
     mut is_type_arg := false
@@ -2043,7 +2063,18 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
             if fd_found.and(i.lt(fd_opt.args.len())) {
                 param_decl := cast(Declaration, fd_opt.args.get(i)?)
                 nested_param_type.data = to_ptr(param_decl.value_type)
-                nested_by_ref = param_needs_by_ref(param_decl)
+                // Issue #91: Function pointer params are passed by value
+                mut nested_is_fptr := false
+                switch param_decl.value_type {
+                case ValueType.TCustom(tn):
+                    nested_is_fptr = is_func_sig_type(tn, context)
+                case:
+                }
+                if nested_is_fptr {
+                    nested_by_ref = false
+                } else {
+                    nested_by_ref = param_needs_by_ref(param_decl)
+                }
             }
             nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
             nested_arg_strings.push(nested_str)
@@ -2077,8 +2108,26 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
         }
     }
 
+    // Issue #91: Check if this is a call through a function-pointer parameter
+    mut eas_is_func_ptr_call := false
+    mut eas_fptr_sym_found := true
+    eas_fptr_sym := context.scope_stack.lookup_symbol(orig_func_name)?
+    catch (err: KeyNotFoundError) {
+        eas_fptr_sym_found = false
+    }
+    if eas_fptr_sym_found {
+        switch eas_fptr_sym.value_type {
+        case ValueType.TCustom(eas_fptr_type_name):
+            eas_is_func_ptr_call = is_func_sig_type(eas_fptr_type_name, context)
+        case:
+        }
+    }
+
     mut call_str := ""
-    if is_enum_constructor {
+    if eas_is_func_ptr_call {
+        // Issue #91: Call through function pointer - use the variable name
+        call_str.push_str(resolve_var_name(orig_func_name, ctx, context))
+    } else if is_enum_constructor {
         call_str.push_str(TIL_PREFIX)
         call_str.push_str(enum_ctor_name)
         call_str.push_str("_make_")
@@ -2355,6 +2404,17 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
                 emit_struct_declaration(child, output)?
             } else {
                 emit_enum_declaration(child, output)?
+            }
+        }
+    case:
+    }
+
+    // Pass 1c: Issue #91 - emit typedefs for function signature types
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_func_sig_declaration(child)? {
+                emit_func_sig_typedef(child, context, output)?
             }
         }
     case:
@@ -4317,8 +4377,19 @@ emit_func_signature : proc(func_name: Str, func_def: SFuncDef, context: Context,
                 is_type_param = type_name.eq("Type")
             case:
             }
+            // Issue #91: Function pointer params are passed by value
+            mut is_fptr_param := false
+            switch func_def_arg.value_type {
+            case ValueType.TCustom(tn):
+                is_fptr_param = is_func_sig_type(tn, context)
+            case:
+            }
 
-            if func_def_arg.is_mut {
+            if is_fptr_param {
+                // Function pointer: pass by value (the typedef is already a pointer type)
+                output.push_str(arg_type)
+                output.push_str(" ")
+            } else if func_def_arg.is_mut {
                 // mut: pass by pointer so mutations are visible to caller
                 output.push_str(arg_type)
                 output.push_str("* ")
@@ -4339,7 +4410,7 @@ emit_func_signature : proc(func_name: Str, func_def: SFuncDef, context: Context,
             } else {
                 // const (default): pass by const pointer, read-only
                 // Type is already a pointer, so pass by value
-                if is_type_param {
+                if is_type_param.or(is_fptr_param) {
                     output.push_str(arg_type)
                     output.push_str(" ")
                 } else {
@@ -4380,6 +4451,11 @@ emit_func_prototype : proc(expr: Expr, context: Context, mut output: Str) throws
                     return
                 }
 
+                // Issue #91: Skip FuncSig declarations - they become typedefs, not functions
+                if is_func_sig_declaration(expr)? {
+                    return
+                }
+
                 func_name := til_name(decl.name)
                 emit_func_signature(func_name, func_def, context, output)?
                 output.push_str(";\n")
@@ -4412,6 +4488,141 @@ is_func_declaration : func(expr: Expr) returns Bool throws Str = {
     return false
 }
 
+// Issue #91: Check if an expression is a FuncSig declaration (type-only args, empty body)
+is_func_sig_declaration : func(expr: Expr) returns Bool throws Str = {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.get(0)?
+            dont_delete(first_param)
+            switch first_param.node_type {
+            case NodeType.FuncDef(func_def):
+                if func_def.body.is_empty() {
+                    mut all_unnamed := true
+                    for fs_arg: Declaration in func_def.args {
+                        if fs_arg.name.len().gt(0) {
+                            all_unnamed = false
+                        }
+                    }
+                    if all_unnamed {
+                        switch func_def.function_type {
+                        case FunctionType.FTFunc:
+                            return true
+                        case FunctionType.FTProc:
+                            return true
+                        case:
+                        }
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+    return false
+}
+
+// Issue #91: Check if a parameter type is a FuncSig type (function pointer)
+is_func_sig_type : func(type_name: Str, context: Context) returns Bool = {
+    sym := context.scope_stack.lookup_symbol(type_name)?
+    switch sym.value_type {
+    case ValueType.TType(TTypeDef.TFuncSig):
+        return true
+    case:
+        return false
+    }
+    catch (err: KeyNotFoundError) {
+        return false
+    }
+}
+
+// Issue #91: Emit a typedef for a function signature type
+emit_func_sig_typedef : proc(expr: Expr, context: Context, mut output: Str) throws Str = {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.get(0)?
+            dont_delete(first_param)
+            switch first_param.node_type {
+            case NodeType.FuncDef(func_def):
+                is_throwing := not(func_def.throw_types.is_empty())
+                type_name := til_name(decl.name)
+
+                output.push_str("typedef ")
+
+                if is_throwing {
+                    output.push_str("int ")
+                } else if func_def.return_types.is_empty() {
+                    output.push_str("void ")
+                } else {
+                    ret_type_vt := cast(ValueType, func_def.return_types.get(0)?)
+                    ret_type := til_type_to_c(ret_type_vt)?
+                    output.push_str(ret_type)
+                    output.push_str(" ")
+                }
+
+                output.push_str("(*")
+                output.push_str(type_name)
+                output.push_str(")(")
+
+                mut param_count := 0
+
+                if is_throwing {
+                    // Output params first: return value pointer, then error pointers
+                    if not(func_def.return_types.is_empty()) {
+                        thr_ret_type_vt := cast(ValueType, func_def.return_types.get(0)?)
+                        thr_ret_type := til_type_to_c(thr_ret_type_vt)?
+                        output.push_str(thr_ret_type)
+                        output.push_str("*")
+                        param_count.inc()
+                    }
+                    for td_i in 0..func_def.throw_types.len() {
+                        throw_type := cast(ValueType, func_def.throw_types.get(td_i)?)
+                        if is_empty_error_struct(context, throw_type) {
+                            // Skip empty struct errors
+                        } else {
+                            if param_count.gt(0) {
+                                output.push_str(", ")
+                            }
+                            err_type := value_type_to_c_name(throw_type)?
+                            output.push_str(err_type)
+                            output.push_str("*")
+                            param_count.inc()
+                        }
+                    }
+                }
+
+                // Input parameter types (no names for typedef)
+                for func_def_arg: Declaration in func_def.args {
+                    if param_count.gt(0) {
+                        output.push_str(", ")
+                    }
+                    arg_type := til_type_to_c(func_def_arg.value_type)?
+                    // Default (unnamed): pass as const pointer
+                    output.push_str("const ")
+                    output.push_str(arg_type)
+                    output.push_str("*")
+                    param_count.inc()
+                }
+
+                if param_count.eq(0) {
+                    output.push_str("void")
+                }
+
+                output.push_str(");\n")
+                return
+            case:
+            }
+        }
+    case:
+    }
+    throw "emit_func_sig_typedef: not a FuncSig declaration"
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+}
+
 // Emit a function declaration as a C function
 emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str = {
     switch expr.node_type {
@@ -4426,6 +4637,11 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                     return
                 }
 
+                // Issue #91: Skip FuncSig declarations - they become typedefs, not functions
+                if is_func_sig_declaration(expr)? {
+                    return
+                }
+
                 // Set current function context for return/throw generation
                 ctx.current_throw_types = func_def.throw_types.clone()
                 ctx.current_return_types = func_def.return_types.clone()
@@ -4435,8 +4651,17 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 ctx.current_variadic_params.clear()
                 for func_def_arg: Declaration in func_def.args {
                     // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+                    // Issue #91: Skip FuncSig-typed params - they're passed by value (function pointers)
                     if not(func_def_arg.is_copy) {
-                        _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
+                        mut is_fptr := false
+                        switch func_def_arg.value_type {
+                        case ValueType.TCustom(tn):
+                            is_fptr = is_func_sig_type(tn, context)
+                        case:
+                        }
+                        if not(is_fptr) {
+                            _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
+                        }
                     }
                     switch func_def_arg.value_type {
                     case ValueType.TMulti(elem_type):
@@ -7402,7 +7627,18 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                         if i.lt(var_fd.args.len()) {
                             param_decl := cast(Declaration, var_fd.args.get(i)?)
                             param_type.data = to_ptr(param_decl.value_type)
-                            by_ref = param_needs_by_ref(param_decl)
+                            // Issue #91: Function pointer params are passed by value
+                            mut ret_is_fptr := false
+                            switch param_decl.value_type {
+                            case ValueType.TCustom(tn):
+                                ret_is_fptr = is_func_sig_type(tn, context)
+                            case:
+                            }
+                            if ret_is_fptr {
+                                by_ref = false
+                            } else {
+                                by_ref = param_needs_by_ref(param_decl)
+                            }
                         }
                         arg_str := emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?
                         regular_arg_strings.push(arg_str)
@@ -8175,7 +8411,18 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             mut pi := ParamTypeInfo()
             pi.value_type = fd_arg.value_type
             pi.has_value_type = true
-            pi.by_ref = param_needs_by_ref(fd_arg)
+            // Issue #91: Function pointer params are passed by value
+            mut fd_is_fptr := false
+            switch fd_arg.value_type {
+            case ValueType.TCustom(tn):
+                fd_is_fptr = is_func_sig_type(tn, context)
+            case:
+            }
+            if fd_is_fptr {
+                pi.by_ref = false
+            } else {
+                pi.by_ref = param_needs_by_ref(fd_arg)
+            }
             param_info.push(pi)
         }
         catch (err: KeyNotFoundError) {
@@ -8664,16 +8911,36 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         }
     }
 
-    output.push_str(TIL_PREFIX)
-    if is_enum_constructor {
-        ctor_parts := func_name.split("_")?
-        ctor_type_name_part := cast(Str, ctor_parts.get(0)?)
-        ctor_variant_name_part := cast(Str, ctor_parts.get(1)?)
-        output.push_str(ctor_type_name_part)
-        output.push_str("_make_")
-        output.push_str(ctor_variant_name_part)
+    // Issue #91: Check if this is a call through a function-pointer parameter
+    mut is_func_ptr_call := false
+    mut fptr_sym_found := true
+    fptr_sym := context.scope_stack.lookup_symbol(orig_func_name)?
+    catch (err: KeyNotFoundError) {
+        fptr_sym_found = false
+    }
+    if fptr_sym_found {
+        switch fptr_sym.value_type {
+        case ValueType.TCustom(fptr_type_name):
+            is_func_ptr_call = is_func_sig_type(fptr_type_name, context)
+        case:
+        }
+    }
+
+    if is_func_ptr_call {
+        // Issue #91: Call through function pointer - use the variable name
+        output.push_str(resolve_var_name(orig_func_name, ctx, context))
     } else {
-        output.push_str(func_name)
+        output.push_str(TIL_PREFIX)
+        if is_enum_constructor {
+            ctor_parts := func_name.split("_")?
+            ctor_type_name_part := cast(Str, ctor_parts.get(0)?)
+            ctor_variant_name_part := cast(Str, ctor_parts.get(1)?)
+            output.push_str(ctor_type_name_part)
+            output.push_str("_make_")
+            output.push_str(ctor_variant_name_part)
+        } else {
+            output.push_str(func_name)
+        }
     }
     output.push_str("(")
 
@@ -8702,7 +8969,18 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 mut var_pi := ParamTypeInfo()
                 var_pi.value_type = fd_arg.value_type
                 var_pi.has_value_type = true
-                var_pi.by_ref = param_needs_by_ref(fd_arg)
+                // Issue #91: Function pointer params are passed by value
+                mut var_is_fptr := false
+                switch fd_arg.value_type {
+                case ValueType.TCustom(tn):
+                    var_is_fptr = is_func_sig_type(tn, context)
+                case:
+                }
+                if var_is_fptr {
+                    var_pi.by_ref = false
+                } else {
+                    var_pi.by_ref = param_needs_by_ref(fd_arg)
+                }
                 var_param_info.push(var_pi)
             }
             catch (err: KeyNotFoundError) {
@@ -8776,7 +9054,18 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 mut nv_pi := ParamTypeInfo()
                 nv_pi.value_type = fd_arg.value_type
                 nv_pi.has_value_type = true
-                nv_pi.by_ref = param_needs_by_ref(fd_arg)
+                // Issue #91: Function pointer params are passed by value
+                mut nv_is_fptr := false
+                switch fd_arg.value_type {
+                case ValueType.TCustom(tn):
+                    nv_is_fptr = is_func_sig_type(tn, context)
+                case:
+                }
+                if nv_is_fptr {
+                    nv_pi.by_ref = false
+                } else {
+                    nv_pi.by_ref = param_needs_by_ref(fd_arg)
+                }
                 nv_param_info.push(nv_pi)
             }
             catch (err: KeyNotFoundError) {

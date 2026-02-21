@@ -36,3 +36,12 @@ assert_eq(loc(), 15, apply_op(multiply, 3, 5))
 assert_eq(loc(), 0, apply_op(subtract, 5, 5))
 assert_eq(loc(), 30, apply_op(multiply, 5, 6))
 
+// Issue #91: Runtime function pointer calls (not constant-foldable)
+// Use a wrapper proc to force runtime dispatch
+test_runtime_dispatch := proc(op: BinaryIntOp, a: I64, b: I64) returns I64 = {
+    return op(a, b)
+}
+assert_eq(loc(), 11, test_runtime_dispatch(add2, 5, 6))
+assert_eq(loc(), 4, test_runtime_dispatch(subtract, 10, 6))
+assert_eq(loc(), 42, test_runtime_dispatch(multiply, 6, 7))
+

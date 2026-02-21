@@ -1,7 +1,7 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE};
+use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE, FunctionType, TTypeDef};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType, PrecomputedHeapValue};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use crate::rs::eval_heap::{EvalHeap, VecContents};
@@ -879,6 +879,18 @@ fn emit_arg_string(
     context: &mut Context,
 ) -> Result<String, String> {
     let _indent_str = "    ".repeat(indent);
+
+    // Issue #91: Check if param is a FuncSig type and arg is a function name
+    // Function names decay to function pointers in C, just emit til_funcname
+    if let Some(ValueType::TCustom(ref pt_name)) = param_type {
+        if is_func_sig_type(pt_name, context) {
+            if let NodeType::Identifier(arg_name) = &arg.node_type {
+                if arg.params.is_empty() {
+                    return Ok(til_name(arg_name));
+                }
+            }
+        }
+    }
 
     // Check if arg is a type identifier - emit as string literal
     if let Some(type_name) = get_type_arg_name(arg, context) {
@@ -1780,7 +1792,13 @@ fn emit_fcall_arg_string(
     if arg.params.len() > 1 {
         for (i, nested_arg) in arg.params[1..].iter().enumerate() {
             let nested_param_type = fd_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| &a.value_type));
-            let nested_by_ref = fd_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false);
+            // Issue #91: Function pointer params are passed by value
+            let nested_by_ref = fd_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| {
+                if let ValueType::TCustom(ref tn) = a.value_type {
+                    if is_func_sig_type(tn, context) { return false; }
+                }
+                param_needs_by_ref(a)
+            })).unwrap_or(false);
             let nested_str = emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?;
             nested_arg_strings.push(nested_str);
         }
@@ -1788,6 +1806,17 @@ fn emit_fcall_arg_string(
 
     // Build the call string
     let mangled_name = ctx.nested_func_names.get(&orig_func_name).cloned().unwrap_or(func_name.clone());
+
+    // Issue #91: Check if this is a call through a function-pointer parameter
+    let is_func_ptr_call = if let Some(sym) = context.scope_stack.lookup_symbol(&orig_func_name) {
+        if let ValueType::TCustom(ref type_name) = sym.value_type {
+            is_func_sig_type(type_name, context)
+        } else {
+            false
+        }
+    } else {
+        false
+    };
 
     // Check if this is an enum constructor (Type_Variant) - need til_Type_make_Variant
     let is_enum_constructor = if func_name.contains('_') {
@@ -1804,7 +1833,10 @@ fn emit_fcall_arg_string(
     };
 
     let mut call_str = String::new();
-    if is_enum_constructor {
+    if is_func_ptr_call {
+        // Issue #91: Call through function pointer - use the variable name
+        call_str.push_str(&resolve_var_name(&orig_func_name, ctx, context));
+    } else if is_enum_constructor {
         let parts: Vec<&str> = func_name.splitn(2, '_').collect();
         call_str.push_str(TIL_PREFIX);
         call_str.push_str(parts[0]);
@@ -2033,6 +2065,15 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
                 emit_struct_declaration(child, &mut output)?;
             } else {
                 emit_enum_declaration(child, &mut output)?;
+            }
+        }
+    }
+
+    // Pass 1c: Issue #91 - emit typedefs for function signature types
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_func_sig_declaration(child)? {
+                emit_func_sig_typedef(child, context, &mut output)?;
             }
         }
     }
@@ -3594,7 +3635,17 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, 
 
             // Bug #60: Type is already const char*, don't add extra indirection
             let is_type_param = matches!(&func_def_arg.value_type, ValueType::TCustom(name) if name == "Type");
-            if func_def_arg.is_mut {
+            // Issue #91: Function pointer params are passed by value
+            let is_fptr_param = if let ValueType::TCustom(ref tn) = func_def_arg.value_type {
+                is_func_sig_type(tn, context)
+            } else {
+                false
+            };
+            if is_fptr_param {
+                // Function pointer: pass by value (the typedef is already a pointer type)
+                output.push_str(&arg_type);
+                output.push_str(" ");
+            } else if func_def_arg.is_mut {
                 // mut: pass by pointer so mutations are visible to caller
                 output.push_str(&arg_type);
                 output.push_str("* ");
@@ -3615,7 +3666,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, 
             } else {
                 // const (default): pass by const pointer, read-only
                 // Type is already a pointer, so pass by value
-                if is_type_param {
+                if is_type_param || is_fptr_param {
                     output.push_str(&arg_type);
                     output.push_str(" ");
                 } else {
@@ -3649,6 +3700,13 @@ fn emit_func_prototype(expr: &Expr, context: &Context, output: &mut String) -> R
                     return Ok(());
                 }
 
+                // Issue #91: Skip FuncSig declarations - they become typedefs, not functions
+                if func_def.body.is_empty()
+                    && func_def.args.iter().all(|a| a.name.is_empty())
+                    && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+                    return Ok(());
+                }
+
                 let func_name = til_name(&decl.name);
                 emit_func_signature(&func_name, func_def, context, output)?;
                 output.push_str(";\n");
@@ -3671,6 +3729,105 @@ fn is_func_declaration(expr: &Expr) -> Result<bool, String> {
     Ok(false)
 }
 
+// Issue #91: Check if an expression is a FuncSig declaration (type-only args, empty body)
+fn is_func_sig_declaration(expr: &Expr) -> Result<bool, String> {
+    if let NodeType::Declaration(_) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::FuncDef(func_def) = &expr.get(0)?.node_type {
+                if func_def.body.is_empty()
+                    && func_def.args.iter().all(|a| a.name.is_empty())
+                    && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
+// Issue #91: Check if a parameter type is a FuncSig type (function pointer)
+fn is_func_sig_type(type_name: &str, context: &Context) -> bool {
+    if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
+        sym.value_type == ValueType::TType(TTypeDef::TFuncSig)
+    } else {
+        false
+    }
+}
+
+// Issue #91: Emit a typedef for a function signature type
+fn emit_func_sig_typedef(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::FuncDef(func_def) = &expr.get(0)?.node_type {
+                let is_throwing = !func_def.throw_types.is_empty();
+                let type_name = til_name(&decl.name);
+
+                output.push_str("typedef ");
+
+                if is_throwing {
+                    output.push_str("int ");
+                } else if func_def.return_types.is_empty() {
+                    output.push_str("void ");
+                } else {
+                    let ret_type = til_type_to_c(&func_def.return_types[0])?;
+                    output.push_str(&ret_type);
+                    output.push_str(" ");
+                }
+
+                output.push_str("(*");
+                output.push_str(&type_name);
+                output.push_str(")(");
+
+                let mut param_count = 0;
+
+                if is_throwing {
+                    // Output params first: return value pointer, then error pointers
+                    if !func_def.return_types.is_empty() {
+                        let ret_type = til_type_to_c(&func_def.return_types[0])?;
+                        output.push_str(&ret_type);
+                        output.push_str("*");
+                        param_count += 1;
+                    }
+                    for (i, throw_type) in func_def.throw_types.iter().enumerate() {
+                        if is_empty_error_struct(context, throw_type) {
+                            continue;
+                        }
+                        if param_count > 0 {
+                            output.push_str(", ");
+                        }
+                        let err_type = value_type_to_c_name(throw_type)?;
+                        output.push_str(&err_type);
+                        output.push_str("*");
+                        param_count += 1;
+                        let _ = i; // suppress unused warning
+                    }
+                }
+
+                // Input parameter types (no names for typedef)
+                for func_def_arg in func_def.args.iter() {
+                    if param_count > 0 {
+                        output.push_str(", ");
+                    }
+                    let arg_type = til_type_to_c(&func_def_arg.value_type)?;
+                    // Default (unnamed): pass as const pointer
+                    output.push_str("const ");
+                    output.push_str(&arg_type);
+                    output.push_str("*");
+                    param_count += 1;
+                }
+
+                if param_count == 0 {
+                    output.push_str("void");
+                }
+
+                output.push_str(");\n");
+                return Ok(());
+            }
+        }
+    }
+    Err("emit_func_sig_typedef: not a FuncSig declaration".to_string())
+}
+
 // Emit a function declaration as a C function
 fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
@@ -3678,6 +3835,13 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
             if let NodeType::FuncDef(func_def) = &expr.get(0)?.node_type {
                 // Skip external functions (ext_proc/ext_func) - they're just declarations
                 if func_def.is_ext() {
+                    return Ok(());
+                }
+
+                // Issue #91: Skip FuncSig declarations - they become typedefs, not functions
+                if func_def.body.is_empty()
+                    && func_def.args.iter().all(|a| a.name.is_empty())
+                    && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
                     return Ok(());
                 }
 
@@ -3690,8 +3854,16 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 ctx.current_variadic_params.clear();
                 for func_def_arg in &func_def.args {
                     // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+                    // Issue #91: Skip FuncSig-typed params - they're passed by value (function pointers)
                     if !func_def_arg.is_copy {
-                        ctx.current_ref_params.insert(func_def_arg.name.clone());
+                        let is_fptr = if let ValueType::TCustom(ref tn) = func_def_arg.value_type {
+                            is_func_sig_type(tn, context)
+                        } else {
+                            false
+                        };
+                        if !is_fptr {
+                            ctx.current_ref_params.insert(func_def_arg.name.clone());
+                        }
                     }
                     if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
                         // elem_type is the type name string like "Bool"
@@ -6112,7 +6284,10 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     // Bug #143: Get regular arg strings using emit_arg_string
                     let regular_args: Vec<_> = return_expr.params.iter().skip(1).take(variadic_fcall_info.regular_count).collect();
                     let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, return_expr) {
-                        fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
+                        fd.args.iter().map(|fd_arg| {
+                            let is_fptr = matches!(&fd_arg.value_type, ValueType::TCustom(tn) if is_func_sig_type(tn, context));
+                            ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: if is_fptr { false } else { param_needs_by_ref(fd_arg) } }
+                        }).collect()
                     } else {
                         Vec::new()
                     };
@@ -6752,9 +6927,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // Bug #143: Process ALL args upfront using single-pass emit_arg_string
     let arg_strings: Vec<String> = if is_stmt_level && expr.params.len() > 1 {
         let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, expr) {
-            fd.args.iter().map(|fd_arg| ParamTypeInfo {
-                value_type: Some(fd_arg.value_type.clone()),
-                by_ref: param_needs_by_ref(fd_arg)
+            fd.args.iter().map(|fd_arg| {
+                // Issue #91: Function pointer params are passed by value
+                let is_fptr = matches!(&fd_arg.value_type, ValueType::TCustom(tn) if is_func_sig_type(tn, context));
+                ParamTypeInfo {
+                    value_type: Some(fd_arg.value_type.clone()),
+                    by_ref: if is_fptr { false } else { param_needs_by_ref(fd_arg) }
+                }
             }).collect()
         } else {
             // Handle builtins that don't have function definitions
@@ -7146,15 +7325,31 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 false
             };
 
-            output.push_str(TIL_PREFIX);
-            if is_enum_constructor {
-                // Emit til_Type_make_Variant
-                let parts: Vec<&str> = func_name.splitn(2, '_').collect();
-                output.push_str(parts[0]);
-                output.push_str("_make_");
-                output.push_str(parts[1]);
+            // Issue #91: Check if this is a call through a function-pointer parameter
+            let is_func_ptr_call = if let Some(sym) = context.scope_stack.lookup_symbol(&orig_func_name) {
+                if let ValueType::TCustom(ref type_name) = sym.value_type {
+                    is_func_sig_type(type_name, context)
+                } else {
+                    false
+                }
             } else {
-                output.push_str(&func_name);
+                false
+            };
+
+            if is_func_ptr_call {
+                // Emit the variable name (function pointer stored in parameter)
+                output.push_str(&resolve_var_name(&orig_func_name, ctx, context));
+            } else {
+                output.push_str(TIL_PREFIX);
+                if is_enum_constructor {
+                    // Emit til_Type_make_Variant
+                    let parts: Vec<&str> = func_name.splitn(2, '_').collect();
+                    output.push_str(parts[0]);
+                    output.push_str("_make_");
+                    output.push_str(parts[1]);
+                } else {
+                    output.push_str(&func_name);
+                }
             }
             output.push_str("(");
 
@@ -7173,7 +7368,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 } else {
                     // Expression-level variadic calls - emit regular args with by-ref handling
                     let vexpr_param_info: Vec<(Option<ValueType>, bool)> = if let Some(fd) = get_fcall_func_def(context, expr) {
-                        fd.args.iter().map(|fd_arg| (Some(fd_arg.value_type.clone()), param_needs_by_ref(fd_arg))).collect()
+                        fd.args.iter().map(|fd_arg| {
+                            let is_fptr = matches!(&fd_arg.value_type, ValueType::TCustom(tn) if is_func_sig_type(tn, context));
+                            (Some(fd_arg.value_type.clone()), if is_fptr { false } else { param_needs_by_ref(fd_arg) })
+                        }).collect()
                     } else {
                         Vec::new()
                     };
@@ -7225,7 +7423,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // Bug #143: Need to hoist non-lvalue args that require by-ref
                     // Look up function to get param info for by-ref handling
                     let param_info: Vec<(Option<ValueType>, bool)> = if let Some(fd) = get_fcall_func_def(context, expr) {
-                        fd.args.iter().map(|fd_arg| (Some(fd_arg.value_type.clone()), param_needs_by_ref(fd_arg))).collect()
+                        fd.args.iter().map(|fd_arg| {
+                            let is_fptr = matches!(&fd_arg.value_type, ValueType::TCustom(tn) if is_func_sig_type(tn, context));
+                            (Some(fd_arg.value_type.clone()), if is_fptr { false } else { param_needs_by_ref(fd_arg) })
+                        }).collect()
                     } else {
                         Vec::new()
                     };

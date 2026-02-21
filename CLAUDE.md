@@ -138,8 +138,8 @@ Don't ask where tests go - they're organized by collection type:
    ```bash
    ./bin/rstil interpret tmp/test_foo.til      # rs_interpreted
    ./bin/rstil run tmp/test_foo.til            # rs_compiled
-   ./bin/rstil_til interpret tmp/test_foo.til  # til_interpreted
-   ./bin/rstil_til run tmp/test_foo.til        # til_compiled
+   ./bin/rs/til interpret tmp/test_foo.til     # til_interpreted
+   ./bin/rs/til run tmp/test_foo.til           # til_compiled
    ```
 3. If test is useful, promote to `src/test/` and add to `tests.til`
 

@@ -184,6 +184,58 @@ fn rebuild_namespace_without_unreachable_methods(ns_def: &crate::rs::parser::SNa
     }
 }
 
+/// Issue #91: Recursively collect function names passed as FuncSig arguments.
+/// When `apply_op(add2, 3, 5)` is called and `apply_op`'s first param is FuncSig-typed,
+/// `add2` is a function reference that must be marked reachable.
+fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<String>) -> Result<(), String> {
+    match &e.node_type {
+        NodeType::FCall(_) => {
+            if !e.params.is_empty() {
+                let func_name = get_combined_name_from_identifier(e.get(0)?);
+                if !func_name.is_empty() {
+                    if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
+                        for (i, arg) in func_def.args.iter().enumerate() {
+                            if let crate::rs::parser::ValueType::TCustom(ref type_name) = arg.value_type {
+                                if let Some(type_sym) = context.scope_stack.lookup_symbol(type_name) {
+                                    if type_sym.value_type == crate::rs::parser::ValueType::TType(crate::rs::parser::TTypeDef::TFuncSig) {
+                                        // This parameter is a function pointer - check if the argument is a function name
+                                        if let Some(arg_expr) = e.params.get(i + 1) {
+                                            let arg_name = get_combined_name_from_identifier(arg_expr);
+                                            if !arg_name.is_empty() {
+                                                refs.insert(arg_name);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Recurse into arguments
+            for param in &e.params[1..] {
+                collect_func_ptr_references(param, context, refs)?;
+            }
+        }
+        NodeType::FuncDef(func_def) => {
+            for stmt in &func_def.body {
+                collect_func_ptr_references(stmt, context, refs)?;
+            }
+        }
+        NodeType::Catch => {
+            if e.params.len() >= 3 {
+                collect_func_ptr_references(e.get(2)?, context, refs)?;
+            }
+        }
+        _ => {
+            for param in &e.params {
+                collect_func_ptr_references(param, context, refs)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Recursively collect all function names called within an expression.
 fn collect_called_functions(e: &Expr, called: &mut HashSet<String>) -> Result<(), String> {
     match &e.node_type {
@@ -367,6 +419,17 @@ fn compute_reachable(
             let mut called: HashSet<String> = HashSet::new();
             for stmt in &func_def.body {
                 collect_called_functions(stmt, &mut called)?;
+            }
+            // Issue #91: Remove parameter names from called set - they're variables, not functions
+            // This handles function-pointer parameters like `op` in `func(op: BinaryIntOp, ...)`
+            for arg in &func_def.args {
+                if !arg.name.is_empty() {
+                    called.remove(&arg.name);
+                }
+            }
+            // Issue #91: Collect function references passed as FuncSig arguments
+            for stmt in &func_def.body {
+                collect_func_ptr_references(stmt, context, &mut called)?;
             }
             // Add newly discovered functions
             for called_func in called {
@@ -644,6 +707,11 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
         }
 
+        // Issue #91: Also collect function references passed as FuncSig arguments at top level
+        for stmt in &e.params {
+            collect_func_ptr_references(stmt, context, &mut roots)?;
+        }
+
         // Step 2: Compute reachable functions (transitive closure)
         // First pass: compute reachable and detect if variadic support is needed
         let cr_result = compute_reachable(context, &roots, e)?;
@@ -721,8 +789,13 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         let inner = stmt.get(0)?;
                         match &inner.node_type {
                             NodeType::FuncDef(func_def) => {
-                                // Function declaration - keep if reachable or external
-                                if func_def.is_ext() || reachable.contains(&decl.name) {
+                                // Issue #91: FuncSig declarations (empty body, unnamed args)
+                                // are type definitions, not functions - always keep them
+                                let is_func_sig = func_def.body.is_empty()
+                                    && func_def.args.iter().all(|a| a.name.is_empty())
+                                    && matches!(func_def.function_type, crate::rs::parser::FunctionType::FTFunc | crate::rs::parser::FunctionType::FTProc);
+                                // Function declaration - keep if reachable, external, or FuncSig
+                                if func_def.is_ext() || is_func_sig || reachable.contains(&decl.name) {
                                     new_params.push(stmt.clone());
                                 }
                             }

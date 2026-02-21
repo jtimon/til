@@ -178,6 +178,67 @@ rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def:
     return Expr(node_type=NodeType.Declaration(decl.clone()), params=result_params, line=0, col=0)
 }
 
+/// Issue #91: Recursively collect function names passed as FuncSig arguments.
+/// When `apply_op(add2, 3, 5)` is called and `apply_op`'s first param is FuncSig-typed,
+/// `add2` is a function reference that must be marked reachable.
+collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) throws Str = {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        if e.params.len().gt(0) {
+            fptr_func_name := get_combined_name_from_identifier(e.get(0)?)?
+            if fptr_func_name.len().gt(0) {
+                fptr_fd := context.scope_stack.lookup_func(fptr_func_name)?
+                mut fptr_arg_i := 0
+                for fptr_arg: Declaration in fptr_fd.args {
+                    switch fptr_arg.value_type {
+                    case ValueType.TCustom(fptr_type_name):
+                        fptr_type_sym := context.scope_stack.lookup_symbol(fptr_type_name)?
+                        switch fptr_type_sym.value_type {
+                        case ValueType.TType(TTypeDef.TFuncSig):
+                            // This parameter is a function pointer - check if the argument is a function name
+                            if e.params.len().gt(fptr_arg_i.add(1)) {
+                                fptr_arg_expr := e.get(fptr_arg_i.add(1))?
+                                dont_delete(fptr_arg_expr)
+                                fptr_arg_name := get_combined_name_from_identifier(fptr_arg_expr)?
+                                if fptr_arg_name.len().gt(0) {
+                                    _ := refs.insert(fptr_arg_name)
+                                }
+                            }
+                        case:
+                        }
+                        catch (err: KeyNotFoundError) {
+                            // REM: type symbol not found, not a FuncSig
+                        }
+                    case:
+                    }
+                    fptr_arg_i.inc()
+                }
+                catch (err: KeyNotFoundError) {
+                    // REM: function not found in scope, skip
+                }
+            }
+        }
+        // Recurse into arguments
+        mut fptr_i := 1
+        while fptr_i.lt(e.params.len()) {
+            collect_func_ptr_references(e.get(fptr_i)?, context, refs)?
+            fptr_i.inc()
+        }
+    case NodeType.FuncDef(func_def):
+        for stmt: Expr in func_def.body {
+            collect_func_ptr_references(stmt, context, refs)?
+        }
+    case NodeType.Catch:
+        if e.params.len().gteq(3) {
+            collect_func_ptr_references(e.get(2)?, context, refs)?
+        }
+    case:
+        for param: Expr in e.params {
+            collect_func_ptr_references(param, context, refs)?
+        }
+    }
+}
+
 /// Recursively collect all function names called within an expression.
 collect_called_functions : proc(e: Expr, mut called: Set) throws Str = {
     switch e.node_type {
@@ -399,6 +460,17 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
             mut called := Set.new(Str)
             for stmt: Expr in func_def.body {
                 collect_called_functions(stmt, called)?
+            }
+            // Issue #91: Remove parameter names from called set - they're variables, not functions
+            // This handles function-pointer parameters like `op` in `func(op: BinaryIntOp, ...)`
+            for cr_arg: Declaration in func_def.args {
+                if cr_arg.name.len().gt(0) {
+                    called.remove(cr_arg.name)
+                }
+            }
+            // Issue #91: Collect function references passed as FuncSig arguments
+            for stmt: Expr in func_def.body {
+                collect_func_ptr_references(stmt, context, called)?
             }
             // Add newly discovered functions
             for called_func: Str in called {
@@ -796,6 +868,11 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             }
         }
 
+        // Issue #91: Also collect function references passed as FuncSig arguments at top level
+        for fptr_stmt: Expr in e.params {
+            collect_func_ptr_references(fptr_stmt, context, roots)?
+        }
+
         // Step 2: Compute reachable functions (transitive closure)
         // First pass: compute reachable and detect if variadic support is needed
         mut cr_result := compute_reachable(context, roots, e)?
@@ -889,8 +966,26 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                     rebuild_inner := stmt.get(0)?
                     switch rebuild_inner.node_type {
                     case NodeType.FuncDef(func_def):
-                        // Function declaration - keep if reachable or external
-                        if func_def.is_ext().or(reachable.contains(decl.name)) {
+                        // Issue #91: FuncSig declarations (empty body, unnamed args)
+                        // are type definitions, not functions - always keep them
+                        mut is_func_sig := false
+                        if func_def.body.is_empty().and(func_def.is_ext().not()) {
+                            mut all_unnamed := true
+                            for fs_arg: Declaration in func_def.args {
+                                if fs_arg.name.len().gt(0) {
+                                    all_unnamed = false
+                                }
+                            }
+                            switch func_def.function_type {
+                            case FunctionType.FTFunc:
+                                is_func_sig = all_unnamed
+                            case FunctionType.FTProc:
+                                is_func_sig = all_unnamed
+                            case:
+                            }
+                        }
+                        // Function declaration - keep if reachable, external, or FuncSig
+                        if func_def.is_ext().or(is_func_sig).or(reachable.contains(decl.name)) {
                             new_params.push(stmt.clone())
                         }
                     case NodeType.StructDef(struct_def):
