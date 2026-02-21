@@ -197,3 +197,33 @@ test_option_some : proc() = {
 
 test_option_none()
 test_option_some()
+
+// Issue #105: struct_def_of - inspect struct definitions at compile time
+import("std.meta")
+
+Point105 := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+
+// Macro that counts mutable fields (user-declared data fields)
+count_fields : macro(T: Type) returns I64 = {
+    def := struct_def_of(type_as_str(T))
+    mut count := 0
+    for i in 0..def.members.len() {
+        m := cast(Declaration, def.members.get(i)?)
+        if m.is_mut {
+            count = count.add(1)
+        }
+    }
+    return count
+}
+assert_eq(loc(), 2, count_fields(Point105))
+
+// Macro that gets first field name
+first_field_name : macro(T: Type) returns Str = {
+    def := struct_def_of(type_as_str(T))
+    m := cast(Declaration, def.members.get(0)?)
+    return m.name
+}
+assert_eq_str(loc(), "x", first_field_name(Point105))

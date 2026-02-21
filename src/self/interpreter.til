@@ -2851,6 +2851,16 @@ eval_core_func_proc_call : proc(name: Str, mut context: Context, e: Expr, is_pro
         return func_has_const(context, e)?
     case "has_field":
         return func_has_field(context, e)?
+    case "__struct_field_count":
+        return func_struct_field_count(context, e)?
+    case "__struct_field_name":
+        return func_struct_field_name(context, e)?
+    case "__struct_field_is_mut":
+        return func_struct_field_is_mut(context, e)?
+    case "__struct_field_type_kind":
+        return func_struct_field_type_kind(context, e)?
+    case "__struct_field_type_arg":
+        return func_struct_field_type_arg(context, e)?
     case:
         if is_proc {
             throw e.lang_error(context.path, "eval", format("Core procedure '", name, "' not implemented."))

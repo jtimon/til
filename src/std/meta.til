@@ -13,6 +13,38 @@ eval_to_ast_str : ext_proc(src: Str) returns Str = {}  // TODO
 eval_to_expr    : ext_proc(src: Str) returns Expr = {} // TODO
 eval_file       : ext_proc(args: ..Str) = {}
 
+// Struct introspection primitives (Issue #105)
+// These are low-level ext functions used by struct_def_of in core/ast.til
+__struct_field_count     : ext_func(type_name: Str) returns I64 = {}
+__struct_field_name      : ext_func(type_name: Str, index: I64) returns Str = {}
+__struct_field_is_mut    : ext_func(type_name: Str, index: I64) returns I64 = {}
+__struct_field_type_kind : ext_func(type_name: Str, index: I64) returns Str = {}
+__struct_field_type_arg  : ext_func(type_name: Str, index: I64) returns Str = {}
+
+// Build a SStructDef for the named type by querying scope_stack via ext functions
+struct_def_of : proc(type_name: Str) returns SStructDef = {
+    mut def := SStructDef()
+    n := __struct_field_count(type_name)
+    for i in 0..n {
+        mut decl := Declaration()
+        decl.name = __struct_field_name(type_name, i)
+        decl.is_mut = __struct_field_is_mut(type_name, i).eq(1)
+
+        type_kind := __struct_field_type_kind(type_name, i)
+        type_arg := __struct_field_type_arg(type_name, i)
+
+        if type_kind.eq("TCustom") {
+            decl.value_type = ValueType.TCustom(type_arg)
+        } else if type_kind.eq("TMulti") {
+            decl.value_type = ValueType.TMulti(type_arg)
+        }
+        // TType and TFunction: skip for now
+
+        def.members.push(decl)
+    }
+    return def
+}
+
 // Introspection - Runtime type information utilities
 //
 // This struct acts as a namespace (has no mutable fields).

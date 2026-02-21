@@ -1258,6 +1258,20 @@ p.get(result)  // result == 42
 p.delete()
 #+END_SRC
 
+*** Completed (2026-02-21) -- struct_def_of: runtime struct introspection
+- [X] 5 ext functions: ~__struct_field_count~, ~__struct_field_name~,
+  ~__struct_field_is_mut~, ~__struct_field_type_kind~, ~__struct_field_type_arg~
+- [X] Implemented in src/rs/ext.rs and ported to src/self/ext.til
+- [X] Dispatch in src/rs/interpreter.rs and src/self/interpreter.til
+- [X] Ext function declarations in src/std/meta.til
+- [X] ~struct_def_of(type_name)~ proc in src/std/meta.til: builds SStructDef
+  on eval heap by calling ext functions
+- [X] Tests in src/test/macros.til: ~count_fields~ and ~first_field_name~ macros
+  that inspect struct definitions at compile time
+- [X] All changes ported to both Rust and TIL, all 93 tests pass
+- Note: rstil includes auto-generated delete/clone in SStructDef.members,
+  til self-hosted interpreter does not. Tests use is_mut filter for compatibility.
+
 *** Not yet working
 1. *Immutable-only fields in compiled mode*: codegen doesn't emit constants
    for macro-expanded structs (only mutable fields work)

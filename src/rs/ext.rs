@@ -1104,6 +1104,130 @@ pub fn func_has_field(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
     Ok(EvalResult::new("false"))
 }
 
+// ---------- Struct introspection functions (Issue #105)
+
+pub fn func_struct_field_count(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__struct_field_count", 1, false)?;
+
+    let type_name = eval_or_throw!(context, e.get(1)?);
+
+    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
+        Ok(EvalResult::new(&format!("{}", struct_def.members.len())))
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__struct_field_count: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_struct_field_name(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__struct_field_name", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.get(1)?);
+    let index_str = eval_or_throw!(context, e.get(2)?);
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__struct_field_name: invalid index '{}'", index_str)))?;
+
+    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
+        if index < struct_def.members.len() {
+            Ok(EvalResult::new(&struct_def.members[index].name))
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__struct_field_name: index {} out of bounds for '{}' with {} members",
+                index, type_name, struct_def.members.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__struct_field_name: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_struct_field_is_mut(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__struct_field_is_mut", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.get(1)?);
+    let index_str = eval_or_throw!(context, e.get(2)?);
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__struct_field_is_mut: invalid index '{}'", index_str)))?;
+
+    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
+        if index < struct_def.members.len() {
+            Ok(EvalResult::new(if struct_def.members[index].is_mut { "1" } else { "0" }))
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__struct_field_is_mut: index {} out of bounds for '{}' with {} members",
+                index, type_name, struct_def.members.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__struct_field_is_mut: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_struct_field_type_kind(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__struct_field_type_kind", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.get(1)?);
+    let index_str = eval_or_throw!(context, e.get(2)?);
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__struct_field_type_kind: invalid index '{}'", index_str)))?;
+
+    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
+        if index < struct_def.members.len() {
+            let kind = match &struct_def.members[index].value_type {
+                ValueType::TCustom(_) => "TCustom",
+                ValueType::TMulti(_) => "TMulti",
+                ValueType::TType(_) => "TType",
+                ValueType::TFunction(_) => "TFunction",
+            };
+            Ok(EvalResult::new(kind))
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__struct_field_type_kind: index {} out of bounds for '{}' with {} members",
+                index, type_name, struct_def.members.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__struct_field_type_kind: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_struct_field_type_arg(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__struct_field_type_arg", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.get(1)?);
+    let index_str = eval_or_throw!(context, e.get(2)?);
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__struct_field_type_arg: invalid index '{}'", index_str)))?;
+
+    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
+        if index < struct_def.members.len() {
+            let arg = match &struct_def.members[index].value_type {
+                ValueType::TCustom(s) => s.clone(),
+                ValueType::TMulti(s) => s.clone(),
+                ValueType::TType(tdef) => format!("{:?}", tdef),
+                ValueType::TFunction(ftype) => format!("{:?}", ftype),
+            };
+            Ok(EvalResult::new(&arg))
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__struct_field_type_arg: index {} out of bounds for '{}' with {} members",
+                index, type_name, struct_def.members.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__struct_field_type_arg: type '{}' not found", type_name
+        )))
+    }
+}
+
 pub fn func_exit(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "exit", 1, false)?;
 
