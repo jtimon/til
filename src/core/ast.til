@@ -5,8 +5,6 @@ import("core.ptr")
 import("std.map")
 import("std.meta")          // enum_to_str (for auto-generated enum to_str methods)
 
-LANG_NAME := "til"
-
 // Bug #38 fix: Use a Vec to preserve variant order instead of Map
 EnumVariant := struct {
     mut name: Str = ""
@@ -416,9 +414,9 @@ namespace:
         line_str := self.line.to_str()
         col_str := self.col.to_str()
         if phase.eq("warning") {
-            println(format(line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: This should never happen, this is a bug in the language."))
+            println(format(line_str, ":", col_str, ": WARNING: ", msg, "\nExplanation: This should never happen, this is a bug in the language."))
         } else {
-            println(format(line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: This should never happen, this is a bug in the language."))
+            println(format(line_str, ":", col_str, ": ", phase, " ERROR: ", msg, "\nExplanation: This should never happen, this is a bug in the language."))
         }
         exit(1)
     }
@@ -427,18 +425,18 @@ namespace:
         prefix := path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str()).concat(": ")
         suffix := "\nExplanation: This should never happen, this is a bug in the language."
         if phase.eq("warning") {
-            return prefix.concat(LANG_NAME).concat(" WARNING: ").concat(msg).concat(suffix)
+            return prefix.concat("WARNING: ").concat(msg).concat(suffix)
         }
-        return prefix.concat(LANG_NAME).concat(" ").concat(phase).concat(" ERROR: ").concat(msg).concat(suffix)
+        return prefix.concat(phase).concat(" ERROR: ").concat(msg).concat(suffix)
     }
 
     todo_error : func(self: Expr, path: Str, phase: Str, msg: Str) returns Str = {
         prefix := path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str()).concat(": ")
         suffix := "\nExplanation: Not implemented yet, this is a missing feature in the language."
         if phase.eq("warning") {
-            return prefix.concat(LANG_NAME).concat(" WARNING: ").concat(msg).concat(suffix)
+            return prefix.concat("WARNING: ").concat(msg).concat(suffix)
         }
-        return prefix.concat(LANG_NAME).concat(" ").concat(phase).concat(" ERROR: ").concat(msg).concat(suffix)
+        return prefix.concat(phase).concat(" ERROR: ").concat(msg).concat(suffix)
     }
 
     error : func(self: Expr, path: Str, phase: Str, msg: Str) returns Str = {

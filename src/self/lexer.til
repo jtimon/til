@@ -4,7 +4,7 @@ import("core.vec")
 import("std.io")            // readfile
 
 // Bug #141: Separate output directories for rstil vs til to prevent race conditions
-LANG_NAME_141 := "til"
+LANG_NAME := "til"
 
 TokenType := enum {
     // basic
@@ -67,14 +67,14 @@ Token := struct {
 namespace:
     lang_error : func(self: Token, path: Str, msg: Str) returns Str = {
         return path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str())
-            .concat(": ").concat(LANG_NAME).concat(" parse ERROR: ").concat(msg).concat("\n")
+            .concat(": parse ERROR: ").concat(msg).concat("\n")
             .concat("Explanation: This is not your fault as a user, this is a bug in the language.")
     }
 
     #[allow(dead_code)] // Kept for consistency with Expr.todo_error
     todo_error : func(self: Token, path: Str, msg: Str) returns Str = {
         return path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str())
-            .concat(": ").concat(LANG_NAME).concat(" parse ERROR: ").concat(msg).concat("\n")
+            .concat(": parse ERROR: ").concat(msg).concat("\n")
             .concat("Explanation: Not implemented yet, this is a missing feature in the language.")
     }
 

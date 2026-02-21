@@ -1,4 +1,4 @@
-use rs::lexer::{LANG_NAME, TokenType, Lexer, Token};
+use rs::lexer::{TokenType, Lexer, Token};
 
 pub const DEFAULT_MODE: &str = "lib";
 
@@ -119,7 +119,7 @@ pub fn mode_from_name(mode_name: &str, path: &str, t: &Token) -> Result<ModeDef,
                     allowed_procs_in_funcs  : vec!["panic".to_string()],
         }),
 
-        _  => return Err(t.error(path, &format!("{} interpreter implementation doesn't support mode '{}'", LANG_NAME, mode_name))),
+        _  => return Err(t.error(path, &format!("interpreter implementation doesn't support mode '{}'", mode_name))),
     };
 }
 

@@ -62,7 +62,7 @@ mode_from_name : proc(mode_name: Str) returns ModeDef throws UnknownModeError = 
         md.needs_main_proc      = false
 
     case:
-        throw UnknownModeError(format(loc(), LANG_NAME, " implementation doesn't support mode ", mode_name))
+        throw UnknownModeError(format(loc(), "implementation doesn't support mode ", mode_name))
     }
     return md
 }

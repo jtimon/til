@@ -1,6 +1,5 @@
-pub use crate::rs::ast::LANG_NAME;
 // Bug #141: Separate output directories for rstil vs til to prevent race conditions
-pub const LANG_NAME_141: &str = "rs";
+pub const LANG_NAME: &str = "rs";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -64,14 +63,14 @@ pub struct Token {
 
 impl Token {
     pub fn lang_error(self: &Token, path: &str, msg: &str) -> String {
-        return format!("{}:{}:{}: {} parse ERROR: {}\nExplanation: This is not your fault as a user, this is a bug in the language.",
-                 path, self.line, self.col, LANG_NAME, msg);
+        return format!("{}:{}:{}: parse ERROR: {}\nExplanation: This is not your fault as a user, this is a bug in the language.",
+                 path, self.line, self.col, msg);
     }
 
     #[allow(dead_code)] // Kept for consistency with Expr.todo_error
     pub fn todo_error(self: &Token, path: &str, msg: &str) -> String {
-        return format!("{}:{}:{}: {} parse ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
-                 path, self.line, self.col, LANG_NAME, msg);
+        return format!("{}:{}:{}: parse ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
+                 path, self.line, self.col, msg);
     }
 
     pub fn error(self: &Token, path: &str, msg: &str) -> String {

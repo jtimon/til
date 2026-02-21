@@ -381,10 +381,10 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
     // Generate C code
     let c_code = ccodegen::emit(&merged_ast, &mut context)?;
 
-    // Write output file to ./gen/{LANG_NAME_141}/c/ directory instead of alongside source
-    // Bug #141: Use LANG_NAME_141 to separate rstil (rs) and til outputs
+    // Write output file to ./gen/{LANG_NAME}/c/ directory instead of alongside source
+    // Bug #141: Use LANG_NAME to separate rstil (rs) and til outputs
     let c_filename = path.replace(".til", ".c");
-    let gen_prefix = format!("gen/{}/c/", crate::rs::lexer::LANG_NAME_141);
+    let gen_prefix = format!("gen/{}/c/", crate::rs::lexer::LANG_NAME);
     let source_output_path = if c_filename.starts_with("src/") {
         c_filename.replacen("src/", &gen_prefix, 1)
     } else {
@@ -410,12 +410,12 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
         None => toolchain_command(target, lang)?,
     };
 
-    // Compile - output to bin/{LANG_NAME_141}/ directory in project root, preserving relative path
-    // Bug #141: Use LANG_NAME_141 to separate rstil (rs) and til outputs
+    // Compile - output to bin/{LANG_NAME}/ directory in project root, preserving relative path
+    // Bug #141: Use LANG_NAME to separate rstil (rs) and til outputs
     // e.g., src/til.til -> bin/rs/til, src/examples/hello_script.til -> bin/rs/examples/hello_script
     let exe_extension = executable_extension(target);
     let bin_filename = path.replace(".til", exe_extension);
-    let bin_prefix = format!("bin/{}/", crate::rs::lexer::LANG_NAME_141);
+    let bin_prefix = format!("bin/{}/", crate::rs::lexer::LANG_NAME);
     let exe_path_str = if bin_filename.starts_with("src/") {
         bin_filename.replacen("src/", &bin_prefix, 1)
     } else {

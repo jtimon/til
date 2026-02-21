@@ -4,8 +4,6 @@ use std::io;
 
 use crate::rs::ordered_map::OrderedMap;
 
-pub const LANG_NAME  : &str = "til";
-
 // Bug #38 fix: Use a Vec to preserve variant order instead of HashMap
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumVariant {
@@ -201,11 +199,11 @@ impl Expr {
 
     pub fn exit_error(self: &Expr, phase: &str, msg: &str) -> String {
         if phase == "warning" {
-            println!("{}:{}: {} WARNING: {}\nExplanation: This should never happen, this is a bug in the language.",
-                     self.line, self.col, LANG_NAME, msg);
+            println!("{}:{}: WARNING: {}\nExplanation: This should never happen, this is a bug in the language.",
+                     self.line, self.col, msg);
         } else {
-            println!("{}:{}: {} {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
-                     self.line, self.col, LANG_NAME, phase, msg);
+            println!("{}:{}: {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
+                     self.line, self.col, phase, msg);
         }
         let _ = io::stdout().flush(); // Disregard flush errors, don't unwrap
         std::process::exit(1);
@@ -213,18 +211,18 @@ impl Expr {
 
     pub fn lang_error(self: &Expr, path: &str, phase: &str, msg: &str) -> String {
         if phase == "warning" {
-            return format!("{}:{}:{}: {} WARNING: {}\nExplanation: This should never happen, this is a bug in the language.", path, self.line, self.col, LANG_NAME, msg);
+            return format!("{}:{}:{}: WARNING: {}\nExplanation: This should never happen, this is a bug in the language.", path, self.line, self.col, msg);
         }
-        return format!("{}:{}:{}: {} {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
-                       path, self.line, self.col, LANG_NAME, phase, msg)
+        return format!("{}:{}:{}: {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
+                       path, self.line, self.col, phase, msg)
     }
 
     pub fn todo_error(self: &Expr, path: &str, phase: &str, msg: &str) -> String {
         if phase == "warning" {
-            return format!("{}:{}:{}: {} WARNING: {}\nExplanation: Not implemented yet, this is a missing feature in the language.", path, self.line, self.col, LANG_NAME, msg);
+            return format!("{}:{}:{}: WARNING: {}\nExplanation: Not implemented yet, this is a missing feature in the language.", path, self.line, self.col, msg);
         }
-        return format!("{}:{}:{}: {} {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
-                       path, self.line, self.col, LANG_NAME, phase, msg)
+        return format!("{}:{}:{}: {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
+                       path, self.line, self.col, phase, msg)
     }
 
     pub fn error(self: &Expr, path: &str, phase: &str, msg: &str) -> String {

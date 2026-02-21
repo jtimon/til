@@ -480,10 +480,10 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
     // Generate C code
     c_code := emit(merged_ast2, context)?
 
-    // Write output file to ./gen/{LANG_NAME_141}/c/ directory instead of alongside source
-    // Bug #141: Use LANG_NAME_141 to separate rstil (rs) and til outputs
+    // Write output file to ./gen/{LANG_NAME}/c/ directory instead of alongside source
+    // Bug #141: Use LANG_NAME to separate rstil (rs) and til outputs
     c_filename := path.replace(".til", ".c")
-    gen_prefix := concat("gen/", LANG_NAME_141).concat("/c/")
+    gen_prefix := concat("gen/", LANG_NAME).concat("/c/")
     mut source_output_path := c_filename.clone()
     if c_filename.starts_with("src/") {
         source_output_path = c_filename.replace("src/", gen_prefix)
@@ -511,12 +511,12 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
         compiler = toolchain_command(target, lang)?
     }
 
-    // Compile - output to bin/{LANG_NAME_141}/ directory in project root, preserving relative path
-    // Bug #141: Use LANG_NAME_141 to separate rstil (rs) and til outputs
+    // Compile - output to bin/{LANG_NAME}/ directory in project root, preserving relative path
+    // Bug #141: Use LANG_NAME to separate rstil (rs) and til outputs
     // e.g., src/til.til -> bin/til/til, src/examples/hello_script.til -> bin/til/examples/hello_script
     exe_extension := executable_extension(target)
     bin_filename := path.replace(".til", exe_extension)
-    bin_prefix := concat("bin/", LANG_NAME_141).concat("/")
+    bin_prefix := concat("bin/", LANG_NAME).concat("/")
     mut exe_path_str := bin_filename.clone()
     if bin_filename.starts_with("src/") {
         exe_path_str = bin_filename.replace("src/", bin_prefix)

@@ -84,11 +84,11 @@ parse_build_options : proc(args: Vec) returns ParseBuildOptionsResult throws Str
 
 // Compute the binary output path from a TIL source path
 // Mirrors the logic in builder.til
-// Bug #141: Use LANG_NAME_141 to separate rstil (rs) and til outputs
+// Bug #141: Use LANG_NAME to separate rstil (rs) and til outputs
 source_to_binary_path : func(path: Str, target: Target) returns Str = {
     exe_extension := executable_extension(target)
     bin_filename := path.replace(".til", exe_extension)
-    bin_prefix := concat("bin/", LANG_NAME_141).concat("/")
+    bin_prefix := concat("bin/", LANG_NAME).concat("/")
     if bin_filename.starts_with("src/") {
         return bin_filename.replace("src/", bin_prefix)
     } else {
@@ -117,9 +117,9 @@ needs_rebuild : proc(binary_path: Str, deps: Vec) returns Bool = {
 // ---------- main, usage, args, etc
 
 usage : proc() = {
-    println("Usage: ", LANG_NAME, " [command] [path] [options]\n")
-    println("Entering no arguments is equavalent to: ", LANG_NAME, " repl")
-    println("Entering a single argument that's not a command is interpreted as a path, equivalent to: ", LANG_NAME, " interpret <path>\n")
+    println("Usage: til [command] [path] [options]\n")
+    println("Entering no arguments is equavalent to: til repl")
+    println("Entering a single argument that's not a command is interpreted as a path, equivalent to: til interpret <path>\n")
 
     println("Commands:\n")
 

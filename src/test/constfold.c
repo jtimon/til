@@ -708,7 +708,6 @@ const til_I64 til_I64_U8_SIZE = 1;
 const til_I64 til_I64_MIN_U8 = 0;
 const til_I64 til_I64_MAX_U8 = 255;
 const til_U8 til_U8_ZERO_U8 = 0;
-const til_Str til_Str_LANG_NAME = ((til_Str){((til_Ptr){(til_I64)"til", 1, 0, 0, 0}), 3, 0});
 static til_Vec til_Vec_g_entries;
 static til_Bool til_Bool_g_enabled;
 

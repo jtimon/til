@@ -137,7 +137,7 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
             needs_main_proc        = true,
             allowed_procs_in_funcs = make_allowed)
     case:
-        throw t.error(path, format(LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'"))
+        throw t.error(path, format("interpreter implementation doesn't support mode '", mode_name, "'"))
     }
 }
 
@@ -157,7 +157,7 @@ parse_mode : func(path: Str, mut lexer: Lexer) returns ModeDef throws Str = {
 
     m_name := m.name
     if m_name.eq("safe_script") {
-        throw t.error(path, format("mode '", m.name, "' is not properly supported in '", LANG_NAME, "' yet. Try mode 'script' instead"))
+        throw t.error(path, format("mode '", m.name, "' is not properly supported yet. Try mode 'script' instead"))
     }
 
     _ := lexer.expect(TokenType.Identifier)?  // Add one for the identifier of the mode

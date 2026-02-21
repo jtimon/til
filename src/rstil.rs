@@ -24,7 +24,6 @@ mod rs {
     pub mod builder;
     pub mod ordered_map;
 }
-use rs::ast::LANG_NAME;
 use rs::interpreter::interpret_file;
 use rs::builder;
 use rs::eval_heap::EvalHeap;
@@ -52,11 +51,11 @@ fn file_mtime(path: &str) -> i64 {
 
 // Compute the binary output path from a TIL source path
 // Mirrors the logic in builder.rs
-// Bug #141: Use LANG_NAME_141 to separate rstil (rs) and til outputs
+// Bug #141: Use LANG_NAME to separate rstil (rs) and til outputs
 fn source_to_binary_path(path: &str, target: &Target) -> String {
     let exe_extension = executable_extension(target);
     let bin_filename = path.replace(".til", exe_extension);
-    let bin_prefix = format!("bin/{}/", rs::lexer::LANG_NAME_141);
+    let bin_prefix = format!("bin/{}/", rs::lexer::LANG_NAME);
     if bin_filename.starts_with("src/") {
         bin_filename.replacen("src/", &bin_prefix, 1)
     } else {
@@ -123,9 +122,9 @@ fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, Op
 // ---------- main, usage, args, etc
 
 fn usage() {
-    println!("Usage: {} [command] [path] [options]\n", LANG_NAME);
-    println!("Entering no arguments is equavalent to: {} repl", LANG_NAME);
-    println!("Entering a single argument that's not a command is interpreted as a path, equivalent to: {} interpret <path>\n", LANG_NAME);
+    println!("Usage: til [command] [path] [options]\n");
+    println!("Entering no arguments is equavalent to: til repl");
+    println!("Entering a single argument that's not a command is interpreted as a path, equivalent to: til interpret <path>\n");
 
     println!("Commands:\n");
 
