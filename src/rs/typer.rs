@@ -788,10 +788,49 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
             && matches!(&arg_expr.node_type, NodeType::LLiteral(Literal::Number(_)));
         match arg_expected_type {
             ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type-typed argument
-            // Issue #91: Accept function values for FuncSig-typed parameters
+            // Issue #91: Verify function signature compatibility for FuncSig-typed parameters
             ValueType::TCustom(tn) if context.scope_stack.lookup_symbol(tn)
                 .map(|s| s.value_type == ValueType::TType(TTypeDef::TFuncSig))
-                .unwrap_or(false) => {},
+                .unwrap_or(false) => {
+                // Same type name -> trivially compatible
+                if arg_expected_type != &found_type {
+                    let arg_name = if let NodeType::Identifier(ref name) = arg_expr.node_type { name.as_str() } else { "?" };
+                    // Look up the expected FuncSig definition
+                    let expected_fd = context.scope_stack.lookup_func(tn);
+                    // Try to find the function def for the argument
+                    let found_fd = if let NodeType::Identifier(ref _name) = arg_expr.node_type {
+                        let combined_arg_name = crate::rs::parser::get_combined_name(&context.path, arg_expr)?;
+                        context.scope_stack.lookup_func(&combined_arg_name)
+                    } else {
+                        None
+                    };
+                    let mut sig_ok = false;
+                    if let (Some(expected_fd), Some(found_fd)) = (expected_fd, found_fd) {
+                        let args_match = expected_fd.args.len() == found_fd.args.len()
+                            && expected_fd.args.iter().zip(found_fd.args.iter())
+                                .all(|(a, b)| a.value_type == b.value_type);
+                        let func_kind_match = expected_fd.is_proc() == found_fd.is_proc();
+                        sig_ok = args_match
+                            && expected_fd.return_types == found_fd.return_types
+                            && expected_fd.throw_types == found_fd.throw_types
+                            && func_kind_match;
+                        if !sig_ok && !func_kind_match {
+                            let expected_kind = if expected_fd.is_proc() { "proc" } else { "func" };
+                            let found_kind = if found_fd.is_proc() { "proc" } else { "func" };
+                            errors.push(e.error(&context.path, "type", &format!(
+                                "Cannot pass '{}' ({}) where '{}' ({}) is expected for parameter '{}' of '{}'.",
+                                arg_name, found_kind, tn, expected_kind, arg.name, f_name
+                            )));
+                        }
+                    }
+                    if !sig_ok {
+                        errors.push(e.error(&context.path, "type", &format!(
+                            "Cannot pass '{}' of type '{}' to function-pointer parameter '{}' of '{}': expected function type '{}'.",
+                            arg_name, value_type_to_str(&found_type), arg.name, f_name, tn
+                        )));
+                    }
+                }
+            },
             ValueType::TCustom(tn) if tn == INFER_TYPE => {
                 errors.push(e.error(&context.path, "type", &format!(
                     "calling func/proc '{}' declared arg {} without type, but type inference in args is not supported.\n\

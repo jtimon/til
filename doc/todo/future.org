@@ -478,7 +478,7 @@ can finally be idiomatic Til instead of "Til that looks like Rust."
 - [X] Bug #86: For-in loop fails with enum that has enum payload
 - [ ] Bug #87: Scavenger not pruning struct methods
 - [ ] Issue #88: Macro Support (Compile-Time Evaluation)
-- [-] Issue #91: First-Class Functions (FunctionSig done, function pointers next)
+- [-] Issue #91: First-Class Functions (FunctionSig + function pointers done, closures/collections next)
 - [X] Bug #92: Range loops should allow explicit iterator type annotation (Fixed 2026-01-29)
 - [ ] Bug #94: gcc warnings cause bug47.til compilation failure
 - [ ] Bug #98: ext_proc errors should throw specific error types instead of panicking
@@ -914,7 +914,7 @@ Dynamic~, but could be implemented independently as a narrower feature for macro
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
 :IMPACT: Language feature, polymorphism, higher-order programming
-:STATUS: In progress - FunctionSig type done (2026-02-21), next: function pointers + call-through-variable
+:STATUS: In progress - FunctionSig type + function pointers done (2026-02-21), next: closures/collections
 :RELATED: Bug #90 (semicolon/body syntax), Bug #159 (needs func ptrs for deep clone/delete), Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), src/test/function_pointers.til, doc/first_class.org
 :END:
 
@@ -1030,17 +1030,28 @@ my_add : BinaryOp = (a, b) { return a.add(b) }
 Parser detects binding-tuple-body pattern. Init, typer, and precomp resolve
 arg types from signatures into declarations. Tests in src/test/function_pointers.til.
 
-Next: function pointers (pass functions as arguments, call-through-variable).
+**** Function pointers (DONE - 2026-02-21)
+Pass functions as arguments, call through variable, signature compatibility checking.
+- Typer: accepts FuncSig as parameter type, resolves calls through function-typed parameters
+- Interpreter: binds function arguments in callee frame under parameter name
+- Ccodegen: emits C typedefs for FuncSig types, function pointer parameters passed by value,
+  indirect calls through function pointers, function names as arguments
+- Scavenger: tracks function references through FuncSig-typed arguments
+- Type checking: structural signature compatibility (arg types, return types, throw types, func/proc kind)
+- Tests: direct calls, cross-type compatibility, multiple function-typed params, nested higher-order,
+  runtime dispatch (proc wrapper)
+
+Next: closures, storing function pointers in collections, lambdas.
 
 *** Existing Infrastructure (as of 2026-02-21)
 
-What already exists (~40-50% complete):
+What already exists:
 - ~ValueType::TFunction(FunctionType)~ -- stores func/proc/macro kind
 - ~SFuncDef~ struct -- full function definition (type, args, returns, throws, body)
 - ~ScopeFrame.funcs~ -- HashMap<String, SFuncDef> for function lookup by name
 - Parser: ~parse_func_proc_definition~ parses func/proc with body
 - Typer: recognizes ~TFunction~ declarations, calls ~declare_func~
-- Test file: ~src/test/function_pointers.til~ (draft, all commented out)
+- Test file: ~src/test/function_pointers.til~
 
 **** Reusable patterns from #105 (First-Class Structs) and #106 (First-Class Enums)
 
@@ -1091,14 +1102,19 @@ What is done:
 - Parser: sugar form ~name : func(a: I64) = { body }~ (f9af099f)
 - Parser: normal form ~name : func(I64) = (a) { body }~ with binding tuples (fb40690b)
 - Parser: old ~:= func()~ syntax rejected, all code converted (b0badfdd)
+- FunctionSig type definitions (65fd0227)
+- Typer: accept FuncSig as parameter type, resolve calls through params
+- Interpreter: bind function arguments in callee frame
+- Ccodegen: function pointer typedefs, pointer params, indirect calls, pass functions as args
+- Scavenger: track function references through FuncSig args
+- Type checking: structural signature compatibility verification
 - Reusable patterns from #105 (structs) and #106 (enums) documented above
 
 What is missing:
-- Parser: bodyless function declarations (type decls) -- needs lookahead fix
-- ValueType: ~TFunction~ only stores kind, not full signature (args/returns/throws)
-- Interpreter: function calls resolved by name only, no "call through parameter"
-- Ccodegen: no C function pointer typedefs or pointer-based calls
-- Type checking: no signature compatibility verification
+- Closures (capturing local variables)
+- Storing function pointers in collections (Vec/Map of function pointers)
+- Lambda syntax
+- Returning functions from functions
 
 *** C Calling Convention (critical for codegen)
 

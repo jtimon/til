@@ -45,3 +45,17 @@ assert_eq(loc(), 11, test_runtime_dispatch(add2, 5, 6))
 assert_eq(loc(), 4, test_runtime_dispatch(subtract, 10, 6))
 assert_eq(loc(), 42, test_runtime_dispatch(multiply, 6, 7))
 
+// Multiple function-typed parameters
+apply_two : func(f: BinaryIntOp, g: BinaryIntOp, a: I64, b: I64) returns I64 = {
+    return f(a, g(a, b))
+}
+assert_eq(loc(), 18, apply_two(add2, multiply, 3, 5))
+
+// Nested higher-order: function that takes a function that takes a function
+compose_and_apply : func(outer: BinaryIntOp, inner: BinaryIntOp, a: I64, b: I64) returns I64 = {
+    intermediate := inner(a, b)
+    return outer(intermediate, intermediate)
+}
+assert_eq(loc(), 16, compose_and_apply(add2, add2, 3, 5))
+assert_eq(loc(), 225, compose_and_apply(multiply, multiply, 3, 5))
+

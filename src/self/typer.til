@@ -1045,7 +1045,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                     "calling func/proc '", f_name, "' declared arg ", arg.name, " without type, but type inference in args is not supported.\nSuggestion: the arg should be '", arg.name, " : ", value_type_to_str(found_type), ",' instead of just '", arg.name, "'.\nAlternative option: the arg could be '", arg.name, " : Dynamic,' for dynamic arguments."
                 )))
             } else {
-                // Issue #91: Check if expected type is a FuncSig - accept function values
+                // Issue #91: Check if expected type is a FuncSig - verify signature compatibility
                 mut is_funcsig_param := false
                 fsig_sym := context.scope_stack.lookup_symbol(tn)?
                 switch fsig_sym.value_type {
@@ -1056,7 +1056,95 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                 catch (err: KeyNotFoundError) {
                     // REM: type not found, not a FuncSig
                 }
-                if not(is_funcsig_param) {
+                if is_funcsig_param {
+                    // Same type name -> trivially compatible
+                    if not(value_type_to_str(arg_expected_type).eq(value_type_to_str(found_type))) {
+                        mut fsig_arg_name := "?"
+                        switch arg_expr.node_type {
+                        case NodeType.Identifier(name):
+                            fsig_arg_name = name
+                        case:
+                        }
+                        // Look up the expected FuncSig definition
+                        mut have_expected := true
+                        expected_fd := context.scope_stack.lookup_func(tn)?
+                        catch (err: KeyNotFoundError) { have_expected = false }
+                        // Try to find the function def for the argument
+                        mut have_found := false
+                        mut found_fd := SFuncDef()
+                        switch arg_expr.node_type {
+                        case NodeType.Identifier(arg_id_name):
+                            combined_arg_name := get_combined_name(context.path, arg_expr)?
+                            found_fd = context.scope_stack.lookup_func(combined_arg_name)?
+                            have_found = true
+                            catch (err: KeyNotFoundError) { }
+                        case:
+                        }
+                        mut sig_ok := false
+                        if have_expected.and(have_found) {
+                            mut args_match := expected_fd.args.len().eq(found_fd.args.len())
+                            if args_match {
+                                mut ai := 0
+                                while ai.lt(expected_fd.args.len()) {
+                                    ea := cast(Declaration, expected_fd.args.get(ai)?)
+                                    fa := cast(Declaration, found_fd.args.get(ai)?)
+                                    if not(value_type_to_str(ea.value_type).eq(value_type_to_str(fa.value_type))) {
+                                        args_match = false
+                                    }
+                                    ai.inc()
+                                }
+                            }
+                            func_kind_match := expected_fd.is_proc().eq(found_fd.is_proc())
+                            // Compare return_types element by element
+                            mut return_types_match := expected_fd.return_types.len().eq(found_fd.return_types.len())
+                            if return_types_match {
+                                mut ri := 0
+                                while ri.lt(expected_fd.return_types.len()) {
+                                    ert := cast(ValueType, expected_fd.return_types.get(ri)?)
+                                    frt := cast(ValueType, found_fd.return_types.get(ri)?)
+                                    if not(value_type_to_str(ert).eq(value_type_to_str(frt))) {
+                                        return_types_match = false
+                                    }
+                                    ri.inc()
+                                }
+                            }
+                            // Compare throw_types element by element
+                            mut throw_types_match := expected_fd.throw_types.len().eq(found_fd.throw_types.len())
+                            if throw_types_match {
+                                mut thi := 0
+                                while thi.lt(expected_fd.throw_types.len()) {
+                                    ett := cast(ValueType, expected_fd.throw_types.get(thi)?)
+                                    ftt := cast(ValueType, found_fd.throw_types.get(thi)?)
+                                    if not(value_type_to_str(ett).eq(value_type_to_str(ftt))) {
+                                        throw_types_match = false
+                                    }
+                                    thi.inc()
+                                }
+                            }
+                            if args_match.and(return_types_match).and(throw_types_match).and(func_kind_match) {
+                                sig_ok = true
+                            }
+                            if not(sig_ok).and(not(func_kind_match)) {
+                                mut expected_kind := "func"
+                                if expected_fd.is_proc() { expected_kind = "proc" }
+                                mut found_kind := "func"
+                                if found_fd.is_proc() { found_kind = "proc" }
+                                errors.push(e_clone.error(context.path, "type", format(
+                                    "Cannot pass '", fsig_arg_name, "' (", found_kind, ") where '", tn, "' (", expected_kind, ") is expected for parameter '", arg.name, "' of '", f_name, "'."
+                                )))
+                            }
+
+                            catch (err: IndexOutOfBoundsError) {
+                                throw err.msg
+                            }
+                        }
+                        if not(sig_ok) {
+                            errors.push(e_clone.error(context.path, "type", format(
+                                "Cannot pass '", fsig_arg_name, "' of type '", value_type_to_str(found_type), "' to function-pointer parameter '", arg.name, "' of '", f_name, "': expected function type '", tn, "'."
+                            )))
+                        }
+                    }
+                } else {
                     // Check type match
                     if not(value_type_to_str(arg_expected_type).eq(value_type_to_str(found_type))).and(not(arg_is_u8_i64_coercion)) {
                         errors.push(e_clone.error(context.path, "type", format(
