@@ -1138,6 +1138,34 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         throw e.lang_error(context.path, "precomp", err)
     }
 
+    // Issue #91: Detect function signature definitions
+    // A FuncDef with empty body and type-only args (no names) is a function signature type
+    switch inner_e.node_type {
+    case NodeType.FuncDef(func_def):
+        if func_def.body.len().eq(0) {
+            mut all_type_only := true
+            for arg: Declaration in func_def.args {
+                if not(arg.name.eq("")) {
+                    all_type_only = false
+                }
+            }
+            if all_type_only {
+                mut is_func_or_proc := false
+                switch func_def.function_type {
+                case FunctionType.FTFunc:
+                    is_func_or_proc = true
+                case FunctionType.FTProc:
+                    is_func_or_proc = true
+                case:
+                }
+                if is_func_or_proc {
+                    value_type = ValueType.TType(TTypeDef.TFuncSig)
+                }
+            }
+        }
+    case:
+    }
+
     // Issue #105: Accept INFER_TYPE inside macro bodies (typer doesn't resolve inside FuncDef bodies)
     mut is_infer_type := false
     switch decl.value_type {
@@ -1164,8 +1192,39 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         }
     case:
     }
+    // Issue #91: Resolve function signature type references
+    // When decl.value_type is a custom type name that resolves to a FunctionSig,
+    // look up the signature and set value_type to match the function type.
+    mut has_sig_func_def := false
+    mut sig_func_def := SFuncDef()
+    switch decl.value_type {
+    case ValueType.TCustom(sig_name):
+        sig_sym := context.scope_stack.lookup_symbol(sig_name)?
+        catch (err: KeyNotFoundError) {
+            // Not found - not a FunctionSig reference, continue normally
+        }
+        if not(has_sig_func_def) {
+            switch sig_sym.value_type {
+            case ValueType.TType(TTypeDef.TFuncSig):
+                sig_sfd := context.scope_stack.lookup_func(sig_name)?
+                catch (err: KeyNotFoundError) {
+                    // Should not happen if symbol has FuncSig type
+                }
+                if not(has_sig_func_def) {
+                    sig_func_def = sig_sfd
+                    has_sig_func_def = true
+                    value_type = ValueType.TFunction(sig_sfd.function_type)
+                }
+            case:
+            }
+        }
+    case:
+    }
+
     if is_infer_type {
         // Issue #105: Skip type checking for inferred types inside macro bodies
+    } else if has_sig_func_def {
+        // Issue #91: FunctionSig reference resolved above - skip type check
     } else if is_u8_decl.and(is_i64_value) {
         value_type = decl.value_type
     } else {
@@ -1206,6 +1265,19 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
     case:
     }
 
+    // Issue #91: Register function signature type and return early
+    switch value_type {
+    case ValueType.TType(TTypeDef.TFuncSig):
+        switch inner_e.node_type {
+        case NodeType.FuncDef(func_def):
+            context.scope_stack.declare_func(decl.name, func_def.clone())?
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=true))?
+            return e.clone()
+        case:
+        }
+    case:
+    }
+
     // Issue #105: If inner_e is an FCall (e.g. macro call returning struct), we need to
     // process it through precomp_expr first, then check if the result is a StructDef.
     // The struct registration for literal StructDef RHS already happened above.
@@ -1228,9 +1300,38 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         context.precomp_forin_counter = 0
     }
 
+    // Issue #91: Resolve arg/return/throw types from function signature into the FuncDef
+    // BEFORE processing the body, so UFCS resolution inside the body knows the arg types.
+    mut has_resolved_inner := false
+    mut resolved_inner_e := inner_e
+    if has_sig_func_def {
+        switch inner_e.node_type {
+        case NodeType.FuncDef(precomp_orig_fd):
+            mut precomp_resolved_fd := precomp_orig_fd.clone()
+            if not(precomp_resolved_fd.args.len().eq(sig_func_def.args.len())) {
+                throw e.lang_error(context.path, "precomp", format("'", decl.name, "' has ", precomp_resolved_fd.args.len().to_str(), " parameters but function signature expects ", sig_func_def.args.len().to_str(), "."))
+            }
+            mut precomp_arg_idx := 0
+            for precomp_sig_arg: Declaration in sig_func_def.args {
+                mut precomp_resolved_arg := cast(Declaration, precomp_resolved_fd.args.get(precomp_arg_idx)?)
+                precomp_resolved_arg.value_type = precomp_sig_arg.value_type
+                precomp_resolved_fd.args.set(precomp_arg_idx, precomp_resolved_arg)?
+                precomp_arg_idx = add(precomp_arg_idx, 1)
+            }
+            precomp_resolved_fd.return_types = sig_func_def.return_types
+            precomp_resolved_fd.throw_types = sig_func_def.throw_types
+            precomp_resolved_fd.function_type = sig_func_def.function_type
+            resolved_inner_e = Expr(node_type=NodeType.FuncDef(precomp_resolved_fd), params=inner_e.params, line=inner_e.line, col=inner_e.col)
+            has_resolved_inner = true
+        case:
+        }
+    }
+
     // First transform the value expression (if any)
     mut new_params := Vec.new(Expr)
-    if e.params.len().gt(0) {
+    if has_resolved_inner {
+        new_params.push(precomp_expr(context, resolved_inner_e)?)
+    } else if e.params.len().gt(0) {
         for p: Expr in e.params {
             new_params.push(precomp_expr(context, p)?)
         }

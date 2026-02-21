@@ -237,6 +237,7 @@ impl Expr {
 pub enum TTypeDef {
     TEnumDef,
     TStructDef,
+    TFuncSig,
 }
 
 #[derive(Debug, Clone, PartialEq)]

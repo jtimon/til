@@ -942,6 +942,14 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
         return Ok(errors);
     }
 
+    // Issue #91: Skip type-checking function signature definitions
+    // These have empty body and type-only args (no names)
+    if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty()) {
+        context.scope_stack.function_locals = saved_function_locals;
+        context.scope_stack.used_symbols = saved_used_symbols;
+        return Ok(errors);
+    }
+
     // Skip body type-checking for macros with Type parameters.
     // These bodies contain placeholder types (T) that only resolve at expansion time.
     // The expanded result is type-checked separately.
@@ -1722,6 +1730,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Res
     // Bug #97: Always register the declaration (allow shadowing/overwriting)
     // Previous code only registered if lookup_symbol returned None, which prevented
     // re-declaring a variable with a different type.
+    // Block scopes value_type.
     {
         let mut value_type = decl.value_type.clone();
         if value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
@@ -1733,6 +1742,38 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Res
                 },
             };
         }
+
+        // Issue #91: Detect function signature definitions (empty body + type-only args)
+        if let NodeType::FuncDef(func_def) = &inner_e.node_type {
+            if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
+                && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+                value_type = ValueType::TType(TTypeDef::TFuncSig);
+            }
+        }
+
+        // Issue #91: Resolve function signature type references
+        // When decl.value_type is TCustom("BinaryIntOp") and that resolves to a FunctionSig,
+        // look up the registered (resolved) func_def from init and use it for type checking
+        let mut sig_resolved_fd: Option<SFuncDef> = None;
+        if let ValueType::TCustom(ref sig_name) = value_type {
+            if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
+                if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                    if let Some(resolved_fd) = context.scope_stack.lookup_func(&decl.name) {
+                        sig_resolved_fd = Some(resolved_fd.clone());
+                    }
+                }
+            }
+        }
+        if let Some(resolved_fd) = sig_resolved_fd {
+            let resolved_value_type = ValueType::TFunction(resolved_fd.function_type.clone());
+            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: resolved_value_type, is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+            // Type-check the function body using the resolved func_def (with proper arg types)
+            context.scope_stack.push(ScopeType::Function);
+            errors.extend(check_func_proc_types(&resolved_fd, context, &inner_e)?);
+            context.scope_stack.pop().ok();
+            return Ok(errors);
+        }
+
         // TODO move to init_context() ? inner contexts are not persisted in init_context
         context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
         match value_type {
@@ -2605,7 +2646,15 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
             let resolved_type = if decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
                 // Infer type from the value expression
                 if let Some(inner_e) = e.params.first() {
-                    get_value_type(context, inner_e)?
+                    let mut inferred = get_value_type(context, inner_e)?;
+                    // Issue #91: Detect function signature definitions
+                    if let NodeType::FuncDef(func_def) = &inner_e.node_type {
+                        if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
+                            && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+                            inferred = ValueType::TType(TTypeDef::TFuncSig);
+                        }
+                    }
+                    inferred
                 } else {
                     return Err(e.lang_error(&context.path, "resolve_types",
                         &format!("Cannot resolve type for '{}': no value expression", decl.name)));
@@ -2639,6 +2688,30 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                     is_own: new_decl.is_own,
                     is_comptime_const: false,
                 });
+            }
+
+            // Issue #91: Resolve FuncDef arg types from function signature reference
+            // This must happen before downstream phases (UFCS, precomp) process the body
+            if let ValueType::TCustom(ref sig_name) = new_decl.value_type {
+                if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
+                    if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                        if let Some(sfd) = context.scope_stack.lookup_func(sig_name) {
+                            let sfd = sfd.clone();
+                            if let Some(inner_e) = new_params.first_mut() {
+                                if let NodeType::FuncDef(ref mut func_def) = inner_e.node_type {
+                                    if func_def.args.len() == sfd.args.len() {
+                                        for (i, sig_arg) in sfd.args.iter().enumerate() {
+                                            func_def.args[i].value_type = sig_arg.value_type.clone();
+                                        }
+                                    }
+                                    func_def.return_types = sfd.return_types.clone();
+                                    func_def.throw_types = sfd.throw_types.clone();
+                                    func_def.function_type = sfd.function_type.clone();
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // For function declarations, also register the function definition (like type checker does)

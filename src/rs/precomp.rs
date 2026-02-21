@@ -7,7 +7,7 @@ use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SEnumDef, EnumVariant, SFuncDef, SNamespaceDef, Declaration, Literal, TTypeDef,
-    PatternInfo, value_type_to_str, INFER_TYPE,
+    FunctionType, PatternInfo, value_type_to_str, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
 use crate::rs::eval_heap::EvalHeap;
@@ -840,9 +840,35 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
             return Err(e.lang_error(&context.path, "precomp", &error_string));
         },
     };
+    // Issue #91: Detect function signature definitions
+    // A FuncDef with empty body and type-only args (no names) is a function signature type
+    if let NodeType::FuncDef(func_def) = &inner_e.node_type {
+        if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
+            && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+            value_type = ValueType::TType(TTypeDef::TFuncSig);
+        }
+    }
+
+    // Issue #91: Resolve function signature type references
+    // When decl.value_type is a custom type name that resolves to a FunctionSig,
+    // look up the signature and set value_type to match the function type.
+    let mut sig_func_def: Option<SFuncDef> = None;
+    if let ValueType::TCustom(ref sig_name) = decl.value_type {
+        if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
+            if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                if let Some(sfd) = context.scope_stack.lookup_func(sig_name) {
+                    sig_func_def = Some(sfd.clone());
+                    value_type = ValueType::TFunction(sfd.function_type.clone());
+                }
+            }
+        }
+    }
+
     // Issue #105: Accept INFER_TYPE inside macro bodies (typer doesn't resolve inside FuncDef bodies)
     if decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
         // Infer type from the value - this is the := pattern inside a macro
+    } else if sig_func_def.is_some() {
+        // Issue #91: FunctionSig reference resolved above - skip type check
     } else
     // Type checking
     if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
@@ -872,6 +898,20 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
             context.path = saved_path;
         }
     }
+    // Issue #91: Register function signature type and return early
+    if let ValueType::TType(TTypeDef::TFuncSig) = value_type {
+        if let NodeType::FuncDef(func_def) = &inner_e.node_type {
+            context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
+            context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                value_type: value_type.clone(),
+                is_mut: decl.is_mut,
+                is_copy: decl.is_copy,
+                is_own: decl.is_own,
+                is_comptime_const: true,
+            });
+            return Ok(e.clone());
+        }
+    }
 
     // Issue #105: If inner_e is an FCall (e.g. macro call returning struct), we need to
     // process it through precomp_expr first, then check if the result is a StructDef.
@@ -888,11 +928,41 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         context.precomp_forin_counter = 0;
     }
 
+    // Issue #91: Resolve arg/return/throw types from function signature into the FuncDef
+    // BEFORE processing the body, so UFCS resolution inside the body knows the arg types.
+    let resolved_inner_e;
+    if let Some(ref sig) = sig_func_def {
+        if let NodeType::FuncDef(ref func_def) = inner_e.node_type {
+            if func_def.args.len() != sig.args.len() {
+                return Err(e.lang_error(&context.path, "precomp", &format!(
+                    "'{}' has {} parameters but function signature '{}' expects {}.",
+                    decl.name, func_def.args.len(),
+                    value_type_to_str(&decl.value_type), sig.args.len())));
+            }
+            let mut resolved_fd = func_def.clone();
+            for (i, sig_arg) in sig.args.iter().enumerate() {
+                resolved_fd.args[i].value_type = sig_arg.value_type.clone();
+            }
+            resolved_fd.return_types = sig.return_types.clone();
+            resolved_fd.throw_types = sig.throw_types.clone();
+            resolved_fd.function_type = sig.function_type.clone();
+            resolved_inner_e = Some(Expr::new_clone(NodeType::FuncDef(resolved_fd), &inner_e, inner_e.params.clone()));
+        } else {
+            resolved_inner_e = None;
+        }
+    } else {
+        resolved_inner_e = None;
+    }
+
     // First transform the value expression (if any)
     let new_params = if !e.params.is_empty() {
         let mut new_params = Vec::new();
-        for p in &e.params {
-            new_params.push(precomp_expr(context, p)?);
+        if let Some(ref resolved) = resolved_inner_e {
+            new_params.push(precomp_expr(context, resolved)?);
+        } else {
+            for p in &e.params {
+                new_params.push(precomp_expr(context, p)?);
+            }
         }
         new_params
     } else {

@@ -31,6 +31,7 @@ pub fn value_type_to_str(arg_type: &ValueType) -> String {
     match arg_type {
         ValueType::TType(TTypeDef::TEnumDef) => "enum".to_string(),
         ValueType::TType(TTypeDef::TStructDef) => "struct".to_string(),
+        ValueType::TType(TTypeDef::TFuncSig) => "FunctionSig".to_string(),
         ValueType::TFunction(ftype) => match ftype {
             FunctionType::FTFunc | FunctionType::FTFuncExt => "func".to_string(),
             FunctionType::FTProc | FunctionType::FTProcExt => "proc".to_string(),
@@ -48,6 +49,7 @@ pub fn str_to_value_type(arg_type: &str) -> ValueType {
         "macro" => ValueType::TFunction(FunctionType::FTMacro),
         "enum" => ValueType::TType(TTypeDef::TEnumDef),
         "struct" => ValueType::TType(TTypeDef::TStructDef),
+        "FunctionSig" => ValueType::TType(TTypeDef::TFuncSig),
         type_name => ValueType::TCustom(type_name.to_string()),
     }
 }
@@ -1073,17 +1075,9 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                     return parse_declaration(lexer, false, false, type_name, true)
                 }
                 TokenType::Equal => {
-                    // Issue #91: reject ':= func/proc' — use ': func(...) = { }' instead
-                    let after_eq = lexer.peek_ahead(3)?;
-                    match after_eq.token_type {
-                        TokenType::Func | TokenType::Proc | TokenType::FuncExt
-                        | TokenType::ProcExt | TokenType::Macro => {
-                            return Err(t.error(&lexer.path, &format!(
-                                "Use 'name : {}(...) = {{}}' syntax instead of 'name := {}(...) {{}}'.",
-                                after_eq.token_str, after_eq.token_str)));
-                        },
-                        _ => {}
-                    }
+                    // Issue #91: Allow ':= func(...)' for function signature definitions
+                    // (e.g., BinaryOp := func(I64, I64) returns I64 {})
+                    // Regular functions use 'name : func(...) = { body }' syntax.
                     return parse_declaration(lexer, false, false, INFER_TYPE, false)
                 },
                 // Issue #91: name : func(...) = { body }
@@ -1673,6 +1667,34 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     return Err(t.error(&lexer.path, "Expected '}}' to end switch."));
 }
 
+// Issue #91: Check if the current position starts a binding-tuple-body pattern: (ident, ...) {
+fn is_binding_tuple_body(lexer: &Lexer) -> bool {
+    let mut offset = 1; // skip past '('
+    let mut depth = 1;
+    loop {
+        let t = match lexer.peek_ahead(offset) {
+            Ok(t) => t,
+            Err(_) => return false,
+        };
+        match t.token_type {
+            TokenType::LeftParen => { depth += 1; },
+            TokenType::RightParen => {
+                depth -= 1;
+                if depth == 0 {
+                    // Check if token after ')' is '{'
+                    return match lexer.peek_ahead(offset + 1) {
+                        Ok(next) => next.token_type == TokenType::LeftBrace,
+                        Err(_) => false,
+                    };
+                }
+            },
+            TokenType::Identifier | TokenType::Comma => {},
+            _ => return false,
+        }
+        offset += 1;
+    }
+}
+
 fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_type: &str, has_explicit_type: bool) -> Result<Expr, String> {
     let t = lexer.peek();
     let decl_name = &t.token_str;
@@ -1681,6 +1703,35 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_ty
     lexer.advance(3)?; // skip identifier, colon and equal (or identifier, colon, type)
     if has_explicit_type {
         lexer.advance(1)?; // skip equal after type token (Bug #129: use boolean, not string comparison)
+    }
+
+    // Issue #91: Detect binding-tuple-body pattern: name : TypeName = (a, b) { body }
+    // This creates a FuncDef with arg names from the binding tuple and inferred types.
+    if has_explicit_type {
+        let next_t = lexer.peek();
+        if next_t.token_type == TokenType::LeftParen && is_binding_tuple_body(lexer) {
+            let binding_names = parse_binding_tuple(lexer)?;
+            let brace = lexer.peek();
+            if brace.token_type != TokenType::LeftBrace {
+                return Err(brace.error(&lexer.path, "Expected '{' after binding tuple in function declaration"));
+            }
+            lexer.advance(1)?; // consume '{'
+            let body = parse_body(lexer, TokenType::RightBrace)?;
+            let args: Vec<Declaration> = binding_names.iter().map(|name| {
+                Declaration { name: name.clone(), value_type: str_to_value_type(INFER_TYPE), is_mut: false, is_copy: false, is_own: false, default_value: None }
+            }).collect();
+            let func_def = SFuncDef {
+                function_type: FunctionType::FTFunc,
+                args: args,
+                return_types: Vec::new(),
+                throw_types: Vec::new(),
+                body: body.params,
+                source_path: lexer.path.clone(),
+            };
+            let func_expr = Expr::new_parse(NodeType::FuncDef(func_def), t.clone(), Vec::new());
+            let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut, is_copy: is_copy, is_own: false, default_value: None};
+            return Ok(Expr::new_parse(NodeType::Declaration(decl), lexer.get_token(initial_current)?.clone(), vec![func_expr]));
+        }
     }
 
     let mut params : Vec<Expr> = Vec::new();
@@ -1713,17 +1764,7 @@ fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
             return parse_declaration(lexer, true, false, type_name, true)
         }
         TokenType::Equal => {
-            // Issue #91: reject 'mut name := func/proc' — use ': func(...) = { }' instead
-            let after_eq = lexer.peek_ahead(3)?;
-            match after_eq.token_type {
-                TokenType::Func | TokenType::Proc | TokenType::FuncExt
-                | TokenType::ProcExt | TokenType::Macro => {
-                    return Err(t.error(&lexer.path, &format!(
-                        "Use 'name : {}(...) = {{}}' syntax instead of 'mut name := {}(...) {{}}'.",
-                        after_eq.token_str, after_eq.token_str)));
-                },
-                _ => {}
-            }
+            // Issue #91: Allow ':= func(...)' for function signature definitions
             return parse_declaration(lexer, true, false, INFER_TYPE, false)
         },
         _ => {

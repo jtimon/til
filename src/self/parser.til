@@ -56,6 +56,8 @@ value_type_to_str : func(arg_type: ValueType) returns Str = {
         return "enum"
     case ValueType.TType(TTypeDef.TStructDef):
         return "struct"
+    case ValueType.TType(TTypeDef.TFuncSig):
+        return "FunctionSig"
     case ValueType.TFunction(FunctionType.FTFunc):
         return "func"
     case ValueType.TFunction(FunctionType.FTFuncExt):
@@ -90,6 +92,9 @@ str_to_value_type : func(arg_type: Str) returns ValueType = {
     }
     if arg_type.eq("struct") {
         return ValueType.TType(TTypeDef.TStructDef)
+    }
+    if arg_type.eq("FunctionSig") {
+        return ValueType.TType(TTypeDef.TFuncSig)
     }
     // Default: custom type
     return ValueType.TCustom(arg_type)
@@ -1206,22 +1211,9 @@ parse_statement_identifier : func(mut lexer: Lexer) returns Expr throws Str, Ind
             type_name := next_next_t.token_str
             return parse_declaration(lexer, false, false, type_name, true)?
         case TokenType.Equal:
-            // Issue #91: reject ':= func/proc' -- use ': func(...) = { }' instead
-            after_eq := lexer.peek_ahead(3)?
-            aett := after_eq.token_type
-            switch aett {
-            case TokenType.Func:
-                throw t.error(lexer.path, format("Use 'name : ", after_eq.token_str, "(...) = {}' syntax instead of 'name := ", after_eq.token_str, "(...) {}'."))
-            case TokenType.Proc:
-                throw t.error(lexer.path, format("Use 'name : ", after_eq.token_str, "(...) = {}' syntax instead of 'name := ", after_eq.token_str, "(...) {}'."))
-            case TokenType.FuncExt:
-                throw t.error(lexer.path, format("Use 'name : ", after_eq.token_str, "(...) = {}' syntax instead of 'name := ", after_eq.token_str, "(...) {}'."))
-            case TokenType.ProcExt:
-                throw t.error(lexer.path, format("Use 'name : ", after_eq.token_str, "(...) = {}' syntax instead of 'name := ", after_eq.token_str, "(...) {}'."))
-            case TokenType.Macro:
-                throw t.error(lexer.path, format("Use 'name : ", after_eq.token_str, "(...) = {}' syntax instead of 'name := ", after_eq.token_str, "(...) {}'."))
-            case:
-            }
+            // Issue #91: Allow ':= func(...)' for function signature definitions
+            // (e.g., BinaryOp := func(I64, I64) returns I64 {})
+            // Regular functions use 'name : func(...) = { body }' syntax.
             return parse_declaration(lexer, false, false, INFER_TYPE, false)?
         // Issue #91: name : func(...) = { body }
         case TokenType.Func:
@@ -1926,6 +1918,40 @@ parse_switch_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     throw t.error(lexer.path, "Expected '}}' to end switch.")
 }
 
+// Issue #91: Check if current position starts a binding-tuple-body pattern: (ident, ...) {
+is_binding_tuple_body : func(lexer: Lexer) returns Bool = {
+    mut offset := 1  // skip past '('
+    mut depth := 1
+    while true {
+        mut peek_t := lexer.peek_ahead(offset)?
+        catch (err: Str) { return false }
+        peek_tt := peek_t.token_type
+        switch peek_tt {
+        case TokenType.LeftParen:
+            depth = add(depth, 1)
+        case TokenType.RightParen:
+            depth = sub(depth, 1)
+            if depth.eq(0) {
+                // Check if token after ')' is '{'
+                mut next_t := lexer.peek_ahead(add(offset, 1))?
+                catch (err: Str) { return false }
+                switch next_t.token_type {
+                case TokenType.LeftBrace:
+                    return true
+                case:
+                    return false
+                }
+            }
+        case TokenType.Identifier:
+        case TokenType.Comma:
+        case:
+            return false
+        }
+        offset = add(offset, 1)
+    }
+    return false
+}
+
 parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str, has_explicit_type: Bool) returns Expr throws Str, IndexOutOfBoundsError = {
     t := lexer.peek()?
     decl_name := t.token_str
@@ -1934,6 +1960,54 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit
     lexer.advance(3)? // skip identifier, colon and equal (or identifier, colon, type)
     if has_explicit_type {
         lexer.advance(1)? // skip equal after type token (Bug #129: use boolean, not string comparison)
+    }
+
+    // Issue #91: Detect binding-tuple-body pattern: name : TypeName = (a, b) { body }
+    if has_explicit_type {
+        next_t := lexer.peek()?
+        switch next_t.token_type {
+        case TokenType.LeftParen:
+            if is_binding_tuple_body(lexer) {
+                binding_names := parse_binding_tuple(lexer)?
+                brace := lexer.peek()?
+                switch brace.token_type {
+                case TokenType.LeftBrace:
+                case:
+                    throw brace.error(lexer.path, "Expected '{' after binding tuple in function declaration")
+                }
+                lexer.advance(1)? // consume '{'
+                body := parse_body(lexer, TokenType.RightBrace)?
+                mut args := Vec.new(Declaration)
+                for name: Str in binding_names {
+                    mut arg := Declaration()
+                    arg.name = name
+                    arg.value_type = str_to_value_type(INFER_TYPE)
+                    arg.is_mut = false
+                    arg.is_copy = false
+                    arg.is_own = false
+                    args.push(arg)
+                }
+                mut func_def := SFuncDef()
+                func_def.function_type = FunctionType.FTFunc
+                func_def.args = args
+                func_def.return_types = Vec.new(ValueType)
+                func_def.throw_types = Vec.new(ValueType)
+                func_def.body = body.params
+                func_def.source_path = lexer.path
+                func_expr := expr_new_parse(NodeType.FuncDef(func_def), t.clone(), Vec.new(Expr))
+                mut binding_decl := Declaration()
+                binding_decl.name = decl_name
+                binding_decl.value_type = str_to_value_type(explicit_type)
+                binding_decl.is_mut = is_mut
+                binding_decl.is_copy = is_copy
+                binding_decl.is_own = false
+                binding_initial_token := lexer.get_token(initial_current)?.clone()
+                mut func_params := Vec.new(Expr)
+                func_params.push(func_expr)
+                return expr_new_parse(NodeType.Declaration(binding_decl), binding_initial_token, func_params)
+            }
+        case:
+        }
     }
 
     mut params := Vec.new(Expr)
@@ -1978,22 +2052,7 @@ parse_mut_declaration : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
                 type_name := next_next_t.token_str
                 return parse_declaration(lexer, true, false, type_name, true)?
             case TokenType.Equal:
-                // Issue #91: reject 'mut name := func/proc' -- use ': func(...) = { }' instead
-                after_eq2 := lexer.peek_ahead(3)?
-                aett2 := after_eq2.token_type
-                switch aett2 {
-                case TokenType.Func:
-                    throw t.error(lexer.path, format("Use 'name : ", after_eq2.token_str, "(...) = {}' syntax instead of 'mut name := ", after_eq2.token_str, "(...) {}'."))
-                case TokenType.Proc:
-                    throw t.error(lexer.path, format("Use 'name : ", after_eq2.token_str, "(...) = {}' syntax instead of 'mut name := ", after_eq2.token_str, "(...) {}'."))
-                case TokenType.FuncExt:
-                    throw t.error(lexer.path, format("Use 'name : ", after_eq2.token_str, "(...) = {}' syntax instead of 'mut name := ", after_eq2.token_str, "(...) {}'."))
-                case TokenType.ProcExt:
-                    throw t.error(lexer.path, format("Use 'name : ", after_eq2.token_str, "(...) = {}' syntax instead of 'mut name := ", after_eq2.token_str, "(...) {}'."))
-                case TokenType.Macro:
-                    throw t.error(lexer.path, format("Use 'name : ", after_eq2.token_str, "(...) = {}' syntax instead of 'mut name := ", after_eq2.token_str, "(...) {}'."))
-                case:
-                }
+                // Issue #91: Allow ':= func(...)' for function signature definitions
                 return parse_declaration(lexer, true, false, INFER_TYPE, false)?
             case:
                 throw t.error(lexer.path, format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))

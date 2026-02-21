@@ -1251,6 +1251,23 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
         return errors
     }
 
+    // Issue #91: Skip type-checking function signature definitions
+    // These have empty body and type-only args (no names)
+    if func_def.body.len().eq(0) {
+        mut all_unnamed := true
+        for sig_i in 0..func_def.args.len() {
+            sig_arg := cast(Declaration, func_def.args.get(sig_i)?)
+            if not(sig_arg.name.eq("")) {
+                all_unnamed = false
+            }
+        }
+        if all_unnamed {
+            context.scope_stack.function_locals = saved_function_locals
+            context.scope_stack.used_symbols = saved_used_symbols
+            return errors
+        }
+    }
+
     // Skip body type-checking for macros with Type parameters.
     // These bodies contain placeholder types (T) that only resolve at expansion time.
     // The expanded result is type-checked separately.
@@ -2064,7 +2081,9 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
         }
     }
 
-    if not(already_declared) {
+    // Bug #97: Always register the declaration (allow shadowing/overwriting)
+    // Block scopes value_type.
+    if true {
         mut value_type := decl.value_type
         switch value_type {
         case ValueType.TCustom(type_name):
@@ -2074,6 +2093,59 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
                     errors.push(err)
                     return errors
                 }
+            }
+        case:
+        }
+
+        // Issue #91: Detect function signature definitions (empty body + type-only args)
+        switch inner_e.node_type {
+        case NodeType.FuncDef(typer_sig_fd):
+            if typer_sig_fd.body.len().eq(0) {
+                mut typer_all_unnamed := true
+                for typer_sig_i in 0..typer_sig_fd.args.len() {
+                    typer_sig_arg := cast(Declaration, typer_sig_fd.args.get(typer_sig_i)?)
+                    if not(typer_sig_arg.name.eq("")) {
+                        typer_all_unnamed = false
+                    }
+                }
+                if typer_all_unnamed {
+                    mut typer_is_func_or_proc := false
+                    switch typer_sig_fd.function_type {
+                    case FunctionType.FTFunc:
+                        typer_is_func_or_proc = true
+                    case FunctionType.FTProc:
+                        typer_is_func_or_proc = true
+                    case:
+                    }
+                    if typer_is_func_or_proc {
+                        value_type = ValueType.TType(TTypeDef.TFuncSig)
+                    }
+                }
+            }
+        case:
+        }
+
+        // Issue #91: Resolve function signature type references
+        switch value_type {
+        case ValueType.TCustom(typer_sig_name):
+            typer_sig_sym := context.scope_stack.lookup_symbol(typer_sig_name)?
+            switch typer_sig_sym.value_type {
+            case ValueType.TType(TTypeDef.TFuncSig):
+                typer_resolved_fd := context.scope_stack.lookup_func(decl.name)?
+                resolved_value_type := ValueType.TFunction(typer_resolved_fd.function_type)
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=resolved_value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                // Type-check the function body using the resolved func_def
+                context.scope_stack.push(ScopeType.Function)
+                errors.extend(check_func_proc_types(typer_resolved_fd, context, inner_e)?)
+                _ := context.scope_stack.pop()?
+                return errors
+                catch (err: KeyNotFoundError) {
+                    // REM: func not registered yet, fall through
+                }
+            case:
+            }
+            catch (err: KeyNotFoundError) {
+                // REM: symbol not found, not a FunctionSig reference
             }
         case:
         }
@@ -2129,6 +2201,11 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
 
     // The RHS of a declaration is being used (assigned to the variable)
     errors.extend(check_types_with_context(context, inner_e, ExprContext.ValueUsed)?)
+
+    // Issue #91: Catch IndexOutOfBoundsError from FuncSig arg resolution
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
 
     return errors
 }
@@ -3611,6 +3688,33 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
             inner_e := e.get(0)?
             dont_delete(inner_e)
             resolved_type = get_value_type(context, inner_e)?
+            // Issue #91: Detect function signature definitions
+            switch inner_e.node_type {
+            case NodeType.FuncDef(resolve_sig_fd):
+                if resolve_sig_fd.body.len().eq(0) {
+                    mut resolve_all_unnamed := true
+                    for resolve_sig_i in 0..resolve_sig_fd.args.len() {
+                        resolve_sig_arg := cast(Declaration, resolve_sig_fd.args.get(resolve_sig_i)?)
+                        if not(resolve_sig_arg.name.eq("")) {
+                            resolve_all_unnamed = false
+                        }
+                    }
+                    if resolve_all_unnamed {
+                        mut resolve_is_func_or_proc := false
+                        switch resolve_sig_fd.function_type {
+                        case FunctionType.FTFunc:
+                            resolve_is_func_or_proc = true
+                        case FunctionType.FTProc:
+                            resolve_is_func_or_proc = true
+                        case:
+                        }
+                        if resolve_is_func_or_proc {
+                            resolved_type = ValueType.TType(TTypeDef.TFuncSig)
+                        }
+                    }
+                }
+            case:
+            }
         } else {
             throw e.lang_error(context.path, "resolve_types", format("Cannot resolve type for '", decl.name, "': no value expression"))
         }
@@ -3648,11 +3752,52 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         ))?
     }
 
+    // Issue #91: Resolve FuncDef arg types from function signature reference
+    // This must happen before downstream phases (UFCS, precomp) process the body
+    mut resolve_decl_params := decl_params
+    switch new_decl.value_type {
+    case ValueType.TCustom(resolve_sig_name):
+        resolve_sig_sym := context.scope_stack.lookup_symbol(resolve_sig_name)?
+        switch resolve_sig_sym.value_type {
+        case ValueType.TType(TTypeDef.TFuncSig):
+            resolve_sfd := context.scope_stack.lookup_func(resolve_sig_name)?
+            if resolve_decl_params.len().gt(0) {
+                resolve_inner := cast(Expr, resolve_decl_params.get(0)?)
+                switch resolve_inner.node_type {
+                case NodeType.FuncDef(resolve_fd):
+                    mut resolved_fd := resolve_fd.clone()
+                    if resolved_fd.args.len().eq(resolve_sfd.args.len()) {
+                        for ri in 0..resolve_sfd.args.len() {
+                            rsig_arg := cast(Declaration, resolve_sfd.args.get(ri)?)
+                            mut rfd_arg := cast(Declaration, resolved_fd.args.get(ri)?)
+                            rfd_arg.value_type = rsig_arg.value_type
+                            resolved_fd.args.set(ri, rfd_arg)?
+                        }
+                    }
+                    resolved_fd.return_types = resolve_sfd.return_types.clone()
+                    resolved_fd.throw_types = resolve_sfd.throw_types.clone()
+                    resolved_fd.function_type = resolve_sfd.function_type
+                    resolved_inner_expr := Expr(node_type=NodeType.FuncDef(resolved_fd), params=resolve_inner.params, line=resolve_inner.line, col=resolve_inner.col)
+                    resolve_decl_params.set(0, resolved_inner_expr)?
+                case:
+                }
+            }
+            catch (err: KeyNotFoundError) {
+                // REM: func not registered yet, fall through
+            }
+        case:
+        }
+        catch (err: KeyNotFoundError) {
+            // REM: symbol not found, not a FunctionSig reference
+        }
+    case:
+    }
+
     // For function declarations, also register the function definition (like type checker does)
     switch new_decl.value_type {
     case ValueType.TFunction(_):
-        if decl_params.len().gt(0) {
-            decl_inner_e := cast(Expr, decl_params.get(0)?)
+        if resolve_decl_params.len().gt(0) {
+            decl_inner_e := cast(Expr, resolve_decl_params.get(0)?)
             switch decl_inner_e.node_type {
             case NodeType.FuncDef(func_def):
                 context.scope_stack.declare_func(new_decl.name, func_def)?
@@ -3666,7 +3811,7 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError: ", err.msg))
     }
 
-    return Expr.new_explicit(NodeType.Declaration(new_decl), decl_params, e.line, e.col)
+    return Expr.new_explicit(NodeType.Declaration(new_decl), resolve_decl_params, e.line, e.col)
 }
 
 // Helper: resolve FuncDef node

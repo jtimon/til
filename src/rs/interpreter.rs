@@ -956,9 +956,30 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
             return Err(e.lang_error(&context.path, "eval", &error_string));
         },
     };
+    // Issue #91: Detect function signature definitions
+    if let NodeType::FuncDef(func_def) = &inner_e.node_type {
+        if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
+            && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+            value_type = ValueType::TType(TTypeDef::TFuncSig);
+        }
+    }
+    // Issue #91: Resolve function signature type references
+    let mut is_sig_ref = false;
+    if let ValueType::TCustom(ref sig_name) = declaration.value_type {
+        if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
+            if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                if let Some(sfd) = context.scope_stack.lookup_func(sig_name) {
+                    value_type = ValueType::TFunction(sfd.function_type.clone());
+                    is_sig_ref = true;
+                }
+            }
+        }
+    }
     // Type checking - INFER_TYPE should have been resolved by typer
     if declaration.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
         // Issue #105: Accept inferred type (e.g., struct declarations inside macro bodies)
+    } else if is_sig_ref {
+        // Issue #91: FunctionSig reference resolved above - skip type check
     } else if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
         value_type = declaration.value_type.clone();
     } else if value_type != declaration.value_type {
@@ -987,6 +1008,18 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                 },
                 _ => return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}', expected enum definition.",
                                                               &declaration.name, value_type_to_str(&declaration.value_type)))),
+            }
+        },
+        ValueType::TType(TTypeDef::TFuncSig) => {
+            // Issue #91: Function signature type definition
+            match &inner_e.node_type {
+                NodeType::FuncDef(func_def) => {
+                    context.scope_stack.declare_func(declaration.name.to_string(), func_def.clone());
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: true });
+                    return Ok(EvalResult::new(""));
+                },
+                _ => return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}' of type 'FunctionSig', expected func definition.",
+                                                              &declaration.name))),
             }
         },
         ValueType::TType(TTypeDef::TStructDef) => {
@@ -1292,7 +1325,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
             }
         },
 
-        ValueType::TType(TTypeDef::TEnumDef) | ValueType::TMulti(_) => {
+        ValueType::TType(TTypeDef::TEnumDef) | ValueType::TType(TTypeDef::TFuncSig) | ValueType::TMulti(_) => {
             Err(e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' of type '{}'.", &var_name, value_type_to_str(&value_type))))
         },
     }

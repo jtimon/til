@@ -459,6 +459,7 @@ namespace:
 TTypeDef := enum {
     TEnumDef,
     TStructDef,
+    TFuncSig,
 }
 
 ValueType := enum {

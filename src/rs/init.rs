@@ -1269,7 +1269,28 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                     return Ok(errors);
                 },
             };
-            if decl.value_type != str_to_value_type(INFER_TYPE) {
+            // Issue #91: Detect function signature definitions
+            if let NodeType::FuncDef(func_def) = &inner_e.node_type {
+                if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
+                    && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+                    value_type = ValueType::TType(TTypeDef::TFuncSig);
+                }
+            }
+            // Issue #91: Resolve function signature type references
+            let mut is_sig_ref = false;
+            let mut sig_func_def: Option<SFuncDef> = None;
+            if let ValueType::TCustom(ref sig_name) = decl.value_type {
+                if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
+                    if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                        if let Some(sfd) = context.scope_stack.lookup_func(sig_name) {
+                            value_type = ValueType::TFunction(sfd.function_type.clone());
+                            sig_func_def = Some(sfd.clone());
+                            is_sig_ref = true;
+                        }
+                    }
+                }
+            }
+            if decl.value_type != str_to_value_type(INFER_TYPE) && !is_sig_ref {
                 if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
                     value_type = decl.value_type.clone();
                 } else if value_type != decl.value_type {
@@ -1284,8 +1305,23 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                     FunctionType::FTMacro => {
                         match &inner_e.node_type {
                             NodeType::FuncDef(func_def) => {
+                                // Issue #91: Resolve arg types from function signature
+                                let registered_func_def = if let Some(ref sig) = sig_func_def {
+                                    let mut resolved = func_def.clone();
+                                    if resolved.args.len() == sig.args.len() {
+                                        for (i, sig_arg) in sig.args.iter().enumerate() {
+                                            resolved.args[i].value_type = sig_arg.value_type.clone();
+                                        }
+                                    }
+                                    resolved.return_types = sig.return_types.clone();
+                                    resolved.throw_types = sig.throw_types.clone();
+                                    resolved.function_type = sig.function_type.clone();
+                                    resolved
+                                } else {
+                                    func_def.clone()
+                                };
                                 context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
-                                context.scope_stack.declare_func(decl.name.to_string(), func_def.clone());
+                                context.scope_stack.declare_func(decl.name.to_string(), registered_func_def);
                             },
                             _ => {
                                 errors.push(e.lang_error(&context.path, "init", &format!("{}s should have definitions", value_type_to_str(&value_type))));
@@ -1375,6 +1411,20 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                         },
                     }
                 }
+
+                ValueType::TType(TTypeDef::TFuncSig) => {
+                    // Issue #91: Function signature type definition
+                    match &inner_e.node_type {
+                        NodeType::FuncDef(func_def) => {
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: true });
+                            context.scope_stack.declare_func(decl.name.to_string(), func_def.clone());
+                        },
+                        _ => {
+                            errors.push(e.lang_error(&context.path, "init", "function signature types should have func definitions."));
+                            return Ok(errors);
+                        },
+                    }
+                },
 
                 ValueType::TMulti(_) | ValueType::TCustom(_) => {
                     context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });

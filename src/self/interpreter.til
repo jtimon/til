@@ -924,6 +924,53 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
         throw e.lang_error(context.path, "eval", err)
     }
 
+    // Issue #91: Detect function signature definitions
+    switch inner_e.node_type {
+    case NodeType.FuncDef(eval_func_def):
+        if eval_func_def.body.len().eq(0) {
+            mut eval_all_type_only := true
+            for eval_arg: Declaration in eval_func_def.args {
+                if not(eval_arg.name.eq("")) {
+                    eval_all_type_only = false
+                }
+            }
+            if eval_all_type_only {
+                mut eval_is_func_or_proc := false
+                switch eval_func_def.function_type {
+                case FunctionType.FTFunc:
+                    eval_is_func_or_proc = true
+                case FunctionType.FTProc:
+                    eval_is_func_or_proc = true
+                case:
+                }
+                if eval_is_func_or_proc {
+                    value_type = ValueType.TType(TTypeDef.TFuncSig)
+                }
+            }
+        }
+    case:
+    }
+    // Issue #91: Resolve function signature type references
+    mut eval_is_sig_ref := false
+    switch declaration.value_type {
+    case ValueType.TCustom(eval_sig_name):
+        eval_sig_sym := context.scope_stack.lookup_symbol(eval_sig_name)?
+        catch (err: KeyNotFoundError) { }
+        if not(eval_is_sig_ref) {
+            switch eval_sig_sym.value_type {
+            case ValueType.TType(TTypeDef.TFuncSig):
+                eval_sfd := context.scope_stack.lookup_func(eval_sig_name)?
+                catch (err: KeyNotFoundError) { }
+                if not(eval_is_sig_ref) {
+                    value_type = ValueType.TFunction(eval_sfd.function_type)
+                    eval_is_sig_ref = true
+                }
+            case:
+            }
+        }
+    case:
+    }
+
     // Type checking - INFER_TYPE should have been resolved by typer
     // Issue #105: Accept INFER_TYPE inside macro bodies (typer doesn't resolve inside FuncDef bodies)
     mut decl_is_infer := false
@@ -943,6 +990,8 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
 
     if decl_is_infer {
         // Issue #105: Accept inferred type (e.g., struct declarations inside macro bodies)
+    } else if eval_is_sig_ref {
+        // Issue #91: FunctionSig reference resolved above - skip type check
     } else if decl_is_u8 {
         if value_is_i64 {
             value_type = declaration.value_type
@@ -1091,6 +1140,16 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             return EvalResult.new("")
         case:
             throw e.lang_error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(declaration.value_type), "', expected enum definition."))
+        }
+    case ValueType.TType(TTypeDef.TFuncSig):
+        // Issue #91: Function signature type definition
+        switch inner_e.node_type {
+        case NodeType.FuncDef(func_def):
+            context.scope_stack.declare_func(declaration.name, func_def.clone())?
+            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own, is_comptime_const=true))?
+            return EvalResult.new("")
+        case:
+            throw e.lang_error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type 'FunctionSig', expected func definition."))
         }
     case ValueType.TType(TTypeDef.TStructDef):
         switch inner_e.node_type {
@@ -1334,6 +1393,8 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
             throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' to function type '", value_type_to_str(value_type), "'"))
         }
     case ValueType.TType(TTypeDef.TEnumDef):
+        throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of type '", value_type_to_str(value_type), "'."))
+    case ValueType.TType(TTypeDef.TFuncSig):
         throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of type '", value_type_to_str(value_type), "'."))
     case ValueType.TMulti(types):
         throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of type '", value_type_to_str(value_type), "'."))
@@ -2169,6 +2230,7 @@ eval_user_func_proc_call : proc(func_def: SFuncDef, name: Str, mut context: Cont
                                     is_enum_def = true
                                 case TTypeDef.TStructDef:
                                     is_struct_def = true
+                                case TTypeDef.TFuncSig:
                                 }
                             case:
                             }
@@ -2559,6 +2621,7 @@ eval_user_func_proc_call : proc(func_def: SFuncDef, name: Str, mut context: Cont
                         mut_arg_is_enum_def = true
                     case TTypeDef.TStructDef:
                         mut_arg_is_struct_def = true
+                    case TTypeDef.TFuncSig:
                     }
                 case:
                 }
@@ -2662,6 +2725,7 @@ eval_user_func_proc_call : proc(func_def: SFuncDef, name: Str, mut context: Cont
                             copy_ret_is_struct_def = true
                         case TTypeDef.TEnumDef:
                             copy_ret_is_enum_def = true
+                        case TTypeDef.TFuncSig:
                         }
                     case:
                     }

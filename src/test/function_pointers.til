@@ -1,76 +1,26 @@
 mode test
 
-// function_pointer_test : proc() = {
-//     // Declare a BinaryIntFunc type for functions that take two I64 and return an I64
-//     BinaryIntFunc := func(a: I64, b: I64) returns I64;
+// Issue #91: Function signature type definitions
 
-//     // Define a function that takes a BinaryIntFunc and two I64 arguments
-//     bin_op_i64 : func(op: BinaryIntFunc, a: I64, b: I64) returns I64 = {
-//         return op(a, b)
-//     };
+// Define function signature type (empty body {} as delimiter, like ext_func)
+BinaryIntOp := func(I64, I64) returns I64 {}
 
-//     // Define an add function of type BinaryIntFunc
-//     // add2 : BinaryIntFunc = func(a: I64, b: I64) returns I64 { // TODO FIX syntax
-//     add2 : func(a: I64, b: I64) returns I64 = {
-//         return a.add(b)
-//     };
+// Functions declared with that type using binding tuple
+add2 : BinaryIntOp = (a, b) { return a.add(b) }
+subtract : BinaryIntOp = (a, b) { return a.sub(b) }
 
-//     // Define a subtract function of type BinaryIntFunc
-//     // subtract : BinaryIntFunc = func(a: I64, b: I64) returns I64 { // TODO FIX syntax
-//     subtract : func(a: I64, b: I64) returns I64 = {
-//         return a.sub(b)
-//     };
+// Direct calls work
+assert_eq(loc(), 8, add2(3, 5))
+assert_eq(loc(), 6, subtract(10, 4))
+assert_eq(loc(), 0, subtract(5, 5))
 
-//     assert_eq(8, bin_op_i64(add2, 3, 5))
-//     assert_eq(6, bin_op_i64(subtract, 10, 4))
-// }
-// function_pointer_test() // TODO Implement
+// Also test with explicit type annotation
+BinaryIntOp2 : FunctionSig = func(I64, I64) returns I64 {}
+multiply : BinaryIntOp2 = (a, b) { return a.mul(b) }
+assert_eq(loc(), 15, multiply(3, 5))
 
-// Map test - for discussion
-// IntTransform := func(x: I64) returns I64
-//
-// double : func(x: I64) returns I64 = {
-//     return x.mul(2)
-// }
-//
-// map_basic_test : proc() = {
-//     numbers := Vec(I64)
-//     numbers.push(1)
-//     numbers.push(2)
-//     numbers.push(3)
-//
-//     doubled := numbers.map(double)
-//
-//     assert_eq(loc(), 2, doubled.get(0))
-//     assert_eq(loc(), 4, doubled.get(1))
-//     assert_eq(loc(), 6, doubled.get(2))
-// }
-// map_basic_test()
-//
-// // Map with lookup and default - the pattern we need for ccodegen
-// map_with_default_test : proc() = {
-//     lookup := Map(I64, Str)
-//     lookup.set(1, "one")
-//     lookup.set(3, "three")
-//
-//     ids := Vec(I64)
-//     ids.push(1)
-//     ids.push(2)
-//     ids.push(3)
-//
-//     // Option A: map with a closure that handles the default
-//     names := ids.map(func(id: I64) returns Str {
-//         mut result := "unknown"
-//         lookup.get(id, result)
-//         catch (err: KeyNotFoundError) { }
-//         return result
-//     })
-//
-//     // Option B: specialized map_get method
-//     names2 := ids.map_get(lookup, "unknown")
-//
-//     assert_eq_str(loc(), "one", names.get(0))
-//     assert_eq_str(loc(), "unknown", names.get(1))
-//     assert_eq_str(loc(), "three", names.get(2))
-// }
-// map_with_default_test()
+// Test proc signature
+BinaryIntProc := proc(I64, I64) returns I64 {}
+add_proc : BinaryIntProc = (a, b) { return a.add(b) }
+assert_eq(loc(), 7, add_proc(3, 4))
+
