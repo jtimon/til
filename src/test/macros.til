@@ -166,6 +166,38 @@ test_typed_ptr_array : proc() = {
     p.delete()
 }
 
+// Issue #105: Macro struct with NULL constant default
+make_nullable : macro(T: Type) returns struct = {
+    return struct {
+        mut data: I64 = NULL
+        mut size: I64 = 0
+    }
+}
+
+NullableI64 := make_nullable(I64)
+
+test_null_default : proc() = {
+    x := NullableI64()
+    assert_eq(loc(), 0, x.data)
+    assert_eq(loc(), 0, x.size)
+}
+
+// Issue #105: Macro struct with immutable (constant) field
+make_tagged : macro(T: Type) returns struct = {
+    return struct {
+        tag: Str = "default_tag"
+        mut data: I64 = 0
+    }
+}
+
+TaggedI64 := make_tagged(I64)
+
+test_immutable_field : proc() = {
+    t := TaggedI64()
+    assert_eq(loc(), 0, t.data)
+    assert_eq_str(loc(), "default_tag", TaggedI64.tag)
+}
+
 test_basic_macro()
 test_nested_macro()
 test_multi_arg_macro()
@@ -177,6 +209,8 @@ test_i64_vec3()
 test_u8_vec3()
 test_typed_ptr_basic()
 test_typed_ptr_array()
+test_null_default()
+test_immutable_field()
 
 // Issue #106: Macro with namespace - typed_option template (enum)
 import("std.typed_option")

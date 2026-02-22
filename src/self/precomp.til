@@ -426,6 +426,26 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         resolved_expanded := Expr.new_clone(NodeType.StructDef(resolved_struct.clone()), expanded, Vec.new(Expr))
                                         // Register the struct in context
                                         context.scope_stack.declare_struct(decl.name, resolved_struct.clone())?
+                                        // Register immutable fields as namespace constants (same as init_context for regular structs)
+                                        for member_decl: Declaration in resolved_struct.members {
+                                            if not(member_decl.is_mut) {
+                                                mut has_default_value := false
+                                                member_expr := cast(Expr, resolved_struct.default_values.get(member_decl.name)?)
+                                                has_default_value = true
+                                                catch (key_err: KeyNotFoundError) {
+                                                    // No default value, skip this member
+                                                }
+                                                if has_default_value {
+                                                    mut member_value_type := ValueType.TCustom(INFER_TYPE)
+                                                    member_value_type = get_value_type(context, member_expr)?
+                                                    catch (err: Str) {
+                                                        // Failed to get type - just use INFER_TYPE default
+                                                    }
+                                                    member_full_name := format(decl.name, ".", member_decl.name)
+                                                    ScopeStack.declare_symbol(context.scope_stack, member_full_name.clone(), SymbolInfo(value_type=value_type_clone(member_value_type), is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
+                                                }
+                                            }
+                                        }
                                         // Replace the FCall with the StructDef in the AST
                                         mut expanded_params := Vec.new(Expr)
                                         expanded_params.push(resolved_expanded)

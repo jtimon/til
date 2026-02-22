@@ -265,6 +265,22 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                     let resolved_expanded = Expr::new_clone(NodeType::StructDef(resolved_struct.clone()), &expanded, vec![]);
                                     // Register the struct in context
                                     context.scope_stack.declare_struct(decl.name.clone(), resolved_struct.clone());
+                                    // Register immutable fields as namespace constants (same as init_context for regular structs)
+                                    for member_decl in &resolved_struct.members {
+                                        if !member_decl.is_mut {
+                                            if let Some(member_expr) = resolved_struct.default_values.get(&member_decl.name) {
+                                                let member_value_type = get_value_type(context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                                                let member_full_name = format!("{}.{}", decl.name, member_decl.name);
+                                                context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
+                                                    value_type: member_value_type,
+                                                    is_mut: member_decl.is_mut,
+                                                    is_copy: member_decl.is_copy,
+                                                    is_own: member_decl.is_own,
+                                                    is_comptime_const: false,
+                                                });
+                                            }
+                                        }
+                                    }
                                     // Replace the FCall with the StructDef in the AST
                                     let new_p = Expr::new_clone(p.node_type.clone(), p, vec![resolved_expanded]);
                                     new_params.push(new_p);

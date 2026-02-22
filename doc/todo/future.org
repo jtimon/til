@@ -1303,12 +1303,19 @@ p.delete()
 - Note: rstil includes auto-generated delete/clone in SStructDef.members,
   til self-hosted interpreter does not. Tests use is_mut filter for compatibility.
 
+*** Completed (2026-02-22) -- Immutable fields + constant defaults in macro structs
+- [X] Root cause: ~expand_struct_macros~ registered struct but not immutable field
+  symbols (~StructName.field~). Regular structs register these in ~init_context~.
+- [X] Fix: after ~declare_struct~ in ~expand_struct_macros~, loop through non-mut
+  members and register them as symbols (same as init_context lines 1440-1449)
+- [X] Constants in defaults (e.g. ~NULL~) already worked via precomputed_defaults
+  loop (lines 254-260), was incorrectly listed as broken
+- [X] Ported to both Rust and TIL
+- [X] Tests in src/test/macros.til: ~make_nullable~ (NULL default), ~make_tagged~
+  (immutable field)
+- [X] All 93 tests pass
+
 *** Not yet working
-1. *Immutable-only fields in compiled mode*: codegen doesn't emit constants
-   for macro-expanded structs (only mutable fields work)
-2. *Constants in struct defaults inside macros*: e.g. ~mut data: I64 = NULL~
-   fails during macro eval because precomp hasn't run yet. Workaround: use
-   literal ~0~ instead of ~NULL~ in struct field defaults.
 
 ** Issue #106: First-Class Enums
 :PROPERTIES:
