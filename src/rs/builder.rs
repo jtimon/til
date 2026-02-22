@@ -430,13 +430,13 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
     // Check for precompiled ext.o first (e.g., lib/ext-linux-x64.o), fall back to compiling.
     let target_str = crate::rs::target::target_to_str(target);
     let precompiled_ext_o = format!("lib/ext-{}.o", target_str);
-    let gen_ext_o = format!("gen/{}/ext.o", crate::rs::lexer::LANG_NAME_141);
+    let gen_ext_o = format!("gen/{}/ext.o", crate::rs::lexer::LANG_NAME);
 
     let ext_o_path = if std::path::Path::new(&precompiled_ext_o).exists() {
         precompiled_ext_o
     } else {
         // Compile ext.c on the fly
-        let ext_o_dir = format!("gen/{}", crate::rs::lexer::LANG_NAME_141);
+        let ext_o_dir = format!("gen/{}", crate::rs::lexer::LANG_NAME);
         let _ = fs::create_dir_all(&ext_o_dir);
         let mut ext_cmd = Command::new(&compiler);
         ext_cmd.args(["-c", "src/ext.c"]);

@@ -537,14 +537,14 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
     // Check for precompiled ext.o first (e.g., lib/ext-linux-x64.o), fall back to compiling.
     target_str := target_to_str(target)
     precompiled_ext_o := concat("lib/ext-", target_str).concat(".o")
-    gen_ext_o := concat("gen/", LANG_NAME_141).concat("/ext.o")
+    gen_ext_o := concat("gen/", LANG_NAME).concat("/ext.o")
 
     mut ext_o_path := ""
     if not(file_mtime(precompiled_ext_o).lt(0)) {
         ext_o_path = precompiled_ext_o
     } else {
         // Compile ext.c on the fly
-        ext_o_dir := concat("gen/", LANG_NAME_141)
+        ext_o_dir := concat("gen/", LANG_NAME)
         _ := fs_mkdir_p(ext_o_dir)
         mut ext_cmd_args := Vec.new(Str)
         ext_cmd_args.push("-c")
