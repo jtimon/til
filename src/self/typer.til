@@ -2290,6 +2290,16 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
         case:
         }
 
+        // Issue #105 Step 4d: When declared type is a metatype annotation (StructDef/EnumDef/FuncSig),
+        // use the inferred type from the RHS instead, so the symbol gets registered correctly.
+        mut metatype_inferred := get_value_type(context, inner_e)?
+        if metatype_matches(value_type, metatype_inferred) {
+            value_type = metatype_inferred
+        }
+        catch (err: Str) {
+            // get_value_type failed, not a metatype - ignore
+        }
+
         // Issue #91: Detect function signature definitions (empty body + type-only args)
         switch inner_e.node_type {
         case NodeType.FuncDef(typer_sig_fd):

@@ -1025,6 +1025,9 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
         // Issue #105: Accept inferred type (e.g., struct declarations inside macro bodies)
     } else if eval_is_sig_ref {
         // Issue #91: FunctionSig reference resolved above - skip type check
+    // Issue #105 Step 4d: Accept explicit metatype annotations
+    } else if metatype_matches(declaration.value_type, value_type) {
+        // StructDef/EnumDef/FuncSig annotations match TType variants
     } else if decl_is_u8 {
         if value_is_i64 {
             value_type = declaration.value_type

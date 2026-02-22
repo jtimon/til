@@ -149,6 +149,16 @@ pub fn type_check(context: &mut Context, e: &Expr) -> Result<(Expr, Vec<String>)
     Ok((resolved, errors))
 }
 
+// Issue #105 Step 4d: Check if a declared metatype annotation matches an inferred TType
+fn metatype_matches(declared: &ValueType, inferred: &ValueType) -> bool {
+    match (declared, inferred) {
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TStructDef)) if name == "StructDef" => true,
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TEnumDef)) if name == "EnumDef" => true,
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TFuncSig)) if name == "FuncSig" => true,
+        _ => false,
+    }
+}
+
 // Internal type checker with context tracking for return value usage
 fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprContext) -> Result<Vec<String>, String> {
     let mut errors : Vec<String> = Vec::new();
@@ -1836,6 +1846,13 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Res
                     return Ok(errors);
                 },
             };
+        }
+        // Issue #105 Step 4d: When declared type is a metatype annotation (StructDef/EnumDef/FuncSig),
+        // use the inferred type from the RHS instead, so the symbol gets registered correctly.
+        if let Ok(inferred) = get_value_type(&context, &inner_e) {
+            if metatype_matches(&value_type, &inferred) {
+                value_type = inferred;
+            }
         }
 
         // Issue #91: Detect function signature definitions (empty body + type-only args)

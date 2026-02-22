@@ -1432,6 +1432,9 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         // Issue #105: Skip type checking for inferred types inside macro bodies
     } else if has_sig_func_def {
         // Issue #91: FunctionSig reference resolved above - skip type check
+    // Issue #105 Step 4d: Accept explicit metatype annotations
+    } else if metatype_matches(decl.value_type, value_type) {
+        // StructDef/EnumDef/FuncSig annotations match TType variants
     } else if is_u8_decl.and(is_i64_value) {
         value_type = decl.value_type
     } else {

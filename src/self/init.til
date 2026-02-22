@@ -787,6 +787,28 @@ get_func_name_in_call : func(e: Expr) returns Str throws Str = {
     return func_name
 }
 
+// Issue #105 Step 4d: Check if a declared metatype annotation matches an inferred TType
+metatype_matches : func(declared: ValueType, inferred: ValueType) returns Bool = {
+    switch declared {
+    case ValueType.TCustom(name):
+        switch inferred {
+        case ValueType.TType(td):
+            switch td {
+            case TTypeDef.TStructDef:
+                return name.eq("StructDef")
+            case TTypeDef.TEnumDef:
+                return name.eq("EnumDef")
+            case TTypeDef.TFuncSig:
+                return name.eq("FuncSig")
+            }
+        case:
+            return false
+        }
+    case:
+        return false
+    }
+}
+
 value_type_func_proc : func(path: Str, e: Expr, name: Str, func_def: FuncDef) returns ValueType throws Str = {
     mut returns_len := func_def.sig.return_types.len()
     if returns_len.eq(0) {
@@ -1941,6 +1963,9 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
             }
             if is_u8_i64_coercion {
                 value_type = value_type_clone(decl.value_type)
+            // Issue #105 Step 4d: Accept explicit metatype annotations
+            } else if metatype_matches(decl.value_type, value_type) {
+                // StructDef/EnumDef/FuncSig annotations match TType variants
             } else {
                 // Check type mismatch using string comparison
                 mut decl_vt_str := enum_to_str(decl.value_type)

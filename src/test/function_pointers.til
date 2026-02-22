@@ -19,6 +19,11 @@ BinaryIntOp2 : FunctionSig = func(I64, I64) returns I64 {}
 multiply : BinaryIntOp2 = (a, b) { return a.mul(b) }
 assert_eq(loc(), 15, multiply(3, 5))
 
+// Issue #105 Step 4d: FuncSig annotation (alias for FunctionSig)
+BinaryIntOp3 : FuncSig = func(I64, I64) returns I64 {}
+divide : BinaryIntOp3 = (a, b) { return a.div(b) }
+assert_eq(loc(), 3, divide(15, 5))
+
 // Test proc signature
 BinaryIntProc := proc(I64, I64) returns I64 {}
 add_proc : BinaryIntProc = (a, b) { return a.add(b) }

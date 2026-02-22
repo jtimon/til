@@ -526,6 +526,16 @@ pub fn get_func_name_in_call(e: &Expr) -> String {
     }
 }
 
+// Issue #105 Step 4d: Check if a declared metatype annotation matches an inferred TType
+fn metatype_matches(declared: &ValueType, inferred: &ValueType) -> bool {
+    match (declared, inferred) {
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TStructDef)) if name == "StructDef" => true,
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TEnumDef)) if name == "EnumDef" => true,
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TFuncSig)) if name == "FuncSig" => true,
+        _ => false,
+    }
+}
+
 fn value_type_func_proc(path: &str, e: &Expr, name: &str, func_def: &FuncDef) -> Result<ValueType, String> {
     match func_def.sig.return_types.len() {
         0 => {
@@ -1418,6 +1428,9 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
             if decl.value_type != str_to_value_type(INFER_TYPE) && !is_sig_ref {
                 if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
                     value_type = decl.value_type.clone();
+                // Issue #105 Step 4d: Accept explicit metatype annotations
+                } else if metatype_matches(&decl.value_type, &value_type) {
+                    // StructDef/EnumDef/FuncSig annotations match TType variants
                 } else if value_type != decl.value_type {
                     errors.push(e.error(&context.path, "init", &format!("'{}' declared of type '{}' but initialized to type '{}'.",
                                                          decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type))));

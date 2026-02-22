@@ -1018,6 +1018,16 @@ fn precomp_func_def(context: &mut Context, e: &Expr, func_def: FuncDef) -> Resul
     Ok(Expr::new_clone(NodeType::FuncDef(new_func_def), e, e.params.clone()))
 }
 
+// Issue #105 Step 4d: Check if a declared metatype annotation matches an inferred TType
+fn metatype_matches(declared: &ValueType, inferred: &ValueType) -> bool {
+    match (declared, inferred) {
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TStructDef)) if name == "StructDef" => true,
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TEnumDef)) if name == "EnumDef" => true,
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TFuncSig)) if name == "FuncSig" => true,
+        _ => false,
+    }
+}
+
 /// Transform Declaration - register the declared variable in scope, then transform value
 fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::Declaration) -> Result<Expr, String> {
     // Eagerly create default instance template for this struct type
@@ -1057,6 +1067,9 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         // Infer type from the value - this is the := pattern inside a macro
     } else if sig_func_def.is_some() {
         // Issue #91: FunctionSig reference resolved above - skip type check
+    // Issue #105 Step 4d: Accept explicit metatype annotations
+    } else if metatype_matches(&decl.value_type, &value_type) {
+        // StructDef/EnumDef/FuncSig annotations match TType variants
     } else
     // Type checking
     if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {

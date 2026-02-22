@@ -935,6 +935,16 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     return eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
 }
 
+// Issue #105 Step 4d: Check if a declared metatype annotation matches an inferred TType
+fn metatype_matches(declared: &ValueType, inferred: &ValueType) -> bool {
+    match (declared, inferred) {
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TStructDef)) if name == "StructDef" => true,
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TEnumDef)) if name == "EnumDef" => true,
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TFuncSig)) if name == "FuncSig" => true,
+        _ => false,
+    }
+}
+
 pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     let inner_e = e.get(0)?;
 
@@ -1007,6 +1017,9 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
         // Issue #105: Accept inferred type (e.g., struct declarations inside macro bodies)
     } else if is_sig_ref {
         // Issue #91: FunctionSig reference resolved above - skip type check
+    // Issue #105 Step 4d: Accept explicit metatype annotations
+    } else if metatype_matches(&declaration.value_type, &value_type) {
+        // StructDef/EnumDef/FuncSig annotations match TType variants
     } else if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
         value_type = declaration.value_type.clone();
     } else if value_type != declaration.value_type {

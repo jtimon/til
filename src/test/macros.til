@@ -283,3 +283,30 @@ first_variant_name : macro(T: Type) returns Str = {
 }
 assert_eq_str(loc(), "Red", first_variant_name(Color106))
 assert_eq_str(loc(), "None", first_variant_name(TaggedVal106))
+
+// Issue #105 Step 4d: Explicit metatype annotations
+// StructDef annotation
+MetaPoint : StructDef = struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+test_meta_struct := proc() {
+    mut p := MetaPoint()
+    p.x = 3
+    p.y = 4
+    assert_eq(loc(), 3, p.x)
+    assert_eq(loc(), 4, p.y)
+}
+test_meta_struct()
+
+// EnumDef annotation
+MetaColor : EnumDef = enum { Red, Green, Blue }
+mc := MetaColor.Red
+assert_eq_str(loc(), "MetaColor.Red", enum_to_str(mc))
+mc2 := MetaColor.Blue
+assert_eq_str(loc(), "MetaColor.Blue", enum_to_str(mc2))
+
+// FuncSig annotation
+MetaOp : FuncSig = func(I64, I64) returns I64 {}
+meta_add : MetaOp = (a, b) { return a.add(b) }
+assert_eq(loc(), 8, meta_add(3, 5))
