@@ -1231,110 +1231,34 @@ Uncomment and update ~src/test/function_pointers.til~:
 - src/rs/init.rs / src/self/init.til (SFuncDef, ScopeFrame, ValueType, dispatch)
 - src/test/function_pointers.til (test cases)
 
-** Issue #105: First-Class Structs
+** Issue #178: Eliminate TTypeDef, unify type representation
 :PROPERTIES:
-:DISCOVERED: 2026-01-12
-:IMPACT: Language feature, anonymous data structures, templates
-:STATUS: Mostly done
-:RELATED: Issue #91 (First-Class Functions), Issue #106 (First-Class Enums)
+:DISCOVERED: 2026-02-22
+:IMPACT: Internal cleanup, type system simplification
+:STATUS: Open
+:RELATED: Issue #105 (First-Class Structs), doc/first_class.org
 :END:
 
 *** Description
-Allow macros to return struct definitions via ~returns struct~. Enables
-template-like patterns where macros generate typed structs at compile time.
+Replace ~TType(TTypeDef::TStructDef)~ / ~TType(TTypeDef::TEnumDef)~ /
+~TType(TTypeDef::TFuncSig)~ with ~TCustom("StructDef")~ / ~TCustom("EnumDef")~ /
+~TCustom("FuncSig")~ throughout the compiler. This would eliminate the ~TTypeDef~
+enum and ~ValueType::TType~ variant entirely, unifying the type representation.
 
-*** Completed (2026-02-17)
-- [X] Parser: ~struct~ as return type keyword in func/proc returns
-- [X] Init: defer struct registration for macro FCall RHS to precomp
-- [X] Interpreter: StructDef eval registers anonymous struct in global frame
-- [X] Precomp: ~expand_struct_macros()~ expands macro calls between init and
-  typer, resolves INFER_TYPE in members, registers struct, generates
-  delete/clone methods
-- [X] Preinit: ~generate_struct_methods~ extracted as public API
-- [X] Builder: calls ~expand_struct_macros~ before type checking
-- [X] All changes ported to both Rust and TIL
-- [X] Tests in src/test/structs.til (basic macros, mixed types, field override)
+*** Background
+This was originally Issue #105 Step 4b. It was attempted but deferred because
+TIL's switch/case desugarer does not support string literal payloads in enum case
+patterns (~case ValueType.TCustom("StructDef"):~ only matches the outer TCustom
+variant, ignoring the string). Every case pattern had to be converted to
+~case ValueType.TCustom(name): if name.eq("StructDef") { ... }~, which is fragile.
+The attempt also hit OOM issues during benchmark.
 
-*** Completed (2026-02-20) -- Macro namespace support
-- [X] ~namespace:~ inside macro-returned structs now works
-- [X] Named struct pattern: declare struct with internal name (e.g. ~TemplatedPtr~),
-  reference in methods via ~self: TemplatedPtr~, substitute to external name
-  (e.g. ~I64Ptr~) after expansion
-- [X] Type substitution in FuncDef nodes (args, returns, throws, body)
-- [X] ~extract_namespace_stmts_from_macro~ + ~extract_internal_struct_name~
-- [X] Namespace processing in ~expand_struct_macros~: build NamespaceDef from
-  substituted stmts, run init_context, skip auto delete/clone when macro provides its own
-- [X] Interpreter: bare struct name reference, INFER_TYPE acceptance, global frame registration
-- [X] Precompute struct default values during macro expansion (resolve constants like NULL)
-- [X] ~src/std/typed_ptr.til~: ~make_typed_ptr(T)~ macro -- real generics, no Dynamic
-- [X] Tests in src/test/macros.til (typed_ptr basic, array)
-- [X] All changes ported to both Rust and TIL, all 93 tests pass
+Issue #105 Step 4d's ~metatype_matches()~ provides the user-facing benefits
+(explicit metatype annotations) without the internal refactor.
 
-*** Working
-#+BEGIN_SRC til
-// Simple struct template
-make_point := macro() returns struct {
-    return struct { mut x: I64 = 0, mut y: I64 = 0 }
-}
-Point := make_point()
-p := Point(x=10, y=20)  // works
-
-// Generic struct template with namespace methods
-import("std.typed_ptr")
-I64Ptr := make_typed_ptr(I64)
-mut p := I64Ptr.new()
-p.set(42)
-mut result := 0
-p.get(result)  // result == 42
-p.delete()
-#+END_SRC
-
-*** Completed (2026-02-21) -- struct_def_of: runtime struct introspection
-- [X] 5 ext functions: ~__struct_field_count~, ~__struct_field_name~,
-  ~__struct_field_is_mut~, ~__struct_field_type_kind~, ~__struct_field_type_arg~
-- [X] Implemented in src/rs/ext.rs and ported to src/self/ext.til
-- [X] Dispatch in src/rs/interpreter.rs and src/self/interpreter.til
-- [X] Ext function declarations in src/std/meta.til
-- [X] ~struct_def_of(type_name)~ proc in src/std/meta.til: builds SStructDef
-  on eval heap by calling ext functions
-- [X] Tests in src/test/macros.til: ~count_fields~ and ~first_field_name~ macros
-  that inspect struct definitions at compile time
-- [X] All changes ported to both Rust and TIL, all 93 tests pass
-- Note: rstil includes auto-generated delete/clone in SStructDef.members,
-  til self-hosted interpreter does not. Tests use is_mut filter for compatibility.
-
-*** Completed (2026-02-22) -- Immutable fields + constant defaults in macro structs
-- [X] Root cause: ~expand_struct_macros~ registered struct but not immutable field
-  symbols (~StructName.field~). Regular structs register these in ~init_context~.
-- [X] Fix: after ~declare_struct~ in ~expand_struct_macros~, loop through non-mut
-  members and register them as symbols (same as init_context lines 1440-1449)
-- [X] Constants in defaults (e.g. ~NULL~) already worked via precomputed_defaults
-  loop (lines 254-260), was incorrectly listed as broken
-- [X] Ported to both Rust and TIL
-- [X] Tests in src/test/macros.til: ~make_nullable~ (NULL default), ~make_tagged~
-  (immutable field)
-- [X] All 93 tests pass
-
-*** Completed (2026-02-22) -- Anonymous struct expressions
-- [X] Parser: ~struct { ... }(args)~ in expression position creates FCall with
-  StructDef as first param; comma-separated fields in inline struct bodies
-- [X] ~expand_struct_macros~: top-level anonymous struct instantiation transforms
-  StructDef to named AnonStructN, registers struct + methods, injects declarations
-- [X] ~expand_anon_struct_fcalls_recursive~: recursive walk into function/proc bodies
-  handles both ~struct { ... }(args)~ (anonymous instantiation) and ~P := struct { ... }~
-  (named struct definition inside function). Hoists struct typedefs + methods to top level.
-- [X] ~precomp_fcall~: handles anonymous struct instantiation during precomp phase,
-  pushes struct declarations to ~anon_struct_decls~ for injection by ~precomp_body~
-- [X] Codegen: ~emit_declaration~ skips TType declarations (struct defs inside function
-  bodies are emitted at top level)
-- [X] Interpreter: FCall with StructDef first param registers anonymous struct and
-  calls constructor
-- [X] AnonStructN naming (no leading underscores) avoids til_name/til_type_to_c prefix
-  inconsistency
-- [X] Tests in src/test/structs.til: definition, named args, defaults, partial override
-- [X] All changes ported to both Rust and TIL, all 93 tests pass
-
-*** Not yet working
+*** Scope
+~122 Rust refs to TTypeDef, ~126 TIL refs. Mechanical replacement but requires
+careful handling of TIL's switch/case limitation.
 
 ** Issue #106: First-Class Enums
 :PROPERTIES:

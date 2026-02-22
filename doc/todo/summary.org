@@ -30,7 +30,7 @@
 | 112 | HashMap type slower than Map in TIL              | Blocked            |
 | 111 | Support returns Dynamic                          | Feature            |
 | 106 | First-Class Enums                                | Language feature   |
-| 105 | First-Class Structs                              | Language feature   |
+| 178 | Eliminate TTypeDef, unify type representation    | Internal cleanup   |
 | 100 | Get rid of rstil                                 | Architecture goal  |
 |  91 | First-Class Functions                            | Language feature   |
 |  89 | Constant folding only works at global scope      | Optimization       |

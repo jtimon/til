@@ -4744,6 +4744,30 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #105: First-Class Structs
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPLEMENTED: 2026-02-22
+:IMPACT: Language feature, anonymous data structures, templates
+:STATUS: Implemented (Step 4b deferred to Issue #178)
+:RELATED: Issue #91 (First-Class Functions), Issue #106 (First-Class Enums)
+:END:
+
+Allow macros to return struct definitions via ~returns struct~. Enables
+template-like patterns where macros generate typed structs at compile time.
+
+- [X] Parser: ~struct~ as return type keyword in func/proc returns
+- [X] Init: defer struct registration for macro FCall RHS to precomp
+- [X] Precomp: ~expand_struct_macros()~ expands macro calls, registers structs
+- [X] Macro namespace support: ~namespace:~ inside macro-returned structs
+- [X] ~src/std/typed_ptr.til~: ~make_typed_ptr(T)~ macro -- real generics
+- [X] ~struct_def_of(type_name)~ runtime introspection via ext functions
+- [X] Anonymous struct expressions: ~struct { ... }(args)~
+- [X] Step 4a: NamespaceDef moved into StructDef.ns and EnumDef.ns fields
+- [X] Step 4c: SStructDef -> StructDef, SEnumDef -> EnumDef, SFuncDef -> FuncDef
+- [X] Step 4d: Explicit metatype annotations (~Point : StructDef = struct { ... }~)
+- [X] All changes ported to both Rust and TIL, all 93 tests pass
+
 ** Issue #107: First-Class Namespaces (CANCELLED)
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
