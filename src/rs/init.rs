@@ -1208,6 +1208,33 @@ pub fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str
     Ok(())
 }
 
+// Issue #91: Walk an expression tree to find and register anonymous FuncDef nodes.
+// Anonymous functions have non-empty bodies but aren't inside a Declaration.
+// They get registered with temp names like __anon_func_0.
+fn collect_anon_funcs(context: &mut Context, e: &Expr) {
+    if let NodeType::FuncDef(func_def) = &e.node_type {
+        if !func_def.body.is_empty() {
+            let temp_name = format!("__anon_func_{}", context.anon_func_counter);
+            context.anon_func_counter += 1;
+            context.anon_func_map.insert((e.line, e.col), temp_name.clone());
+            context.scope_stack.declare_func(temp_name.clone(), func_def.clone());
+            context.scope_stack.declare_symbol(temp_name, SymbolInfo {
+                value_type: ValueType::TFunction(func_def.function_type.clone()),
+                is_mut: false, is_copy: false, is_own: false, is_comptime_const: false,
+            });
+            // Recurse into anon func body for nested anon funcs
+            for body_stmt in &func_def.body {
+                collect_anon_funcs(context, body_stmt);
+            }
+            return;
+        }
+    }
+    // Recurse into params (handles FCall args, Body children, If/While bodies, etc.)
+    for param in &e.params {
+        collect_anon_funcs(context, param);
+    }
+}
+
 // aka "context priming" or "declaration indexing"
 pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, String> {
     let mut errors : Vec<String> = Vec::new();
@@ -1254,6 +1281,8 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                     },
                 }
             }
+            // Issue #91: Walk FCall arguments for anonymous inline functions
+            collect_anon_funcs(context, e);
         },
         NodeType::Declaration(decl) => {
             // Bug #35: Skip "already declared" check for "_" - it's special for discarding return values
@@ -1331,6 +1360,10 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                 };
                                 context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                                 context.scope_stack.declare_func(decl.name.to_string(), registered_func_def);
+                                // Issue #91: Walk function body for anonymous inline functions
+                                for body_stmt in &func_def.body {
+                                    collect_anon_funcs(context, body_stmt);
+                                }
                             },
                             _ => {
                                 // Issue #91: If this is a FuncSig reference (function pointer value
@@ -1575,6 +1608,9 @@ pub struct Context {
     pub anon_struct_counter: usize,
     // Issue #106: Counter for anonymous enum definitions (first-class enums)
     pub anon_enum_counter: usize,
+    // Issue #91: Counter and map for anonymous inline functions
+    pub anon_func_counter: usize,
+    pub anon_func_map: HashMap<(usize, usize), String>,  // (line, col) -> temp name
 }
 
 impl Context {
@@ -1610,6 +1646,9 @@ impl Context {
             anon_struct_counter: 0,
             // Issue #106: Initialize anonymous enum counter
             anon_enum_counter: 0,
+            // Issue #91: Initialize anonymous function counter and map
+            anon_func_counter: 0,
+            anon_func_map: HashMap::new(),
         });
     }
 

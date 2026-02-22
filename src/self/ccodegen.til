@@ -953,6 +953,12 @@ emit_arg_string : proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hoist
                     if arg.params.is_empty() {
                         return til_name(arg_name)
                     }
+                case NodeType.FuncDef(_):
+                    // Issue #91: Anonymous inline function - look up temp name from anon_func_map
+                    anon_key := format("(", I64.to_str(arg.line), ",", I64.to_str(arg.col), ")")
+                    eas_anon_name := cast(Str, context.anon_func_map.get(anon_key)?)
+                    return til_name(eas_anon_name)
+                    catch (err: KeyNotFoundError) { }
                 case:
                 }
             }

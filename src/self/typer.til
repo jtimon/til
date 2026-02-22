@@ -1063,6 +1063,8 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                         switch arg_expr.node_type {
                         case NodeType.Identifier(name):
                             fsig_arg_name = name
+                        case NodeType.FuncDef(_):
+                            fsig_arg_name = "<anonymous>"
                         case:
                         }
                         // Look up the expected FuncSig definition
@@ -1078,6 +1080,12 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                             found_fd = context.scope_stack.lookup_func(combined_arg_name)?
                             have_found = true
                             catch (err: KeyNotFoundError) { }
+                        case NodeType.FuncDef(anon_fd):
+                            // Issue #91: Anonymous inline function - use definition directly
+                            if anon_fd.body.len().gt(0) {
+                                found_fd = anon_fd.clone()
+                                have_found = true
+                            }
                         case:
                         }
                         mut sig_ok := false

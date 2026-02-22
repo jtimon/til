@@ -794,13 +794,26 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
                 .unwrap_or(false) => {
                 // Same type name -> trivially compatible
                 if arg_expected_type != &found_type {
-                    let arg_name = if let NodeType::Identifier(ref name) = arg_expr.node_type { name.as_str() } else { "?" };
+                    let arg_name = if let NodeType::Identifier(ref name) = arg_expr.node_type {
+                        name.as_str()
+                    } else if matches!(arg_expr.node_type, NodeType::FuncDef(_)) {
+                        "<anonymous>"
+                    } else { "?" };
                     // Look up the expected FuncSig definition
                     let expected_fd = context.scope_stack.lookup_func(tn);
                     // Try to find the function def for the argument
-                    let found_fd = if let NodeType::Identifier(ref _name) = arg_expr.node_type {
+                    let found_fd_owned: Option<SFuncDef>;
+                    let found_fd: Option<&SFuncDef> = if let NodeType::Identifier(ref _name) = arg_expr.node_type {
                         let combined_arg_name = crate::rs::parser::get_combined_name(&context.path, arg_expr)?;
-                        context.scope_stack.lookup_func(&combined_arg_name)
+                        found_fd_owned = context.scope_stack.lookup_func(&combined_arg_name).cloned();
+                        found_fd_owned.as_ref()
+                    } else if let NodeType::FuncDef(ref anon_fd) = arg_expr.node_type {
+                        // Issue #91: Anonymous inline function - use definition directly
+                        if !anon_fd.body.is_empty() {
+                            Some(anon_fd)
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     };

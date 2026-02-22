@@ -204,6 +204,11 @@ fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<S
                                             let arg_name = get_combined_name_from_identifier(arg_expr);
                                             if !arg_name.is_empty() {
                                                 refs.insert(arg_name);
+                                            } else if let NodeType::FuncDef(ref _anon_fd) = arg_expr.node_type {
+                                                // Issue #91: Anonymous inline function - look up temp name
+                                                if let Some(temp_name) = context.anon_func_map.get(&(arg_expr.line, arg_expr.col)) {
+                                                    refs.insert(temp_name.clone());
+                                                }
                                             }
                                         }
                                     }

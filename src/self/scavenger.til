@@ -203,6 +203,16 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
                                 fptr_arg_name := get_combined_name_from_identifier(fptr_arg_expr)?
                                 if fptr_arg_name.len().gt(0) {
                                     _ := refs.insert(fptr_arg_name)
+                                } else {
+                                    // Issue #91: Anonymous inline function - look up temp name
+                                    switch fptr_arg_expr.node_type {
+                                    case NodeType.FuncDef(_):
+                                        anon_key := format("(", I64.to_str(fptr_arg_expr.line), ",", I64.to_str(fptr_arg_expr.col), ")")
+                                        anon_temp_name := cast(Str, context.anon_func_map.get(anon_key)?)
+                                        _ := refs.insert(anon_temp_name)
+                                        catch (err: KeyNotFoundError) { }
+                                    case:
+                                    }
                                 }
                             }
                         case:

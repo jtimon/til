@@ -554,6 +554,17 @@ namespace:
         }
     }
 
+    // Issue #91: Register function in global frame (survives function scope pops)
+    declare_func_global : proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws Str = {
+        if self.frames.len().gt(0) {
+            mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
+            global_frame.funcs.set(name, func_def)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+    }
+
     // Issue #106: Register enum in global frame (survives function scope pops)
     declare_enum_global : proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws Str = {
         if self.frames.len().gt(0) {
@@ -1590,6 +1601,36 @@ init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: 
     context.path = original_path.clone()
 }
 
+// Issue #91: Walk an expression tree to find and register anonymous FuncDef nodes.
+// Anonymous functions have non-empty bodies but aren't inside a Declaration.
+// They get registered with temp names like __anon_func_0.
+collect_anon_funcs : proc(mut context: Context, e: Expr) throws Str = {
+    switch e.node_type {
+    case NodeType.FuncDef(func_def):
+        if func_def.body.len().gt(0) {
+            temp_name := format("__anon_func_", I64.to_str(context.anon_func_counter))
+            context.anon_func_counter = context.anon_func_counter.add(1)
+            key := format("(", I64.to_str(e.line), ",", I64.to_str(e.col), ")")
+            context.anon_func_map.set(key, temp_name.clone())
+            context.scope_stack.declare_func(temp_name.clone(), func_def.clone())?
+            context.scope_stack.declare_symbol(temp_name, SymbolInfo(
+                value_type=ValueType.TFunction(func_def.function_type),
+                is_mut=false, is_copy=false, is_own=false, is_comptime_const=false
+            ))?
+            // Recurse into anon func body for nested anon funcs
+            for body_stmt: Expr in func_def.body {
+                collect_anon_funcs(context, body_stmt)?
+            }
+            return
+        }
+    case:
+    }
+    // Recurse into params (handles FCall args, Body children, If/While bodies, etc.)
+    for param: Expr in e.params {
+        collect_anon_funcs(context, param)?
+    }
+}
+
 // Context priming / declaration indexing
 // Process AST and register all declarations (funcs, enums, structs, vars)
 // Returns array of error strings (empty if success)
@@ -1640,6 +1681,8 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                 return errors
             }
         }
+        // Issue #91: Walk FCall arguments for anonymous inline functions
+        collect_anon_funcs(context, e)?
 
     case NodeType.Declaration(decl):
         // Check if already declared as func
@@ -1793,6 +1836,10 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     }
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     context.scope_stack.declare_func(decl.name, registered_func_def)?
+                    // Issue #91: Walk function body for anonymous inline functions
+                    for body_stmt: Expr in func_def.body {
+                        collect_anon_funcs(context, body_stmt)?
+                    }
                 case:
                     // Issue #91: If this is a FuncSig reference (function pointer value
                     // from a call or variable), declare as symbol only -- the function
@@ -1837,6 +1884,10 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     }
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     context.scope_stack.declare_func(decl.name, registered_proc_def)?
+                    // Issue #91: Walk function body for anonymous inline functions
+                    for proc_body_stmt: Expr in func_def.body {
+                        collect_anon_funcs(context, proc_body_stmt)?
+                    }
                 case:
                     if init_is_sig_ref {
                         context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
@@ -2141,6 +2192,9 @@ Context := struct {
     mut anon_struct_counter: I64 = 0
     // Issue #106: Counter for anonymous enum definitions (first-class enums)
     mut anon_enum_counter: I64 = 0
+    // Issue #91: Counter and map for anonymous inline functions
+    mut anon_func_counter: I64 = 0
+    mut anon_func_map: Map = Map.new(Str, Str)  // "(line,col)" -> temp name
 
 namespace:
     # Context methods (insert/get/copy methods moved to EvalHeap in interpreter.til)

@@ -486,8 +486,20 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::ForIn(_) => {
             return Err(e.lang_error(&context.path, "eval", "ForIn should be desugared in precomp before reaching interpreter"))
         },
-        // Definition types are handled during registration, not evaluation
-        NodeType::FuncDef(_) => Ok(EvalResult::new("")),
+        NodeType::FuncDef(func_def) => {
+            // Issue #91: Anonymous inline function - register with temp name and return it
+            if !func_def.body.is_empty() {
+                let temp_name = format!("__anon_func_{}", context.anon_func_counter);
+                context.anon_func_counter += 1;
+                if let Some(global_frame) = context.scope_stack.frames.first_mut() {
+                    global_frame.funcs.insert(temp_name.clone(), func_def.clone());
+                }
+                Ok(EvalResult::new(&temp_name))
+            } else {
+                // FuncSig type definition - handled during registration
+                Ok(EvalResult::new(""))
+            }
+        },
         NodeType::EnumDef(enum_def) => {
             // Issue #106: First-class enums - register as anonymous enum and return the name
             // Register in global frame so it survives function scope pops (e.g. macro returns)
@@ -1898,6 +1910,15 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             let combined_arg_name = get_combined_name(&context.path, current_arg)?;
                             if let Some(arg_func_def) = context.scope_stack.lookup_func(&combined_arg_name) {
                                 function_frame.funcs.insert(arg.name.clone(), arg_func_def.clone());
+                                param_index += 1;
+                                continue;
+                            }
+                        }
+                        // Issue #91: Anonymous inline function - evaluate to get temp name
+                        if let NodeType::FuncDef(_) = &current_arg.node_type {
+                            let anon_result = eval_expr(context, current_arg)?;
+                            if let Some(anon_fd) = context.scope_stack.lookup_func(&anon_result.value) {
+                                function_frame.funcs.insert(arg.name.clone(), anon_fd.clone());
                                 param_index += 1;
                                 continue;
                             }

@@ -889,6 +889,12 @@ fn emit_arg_string(
                     return Ok(til_name(arg_name));
                 }
             }
+            // Issue #91: Anonymous inline function - look up temp name from anon_func_map
+            if let NodeType::FuncDef(_) = &arg.node_type {
+                if let Some(temp_name) = context.anon_func_map.get(&(arg.line, arg.col)) {
+                    return Ok(til_name(temp_name));
+                }
+            }
         }
     }
 
