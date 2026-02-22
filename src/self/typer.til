@@ -86,7 +86,7 @@ typer_import_declarations : proc(mut context: Context, import_path_str: Str) ret
     return result.errors
 }
 
-check_enum_def : proc(context: Context, e: Expr, enum_def: SEnumDef) returns Vec = {
+check_enum_def : proc(context: Context, e: Expr, enum_def: EnumDef) returns Vec = {
     mut errors := Vec.new(Str)
     if not(e.params.len().eq(0)) {
         e.exit_error("type", "in check_enum_def(): enum declarations don't have any parameters in the tree.")
@@ -285,7 +285,7 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
         } else {
             mut func_found := false
             mut symbol_found := false
-            mut dummy_func := SFuncDef()
+            mut dummy_func := FuncDef()
             dummy_func = context.scope_stack.lookup_func(name)?
             func_found = true
             catch (err: KeyNotFoundError) {
@@ -368,7 +368,7 @@ validate_conditional_params : proc(_path: Str, e: Expr, stmt_type: Str, min: I64
 
 // Helper function to validate function/procedure argument counts
 // Returns empty string if OK, error message if validation fails
-validate_func_arg_count : func(path: Str, e: Expr, f_name: Str, func_def: SFuncDef) returns Str = {
+validate_func_arg_count : func(path: Str, e: Expr, f_name: Str, func_def: FuncDef) returns Str = {
     provided_args := e.params.len().sub(1)
 
     // Count required args (those without default values)
@@ -579,7 +579,7 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
 
     // Check TypeName.len() exists and returns I64
     len_method := format(type_name, ".len")
-    mut len_func := SFuncDef()
+    mut len_func := FuncDef()
     len_func = context.scope_stack.lookup_func(len_method)?
     // Verify returns I64
     if not(len_func.sig.return_types.len().eq(1)) {
@@ -601,7 +601,7 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
 
     // Check TypeName.get() exists with right signature
     get_method := format(type_name, ".get")
-    mut get_func := SFuncDef()
+    mut get_func := FuncDef()
     get_func = context.scope_stack.lookup_func(get_method)?
     // Verify signature: get(self, I64) returns Ptr throws IndexOutOfBoundsError
     mut valid := get_func.sig.args.len().gteq(2)
@@ -682,7 +682,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
 
     // Get func def, allowing for struct instantiation (returns None)
     mut func_def_found := false
-    mut func_def := SFuncDef()
+    mut func_def := FuncDef()
     func_def = get_func_def_for_fcall_with_expr(context, e_clone)?
     func_def_found = true
     catch (err: Str) {
@@ -695,7 +695,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
         // Clone member names to avoid borrow conflict with check_types_with_context
         mut is_struct := false
         mut struct_member_names := Vec.new(Str)
-        mut _struct_def := SStructDef()
+        mut _struct_def := StructDef()
         _struct_def = context.scope_stack.lookup_struct(f_name)?
         is_struct = true
         for decl: Declaration in _struct_def.members {
@@ -983,7 +983,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                     mut is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Str"))
                     if not(is_primitive) {
                         mut copy_struct_found := false
-                        mut copy_struct_def := SStructDef()
+                        mut copy_struct_def := StructDef()
                         copy_struct_def = context.scope_stack.lookup_struct(type_name)?
                         copy_struct_found = true
                         catch (struct_err: KeyNotFoundError) {
@@ -1074,7 +1074,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                         catch (err: KeyNotFoundError) { have_expected = false }
                         // Try to find the function def for the argument
                         mut have_found := false
-                        mut found_fd := SFuncDef()
+                        mut found_fd := FuncDef()
                         switch arg_expr.node_type {
                         case NodeType.Identifier(arg_id_name):
                             combined_arg_name := get_combined_name(context.path, arg_expr)?
@@ -1203,7 +1203,7 @@ check_fcall_return_usage : proc(context: Context, e: Expr, expr_context: ExprCon
 
     // Get the function definition to check if it returns a value
     mut func_def_found := false
-    mut func_def := SFuncDef()
+    mut func_def := FuncDef()
     func_def = get_func_def_for_fcall(context, e)?
     func_def_found = true
     catch (err: Str) {
@@ -1243,7 +1243,7 @@ check_fcall_return_usage : proc(context: Context, e: Expr, expr_context: ExprCon
 }
 
 // Issue #108: Check namespace definition function bodies
-check_namespace_def : proc(mut context: Context, _e: Expr, ns_def: SNamespaceDef) returns Vec throws Str = {
+check_namespace_def : proc(mut context: Context, _e: Expr, ns_def: NamespaceDef) returns Vec throws Str = {
     mut errors := Vec.new(Str)
 
     for member_decl: Declaration in ns_def.members {
@@ -1268,7 +1268,7 @@ check_namespace_def : proc(mut context: Context, _e: Expr, ns_def: SNamespaceDef
     return errors
 }
 
-has_type_params : func(func_def: SFuncDef) returns Bool = {
+has_type_params : func(func_def: FuncDef) returns Bool = {
     for arg: Declaration in func_def.sig.args {
         switch arg.value_type {
         case ValueType.TCustom(type_name):
@@ -1281,7 +1281,7 @@ has_type_params : func(func_def: SFuncDef) returns Bool = {
     return false
 }
 
-check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) returns Vec throws Str = {
+check_func_proc_types : proc(func_def: FuncDef, mut context: Context, e: Expr) returns Vec throws Str = {
     mut errors := Vec.new(Str)
     // Bug #101: Save outer function's tracking state for nested function support
     mut saved_function_locals := context.scope_stack.function_locals.clone()
@@ -1468,7 +1468,7 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
     return errors
 }
 
-check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncDef, body: Vec, mut thrown_types: Vec, mut return_found: Bool) returns Vec throws Str = {
+check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDef, body: Vec, mut thrown_types: Vec, mut return_found: Bool) returns Vec throws Str = {
 
     mut errors := Vec.new(Str)
     returns_len := func_def.sig.return_types.len()
@@ -1534,8 +1534,8 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
                                         ret_combined := get_combined_name(context.path, return_val_e)?
                                         mut ret_expected_fd_found := false
                                         mut ret_found_fd_found := false
-                                        mut ret_expected_fd := SFuncDef()
-                                        mut ret_found_fd := SFuncDef()
+                                        mut ret_expected_fd := FuncDef()
+                                        mut ret_found_fd := FuncDef()
                                         ret_expected_fd = context.scope_stack.lookup_func(ret_tn)?
                                         ret_expected_fd_found = true
                                         catch (err: KeyNotFoundError) { }
@@ -1685,7 +1685,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
 
                     // Register struct fields so err.msg etc. can be accessed during type-checking
                     mut struct_found := false
-                    mut struct_def_opt := SStructDef()
+                    mut struct_def_opt := StructDef()
                     struct_def_opt = context.scope_stack.lookup_struct(caught_type)?
                     struct_found = true
                     catch (err: KeyNotFoundError) {
@@ -2730,7 +2730,7 @@ check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws 
     return errors
 }
 
-check_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef) returns Vec = {
+check_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) returns Vec = {
     mut errors := Vec.new(Str)
 
     if not(e.params.len().eq(0)) {
@@ -3034,10 +3034,10 @@ check_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef) r
     return errors
 }
 
-// Returns SFuncDef if function found
+// Returns FuncDef if function found
 // Throws KeyNotFoundError for struct/enum instantiation (Ok(None) case)
 // Throws Str for errors
-get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) returns SFuncDef throws Str, KeyNotFoundError = {
+get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) returns FuncDef throws Str, KeyNotFoundError = {
     // Check if it's an FCall
     mut is_fcall := false
     switch fcall_expr.node_type {
@@ -3067,7 +3067,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
 
         // Regular function call - check if it exists
         mut func_found := false
-        mut func_def := SFuncDef()
+        mut func_def := FuncDef()
         func_def = context.scope_stack.lookup_func(combined_name)?
         func_found = true
         catch (err: KeyNotFoundError) {
@@ -3099,7 +3099,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
 
         // Check for struct instantiation
         mut struct_found := false
-        mut struct_def := SStructDef()
+        mut struct_def := StructDef()
         struct_def = context.scope_stack.lookup_struct(combined_name)?
         struct_found = true
         catch (err: KeyNotFoundError) {
@@ -3131,7 +3131,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                 case ValueType.TCustom(custom_type_name):
                     method_name := format(custom_type_name, ".", combined_name)
                     mut method_found := false
-                    mut method_func_def := SFuncDef()
+                    mut method_func_def := FuncDef()
                     method_func_def = context.scope_stack.lookup_func(method_name)?
                     method_found = true
                     catch (err: KeyNotFoundError) {
@@ -3194,7 +3194,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
 
                 // Regular functions used with UFCS
                 mut ufcs_found := false
-                mut ufcs_fn_def := SFuncDef()
+                mut ufcs_fn_def := FuncDef()
                 ufcs_fn_def = context.scope_stack.lookup_func(ufcs_func_name)?
                 ufcs_found = true
                 catch (err: KeyNotFoundError) {
@@ -3230,7 +3230,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                     case ValueType.TCustom(custom_type_name):
                         id_expr_name := format(custom_type_name, ".", ufcs_func_name)
                         mut assoc_found := false
-                        mut assoc_func_def := SFuncDef()
+                        mut assoc_func_def := FuncDef()
                         assoc_func_def = context.scope_stack.lookup_func(id_expr_name)?
                         assoc_found = true
                         catch (err: KeyNotFoundError) {
@@ -3286,7 +3286,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
     throw "get_func_def_for_fcall_with_expr: unexpected code path"
 }
 
-get_func_def_for_fcall : proc(context: Context, fcall_expr_: Expr) returns SFuncDef throws Str, KeyNotFoundError = {
+get_func_def_for_fcall : proc(context: Context, fcall_expr_: Expr) returns FuncDef throws Str, KeyNotFoundError = {
     mut fcall_expr := fcall_expr_
     return get_func_def_for_fcall_with_expr(context, fcall_expr)?
 }
@@ -3466,7 +3466,7 @@ is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str 
     return false
 }
 
-func_proc_has_multi_arg : func(func_def: SFuncDef) returns Bool = {
+func_proc_has_multi_arg : func(func_def: FuncDef) returns Bool = {
     for a: Declaration in func_def.sig.args {
         switch a.value_type {
         case ValueType.TMulti(multi_type):
@@ -3679,7 +3679,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
                     }
 
                     // Look up enum def - if not found, just process body normally
-                    mut enum_def := SEnumDef()
+                    mut enum_def := EnumDef()
                     mut enum_found := true
                     enum_def = context.scope_stack.lookup_enum(enum_name)?
                     catch (err: KeyNotFoundError) {
@@ -3781,12 +3781,12 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
             ns_resolved_expr := resolve_inferred_types(context, ns_value_expr)?
             ns_new_default_values.set(ns_name, ns_resolved_expr)
         }
-        new_ns := SNamespaceDef(
+        new_ns := NamespaceDef(
             members=struct_def.ns.members.clone(),
             default_values=ns_new_default_values
         )
 
-        new_struct_def := SStructDef(members=new_members, default_values=new_default_values, ns=new_ns)
+        new_struct_def := StructDef(members=new_members, default_values=new_default_values, ns=new_ns)
         return Expr.new_explicit(NodeType.StructDef(new_struct_def), e.params, e.line, e.col)
 
     case NodeType.Catch:
@@ -4036,7 +4036,7 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
 }
 
 // Helper: resolve FuncDef node
-resolve_funcdef : proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str = {
+resolve_funcdef : proc(mut context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str = {
     // Skip body resolution for macros with Type parameters
     if func_def.is_macro() {
         if has_type_params(func_def) {
@@ -4069,7 +4069,7 @@ resolve_funcdef : proc(mut context: Context, e: Expr, func_def: SFuncDef) return
         throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError in FuncDef: ", err.msg))
     }
 
-    new_func_def := SFuncDef(
+    new_func_def := FuncDef(
         sig=FuncSig(
             function_type=func_def.sig.function_type,
             args=func_def.sig.args,

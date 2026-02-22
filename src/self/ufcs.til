@@ -12,7 +12,7 @@ import("self.typer")
 /// Reorder named arguments to match function parameter order.
 /// Transforms: func(b=3, a=10) -> func(10, 3) (for func(a, b))
 /// This runs during ufcs so both interpreter and builder share the work.
-reorder_named_args : func(context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str = {
+reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str = {
     // params[0] is the function identifier, params[1..] are the arguments
     // Calculate call_args_len (number of arguments, not counting function identifier)
     mut call_args_len := 0
@@ -331,7 +331,7 @@ ufcs_params : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
-ufcs_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef) returns Expr throws Str = {
+ufcs_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) returns Expr throws Str = {
     mut new_default_values := Map.new(Str, Expr)
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
@@ -346,11 +346,11 @@ ufcs_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef) re
         ns_value_expr := cast(Expr, struct_def.ns.default_values.get(ns_name)?)
         ns_new_default_values.set(ns_name, ufcs_expr(context, ns_value_expr)?)
     }
-    mut new_ns := SNamespaceDef()
+    mut new_ns := NamespaceDef()
     new_ns.members = struct_def.ns.members.clone()
     new_ns.default_values = ns_new_default_values
 
-    mut new_struct_def := SStructDef()
+    mut new_struct_def := StructDef()
     new_struct_def.members = struct_def.members.clone()
     new_struct_def.default_values = new_default_values
     new_struct_def.ns = new_ns
@@ -366,7 +366,7 @@ ufcs_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef) re
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
-ufcs_func_def : proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str = {
+ufcs_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str = {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.sig.args {
@@ -383,7 +383,7 @@ ufcs_func_def : proc(mut context: Context, e: Expr, func_def: SFuncDef) returns 
     // Pop the function scope frame
     _ := context.scope_stack.pop()?
 
-    new_func_def := SFuncDef(
+    new_func_def := FuncDef(
         sig=FuncSig(
             function_type=func_def.sig.function_type,
             args=func_def.sig.args,
@@ -558,17 +558,17 @@ ufcs_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 }
 
 /// Transform EnumDef - transform ns function bodies
-ufcs_enum_def : proc(mut context: Context, e: Expr, enum_def: SEnumDef) returns Expr throws Str = {
+ufcs_enum_def : proc(mut context: Context, e: Expr, enum_def: EnumDef) returns Expr throws Str = {
     mut ns_new_default_values := Map.new(Str, Expr)
     for ns_name: Str in enum_def.ns.default_values.keys {
         ns_value_expr := cast(Expr, enum_def.ns.default_values.get(ns_name)?)
         ns_new_default_values.set(ns_name, ufcs_expr(context, ns_value_expr)?)
     }
-    mut new_ns := SNamespaceDef()
+    mut new_ns := NamespaceDef()
     new_ns.members = enum_def.ns.members.clone()
     new_ns.default_values = ns_new_default_values
 
-    new_enum_def := SEnumDef(
+    new_enum_def := EnumDef(
         variants=enum_def.variants,
         methods=enum_def.methods,
         ns=new_ns

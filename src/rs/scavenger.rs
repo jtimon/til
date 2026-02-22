@@ -2,7 +2,7 @@
 // This phase runs after precomp (UFCS already resolved), before interpreter/builder.
 
 use crate::rs::init::Context;
-use crate::rs::parser::{Declaration, Expr, NodeType, SStructDef, ValueType};
+use crate::rs::parser::{Declaration, Expr, NodeType, StructDef, ValueType};
 use std::collections::{HashMap, HashSet};
 
 /// Result type for compute_reachable
@@ -66,7 +66,7 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
 }
 
 /// Collect all type names from a function definition (args, return types, throw types, body)
-fn collect_used_types_from_func(context: &Context, func_def: &crate::rs::parser::SFuncDef, used_types: &mut HashSet<String>) -> Result<(), String> {
+fn collect_used_types_from_func(context: &Context, func_def: &crate::rs::parser::FuncDef, used_types: &mut HashSet<String>) -> Result<(), String> {
     // Collect from arguments
     for arg in &func_def.sig.args {
         if let Some(type_name) = extract_type_name(&arg.value_type) {
@@ -95,7 +95,7 @@ fn collect_used_types_from_func(context: &Context, func_def: &crate::rs::parser:
 // ---------- Helper functions
 
 /// Rebuild a struct without unreachable methods
-fn rebuild_struct_without_unreachable_methods(decl: &Declaration, struct_def: &SStructDef, reachable: &HashSet<String>) -> Expr {
+fn rebuild_struct_without_unreachable_methods(decl: &Declaration, struct_def: &StructDef, reachable: &HashSet<String>) -> Expr {
     let struct_name = &decl.name;
     let mut new_members: Vec<Declaration> = Vec::new();
     let mut new_default_values: HashMap<String, Expr> = HashMap::new();
@@ -125,7 +125,7 @@ fn rebuild_struct_without_unreachable_methods(decl: &Declaration, struct_def: &S
     // Also rebuild ns, pruning unreachable methods
     let new_ns = rebuild_namespace_without_unreachable_methods(&struct_def.ns, struct_name, reachable);
 
-    let new_struct_def = SStructDef {
+    let new_struct_def = StructDef {
         members: new_members,
         default_values: new_default_values,
         ns: new_ns,
@@ -147,7 +147,7 @@ fn rebuild_struct_without_unreachable_methods(decl: &Declaration, struct_def: &S
 }
 
 /// Issue #108: Rebuild a namespace definition, keeping only reachable methods
-fn rebuild_namespace_without_unreachable_methods(ns_def: &crate::rs::parser::SNamespaceDef, type_name: &str, reachable: &HashSet<String>) -> crate::rs::parser::SNamespaceDef {
+fn rebuild_namespace_without_unreachable_methods(ns_def: &crate::rs::parser::NamespaceDef, type_name: &str, reachable: &HashSet<String>) -> crate::rs::parser::NamespaceDef {
     let mut new_members: Vec<Declaration> = Vec::new();
     let mut new_default_values: HashMap<String, Expr> = HashMap::new();
 
@@ -173,7 +173,7 @@ fn rebuild_namespace_without_unreachable_methods(ns_def: &crate::rs::parser::SNa
         }
     }
 
-    crate::rs::parser::SNamespaceDef {
+    crate::rs::parser::NamespaceDef {
         members: new_members,
         default_values: new_default_values,
     }

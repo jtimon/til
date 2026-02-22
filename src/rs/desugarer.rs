@@ -4,7 +4,7 @@
 
 use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SEnumDef, SNamespaceDef, SFuncDef, Literal,
+    Expr, NodeType, ValueType, StructDef, EnumDef, NamespaceDef, FuncDef, Literal,
     Declaration, str_to_value_type, transform_continue_with_step,
 };
 
@@ -975,7 +975,7 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
             let _ = context.scope_stack.pop();
             context.precomp_forin_counter = saved_counter;
-            let new_func_def = SFuncDef {
+            let new_func_def = FuncDef {
                 sig: func_def.sig.clone(),
                 arg_names: func_def.arg_names.clone(),
                 body: new_body,
@@ -994,11 +994,11 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for (name, value_expr) in &struct_def.ns.default_values {
                 ns_new_default_values.insert(name.clone(), desugar_expr(context, value_expr)?);
             }
-            let new_ns = SNamespaceDef {
+            let new_ns = NamespaceDef {
                 members: struct_def.ns.members.clone(),
                 default_values: ns_new_default_values,
             };
-            let new_struct_def = SStructDef {
+            let new_struct_def = StructDef {
                 members: struct_def.members.clone(),
                 default_values: new_default_values,
                 ns: new_ns,
@@ -1011,11 +1011,11 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for (name, value_expr) in &enum_def.ns.default_values {
                 ns_new_default_values.insert(name.clone(), desugar_expr(context, value_expr)?);
             }
-            let new_ns = SNamespaceDef {
+            let new_ns = NamespaceDef {
                 members: enum_def.ns.members.clone(),
                 default_values: ns_new_default_values,
             };
-            let new_enum_def = SEnumDef {
+            let new_enum_def = EnumDef {
                 variants: enum_def.variants.clone(),
                 methods: enum_def.methods.clone(),
                 ns: new_ns,

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::rs::init::{Context, SymbolInfo, RemovedSymbol, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
-    Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, SNamespaceDef, Declaration, PatternInfo, FunctionType, TTypeDef,
+    Expr, NodeType, ValueType, EnumDef, StructDef, FuncDef, NamespaceDef, Declaration, PatternInfo, FunctionType, TTypeDef,
     value_type_to_str, str_to_value_type,
 };
 
@@ -81,7 +81,7 @@ pub fn typer_import_declarations(context: &mut Context, import_path_str: &str) -
     return errors;
 }
 
-fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Result<Vec<String>, String> {
+fn check_enum_def(context: &Context, e: &Expr, enum_def: &EnumDef) -> Result<Vec<String>, String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 0 {
         errors.push(e.exit_error("type", "in check_enum_def(): enum declarations don't have any parameters in the tree."));
@@ -308,7 +308,7 @@ fn validate_conditional_params(_path: &str, e: &Expr, stmt_type: &str, min: usiz
 }
 
 // Helper function to validate function/procedure argument counts
-fn validate_func_arg_count(path: &str, e: &Expr, f_name: &str, func_def: &SFuncDef) -> Option<String> {
+fn validate_func_arg_count(path: &str, e: &Expr, f_name: &str, func_def: &FuncDef) -> Option<String> {
     let provided_args = e.params.len() - 1;
 
     // Check zero-arg functions
@@ -802,8 +802,8 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
                     // Look up the expected FuncSig definition
                     let expected_fd = context.scope_stack.lookup_func(tn);
                     // Try to find the function def for the argument
-                    let found_fd_owned: Option<SFuncDef>;
-                    let found_fd: Option<&SFuncDef> = if let NodeType::Identifier(ref _name) = arg_expr.node_type {
+                    let found_fd_owned: Option<FuncDef>;
+                    let found_fd: Option<&FuncDef> = if let NodeType::Identifier(ref _name) = arg_expr.node_type {
                         let combined_arg_name = crate::rs::parser::get_combined_name(&context.path, arg_expr)?;
                         found_fd_owned = context.scope_stack.lookup_func(&combined_arg_name).cloned();
                         found_fd_owned.as_ref()
@@ -909,7 +909,7 @@ fn check_fcall_return_usage(context: &Context, e: &Expr, expr_context: ExprConte
     return Ok(errors);
 }
 
-fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -> Result<Vec<String>, String> {
+fn check_func_proc_types(func_def: &FuncDef, context: &mut Context, e: &Expr) -> Result<Vec<String>, String> {
     let mut errors : Vec<String> = Vec::new();
     // Bug #101: Save outer function's tracking state for nested function support
     let saved_function_locals = context.scope_stack.function_locals.clone();
@@ -1099,7 +1099,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     return Ok(errors)
 }
 
-pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDef, body: &[Expr], thrown_types: &mut Vec<ThrownType>, return_found: &mut bool) -> Result<Vec<String>, String> {
+pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &FuncDef, body: &[Expr], thrown_types: &mut Vec<ThrownType>, return_found: &mut bool) -> Result<Vec<String>, String> {
 
     let mut errors = vec![];
     let returns_len = func_def.sig.return_types.len();
@@ -1849,7 +1849,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Res
         // Issue #91: Resolve function signature type references
         // When decl.value_type is TCustom("BinaryIntOp") and that resolves to a FunctionSig,
         // look up the registered (resolved) func_def from init and use it for type checking
-        let mut sig_resolved_fd: Option<SFuncDef> = None;
+        let mut sig_resolved_fd: Option<FuncDef> = None;
         if let ValueType::TCustom(ref sig_name) = value_type {
             if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
                 if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
@@ -2206,7 +2206,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>
     return Ok(errors)
 }
 
-fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) -> Vec<String> {
+fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &StructDef) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 0 {
         errors.push(e.exit_error("type", "in check_struct_def(): struct declarations must take exactly 0 params."));
@@ -2390,7 +2390,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
 }
 
 /// Issue #108: Type-check namespace function bodies (like check_struct_def but simpler)
-fn check_namespace_def(context: &mut Context, _e: &Expr, ns_def: &SNamespaceDef) -> Result<Vec<String>, String> {
+fn check_namespace_def(context: &mut Context, _e: &Expr, ns_def: &NamespaceDef) -> Result<Vec<String>, String> {
     let mut errors: Vec<String> = Vec::new();
 
     for member_decl in &ns_def.members {
@@ -2406,7 +2406,7 @@ fn check_namespace_def(context: &mut Context, _e: &Expr, ns_def: &SNamespaceDef)
     return Ok(errors)
 }
 
-pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) -> Result<Option<SFuncDef>, String> {
+pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) -> Result<Option<FuncDef>, String> {
     if !matches!(fcall_expr.node_type, NodeType::FCall(_)) {
         return Err(fcall_expr.lang_error(&context.path, "type", "Expected FCall node type"));
     }
@@ -2539,7 +2539,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
     }
 }
 
-fn get_func_def_for_fcall(context: &Context, fcall_expr_: &Expr) -> Result<Option<SFuncDef>, String> {
+fn get_func_def_for_fcall(context: &Context, fcall_expr_: &Expr) -> Result<Option<FuncDef>, String> {
     let mut fcall_expr = fcall_expr_.clone();
     return get_func_def_for_fcall_with_expr(&context, &mut fcall_expr);
 }
@@ -2674,7 +2674,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> Result<bool, String> {
     }
 }
 
-pub fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
+pub fn func_proc_has_multi_arg(func_def: &FuncDef) -> bool {
     for a in &func_def.sig.args {
         match a.value_type {
             ValueType::TMulti(_) => {
@@ -2875,7 +2875,7 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
 
             let _ = context.scope_stack.pop();
 
-            let new_func_def = SFuncDef {
+            let new_func_def = FuncDef {
                 sig: func_def.sig.clone(),
                 arg_names: func_def.arg_names.clone(),
                 body: new_body,
@@ -3095,12 +3095,12 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 let resolved_expr = resolve_inferred_types(context, ns_value_expr)?;
                 ns_new_default_values.insert(name.clone(), resolved_expr);
             }
-            let new_ns = SNamespaceDef {
+            let new_ns = NamespaceDef {
                 members: struct_def.ns.members.clone(),
                 default_values: ns_new_default_values,
             };
 
-            let new_struct_def = SStructDef {
+            let new_struct_def = StructDef {
                 members: new_members,
                 default_values: new_default_values,
                 ns: new_ns,

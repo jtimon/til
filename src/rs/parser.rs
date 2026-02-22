@@ -647,7 +647,7 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) ->
 
     // Issue #91: Split args into sig (types+modifiers) and arg_names
     let arg_names: Vec<String> = args.iter().map(|a| a.name.clone()).collect();
-    let func_def = SFuncDef{
+    let func_def = FuncDef{
         sig: FuncSig {
             function_type: function_type,
             args: args,
@@ -663,8 +663,8 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) ->
     Ok(e)
 }
 
-// Issue #105: Build SNamespaceDef from collected namespace statements
-fn build_namespace_from_stmts(namespace_stmts: Vec<Expr>) -> SNamespaceDef {
+// Issue #105: Build NamespaceDef from collected namespace statements
+fn build_namespace_from_stmts(namespace_stmts: Vec<Expr>) -> NamespaceDef {
     let mut ns_members = Vec::new();
     let mut ns_default_values = HashMap::new();
     for stmt in &namespace_stmts {
@@ -695,7 +695,7 @@ fn build_namespace_from_stmts(namespace_stmts: Vec<Expr>) -> SNamespaceDef {
             _ => {}
         }
     }
-    SNamespaceDef {
+    NamespaceDef {
         members: ns_members,
         default_values: ns_default_values,
     }
@@ -792,7 +792,7 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
         return Err(t.error(&lexer.path, "Expected '}}' to end enum."));
     }
     let ns = build_namespace_from_stmts(namespace_stmts);
-    return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{variants, methods: crate::rs::ordered_map::OrderedMap::new(), ns}), lexer.get_token(initial_current)?.clone(), vec![]));
+    return Ok(Expr::new_parse(NodeType::EnumDef(EnumDef{variants, methods: crate::rs::ordered_map::OrderedMap::new(), ns}), lexer.get_token(initial_current)?.clone(), vec![]));
 }
 
 fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
@@ -888,7 +888,7 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
     }
 
     let ns = build_namespace_from_stmts(namespace_stmts);
-    return Ok(Expr::new_parse(NodeType::StructDef(SStructDef{members: members, default_values: default_values, ns}),
+    return Ok(Expr::new_parse(NodeType::StructDef(StructDef{members: members, default_values: default_values, ns}),
                               t.clone(), vec![]));
 }
 
@@ -1781,7 +1781,7 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_ty
             let sig_args: Vec<Declaration> = binding_names.iter().map(|n| {
                 Declaration { name: n.clone(), value_type: str_to_value_type(INFER_TYPE), is_mut: false, is_copy: false, is_own: false, default_value: None }
             }).collect();
-            let func_def = SFuncDef {
+            let func_def = FuncDef {
                 sig: FuncSig {
                     function_type: FunctionType::FTFunc,
                     args: sig_args,
@@ -1891,7 +1891,7 @@ fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
 }
 
 // Issue #174: Post-parse pass to split inline namespace members from StructDef/EnumDef params
-// into synthetic NamespaceDef nodes. This keeps SStructDef/SEnumDef unchanged (no new fields).
+// into synthetic NamespaceDef nodes. This keeps StructDef/EnumDef unchanged (no new fields).
 pub fn parse_tokens(lexer: &mut Lexer) -> Result<Expr, String> {
 
     let e: Expr = match parse_body(lexer, TokenType::Eof) {

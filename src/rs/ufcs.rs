@@ -5,7 +5,7 @@
 use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
 use crate::rs::typer::func_proc_has_multi_arg;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SEnumDef, SFuncDef, SNamespaceDef, INFER_TYPE,
+    Expr, NodeType, ValueType, StructDef, EnumDef, FuncDef, NamespaceDef, INFER_TYPE,
 };
 
 // ---------- Named argument reordering
@@ -13,7 +13,7 @@ use crate::rs::parser::{
 /// Reorder named arguments to match function parameter order.
 /// Transforms: func(b=3, a=10) -> func(10, 3) (for func(a, b))
 /// This runs during precomp so both interpreter and builder share the work.
-fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Result<Expr, String> {
+fn reorder_named_args(context: &Context, e: &Expr, func_def: &FuncDef) -> Result<Expr, String> {
     // params[0] is the function identifier, params[1..] are the arguments
     let call_args = if e.params.len() <= 1 {
         &[][..] // No arguments
@@ -212,11 +212,11 @@ pub fn ufcs_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for (name, value_expr) in &enum_def.ns.default_values {
                 ns_new_default_values.insert(name.clone(), ufcs_expr(context, value_expr)?);
             }
-            let new_ns = SNamespaceDef {
+            let new_ns = NamespaceDef {
                 members: enum_def.ns.members.clone(),
                 default_values: ns_new_default_values,
             };
-            let new_enum_def = SEnumDef {
+            let new_enum_def = EnumDef {
                 variants: enum_def.variants.clone(),
                 methods: enum_def.methods.clone(),
                 ns: new_ns,
@@ -265,7 +265,7 @@ fn ufcs_params(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
-fn ufcs_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) -> Result<Expr, String> {
+fn ufcs_struct_def(context: &mut Context, e: &Expr, struct_def: &StructDef) -> Result<Expr, String> {
     let mut new_default_values = std::collections::HashMap::new();
     for (name, value_expr) in &struct_def.default_values {
         new_default_values.insert(name.clone(), ufcs_expr(context, value_expr)?);
@@ -275,11 +275,11 @@ fn ufcs_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) -> 
     for (name, value_expr) in &struct_def.ns.default_values {
         ns_new_default_values.insert(name.clone(), ufcs_expr(context, value_expr)?);
     }
-    let new_ns = SNamespaceDef {
+    let new_ns = NamespaceDef {
         members: struct_def.ns.members.clone(),
         default_values: ns_new_default_values,
     };
-    let new_struct_def = SStructDef {
+    let new_struct_def = StructDef {
         members: struct_def.members.clone(),
         default_values: new_default_values,
         ns: new_ns,
@@ -288,7 +288,7 @@ fn ufcs_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) -> 
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
-fn ufcs_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Result<Expr, String> {
+fn ufcs_func_def(context: &mut Context, e: &Expr, func_def: FuncDef) -> Result<Expr, String> {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType::Function);
     for arg in &func_def.sig.args {
@@ -310,7 +310,7 @@ fn ufcs_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Result<
     // Pop the function scope frame
     let _ = context.scope_stack.pop();
 
-    let new_func_def = SFuncDef {
+    let new_func_def = FuncDef {
         sig: func_def.sig.clone(),
         arg_names: func_def.arg_names.clone(),
         body: new_body,

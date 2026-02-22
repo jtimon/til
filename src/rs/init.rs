@@ -7,7 +7,7 @@ use crate::rs::mode::{ModeDef, can_be_imported, parse_mode, mode_from_name};
 use crate::rs::ordered_map::OrderedMap;
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, SNamespaceDef, PatternInfo,
+    Expr, NodeType, FunctionType, ValueType, FuncDef, TTypeDef, Literal, EnumDef, StructDef, NamespaceDef, PatternInfo,
     value_type_to_str, str_to_value_type, parse_tokens,
 };
 use crate::rs::preinit::preinit_expr;
@@ -75,13 +75,13 @@ pub struct ScopeFrame {
     pub symbols: HashMap<String, SymbolInfo>,
 
     // All functions, with their function types, signatures and bodies (functions, methods, macros, etc).
-    pub funcs: HashMap<String, SFuncDef>,
+    pub funcs: HashMap<String, FuncDef>,
 
     // Enum type definitions (variants and associated data)
-    pub enums: HashMap<String, SEnumDef>,
+    pub enums: HashMap<String, EnumDef>,
 
     // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
-    pub structs: HashMap<String, SStructDef>,
+    pub structs: HashMap<String, StructDef>,
 
     /// Scope type (helps with cleanup and debugging)
     pub scope_type: ScopeType,
@@ -362,7 +362,7 @@ impl ScopeStack {
         }
     }
 
-    pub fn lookup_func(&self, name: &str) -> Option<&SFuncDef> {
+    pub fn lookup_func(&self, name: &str) -> Option<&FuncDef> {
         for frame in self.frames.iter().rev() {
             if let Some(func) = frame.funcs.get(name) {
                 return Some(func);
@@ -371,7 +371,7 @@ impl ScopeStack {
         None
     }
 
-    pub fn declare_func(&mut self, name: String, func_def: SFuncDef) {
+    pub fn declare_func(&mut self, name: String, func_def: FuncDef) {
         if let Some(current_frame) = self.frames.last_mut() {
             current_frame.funcs.insert(name, func_def);
         }
@@ -380,7 +380,7 @@ impl ScopeStack {
     /// Update an existing func_def wherever it was originally declared.
     /// Unlike declare_func (which always inserts at current scope), this finds
     /// where the func was originally declared and updates it there.
-    pub fn update_func(&mut self, name: &str, func_def: SFuncDef) {
+    pub fn update_func(&mut self, name: &str, func_def: FuncDef) {
         for frame in self.frames.iter_mut() {
             if frame.funcs.contains_key(name) {
                 frame.funcs.insert(name.to_string(), func_def);
@@ -393,7 +393,7 @@ impl ScopeStack {
         }
     }
 
-    pub fn lookup_enum(&self, name: &str) -> Option<&SEnumDef> {
+    pub fn lookup_enum(&self, name: &str) -> Option<&EnumDef> {
         for frame in self.frames.iter().rev() {
             if let Some(enum_def) = frame.enums.get(name) {
                 return Some(enum_def);
@@ -402,13 +402,13 @@ impl ScopeStack {
         None
     }
 
-    pub fn declare_enum(&mut self, name: String, enum_def: SEnumDef) {
+    pub fn declare_enum(&mut self, name: String, enum_def: EnumDef) {
         if let Some(current_frame) = self.frames.last_mut() {
             current_frame.enums.insert(name, enum_def);
         }
     }
 
-    pub fn lookup_struct(&self, name: &str) -> Option<&SStructDef> {
+    pub fn lookup_struct(&self, name: &str) -> Option<&StructDef> {
         for frame in self.frames.iter().rev() {
             if let Some(struct_def) = frame.structs.get(name) {
                 return Some(struct_def);
@@ -465,7 +465,7 @@ impl ScopeStack {
         self.is_enum_constructor(combined_name) || self.is_struct_constructor(combined_name)
     }
 
-    pub fn all_structs(&self) -> Vec<&SStructDef> {
+    pub fn all_structs(&self) -> Vec<&StructDef> {
         let mut result = Vec::new();
         for frame in self.frames.iter().rev() {
             for struct_def in frame.structs.values() {
@@ -475,7 +475,7 @@ impl ScopeStack {
         result
     }
 
-    pub fn declare_struct(&mut self, name: String, struct_def: SStructDef) {
+    pub fn declare_struct(&mut self, name: String, struct_def: StructDef) {
         if let Some(current_frame) = self.frames.last_mut() {
             current_frame.structs.insert(name, struct_def);
         }
@@ -526,7 +526,7 @@ pub fn get_func_name_in_call(e: &Expr) -> String {
     }
 }
 
-fn value_type_func_proc(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
+fn value_type_func_proc(path: &str, e: &Expr, name: &str, func_def: &FuncDef) -> Result<ValueType, String> {
     match func_def.sig.return_types.len() {
         0 => {
             return Err(e.error(path, "init", &format!("func '{}' does not return anything", name)));
@@ -1246,7 +1246,7 @@ fn collect_anon_funcs(context: &mut Context, e: &Expr) {
 }
 
 /// Merge namespace members into an already-registered struct
-pub fn init_namespace_into_struct(context: &mut Context, type_name: &str, ns_def: &SNamespaceDef, e: &Expr, errors: &mut Vec<String>) {
+pub fn init_namespace_into_struct(context: &mut Context, type_name: &str, ns_def: &NamespaceDef, e: &Expr, errors: &mut Vec<String>) {
     if let Some(existing_struct) = context.scope_stack.lookup_struct(type_name) {
         let mut merged_struct = existing_struct.clone();
         for member_decl in &ns_def.members {
@@ -1289,7 +1289,7 @@ pub fn init_namespace_into_struct(context: &mut Context, type_name: &str, ns_def
 }
 
 /// Merge namespace members into an already-registered enum
-pub fn init_namespace_into_enum(context: &mut Context, type_name: &str, ns_def: &SNamespaceDef, e: &Expr, errors: &mut Vec<String>) {
+pub fn init_namespace_into_enum(context: &mut Context, type_name: &str, ns_def: &NamespaceDef, e: &Expr, errors: &mut Vec<String>) {
     if let Some(existing_enum) = context.scope_stack.lookup_enum(type_name) {
         let mut merged_enum = existing_enum.clone();
         for (name, expr) in &ns_def.default_values {
@@ -1403,7 +1403,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
             }
             // Issue #91: Resolve function signature type references
             let mut is_sig_ref = false;
-            let mut sig_func_def: Option<SFuncDef> = None;
+            let mut sig_func_def: Option<FuncDef> = None;
             if let ValueType::TCustom(ref sig_name) = decl.value_type {
                 if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
                     if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
@@ -1683,7 +1683,7 @@ impl Context {
     }
 
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
-    pub fn get_variant_pos(selfi: &SEnumDef, variant_name: &str, path: &str, e: &Expr) -> Result<i64, String> {
+    pub fn get_variant_pos(selfi: &EnumDef, variant_name: &str, path: &str, e: &Expr) -> Result<i64, String> {
         for (search_idx, search_v) in selfi.variants.iter().enumerate() {
             if search_v.name == variant_name {
                 return Ok(search_idx as i64);
@@ -1697,7 +1697,7 @@ impl Context {
     }
 
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
-    pub fn variant_pos_to_str(selfi: &SEnumDef, position: i64, path: &str, e: &Expr) -> Result<String, String> {
+    pub fn variant_pos_to_str(selfi: &EnumDef, position: i64, path: &str, e: &Expr) -> Result<String, String> {
         if position < 0 || position >= selfi.variants.len() as i64 {
             let mut err_names: Vec<&str> = vec![];
             for err_v in &selfi.variants {

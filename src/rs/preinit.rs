@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use crate::rs::ordered_map::OrderedMap;
 
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SEnumDef, SFuncDef, FuncSig, SNamespaceDef, FunctionType,
+    Expr, NodeType, ValueType, StructDef, EnumDef, FuncDef, FuncSig, NamespaceDef, FunctionType,
     Declaration,
 };
 
@@ -29,7 +29,7 @@ fn is_primitive_type(vt: &ValueType) -> bool {
 
 /// Generate a delete() method for a struct.
 /// The method calls field.delete() for each mutable field in reverse declaration order.
-fn generate_delete_method(struct_name: &str, struct_def: &SStructDef, line: usize, col: usize) -> MethodResult {
+fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize, col: usize) -> MethodResult {
     // Build: delete := proc(mut self: StructName) { self.field_n.delete(); ... self.field_0.delete(); }
 
     // Check if there will be any delete calls (determines if we use _self or self)
@@ -81,7 +81,7 @@ fn generate_delete_method(struct_name: &str, struct_def: &SStructDef, line: usiz
         body_stmts.push(delete_call);
     }
 
-    let func_def = SFuncDef {
+    let func_def = FuncDef {
         sig: FuncSig {
             function_type: FunctionType::FTProc,
             args: vec![self_decl],
@@ -110,7 +110,7 @@ fn generate_delete_method(struct_name: &str, struct_def: &SStructDef, line: usiz
 
 /// Generate a clone() method for a struct.
 /// The method returns a new instance with each mutable field cloned.
-fn generate_clone_method(struct_name: &str, struct_def: &SStructDef, line: usize, col: usize) -> MethodResult {
+fn generate_clone_method(struct_name: &str, struct_def: &StructDef, line: usize, col: usize) -> MethodResult {
     // Build: clone := func(self: StructName) returns StructName { return StructName(field1 = self.field1.clone(), ...) }
 
     // Use _self when no mut fields (body won't reference self)
@@ -199,7 +199,7 @@ fn generate_clone_method(struct_name: &str, struct_def: &SStructDef, line: usize
         col,
     );
 
-    let func_def = SFuncDef {
+    let func_def = FuncDef {
         sig: FuncSig {
             function_type: FunctionType::FTFunc,
             args: vec![self_decl],
@@ -237,7 +237,7 @@ fn generate_enum_delete_method(enum_name: &str, line: usize, col: usize) -> Expr
         default_value: None,
     };
 
-    let func_def = SFuncDef {
+    let func_def = FuncDef {
         sig: FuncSig {
             function_type: FunctionType::FTProc,
             args: vec![self_decl],
@@ -270,7 +270,7 @@ fn generate_enum_clone_method(enum_name: &str, line: usize, col: usize) -> Expr 
         col,
     );
 
-    let func_def = SFuncDef {
+    let func_def = FuncDef {
         sig: FuncSig {
             function_type: FunctionType::FTFunc,
             args: vec![self_decl],
@@ -320,7 +320,7 @@ fn collect_namespace_methods(ast: &Expr) -> HashSet<(String, String)> {
 fn collect_structs_needing_methods(
     ast: &Expr,
     namespace_methods: &HashSet<(String, String)>,
-) -> OrderedMap<String, (SStructDef, usize, usize, bool, bool)> {
+) -> OrderedMap<String, (StructDef, usize, usize, bool, bool)> {
     let mut structs = OrderedMap::new();
 
     if let NodeType::Body = &ast.node_type {
@@ -360,8 +360,8 @@ fn collect_structs_needing_methods(
 }
 
 /// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
-/// Returns Some(SNamespaceDef) if the struct needs auto-generated methods, None otherwise.
-pub fn generate_struct_methods(struct_name: &str, struct_def: &SStructDef, _line: usize, _col: usize) -> Option<SNamespaceDef> {
+/// Returns Some(NamespaceDef) if the struct needs auto-generated methods, None otherwise.
+pub fn generate_struct_methods(struct_name: &str, struct_def: &StructDef, _line: usize, _col: usize) -> Option<NamespaceDef> {
     // Check if delete/clone are already defined (inline or in ns)
     let has_delete = struct_def.members.iter().any(|m| m.name == "delete")
         || struct_def.default_values.contains_key("delete")
@@ -381,8 +381,8 @@ pub fn generate_struct_methods(struct_name: &str, struct_def: &SStructDef, _line
 }
 
 /// Issue #106: Public API for generating delete/clone methods for a macro-expanded enum.
-/// Returns Some(SNamespaceDef) if the enum needs auto-generated methods, None otherwise.
-pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool, line: usize, col: usize) -> Option<SNamespaceDef> {
+/// Returns Some(NamespaceDef) if the enum needs auto-generated methods, None otherwise.
+pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool, line: usize, col: usize) -> Option<NamespaceDef> {
     let needs_delete = !has_delete;
     let needs_clone = !has_clone;
 
@@ -418,7 +418,7 @@ pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool,
             default_values.insert("clone".to_string(), clone_expr);
         }
 
-        Some(SNamespaceDef {
+        Some(NamespaceDef {
             members,
             default_values,
         })
@@ -427,13 +427,13 @@ pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool,
     }
 }
 
-/// Generate a SNamespaceDef with auto-generated methods for a struct.
+/// Generate a NamespaceDef with auto-generated methods for a struct.
 fn generate_namespace_block(
     struct_name: &str,
-    struct_def: &SStructDef,
+    struct_def: &StructDef,
     needs_delete: bool,
     needs_clone: bool,
-) -> SNamespaceDef {
+) -> NamespaceDef {
     let mut members = Vec::new();
     let mut default_values = HashMap::new();
 
@@ -449,7 +449,7 @@ fn generate_namespace_block(
         default_values.insert("clone".to_string(), clone_result.expr);
     }
 
-    SNamespaceDef {
+    NamespaceDef {
         members,
         default_values,
     }
@@ -463,7 +463,7 @@ fn preinit_expr_inner(e: &Expr) -> Result<Expr, String> {
             for stmt in &func_def.body {
                 new_body.push(preinit_expr_inner(stmt)?);
             }
-            let new_func_def = SFuncDef {
+            let new_func_def = FuncDef {
                 sig: func_def.sig.clone(),
                 arg_names: func_def.arg_names.clone(),
                 body: new_body,
@@ -477,7 +477,7 @@ fn preinit_expr_inner(e: &Expr) -> Result<Expr, String> {
             for (name, value_expr) in &struct_def.default_values {
                 new_default_values.insert(name.clone(), preinit_expr_inner(value_expr)?);
             }
-            let new_struct_def = SStructDef {
+            let new_struct_def = StructDef {
                 members: struct_def.members.clone(),
                 default_values: new_default_values,
                 ns: struct_def.ns.clone(),
@@ -508,7 +508,7 @@ fn preinit_expr_inner(e: &Expr) -> Result<Expr, String> {
                             );
                         }
 
-                        let new_enum_def = SEnumDef {
+                        let new_enum_def = EnumDef {
                             variants: enum_def.variants.clone(),
                             methods: new_methods,
                             ns: enum_def.ns.clone(),
@@ -585,7 +585,7 @@ pub fn preinit_expr(e: &Expr) -> Result<Expr, String> {
                                     merged_ns.default_values.insert(k, v);
                                 }
                             }
-                            let new_struct_def = SStructDef {
+                            let new_struct_def = StructDef {
                                 members: struct_def.members.clone(),
                                 default_values: struct_def.default_values.clone(),
                                 ns: merged_ns,

@@ -5,11 +5,11 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use crate::rs::init::Context;
-use crate::rs::parser::{Expr, NodeType, ValueType, SFuncDef, SStructDef, SEnumDef, SNamespaceDef, Declaration};
+use crate::rs::parser::{Expr, NodeType, ValueType, FuncDef, StructDef, EnumDef, NamespaceDef, Declaration};
 
 /// Result of resolving a function call, including UFCS detection.
 struct ResolvedFCall {
-    func_def: SFuncDef,
+    func_def: FuncDef,
     is_ufcs: bool,
 }
 
@@ -198,7 +198,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             let new_body = final_body;
 
-            let new_func_def = SFuncDef {
+            let new_func_def = FuncDef {
                 sig: func_def.sig.clone(),
                 arg_names: func_def.arg_names.clone(),
                 body: new_body,
@@ -221,11 +221,11 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for (name, ns_value_expr) in &struct_def.ns.default_values {
                 ns_new_default_values.insert(name.clone(), garbager_recursive(context, ns_value_expr)?);
             }
-            let new_ns = SNamespaceDef {
+            let new_ns = NamespaceDef {
                 members: struct_def.ns.members.clone(),
                 default_values: ns_new_default_values,
             };
-            let new_struct_def = SStructDef {
+            let new_struct_def = StructDef {
                 members: struct_def.members.clone(),
                 default_values: new_default_values,
                 ns: new_ns,
@@ -242,11 +242,11 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for (name, ns_value_expr) in &enum_def.ns.default_values {
                 ns_new_default_values.insert(name.clone(), garbager_recursive(context, ns_value_expr)?);
             }
-            let new_ns = SNamespaceDef {
+            let new_ns = NamespaceDef {
                 members: enum_def.ns.members.clone(),
                 default_values: ns_new_default_values,
             };
-            let new_enum_def = SEnumDef {
+            let new_enum_def = EnumDef {
                 variants: enum_def.variants.clone(),
                 methods: enum_def.methods.clone(),
                 ns: new_ns,

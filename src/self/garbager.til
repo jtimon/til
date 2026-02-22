@@ -278,7 +278,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
         }
 
-        new_func_def := SFuncDef(
+        new_func_def := FuncDef(
             sig=FuncSig(
                 function_type=func_def.sig.function_type,
                 args=func_def.sig.args,
@@ -315,11 +315,11 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             }
             ns_new_default_values.set(ns_name.clone(), garbager_recursive(context, ns_value_expr)?)
         }
-        new_ns := SNamespaceDef(
+        new_ns := NamespaceDef(
             members=struct_def.ns.members.clone(),
             default_values=ns_new_default_values
         )
-        new_struct_def := SStructDef(
+        new_struct_def := StructDef(
             members=struct_def.members.clone(),
             default_values=new_default_values,
             ns=new_ns
@@ -339,11 +339,11 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             }
             enum_ns_new_default_values.set(enum_ns_name.clone(), garbager_recursive(context, enum_ns_value_expr)?)
         }
-        enum_new_ns := SNamespaceDef(
+        enum_new_ns := NamespaceDef(
             members=enum_def.ns.members.clone(),
             default_values=enum_ns_new_default_values
         )
-        new_enum_def := SEnumDef(
+        new_enum_def := EnumDef(
             variants=enum_def.variants,
             methods=enum_def.methods,
             ns=enum_new_ns
@@ -773,7 +773,7 @@ transform_fcall_copy_params : proc(context: Context, e: Expr, mut new_params: Ve
     }
 
     // Look up function definition to get arg metadata
-    mut func_def := SFuncDef()
+    mut func_def := FuncDef()
     mut found_func := false
     func_def = context.scope_stack.lookup_func(func_name)?
     found_func = true
@@ -865,7 +865,7 @@ get_cast_var : func(e: Expr) returns Str throws Str = {
 
 /// Result of resolving a function call, including UFCS detection.
 ResolvedFCall := struct {
-    mut func_def: SFuncDef = SFuncDef()
+    mut func_def: FuncDef = FuncDef()
     mut is_ufcs: Bool = false
 }
 
@@ -976,7 +976,7 @@ resolve_fcall_from_chain : proc(chain: Vec, local_types: Map, context: Context) 
     // Walk intermediate parts (chain[1..n-1]) via struct field type lookups
     for wi in 1..chain.len().sub(1) {
         field_name := cast(Str, chain.get(wi)?)
-        mut struct_def := SStructDef()
+        mut struct_def := StructDef()
         struct_def = context.scope_stack.lookup_struct(current_type)?
         catch (err: KeyNotFoundError) {
             throw KeyNotFoundError(msg=format("resolve_fcall_from_chain: struct not found '", current_type, "'"))
@@ -1093,7 +1093,7 @@ transform_struct_literal_fields : proc(context: Context, e: Expr, mut new_params
     }
 
     // Check if it's a struct
-    mut struct_def := SStructDef()
+    mut struct_def := StructDef()
     mut found_struct := false
     struct_def = context.scope_stack.lookup_struct(struct_name)?
     found_struct = true

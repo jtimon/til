@@ -69,7 +69,7 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
 }
 
 /// Collect all type names from a function definition (args, return types, throw types, body)
-collect_used_types_from_func : proc(context: Context, func_def: SFuncDef, mut used_types: Set) throws Str = {
+collect_used_types_from_func : proc(context: Context, func_def: FuncDef, mut used_types: Set) throws Str = {
     // Collect from arguments
     for arg: Declaration in func_def.sig.args {
         type_name := extract_type_name(arg.value_type)
@@ -100,7 +100,7 @@ collect_used_types_from_func : proc(context: Context, func_def: SFuncDef, mut us
 // ---------- Helper functions
 
 /// Issue #108: Rebuild a namespace definition, keeping only reachable methods
-rebuild_namespace_without_unreachable_methods : proc(ns_def: SNamespaceDef, type_name: Str, reachable: Set) returns SNamespaceDef = {
+rebuild_namespace_without_unreachable_methods : proc(ns_def: NamespaceDef, type_name: Str, reachable: Set) returns NamespaceDef = {
     mut new_members := Vec.new(Declaration)
     mut new_default_values := Map.new(Str, Expr)
 
@@ -128,14 +128,14 @@ rebuild_namespace_without_unreachable_methods : proc(ns_def: SNamespaceDef, type
         }
     }
 
-    return SNamespaceDef(
+    return NamespaceDef(
         members=new_members,
         default_values=new_default_values
     )
 }
 
 /// Rebuild a struct without unreachable methods
-rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def: SStructDef, reachable: Set) returns Expr = {
+rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def: StructDef, reachable: Set) returns Expr = {
     struct_name := decl.name
     mut new_members := Vec.new(Declaration)
     mut new_default_values := Map.new(Str, Expr)
@@ -167,7 +167,7 @@ rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def:
     // Also rebuild ns, pruning unreachable methods
     new_ns := rebuild_namespace_without_unreachable_methods(struct_def.ns, struct_name, reachable)
 
-    mut new_struct_def := SStructDef()
+    mut new_struct_def := StructDef()
     new_struct_def.members = new_members
     new_struct_def.default_values = new_default_values
     new_struct_def.ns = new_ns
@@ -459,7 +459,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
 
         // Find what this function calls using scope_stack
         mut found_func := false
-        mut func_def := SFuncDef()
+        mut func_def := FuncDef()
         func_def = context.scope_stack.lookup_func(func_name)?
         found_func = true
         catch (err: KeyNotFoundError) {
@@ -505,7 +505,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
         } else {
             // Check if it's a struct constructor
             mut found_struct := false
-            mut struct_def := SStructDef()
+            mut struct_def := StructDef()
             struct_def = context.scope_stack.lookup_struct(func_name)?
             found_struct = true
             catch (err: KeyNotFoundError) {
@@ -536,7 +536,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                 mut ctor_dot_pos := func_name.find(".")
                 if ctor_dot_pos.gt(0) {
                     mut enum_name := func_name.get_substr(0, ctor_dot_pos)?
-                    mut ctor_enum_def := SEnumDef()
+                    mut ctor_enum_def := EnumDef()
                     ctor_enum_def = context.scope_stack.lookup_enum(enum_name)?
                     found_enum = true
                     catch (err: KeyNotFoundError) {
@@ -551,7 +551,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
 
                 // Check if this is just an enum type name (e.g., ValueType without variant)
                 if ctor_dot_pos.lt(0).or(ctor_dot_pos.eq(0)) {
-                    mut type_enum_def := SEnumDef()
+                    mut type_enum_def := EnumDef()
                     type_enum_def = context.scope_stack.lookup_enum(func_name)?
                     continue
                     catch (err: KeyNotFoundError) {
@@ -588,13 +588,13 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                         maybe_var := cast(Str, parts.get(0)?)
                         // If first part is NOT a known struct/enum, it's likely a variable
                         mut found_struct_check := false
-                        mut _dummy_struct := SStructDef()
+                        mut _dummy_struct := StructDef()
                         _dummy_struct = context.scope_stack.lookup_struct(maybe_var)?
                         found_struct_check = true
                         catch (err: KeyNotFoundError) { }
 
                         mut found_enum_check := false
-                        mut _dummy_enum := SEnumDef()
+                        mut _dummy_enum := EnumDef()
                         _dummy_enum = context.scope_stack.lookup_enum(maybe_var)?
                         found_enum_check = true
                         catch (err: KeyNotFoundError) { }
@@ -622,7 +622,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                         mut found_method := false
                         for builtin: Str in builtin_types {
                             builtin_full_method := format(builtin, ".", method_name)
-                            mut _builtin_dummy_fd := SFuncDef()
+                            mut _builtin_dummy_fd := FuncDef()
                             _builtin_dummy_fd = context.scope_stack.lookup_func(builtin_full_method)?
                             // Found a matching method - mark it reachable instead
                             mark_reachable(builtin_full_method, reachable, worklist)
@@ -636,7 +636,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                             struct_names := context.scope_stack.get_all_struct_names()
                             for struct_name: Str in struct_names {
                                 user_full_method := format(struct_name, ".", method_name)
-                                mut _user_dummy_fd := SFuncDef()
+                                mut _user_dummy_fd := FuncDef()
                                 _user_dummy_fd = context.scope_stack.lookup_func(user_full_method)?
                                 mark_reachable(user_full_method, reachable, worklist)
                                 found_method = true
@@ -727,7 +727,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                 if ns_reach_decl.name.eq(eq_type_name) {
                     if stmt.params.len().gt(0) {
                         ns_reach_inner := stmt.get(0)?
-                        mut ns_reach_ns := SNamespaceDef()
+                        mut ns_reach_ns := NamespaceDef()
                         mut ns_reach_has_ns := false
                         switch ns_reach_inner.node_type {
                         case NodeType.StructDef(ns_reach_sd):

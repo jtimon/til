@@ -24,13 +24,13 @@ namespace:
     }
 }
 
-SNamespaceDef := struct {
+NamespaceDef := struct {
     mut members: Vec = Vec.new(Declaration)
     mut default_values: Map = Map.new(Str, Expr)
 
 namespace:
-    clone : func(self: SNamespaceDef) returns SNamespaceDef = {
-        mut result := SNamespaceDef()
+    clone : func(self: NamespaceDef) returns NamespaceDef = {
+        mut result := NamespaceDef()
         // Deep clone members
         for m: Declaration in self.members {
             result.members.push(m.clone())
@@ -45,14 +45,14 @@ namespace:
     }
 }
 
-SEnumDef := struct {
+EnumDef := struct {
     mut variants: Vec = Vec.new(EnumVariant)
     mut methods: Map = Map.new(Str, Expr)  // Auto-generated methods (delete, clone)
-    mut ns: SNamespaceDef = SNamespaceDef()
+    mut ns: NamespaceDef = NamespaceDef()
 
 namespace:
-    clone : func(self: SEnumDef) returns SEnumDef = {
-        mut result := SEnumDef()
+    clone : func(self: EnumDef) returns EnumDef = {
+        mut result := EnumDef()
         // Deep clone: iterate and clone each element
         for v: EnumVariant in self.variants {
             result.variants.push(v.clone())
@@ -63,16 +63,16 @@ namespace:
         return result
     }
 
-    len : func(self: SEnumDef) returns I64 = {
+    len : func(self: EnumDef) returns I64 = {
         return self.variants.len()
     }
 
-    size : func(self: SEnumDef) returns I64 = {
+    size : func(self: EnumDef) returns I64 = {
         return self.variants.size()
     }
 
     // Helper methods for backward compatibility
-    get : func(self: SEnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError = {
+    get : func(self: EnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError = {
         for v: EnumVariant in self.variants {
             if v.name.eq(variant_name) {
                 return v.payload_type
@@ -81,7 +81,7 @@ namespace:
         throw KeyNotFoundError()
     }
 
-    contains_key : func(self: SEnumDef, variant_name: Str) returns Bool = {
+    contains_key : func(self: EnumDef, variant_name: Str) returns Bool = {
         for v: EnumVariant in self.variants {
             if v.name.eq(variant_name) {
                 return true
@@ -194,16 +194,16 @@ namespace:
     }
 }
 
-// Issue #91: SFuncDef = FuncSig (type) + arg names (instance) + body + source_path
-SFuncDef := struct {
+// Issue #91: FuncDef = FuncSig (type) + arg names (instance) + body + source_path
+FuncDef := struct {
     mut sig: FuncSig = FuncSig()
     mut arg_names: Vec = Vec.new(Str)
     mut body: Vec = Vec.new(Expr)
     mut source_path: Str = ""
 
 namespace:
-    clone : func(self: SFuncDef) returns SFuncDef = {
-        mut result := SFuncDef()
+    clone : func(self: FuncDef) returns FuncDef = {
+        mut result := FuncDef()
         result.sig = self.sig.clone()
         for n: Str in self.arg_names {
             result.arg_names.push(n.clone())
@@ -215,27 +215,27 @@ namespace:
         return result
     }
 
-    is_proc : func(self: SFuncDef) returns Bool = {
+    is_proc : func(self: FuncDef) returns Bool = {
         return self.sig.is_proc()
     }
 
-    is_ext : func(self: SFuncDef) returns Bool = {
+    is_ext : func(self: FuncDef) returns Bool = {
         return self.sig.is_ext()
     }
 
-    is_macro : func(self: SFuncDef) returns Bool = {
+    is_macro : func(self: FuncDef) returns Bool = {
         return self.sig.is_macro()
     }
 }
 
-SStructDef := struct {
+StructDef := struct {
     mut members: Vec = Vec.new(Declaration)
     mut default_values: Map = Map.new(Str, Expr)
-    mut ns: SNamespaceDef = SNamespaceDef()
+    mut ns: NamespaceDef = NamespaceDef()
 
 namespace:
-    clone : func(self: SStructDef) returns SStructDef = {
-        mut result := SStructDef()
+    clone : func(self: StructDef) returns StructDef = {
+        mut result := StructDef()
         // Deep clone members
         for m: Declaration in self.members {
             result.members.push(m.clone())
@@ -251,7 +251,7 @@ namespace:
     }
 
     /** Helper to find a member by name */
-    get_member : func(self: SStructDef, member_name: Str) returns Declaration throws Str = {
+    get_member : func(self: StructDef, member_name: Str) returns Declaration throws Str = {
         for i in 0..self.members.len() {
             member := cast(Declaration, self.members.get(i)?)
             if Str.eq(member.name, member_name) {
@@ -266,7 +266,7 @@ namespace:
     }
 
     /** Helper to find a member by name or return an error */
-    get_member_or_err : func(self: SStructDef, member_name: Str, struct_name: Str, path: Str, e: Expr) returns Declaration throws Str = {
+    get_member_or_err : func(self: StructDef, member_name: Str, struct_name: Str, path: Str, e: Expr) returns Declaration throws Str = {
         member := self.get_member(member_name)?
         catch (err: Str) {
             throw e.error(path, "type", format("Struct '", struct_name, "' has no member '", member_name, "'"))
@@ -306,9 +306,9 @@ NodeType := enum {
     Declaration: Declaration,
     Assignment: Str,
     NamedArg: Str,  // Named argument in function call: name=value
-    FuncDef: SFuncDef,
-    EnumDef: SEnumDef,
-    StructDef: SStructDef,
+    FuncDef: FuncDef,
+    EnumDef: EnumDef,
+    StructDef: StructDef,
     Return,
     Throw,
     Catch,

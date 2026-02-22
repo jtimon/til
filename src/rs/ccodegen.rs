@@ -1,7 +1,7 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, SNamespaceDef, ValueType, INFER_TYPE, FunctionType, TTypeDef};
+use crate::rs::parser::{Expr, NodeType, Literal, FuncDef, EnumDef, NamespaceDef, ValueType, INFER_TYPE, FunctionType, TTypeDef};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType, PrecomputedHeapValue};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use crate::rs::eval_heap::{EvalHeap, VecContents};
@@ -183,7 +183,7 @@ fn has_reassignment_of(stmts: &[Expr], var_name: &str) -> bool {
 // - All Return nodes return the same simple Identifier
 // - That variable is NOT a function parameter
 // - That variable is NOT reassigned (RVO aliasing makes reassignment unsafe)
-fn find_ret_var_for_placement(func_def: &SFuncDef) -> Result<String, String> {
+fn find_ret_var_for_placement(func_def: &FuncDef) -> Result<String, String> {
     // Must be a throwing function with struct/enum return type
     if func_def.sig.throw_types.is_empty() {
         return Ok(String::new());
@@ -459,7 +459,7 @@ fn get_type_arg_name(expr: &Expr, context: &Context) -> Option<String> {
 // Uses get_func_def_for_fcall_with_expr from typer.rs which handles all cases correctly
 // (regular functions, struct methods, UFCS - though UFCS is already resolved by precomp)
 // Returns None for struct/enum constructors
-fn get_fcall_func_def(context: &Context, fcall_expr: &Expr) -> Option<SFuncDef> {
+fn get_fcall_func_def(context: &Context, fcall_expr: &Expr) -> Option<FuncDef> {
     let mut expr_clone = fcall_expr.clone();
     match get_func_def_for_fcall_with_expr(&context, &mut expr_clone) {
         Ok(Some(fd)) => Some(fd),
@@ -1080,7 +1080,7 @@ fn emit_arg_string(
 /// Helper: Emit a throwing FCall arg, hoisting it and returning temp var string
 fn emit_throwing_arg_string(
     arg: &Expr,
-    fd: &SFuncDef,
+    fd: &FuncDef,
     param_type: Option<&ValueType>,
     param_by_ref: bool,
     hoist_output: &mut String,
@@ -3095,7 +3095,7 @@ fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
 }
 
 // Check if an enum has any payloads
-fn enum_has_payloads(enum_def: &SEnumDef) -> bool {
+fn enum_has_payloads(enum_def: &EnumDef) -> bool {
     for v in &enum_def.variants {
         if v.payload_type.is_some() {
             return true;
@@ -3117,7 +3117,7 @@ fn is_enum_with_payloads(expr: &Expr) -> Result<bool, String> {
 }
 
 // Emit an enum with payloads as a tagged union
-fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut String) -> Result<(), String> {
+fn emit_enum_with_payloads(enum_name: &str, enum_def: &EnumDef, output: &mut String) -> Result<(), String> {
     // Sort variants by name for deterministic output
     let mut variants: Vec<_> = enum_def.variants.iter().collect();
     variants.sort_by_key(|v| &v.name);
@@ -3291,7 +3291,7 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
 // Takes a const pointer since we only read the enum
 // For simple enums: til_Str til_EnumName_to_str(const til_EnumName* e)
 // For enums with payloads: til_Str til_EnumName_to_str(const til_EnumName* e)
-fn emit_enum_to_str_function(enum_name: &str, enum_def: &SEnumDef, output: &mut String) {
+fn emit_enum_to_str_function(enum_name: &str, enum_def: &EnumDef, output: &mut String) {
     let has_payloads = enum_has_payloads(enum_def);
     let mut variants: Vec<_> = enum_def.variants.iter().map(|v| &v.name).collect();
     variants.sort();
@@ -3415,7 +3415,7 @@ fn emit_enum_method_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
 }
 
 // Emit a struct/namespace/enum function body with mangled name: TypeName_funcname
-fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &FuncDef, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Skip external functions
     if func_def.is_ext() {
         return Ok(());
@@ -3525,7 +3525,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
 }
 
 // Issue #108: Emit namespace function prototypes (forward declarations)
-fn emit_namespace_func_prototypes(ns_def: &SNamespaceDef, decl_name: &str, context: &Context, output: &mut String) -> Result<(), String> {
+fn emit_namespace_func_prototypes(ns_def: &NamespaceDef, decl_name: &str, context: &Context, output: &mut String) -> Result<(), String> {
     let type_name = til_name(decl_name);
     for member in &ns_def.members {
         if let Some(func_expr) = ns_def.default_values.get(&member.name) {
@@ -3540,7 +3540,7 @@ fn emit_namespace_func_prototypes(ns_def: &SNamespaceDef, decl_name: &str, conte
 }
 
 // Issue #108: Emit namespace function bodies
-fn emit_namespace_func_bodies(ns_def: &SNamespaceDef, decl_name: &str, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+fn emit_namespace_func_bodies(ns_def: &NamespaceDef, decl_name: &str, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     let type_name = til_name(decl_name);
     for member in &ns_def.members {
         if let Some(func_expr) = ns_def.default_values.get(&member.name) {
@@ -3586,7 +3586,7 @@ fn value_type_to_c_name(vt: &ValueType) -> Result<String, String> {
 // For non-throwing:
 //   RetType func_name(args...)
 // Issue #119: Empty struct errors don't get error parameters - only status code matters
-fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, output: &mut String) -> Result<(), String> {
+fn emit_func_signature(func_name: &str, func_def: &FuncDef, context: &Context, output: &mut String) -> Result<(), String> {
     let is_throwing = !func_def.sig.throw_types.is_empty();
 
     if is_throwing {
@@ -6157,7 +6157,7 @@ fn get_enum_construction_type(expr: &Expr, context: &Context) -> Result<String, 
     Ok(String::new())
 }
 
-fn emit_funcdef(_func_def: &SFuncDef, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+fn emit_funcdef(_func_def: &FuncDef, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // For now, just inline the function body (we're inside main anyway)
     // TODO: proper function generation with prototypes
     let indent_str = "    ".repeat(indent);

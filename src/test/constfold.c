@@ -20,13 +20,13 @@ typedef struct til_U8_Overflow til_U8_Overflow;
 typedef struct til_HeapEntry til_HeapEntry;
 typedef struct til_HeapState til_HeapState;
 typedef struct til_Map til_Map;
-typedef struct til_SNamespaceDef til_SNamespaceDef;
-typedef struct til_SEnumDef til_SEnumDef;
+typedef struct til_NamespaceDef til_NamespaceDef;
+typedef struct til_EnumDef til_EnumDef;
 typedef struct til_Declaration til_Declaration;
 typedef struct til_PatternInfo til_PatternInfo;
 typedef struct til_FuncSig til_FuncSig;
-typedef struct til_SFuncDef til_SFuncDef;
-typedef struct til_SStructDef til_SStructDef;
+typedef struct til_FuncDef til_FuncDef;
+typedef struct til_StructDef til_StructDef;
 typedef struct til_Literal til_Literal;
 typedef struct til_NodeType til_NodeType;
 typedef struct til_ValueType til_ValueType;
@@ -209,7 +209,7 @@ struct til_FuncSig {
     til_Vec throw_types;
 };
 
-struct til_SFuncDef {
+struct til_FuncDef {
     til_FuncSig sig;
     til_Vec arg_names;
     til_Vec body;
@@ -222,21 +222,21 @@ struct til_Map {
     til_I64 _size;
 };
 
-struct til_SNamespaceDef {
+struct til_NamespaceDef {
     til_Vec members;
     til_Map default_values;
 };
 
-struct til_SStructDef {
+struct til_StructDef {
     til_Vec members;
     til_Map default_values;
-    til_SNamespaceDef ns;
+    til_NamespaceDef ns;
 };
 
-struct til_SEnumDef {
+struct til_EnumDef {
     til_Vec variants;
     til_Map methods;
-    til_SNamespaceDef ns;
+    til_NamespaceDef ns;
 };
 
 typedef enum {
@@ -267,15 +267,15 @@ typedef enum {
 typedef union {
     til_Str Assignment;
     til_Declaration Declaration;
-    til_SEnumDef EnumDef;
+    til_EnumDef EnumDef;
     til_Bool FCall;
     til_Str ForIn;
-    til_SFuncDef FuncDef;
+    til_FuncDef FuncDef;
     til_Str Identifier;
     til_Literal LLiteral;
     til_Str NamedArg;
     til_PatternInfo Pattern;
-    til_SStructDef StructDef;
+    til_StructDef StructDef;
 } til_NodeType_Payload;
 
 struct til_NodeType {
@@ -320,7 +320,7 @@ static inline til_NodeType til_NodeType_make_DefaultCase(void) {
     return result;
 }
 
-static inline til_NodeType til_NodeType_make_EnumDef(til_SEnumDef value) {
+static inline til_NodeType til_NodeType_make_EnumDef(til_EnumDef value) {
     til_NodeType result = { .tag = til_NodeType_EnumDef };
     result.payload.EnumDef = value;
     return result;
@@ -338,7 +338,7 @@ static inline til_NodeType til_NodeType_make_ForIn(til_Str value) {
     return result;
 }
 
-static inline til_NodeType til_NodeType_make_FuncDef(til_SFuncDef value) {
+static inline til_NodeType til_NodeType_make_FuncDef(til_FuncDef value) {
     til_NodeType result = { .tag = til_NodeType_FuncDef };
     result.payload.FuncDef = value;
     return result;
@@ -383,7 +383,7 @@ static inline til_NodeType til_NodeType_make_Return(void) {
     return result;
 }
 
-static inline til_NodeType til_NodeType_make_StructDef(til_SStructDef value) {
+static inline til_NodeType til_NodeType_make_StructDef(til_StructDef value) {
     til_NodeType result = { .tag = til_NodeType_StructDef };
     result.payload.StructDef = value;
     return result;
@@ -618,13 +618,13 @@ const til_I64 til_size_of_U8 = sizeof(til_U8);
 const til_I64 til_size_of_HeapEntry = sizeof(til_HeapEntry);
 const til_I64 til_size_of_HeapState = sizeof(til_HeapState);
 const til_I64 til_size_of_Map = sizeof(til_Map);
-const til_I64 til_size_of_SNamespaceDef = sizeof(til_SNamespaceDef);
-const til_I64 til_size_of_SEnumDef = sizeof(til_SEnumDef);
+const til_I64 til_size_of_NamespaceDef = sizeof(til_NamespaceDef);
+const til_I64 til_size_of_EnumDef = sizeof(til_EnumDef);
 const til_I64 til_size_of_Declaration = sizeof(til_Declaration);
 const til_I64 til_size_of_PatternInfo = sizeof(til_PatternInfo);
 const til_I64 til_size_of_FuncSig = sizeof(til_FuncSig);
-const til_I64 til_size_of_SFuncDef = sizeof(til_SFuncDef);
-const til_I64 til_size_of_SStructDef = sizeof(til_SStructDef);
+const til_I64 til_size_of_FuncDef = sizeof(til_FuncDef);
+const til_I64 til_size_of_StructDef = sizeof(til_StructDef);
 const til_I64 til_size_of_Dynamic = sizeof(til_Dynamic);
 const til_I64 til_size_of_Type = sizeof(til_Type);
 const til_I64 til_size_of_CfVec2 = sizeof(til_CfVec2);
@@ -729,13 +729,13 @@ static inline til_I64 til_size_of(const til_Str* type_name) {
     if (strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) return til_size_of_HeapEntry;
     if (strcmp((char*)type_name->c_string.data, "HeapState") == 0) return til_size_of_HeapState;
     if (strcmp((char*)type_name->c_string.data, "Map") == 0) return til_size_of_Map;
-    if (strcmp((char*)type_name->c_string.data, "SNamespaceDef") == 0) return til_size_of_SNamespaceDef;
-    if (strcmp((char*)type_name->c_string.data, "SEnumDef") == 0) return til_size_of_SEnumDef;
+    if (strcmp((char*)type_name->c_string.data, "NamespaceDef") == 0) return til_size_of_NamespaceDef;
+    if (strcmp((char*)type_name->c_string.data, "EnumDef") == 0) return til_size_of_EnumDef;
     if (strcmp((char*)type_name->c_string.data, "Declaration") == 0) return til_size_of_Declaration;
     if (strcmp((char*)type_name->c_string.data, "PatternInfo") == 0) return til_size_of_PatternInfo;
     if (strcmp((char*)type_name->c_string.data, "FuncSig") == 0) return til_size_of_FuncSig;
-    if (strcmp((char*)type_name->c_string.data, "SFuncDef") == 0) return til_size_of_SFuncDef;
-    if (strcmp((char*)type_name->c_string.data, "SStructDef") == 0) return til_size_of_SStructDef;
+    if (strcmp((char*)type_name->c_string.data, "FuncDef") == 0) return til_size_of_FuncDef;
+    if (strcmp((char*)type_name->c_string.data, "StructDef") == 0) return til_size_of_StructDef;
     if (strcmp((char*)type_name->c_string.data, "Dynamic") == 0) return til_size_of_Dynamic;
     if (strcmp((char*)type_name->c_string.data, "Type") == 0) return til_size_of_Type;
     if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) return til_size_of_CfVec2;

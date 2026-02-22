@@ -493,7 +493,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
 
     // Check if this is a struct instantiation
     mut is_struct := false
-    mut struct_def := SStructDef()
+    mut struct_def := StructDef()
     struct_def = context.scope_stack.lookup_struct(name)?
     is_struct = true
     catch (err: KeyNotFoundError) {
@@ -885,7 +885,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
     // TODO: After precomp, UFCS is already resolved so the mutation in get_func_def_for_fcall_with_expr
     // is a no-op. Could save this clone by adding a simpler lookup function that doesn't need &mut.
     mut new_fcall_e := e.clone()
-    mut func_def := SFuncDef()
+    mut func_def := FuncDef()
     func_def = get_func_def_for_fcall_with_expr(context, new_fcall_e)?
     catch (err: KeyNotFoundError) {
         throw e.lang_error(context.path, "eval", "eval_func_proc_call: Instantiations should be handled already")
@@ -1680,7 +1680,7 @@ eval_identifier_expr : proc(name: Str, mut context: Context, e: Expr) returns Ev
                         catch (err: KeyNotFoundError) {
                             throw e.error(context.path, "eval", format("Struct '", current_type, "' not found"))
                         }
-                        type_member := SStructDef.get_member_or_err(type_struct_def, type_field_name, current_type, context.path, e)?
+                        type_member := StructDef.get_member_or_err(type_struct_def, type_field_name, current_type, context.path, e)?
                         switch type_member.value_type {
                         case ValueType.TCustom(inner_type):
                             current_type = inner_type
@@ -1882,7 +1882,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                                     // Create a proper Str struct for the catch variable
                                     EvalHeap.insert_string(context, var_name, throw_result.value, stmt)?
                                 } else {
-                                    mut struct_def := SStructDef()
+                                    mut struct_def := StructDef()
                                     mut has_struct := false
                                     struct_def = context.scope_stack.lookup_struct(thrown_type)?
                                     has_struct = true
@@ -1919,7 +1919,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                             _ := context.scope_stack.remove_symbol(var_name)?
                             _ := context.scope_stack.remove_var(var_name)?
                             // Also remove the field symbol mappings
-                            mut cleanup_struct_def := SStructDef()
+                            mut cleanup_struct_def := StructDef()
                             mut has_cleanup_struct := false
                             cleanup_struct_def = context.scope_stack.lookup_struct(thrown_type)?
                             has_cleanup_struct = true
@@ -2002,7 +2002,7 @@ CollectedMutArg := struct {
     mut value: MutArgValue = MutArgValue.I64(0)
 }
 
-eval_user_func_proc_call : proc(func_def: SFuncDef, name: Str, mut context: Context, e: Expr) returns EvalResult throws Str = {
+eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Context, e: Expr) returns EvalResult throws Str = {
     // TODO REFACTOR: Replace context.clone() with scope push/pop
 
     mut function_frame := ScopeFrame(scope_type=ScopeType.Function)
@@ -3148,7 +3148,7 @@ main_interpret : proc(skip_init_and_typecheck: Bool, mut context: Context, path:
             errors.push(type_err)
         }
 
-        // TODO: check_body_returns_throws for root body - needs SFuncDef and ThrownType
+        // TODO: check_body_returns_throws for root body - needs FuncDef and ThrownType
         // For now, skip this check (can be added post-self-hosting)
 
         if errors.len().gt(0) {

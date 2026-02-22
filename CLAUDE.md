@@ -43,7 +43,7 @@ Why: When something fails, you need to see the FULL output. Filtering hides crit
 ## CRITICAL: Always Use Memory Limit
 **EVERY** `make benchmark` must use the memory limit:
 ```bash
-make clean && systemd-run --user --scope -p MemoryMax=50G -p MemorySwapMax=0 make benchmark > tmp/build_output.txt 2>&1
+make clean && systemd-run --user --scope -p MemoryMax=60G -p MemorySwapMax=0 make benchmark > tmp/build_output.txt 2>&1
 ```
 Do NOT forget `make clean`. Do NOT forget the memory limit.
 

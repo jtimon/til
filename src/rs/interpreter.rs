@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use crate::rs::init::{Context, SymbolInfo, EnumVal, EnumPayload, ScopeFrame, ScopeType, get_value_type, get_func_name_in_call, init_import_declarations, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, FunctionType, SFuncDef, FuncSig,
+    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, FunctionType, FuncDef, FuncSig,
     value_type_to_str, get_combined_name, parse_tokens,
 };
 use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, type_check, check_body_returns_throws, typer_import_declarations, ThrownType};
@@ -189,7 +189,7 @@ fn eval_condition_to_bool(context: &Context, result: &EvalResult, expr: &Expr) -
 }
 
 // Helper function to validate function/procedure argument counts
-fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -> Result<(), String> {
+fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &FuncDef) -> Result<(), String> {
     let provided_args = e.params.len() - 1;
     let has_multi_arg = func_proc_has_multi_arg(func_def);
 
@@ -1843,7 +1843,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 
 // ---------- generic eval things
 
-fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     // TODO REFACTOR: Replace context.clone() with scope push/pop
     // When refactoring:
     // 1. Replace line 2523-2524 with: let saved_path = context.push_function_scope(&func_def.source_path);
@@ -2794,7 +2794,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         errors.extend(type_errors);
 
         // Check throw/catch and return things in the root body of the file (for modes script and test, for example)
-        let func_def = SFuncDef{sig: FuncSig{function_type: FunctionType::FTProc, args: vec![], return_types: vec![], throw_types: vec![]}, arg_names: vec![], body: vec![], source_path: path.clone()};
+        let func_def = FuncDef{sig: FuncSig{function_type: FunctionType::FTProc, args: vec![], return_types: vec![], throw_types: vec![]}, arg_names: vec![], body: vec![], source_path: path.clone()};
         let mut thrown_types: Vec<ThrownType> = vec![];
         let mut return_found = false;
         errors.extend(check_body_returns_throws(context, &resolved_e, &func_def, resolved_e.params.as_slice(), &mut thrown_types, &mut return_found)?);

@@ -6,7 +6,7 @@ use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SEnumDef, EnumVariant, SFuncDef, FuncSig, SNamespaceDef, Declaration, Literal, TTypeDef,
+    Expr, NodeType, ValueType, StructDef, EnumDef, EnumVariant, FuncDef, FuncSig, NamespaceDef, Declaration, Literal, TTypeDef,
     FunctionType, PatternInfo, value_type_to_str, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
@@ -18,7 +18,7 @@ use crate::rs::preinit::{generate_struct_methods, generate_enum_methods};
 
 /// Build a substitution map from macro Type/Dynamic parameters to actual type names.
 /// For `make_vec3(I64)` where `make_vec3` takes `T: Type`, returns {"T": "I64"}.
-fn build_type_param_subs(func_def: &SFuncDef, fcall: &Expr) -> HashMap<String, String> {
+fn build_type_param_subs(func_def: &FuncDef, fcall: &Expr) -> HashMap<String, String> {
     let mut subs = HashMap::new();
     for (i, arg) in func_def.sig.args.iter().enumerate() {
         if let ValueType::TCustom(ref type_name) = arg.value_type {
@@ -77,7 +77,7 @@ fn substitute_type_params_in_expr(e: &Expr, subs: &HashMap<String, String>) -> E
 }
 
 /// Substitute type param names in a FuncDef's args, return types, throw types, and body.
-fn substitute_type_params_in_funcdef(func_def: &SFuncDef, subs: &HashMap<String, String>) -> SFuncDef {
+fn substitute_type_params_in_funcdef(func_def: &FuncDef, subs: &HashMap<String, String>) -> FuncDef {
     let new_args = func_def.sig.args.iter().map(|arg| {
         if let ValueType::TCustom(ref type_name) = arg.value_type {
             if let Some(concrete) = subs.get(type_name) {
@@ -105,7 +105,7 @@ fn substitute_type_params_in_funcdef(func_def: &SFuncDef, subs: &HashMap<String,
         tt.clone()
     }).collect();
     let new_body = func_def.body.iter().map(|e| substitute_type_params_in_expr(e, subs)).collect();
-    SFuncDef {
+    FuncDef {
         sig: FuncSig {
             function_type: func_def.sig.function_type.clone(),
             args: new_args,
@@ -119,7 +119,7 @@ fn substitute_type_params_in_funcdef(func_def: &SFuncDef, subs: &HashMap<String,
 }
 
 /// Apply type param substitution to a struct definition's member types and default values.
-fn substitute_type_params_in_struct(struct_def: &SStructDef, subs: &HashMap<String, String>) -> SStructDef {
+fn substitute_type_params_in_struct(struct_def: &StructDef, subs: &HashMap<String, String>) -> StructDef {
     let new_members = struct_def.members.iter().map(|m| {
         if let ValueType::TCustom(ref type_name) = m.value_type {
             if let Some(concrete_type) = subs.get(type_name) {
@@ -139,16 +139,16 @@ fn substitute_type_params_in_struct(struct_def: &SStructDef, subs: &HashMap<Stri
     let new_ns_defaults = struct_def.ns.default_values.iter().map(|(name, expr)| {
         (name.clone(), substitute_type_params_in_expr(expr, subs))
     }).collect();
-    let new_ns = SNamespaceDef {
+    let new_ns = NamespaceDef {
         members: struct_def.ns.members.clone(),
         default_values: new_ns_defaults,
     };
 
-    SStructDef { members: new_members, default_values: new_defaults, ns: new_ns }
+    StructDef { members: new_members, default_values: new_defaults, ns: new_ns }
 }
 
 /// Issue #106: Apply type param substitution to an enum definition's variant payload types.
-fn substitute_type_params_in_enum(enum_def: &SEnumDef, subs: &HashMap<String, String>) -> SEnumDef {
+fn substitute_type_params_in_enum(enum_def: &EnumDef, subs: &HashMap<String, String>) -> EnumDef {
     let new_variants = enum_def.variants.iter().map(|v| {
         if let Some(ref payload_type) = v.payload_type {
             if let ValueType::TCustom(ref type_name) = payload_type {
@@ -162,13 +162,13 @@ fn substitute_type_params_in_enum(enum_def: &SEnumDef, subs: &HashMap<String, St
         }
         v.clone()
     }).collect();
-    SEnumDef { variants: new_variants, methods: enum_def.methods.clone(), ns: enum_def.ns.clone() }
+    EnumDef { variants: new_variants, methods: enum_def.methods.clone(), ns: enum_def.ns.clone() }
 }
 
 /// Extract namespace def from a macro's body AST.
 /// Scans for Return nodes or Declaration nodes containing a StructDef or EnumDef with a non-empty ns field.
 /// Returns the first matching namespace def (simple macros only).
-fn extract_namespace_from_macro(func_def: &SFuncDef) -> SNamespaceDef {
+fn extract_namespace_from_macro(func_def: &FuncDef) -> NamespaceDef {
     for stmt in &func_def.body {
         // Pattern 1: return struct/enum { ... namespace: ... }
         if matches!(&stmt.node_type, NodeType::Return) {
@@ -199,13 +199,13 @@ fn extract_namespace_from_macro(func_def: &SFuncDef) -> SNamespaceDef {
             }
         }
     }
-    SNamespaceDef { members: Vec::new(), default_values: HashMap::new() }
+    NamespaceDef { members: Vec::new(), default_values: HashMap::new() }
 }
 
 /// Extract the internal type name from a macro body (e.g., "TemplatedPtr" from
 /// `TemplatedPtr := struct { ... }` or "TemplatedOption" from `TemplatedOption := enum { ... }`).
 /// Returns None for anonymous types (`return struct/enum { ... }`).
-fn extract_internal_type_name(func_def: &SFuncDef) -> Option<String> {
+fn extract_internal_type_name(func_def: &FuncDef) -> Option<String> {
     for stmt in &func_def.body {
         if let NodeType::Declaration(inner_decl) = &stmt.node_type {
             if let Some(val) = stmt.params.first() {
@@ -346,7 +346,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                         }
                                     }
                                     // Build combined ns: auto-generated + user-defined from macro namespace
-                                    let mut combined_ns = SNamespaceDef {
+                                    let mut combined_ns = NamespaceDef {
                                         members: Vec::new(),
                                         default_values: HashMap::new(),
                                     };
@@ -354,10 +354,10 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                     let ns_has_delete = macro_ns.members.iter().any(|m| m.name == "delete");
                                     let ns_has_clone = macro_ns.members.iter().any(|m| m.name == "clone");
                                     // Generate auto delete/clone methods
-                                    let mut auto_struct = SStructDef {
+                                    let mut auto_struct = StructDef {
                                         members: resolved_members.clone(),
                                         default_values: precomputed_defaults.clone(),
-                                        ns: SNamespaceDef { members: Vec::new(), default_values: HashMap::new() },
+                                        ns: NamespaceDef { members: Vec::new(), default_values: HashMap::new() },
                                     };
                                     let dummy = Expr::new_explicit(NodeType::LLiteral(Literal::Number("0".to_string())), vec![], 0, 0);
                                     if ns_has_delete { auto_struct.default_values.insert("delete".to_string(), dummy.clone()); }
@@ -382,7 +382,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                             combined_ns.default_values.insert(name.clone(), substituted_val);
                                         }
                                     }
-                                    let resolved_struct = SStructDef {
+                                    let resolved_struct = StructDef {
                                         members: resolved_members,
                                         default_values: precomputed_defaults,
                                         ns: combined_ns,
@@ -436,7 +436,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                     // They'll be regenerated with the correct external name below
                                     substituted.methods = crate::rs::ordered_map::OrderedMap::new();
                                     // Build combined ns: auto-generated + user-defined from macro namespace
-                                    let mut combined_ns = SNamespaceDef {
+                                    let mut combined_ns = NamespaceDef {
                                         members: Vec::new(),
                                         default_values: HashMap::new(),
                                     };
@@ -934,7 +934,7 @@ fn precomp_params(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
-fn precomp_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) -> Result<Expr, String> {
+fn precomp_struct_def(context: &mut Context, e: &Expr, struct_def: &StructDef) -> Result<Expr, String> {
     let mut new_default_values = HashMap::new();
     for (name, value_expr) in &struct_def.default_values {
         // Bug #40 fix: For method definitions, set function name context
@@ -973,12 +973,12 @@ fn precomp_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) 
             context.precomp_forin_counter = saved_counter;
         }
     }
-    let new_ns = SNamespaceDef {
+    let new_ns = NamespaceDef {
         members: struct_def.ns.members.clone(),
         default_values: ns_new_default_values,
     };
 
-    let new_struct_def = SStructDef {
+    let new_struct_def = StructDef {
         members: struct_def.members.clone(),
         default_values: new_default_values,
         ns: new_ns,
@@ -987,7 +987,7 @@ fn precomp_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) 
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
-fn precomp_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Result<Expr, String> {
+fn precomp_func_def(context: &mut Context, e: &Expr, func_def: FuncDef) -> Result<Expr, String> {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType::Function);
     for arg in &func_def.sig.args {
@@ -1009,7 +1009,7 @@ fn precomp_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Resu
     // Pop the function scope frame
     let _ = context.scope_stack.pop();
 
-    let new_func_def = SFuncDef {
+    let new_func_def = FuncDef {
         sig: func_def.sig.clone(),
         arg_names: func_def.arg_names.clone(),
         body: new_body,
@@ -1040,7 +1040,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     // Issue #91: Resolve function signature type references
     // When decl.value_type is a custom type name that resolves to a FunctionSig,
     // look up the signature and set value_type to match the function type.
-    let mut sig_func_def: Option<SFuncDef> = None;
+    let mut sig_func_def: Option<FuncDef> = None;
     if let ValueType::TCustom(ref sig_name) = decl.value_type {
         if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
             if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {

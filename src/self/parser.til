@@ -691,7 +691,7 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
     for arg: Declaration in args {
         arg_names.push(arg.name.clone())
     }
-    mut func_def := SFuncDef()
+    mut func_def := FuncDef()
     func_def.sig = FuncSig(
         function_type=function_type,
         args=args,
@@ -710,7 +710,7 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
     return e
 }
 
-build_namespace_from_stmts : func(namespace_stmts: Vec) returns SNamespaceDef throws Str = {
+build_namespace_from_stmts : func(namespace_stmts: Vec) returns NamespaceDef throws Str = {
     mut ns_members := Vec.new(Declaration)
     mut ns_default_values := Map.new(Str, Expr)
     for stmt: Expr in namespace_stmts {
@@ -740,7 +740,7 @@ build_namespace_from_stmts : func(namespace_stmts: Vec) returns SNamespaceDef th
             // skip
         }
     }
-    mut ns_def := SNamespaceDef()
+    mut ns_def := NamespaceDef()
     ns_def.members = ns_members
     ns_def.default_values = ns_default_values
     return ns_def
@@ -849,7 +849,7 @@ enum_definition : func(mut lexer: Lexer) returns Expr throws Str = {
         throw t.error(lexer.path, "Expected '}}' to end enum.")
     }
     ns := build_namespace_from_stmts(namespace_stmts)?
-    mut enum_def := SEnumDef()
+    mut enum_def := EnumDef()
     enum_def.variants = variants
     enum_def.ns = ns
     initial_token := lexer.get_token(initial_current)?.clone()
@@ -960,7 +960,7 @@ parse_struct_definition : func(mut lexer: Lexer) returns Expr throws Str = {
     }
 
     ns := build_namespace_from_stmts(namespace_stmts)?
-    mut struct_def := SStructDef()
+    mut struct_def := StructDef()
     struct_def.members = members
     struct_def.default_values = default_values
     struct_def.ns = ns
@@ -2064,7 +2064,7 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit
                     args.push(arg)
                 }
                 // Issue #91: Binding tuple form - arg names come from binding
-                mut func_def := SFuncDef()
+                mut func_def := FuncDef()
                 func_def.sig = FuncSig(
                     function_type=FunctionType.FTFunc,
                     args=args,

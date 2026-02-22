@@ -12,7 +12,7 @@ import("self.precomp_ext")
 
 /// Build a substitution map from macro Type/Dynamic parameters to actual type names.
 /// For `make_vec3(I64)` where `make_vec3` takes `T: Type`, returns {"T": "I64"}.
-build_type_param_subs : func(func_def: SFuncDef, fcall: Expr) returns Map throws Str = {
+build_type_param_subs : func(func_def: FuncDef, fcall: Expr) returns Map throws Str = {
     mut subs := Map.new(Str, Str)
     for i in 0..func_def.sig.args.len() {
         arg := cast(Declaration, func_def.sig.args.get(i)?)
@@ -101,7 +101,7 @@ substitute_type_params_in_expr : func(e: Expr, subs: Map) returns Expr = {
 }
 
 /// Substitute type param names in a FuncDef's args, return types, throw types, and body.
-substitute_type_params_in_funcdef : func(func_def: SFuncDef, subs: Map) returns SFuncDef = {
+substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns FuncDef = {
     mut new_args := Vec.new(Declaration)
     for arg: Declaration in func_def.sig.args {
         mut substituted := false
@@ -157,7 +157,7 @@ substitute_type_params_in_funcdef : func(func_def: SFuncDef, subs: Map) returns 
     for stmt: Expr in func_def.body {
         new_body.push(substitute_type_params_in_expr(stmt, subs))
     }
-    mut new_func_def := SFuncDef()
+    mut new_func_def := FuncDef()
     new_func_def.sig = FuncSig(
         function_type=func_def.sig.function_type,
         args=new_args,
@@ -171,7 +171,7 @@ substitute_type_params_in_funcdef : func(func_def: SFuncDef, subs: Map) returns 
 }
 
 /// Apply type param substitution to a struct definition's member types and default values.
-substitute_type_params_in_struct : func(struct_def: SStructDef, subs: Map) returns SStructDef = {
+substitute_type_params_in_struct : func(struct_def: StructDef, subs: Map) returns StructDef = {
     mut new_members := Vec.new(Declaration)
     for member: Declaration in struct_def.members {
         mut substituted := false
@@ -199,11 +199,11 @@ substitute_type_params_in_struct : func(struct_def: SStructDef, subs: Map) retur
         new_defaults.set(name, substitute_type_params_in_expr(expr, subs))
     }
 
-    return SStructDef(members=new_members, default_values=new_defaults)
+    return StructDef(members=new_members, default_values=new_defaults)
 }
 
 /// Issue #106: Apply type param substitution to an enum definition's variant payload types.
-substitute_type_params_in_enum : func(enum_def: SEnumDef, subs: Map) returns SEnumDef = {
+substitute_type_params_in_enum : func(enum_def: EnumDef, subs: Map) returns EnumDef = {
     mut new_variants := Vec.new(EnumVariant)
     for v: EnumVariant in enum_def.variants {
         if not(v.payload_type.is_null()) {
@@ -231,13 +231,13 @@ substitute_type_params_in_enum : func(enum_def: SEnumDef, subs: Map) returns SEn
             new_variants.push(v.clone())
         }
     }
-    return SEnumDef(variants=new_variants, methods=enum_def.methods.clone())
+    return EnumDef(variants=new_variants, methods=enum_def.methods.clone())
 }
 
 /// Extract namespace stmts from a macro's body AST.
 /// Scans for Return nodes or Declaration nodes containing a StructDef or EnumDef with params (namespace stmts).
 /// Returns the first matching set of namespace params (simple macros only).
-extract_namespace_from_macro : func(func_def: SFuncDef) returns SNamespaceDef = {
+extract_namespace_from_macro : func(func_def: FuncDef) returns NamespaceDef = {
     for stmt: Expr in func_def.body {
         // Pattern 1: return struct/enum { ... namespace: ... }
         switch stmt.node_type {
@@ -284,13 +284,13 @@ extract_namespace_from_macro : func(func_def: SFuncDef) returns SNamespaceDef = 
         case:
         }
     }
-    return SNamespaceDef()
+    return NamespaceDef()
 }
 
 /// Extract the internal type name from a macro body (e.g., "TemplatedPtr" from
 /// `TemplatedPtr := struct { ... }` or "TemplatedOption" from `TemplatedOption := enum { ... }`).
 /// Returns empty string for anonymous types (`return struct/enum { ... }`).
-extract_internal_type_name : func(func_def: SFuncDef) returns Str = {
+extract_internal_type_name : func(func_def: FuncDef) returns Str = {
     for stmt: Expr in func_def.body {
         switch stmt.node_type {
         case NodeType.Declaration(inner_decl):
@@ -417,7 +417,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                     // Check if the function is a macro returning struct
                     f_name := get_func_name_in_call(inner_e)?
                     mut found_func := false
-                    mut func_def := SFuncDef()
+                    mut func_def := FuncDef()
                     func_def = context.scope_stack.lookup_func(f_name)?
                     found_func = true
                     catch (_err: KeyNotFoundError) {
@@ -492,7 +492,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                             }
                                         }
                                         // Build combined ns: auto-generated + user-defined from macro namespace
-                                        mut combined_ns := SNamespaceDef()
+                                        mut combined_ns := NamespaceDef()
                                         // Check if macro namespace already defines delete/clone
                                         mut ns_has_delete := false
                                         mut ns_has_clone := false
@@ -501,7 +501,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                             if ns_m.name.eq("clone") { ns_has_clone = true }
                                         }
                                         // Generate auto delete/clone methods
-                                        mut auto_struct := SStructDef(members=resolved_members.clone(), default_values=precomputed_defaults.clone())
+                                        mut auto_struct := StructDef(members=resolved_members.clone(), default_values=precomputed_defaults.clone())
                                         dummy := Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), 0, 0)
                                         if ns_has_delete { auto_struct.default_values.set("delete", dummy.clone()) }
                                         if ns_has_clone { auto_struct.default_values.set("clone", dummy) }
@@ -541,7 +541,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                             }
                                             catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
                                         }
-                                        resolved_struct := SStructDef(members=resolved_members, default_values=precomputed_defaults, ns=combined_ns)
+                                        resolved_struct := StructDef(members=resolved_members, default_values=precomputed_defaults, ns=combined_ns)
                                         resolved_expanded := Expr.new_clone(NodeType.StructDef(resolved_struct.clone()), expanded, Vec.new(Expr))
                                         // Register the struct in context
                                         context.scope_stack.declare_struct(decl.name, resolved_struct.clone())?
@@ -603,7 +603,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         // Clear preinit-generated methods (they reference the internal name)
                                         enum_substituted.methods = Map.new(Str, Expr)
                                         // Build combined ns: auto-generated + user-defined from macro namespace
-                                        mut enum_combined_ns := SNamespaceDef()
+                                        mut enum_combined_ns := NamespaceDef()
                                         mut enum_ns_has_delete := false
                                         mut enum_ns_has_clone := false
                                         for enum_ns_m: Declaration in macro_ns.members {
@@ -1023,7 +1023,7 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
 
         // Use get_func_def_for_fcall_with_expr like interpreter does
         mut e_clone := e.clone()
-        mut func_def := SFuncDef()
+        mut func_def := FuncDef()
         mut func_def_found := false
         func_def = get_func_def_for_fcall_with_expr(context, e_clone)?
         func_def_found = true
@@ -1218,7 +1218,7 @@ precomp_params : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
-precomp_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef) returns Expr throws Str = {
+precomp_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) returns Expr throws Str = {
     mut new_default_values := Map.new(Str, Expr)
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
@@ -1279,12 +1279,12 @@ precomp_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef)
 
         ns_i.inc()
     }
-    new_ns := SNamespaceDef(
+    new_ns := NamespaceDef(
         members=struct_def.ns.members.clone(),
         default_values=ns_new_default_values
     )
 
-    mut new_struct_def := SStructDef()
+    mut new_struct_def := StructDef()
     new_struct_def.members = struct_def.members.clone()
     new_struct_def.default_values = new_default_values
     new_struct_def.ns = new_ns
@@ -1300,7 +1300,7 @@ precomp_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef)
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
-precomp_func_def : proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str = {
+precomp_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str = {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.sig.args {
@@ -1317,7 +1317,7 @@ precomp_func_def : proc(mut context: Context, e: Expr, func_def: SFuncDef) retur
     // Pop the function scope frame
     _ := context.scope_stack.pop()?
 
-    new_func_def := SFuncDef(
+    new_func_def := FuncDef(
         sig=FuncSig(
             function_type=func_def.sig.function_type,
             args=func_def.sig.args,
@@ -1403,7 +1403,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
     // When decl.value_type is a custom type name that resolves to a FunctionSig,
     // look up the signature and set value_type to match the function type.
     mut has_sig_func_def := false
-    mut sig_func_def := SFuncDef()
+    mut sig_func_def := FuncDef()
     switch decl.value_type {
     case ValueType.TCustom(sig_name):
         sig_sym := context.scope_stack.lookup_symbol(sig_name)?

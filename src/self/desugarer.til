@@ -295,7 +295,7 @@ find_enum_for_variant : func(context: Context, variant_name: Str) returns Str th
     for frame_i in context.scope_stack.frames.len().sub(1)..sub(0, 1) {
         frame := cast(ScopeFrame, context.scope_stack.frames.get(frame_i)?)
         for enum_name: Str in frame.enums.keys {
-            enum_def := cast(SEnumDef, frame.enums.get(enum_name)?)
+            enum_def := cast(EnumDef, frame.enums.get(enum_name)?)
             if enum_def.contains_key(variant_name) {
                 if found_type.len().eq(0) {
                     found_type = enum_name
@@ -1535,7 +1535,7 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
         _ := context.scope_stack.pop()?
         context.precomp_forin_counter = saved_counter
-        new_func_def := SFuncDef(
+        new_func_def := FuncDef(
             sig=FuncSig(
                 function_type=func_def.sig.function_type,
                 args=func_def.sig.args,
@@ -1566,11 +1566,11 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             ns_new_default_values.set(ns_name, desugar_expr(context, ns_value_expr)?)
             ns_i.inc()
         }
-        new_ns := SNamespaceDef(
+        new_ns := NamespaceDef(
             members=struct_def.ns.members,
             default_values=ns_new_default_values
         )
-        new_struct_def := SStructDef(
+        new_struct_def := StructDef(
             members=struct_def.members,
             default_values=new_default_values,
             ns=new_ns
@@ -1585,11 +1585,11 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             enum_ns_new_default_values.set(enum_ns_name, desugar_expr(context, enum_ns_value_expr)?)
             enum_ns_i.inc()
         }
-        enum_new_ns := SNamespaceDef(
+        enum_new_ns := NamespaceDef(
             members=enum_def.ns.members,
             default_values=enum_ns_new_default_values
         )
-        new_enum_def := SEnumDef(
+        new_enum_def := EnumDef(
             variants=enum_def.variants,
             methods=enum_def.methods,
             ns=enum_new_ns

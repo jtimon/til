@@ -1561,7 +1561,7 @@ namespace:
         // (the c_string pointer points to string literal data)
 
         // Check if this is a struct with Vec/List fields
-        mut struct_def := SStructDef()
+        mut struct_def := StructDef()
         struct_def = ctx.scope_stack.lookup_struct(type_name)?
         catch (err: KeyNotFoundError) {
             return false

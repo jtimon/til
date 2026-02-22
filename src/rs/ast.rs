@@ -12,13 +12,13 @@ pub struct EnumVariant {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SEnumDef {
+pub struct EnumDef {
     pub variants: Vec<EnumVariant>,
     pub methods: OrderedMap<String, Expr>,  // Auto-generated methods (delete, clone)
-    pub ns: SNamespaceDef,
+    pub ns: NamespaceDef,
 }
 
-impl SEnumDef {
+impl EnumDef {
     // Helper methods for backward compatibility with enum_map interface
     pub fn get(&self, variant_name: &str) -> Option<&Option<ValueType>> {
         for v in &self.variants {
@@ -99,29 +99,29 @@ impl FuncSig {
     }
 }
 
-// Issue #91: SFuncDef = FuncSig (type) + arg names (instance) + body + source_path
+// Issue #91: FuncDef = FuncSig (type) + arg names (instance) + body + source_path
 #[derive(Debug, Clone, PartialEq)]
-pub struct SFuncDef {
+pub struct FuncDef {
     pub sig: FuncSig,
     pub arg_names: Vec<String>,      // paired by index with sig.args
     pub body: Vec<Expr>,
     pub source_path: String,  // Path to the file where this function was defined
 }
 
-impl SFuncDef {
+impl FuncDef {
     pub fn is_proc(&self) -> bool { self.sig.is_proc() }
     pub fn is_ext(&self) -> bool { self.sig.is_ext() }
     pub fn is_macro(&self) -> bool { self.sig.is_macro() }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SStructDef {
+pub struct StructDef {
     pub members : Vec<Declaration>,
     pub default_values : HashMap<String, Expr>,
-    pub ns: SNamespaceDef,
+    pub ns: NamespaceDef,
 }
 
-impl SStructDef {
+impl StructDef {
     /// Helper to find a member by name
     pub fn get_member(&self, member_name: &str) -> Option<&Declaration> {
         self.members.iter()
@@ -144,7 +144,7 @@ impl SStructDef {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SNamespaceDef {
+pub struct NamespaceDef {
     pub members: Vec<Declaration>,
     pub default_values: HashMap<String, Expr>,
 }
@@ -165,9 +165,9 @@ pub enum NodeType {
     Declaration(Declaration),
     Assignment(String),
     NamedArg(String), // Named argument in function call: name=value
-    FuncDef(SFuncDef),
-    EnumDef(SEnumDef),
-    StructDef(SStructDef),
+    FuncDef(FuncDef),
+    EnumDef(EnumDef),
+    StructDef(StructDef),
     Return,
     Throw,
     Catch,
