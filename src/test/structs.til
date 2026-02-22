@@ -461,3 +461,26 @@ test_first_class_structs : proc() = {
     // assert_eq(loc(), 7, v.sum())
 }
 test_first_class_structs()
+
+// Issue #105: Anonymous struct expressions
+test_anonymous_structs := proc() {
+    // Anonymous type definition
+    P := struct { mut x: I64 = 10 }
+    inst := P()
+    assert_eq(loc(), 10, inst.x)
+
+    // Anonymous instantiation with named args
+    q := struct { mut x: I64 = 0 }(x=42)
+    assert_eq(loc(), 42, q.x)
+
+    // Anonymous instantiation with defaults
+    r := struct { mut x: I64 = 99, mut y: I64 = 77 }()
+    assert_eq(loc(), 99, r.x)
+    assert_eq(loc(), 77, r.y)
+
+    // Anonymous instantiation with partial override
+    s := struct { mut x: I64 = 0, mut y: I64 = 0 }(x=5)
+    assert_eq(loc(), 5, s.x)
+    assert_eq(loc(), 0, s.y)
+}
+test_anonymous_structs()

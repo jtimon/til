@@ -6665,6 +6665,12 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
 }
 
 emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
+    // Issue #105: Skip struct/enum type definitions inside function bodies - they're emitted at top level
+    switch decl.value_type {
+    case ValueType.TType(_):
+        return
+    case:
+    }
     // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
     if not(expr.params.is_empty()) {
         first_param := expr.get(0)?

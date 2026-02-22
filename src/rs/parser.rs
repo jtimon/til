@@ -837,6 +837,10 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                         _ => return Err(t.error(&lexer.path, &format!("expected only declarations inside struct definition, found {:?}", stmt.node_type))),
                     }
                 }
+                // Issue #105: allow comma-separated fields in inline struct definitions
+                if lexer.current < lexer.len() && lexer.peek().token_type == TokenType::Comma {
+                    lexer.advance(1)?;
+                }
             }
         }
     }
@@ -1126,7 +1130,18 @@ fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::Proc => return parse_func_proc_definition(lexer, FunctionType::FTProc),
         TokenType::ProcExt => return parse_func_proc_definition(lexer, FunctionType::FTProcExt),
         TokenType::Enum => return enum_definition(lexer),
-        TokenType::Struct => return parse_struct_definition(lexer),
+        TokenType::Struct => {
+            let struct_expr = parse_struct_definition(lexer)?;
+            // Issue #105: anonymous instantiation - struct { ... }(args)
+            if lexer.peek().token_type == TokenType::LeftParen {
+                let arg_list = parse_args(lexer)?;
+                let mut params = Vec::new();
+                params.push(struct_expr);
+                params.extend(arg_list.params);
+                return Ok(Expr::new_parse(NodeType::FCall(false), t.clone(), params));
+            }
+            return Ok(struct_expr);
+        },
         TokenType::Namespace => return Err(t.error(&lexer.path, "Separate 'namespace TypeName {{ }}' blocks are no longer supported. Use 'namespace:' inside the struct/enum body instead.")),
         TokenType::LeftParen => return parse_args(lexer),
         TokenType::Identifier => return parse_primary_identifier(lexer),

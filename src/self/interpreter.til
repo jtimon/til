@@ -336,6 +336,32 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
             return EvalResult.new(llist)
         }
     case NodeType.FCall(_):
+        // Issue #105: anonymous struct instantiation - struct { ... }(args)
+        if e.params.len().gt(0) {
+            anon_first_param := e.get(0)?
+            switch anon_first_param.node_type {
+            case NodeType.StructDef(anon_struct_def):
+                // Register anonymous struct type
+                anon_temp_name := format("AnonStruct", I64.to_str(context.anon_struct_counter))
+                context.anon_struct_counter.inc()
+                context.scope_stack.declare_struct_global(anon_temp_name, anon_struct_def.clone())?
+                // Replace StructDef with Identifier in a new FCall
+                anon_id_expr := Expr.new_clone(NodeType.Identifier(anon_temp_name.clone()), anon_first_param, Vec.new(Expr))
+                mut anon_new_params := Vec.new(Expr)
+                anon_new_params.push(anon_id_expr)
+                mut anon_skip := true
+                for anon_p: Expr in e.params {
+                    if anon_skip {
+                        anon_skip = false
+                    } else {
+                        anon_new_params.push(anon_p.clone())
+                    }
+                }
+                anon_new_fcall := Expr.new_clone(e.node_type, e, anon_new_params)
+                return eval_func_proc_call(anon_temp_name, context, anon_new_fcall)?
+            case:
+            }
+        }
         f_name := get_func_name_in_call(e)?
         return eval_func_proc_call(f_name, context, e)?
     case NodeType.Declaration(declaration):
@@ -425,7 +451,7 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
     case NodeType.StructDef(struct_def):
         // Issue #105: First-class structs - register as anonymous struct and return the name
         // Register in global frame so it survives function scope pops (e.g. macro returns)
-        temp_name := format("__anon_struct_", I64.to_str(context.anon_struct_counter))
+        temp_name := format("AnonStruct", I64.to_str(context.anon_struct_counter))
         context.anon_struct_counter.inc()
         context.scope_stack.declare_struct_global(temp_name, struct_def.clone())?
         return EvalResult.new(temp_name)

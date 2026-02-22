@@ -516,6 +516,8 @@ pub fn get_func_name_in_call(e: &Expr) -> String {
         Ok(param) => {
             match &param.node_type {
                 NodeType::Identifier(f_name) => return f_name.clone(),
+                // Issue #105: anonymous struct instantiation - struct { ... }(args)
+                NodeType::StructDef(_) => return "AnonStructInline".to_string(),
                 node_type => return e.exit_error(
                     "init", &format!("in get_func_name_in_call(): Identifiers can only contain identifiers, found '{:?}'", node_type)),
             }
@@ -591,6 +593,14 @@ fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_ex
 }
 
 fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
+
+    // Issue #105: anonymous struct instantiation - struct { ... }(args)
+    // First param is StructDef, not Identifier - defer type resolution to precomp/interpreter
+    if let Some(first_param) = e.params.first() {
+        if matches!(&first_param.node_type, NodeType::StructDef(_)) {
+            return Ok(ValueType::TCustom(INFER_TYPE.to_string()));
+        }
+    }
 
     let f_name = get_func_name_in_call(&e);
 
@@ -1606,6 +1616,8 @@ pub struct Context {
     pub precomputed_heap_values: Vec<PrecomputedHeapValue>,
     // Issue #105: Counter for anonymous struct definitions (first-class structs)
     pub anon_struct_counter: usize,
+    // Issue #105: Pending anonymous struct declarations to inject into AST
+    pub anon_struct_decls: Vec<Expr>,
     // Issue #106: Counter for anonymous enum definitions (first-class enums)
     pub anon_enum_counter: usize,
     // Issue #91: Counter and map for anonymous inline functions
@@ -1642,8 +1654,9 @@ impl Context {
             precomp_forin_counter: 0,
             // Bug #133 fix: Initialize precomputed heap values list
             precomputed_heap_values: Vec::new(),
-            // Issue #105: Initialize anonymous struct counter
+            // Issue #105: Initialize anonymous struct counter and pending declarations
             anon_struct_counter: 0,
+            anon_struct_decls: Vec::new(),
             // Issue #106: Initialize anonymous enum counter
             anon_enum_counter: 0,
             // Issue #91: Initialize anonymous function counter and map

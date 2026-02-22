@@ -777,6 +777,9 @@ get_func_name_in_call : func(e: Expr) returns Str throws Str = {
     switch param.node_type {
     case NodeType.Identifier(f_name):
         func_name = f_name.clone()
+    // Issue #105: anonymous struct instantiation - struct { ... }(args)
+    case NodeType.StructDef(_):
+        func_name = "AnonStructInline"
     case:
         mut param_node_type_str := enum_to_str(param.node_type)
         throw format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", param_node_type_str, "'")
@@ -873,6 +876,17 @@ get_ufcs_fcall_value_type : func(context: Context, e: Expr, f_name: Str, id_expr
 }
 
 get_fcall_value_type : func(context: Context, e: Expr) returns ValueType throws Str = {
+
+    // Issue #105: anonymous struct instantiation - struct { ... }(args)
+    // First param is StructDef, not Identifier - defer type resolution to precomp/interpreter
+    if e.params.len().gt(0) {
+        fcall_first_param := e.get(0)?
+        switch fcall_first_param.node_type {
+        case NodeType.StructDef(_):
+            return ValueType.TCustom(INFER_TYPE)
+        case:
+        }
+    }
 
     mut f_name := get_func_name_in_call(e)?
 
@@ -2190,6 +2204,8 @@ Context := struct {
     mut precomputed_heap_values: Vec = Vec.new(PrecomputedHeapValue)
     # Issue #105: Counter for anonymous struct definitions (first-class structs)
     mut anon_struct_counter: I64 = 0
+    // Issue #105: Pending anonymous struct declarations to inject into AST
+    mut anon_struct_decls: Vec = Vec.new(Expr)
     // Issue #106: Counter for anonymous enum definitions (first-class enums)
     mut anon_enum_counter: I64 = 0
     // Issue #91: Counter and map for anonymous inline functions

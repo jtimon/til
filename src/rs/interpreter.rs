@@ -394,6 +394,23 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::LLiteral(Literal::Str(lstring)) => Ok(EvalResult::new(lstring)),
         NodeType::LLiteral(Literal::List(llist)) => Ok(EvalResult::new(llist)),
         NodeType::FCall(_) => {
+            // Issue #105: anonymous struct instantiation - struct { ... }(args)
+            if let Some(first_param) = e.params.first() {
+                if let NodeType::StructDef(struct_def) = &first_param.node_type {
+                    // Register anonymous struct type
+                    let temp_name = format!("AnonStruct{}", context.anon_struct_counter);
+                    context.anon_struct_counter += 1;
+                    if let Some(global_frame) = context.scope_stack.frames.first_mut() {
+                        global_frame.structs.insert(temp_name.clone(), struct_def.clone());
+                    }
+                    // Replace StructDef with Identifier in a new FCall
+                    let id_expr = Expr::new_clone(NodeType::Identifier(temp_name.clone()), first_param, vec![]);
+                    let mut new_params = vec![id_expr];
+                    new_params.extend(e.params.iter().skip(1).cloned());
+                    let new_fcall = Expr::new_clone(e.node_type.clone(), e, new_params);
+                    return eval_func_proc_call(&temp_name, context, &new_fcall);
+                }
+            }
             let f_name = get_func_name_in_call(&e);
             eval_func_proc_call(&f_name, context, &e)
         },
@@ -513,7 +530,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::StructDef(struct_def) => {
             // Issue #105: First-class structs - register as anonymous struct and return the name
             // Register in global frame so it survives function scope pops (e.g. macro returns)
-            let temp_name = format!("__anon_struct_{}", context.anon_struct_counter);
+            let temp_name = format!("AnonStruct{}", context.anon_struct_counter);
             context.anon_struct_counter += 1;
             if let Some(global_frame) = context.scope_stack.frames.first_mut() {
                 global_frame.structs.insert(temp_name.clone(), struct_def.clone());

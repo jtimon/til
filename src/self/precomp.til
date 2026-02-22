@@ -345,6 +345,77 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                 inner_e := p.get(0)?
                 switch inner_e.node_type {
                 case NodeType.FCall(_):
+                    // Issue #105: anonymous struct instantiation - struct { ... }(args)
+                    if inner_e.params.len().gt(0) {
+                        esm_first_param := inner_e.get(0)?
+                        mut esm_is_anon_struct := false
+                        switch esm_first_param.node_type {
+                        case NodeType.StructDef(esm_struct_def):
+                            esm_is_anon_struct = true
+                            esm_temp_name := format("AnonStruct", I64.to_str(context.anon_struct_counter))
+                            context.anon_struct_counter.inc()
+                            context.scope_stack.declare_struct(esm_temp_name, esm_struct_def.clone())?
+                            context.scope_stack.declare_symbol(esm_temp_name.clone(), SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+                            // Register immutable fields as namespace constants
+                            for esm_member_decl: Declaration in esm_struct_def.members {
+                                if not(esm_member_decl.is_mut) {
+                                    mut esm_has_default := false
+                                    esm_member_expr := cast(Expr, esm_struct_def.default_values.get(esm_member_decl.name)?)
+                                    esm_has_default = true
+                                    catch (_err: KeyNotFoundError) { }
+                                    if esm_has_default {
+                                        mut esm_member_vt := ValueType.TCustom(INFER_TYPE)
+                                        esm_member_vt = get_value_type(context, esm_member_expr)?
+                                        catch (_err: Str) { }
+                                        esm_member_full_name := format(esm_temp_name, ".", esm_member_decl.name)
+                                        context.scope_stack.declare_symbol(esm_member_full_name, SymbolInfo(value_type=esm_member_vt, is_mut=esm_member_decl.is_mut, is_copy=esm_member_decl.is_copy, is_own=esm_member_decl.is_own, is_comptime_const=false))?
+                                    }
+                                }
+                            }
+                            // Generate struct methods (delete/clone)
+                            esm_methods := generate_struct_methods(esm_temp_name, esm_struct_def.clone(), p.line, p.col)
+                            if esm_methods.needs_methods {
+                                mut esm_ns_body_params := Vec.new(Expr)
+                                esm_ns_body_params.push(esm_methods.ns_block.clone())
+                                esm_ns_body := Expr.new_clone(NodeType.Body, p, esm_ns_body_params)
+                                _ := init_context(context, esm_ns_body)?
+                                new_params.push(esm_methods.ns_block)
+                            }
+                            // Build struct definition declaration for codegen
+                            mut esm_struct_decl := Declaration()
+                            esm_struct_decl.name = esm_temp_name.clone()
+                            esm_struct_decl.value_type = ValueType.TType(TTypeDef.TStructDef)
+                            esm_struct_decl.is_mut = false
+                            esm_struct_decl.is_copy = false
+                            esm_struct_decl.is_own = false
+                            mut esm_decl_params := Vec.new(Expr)
+                            esm_decl_params.push(Expr.new_clone(NodeType.StructDef(esm_struct_def.clone()), esm_first_param, Vec.new(Expr)))
+                            esm_struct_decl_expr := Expr.new_clone(NodeType.Declaration(esm_struct_decl), esm_first_param, esm_decl_params)
+                            new_params.push(esm_struct_decl_expr)
+                            // Replace StructDef with Identifier in the FCall
+                            esm_id_expr := Expr.new_clone(NodeType.Identifier(esm_temp_name.clone()), esm_first_param, Vec.new(Expr))
+                            mut esm_fcall_params := Vec.new(Expr)
+                            esm_fcall_params.push(esm_id_expr)
+                            mut esm_skip := true
+                            for esm_ip: Expr in inner_e.params {
+                                if esm_skip {
+                                    esm_skip = false
+                                } else {
+                                    esm_fcall_params.push(esm_ip.clone())
+                                }
+                            }
+                            esm_new_fcall := Expr.new_clone(inner_e.node_type, inner_e, esm_fcall_params)
+                            mut esm_new_p_params := Vec.new(Expr)
+                            esm_new_p_params.push(esm_new_fcall)
+                            esm_new_p := Expr.new_clone(p.node_type, p, esm_new_p_params)
+                            new_params.push(esm_new_p)
+                            modified = true
+                            handled = true
+                        case:
+                        }
+                        if esm_is_anon_struct {
+                            // Already handled above, skip to next param
+                        } else {
                     // Check if the function is a macro returning struct
                     f_name := get_func_name_in_call(inner_e)?
                     mut found_func := false
@@ -679,18 +750,204 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                             }
                         }
                     }
+                        } // else (not anon struct)
+                    } // if inner_e.params.len().gt(0)
                 case:
                 }
             }
         case:
         }
         if not(handled) {
-            new_params.push(p)
+            // Issue #105: Recurse into function/proc body to expand anonymous struct FCalls
+            mut pending_decls := Vec.new(Expr)
+            mut was_expanded := false
+            expanded_p := expand_anon_struct_fcalls_recursive(context, p, pending_decls, was_expanded)?
+            if pending_decls.len().gt(0) {
+                for pd: Expr in pending_decls {
+                    new_params.push(pd.clone())
+                }
+                modified = true
+            }
+            if was_expanded {
+                new_params.push(expanded_p)
+                modified = true
+            } else {
+                new_params.push(p)
+            }
         }
     }
 
     if modified {
         return Expr.new_clone(e.node_type, e, new_params)
+    }
+    return e.clone()
+}
+
+/// Issue #105: Recursively walk an expression and expand anonymous struct FCall instantiations.
+/// Sets was_expanded to true and returns modified expr if any change was made.
+/// pending_decls collects struct declarations + namespace blocks to inject at top level.
+expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pending_decls: Vec, mut was_expanded: Bool) returns Expr throws Str = {
+    // Check if this is an FCall with a StructDef first param
+    mut is_anon_fcall := false
+    switch e.node_type {
+    case NodeType.FCall(_):
+        if e.params.len().gt(0) {
+            ear_first := e.get(0)?
+            switch ear_first.node_type {
+            case NodeType.StructDef(ear_sd):
+                is_anon_fcall = true
+                ear_temp := format("AnonStruct", I64.to_str(context.anon_struct_counter))
+                context.anon_struct_counter.inc()
+                context.scope_stack.declare_struct(ear_temp, ear_sd.clone())?
+                context.scope_stack.declare_symbol(ear_temp.clone(), SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+                // Register immutable fields as namespace constants
+                for ear_md: Declaration in ear_sd.members {
+                    if not(ear_md.is_mut) {
+                        mut ear_has_def := false
+                        ear_me := cast(Expr, ear_sd.default_values.get(ear_md.name)?)
+                        ear_has_def = true
+                        catch (_err: KeyNotFoundError) { }
+                        if ear_has_def {
+                            mut ear_mvt := ValueType.TCustom(INFER_TYPE)
+                            ear_mvt = get_value_type(context, ear_me)?
+                            catch (_err: Str) { }
+                            ear_mfn := format(ear_temp, ".", ear_md.name)
+                            context.scope_stack.declare_symbol(ear_mfn, SymbolInfo(value_type=ear_mvt, is_mut=ear_md.is_mut, is_copy=ear_md.is_copy, is_own=ear_md.is_own, is_comptime_const=false))?
+                        }
+                    }
+                }
+                // Generate struct methods (delete/clone)
+                ear_methods := generate_struct_methods(ear_temp, ear_sd.clone(), e.line, e.col)
+                if ear_methods.needs_methods {
+                    mut ear_ns_bp := Vec.new(Expr)
+                    ear_ns_bp.push(ear_methods.ns_block.clone())
+                    ear_ns_body := Expr.new_clone(NodeType.Body, e, ear_ns_bp)
+                    _ := init_context(context, ear_ns_body)?
+                    pending_decls.push(ear_methods.ns_block)
+                }
+                // Build struct definition declaration for codegen
+                mut ear_decl := Declaration()
+                ear_decl.name = ear_temp.clone()
+                ear_decl.value_type = ValueType.TType(TTypeDef.TStructDef)
+                ear_decl.is_mut = false
+                ear_decl.is_copy = false
+                ear_decl.is_own = false
+                mut ear_dp := Vec.new(Expr)
+                ear_dp.push(Expr.new_clone(NodeType.StructDef(ear_sd.clone()), ear_first, Vec.new(Expr)))
+                ear_decl_expr := Expr.new_clone(NodeType.Declaration(ear_decl), ear_first, ear_dp)
+                pending_decls.push(ear_decl_expr)
+                // Replace StructDef with Identifier in the FCall
+                ear_id := Expr.new_clone(NodeType.Identifier(ear_temp.clone()), ear_first, Vec.new(Expr))
+                mut ear_fp := Vec.new(Expr)
+                ear_fp.push(ear_id)
+                mut ear_skip := true
+                for ear_p: Expr in e.params {
+                    if ear_skip {
+                        ear_skip = false
+                    } else {
+                        ear_fp.push(ear_p.clone())
+                    }
+                }
+                was_expanded = true
+                return Expr.new_clone(e.node_type, e, ear_fp)
+            case:
+            }
+        }
+    case:
+    }
+
+    // Check if this is a Declaration with a StructDef value (e.g. P := struct { ... })
+    // Only process if the struct isn't already registered (avoids duplicating top-level structs)
+    switch e.node_type {
+    case NodeType.Declaration(ear_decl):
+        if e.params.len().gt(0) {
+            ear_decl_inner := e.get(0)?
+            switch ear_decl_inner.node_type {
+            case NodeType.StructDef(ear_decl_sd):
+                if context.scope_stack.has_struct(ear_decl.name) {
+                    // Already registered at top level - skip
+                    return e.clone()
+                }
+                // Register the struct with the declared name
+                context.scope_stack.declare_struct(ear_decl.name, ear_decl_sd.clone())?
+                context.scope_stack.declare_symbol(ear_decl.name.clone(), SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+                // Register immutable fields as namespace constants
+                for ear_decl_md: Declaration in ear_decl_sd.members {
+                    if not(ear_decl_md.is_mut) {
+                        mut ear_decl_has_def := false
+                        ear_decl_me := cast(Expr, ear_decl_sd.default_values.get(ear_decl_md.name)?)
+                        ear_decl_has_def = true
+                        catch (_err: KeyNotFoundError) { }
+                        if ear_decl_has_def {
+                            mut ear_decl_mvt := ValueType.TCustom(INFER_TYPE)
+                            ear_decl_mvt = get_value_type(context, ear_decl_me)?
+                            catch (_err: Str) { }
+                            ear_decl_mfn := format(ear_decl.name, ".", ear_decl_md.name)
+                            context.scope_stack.declare_symbol(ear_decl_mfn, SymbolInfo(value_type=ear_decl_mvt, is_mut=ear_decl_md.is_mut, is_copy=ear_decl_md.is_copy, is_own=ear_decl_md.is_own, is_comptime_const=false))?
+                        }
+                    }
+                }
+                // Generate struct methods (delete/clone)
+                ear_decl_methods := generate_struct_methods(ear_decl.name, ear_decl_sd.clone(), e.line, e.col)
+                if ear_decl_methods.needs_methods {
+                    mut ear_decl_ns_bp := Vec.new(Expr)
+                    ear_decl_ns_bp.push(ear_decl_methods.ns_block.clone())
+                    ear_decl_ns_body := Expr.new_clone(NodeType.Body, e, ear_decl_ns_bp)
+                    _ := init_context(context, ear_decl_ns_body)?
+                    pending_decls.push(ear_decl_methods.ns_block)
+                }
+                // Add struct definition to pending top-level decls for codegen
+                pending_decls.push(e.clone())
+                // Return original expression (stays in body; codegen skips TType declarations)
+                was_expanded = true
+                return e.clone()
+            case:
+            }
+        }
+    case:
+    }
+
+    // Recurse into child expressions
+    mut ear_any_changed := false
+    mut ear_new_params := Vec.new(Expr)
+    for ear_cp: Expr in e.params {
+        mut ear_cp_changed := false
+        ear_cp_result := expand_anon_struct_fcalls_recursive(context, ear_cp, pending_decls, ear_cp_changed)?
+        if ear_cp_changed {
+            ear_new_params.push(ear_cp_result)
+            ear_any_changed = true
+        } else {
+            ear_new_params.push(ear_cp.clone())
+        }
+    }
+
+    // Also recurse into FuncDef bodies
+    switch e.node_type {
+    case NodeType.FuncDef(ear_fd):
+        mut ear_body_changed := false
+        mut ear_new_body := Vec.new(Expr)
+        for ear_bs: Expr in ear_fd.body {
+            mut ear_bs_changed := false
+            ear_bs_result := expand_anon_struct_fcalls_recursive(context, ear_bs, pending_decls, ear_bs_changed)?
+            if ear_bs_changed {
+                ear_new_body.push(ear_bs_result)
+                ear_body_changed = true
+            } else {
+                ear_new_body.push(ear_bs.clone())
+            }
+        }
+        if ear_body_changed {
+            mut ear_new_fd := ear_fd.clone()
+            ear_new_fd.body = ear_new_body
+            was_expanded = true
+            return Expr.new_clone(NodeType.FuncDef(ear_new_fd), e, ear_new_params)
+        }
+    case:
+    }
+
+    if ear_any_changed {
+        was_expanded = true
+        return Expr.new_clone(e.node_type, e, ear_new_params)
     }
     return e.clone()
 }
@@ -1057,7 +1314,17 @@ eval_comptime : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 precomp_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
-        new_params.push(precomp_expr(context, p)?)
+        saved_decl_count := context.anon_struct_decls.len()
+        result := precomp_expr(context, p)?
+        // Issue #105: inject pending anonymous struct declarations before the statement that uses them
+        if context.anon_struct_decls.len().gt(saved_decl_count) {
+            // Drain new decls from end of list
+            for pending_decl: Expr in context.anon_struct_decls {
+                new_params.push(pending_decl.clone())
+            }
+            context.anon_struct_decls = Vec.new(Expr)
+        }
+        new_params.push(result)
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
@@ -1376,6 +1643,37 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         throw e.lang_error(context.path, "precomp", "Declarations can have only one child expression")
     }
 
+    // Issue #105: After anonymous struct expansion, re-evaluate the type from the transformed expression
+    mut is_infer := false
+    switch value_type {
+    case ValueType.TCustom(vt_name):
+        if vt_name.eq(INFER_TYPE) {
+            is_infer = true
+        }
+    case:
+    }
+    if is_infer.and(new_params.len().gt(0)) {
+        new_first := cast(Expr, new_params.get(0)?)
+        mut have_new_type := true
+        new_type := get_value_type(context, new_first)?
+        catch (_err: Str) {
+            have_new_type = false
+        }
+        if have_new_type {
+            mut new_is_infer := false
+            switch new_type {
+            case ValueType.TCustom(new_vt_name):
+                if new_vt_name.eq(INFER_TYPE) {
+                    new_is_infer = true
+                }
+            case:
+            }
+            if not(new_is_infer) {
+                value_type = new_type
+            }
+        }
+    }
+
     // Issue #105: After macro expansion, check if the result is a StructDef
     // and register it (the pre-expansion check above only handles literal StructDef RHS)
     switch value_type {
@@ -1561,6 +1859,67 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         return e.clone()
     }
     mut func_expr := e.get(0)?
+
+    // Issue #105: anonymous struct instantiation - struct { ... }(args)
+    // Register the anonymous struct and replace StructDef with Identifier
+    switch func_expr.node_type {
+    case NodeType.StructDef(pf_struct_def):
+        pf_temp_name := format("AnonStruct", I64.to_str(context.anon_struct_counter))
+        context.anon_struct_counter.inc()
+        context.scope_stack.declare_struct(pf_temp_name, pf_struct_def.clone())?
+        context.scope_stack.declare_symbol(pf_temp_name.clone(), SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+        // Register immutable fields as namespace constants
+        for pf_member_decl: Declaration in pf_struct_def.members {
+            if not(pf_member_decl.is_mut) {
+                mut pf_has_default := false
+                pf_member_expr := cast(Expr, pf_struct_def.default_values.get(pf_member_decl.name)?)
+                pf_has_default = true
+                catch (_err: KeyNotFoundError) { }
+                if pf_has_default {
+                    mut pf_member_vt := ValueType.TCustom(INFER_TYPE)
+                    pf_member_vt = get_value_type(context, pf_member_expr)?
+                    catch (_err: Str) { }
+                    pf_member_full_name := format(pf_temp_name, ".", pf_member_decl.name)
+                    context.scope_stack.declare_symbol(pf_member_full_name, SymbolInfo(value_type=pf_member_vt, is_mut=pf_member_decl.is_mut, is_copy=pf_member_decl.is_copy, is_own=pf_member_decl.is_own, is_comptime_const=false))?
+                }
+            }
+        }
+        // Generate struct methods (delete/clone)
+        pf_methods := generate_struct_methods(pf_temp_name, pf_struct_def.clone(), e.line, e.col)
+        if pf_methods.needs_methods {
+            mut pf_ns_body_params := Vec.new(Expr)
+            pf_ns_body_params.push(pf_methods.ns_block.clone())
+            pf_ns_body := Expr.new_clone(NodeType.Body, e, pf_ns_body_params)
+            _ := init_context(context, pf_ns_body)?
+        }
+        // Create default instance for codegen
+        _ := create_default_instance(context, pf_temp_name, e)?
+        // Add struct declaration to pending list for codegen to emit
+        mut pf_struct_decl := Declaration()
+        pf_struct_decl.name = pf_temp_name.clone()
+        pf_struct_decl.value_type = ValueType.TType(TTypeDef.TStructDef)
+        pf_struct_decl.is_mut = false
+        pf_struct_decl.is_copy = false
+        pf_struct_decl.is_own = false
+        mut pf_decl_params := Vec.new(Expr)
+        pf_decl_params.push(Expr.new_clone(NodeType.StructDef(pf_struct_def.clone()), func_expr, Vec.new(Expr)))
+        pf_struct_decl_expr := Expr.new_clone(NodeType.Declaration(pf_struct_decl), func_expr, pf_decl_params)
+        context.anon_struct_decls.push(pf_struct_decl_expr)
+        // Replace StructDef with Identifier and continue as normal struct constructor
+        pf_id_expr := Expr.new_clone(NodeType.Identifier(pf_temp_name.clone()), func_expr, Vec.new(Expr))
+        mut pf_new_params := Vec.new(Expr)
+        pf_new_params.push(pf_id_expr)
+        mut pf_skip := true
+        for pf_p: Expr in e.params {
+            if pf_skip {
+                pf_skip = false
+            } else {
+                pf_new_params.push(precomp_expr(context, pf_p)?)
+            }
+        }
+        return Expr.new_clone(e.node_type, e, pf_new_params)
+    case:
+    }
 
     mut combined_name := ""
     switch func_expr.node_type {

@@ -215,6 +215,69 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
             if !p.params.is_empty() {
                 let inner_e = &p.params[0];
                 if matches!(&inner_e.node_type, NodeType::FCall(_)) {
+                    // Issue #105: anonymous struct instantiation - struct { ... }(args)
+                    if let Some(first_param) = inner_e.params.first() {
+                        if let NodeType::StructDef(struct_def) = &first_param.node_type {
+                            let temp_name = format!("AnonStruct{}", context.anon_struct_counter);
+                            context.anon_struct_counter += 1;
+                            context.scope_stack.declare_struct(temp_name.clone(), struct_def.clone());
+                            context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
+                                value_type: ValueType::TType(TTypeDef::TStructDef),
+                                is_mut: false,
+                                is_copy: false,
+                                is_own: false,
+                                is_comptime_const: false,
+                            });
+                            // Register immutable fields as namespace constants
+                            for member_decl in &struct_def.members {
+                                if !member_decl.is_mut {
+                                    if let Some(member_expr) = struct_def.default_values.get(&member_decl.name) {
+                                        let member_value_type = get_value_type(context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                                        let member_full_name = format!("{}.{}", temp_name, member_decl.name);
+                                        context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
+                                            value_type: member_value_type,
+                                            is_mut: member_decl.is_mut,
+                                            is_copy: member_decl.is_copy,
+                                            is_own: member_decl.is_own,
+                                            is_comptime_const: false,
+                                        });
+                                    }
+                                }
+                            }
+                            // Generate struct methods (delete/clone)
+                            if let Some(ns_block) = generate_struct_methods(&temp_name, struct_def, p.line, p.col) {
+                                let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, p, vec![ns_block.clone()]))?;
+                                if !ns_errors.is_empty() {
+                                    return Err(ns_errors.join("\n"));
+                                }
+                                new_params.push(ns_block);
+                            }
+                            // Build struct definition declaration for codegen
+                            let struct_decl = Declaration {
+                                name: temp_name.clone(),
+                                value_type: ValueType::TType(TTypeDef::TStructDef),
+                                is_mut: false,
+                                is_copy: false,
+                                is_own: false,
+                                default_value: None,
+                            };
+                            let struct_decl_expr = Expr::new_clone(
+                                NodeType::Declaration(struct_decl),
+                                first_param,
+                                vec![Expr::new_clone(NodeType::StructDef(struct_def.clone()), first_param, vec![])],
+                            );
+                            new_params.push(struct_decl_expr);
+                            // Replace StructDef with Identifier in the FCall
+                            let id_expr = Expr::new_clone(NodeType::Identifier(temp_name.clone()), first_param, vec![]);
+                            let mut fcall_params = vec![id_expr];
+                            fcall_params.extend(inner_e.params.iter().skip(1).cloned());
+                            let new_fcall = Expr::new_clone(inner_e.node_type.clone(), inner_e, fcall_params);
+                            let new_p = Expr::new_clone(p.node_type.clone(), p, vec![new_fcall]);
+                            new_params.push(new_p);
+                            modified = true;
+                            continue;
+                        }
+                    }
                     // Check if the function is a macro returning struct
                     let f_name = get_func_name_in_call(inner_e);
                     if let Some(func_def) = context.scope_stack.lookup_func(&f_name) {
@@ -472,13 +535,166 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                 }
             }
         }
-        new_params.push(p.clone());
+        // Issue #105: Recurse into function/proc body to expand anonymous struct FCalls
+        let mut pending_decls = Vec::new();
+        let maybe_expanded = expand_anon_struct_fcalls_recursive(context, p, &mut pending_decls)?;
+        if !pending_decls.is_empty() {
+            for decl in pending_decls {
+                new_params.push(decl);
+            }
+            modified = true;
+        }
+        if maybe_expanded.is_some() {
+            new_params.push(maybe_expanded.unwrap());
+            modified = true;
+        } else {
+            new_params.push(p.clone());
+        }
     }
 
     if modified {
         Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
     } else {
         Ok(e.clone())
+    }
+}
+
+/// Issue #105: Recursively walk an expression and expand anonymous struct FCall instantiations.
+/// Returns Some(modified_expr) if any change was made, None otherwise.
+/// `pending_decls` collects struct declarations + namespace blocks to inject at top level.
+fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_decls: &mut Vec<Expr>) -> Result<Option<Expr>, String> {
+    // Check if this is an FCall with a StructDef first param
+    if matches!(&e.node_type, NodeType::FCall(_)) {
+        if let Some(first_param) = e.params.first() {
+            if let NodeType::StructDef(struct_def) = &first_param.node_type {
+                let temp_name = format!("AnonStruct{}", context.anon_struct_counter);
+                context.anon_struct_counter += 1;
+                context.scope_stack.declare_struct(temp_name.clone(), struct_def.clone());
+                context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
+                    value_type: ValueType::TType(TTypeDef::TStructDef),
+                    is_mut: false, is_copy: false, is_own: false, is_comptime_const: false,
+                });
+                // Register immutable fields as namespace constants
+                for member_decl in &struct_def.members {
+                    if !member_decl.is_mut {
+                        if let Some(member_expr) = struct_def.default_values.get(&member_decl.name) {
+                            let member_value_type = get_value_type(context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                            let member_full_name = format!("{}.{}", temp_name, member_decl.name);
+                            context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
+                                value_type: member_value_type,
+                                is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false,
+                            });
+                        }
+                    }
+                }
+                // Generate struct methods (delete/clone) and add to pending top-level decls
+                if let Some(ns_block) = generate_struct_methods(&temp_name, struct_def, e.line, e.col) {
+                    let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, e, vec![ns_block.clone()]))?;
+                    if !ns_errors.is_empty() {
+                        return Err(ns_errors.join("\n"));
+                    }
+                    pending_decls.push(ns_block);
+                }
+                // Build struct definition declaration for codegen
+                let struct_decl = Declaration {
+                    name: temp_name.clone(),
+                    value_type: ValueType::TType(TTypeDef::TStructDef),
+                    is_mut: false, is_copy: false, is_own: false, default_value: None,
+                };
+                let struct_decl_expr = Expr::new_clone(
+                    NodeType::Declaration(struct_decl),
+                    first_param,
+                    vec![Expr::new_clone(NodeType::StructDef(struct_def.clone()), first_param, vec![])],
+                );
+                pending_decls.push(struct_decl_expr);
+                // Replace StructDef with Identifier in the FCall
+                let id_expr = Expr::new_clone(NodeType::Identifier(temp_name.clone()), first_param, vec![]);
+                let mut fcall_params = vec![id_expr];
+                fcall_params.extend(e.params.iter().skip(1).cloned());
+                return Ok(Some(Expr::new_clone(e.node_type.clone(), e, fcall_params)));
+            }
+        }
+    }
+
+    // Check if this is a Declaration with a StructDef value (e.g. P := struct { ... })
+    // Only process if the struct isn't already registered (avoids duplicating top-level structs)
+    if let NodeType::Declaration(decl) = &e.node_type {
+        if !e.params.is_empty() {
+            if let NodeType::StructDef(struct_def) = &e.params[0].node_type {
+                if context.scope_stack.lookup_struct(&decl.name).is_some() {
+                    // Already registered at top level - skip
+                    return Ok(None);
+                }
+                // Register the struct with the declared name
+                context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+                context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                    value_type: ValueType::TType(TTypeDef::TStructDef),
+                    is_mut: false, is_copy: false, is_own: false, is_comptime_const: false,
+                });
+                // Register immutable fields as namespace constants
+                for member_decl in &struct_def.members {
+                    if !member_decl.is_mut {
+                        if let Some(member_expr) = struct_def.default_values.get(&member_decl.name) {
+                            let member_value_type = get_value_type(context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                            let member_full_name = format!("{}.{}", decl.name, member_decl.name);
+                            context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
+                                value_type: member_value_type,
+                                is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false,
+                            });
+                        }
+                    }
+                }
+                // Generate struct methods (delete/clone) and add to pending top-level decls
+                if let Some(ns_block) = generate_struct_methods(&decl.name, struct_def, e.line, e.col) {
+                    let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, e, vec![ns_block.clone()]))?;
+                    if !ns_errors.is_empty() {
+                        return Err(ns_errors.join("\n"));
+                    }
+                    pending_decls.push(ns_block);
+                }
+                // Add struct definition to pending top-level decls for codegen
+                pending_decls.push(e.clone());
+                // Return the original expression (stays in body; codegen skips TType declarations)
+                return Ok(Some(e.clone()));
+            }
+        }
+    }
+
+    // Recurse into child expressions
+    let mut any_changed = false;
+    let mut new_params = Vec::new();
+    for p in &e.params {
+        if let Some(expanded) = expand_anon_struct_fcalls_recursive(context, p, pending_decls)? {
+            new_params.push(expanded);
+            any_changed = true;
+        } else {
+            new_params.push(p.clone());
+        }
+    }
+
+    // Also recurse into FuncDef bodies
+    if let NodeType::FuncDef(func_def) = &e.node_type {
+        let mut body_changed = false;
+        let mut new_body = Vec::new();
+        for stmt in &func_def.body {
+            if let Some(expanded) = expand_anon_struct_fcalls_recursive(context, stmt, pending_decls)? {
+                new_body.push(expanded);
+                body_changed = true;
+            } else {
+                new_body.push(stmt.clone());
+            }
+        }
+        if body_changed {
+            let mut new_func_def = func_def.clone();
+            new_func_def.body = new_body;
+            return Ok(Some(Expr::new_clone(NodeType::FuncDef(new_func_def), e, new_params)));
+        }
+    }
+
+    if any_changed {
+        Ok(Some(Expr::new_clone(e.node_type.clone(), e, new_params)))
+    } else {
+        Ok(None)
     }
 }
 
@@ -738,7 +954,16 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 fn precomp_body(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     let mut new_params = Vec::new();
     for p in &e.params {
-        new_params.push(precomp_expr(context, p)?);
+        let saved_decl_count = context.anon_struct_decls.len();
+        let result = precomp_expr(context, p)?;
+        // Issue #105: inject pending anonymous struct declarations before the statement that uses them
+        if context.anon_struct_decls.len() > saved_decl_count {
+            let pending: Vec<Expr> = context.anon_struct_decls.drain(saved_decl_count..).collect();
+            for decl in pending {
+                new_params.push(decl);
+            }
+        }
+        new_params.push(result);
     }
     Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
 }
@@ -998,6 +1223,15 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         return Err(e.lang_error(&context.path, "precomp", "Declarations can have only one child expression"));
     }
 
+    // Issue #105: After anonymous struct expansion, re-evaluate the type from the transformed expression
+    if value_type == ValueType::TCustom(INFER_TYPE.to_string()) && !new_params.is_empty() {
+        if let Ok(new_type) = get_value_type(context, &new_params[0]) {
+            if new_type != ValueType::TCustom(INFER_TYPE.to_string()) {
+                value_type = new_type;
+            }
+        }
+    }
+
     // Issue #105: After macro expansion, check if the result is a StructDef
     // and register it (the pre-expansion check above only handles literal StructDef RHS)
     if let ValueType::TType(TTypeDef::TStructDef) = &value_type {
@@ -1150,6 +1384,68 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         Some(expr) => expr,
         None => return Ok(e.clone()), // Empty FCall, shouldn't happen but just return as-is
     };
+
+    // Issue #105: anonymous struct instantiation - struct { ... }(args)
+    // Register the anonymous struct and replace StructDef with Identifier
+    if let NodeType::StructDef(struct_def) = &func_expr.node_type {
+        let temp_name = format!("AnonStruct{}", context.anon_struct_counter);
+        context.anon_struct_counter += 1;
+        context.scope_stack.declare_struct(temp_name.clone(), struct_def.clone());
+        context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
+            value_type: ValueType::TType(TTypeDef::TStructDef),
+            is_mut: false,
+            is_copy: false,
+            is_own: false,
+            is_comptime_const: false,
+        });
+        // Register immutable fields as namespace constants
+        for member_decl in &struct_def.members {
+            if !member_decl.is_mut {
+                if let Some(member_expr) = struct_def.default_values.get(&member_decl.name) {
+                    let member_value_type = get_value_type(context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                    let member_full_name = format!("{}.{}", temp_name, member_decl.name);
+                    context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
+                        value_type: member_value_type,
+                        is_mut: member_decl.is_mut,
+                        is_copy: member_decl.is_copy,
+                        is_own: member_decl.is_own,
+                        is_comptime_const: false,
+                    });
+                }
+            }
+        }
+        // Generate struct methods (delete/clone)
+        if let Some(ns_block) = generate_struct_methods(&temp_name, struct_def, e.line, e.col) {
+            let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, e, vec![ns_block]))?;
+            if !ns_errors.is_empty() {
+                return Err(ns_errors.join("\n"));
+            }
+        }
+        // Create default instance for codegen
+        create_default_instance(context, &temp_name, e)?;
+        // Add struct declaration to pending list for codegen to emit
+        let struct_decl = Declaration {
+            name: temp_name.clone(),
+            value_type: ValueType::TType(TTypeDef::TStructDef),
+            is_mut: false,
+            is_copy: false,
+            is_own: false,
+            default_value: None,
+        };
+        let struct_decl_expr = Expr::new_clone(
+            NodeType::Declaration(struct_decl),
+            func_expr,
+            vec![Expr::new_clone(NodeType::StructDef(struct_def.clone()), func_expr, vec![])],
+        );
+        context.anon_struct_decls.push(struct_decl_expr);
+        // Replace StructDef with Identifier and continue as normal struct constructor
+        let id_expr = Expr::new_clone(NodeType::Identifier(temp_name.clone()), func_expr, vec![]);
+        let mut new_params = vec![id_expr];
+        for p in e.params.iter().skip(1) {
+            new_params.push(precomp_expr(context, p)?);
+        }
+        return Ok(Expr::new_clone(e.node_type.clone(), e, new_params));
+    }
 
     let combined_name = if let NodeType::Identifier(_) = &func_expr.node_type {
         crate::rs::parser::get_combined_name(&context.path, func_expr)?

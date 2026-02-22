@@ -905,6 +905,16 @@ parse_struct_definition : func(mut lexer: Lexer) returns Expr throws Str = {
                     throw t.error(lexer.path, "expected only declarations inside struct definition")
                 }
             }
+            // Issue #105: allow comma-separated fields in inline struct definitions
+            if lexer.current.lt(lexer.len()) {
+                comma_peek := lexer.peek()?
+                comma_tt := comma_peek.token_type
+                switch comma_tt {
+                case TokenType.Comma:
+                    lexer.advance(1)?
+                case:
+                }
+            }
         }
     }
     if not(end_found) {
@@ -1267,6 +1277,24 @@ parse_primary : func(mut lexer: Lexer) returns Expr throws Str = {
         result = enum_definition(lexer)?
     case TokenType.Struct:
         result = parse_struct_definition(lexer)?
+        // Issue #105: anonymous instantiation - struct { ... }(args)
+        peek_after := lexer.peek()?
+        peek_after_tt := peek_after.token_type
+        mut is_left_paren := false
+        switch peek_after_tt {
+        case TokenType.LeftParen:
+            is_left_paren = true
+        case:
+        }
+        if is_left_paren {
+            arg_list := parse_args(lexer)?
+            mut fcall_params := Vec.new(Expr)
+            fcall_params.push(result.clone())
+            for arg: Expr in arg_list.params {
+                fcall_params.push(arg.clone())
+            }
+            result = expr_new_parse(NodeType.FCall(false), t.clone(), fcall_params)
+        }
     case TokenType.Namespace:
         throw t.error(lexer.path, "Separate 'namespace TypeName { }' blocks are no longer supported. Use 'namespace:' inside the struct/enum body instead.")
     case TokenType.LeftParen:

@@ -5561,6 +5561,10 @@ fn emit_throwing_call_with_goto(
 }
 
 fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    // Issue #105: Skip struct/enum type definitions inside function bodies - they're emitted at top level
+    if let ValueType::TType(_) = &decl.value_type {
+        return Ok(());
+    }
     // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
     if !expr.params.is_empty() {
         if let NodeType::FuncDef(func_def) = &expr.get(0)?.node_type {

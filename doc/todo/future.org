@@ -1315,6 +1315,25 @@ p.delete()
   (immutable field)
 - [X] All 93 tests pass
 
+*** Completed (2026-02-22) -- Anonymous struct expressions
+- [X] Parser: ~struct { ... }(args)~ in expression position creates FCall with
+  StructDef as first param; comma-separated fields in inline struct bodies
+- [X] ~expand_struct_macros~: top-level anonymous struct instantiation transforms
+  StructDef to named AnonStructN, registers struct + methods, injects declarations
+- [X] ~expand_anon_struct_fcalls_recursive~: recursive walk into function/proc bodies
+  handles both ~struct { ... }(args)~ (anonymous instantiation) and ~P := struct { ... }~
+  (named struct definition inside function). Hoists struct typedefs + methods to top level.
+- [X] ~precomp_fcall~: handles anonymous struct instantiation during precomp phase,
+  pushes struct declarations to ~anon_struct_decls~ for injection by ~precomp_body~
+- [X] Codegen: ~emit_declaration~ skips TType declarations (struct defs inside function
+  bodies are emitted at top level)
+- [X] Interpreter: FCall with StructDef first param registers anonymous struct and
+  calls constructor
+- [X] AnonStructN naming (no leading underscores) avoids til_name/til_type_to_c prefix
+  inconsistency
+- [X] Tests in src/test/structs.til: definition, named args, defaults, partial override
+- [X] All changes ported to both Rust and TIL, all 93 tests pass
+
 *** Not yet working
 
 ** Issue #106: First-Class Enums
