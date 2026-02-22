@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use crate::rs::init::Context;
-use crate::rs::parser::{Expr, NodeType, ValueType, SFuncDef, SStructDef, SNamespaceDef, Declaration};
+use crate::rs::parser::{Expr, NodeType, ValueType, SFuncDef, SStructDef, SEnumDef, SNamespaceDef, Declaration};
 
 /// Result of resolving a function call, including UFCS detection.
 struct ResolvedFCall {
@@ -216,9 +216,19 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for (name, value_expr) in &struct_def.default_values {
                 new_default_values.insert(name.clone(), garbager_recursive(context, value_expr)?);
             }
+            // Recurse into ns default values
+            let mut ns_new_default_values = HashMap::new();
+            for (name, ns_value_expr) in &struct_def.ns.default_values {
+                ns_new_default_values.insert(name.clone(), garbager_recursive(context, ns_value_expr)?);
+            }
+            let new_ns = SNamespaceDef {
+                members: struct_def.ns.members.clone(),
+                default_values: ns_new_default_values,
+            };
             let new_struct_def = SStructDef {
                 members: struct_def.members.clone(),
                 default_values: new_default_values,
+                ns: new_ns,
             };
             let mut struct_new_params = Vec::new();
             for param in &e.params {
@@ -226,22 +236,22 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             Ok(Expr::new_explicit(NodeType::StructDef(new_struct_def), struct_new_params, e.line, e.col))
         }
-        // Recurse into NamespaceDef default values
-        NodeType::NamespaceDef(ns_def) => {
+        // Recurse into EnumDef ns default values
+        NodeType::EnumDef(enum_def) => {
             let mut ns_new_default_values = HashMap::new();
-            for (name, ns_value_expr) in &ns_def.default_values {
+            for (name, ns_value_expr) in &enum_def.ns.default_values {
                 ns_new_default_values.insert(name.clone(), garbager_recursive(context, ns_value_expr)?);
             }
-            let new_ns_def = SNamespaceDef {
-                type_name: ns_def.type_name.clone(),
-                members: ns_def.members.clone(),
+            let new_ns = SNamespaceDef {
+                members: enum_def.ns.members.clone(),
                 default_values: ns_new_default_values,
             };
-            let mut ns_new_params = Vec::new();
-            for param in &e.params {
-                ns_new_params.push(garbager_recursive(context, param)?);
-            }
-            Ok(Expr::new_explicit(NodeType::NamespaceDef(new_ns_def), ns_new_params, e.line, e.col))
+            let new_enum_def = SEnumDef {
+                variants: enum_def.variants.clone(),
+                methods: enum_def.methods.clone(),
+                ns: new_ns,
+            };
+            Ok(Expr::new_explicit(NodeType::EnumDef(new_enum_def), e.params.clone(), e.line, e.col))
         }
         // Issue #159: Transform mut declarations with struct type where RHS is an identifier
         NodeType::Declaration(decl) => {

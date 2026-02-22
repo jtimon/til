@@ -285,16 +285,28 @@ fn generate_enum_clone_method(enum_name: &str, line: usize, col: usize) -> Expr 
     Expr::new_explicit(NodeType::FuncDef(func_def), vec![], line, col)
 }
 
-/// Collect all methods defined in namespace blocks.
+/// Collect all methods defined in namespace blocks (now stored as ns field on struct/enum).
 /// Returns a set of (type_name, method_name) pairs.
 fn collect_namespace_methods(ast: &Expr) -> HashSet<(String, String)> {
     let mut methods = HashSet::new();
 
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if let NodeType::NamespaceDef(ns_def) = &child.node_type {
-                for member in &ns_def.members {
-                    methods.insert((ns_def.type_name.clone(), member.name.clone()));
+            if let NodeType::Declaration(decl) = &child.node_type {
+                if let Some(value_expr) = child.params.first() {
+                    match &value_expr.node_type {
+                        NodeType::StructDef(struct_def) => {
+                            for member in &struct_def.ns.members {
+                                methods.insert((decl.name.clone(), member.name.clone()));
+                            }
+                        },
+                        NodeType::EnumDef(enum_def) => {
+                            for member in &enum_def.ns.members {
+                                methods.insert((decl.name.clone(), member.name.clone()));
+                            }
+                        },
+                        _ => {}
+                    }
                 }
             }
         }
@@ -316,16 +328,18 @@ fn collect_structs_needing_methods(
             if let NodeType::Declaration(decl) = &child.node_type {
                 if let Some(value_expr) = child.params.first() {
                     if let NodeType::StructDef(struct_def) = &value_expr.node_type {
-                        // Check if delete/clone are already defined (in struct or namespace)
+                        // Check if delete/clone are already defined (in struct members, struct default_values, or ns)
                         let has_delete_inline = struct_def.members.iter().any(|m| m.name == "delete")
                             || struct_def.default_values.contains_key("delete");
+                        let has_delete_ns = struct_def.ns.members.iter().any(|m| m.name == "delete");
                         let has_delete_namespace = namespace_methods.contains(&(decl.name.clone(), "delete".to_string()));
-                        let has_delete = has_delete_inline || has_delete_namespace;
+                        let has_delete = has_delete_inline || has_delete_ns || has_delete_namespace;
 
                         let has_clone_inline = struct_def.members.iter().any(|m| m.name == "clone")
                             || struct_def.default_values.contains_key("clone");
+                        let has_clone_ns = struct_def.ns.members.iter().any(|m| m.name == "clone");
                         let has_clone_namespace = namespace_methods.contains(&(decl.name.clone(), "clone".to_string()));
-                        let has_clone = has_clone_inline || has_clone_namespace;
+                        let has_clone = has_clone_inline || has_clone_ns || has_clone_namespace;
 
                         let needs_delete = !has_delete;
                         let needs_clone = !has_clone;
@@ -346,27 +360,29 @@ fn collect_structs_needing_methods(
 }
 
 /// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
-/// Returns Some(namespace_block_expr) if the struct needs auto-generated methods, None otherwise.
-pub fn generate_struct_methods(struct_name: &str, struct_def: &SStructDef, line: usize, col: usize) -> Option<Expr> {
-    // Check if delete/clone are already defined inline
+/// Returns Some(SNamespaceDef) if the struct needs auto-generated methods, None otherwise.
+pub fn generate_struct_methods(struct_name: &str, struct_def: &SStructDef, _line: usize, _col: usize) -> Option<SNamespaceDef> {
+    // Check if delete/clone are already defined (inline or in ns)
     let has_delete = struct_def.members.iter().any(|m| m.name == "delete")
-        || struct_def.default_values.contains_key("delete");
+        || struct_def.default_values.contains_key("delete")
+        || struct_def.ns.members.iter().any(|m| m.name == "delete");
     let has_clone = struct_def.members.iter().any(|m| m.name == "clone")
-        || struct_def.default_values.contains_key("clone");
+        || struct_def.default_values.contains_key("clone")
+        || struct_def.ns.members.iter().any(|m| m.name == "clone");
 
     let needs_delete = !has_delete;
     let needs_clone = !has_clone;
 
     if needs_delete || needs_clone {
-        Some(generate_namespace_block(struct_name, struct_def, line, col, needs_delete, needs_clone))
+        Some(generate_namespace_block(struct_name, struct_def, needs_delete, needs_clone))
     } else {
         None
     }
 }
 
 /// Issue #106: Public API for generating delete/clone methods for a macro-expanded enum.
-/// Returns Some(namespace_block_expr) if the enum needs auto-generated methods, None otherwise.
-pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool, line: usize, col: usize) -> Option<Expr> {
+/// Returns Some(SNamespaceDef) if the enum needs auto-generated methods, None otherwise.
+pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool, line: usize, col: usize) -> Option<SNamespaceDef> {
     let needs_delete = !has_delete;
     let needs_clone = !has_clone;
 
@@ -402,49 +418,41 @@ pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool,
             default_values.insert("clone".to_string(), clone_expr);
         }
 
-        let ns_def = SNamespaceDef {
-            type_name: enum_name.to_string(),
+        Some(SNamespaceDef {
             members,
             default_values,
-        };
-
-        Some(Expr::new_explicit(NodeType::NamespaceDef(ns_def), vec![], line, col))
+        })
     } else {
         None
     }
 }
 
-/// Generate a namespace block with auto-generated methods for a struct.
+/// Generate a SNamespaceDef with auto-generated methods for a struct.
 fn generate_namespace_block(
     struct_name: &str,
     struct_def: &SStructDef,
-    line: usize,
-    col: usize,
     needs_delete: bool,
     needs_clone: bool,
-) -> Expr {
+) -> SNamespaceDef {
     let mut members = Vec::new();
     let mut default_values = HashMap::new();
 
     if needs_delete {
-        let delete_result = generate_delete_method(struct_name, struct_def, line, col);
+        let delete_result = generate_delete_method(struct_name, struct_def, 0, 0);
         members.push(delete_result.decl);
         default_values.insert("delete".to_string(), delete_result.expr);
     }
 
     if needs_clone {
-        let clone_result = generate_clone_method(struct_name, struct_def, line, col);
+        let clone_result = generate_clone_method(struct_name, struct_def, 0, 0);
         members.push(clone_result.decl);
         default_values.insert("clone".to_string(), clone_result.expr);
     }
 
-    let ns_def = SNamespaceDef {
-        type_name: struct_name.to_string(),
+    SNamespaceDef {
         members,
         default_values,
-    };
-
-    Expr::new_explicit(NodeType::NamespaceDef(ns_def), vec![], line, col)
+    }
 }
 
 /// Recursively process expression (for nested function bodies, etc.)
@@ -472,6 +480,7 @@ fn preinit_expr_inner(e: &Expr) -> Result<Expr, String> {
             let new_struct_def = SStructDef {
                 members: struct_def.members.clone(),
                 default_values: new_default_values,
+                ns: struct_def.ns.clone(),
             };
             Ok(Expr::new_clone(NodeType::StructDef(new_struct_def), e, e.params.clone()))
         },
@@ -502,6 +511,7 @@ fn preinit_expr_inner(e: &Expr) -> Result<Expr, String> {
                         let new_enum_def = SEnumDef {
                             variants: enum_def.variants.clone(),
                             methods: new_methods,
+                            ns: enum_def.ns.clone(),
                         };
 
                         let new_enum_expr = Expr::new_clone(
@@ -552,23 +562,42 @@ pub fn preinit_expr(e: &Expr) -> Result<Expr, String> {
         // Pass 2: Find structs that need auto-generated methods
         let structs_needing_methods = collect_structs_needing_methods(e, &namespace_methods);
 
-        // Pass 3: Process all children and generate namespace blocks
+        // Pass 3: Process all children, setting ns on struct defs that need auto-generated methods
         let mut new_params = Vec::new();
         for child in &e.params {
-            new_params.push(preinit_expr_inner(child)?);
-        }
+            let mut processed = preinit_expr_inner(child)?;
 
-        // Append generated namespace blocks for structs that need them
-        for (struct_name, (struct_def, line, col, needs_delete, needs_clone)) in structs_needing_methods.iter() {
-            let ns_block = generate_namespace_block(
-                struct_name,
-                struct_def,
-                *line,
-                *col,
-                *needs_delete,
-                *needs_clone,
-            );
-            new_params.push(ns_block);
+            // If this is a Declaration of a StructDef that needs methods, set the ns field
+            if let NodeType::Declaration(decl) = &processed.node_type {
+                if let Some((_, (_, _, _, needs_delete, needs_clone))) = structs_needing_methods.iter().find(|(name, _)| *name == &decl.name) {
+                    if let Some(value_expr) = processed.params.first() {
+                        if let NodeType::StructDef(struct_def) = &value_expr.node_type {
+                            let auto_ns = generate_namespace_block(&decl.name, struct_def, *needs_delete, *needs_clone);
+                            // Merge auto-generated ns with any user-defined ns
+                            let mut merged_ns = struct_def.ns.clone();
+                            for m in auto_ns.members {
+                                if !merged_ns.members.iter().any(|existing| existing.name == m.name) {
+                                    merged_ns.members.push(m);
+                                }
+                            }
+                            for (k, v) in auto_ns.default_values {
+                                if !merged_ns.default_values.contains_key(&k) {
+                                    merged_ns.default_values.insert(k, v);
+                                }
+                            }
+                            let new_struct_def = SStructDef {
+                                members: struct_def.members.clone(),
+                                default_values: struct_def.default_values.clone(),
+                                ns: merged_ns,
+                            };
+                            let new_value_expr = Expr::new_clone(NodeType::StructDef(new_struct_def), value_expr, value_expr.params.clone());
+                            processed = Expr::new_clone(processed.node_type.clone(), &processed, vec![new_value_expr]);
+                        }
+                    }
+                }
+            }
+
+            new_params.push(processed);
         }
 
         return Ok(Expr::new_clone(e.node_type.clone(), e, new_params));

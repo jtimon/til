@@ -710,6 +710,42 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
     return e
 }
 
+build_namespace_from_stmts : func(namespace_stmts: Vec) returns SNamespaceDef throws Str = {
+    mut ns_members := Vec.new(Declaration)
+    mut ns_default_values := Map.new(Str, Expr)
+    for stmt: Expr in namespace_stmts {
+        stmt_nt := stmt.node_type
+        switch stmt_nt {
+        case NodeType.Declaration(ns_decl):
+            ns_members.push(ns_decl.clone())
+            if stmt.params.len().eq(1) {
+                ns_val := stmt.get(0)?
+                dont_delete(ns_val)
+                ns_default_values.set(ns_decl.name.clone(), ns_val.clone())
+            }
+        case NodeType.Assignment(name):
+            if stmt.params.len().eq(1) {
+                ns_assign_val := stmt.get(0)?
+                dont_delete(ns_assign_val)
+                mut ns_assign_decl := Declaration()
+                ns_assign_decl.name = name.clone()
+                ns_assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
+                ns_assign_decl.is_mut = false
+                ns_assign_decl.is_copy = false
+                ns_assign_decl.is_own = false
+                ns_members.push(ns_assign_decl.clone())
+                ns_default_values.set(name.clone(), ns_assign_val.clone())
+            }
+        case:
+            // skip
+        }
+    }
+    mut ns_def := SNamespaceDef()
+    ns_def.members = ns_members
+    ns_def.default_values = ns_default_values
+    return ns_def
+}
+
 enum_definition : func(mut lexer: Lexer) returns Expr throws Str = {
     initial_current := lexer.current
     lexer.advance(1)?
@@ -756,7 +792,7 @@ enum_definition : func(mut lexer: Lexer) returns Expr throws Str = {
             }
         case:
             if in_namespace {
-                // Collect raw statement Exprs for post-parse splitting into NamespaceDef
+                // Collect raw statement Exprs for namespace block
                 stmt := parse_statement(lexer)?
                 namespace_stmts.push(stmt)
             } else {
@@ -812,10 +848,12 @@ enum_definition : func(mut lexer: Lexer) returns Expr throws Str = {
     if not(end_found) {
         throw t.error(lexer.path, "Expected '}}' to end enum.")
     }
+    ns := build_namespace_from_stmts(namespace_stmts)?
     mut enum_def := SEnumDef()
     enum_def.variants = variants
+    enum_def.ns = ns
     initial_token := lexer.get_token(initial_current)?.clone()
-    e := expr_new_parse(NodeType.EnumDef(enum_def), initial_token, namespace_stmts)
+    e := expr_new_parse(NodeType.EnumDef(enum_def), initial_token, Vec.new(Expr))
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
@@ -870,7 +908,7 @@ parse_struct_definition : func(mut lexer: Lexer) returns Expr throws Str = {
             stmt := parse_statement(lexer)?
             dont_delete(stmt)
             if in_namespace {
-                // Collect raw statement Exprs for post-parse splitting into NamespaceDef
+                // Collect raw statement Exprs for namespace block
                 namespace_stmts.push(stmt.clone())
             } else {
                 stmt_nt := stmt.node_type
@@ -921,10 +959,12 @@ parse_struct_definition : func(mut lexer: Lexer) returns Expr throws Str = {
         throw t.error(lexer.path, "Expected '}}' to end struct definition.")
     }
 
+    ns := build_namespace_from_stmts(namespace_stmts)?
     mut struct_def := SStructDef()
     struct_def.members = members
     struct_def.default_values = default_values
-    result := expr_new_parse(NodeType.StructDef(struct_def), t.clone(), namespace_stmts)
+    struct_def.ns = ns
+    result := expr_new_parse(NodeType.StructDef(struct_def), t.clone(), Vec.new(Expr))
     catch (err: IndexOutOfBoundsError) {
         throw concat("parse_struct_definition: ", err.msg)
     }
@@ -2181,99 +2221,6 @@ parse_body : func(mut lexer: Lexer, end_token: TokenType) returns Expr throws St
     throw t.error(lexer.path, format("Expected '", token_type_to_str(end_token), "' to end body."))
 }
 
-// Issue #174: Post-parse pass to split inline namespace members from StructDef/EnumDef params
-// into synthetic NamespaceDef nodes. This keeps SStructDef/SEnumDef unchanged (no new fields).
-split_inline_namespaces : func(ast: Expr) returns Expr throws Str = {
-    ast_nt := ast.node_type
-    switch ast_nt {
-    case NodeType.Body:
-        mut new_params := Vec.new(Expr)
-        for child: Expr in ast.params {
-            child_nt := child.node_type
-            switch child_nt {
-            case NodeType.Declaration(decl):
-                if child.params.len().eq(1) {
-                    inner := child.get(0)?
-                    dont_delete(inner)
-                    inner_nt := inner.node_type
-                    // Issue #174: Extract inline namespace from StructDef or EnumDef params
-                    if inner.params.len().gt(0) {
-                        mut is_type_def := false
-                        switch inner_nt {
-                        case NodeType.StructDef(_sd):
-                            is_type_def = true
-                        case NodeType.EnumDef(_ed):
-                            is_type_def = true
-                        case:
-                            // not a type def
-                        }
-                        if is_type_def {
-                            // Extract namespace members from params
-                            mut ns_members := Vec.new(Declaration)
-                            mut ns_default_values := Map.new(Str, Expr)
-                            for ns_stmt: Expr in inner.params {
-                                ns_stmt_nt := ns_stmt.node_type
-                                switch ns_stmt_nt {
-                                case NodeType.Declaration(ns_decl):
-                                    ns_members.push(ns_decl.clone())
-                                    if ns_stmt.params.len().eq(1) {
-                                        ns_val := ns_stmt.get(0)?
-                                        dont_delete(ns_val)
-                                        ns_default_values.set(ns_decl.name.clone(), ns_val.clone())
-                                    }
-                                case NodeType.Assignment(ns_name):
-                                    if ns_stmt.params.len().eq(1) {
-                                        ns_assign_val := ns_stmt.get(0)?
-                                        dont_delete(ns_assign_val)
-                                        mut ns_assign_decl := Declaration()
-                                        ns_assign_decl.name = ns_name.clone()
-                                        ns_assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
-                                        ns_assign_decl.is_mut = false
-                                        ns_assign_decl.is_copy = false
-                                        ns_assign_decl.is_own = false
-                                        ns_members.push(ns_assign_decl.clone())
-                                        ns_default_values.set(ns_name.clone(), ns_assign_val.clone())
-                                    }
-                                case:
-                                    // skip
-                                }
-                            }
-                            // Emit StructDef/EnumDef without namespace params
-                            clean_type_def_params := Vec.new(Expr)
-                            clean_type_def := Expr.new_explicit(inner.node_type.clone(), clean_type_def_params, inner.line, inner.col)
-                            mut clean_decl_params := Vec.new(Expr)
-                            clean_decl_params.push(clean_type_def)
-                            clean_decl := Expr.new_explicit(child.node_type.clone(), clean_decl_params, child.line, child.col)
-                            new_params.push(clean_decl)
-                            // Emit synthetic NamespaceDef
-                            if ns_members.len().gt(0) {
-                                mut ns_def := SNamespaceDef()
-                                ns_def.type_name = decl.name.clone()
-                                ns_def.members = ns_members
-                                ns_def.default_values = ns_default_values
-                                ns_expr := Expr.new_explicit(NodeType.NamespaceDef(ns_def), Vec.new(Expr), child.line, child.col)
-                                new_params.push(ns_expr)
-                            }
-                        } else {
-                            new_params.push(child.clone())
-                        }
-                    } else {
-                        new_params.push(child.clone())
-                    }
-                } else {
-                    new_params.push(child.clone())
-                }
-            case:
-                new_params.push(child.clone())
-            }
-        }
-        result := Expr.new_explicit(ast.node_type.clone(), new_params, ast.line, ast.col)
-        return result
-    case:
-        return ast.clone()
-    }
-}
-
 parse_tokens : proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
     e := parse_body(lexer, TokenType.Eof)?
 
@@ -2297,7 +2244,5 @@ parse_tokens : proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsE
         throw format("Total unparsed tokens: ", unparsed_tokens.to_str(), "/", lexer_len_val.to_str())
     }
 
-    // Issue #174: Split inline namespace members into synthetic NamespaceDef nodes
-    result := split_inline_namespaces(e)?
-    return result
+    return e
 }

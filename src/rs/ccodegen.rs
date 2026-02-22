@@ -1,7 +1,7 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE, FunctionType, TTypeDef};
+use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, SNamespaceDef, ValueType, INFER_TYPE, FunctionType, TTypeDef};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType, PrecomputedHeapValue};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use crate::rs::eval_heap::{EvalHeap, VecContents};
@@ -2104,8 +2104,18 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // 2b2: Issue #108 - namespace functions (with mangled names)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_namespace_definition(child) {
-                emit_namespace_func_prototypes(child, context, &mut output)?;
+            if let NodeType::Declaration(decl) = &child.node_type {
+                if let Some(value_expr) = child.params.first() {
+                    match &value_expr.node_type {
+                        NodeType::StructDef(struct_def) if !struct_def.ns.members.is_empty() => {
+                            emit_namespace_func_prototypes(&struct_def.ns, &decl.name, context, &mut output)?;
+                        },
+                        NodeType::EnumDef(enum_def) if !enum_def.ns.members.is_empty() => {
+                            emit_namespace_func_prototypes(&enum_def.ns, &decl.name, context, &mut output)?;
+                        },
+                        _ => {}
+                    }
+                }
             }
         }
     }
@@ -2200,8 +2210,18 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // 5b2: Issue #108 - namespace functions (with mangled names)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_namespace_definition(child) {
-                emit_namespace_func_bodies(child, &mut output, &mut ctx, context)?;
+            if let NodeType::Declaration(decl) = &child.node_type {
+                if let Some(value_expr) = child.params.first() {
+                    match &value_expr.node_type {
+                        NodeType::StructDef(struct_def) if !struct_def.ns.members.is_empty() => {
+                            emit_namespace_func_bodies(&struct_def.ns, &decl.name, &mut output, &mut ctx, context)?;
+                        },
+                        NodeType::EnumDef(enum_def) if !enum_def.ns.members.is_empty() => {
+                            emit_namespace_func_bodies(&enum_def.ns, &decl.name, &mut output, &mut ctx, context)?;
+                        },
+                        _ => {}
+                    }
+                }
             }
         }
     }
@@ -3504,22 +3524,15 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     Ok(())
 }
 
-// Issue #108: Check if expression is a namespace definition
-fn is_namespace_definition(expr: &Expr) -> bool {
-    matches!(&expr.node_type, NodeType::NamespaceDef(_))
-}
-
 // Issue #108: Emit namespace function prototypes (forward declarations)
-fn emit_namespace_func_prototypes(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
-    if let NodeType::NamespaceDef(ns_def) = &expr.node_type {
-        let type_name = til_name(&ns_def.type_name);
-        for member in &ns_def.members {
-            if let Some(func_expr) = ns_def.default_values.get(&member.name) {
-                if let NodeType::FuncDef(func_def) = &func_expr.node_type {
-                    let mangled_name = format!("{}_{}", type_name, member.name);
-                    emit_func_signature(&mangled_name, func_def, context, output)?;
-                    output.push_str(";\n");
-                }
+fn emit_namespace_func_prototypes(ns_def: &SNamespaceDef, decl_name: &str, context: &Context, output: &mut String) -> Result<(), String> {
+    let type_name = til_name(decl_name);
+    for member in &ns_def.members {
+        if let Some(func_expr) = ns_def.default_values.get(&member.name) {
+            if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                let mangled_name = format!("{}_{}", type_name, member.name);
+                emit_func_signature(&mangled_name, &func_def, context, output)?;
+                output.push_str(";\n");
             }
         }
     }
@@ -3527,14 +3540,12 @@ fn emit_namespace_func_prototypes(expr: &Expr, context: &Context, output: &mut S
 }
 
 // Issue #108: Emit namespace function bodies
-fn emit_namespace_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
-    if let NodeType::NamespaceDef(ns_def) = &expr.node_type {
-        let type_name = til_name(&ns_def.type_name);
-        for member in &ns_def.members {
-            if let Some(func_expr) = ns_def.default_values.get(&member.name) {
-                if let NodeType::FuncDef(func_def) = &func_expr.node_type {
-                    emit_struct_func_body(&type_name, member, func_def, output, ctx, context)?;
-                }
+fn emit_namespace_func_bodies(ns_def: &SNamespaceDef, decl_name: &str, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    let type_name = til_name(decl_name);
+    for member in &ns_def.members {
+        if let Some(func_expr) = ns_def.default_values.get(&member.name) {
+            if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                emit_struct_func_body(&type_name, member, &func_def, output, ctx, context)?;
             }
         }
     }
@@ -4070,8 +4081,6 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Range => Err("ccodegen: Range not yet supported".to_string()),
         NodeType::Pattern(_) => Err(expr.lang_error(&context.path, "ccodegen", "Pattern should have been desugared with Switch")),
         NodeType::NamedArg(_) => Err(expr.error(&context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")),
-        // Issue #108: NamespaceDef already processed by init - members merged into type
-        NodeType::NamespaceDef(_ns_def) => Ok(()),
         NodeType::ForIn(_) => Err(expr.lang_error(&context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")),
     }
 }

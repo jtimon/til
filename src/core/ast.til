@@ -24,9 +24,31 @@ namespace:
     }
 }
 
+SNamespaceDef := struct {
+    mut members: Vec = Vec.new(Declaration)
+    mut default_values: Map = Map.new(Str, Expr)
+
+namespace:
+    clone : func(self: SNamespaceDef) returns SNamespaceDef = {
+        mut result := SNamespaceDef()
+        // Deep clone members
+        for m: Declaration in self.members {
+            result.members.push(m.clone())
+        }
+        // Deep clone default_values Map<Str, Expr>
+        for k: Str in self.default_values.keys {
+            v := cast(Expr, self.default_values.get(k)?)
+            result.default_values.set(k.clone(), v.clone())
+        }
+        catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
+        return result
+    }
+}
+
 SEnumDef := struct {
     mut variants: Vec = Vec.new(EnumVariant)
     mut methods: Map = Map.new(Str, Expr)  // Auto-generated methods (delete, clone)
+    mut ns: SNamespaceDef = SNamespaceDef()
 
 namespace:
     clone : func(self: SEnumDef) returns SEnumDef = {
@@ -37,6 +59,7 @@ namespace:
         }
         // Clone methods map
         result.methods = self.methods.clone()
+        result.ns = self.ns.clone()
         return result
     }
 
@@ -208,6 +231,7 @@ namespace:
 SStructDef := struct {
     mut members: Vec = Vec.new(Declaration)
     mut default_values: Map = Map.new(Str, Expr)
+    mut ns: SNamespaceDef = SNamespaceDef()
 
 namespace:
     clone : func(self: SStructDef) returns SStructDef = {
@@ -222,6 +246,7 @@ namespace:
             result.default_values.set(k.clone(), v.clone())
         }
         catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
+        result.ns = self.ns.clone()
         return result
     }
 
@@ -247,29 +272,6 @@ namespace:
             throw e.error(path, "type", format("Struct '", struct_name, "' has no member '", member_name, "'"))
         }
         return member
-    }
-}
-
-SNamespaceDef := struct {
-    mut type_name: Str = ""
-    mut members: Vec = Vec.new(Declaration)
-    mut default_values: Map = Map.new(Str, Expr)
-
-namespace:
-    clone : func(self: SNamespaceDef) returns SNamespaceDef = {
-        mut result := SNamespaceDef()
-        result.type_name = self.type_name.clone()
-        // Deep clone members
-        for m: Declaration in self.members {
-            result.members.push(m.clone())
-        }
-        // Deep clone default_values Map<Str, Expr>
-        for k: Str in self.default_values.keys {
-            v := cast(Expr, self.default_values.get(k)?)
-            result.default_values.set(k.clone(), v.clone())
-        }
-        catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
-        return result
     }
 }
 
@@ -307,7 +309,6 @@ NodeType := enum {
     FuncDef: SFuncDef,
     EnumDef: SEnumDef,
     StructDef: SStructDef,
-    NamespaceDef: SNamespaceDef,
     Return,
     Throw,
     Catch,
@@ -350,9 +351,6 @@ node_type_clone : func(nt: NodeType) returns NodeType = {
     case NodeType.StructDef(sd):
         sd_cloned := sd.clone()
         return NodeType.StructDef(sd_cloned)
-    case NodeType.NamespaceDef(nd):
-        nd_cloned := nd.clone()
-        return NodeType.NamespaceDef(nd_cloned)
     case NodeType.Pattern(pi):
         pi_cloned := pi.clone()
         return NodeType.Pattern(pi_cloned)

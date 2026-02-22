@@ -20,13 +20,13 @@ typedef struct til_U8_Overflow til_U8_Overflow;
 typedef struct til_HeapEntry til_HeapEntry;
 typedef struct til_HeapState til_HeapState;
 typedef struct til_Map til_Map;
+typedef struct til_SNamespaceDef til_SNamespaceDef;
 typedef struct til_SEnumDef til_SEnumDef;
 typedef struct til_Declaration til_Declaration;
 typedef struct til_PatternInfo til_PatternInfo;
 typedef struct til_FuncSig til_FuncSig;
 typedef struct til_SFuncDef til_SFuncDef;
 typedef struct til_SStructDef til_SStructDef;
-typedef struct til_SNamespaceDef til_SNamespaceDef;
 typedef struct til_Literal til_Literal;
 typedef struct til_NodeType til_NodeType;
 typedef struct til_ValueType til_ValueType;
@@ -223,7 +223,6 @@ struct til_Map {
 };
 
 struct til_SNamespaceDef {
-    til_Str type_name;
     til_Vec members;
     til_Map default_values;
 };
@@ -231,11 +230,13 @@ struct til_SNamespaceDef {
 struct til_SStructDef {
     til_Vec members;
     til_Map default_values;
+    til_SNamespaceDef ns;
 };
 
 struct til_SEnumDef {
     til_Vec variants;
     til_Map methods;
+    til_SNamespaceDef ns;
 };
 
 typedef enum {
@@ -254,14 +255,13 @@ typedef enum {
     til_NodeType_If = 12,
     til_NodeType_LLiteral = 13,
     til_NodeType_NamedArg = 14,
-    til_NodeType_NamespaceDef = 15,
-    til_NodeType_Pattern = 16,
-    til_NodeType_Range = 17,
-    til_NodeType_Return = 18,
-    til_NodeType_StructDef = 19,
-    til_NodeType_Switch = 20,
-    til_NodeType_Throw = 21,
-    til_NodeType_While = 22,
+    til_NodeType_Pattern = 15,
+    til_NodeType_Range = 16,
+    til_NodeType_Return = 17,
+    til_NodeType_StructDef = 18,
+    til_NodeType_Switch = 19,
+    til_NodeType_Throw = 20,
+    til_NodeType_While = 21,
 } til_NodeType_Tag;
 
 typedef union {
@@ -274,7 +274,6 @@ typedef union {
     til_Str Identifier;
     til_Literal LLiteral;
     til_Str NamedArg;
-    til_SNamespaceDef NamespaceDef;
     til_PatternInfo Pattern;
     til_SStructDef StructDef;
 } til_NodeType_Payload;
@@ -365,12 +364,6 @@ static inline til_NodeType til_NodeType_make_LLiteral(til_Literal value) {
 static inline til_NodeType til_NodeType_make_NamedArg(til_Str value) {
     til_NodeType result = { .tag = til_NodeType_NamedArg };
     result.payload.NamedArg = value;
-    return result;
-}
-
-static inline til_NodeType til_NodeType_make_NamespaceDef(til_SNamespaceDef value) {
-    til_NodeType result = { .tag = til_NodeType_NamespaceDef };
-    result.payload.NamespaceDef = value;
     return result;
 }
 
@@ -585,13 +578,13 @@ til_Bool til_U8_lteq(const til_U8* til_U8_a, const til_U8* til_U8_b);
 til_I64 til_U8_size(void);
 void til_U8_delete(til_U8* _self);
 til_U8 til_U8_clone(const til_U8* til_U8_self);
+void til_HeapEntry_delete(til_HeapEntry* _self);
+til_HeapEntry til_HeapEntry_clone(const til_HeapEntry* til_HeapEntry_self);
 void til_HeapState_enable(void);
 void til_HeapState_disable(void);
 void til_HeapState_add(const til_I64* til_I64_ptr, const til_I64* til_I64_size);
 void til_HeapState_remove(const til_I64* til_I64_ptr);
 void til_HeapState_report(void);
-void til_HeapEntry_delete(til_HeapEntry* _self);
-til_HeapEntry til_HeapEntry_clone(const til_HeapEntry* til_HeapEntry_self);
 void til_HeapState_delete(til_HeapState* _self);
 til_HeapState til_HeapState_clone(const til_HeapState* _self);
 void til_Dynamic_delete(til_Dynamic* _self);
@@ -600,9 +593,9 @@ void til_Type_delete(til_Type* _self);
 til_Type til_Type_clone(til_Type _self);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y);
-til_CfRect til_CfRect_sample(void);
 void til_CfVec2_delete(til_CfVec2* _self);
 til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self);
+til_CfRect til_CfRect_sample(void);
 void til_CfRect_delete(til_CfRect* til_CfRect_self);
 til_CfRect til_CfRect_clone(const til_CfRect* til_CfRect_self);
 
@@ -625,13 +618,13 @@ const til_I64 til_size_of_U8 = sizeof(til_U8);
 const til_I64 til_size_of_HeapEntry = sizeof(til_HeapEntry);
 const til_I64 til_size_of_HeapState = sizeof(til_HeapState);
 const til_I64 til_size_of_Map = sizeof(til_Map);
+const til_I64 til_size_of_SNamespaceDef = sizeof(til_SNamespaceDef);
 const til_I64 til_size_of_SEnumDef = sizeof(til_SEnumDef);
 const til_I64 til_size_of_Declaration = sizeof(til_Declaration);
 const til_I64 til_size_of_PatternInfo = sizeof(til_PatternInfo);
 const til_I64 til_size_of_FuncSig = sizeof(til_FuncSig);
 const til_I64 til_size_of_SFuncDef = sizeof(til_SFuncDef);
 const til_I64 til_size_of_SStructDef = sizeof(til_SStructDef);
-const til_I64 til_size_of_SNamespaceDef = sizeof(til_SNamespaceDef);
 const til_I64 til_size_of_Dynamic = sizeof(til_Dynamic);
 const til_I64 til_size_of_Type = sizeof(til_Type);
 const til_I64 til_size_of_CfVec2 = sizeof(til_CfVec2);
@@ -678,7 +671,6 @@ static inline til_Str til_NodeType_to_str(const til_NodeType* e) {
         case til_NodeType_If: return ((til_Str){((til_Ptr){(til_I64)"NodeType.If", 1, 0, 0, 0}), 11, 0});
         case til_NodeType_LLiteral: return ((til_Str){((til_Ptr){(til_I64)"NodeType.LLiteral", 1, 0, 0, 0}), 17, 0});
         case til_NodeType_NamedArg: return ((til_Str){((til_Ptr){(til_I64)"NodeType.NamedArg", 1, 0, 0, 0}), 17, 0});
-        case til_NodeType_NamespaceDef: return ((til_Str){((til_Ptr){(til_I64)"NodeType.NamespaceDef", 1, 0, 0, 0}), 21, 0});
         case til_NodeType_Pattern: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Pattern", 1, 0, 0, 0}), 16, 0});
         case til_NodeType_Range: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Range", 1, 0, 0, 0}), 14, 0});
         case til_NodeType_Return: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Return", 1, 0, 0, 0}), 15, 0});
@@ -737,13 +729,13 @@ static inline til_I64 til_size_of(const til_Str* type_name) {
     if (strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) return til_size_of_HeapEntry;
     if (strcmp((char*)type_name->c_string.data, "HeapState") == 0) return til_size_of_HeapState;
     if (strcmp((char*)type_name->c_string.data, "Map") == 0) return til_size_of_Map;
+    if (strcmp((char*)type_name->c_string.data, "SNamespaceDef") == 0) return til_size_of_SNamespaceDef;
     if (strcmp((char*)type_name->c_string.data, "SEnumDef") == 0) return til_size_of_SEnumDef;
     if (strcmp((char*)type_name->c_string.data, "Declaration") == 0) return til_size_of_Declaration;
     if (strcmp((char*)type_name->c_string.data, "PatternInfo") == 0) return til_size_of_PatternInfo;
     if (strcmp((char*)type_name->c_string.data, "FuncSig") == 0) return til_size_of_FuncSig;
     if (strcmp((char*)type_name->c_string.data, "SFuncDef") == 0) return til_size_of_SFuncDef;
     if (strcmp((char*)type_name->c_string.data, "SStructDef") == 0) return til_size_of_SStructDef;
-    if (strcmp((char*)type_name->c_string.data, "SNamespaceDef") == 0) return til_size_of_SNamespaceDef;
     if (strcmp((char*)type_name->c_string.data, "Dynamic") == 0) return til_size_of_Dynamic;
     if (strcmp((char*)type_name->c_string.data, "Type") == 0) return til_size_of_Type;
     if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) return til_size_of_CfVec2;
@@ -4098,6 +4090,15 @@ til_U8 til_U8_clone(const til_U8* til_U8_self) {
     return (til_U8){};
 }
 
+void til_HeapEntry_delete(til_HeapEntry* _self) {
+    (void)_self;
+}
+
+til_HeapEntry til_HeapEntry_clone(const til_HeapEntry* til_HeapEntry_self) {
+    return (til_HeapEntry){.ptr = til_I64_clone(&til_HeapEntry_self->ptr), .size = til_I64_clone(&til_HeapEntry_self->size)};
+    return (til_HeapEntry){};
+}
+
 void til_HeapState_enable(void) {
     til_Vec_g_entries = til_Vec_new("HeapEntry");
     til_Bool_g_enabled = til_Bool_clone(&true);
@@ -4277,15 +4278,6 @@ void til_HeapState_report(void) {
     til_Array_delete(&_tmp_til_HeapState_report_24);
 }
 
-void til_HeapEntry_delete(til_HeapEntry* _self) {
-    (void)_self;
-}
-
-til_HeapEntry til_HeapEntry_clone(const til_HeapEntry* til_HeapEntry_self) {
-    return (til_HeapEntry){.ptr = til_I64_clone(&til_HeapEntry_self->ptr), .size = til_I64_clone(&til_HeapEntry_self->size)};
-    return (til_HeapEntry){};
-}
-
 void til_HeapState_delete(til_HeapState* _self) {
     (void)_self;
 }
@@ -4326,11 +4318,6 @@ til_CfVec2 til_CfVec2_at(const til_I64* til_I64_x, const til_I64* til_I64_y) {
     return (til_CfVec2){};
 }
 
-til_CfRect til_CfRect_sample(void) {
-    return (til_CfRect){.top_left = (til_CfVec2){.x = 5, .y = 10}, .bottom_right = (til_CfVec2){.x = 100, .y = 200}};
-    return (til_CfRect){};
-}
-
 void til_CfVec2_delete(til_CfVec2* _self) {
     (void)_self;
 }
@@ -4338,6 +4325,11 @@ void til_CfVec2_delete(til_CfVec2* _self) {
 til_CfVec2 til_CfVec2_clone(const til_CfVec2* til_CfVec2_self) {
     return (til_CfVec2){.x = til_I64_clone(&til_CfVec2_self->x), .y = til_I64_clone(&til_CfVec2_self->y)};
     return (til_CfVec2){};
+}
+
+til_CfRect til_CfRect_sample(void) {
+    return (til_CfRect){.top_left = (til_CfVec2){.x = 5, .y = 10}, .bottom_right = (til_CfVec2){.x = 100, .y = 200}};
+    return (til_CfRect){};
 }
 
 void til_CfRect_delete(til_CfRect* til_CfRect_self) {

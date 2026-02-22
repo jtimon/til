@@ -122,9 +122,13 @@ fn rebuild_struct_without_unreachable_methods(decl: &Declaration, struct_def: &S
         }
     }
 
+    // Also rebuild ns, pruning unreachable methods
+    let new_ns = rebuild_namespace_without_unreachable_methods(&struct_def.ns, struct_name, reachable);
+
     let new_struct_def = SStructDef {
         members: new_members,
         default_values: new_default_values,
+        ns: new_ns,
     };
 
     let new_struct_expr = Expr {
@@ -143,8 +147,7 @@ fn rebuild_struct_without_unreachable_methods(decl: &Declaration, struct_def: &S
 }
 
 /// Issue #108: Rebuild a namespace definition, keeping only reachable methods
-fn rebuild_namespace_without_unreachable_methods(ns_def: &crate::rs::parser::SNamespaceDef, reachable: &HashSet<String>) -> Expr {
-    let type_name = &ns_def.type_name;
+fn rebuild_namespace_without_unreachable_methods(ns_def: &crate::rs::parser::SNamespaceDef, type_name: &str, reachable: &HashSet<String>) -> crate::rs::parser::SNamespaceDef {
     let mut new_members: Vec<Declaration> = Vec::new();
     let mut new_default_values: HashMap<String, Expr> = HashMap::new();
 
@@ -170,17 +173,9 @@ fn rebuild_namespace_without_unreachable_methods(ns_def: &crate::rs::parser::SNa
         }
     }
 
-    let new_ns_def = crate::rs::parser::SNamespaceDef {
-        type_name: type_name.clone(),
+    crate::rs::parser::SNamespaceDef {
         members: new_members,
         default_values: new_default_values,
-    };
-
-    Expr {
-        node_type: NodeType::NamespaceDef(new_ns_def),
-        params: vec![],
-        line: 0,
-        col: 0,
     }
 }
 
@@ -359,7 +354,16 @@ fn register_declarations_recursive(context: &mut Context, e: &Expr) -> Result<()
                             if let NodeType::FuncDef(func_def) = &default_expr.node_type {
                                 let full_name = format!("{}.{}", decl.name, member_name);
                                 context.scope_stack.declare_func(full_name, func_def.clone());
-                                // Recurse into method body for local declarations
+                                for stmt in &func_def.body {
+                                    register_declarations_recursive(context, stmt)?;
+                                }
+                            }
+                        }
+                        // Namespace methods
+                        for (member_name, ns_default_expr) in &struct_def.ns.default_values {
+                            if let NodeType::FuncDef(func_def) = &ns_default_expr.node_type {
+                                let ns_full_name = format!("{}.{}", decl.name, member_name);
+                                context.scope_stack.declare_func(ns_full_name, func_def.clone());
                                 for stmt in &func_def.body {
                                     register_declarations_recursive(context, stmt)?;
                                 }
@@ -367,19 +371,6 @@ fn register_declarations_recursive(context: &mut Context, e: &Expr) -> Result<()
                         }
                     }
                     _ => {}
-                }
-            }
-        }
-        // Issue #108: Handle namespace definitions - register their functions
-        NodeType::NamespaceDef(ns_def) => {
-            for (member_name, ns_default_expr) in &ns_def.default_values {
-                if let NodeType::FuncDef(func_def) = &ns_default_expr.node_type {
-                    let ns_full_name = format!("{}.{}", ns_def.type_name, member_name);
-                    context.scope_stack.declare_func(ns_full_name, func_def.clone());
-                    // Recurse into method body for local declarations
-                    for stmt in &func_def.body {
-                        register_declarations_recursive(context, stmt)?;
-                    }
                 }
             }
         }
@@ -587,14 +578,23 @@ fn compute_reachable(
 
         // Issue #108: Mark all namespace methods as reachable when their type is used
         // This ensures that dependencies of namespace functions are tracked
-        // Walk the AST to find NamespaceDef for this type
+        // Walk the AST to find struct/enum declarations with ns for this type
         for stmt in &e.params {
-            if let NodeType::NamespaceDef(ns_def) = &stmt.node_type {
-                if ns_def.type_name == *type_name {
-                    for (method_name, default_expr) in &ns_def.default_values {
-                        if let NodeType::FuncDef(_) = &default_expr.node_type {
-                            let full_name = format!("{}.{}", type_name, method_name);
-                            mark_reachable(full_name, &mut reachable, &mut worklist);
+            if let NodeType::Declaration(decl) = &stmt.node_type {
+                if decl.name == *type_name {
+                    if let Some(value_expr) = stmt.params.first() {
+                        let ns_def = match &value_expr.node_type {
+                            NodeType::StructDef(struct_def) => Some(&struct_def.ns),
+                            NodeType::EnumDef(enum_def) => Some(&enum_def.ns),
+                            _ => None,
+                        };
+                        if let Some(ns_def) = ns_def {
+                            for (method_name, default_expr) in &ns_def.default_values {
+                                if let NodeType::FuncDef(_) = &default_expr.node_type {
+                                    let full_name = format!("{}.{}", type_name, method_name);
+                                    mark_reachable(full_name, &mut reachable, &mut worklist);
+                                }
+                            }
                         }
                     }
                 }
@@ -847,14 +847,6 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     } else {
                         // Declaration without initializer - always keep
                         new_params.push(stmt.clone());
-                    }
-                }
-                // Issue #108: Handle namespace definitions
-                NodeType::NamespaceDef(ns_def) => {
-                    // Check if the namespace's type is used
-                    if used_types.contains(&ns_def.type_name) {
-                        let new_ns = rebuild_namespace_without_unreachable_methods(ns_def, &reachable);
-                        new_params.push(new_ns);
                     }
                 }
                 _ => {

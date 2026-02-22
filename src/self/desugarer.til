@@ -1557,27 +1557,44 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             new_default_values.set(name, desugar_expr(context, value_expr)?)
             struct_i.inc()
         }
-        new_struct_def := SStructDef(
-            members=struct_def.members,
-            default_values=new_default_values
-        )
-        return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params)
-    // Issue #108: Recurse into NamespaceDef default values (which may contain function defs)
-    case NodeType.NamespaceDef(ns_def):
+        // Process ns default_values
         mut ns_new_default_values := Map.new(Str, Expr)
         mut ns_i := 0
-        while ns_i.lt(ns_def.default_values.keys.len()) {
-            ns_name := cast(Str, ns_def.default_values.keys.get(ns_i)?)
-            ns_value_expr := cast(Expr, ns_def.default_values.get(ns_name)?)
+        while ns_i.lt(struct_def.ns.default_values.keys.len()) {
+            ns_name := cast(Str, struct_def.ns.default_values.keys.get(ns_i)?)
+            ns_value_expr := cast(Expr, struct_def.ns.default_values.get(ns_name)?)
             ns_new_default_values.set(ns_name, desugar_expr(context, ns_value_expr)?)
             ns_i.inc()
         }
-        new_ns_def := SNamespaceDef(
-            type_name=ns_def.type_name,
-            members=ns_def.members,
+        new_ns := SNamespaceDef(
+            members=struct_def.ns.members,
             default_values=ns_new_default_values
         )
-        return Expr.new_clone(NodeType.NamespaceDef(new_ns_def), e, Vec.new(Expr))
+        new_struct_def := SStructDef(
+            members=struct_def.members,
+            default_values=new_default_values,
+            ns=new_ns
+        )
+        return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params)
+    case NodeType.EnumDef(enum_def):
+        mut enum_ns_new_default_values := Map.new(Str, Expr)
+        mut enum_ns_i := 0
+        while enum_ns_i.lt(enum_def.ns.default_values.keys.len()) {
+            enum_ns_name := cast(Str, enum_def.ns.default_values.keys.get(enum_ns_i)?)
+            enum_ns_value_expr := cast(Expr, enum_def.ns.default_values.get(enum_ns_name)?)
+            enum_ns_new_default_values.set(enum_ns_name, desugar_expr(context, enum_ns_value_expr)?)
+            enum_ns_i.inc()
+        }
+        enum_new_ns := SNamespaceDef(
+            members=enum_def.ns.members,
+            default_values=enum_ns_new_default_values
+        )
+        new_enum_def := SEnumDef(
+            variants=enum_def.variants,
+            methods=enum_def.methods,
+            ns=enum_new_ns
+        )
+        return Expr.new_clone(NodeType.EnumDef(new_enum_def), e, e.params)
     // Track declarations in scope_stack so get_value_type can find local variables
     // This is needed for switch desugaring to determine the type of expressions like var.field
     case NodeType.Declaration(decl):

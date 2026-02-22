@@ -4,7 +4,7 @@
 
 use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SNamespaceDef, SFuncDef, Literal,
+    Expr, NodeType, ValueType, SStructDef, SEnumDef, SNamespaceDef, SFuncDef, Literal,
     Declaration, str_to_value_type, transform_continue_with_step,
 };
 
@@ -989,24 +989,38 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for (name, value_expr) in &struct_def.default_values {
                 new_default_values.insert(name.clone(), desugar_expr(context, value_expr)?);
             }
+            // Recurse into ns default values
+            let mut ns_new_default_values = std::collections::HashMap::new();
+            for (name, value_expr) in &struct_def.ns.default_values {
+                ns_new_default_values.insert(name.clone(), desugar_expr(context, value_expr)?);
+            }
+            let new_ns = SNamespaceDef {
+                members: struct_def.ns.members.clone(),
+                default_values: ns_new_default_values,
+            };
             let new_struct_def = SStructDef {
                 members: struct_def.members.clone(),
                 default_values: new_default_values,
+                ns: new_ns,
             };
             Ok(Expr::new_clone(NodeType::StructDef(new_struct_def), e, e.params.clone()))
         },
-        // Issue #108: Recurse into NamespaceDef default values (which may contain function defs)
-        NodeType::NamespaceDef(ns_def) => {
+        // Recurse into EnumDef ns default values (which may contain function defs with switch)
+        NodeType::EnumDef(enum_def) => {
             let mut ns_new_default_values = std::collections::HashMap::new();
-            for (name, value_expr) in &ns_def.default_values {
+            for (name, value_expr) in &enum_def.ns.default_values {
                 ns_new_default_values.insert(name.clone(), desugar_expr(context, value_expr)?);
             }
-            let new_ns_def = SNamespaceDef {
-                type_name: ns_def.type_name.clone(),
-                members: ns_def.members.clone(),
+            let new_ns = SNamespaceDef {
+                members: enum_def.ns.members.clone(),
                 default_values: ns_new_default_values,
             };
-            Ok(Expr::new_clone(NodeType::NamespaceDef(new_ns_def), e, vec![]))
+            let new_enum_def = SEnumDef {
+                variants: enum_def.variants.clone(),
+                methods: enum_def.methods.clone(),
+                ns: new_ns,
+            };
+            Ok(Expr::new_clone(NodeType::EnumDef(new_enum_def), e, e.params.clone()))
         },
         // Track declarations in scope_stack so get_value_type can find local variables
         // This is needed for switch desugaring to determine the type of expressions like var.field

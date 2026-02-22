@@ -280,8 +280,8 @@ ufcs_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     // Struct/enum definitions - need to process default values (which may contain function defs)
     case NodeType.StructDef(struct_def):
         return ufcs_struct_def(context, e, struct_def)?
-    case NodeType.EnumDef:
-        return e.clone()
+    case NodeType.EnumDef(enum_def):
+        return ufcs_enum_def(context, e, enum_def)?
     // Identifiers can have nested params (e.g., a.b.c for field access chains)
     case NodeType.Identifier:
         return ufcs_params(context, e)?
@@ -304,9 +304,6 @@ ufcs_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             new_params.push(ufcs_expr(context, p)?)
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
-    // Issue #108: NamespaceDef - transform function bodies like StructDef
-    case NodeType.NamespaceDef(ns_def):
-        return ufcs_namespace_def(context, e, ns_def)?
     // ForIn should have been desugared in desugarer phase
     case NodeType.ForIn(_):
         panic(loc(), "ForIn should have been desugared in desugarer phase")
@@ -343,9 +340,20 @@ ufcs_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef) re
         new_default_values.set(name, ufcs_expr(context, value_expr)?)
         i.inc()
     }
+    // Process ns default_values
+    mut ns_new_default_values := Map.new(Str, Expr)
+    for ns_name: Str in struct_def.ns.default_values.keys {
+        ns_value_expr := cast(Expr, struct_def.ns.default_values.get(ns_name)?)
+        ns_new_default_values.set(ns_name, ufcs_expr(context, ns_value_expr)?)
+    }
+    mut new_ns := SNamespaceDef()
+    new_ns.members = struct_def.ns.members.clone()
+    new_ns.default_values = ns_new_default_values
+
     mut new_struct_def := SStructDef()
     new_struct_def.members = struct_def.members.clone()
     new_struct_def.default_values = new_default_values
+    new_struct_def.ns = new_ns
 
     catch (err: IndexOutOfBoundsError) {
         throw format("ufcs_struct_def: ", err.msg)
@@ -549,23 +557,28 @@ ufcs_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     return Expr.new_clone(NodeType.Catch, e, new_params)
 }
 
-/// Transform NamespaceDef - transform function bodies inside namespace
-ufcs_namespace_def : proc(mut context: Context, e: Expr, ns_def: SNamespaceDef) returns Expr throws Str = {
-    mut new_default_values := Map.new(Str, Expr)
-    for name: Str in ns_def.default_values.keys {
-        value_expr := cast(Expr, ns_def.default_values.get(name)?)
-        new_default_values.set(name, ufcs_expr(context, value_expr)?)
+/// Transform EnumDef - transform ns function bodies
+ufcs_enum_def : proc(mut context: Context, e: Expr, enum_def: SEnumDef) returns Expr throws Str = {
+    mut ns_new_default_values := Map.new(Str, Expr)
+    for ns_name: Str in enum_def.ns.default_values.keys {
+        ns_value_expr := cast(Expr, enum_def.ns.default_values.get(ns_name)?)
+        ns_new_default_values.set(ns_name, ufcs_expr(context, ns_value_expr)?)
     }
-    mut new_ns_def := SNamespaceDef()
-    new_ns_def.type_name = ns_def.type_name.clone()
-    new_ns_def.members = ns_def.members.clone()
-    new_ns_def.default_values = new_default_values
+    mut new_ns := SNamespaceDef()
+    new_ns.members = enum_def.ns.members.clone()
+    new_ns.default_values = ns_new_default_values
+
+    new_enum_def := SEnumDef(
+        variants=enum_def.variants,
+        methods=enum_def.methods,
+        ns=new_ns
+    )
 
     catch (err: KeyNotFoundError) {
-        throw format("ufcs_namespace_def: ", err.msg)
+        throw format("ufcs_enum_def: ", err.msg)
     }
 
-    return Expr.new_clone(NodeType.NamespaceDef(new_ns_def), e, Vec.new(Expr))
+    return Expr.new_clone(NodeType.EnumDef(new_enum_def), e, e.params)
 }
 
 /// Transform FCall node - this is where UFCS resolution happens

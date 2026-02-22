@@ -290,8 +290,8 @@ generate_enum_clone_method : func(enum_name: Str, line: I64, col: I64) returns E
 }
 
 /// Issue #106: Generate delete/clone methods for a macro-expanded enum.
-/// Returns StructMethodsResult with needs_methods=true and ns_block set if methods needed.
-generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: Bool, line: I64, col: I64) returns StructMethodsResult = {
+/// Returns SNamespaceDef with auto-generated methods, or empty SNamespaceDef if none needed.
+generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: Bool, line: I64, col: I64) returns SNamespaceDef = {
     needs_delete := not(ns_has_delete)
     needs_clone := not(ns_has_clone)
 
@@ -327,32 +327,38 @@ generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: 
             default_values.set("clone", clone_expr)
         }
 
-        ns_def := SNamespaceDef(
-            type_name=enum_name,
+        return SNamespaceDef(
             members=members,
             default_values=default_values
         )
-
-        mut result := StructMethodsResult()
-        result.needs_methods = true
-        result.ns_block = Expr.new_explicit(NodeType.NamespaceDef(ns_def), Vec.new(Expr), line, col)
-        return result
     }
-    return StructMethodsResult()
+    return SNamespaceDef()
 }
 
 /// Collect all methods defined in namespace blocks.
 /// Returns a Set of "TypeName.methodName" strings.
-collect_namespace_methods : func(ast: Expr) returns Set = {
+collect_namespace_methods : func(ast: Expr) returns Set throws Str = {
     mut methods := Set.new(Str)
 
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
             switch child.node_type {
-            case NodeType.NamespaceDef(ns_def):
-                for member: Declaration in ns_def.members {
-                    _ := methods.insert(format(ns_def.type_name, ".", member.name))
+            case NodeType.Declaration(decl):
+                if child.params.len().gt(0) {
+                    value_expr := child.get(0)?
+                    dont_delete(value_expr)
+                    switch value_expr.node_type {
+                    case NodeType.StructDef(struct_def):
+                        for member: Declaration in struct_def.ns.members {
+                            _ := methods.insert(format(decl.name, ".", member.name))
+                        }
+                    case NodeType.EnumDef(enum_def):
+                        for member: Declaration in enum_def.ns.members {
+                            _ := methods.insert(format(decl.name, ".", member.name))
+                        }
+                    case:
+                    }
                 }
             case:
             }
@@ -388,7 +394,7 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
 
                     switch value_expr.node_type {
                     case NodeType.StructDef(struct_def):
-                        // Check if delete/clone are already defined (in struct or namespace)
+                        // Check if delete/clone are already defined (in struct, ns, or namespace_methods)
                         mut has_delete_inline := false
                         for dm: Declaration in struct_def.members {
                             if dm.name.eq("delete") {
@@ -397,6 +403,12 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
                         }
                         if struct_def.default_values.contains_key("delete") {
                             has_delete_inline = true
+                        }
+                        // Also check ns members
+                        for ns_m: Declaration in struct_def.ns.members {
+                            if ns_m.name.eq("delete") {
+                                has_delete_inline = true
+                            }
                         }
                         has_delete_namespace := namespace_methods.contains(format(decl.name, ".delete"))
                         has_delete := has_delete_inline.or(has_delete_namespace)
@@ -409,6 +421,12 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
                         }
                         if struct_def.default_values.contains_key("clone") {
                             has_clone_inline = true
+                        }
+                        // Also check ns members
+                        for ns_m2: Declaration in struct_def.ns.members {
+                            if ns_m2.name.eq("clone") {
+                                has_clone_inline = true
+                            }
                         }
                         has_clone_namespace := namespace_methods.contains(format(decl.name, ".clone"))
                         has_clone := has_clone_inline.or(has_clone_namespace)
@@ -438,16 +456,10 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
     return structs
 }
 
-/// Issue #105: Result struct for generate_struct_methods
-StructMethodsResult := struct {
-    mut needs_methods: Bool = false
-    mut ns_block: Expr = Expr()
-}
-
 /// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
-/// Returns StructMethodsResult with needs_methods=true and ns_block set if methods needed.
-generate_struct_methods : func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64) returns StructMethodsResult = {
-    // Check if delete/clone are already defined inline
+/// Returns SNamespaceDef with auto-generated methods, or empty SNamespaceDef if none needed.
+generate_struct_methods : func(struct_name: Str, struct_def: SStructDef, _line: I64, _col: I64) returns SNamespaceDef = {
+    // Check if delete/clone are already defined (inline or in ns)
     mut has_delete := false
     mut has_clone := false
     for member: Declaration in struct_def.members {
@@ -464,43 +476,45 @@ generate_struct_methods : func(struct_name: Str, struct_def: SStructDef, line: I
     if struct_def.default_values.contains_key("clone") {
         has_clone = true
     }
+    for ns_m: Declaration in struct_def.ns.members {
+        if ns_m.name.eq("delete") {
+            has_delete = true
+        }
+        if ns_m.name.eq("clone") {
+            has_clone = true
+        }
+    }
 
     needs_delete := not(has_delete)
     needs_clone := not(has_clone)
 
     if needs_delete.or(needs_clone) {
-        mut result := StructMethodsResult()
-        result.needs_methods = true
-        result.ns_block = generate_namespace_block(struct_name, struct_def, line, col, needs_delete, needs_clone)
-        return result
+        return generate_namespace_block(struct_name, struct_def, needs_delete, needs_clone)
     }
-    return StructMethodsResult()
+    return SNamespaceDef()
 }
 
-/// Generate a namespace block with auto-generated methods for a struct.
-generate_namespace_block : func(struct_name: Str, struct_def: SStructDef, line: I64, col: I64, needs_delete: Bool, needs_clone: Bool) returns Expr = {
+/// Generate a SNamespaceDef with auto-generated methods for a struct.
+generate_namespace_block : func(struct_name: Str, struct_def: SStructDef, needs_delete: Bool, needs_clone: Bool) returns SNamespaceDef = {
     mut members := Vec.new(Declaration)
     mut default_values := Map.new(Str, Expr)
 
     if needs_delete {
-        delete_result := generate_delete_method(struct_name, struct_def, line, col)
+        delete_result := generate_delete_method(struct_name, struct_def, 0, 0)
         members.push(delete_result.decl)
         default_values.set("delete", delete_result.expr)
     }
 
     if needs_clone {
-        clone_result := generate_clone_method(struct_name, struct_def, line, col)
+        clone_result := generate_clone_method(struct_name, struct_def, 0, 0)
         members.push(clone_result.decl)
         default_values.set("clone", clone_result.expr)
     }
 
-    ns_def := SNamespaceDef(
-        type_name=struct_name,
+    return SNamespaceDef(
         members=members,
         default_values=default_values
     )
-
-    return Expr.new_explicit(NodeType.NamespaceDef(ns_def), Vec.new(Expr), line, col)
 }
 
 /// Recursively process expression (for nested function bodies, etc.)
@@ -532,9 +546,21 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
             new_default_values.set(sd_name.clone(), preinit_expr_inner(sd_value_expr)?)
         }
         catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
+        // Process ns default_values
+        mut ns_new_default_values := Map.new(Str, Expr)
+        for ns_k: Str in struct_def.ns.default_values.keys {
+            ns_v := cast(Expr, struct_def.ns.default_values.get(ns_k)?)
+            ns_new_default_values.set(ns_k.clone(), preinit_expr_inner(ns_v)?)
+        }
+        catch (err2: KeyNotFoundError) { panic(loc(), err2.msg) }
+        new_ns := SNamespaceDef(
+            members=struct_def.ns.members,
+            default_values=ns_new_default_values
+        )
         new_struct_def := SStructDef(
             members=struct_def.members,
-            default_values=new_default_values
+            default_values=new_default_values,
+            ns=new_ns
         )
         return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params)
 
@@ -563,6 +589,7 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
                     mut new_enum_def := SEnumDef()
                     new_enum_def.variants = enum_def.variants.clone()
                     new_enum_def.methods = new_methods
+                    new_enum_def.ns = enum_def.ns.clone()
 
                     new_enum_expr := Expr.new_clone(
                         NodeType.EnumDef(new_enum_def),
@@ -606,28 +633,74 @@ preinit_expr : func(e: Expr) returns Expr throws Str = {
     switch e.node_type {
     case NodeType.Body:
         // Pass 1: Collect namespace-defined methods
-        namespace_methods := collect_namespace_methods(e)
+        namespace_methods := collect_namespace_methods(e)?
 
         // Pass 2: Find structs that need auto-generated methods
         structs_needing := collect_structs_needing_methods(e, namespace_methods)?
 
-        // Pass 3: Process all children and generate namespace blocks
+        // Pass 3: Process all children, setting ns on struct defs that need auto-generated methods
         mut new_params := Vec.new(Expr)
         for child: Expr in e.params {
-            new_params.push(preinit_expr_inner(child)?)
-        }
+            mut processed := preinit_expr_inner(child)?
 
-        // Append generated namespace blocks for structs that need them
-        for info: StructNeedingMethods in structs_needing {
-            ns_block := generate_namespace_block(
-                info.struct_name,
-                info.struct_def,
-                info.line,
-                info.col,
-                info.needs_delete,
-                info.needs_clone
-            )
-            new_params.push(ns_block)
+            // If this is a Declaration of a StructDef that needs methods, set the ns field
+            switch processed.node_type {
+            case NodeType.Declaration(p_decl):
+                if processed.params.len().gt(0) {
+                    p_value_expr := processed.get(0)?
+                    dont_delete(p_value_expr)
+                    switch p_value_expr.node_type {
+                    case NodeType.StructDef(p_struct_def):
+                        // Check if this struct needs methods
+                        mut found_in_needing := false
+                        mut sn_needs_delete := false
+                        mut sn_needs_clone := false
+                        for sn_info: StructNeedingMethods in structs_needing {
+                            if sn_info.struct_name.eq(p_decl.name) {
+                                found_in_needing = true
+                                sn_needs_delete = sn_info.needs_delete
+                                sn_needs_clone = sn_info.needs_clone
+                            }
+                        }
+                        if found_in_needing {
+                            auto_ns := generate_namespace_block(p_decl.name, p_struct_def, sn_needs_delete, sn_needs_clone)
+                            // Merge auto-generated ns with any user-defined ns
+                            mut merged_ns := p_struct_def.ns.clone()
+                            for auto_m: Declaration in auto_ns.members {
+                                mut already_exists := false
+                                for existing_m: Declaration in merged_ns.members {
+                                    if existing_m.name.eq(auto_m.name) {
+                                        already_exists = true
+                                    }
+                                }
+                                if not(already_exists) {
+                                    merged_ns.members.push(auto_m.clone())
+                                }
+                            }
+                            for auto_k: Str in auto_ns.default_values.keys {
+                                if not(merged_ns.default_values.contains_key(auto_k)) {
+                                    auto_v := cast(Expr, auto_ns.default_values.get(auto_k)?)
+                                    merged_ns.default_values.set(auto_k.clone(), auto_v.clone())
+                                }
+                            }
+                            catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
+                            new_struct_def := SStructDef(
+                                members=p_struct_def.members.clone(),
+                                default_values=p_struct_def.default_values.clone(),
+                                ns=merged_ns
+                            )
+                            new_value_expr := Expr.new_clone(NodeType.StructDef(new_struct_def), p_value_expr, p_value_expr.params.clone())
+                            mut new_decl_params := Vec.new(Expr)
+                            new_decl_params.push(new_value_expr)
+                            processed = Expr.new_clone(processed.node_type.clone(), processed, new_decl_params)
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+
+            new_params.push(processed)
         }
 
         return Expr.new_clone(e.node_type, e, new_params)

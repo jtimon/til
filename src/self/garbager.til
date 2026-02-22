@@ -306,9 +306,23 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             }
             new_default_values.set(name.clone(), garbager_recursive(context, value_expr)?)
         }
+        // Recurse into ns default values
+        mut ns_new_default_values := Map.new(Str, Expr)
+        for ns_name: Str in struct_def.ns.default_values.keys {
+            ns_value_expr := cast(Expr, struct_def.ns.default_values.get(ns_name)?)
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
+            }
+            ns_new_default_values.set(ns_name.clone(), garbager_recursive(context, ns_value_expr)?)
+        }
+        new_ns := SNamespaceDef(
+            members=struct_def.ns.members.clone(),
+            default_values=ns_new_default_values
+        )
         new_struct_def := SStructDef(
             members=struct_def.members.clone(),
-            default_values=new_default_values
+            default_values=new_default_values,
+            ns=new_ns
         )
         mut struct_new_params := Vec.new(Expr)
         for param: Expr in e.params {
@@ -316,26 +330,25 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         }
         return Expr.new_explicit(NodeType.StructDef(new_struct_def), struct_new_params, e.line, e.col)
 
-    // Recurse into NamespaceDef default values
-    case NodeType.NamespaceDef(ns_def):
-        mut ns_new_default_values := Map.new(Str, Expr)
-        for name: Str in ns_def.default_values.keys {
-            ns_value_expr := cast(Expr, ns_def.default_values.get(name)?)
+    case NodeType.EnumDef(enum_def):
+        mut enum_ns_new_default_values := Map.new(Str, Expr)
+        for enum_ns_name: Str in enum_def.ns.default_values.keys {
+            enum_ns_value_expr := cast(Expr, enum_def.ns.default_values.get(enum_ns_name)?)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
             }
-            ns_new_default_values.set(name.clone(), garbager_recursive(context, ns_value_expr)?)
+            enum_ns_new_default_values.set(enum_ns_name.clone(), garbager_recursive(context, enum_ns_value_expr)?)
         }
-        new_ns_def := SNamespaceDef(
-            type_name=ns_def.type_name,
-            members=ns_def.members.clone(),
-            default_values=ns_new_default_values
+        enum_new_ns := SNamespaceDef(
+            members=enum_def.ns.members.clone(),
+            default_values=enum_ns_new_default_values
         )
-        mut ns_new_params := Vec.new(Expr)
-        for param: Expr in e.params {
-            ns_new_params.push(garbager_recursive(context, param)?)
-        }
-        return Expr.new_explicit(NodeType.NamespaceDef(new_ns_def), ns_new_params, e.line, e.col)
+        new_enum_def := SEnumDef(
+            variants=enum_def.variants,
+            methods=enum_def.methods,
+            ns=enum_new_ns
+        )
+        return Expr.new_clone(NodeType.EnumDef(new_enum_def), e, e.params)
 
     // Issue #159: Transform mut declarations with struct type where RHS is an identifier
     case NodeType.Declaration(decl):

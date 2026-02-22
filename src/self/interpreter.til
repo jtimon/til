@@ -445,9 +445,6 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
         return EvalResult.new_break()
     case NodeType.Continue:
         return EvalResult.new_continue()
-    // Issue #108: NamespaceDef already processed by init - members merged into type
-    case NodeType.NamespaceDef(_ns_def):
-        return EvalResult.new("")
     case NodeType.StructDef(struct_def):
         // Issue #105: First-class structs - register as anonymous struct and return the name
         // Register in global frame so it survives function scope pops (e.g. macro returns)

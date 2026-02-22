@@ -15,6 +15,7 @@ pub struct EnumVariant {
 pub struct SEnumDef {
     pub variants: Vec<EnumVariant>,
     pub methods: OrderedMap<String, Expr>,  // Auto-generated methods (delete, clone)
+    pub ns: SNamespaceDef,
 }
 
 impl SEnumDef {
@@ -117,6 +118,7 @@ impl SFuncDef {
 pub struct SStructDef {
     pub members : Vec<Declaration>,
     pub default_values : HashMap<String, Expr>,
+    pub ns: SNamespaceDef,
 }
 
 impl SStructDef {
@@ -143,7 +145,6 @@ impl SStructDef {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SNamespaceDef {
-    pub type_name: String,
     pub members: Vec<Declaration>,
     pub default_values: HashMap<String, Expr>,
 }
@@ -167,7 +168,6 @@ pub enum NodeType {
     FuncDef(SFuncDef),
     EnumDef(SEnumDef),
     StructDef(SStructDef),
-    NamespaceDef(SNamespaceDef),
     Return,
     Throw,
     Catch,

@@ -156,8 +156,12 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
         }
     case NodeType.EnumDef(enum_def):
         errors.extend(check_enum_def(context, e, enum_def))
+        // Type-check namespace function bodies
+        errors.extend(check_namespace_def(context, e, enum_def.ns)?)
     case NodeType.StructDef(struct_def):
         errors.extend(check_struct_def(context, e, struct_def))
+        // Type-check namespace function bodies
+        errors.extend(check_namespace_def(context, e, struct_def.ns)?)
     case NodeType.If:
         errors.extend(check_if_statement(context, e)?)
     case NodeType.While:
@@ -337,9 +341,6 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
         for p: Expr in e.params {
             errors.extend(check_types_with_context(context, p, ExprContext.ValueUsed)?)
         }
-    case NodeType.NamespaceDef(ns_def):
-        // Issue #108: Type-check namespace function bodies
-        errors.extend(check_namespace_def(context, e, ns_def)?)
     case NodeType.ForIn(_var_type):
         errors.extend(check_forin_statement(context, e)?)
     case:
@@ -3457,10 +3458,6 @@ is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str 
     case NodeType.Continue:
         // Break and Continue have no params, so they don't call procs
         return false
-    case NodeType.NamespaceDef(_):
-        // NamespaceDef should be caught by init phase with todo_error
-        return false
-
     case:
         // Unknown node type - assume it might call procs to be safe
         return false
@@ -3774,35 +3771,23 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
             ))
         }
 
-        new_struct_def := SStructDef(members=new_members, default_values=new_default_values)
-        return Expr.new_explicit(NodeType.StructDef(new_struct_def), e.params, e.line, e.col)
-
-    // Issue #108: NamespaceDef - recurse into default_values (function bodies)
-    case NodeType.NamespaceDef(ns_def):
+        // Also recurse into ns default_values (namespace function bodies)
         mut ns_new_default_values := Map.new(Str, Expr)
-        for name: Str in ns_def.default_values.keys {
-            ns_value_expr := cast(Expr, ns_def.default_values.get(name)?)
+        for ns_name: Str in struct_def.ns.default_values.keys {
+            ns_value_expr := cast(Expr, struct_def.ns.default_values.get(ns_name)?)
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
             }
-            resolved_expr := resolve_inferred_types(context, ns_value_expr)?
-            // Re-register resolved func_defs in scope_stack so interpreter uses resolved types
-            switch resolved_expr.node_type {
-            case NodeType.FuncDef(func_def):
-                full_name := format(ns_def.type_name, ".", name)
-                // Use update_func to update at original declaration site, not current scope
-                context.scope_stack.update_func(full_name, func_def)?
-            case:
-                // Not a function, nothing to register
-            }
-            ns_new_default_values.set(name, resolved_expr)
+            ns_resolved_expr := resolve_inferred_types(context, ns_value_expr)?
+            ns_new_default_values.set(ns_name, ns_resolved_expr)
         }
-        new_ns_def := SNamespaceDef(
-            type_name=ns_def.type_name,
-            members=ns_def.members,
+        new_ns := SNamespaceDef(
+            members=struct_def.ns.members.clone(),
             default_values=ns_new_default_values
         )
-        return Expr.new_explicit(NodeType.NamespaceDef(new_ns_def), e.params, e.line, e.col)
+
+        new_struct_def := SStructDef(members=new_members, default_values=new_default_values, ns=new_ns)
+        return Expr.new_explicit(NodeType.StructDef(new_struct_def), e.params, e.line, e.col)
 
     case NodeType.Catch:
         // Catch - declare catch variable in scope before processing body
@@ -4017,6 +4002,30 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
             }
         }
     case:
+    }
+
+    // Re-register resolved ns func_defs in scope_stack so interpreter uses resolved types
+    if resolve_decl_params.len().gt(0) {
+        resolve_ns_inner := cast(Expr, resolve_decl_params.get(0)?)
+        switch resolve_ns_inner.node_type {
+        case NodeType.StructDef(resolve_ns_sd):
+            for resolve_ns_name: Str in resolve_ns_sd.ns.default_values.keys {
+                resolve_ns_value_expr := cast(Expr, resolve_ns_sd.ns.default_values.get(resolve_ns_name)?)
+                catch (err: KeyNotFoundError) {
+                    panic(loc(), "resolve_declaration ns update_func KeyNotFoundError: ", err.msg)
+                }
+                switch resolve_ns_value_expr.node_type {
+                case NodeType.FuncDef(resolve_ns_func_def):
+                    resolve_ns_full_name := format(new_decl.name, ".", resolve_ns_name)
+                    context.scope_stack.update_func(resolve_ns_full_name, resolve_ns_func_def.clone())?
+                    catch (err: Str) {
+                        panic(loc(), "resolve_declaration ns update_func failed: ", err)
+                    }
+                case:
+                }
+            }
+        case:
+        }
     }
 
     catch (err: IndexOutOfBoundsError) {

@@ -7,7 +7,7 @@ use crate::rs::mode::{ModeDef, can_be_imported, parse_mode, mode_from_name};
 use crate::rs::ordered_map::OrderedMap;
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, PatternInfo,
+    Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, SNamespaceDef, PatternInfo,
     value_type_to_str, str_to_value_type, parse_tokens,
 };
 use crate::rs::preinit::preinit_expr;
@@ -1245,6 +1245,83 @@ fn collect_anon_funcs(context: &mut Context, e: &Expr) {
     }
 }
 
+/// Merge namespace members into an already-registered struct
+pub fn init_namespace_into_struct(context: &mut Context, type_name: &str, ns_def: &SNamespaceDef, e: &Expr, errors: &mut Vec<String>) {
+    if let Some(existing_struct) = context.scope_stack.lookup_struct(type_name) {
+        let mut merged_struct = existing_struct.clone();
+        for member_decl in &ns_def.members {
+            if let Some(existing_member) = merged_struct.get_member(&member_decl.name) {
+                if existing_member.is_mut {
+                    errors.push(e.error(&context.path, "init", &format!(
+                        "namespace for '{}': cannot override storage field '{}'",
+                        type_name, member_decl.name)));
+                    continue;
+                }
+                merged_struct.members.retain(|m| m.name != member_decl.name);
+            }
+            merged_struct.members.push(member_decl.clone());
+        }
+        for (name, expr) in &ns_def.default_values {
+            merged_struct.default_values.insert(name.clone(), expr.clone());
+        }
+        context.scope_stack.declare_struct(type_name.to_string(), merged_struct);
+    }
+
+    // Register associated funcs and constants from namespace
+    for member_decl in &ns_def.members {
+        if !member_decl.is_mut {
+            if let Some(member_expr) = ns_def.default_values.get(&member_decl.name) {
+                let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                let full_name = format!("{}.{}", type_name, member_decl.name);
+                context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
+                    value_type: member_value_type.clone(),
+                    is_mut: member_decl.is_mut,
+                    is_copy: member_decl.is_copy,
+                    is_own: member_decl.is_own,
+                    is_comptime_const: false
+                });
+                if let NodeType::FuncDef(func_def) = &member_expr.node_type {
+                    context.scope_stack.declare_func(full_name, func_def.clone());
+                }
+            }
+        }
+    }
+}
+
+/// Merge namespace members into an already-registered enum
+pub fn init_namespace_into_enum(context: &mut Context, type_name: &str, ns_def: &SNamespaceDef, e: &Expr, errors: &mut Vec<String>) {
+    if let Some(existing_enum) = context.scope_stack.lookup_enum(type_name) {
+        let mut merged_enum = existing_enum.clone();
+        for (name, expr) in &ns_def.default_values {
+            merged_enum.methods.insert(name.clone(), expr.clone());
+        }
+        context.scope_stack.declare_enum(type_name.to_string(), merged_enum);
+    } else {
+        errors.push(e.error(&context.path, "init", &format!(
+            "namespace for '{}': enum type not found", type_name)));
+    }
+
+    // Register associated funcs and constants from namespace
+    for member_decl in &ns_def.members {
+        if !member_decl.is_mut {
+            if let Some(member_expr) = ns_def.default_values.get(&member_decl.name) {
+                let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                let full_name = format!("{}.{}", type_name, member_decl.name);
+                context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
+                    value_type: member_value_type.clone(),
+                    is_mut: member_decl.is_mut,
+                    is_copy: member_decl.is_copy,
+                    is_own: member_decl.is_own,
+                    is_comptime_const: false
+                });
+                if let NodeType::FuncDef(func_def) = &member_expr.node_type {
+                    context.scope_stack.declare_func(full_name, func_def.clone());
+                }
+            }
+        }
+    }
+}
+
 // aka "context priming" or "declaration indexing"
 pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, String> {
     let mut errors : Vec<String> = Vec::new();
@@ -1410,6 +1487,10 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                     context.scope_stack.declare_func(full_name, func_def.clone());
                                 }
                             }
+                            // Process ns field - merge namespace members into enum
+                            if !enum_def.ns.members.is_empty() {
+                                init_namespace_into_enum(context, &decl.name, &enum_def.ns, e, &mut errors);
+                            }
                         },
                         NodeType::FCall(_) => {
                             // Issue #106: First-class enum - macro/function returning an enum definition
@@ -1458,6 +1539,10 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                     }
                                 }
                             }
+                            // Process ns field - merge namespace members into struct
+                            if !struct_def.ns.members.is_empty() {
+                                init_namespace_into_struct(context, &decl.name, &struct_def.ns, e, &mut errors);
+                            }
                         },
                         NodeType::FCall(_) => {
                             // Issue #105: First-class struct - macro/function returning a struct definition
@@ -1488,74 +1573,6 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                 ValueType::TMulti(_) | ValueType::TCustom(_) => {
                     context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                 },
-            }
-        }
-        NodeType::NamespaceDef(ns_def) => {
-            // Namespace blocks are syntax sugar - merge members into the existing type
-            // After this, the namespace is "gone" - its members are part of the type
-
-            // Try struct first, then enum
-            if let Some(existing_struct) = context.scope_stack.lookup_struct(&ns_def.type_name) {
-                // Clone and extend the struct with namespace members
-                let mut merged_struct = existing_struct.clone();
-                for member_decl in &ns_def.members {
-                    // Check for duplicate member names
-                    if let Some(existing_member) = merged_struct.get_member(&member_decl.name) {
-                        // Issue #108: Allow namespace-defined methods to override auto-generated
-                        // methods (delete/clone from preinit). Storage fields (is_mut) cannot be
-                        // overridden.
-                        if existing_member.is_mut {
-                            errors.push(e.error(&context.path, "init", &format!(
-                                "namespace block for '{}': cannot override storage field '{}'",
-                                ns_def.type_name, member_decl.name)));
-                            continue;
-                        }
-                        // Remove the existing method so the namespace version takes precedence
-                        merged_struct.members.retain(|m| m.name != member_decl.name);
-                    }
-                    merged_struct.members.push(member_decl.clone());
-                }
-                for (name, expr) in &ns_def.default_values {
-                    merged_struct.default_values.insert(name.clone(), expr.clone());
-                }
-
-                // Re-declare the struct (overwrites the old one)
-                context.scope_stack.declare_struct(ns_def.type_name.clone(), merged_struct.clone());
-            } else if let Some(existing_enum) = context.scope_stack.lookup_enum(&ns_def.type_name) {
-                // Issue #174: Enum namespace support
-                let mut merged_enum = existing_enum.clone();
-                for (name, expr) in &ns_def.default_values {
-                    merged_enum.methods.insert(name.clone(), expr.clone());
-                }
-                // Re-declare the enum (overwrites the old one)
-                context.scope_stack.declare_enum(ns_def.type_name.clone(), merged_enum);
-            } else {
-                errors.push(e.error(&context.path, "init", &format!(
-                    "namespace block for '{}': type not found (must be declared before namespace block)",
-                    ns_def.type_name)));
-                return Ok(errors);
-            }
-
-            // Register associated funcs and constants from namespace (same logic as StructDef)
-            for member_decl in &ns_def.members {
-                if !member_decl.is_mut {
-                    if let Some(member_expr) = ns_def.default_values.get(&member_decl.name) {
-                        let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
-                        let full_name = format!("{}.{}", ns_def.type_name, member_decl.name);
-                        // Register in symbols
-                        context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
-                            value_type: member_value_type.clone(),
-                            is_mut: member_decl.is_mut,
-                            is_copy: member_decl.is_copy,
-                            is_own: member_decl.is_own,
-                            is_comptime_const: false
-                        });
-                        // If it's a function, also register in funcs
-                        if let NodeType::FuncDef(func_def) = &member_expr.node_type {
-                            context.scope_stack.declare_func(full_name, func_def.clone());
-                        }
-                    }
-                }
             }
         }
         _ => {

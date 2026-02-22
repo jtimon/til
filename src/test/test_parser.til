@@ -266,58 +266,8 @@ test_enums()  // FIXED - enum parsing now advances past closing brace correctly
 test_functions()  // LEXER BUG FIXED - lexer.til now correctly handles string literals
 test_switch()  // PARSER BUG FIXED - infinite loop fixed by using break flag workaround
 
-// Test namespace parsing (Issue #108)
-// Parser now successfully parses namespace blocks; todo_error happens in init phase
-test_namespace_parses : proc() = {
-    mut lexer := Lexer.new("namespace Foo { x := 42 }")?
-    ast := parse_tokens(lexer)?
-
-    // Verify we got a Body with one NamespaceDef child
-    switch ast.node_type {
-    case NodeType.Body:
-        // Good - got a body
-        if ast.params.len().eq(0) {
-            println("ERROR:", loc(), "Expected namespace def in body, got empty body")
-            exit(1)
-        }
-    case:
-        println("ERROR:", loc(), "Expected Body node from parse_tokens")
-        exit(1)
-    }
-
-    // Get the first statement
-    first_stmt := cast(Expr, ast.params.get(0)?)
-
-    // Verify it's a NamespaceDef
-    switch first_stmt.node_type {
-    case NodeType.NamespaceDef(ns_def):
-        // Verify type name
-        if not(ns_def.type_name.eq("Foo")) {
-            println("ERROR:", loc(), "Expected namespace type_name 'Foo', got:", ns_def.type_name)
-            exit(1)
-        }
-        // Verify it has one member
-        if not(ns_def.members.len().eq(1)) {
-            println("ERROR:", loc(), "Expected 1 member in namespace, got:", ns_def.members.len().to_str())
-            exit(1)
-        }
-    case:
-        println("ERROR:", loc(), "Expected NamespaceDef node, got:", enum_to_str(first_stmt.node_type))
-        exit(1)
-    }
-
-    catch (err: Str) {
-        println("ERROR:", loc(), "Unexpected parse error:")
-        println(err)
-        exit(1)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-}
-test_namespace_parses()
+// Issue #105: test_namespace_parses removed - NamespaceDef variant no longer exists.
+// Namespace methods are now stored directly on StructDef/EnumDef ns field.
 
 // Test parsing real TIL files
 // TODO: All hang (likely infinite loop in parser.til) - even small files like arithmetics.til hang

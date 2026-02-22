@@ -100,8 +100,7 @@ collect_used_types_from_func : proc(context: Context, func_def: SFuncDef, mut us
 // ---------- Helper functions
 
 /// Issue #108: Rebuild a namespace definition, keeping only reachable methods
-rebuild_namespace_without_unreachable_methods : proc(ns_def: SNamespaceDef, reachable: Set) returns Expr = {
-    type_name := ns_def.type_name
+rebuild_namespace_without_unreachable_methods : proc(ns_def: SNamespaceDef, type_name: Str, reachable: Set) returns SNamespaceDef = {
     mut new_members := Vec.new(Declaration)
     mut new_default_values := Map.new(Str, Expr)
 
@@ -129,12 +128,10 @@ rebuild_namespace_without_unreachable_methods : proc(ns_def: SNamespaceDef, reac
         }
     }
 
-    mut new_ns_def := SNamespaceDef()
-    new_ns_def.type_name = type_name.clone()
-    new_ns_def.members = new_members
-    new_ns_def.default_values = new_default_values
-
-    return Expr(node_type=NodeType.NamespaceDef(new_ns_def), params=Vec.new(Expr), line=0, col=0)
+    return SNamespaceDef(
+        members=new_members,
+        default_values=new_default_values
+    )
 }
 
 /// Rebuild a struct without unreachable methods
@@ -167,9 +164,13 @@ rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def:
         }
     }
 
+    // Also rebuild ns, pruning unreachable methods
+    new_ns := rebuild_namespace_without_unreachable_methods(struct_def.ns, struct_name, reachable)
+
     mut new_struct_def := SStructDef()
     new_struct_def.members = new_members
     new_struct_def.default_values = new_default_values
+    new_struct_def.ns = new_ns
     new_struct_expr := Expr(node_type=NodeType.StructDef(new_struct_def), params=Vec.new(Expr), line=0, col=0)
 
     mut result_params := Vec.new(Expr)
@@ -383,20 +384,18 @@ register_declarations_recursive : proc(mut context: Context, e: Expr) throws Str
                     case:
                     }
                 }
-            case:
-            }
-        }
-    // Issue #108: Handle namespace definitions - register their functions
-    case NodeType.NamespaceDef(ns_def):
-        for member_name: Str in ns_def.default_values.keys {
-            ns_default_expr := cast(Expr, ns_def.default_values.get(member_name)?)
-            switch ns_default_expr.node_type {
-            case NodeType.FuncDef(func_def):
-                ns_full_name := format(ns_def.type_name, ".", member_name)
-                context.scope_stack.declare_func(ns_full_name, func_def.clone())?
-                // Recurse into method body for local declarations
-                for stmt: Expr in func_def.body {
-                    register_declarations_recursive(context, stmt)?
+                // Namespace methods
+                for ns_member_name: Str in struct_def.ns.default_values.keys {
+                    ns_default_expr := cast(Expr, struct_def.ns.default_values.get(ns_member_name)?)
+                    switch ns_default_expr.node_type {
+                    case NodeType.FuncDef(ns_func_def):
+                        ns_full_name := format(decl.name, ".", ns_member_name)
+                        context.scope_stack.declare_func(ns_full_name, ns_func_def.clone())?
+                        for ns_stmt: Expr in ns_func_def.body {
+                            register_declarations_recursive(context, ns_stmt)?
+                        }
+                    case:
+                    }
                 }
             case:
             }
@@ -721,21 +720,41 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
 
         // Issue #108: Mark all namespace methods as reachable when their type is used
         // This ensures that dependencies of namespace functions are tracked
-        // Walk the AST to find NamespaceDef for this type
+        // Walk the AST to find StructDef/EnumDef declarations for this type
         for stmt: Expr in e.params {
             switch stmt.node_type {
-            case NodeType.NamespaceDef(ns_def):
-                if ns_def.type_name.eq(eq_type_name) {
-                    for method_name: Str in ns_def.default_values.keys {
-                        method_expr := cast(Expr, ns_def.default_values.get(method_name)?)
-                        catch (err: KeyNotFoundError) {
-                            panic(loc(), "scavenger: KeyNotFoundError iterating default_values.keys: ", err.msg)
-                        }
-                        switch method_expr.node_type {
-                        case NodeType.FuncDef(_func_def):
-                            full_name := format(eq_type_name, ".", method_name)
-                            mark_reachable(full_name, reachable, worklist)
+            case NodeType.Declaration(ns_reach_decl):
+                if ns_reach_decl.name.eq(eq_type_name) {
+                    if stmt.params.len().gt(0) {
+                        ns_reach_inner := stmt.get(0)?
+                        mut ns_reach_ns := SNamespaceDef()
+                        mut ns_reach_has_ns := false
+                        switch ns_reach_inner.node_type {
+                        case NodeType.StructDef(ns_reach_sd):
+                            if ns_reach_sd.ns.members.len().gt(0) {
+                                ns_reach_ns = ns_reach_sd.ns
+                                ns_reach_has_ns = true
+                            }
+                        case NodeType.EnumDef(ns_reach_ed):
+                            if ns_reach_ed.ns.members.len().gt(0) {
+                                ns_reach_ns = ns_reach_ed.ns
+                                ns_reach_has_ns = true
+                            }
                         case:
+                        }
+                        if ns_reach_has_ns {
+                            for method_name: Str in ns_reach_ns.default_values.keys {
+                                method_expr := cast(Expr, ns_reach_ns.default_values.get(method_name)?)
+                                catch (err: KeyNotFoundError) {
+                                    panic(loc(), "scavenger: KeyNotFoundError iterating default_values.keys: ", err.msg)
+                                }
+                                switch method_expr.node_type {
+                                case NodeType.FuncDef(_func_def):
+                                    full_name := format(eq_type_name, ".", method_name)
+                                    mark_reachable(full_name, reachable, worklist)
+                                case:
+                                }
+                            }
                         }
                     }
                 }
@@ -1046,13 +1065,6 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 } else {
                     // Declaration without initializer - always keep
                     new_params.push(stmt.clone())
-                }
-            // Issue #108: Handle namespace definitions
-            case NodeType.NamespaceDef(ns_def):
-                // Check if the namespace's type is used
-                if used_types.contains(ns_def.type_name) {
-                    new_ns := rebuild_namespace_without_unreachable_methods(ns_def, reachable)
-                    new_params.push(new_ns)
                 }
             case:
                 // Non-declaration - always keep

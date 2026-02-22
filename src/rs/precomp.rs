@@ -135,7 +135,16 @@ fn substitute_type_params_in_struct(struct_def: &SStructDef, subs: &HashMap<Stri
         (name.clone(), substitute_type_params_in_expr(expr, subs))
     }).collect();
 
-    SStructDef { members: new_members, default_values: new_defaults }
+    // Also substitute type params in ns default values
+    let new_ns_defaults = struct_def.ns.default_values.iter().map(|(name, expr)| {
+        (name.clone(), substitute_type_params_in_expr(expr, subs))
+    }).collect();
+    let new_ns = SNamespaceDef {
+        members: struct_def.ns.members.clone(),
+        default_values: new_ns_defaults,
+    };
+
+    SStructDef { members: new_members, default_values: new_defaults, ns: new_ns }
 }
 
 /// Issue #106: Apply type param substitution to an enum definition's variant payload types.
@@ -153,34 +162,44 @@ fn substitute_type_params_in_enum(enum_def: &SEnumDef, subs: &HashMap<String, St
         }
         v.clone()
     }).collect();
-    SEnumDef { variants: new_variants, methods: enum_def.methods.clone() }
+    SEnumDef { variants: new_variants, methods: enum_def.methods.clone(), ns: enum_def.ns.clone() }
 }
 
-/// Extract namespace stmts from a macro's body AST.
-/// Scans for Return nodes or Declaration nodes containing a StructDef or EnumDef with params (namespace stmts).
-/// Returns the first matching set of namespace params (simple macros only).
-fn extract_namespace_stmts_from_macro(func_def: &SFuncDef) -> Vec<Expr> {
+/// Extract namespace def from a macro's body AST.
+/// Scans for Return nodes or Declaration nodes containing a StructDef or EnumDef with a non-empty ns field.
+/// Returns the first matching namespace def (simple macros only).
+fn extract_namespace_from_macro(func_def: &SFuncDef) -> SNamespaceDef {
     for stmt in &func_def.body {
         // Pattern 1: return struct/enum { ... namespace: ... }
         if matches!(&stmt.node_type, NodeType::Return) {
             if let Some(ret_val) = stmt.params.first() {
-                if (matches!(&ret_val.node_type, NodeType::StructDef(_)) || matches!(&ret_val.node_type, NodeType::EnumDef(_)))
-                    && !ret_val.params.is_empty() {
-                    return ret_val.params.clone();
+                match &ret_val.node_type {
+                    NodeType::StructDef(struct_def) if !struct_def.ns.members.is_empty() => {
+                        return struct_def.ns.clone();
+                    },
+                    NodeType::EnumDef(enum_def) if !enum_def.ns.members.is_empty() => {
+                        return enum_def.ns.clone();
+                    },
+                    _ => {}
                 }
             }
         }
         // Pattern 2: TemplatedPtr/TemplatedOption := struct/enum { ... namespace: ... }
         if let NodeType::Declaration(_) = &stmt.node_type {
             if let Some(val) = stmt.params.first() {
-                if (matches!(&val.node_type, NodeType::StructDef(_)) || matches!(&val.node_type, NodeType::EnumDef(_)))
-                    && !val.params.is_empty() {
-                    return val.params.clone();
+                match &val.node_type {
+                    NodeType::StructDef(struct_def) if !struct_def.ns.members.is_empty() => {
+                        return struct_def.ns.clone();
+                    },
+                    NodeType::EnumDef(enum_def) if !enum_def.ns.members.is_empty() => {
+                        return enum_def.ns.clone();
+                    },
+                    _ => {}
                 }
             }
         }
     }
-    Vec::new()
+    SNamespaceDef { members: Vec::new(), default_values: HashMap::new() }
 }
 
 /// Extract the internal type name from a macro body (e.g., "TemplatedPtr" from
@@ -244,14 +263,19 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                     }
                                 }
                             }
-                            // Generate struct methods (delete/clone)
-                            if let Some(ns_block) = generate_struct_methods(&temp_name, struct_def, p.line, p.col) {
-                                let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, p, vec![ns_block.clone()]))?;
-                                if !ns_errors.is_empty() {
-                                    return Err(ns_errors.join("\n"));
+                            // Generate struct methods (delete/clone) and set ns on struct
+                            let mut updated_struct_def = struct_def.clone();
+                            if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, p.line, p.col) {
+                                updated_struct_def.ns = auto_ns;
+                                // Register ns methods via init helper
+                                let mut ns_errors_vec = Vec::new();
+                                crate::rs::init::init_namespace_into_struct(context, &temp_name, &updated_struct_def.ns, p, &mut ns_errors_vec);
+                                if !ns_errors_vec.is_empty() {
+                                    return Err(ns_errors_vec.join("\n"));
                                 }
-                                new_params.push(ns_block);
                             }
+                            // Re-register the struct with ns
+                            context.scope_stack.declare_struct(temp_name.clone(), updated_struct_def.clone());
                             // Build struct definition declaration for codegen
                             let struct_decl = Declaration {
                                 name: temp_name.clone(),
@@ -264,7 +288,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                             let struct_decl_expr = Expr::new_clone(
                                 NodeType::Declaration(struct_decl),
                                 first_param,
-                                vec![Expr::new_clone(NodeType::StructDef(struct_def.clone()), first_param, vec![])],
+                                vec![Expr::new_clone(NodeType::StructDef(updated_struct_def), first_param, vec![])],
                             );
                             new_params.push(struct_decl_expr);
                             // Replace StructDef with Identifier in the FCall
@@ -285,7 +309,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                             // Extract all data from func_def before mutable borrows
                             let macro_return_type = func_def.sig.return_types[0].clone();
                             let type_subs = build_type_param_subs(&func_def, inner_e);
-                            let macro_ns_stmts = extract_namespace_stmts_from_macro(&func_def);
+                            let macro_ns = extract_namespace_from_macro(&func_def);
                             let macro_internal_name = extract_internal_type_name(&func_def);
                             if macro_return_type == ValueType::TType(TTypeDef::TStructDef) {
                                 // Expand the macro (mutably borrows context)
@@ -321,9 +345,47 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                             Err(_) => { precomputed_defaults.insert(key.clone(), val.clone()); },
                                         }
                                     }
+                                    // Build combined ns: auto-generated + user-defined from macro namespace
+                                    let mut combined_ns = SNamespaceDef {
+                                        members: Vec::new(),
+                                        default_values: HashMap::new(),
+                                    };
+                                    // Check if macro namespace already defines delete/clone
+                                    let ns_has_delete = macro_ns.members.iter().any(|m| m.name == "delete");
+                                    let ns_has_clone = macro_ns.members.iter().any(|m| m.name == "clone");
+                                    // Generate auto delete/clone methods
+                                    let mut auto_struct = SStructDef {
+                                        members: resolved_members.clone(),
+                                        default_values: precomputed_defaults.clone(),
+                                        ns: SNamespaceDef { members: Vec::new(), default_values: HashMap::new() },
+                                    };
+                                    let dummy = Expr::new_explicit(NodeType::LLiteral(Literal::Number("0".to_string())), vec![], 0, 0);
+                                    if ns_has_delete { auto_struct.default_values.insert("delete".to_string(), dummy.clone()); }
+                                    if ns_has_clone { auto_struct.default_values.insert("clone".to_string(), dummy); }
+                                    if let Some(auto_ns) = generate_struct_methods(&decl.name, &auto_struct, p.line, p.col) {
+                                        combined_ns.members.extend(auto_ns.members);
+                                        combined_ns.default_values.extend(auto_ns.default_values);
+                                    }
+                                    // Merge user namespace from macro body (with type param substitution)
+                                    if !macro_ns.members.is_empty() {
+                                        let mut ns_subs = type_subs.clone();
+                                        if let Some(ref internal_name) = macro_internal_name {
+                                            ns_subs.insert(internal_name.clone(), decl.name.clone());
+                                        }
+                                        for member in &macro_ns.members {
+                                            // User methods override auto-generated ones
+                                            combined_ns.members.retain(|m| m.name != member.name);
+                                            combined_ns.members.push(member.clone());
+                                        }
+                                        for (name, val) in &macro_ns.default_values {
+                                            let substituted_val = substitute_type_params_in_expr(val, &ns_subs);
+                                            combined_ns.default_values.insert(name.clone(), substituted_val);
+                                        }
+                                    }
                                     let resolved_struct = SStructDef {
                                         members: resolved_members,
                                         default_values: precomputed_defaults,
+                                        ns: combined_ns,
                                     };
                                     let resolved_expanded = Expr::new_clone(NodeType::StructDef(resolved_struct.clone()), &expanded, vec![]);
                                     // Register the struct in context
@@ -344,94 +406,17 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                             }
                                         }
                                     }
+                                    // Register ns methods via init helper
+                                    if !resolved_struct.ns.members.is_empty() {
+                                        let mut ns_errors_vec = Vec::new();
+                                        crate::rs::init::init_namespace_into_struct(context, &decl.name, &resolved_struct.ns, p, &mut ns_errors_vec);
+                                        if !ns_errors_vec.is_empty() {
+                                            return Err(ns_errors_vec.join("\n"));
+                                        }
+                                    }
                                     // Replace the FCall with the StructDef in the AST
                                     let new_p = Expr::new_clone(p.node_type.clone(), p, vec![resolved_expanded]);
                                     new_params.push(new_p);
-                                    // Issue #105: Check if macro namespace stmts already define delete/clone
-                                    let ns_has_delete = macro_ns_stmts.iter().any(|s| {
-                                        matches!(&s.node_type, NodeType::Declaration(d) if d.name == "delete")
-                                    });
-                                    let ns_has_clone = macro_ns_stmts.iter().any(|s| {
-                                        matches!(&s.node_type, NodeType::Declaration(d) if d.name == "clone")
-                                    });
-                                    // Generate delete/clone methods only if not provided by macro namespace
-                                    let auto_struct = if ns_has_delete || ns_has_clone {
-                                        // Add fake members so generate_struct_methods skips them
-                                        let mut fake = resolved_struct.clone();
-                                        let dummy = Expr::new_explicit(NodeType::LLiteral(Literal::Number("0".to_string())), vec![], 0, 0);
-                                        if ns_has_delete { fake.default_values.insert("delete".to_string(), dummy.clone()); }
-                                        if ns_has_clone { fake.default_values.insert("clone".to_string(), dummy); }
-                                        fake
-                                    } else {
-                                        resolved_struct.clone()
-                                    };
-                                    if let Some(ns_block) = generate_struct_methods(&decl.name, &auto_struct, p.line, p.col) {
-                                        // Run init on the namespace block to register the methods
-                                        let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, p, vec![ns_block.clone()]))?;
-                                        if !ns_errors.is_empty() {
-                                            return Err(ns_errors.join("\n"));
-                                        }
-                                        new_params.push(ns_block);
-                                    }
-                                    // Issue #105: Process namespace stmts extracted from macro body
-                                    if !macro_ns_stmts.is_empty() {
-                                        // Build substitution map: type params + internal struct name → external name
-                                        let mut ns_subs = type_subs.clone();
-                                        if let Some(ref internal_name) = macro_internal_name {
-                                            ns_subs.insert(internal_name.clone(), decl.name.clone());
-                                        }
-                                        // Apply type substitution to namespace stmts
-                                        let substituted_stmts: Vec<Expr> = macro_ns_stmts.iter()
-                                            .map(|s| substitute_type_params_in_expr(s, &ns_subs))
-                                            .collect();
-                                        // Build NamespaceDef from substituted stmts (same pattern as split_inline_namespaces)
-                                        let mut ns_members = Vec::new();
-                                        let mut ns_default_values = HashMap::new();
-                                        for stmt in &substituted_stmts {
-                                            match &stmt.node_type {
-                                                NodeType::Declaration(ns_decl) => {
-                                                    ns_members.push(ns_decl.clone());
-                                                    if let Some(val) = stmt.params.first() {
-                                                        ns_default_values.insert(ns_decl.name.clone(), val.clone());
-                                                    }
-                                                },
-                                                NodeType::Assignment(name) => {
-                                                    if let Some(val) = stmt.params.first() {
-                                                        let ns_decl = Declaration {
-                                                            name: name.clone(),
-                                                            value_type: ValueType::TCustom(INFER_TYPE.to_string()),
-                                                            is_mut: false,
-                                                            is_copy: false,
-                                                            is_own: false,
-                                                            default_value: None,
-                                                        };
-                                                        ns_members.push(ns_decl);
-                                                        ns_default_values.insert(name.clone(), val.clone());
-                                                    }
-                                                },
-                                                _ => {}
-                                            }
-                                        }
-                                        if !ns_members.is_empty() {
-                                            let user_ns_def = SNamespaceDef {
-                                                type_name: decl.name.clone(),
-                                                members: ns_members,
-                                                default_values: ns_default_values,
-                                            };
-                                            let user_ns_expr = Expr::new_explicit(
-                                                NodeType::NamespaceDef(user_ns_def),
-                                                vec![],
-                                                p.line,
-                                                p.col,
-                                            );
-                                            // Run init on the namespace to register methods
-                                            let user_ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, p, vec![user_ns_expr.clone()]))?;
-                                            if !user_ns_errors.is_empty() {
-                                                return Err(user_ns_errors.join("\n"));
-                                            }
-                                            new_params.push(user_ns_expr);
-                                        }
-                                    }
                                     modified = true;
                                     continue;
                                 }
@@ -450,82 +435,47 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                     // Clear preinit-generated methods (they reference the internal name)
                                     // They'll be regenerated with the correct external name below
                                     substituted.methods = crate::rs::ordered_map::OrderedMap::new();
-                                    let resolved_expanded = Expr::new_clone(NodeType::EnumDef(substituted.clone()), &expanded, vec![]);
-                                    // Register the enum in context
-                                    context.scope_stack.declare_enum(decl.name.clone(), substituted.clone());
-                                    // Replace the FCall with the EnumDef in the AST
-                                    let new_p = Expr::new_clone(p.node_type.clone(), p, vec![resolved_expanded]);
-                                    new_params.push(new_p);
-                                    // Check if macro namespace stmts already define delete/clone
-                                    let ns_has_delete = macro_ns_stmts.iter().any(|s| {
-                                        matches!(&s.node_type, NodeType::Declaration(d) if d.name == "delete")
-                                    });
-                                    let ns_has_clone = macro_ns_stmts.iter().any(|s| {
-                                        matches!(&s.node_type, NodeType::Declaration(d) if d.name == "clone")
-                                    });
-                                    // Generate delete/clone methods if not provided by macro namespace
-                                    if let Some(ns_block) = generate_enum_methods(&decl.name, ns_has_delete, ns_has_clone, p.line, p.col) {
-                                        let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, p, vec![ns_block.clone()]))?;
-                                        if !ns_errors.is_empty() {
-                                            return Err(ns_errors.join("\n"));
-                                        }
-                                        new_params.push(ns_block);
+                                    // Build combined ns: auto-generated + user-defined from macro namespace
+                                    let mut combined_ns = SNamespaceDef {
+                                        members: Vec::new(),
+                                        default_values: HashMap::new(),
+                                    };
+                                    let ns_has_delete = macro_ns.members.iter().any(|m| m.name == "delete");
+                                    let ns_has_clone = macro_ns.members.iter().any(|m| m.name == "clone");
+                                    if let Some(auto_ns) = generate_enum_methods(&decl.name, ns_has_delete, ns_has_clone, p.line, p.col) {
+                                        combined_ns.members.extend(auto_ns.members);
+                                        combined_ns.default_values.extend(auto_ns.default_values);
                                     }
-                                    // Process namespace stmts extracted from macro body
-                                    if !macro_ns_stmts.is_empty() {
+                                    // Merge user namespace from macro body (with type param substitution)
+                                    if !macro_ns.members.is_empty() {
                                         let mut ns_subs = type_subs.clone();
                                         if let Some(ref internal_name) = macro_internal_name {
                                             ns_subs.insert(internal_name.clone(), decl.name.clone());
                                         }
-                                        let substituted_stmts: Vec<Expr> = macro_ns_stmts.iter()
-                                            .map(|s| substitute_type_params_in_expr(s, &ns_subs))
-                                            .collect();
-                                        let mut ns_members = Vec::new();
-                                        let mut ns_default_values = HashMap::new();
-                                        for stmt in &substituted_stmts {
-                                            match &stmt.node_type {
-                                                NodeType::Declaration(ns_decl) => {
-                                                    ns_members.push(ns_decl.clone());
-                                                    if let Some(val) = stmt.params.first() {
-                                                        ns_default_values.insert(ns_decl.name.clone(), val.clone());
-                                                    }
-                                                },
-                                                NodeType::Assignment(name) => {
-                                                    if let Some(val) = stmt.params.first() {
-                                                        let ns_decl = Declaration {
-                                                            name: name.clone(),
-                                                            value_type: ValueType::TCustom(INFER_TYPE.to_string()),
-                                                            is_mut: false,
-                                                            is_copy: false,
-                                                            is_own: false,
-                                                            default_value: None,
-                                                        };
-                                                        ns_members.push(ns_decl);
-                                                        ns_default_values.insert(name.clone(), val.clone());
-                                                    }
-                                                },
-                                                _ => {}
-                                            }
+                                        for member in &macro_ns.members {
+                                            combined_ns.members.retain(|m| m.name != member.name);
+                                            combined_ns.members.push(member.clone());
                                         }
-                                        if !ns_members.is_empty() {
-                                            let user_ns_def = SNamespaceDef {
-                                                type_name: decl.name.clone(),
-                                                members: ns_members,
-                                                default_values: ns_default_values,
-                                            };
-                                            let user_ns_expr = Expr::new_explicit(
-                                                NodeType::NamespaceDef(user_ns_def),
-                                                vec![],
-                                                p.line,
-                                                p.col,
-                                            );
-                                            let user_ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, p, vec![user_ns_expr.clone()]))?;
-                                            if !user_ns_errors.is_empty() {
-                                                return Err(user_ns_errors.join("\n"));
-                                            }
-                                            new_params.push(user_ns_expr);
+                                        for (name, val) in &macro_ns.default_values {
+                                            let substituted_val = substitute_type_params_in_expr(val, &ns_subs);
+                                            combined_ns.default_values.insert(name.clone(), substituted_val);
                                         }
                                     }
+                                    substituted.ns = combined_ns;
+                                    let resolved_expanded = Expr::new_clone(NodeType::EnumDef(substituted.clone()), &expanded, vec![]);
+                                    // Register the enum in context
+                                    context.scope_stack.declare_enum(decl.name.clone(), substituted.clone());
+                                    // Register ns methods via init helper
+                                    if !substituted.ns.members.is_empty() {
+                                        let mut ns_errors_vec = Vec::new();
+                                        crate::rs::init::init_namespace_into_enum(context, &decl.name, &substituted.ns, p, &mut ns_errors_vec);
+                                        if !ns_errors_vec.is_empty() {
+                                            return Err(ns_errors_vec.join("\n"));
+                                        }
+                                    }
+                                    // Replace the FCall with the EnumDef in the AST
+                                    let new_p = Expr::new_clone(p.node_type.clone(), p, vec![resolved_expanded]);
+                                    new_params.push(new_p);
                                     modified = true;
                                     continue;
                                 }
@@ -587,14 +537,17 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                         }
                     }
                 }
-                // Generate struct methods (delete/clone) and add to pending top-level decls
-                if let Some(ns_block) = generate_struct_methods(&temp_name, struct_def, e.line, e.col) {
-                    let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, e, vec![ns_block.clone()]))?;
-                    if !ns_errors.is_empty() {
-                        return Err(ns_errors.join("\n"));
+                // Generate struct methods (delete/clone) and set ns on struct
+                let mut updated_struct_def = struct_def.clone();
+                if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, e.line, e.col) {
+                    updated_struct_def.ns = auto_ns;
+                    let mut ns_errors_vec = Vec::new();
+                    crate::rs::init::init_namespace_into_struct(context, &temp_name, &updated_struct_def.ns, e, &mut ns_errors_vec);
+                    if !ns_errors_vec.is_empty() {
+                        return Err(ns_errors_vec.join("\n"));
                     }
-                    pending_decls.push(ns_block);
                 }
+                context.scope_stack.declare_struct(temp_name.clone(), updated_struct_def.clone());
                 // Build struct definition declaration for codegen
                 let struct_decl = Declaration {
                     name: temp_name.clone(),
@@ -604,7 +557,7 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                 let struct_decl_expr = Expr::new_clone(
                     NodeType::Declaration(struct_decl),
                     first_param,
-                    vec![Expr::new_clone(NodeType::StructDef(struct_def.clone()), first_param, vec![])],
+                    vec![Expr::new_clone(NodeType::StructDef(updated_struct_def), first_param, vec![])],
                 );
                 pending_decls.push(struct_decl_expr);
                 // Replace StructDef with Identifier in the FCall
@@ -644,16 +597,21 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                         }
                     }
                 }
-                // Generate struct methods (delete/clone) and add to pending top-level decls
-                if let Some(ns_block) = generate_struct_methods(&decl.name, struct_def, e.line, e.col) {
-                    let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, e, vec![ns_block.clone()]))?;
-                    if !ns_errors.is_empty() {
-                        return Err(ns_errors.join("\n"));
+                // Generate struct methods (delete/clone) and set ns on struct
+                let mut updated_struct_def = struct_def.clone();
+                if let Some(auto_ns) = generate_struct_methods(&decl.name, struct_def, e.line, e.col) {
+                    updated_struct_def.ns = auto_ns;
+                    let mut ns_errors_vec = Vec::new();
+                    crate::rs::init::init_namespace_into_struct(context, &decl.name, &updated_struct_def.ns, e, &mut ns_errors_vec);
+                    if !ns_errors_vec.is_empty() {
+                        return Err(ns_errors_vec.join("\n"));
                     }
-                    pending_decls.push(ns_block);
                 }
-                // Add struct definition to pending top-level decls for codegen
-                pending_decls.push(e.clone());
+                context.scope_stack.declare_struct(decl.name.clone(), updated_struct_def.clone());
+                // Add struct definition (with ns) to pending top-level decls for codegen
+                let updated_struct_expr = Expr::new_clone(NodeType::StructDef(updated_struct_def), &e.params[0], vec![]);
+                let updated_decl_expr = Expr::new_clone(e.node_type.clone(), e, vec![updated_struct_expr]);
+                pending_decls.push(updated_decl_expr.clone());
                 // Return the original expression (stays in body; codegen skips TType declarations)
                 return Ok(Some(e.clone()));
             }
@@ -767,8 +725,6 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             Ok(Expr::new_clone(NodeType::NamedArg(name.clone()), e, new_params))
         },
-        // Issue #108: NamespaceDef - transform function bodies like StructDef
-        NodeType::NamespaceDef(ns_def) => precomp_namespace_def(context, e, ns_def),
         // ForIn should have been desugared in desugarer phase
         NodeType::ForIn(_) => {
             panic!("ForIn should have been desugared in desugarer phase");
@@ -998,17 +954,9 @@ fn precomp_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) 
             context.precomp_forin_counter = saved_counter;
         }
     }
-    let new_struct_def = SStructDef {
-        members: struct_def.members.clone(),
-        default_values: new_default_values,
-    };
-    Ok(Expr::new_clone(NodeType::StructDef(new_struct_def), e, e.params.clone()))
-}
-
-/// Issue #108: Transform NamespaceDef - recursively transform function bodies
-fn precomp_namespace_def(context: &mut Context, e: &Expr, ns_def: &SNamespaceDef) -> Result<Expr, String> {
-    let mut new_default_values = HashMap::new();
-    for (name, value_expr) in &ns_def.default_values {
+    // Also transform ns default values (namespace function bodies)
+    let mut ns_new_default_values = HashMap::new();
+    for (name, value_expr) in &struct_def.ns.default_values {
         let is_func = matches!(&value_expr.node_type, NodeType::FuncDef(_));
         let saved_func = context.current_precomp_func.clone();
         let saved_counter = context.precomp_forin_counter;
@@ -1018,26 +966,24 @@ fn precomp_namespace_def(context: &mut Context, e: &Expr, ns_def: &SNamespaceDef
         }
 
         let transformed = precomp_expr(context, value_expr)?;
-
-        // Issue #108: Update scope_stack with transformed FuncDef so interpreter uses it
-        if let NodeType::FuncDef(func_def) = &transformed.node_type {
-            let full_name = format!("{}.{}", ns_def.type_name, name);
-            context.scope_stack.update_func(&full_name, func_def.clone());
-        }
-
-        new_default_values.insert(name.clone(), transformed);
+        ns_new_default_values.insert(name.clone(), transformed);
 
         if is_func {
             context.current_precomp_func = saved_func;
             context.precomp_forin_counter = saved_counter;
         }
     }
-    let new_ns_def = SNamespaceDef {
-        type_name: ns_def.type_name.clone(),
-        members: ns_def.members.clone(),
-        default_values: new_default_values,
+    let new_ns = SNamespaceDef {
+        members: struct_def.ns.members.clone(),
+        default_values: ns_new_default_values,
     };
-    Ok(Expr::new_clone(NodeType::NamespaceDef(new_ns_def), e, vec![]))
+
+    let new_struct_def = SStructDef {
+        members: struct_def.members.clone(),
+        default_values: new_default_values,
+        ns: new_ns,
+    };
+    Ok(Expr::new_clone(NodeType::StructDef(new_struct_def), e, e.params.clone()))
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
@@ -1123,6 +1069,13 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
             NodeType::EnumDef(enum_def) => {
                 context.scope_stack.declare_enum(decl.name.clone(), enum_def.clone());
                 context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: true });
+                // Update scope_stack with namespace FuncDefs so interpreter uses desugared versions
+                for (name, ns_value_expr) in &enum_def.ns.default_values {
+                    if let NodeType::FuncDef(func_def) = &ns_value_expr.node_type {
+                        let full_name = format!("{}.{}", decl.name, name);
+                        context.scope_stack.update_func(&full_name, func_def.clone());
+                    }
+                }
                 return Ok(e.clone());
             },
             _ => return Err(e.lang_error(&context.path, "precomp", &format!("Cannot declare '{}' of type '{}', expected enum definition.",
@@ -1243,6 +1196,18 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
                     let saved_path = context.path.clone();
                     eval_declaration(decl, context, &new_e)?;
                     context.path = saved_path;
+                }
+            }
+        }
+    }
+
+    // Update scope_stack with transformed namespace FuncDefs so interpreter uses them
+    if !new_params.is_empty() {
+        if let NodeType::StructDef(struct_def) = &new_params[0].node_type {
+            for (name, ns_value_expr) in &struct_def.ns.default_values {
+                if let NodeType::FuncDef(func_def) = &ns_value_expr.node_type {
+                    let full_name = format!("{}.{}", decl.name, name);
+                    context.scope_stack.update_func(&full_name, func_def.clone());
                 }
             }
         }
@@ -1414,11 +1379,16 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 }
             }
         }
-        // Generate struct methods (delete/clone)
-        if let Some(ns_block) = generate_struct_methods(&temp_name, struct_def, e.line, e.col) {
-            let ns_errors = crate::rs::init::init_context(context, &Expr::new_clone(NodeType::Body, e, vec![ns_block]))?;
-            if !ns_errors.is_empty() {
-                return Err(ns_errors.join("\n"));
+        // Generate struct methods (delete/clone) and set ns on struct
+        if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, e.line, e.col) {
+            // Update the registered struct's ns field
+            let mut updated = struct_def.clone();
+            updated.ns = auto_ns;
+            context.scope_stack.declare_struct(temp_name.clone(), updated.clone());
+            let mut ns_errors_vec = Vec::new();
+            crate::rs::init::init_namespace_into_struct(context, &temp_name, &updated.ns, e, &mut ns_errors_vec);
+            if !ns_errors_vec.is_empty() {
+                return Err(ns_errors_vec.join("\n"));
             }
         }
         // Create default instance for codegen

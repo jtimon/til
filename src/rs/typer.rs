@@ -161,9 +161,13 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         },
         NodeType::EnumDef(enum_def) => {
             errors.extend(check_enum_def(context, &e, enum_def)?);
+            // Type-check namespace function bodies
+            errors.extend(check_namespace_def(context, &e, &enum_def.ns)?);
         },
         NodeType::StructDef(struct_def) => {
             errors.extend(check_struct_def(context, &e, struct_def));
+            // Type-check namespace function bodies
+            errors.extend(check_namespace_def(context, &e, &struct_def.ns)?);
         },
         NodeType::If => {
             errors.extend(check_if_statement(context, &e)?);
@@ -282,10 +286,6 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             for p in &e.params {
                 errors.extend(check_types_with_context(context, p, expr_context)?);
             }
-        },
-        NodeType::NamespaceDef(ns_def) => {
-            // Issue #108: Type-check namespace function bodies
-            errors.extend(check_namespace_def(context, &e, ns_def)?);
         },
         NodeType::ForIn(_var_type) => {
             errors.extend(check_forin_statement(context, &e)?);
@@ -2661,10 +2661,6 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> Result<bool, String> {
                 Ok(true)
             }
         }
-        NodeType::NamespaceDef(_) => {
-            // NamespaceDef should be caught by init phase with todo_error
-            Ok(false)
-        }
         NodeType::ForIn(_) => {
             // ForIn: params[0]=var, params[1]=collection, params[2]=body
             // Check collection and body for proc calls
@@ -2832,6 +2828,18 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                     }
                 },
                 _ => {},
+            }
+
+            // Re-register resolved ns func_defs in scope_stack so interpreter uses resolved types
+            if let Some(inner_e) = new_params.first() {
+                if let NodeType::StructDef(struct_def) = &inner_e.node_type {
+                    for (name, ns_value_expr) in &struct_def.ns.default_values {
+                        if let NodeType::FuncDef(func_def) = &ns_value_expr.node_type {
+                            let full_name = format!("{}.{}", new_decl.name, name);
+                            context.scope_stack.update_func(&full_name, func_def.clone());
+                        }
+                    }
+                }
             }
 
             Ok(Expr::new_explicit(NodeType::Declaration(new_decl), new_params, e.line, e.col))
@@ -3081,32 +3089,23 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 });
             }
 
+            // Recurse into ns default_values (function bodies)
+            let mut ns_new_default_values = HashMap::new();
+            for (name, ns_value_expr) in &struct_def.ns.default_values {
+                let resolved_expr = resolve_inferred_types(context, ns_value_expr)?;
+                ns_new_default_values.insert(name.clone(), resolved_expr);
+            }
+            let new_ns = SNamespaceDef {
+                members: struct_def.ns.members.clone(),
+                default_values: ns_new_default_values,
+            };
+
             let new_struct_def = SStructDef {
                 members: new_members,
                 default_values: new_default_values,
+                ns: new_ns,
             };
             Ok(Expr::new_explicit(NodeType::StructDef(new_struct_def), e.params.clone(), e.line, e.col))
-        }
-
-        // Issue #108: NamespaceDef - recurse into default_values (function bodies)
-        NodeType::NamespaceDef(ns_def) => {
-            let mut ns_new_default_values = HashMap::new();
-            for (name, ns_value_expr) in &ns_def.default_values {
-                let resolved_expr = resolve_inferred_types(context, ns_value_expr)?;
-                // Re-register resolved func_defs in scope_stack so interpreter uses resolved types
-                if let NodeType::FuncDef(func_def) = &resolved_expr.node_type {
-                    let full_name = format!("{}.{}", ns_def.type_name, name);
-                    // Use update_func to update at original declaration site, not current scope
-                    context.scope_stack.update_func(&full_name, func_def.clone());
-                }
-                ns_new_default_values.insert(name.clone(), resolved_expr);
-            }
-            let new_ns_def = SNamespaceDef {
-                type_name: ns_def.type_name.clone(),
-                members: ns_def.members.clone(),
-                default_values: ns_new_default_values,
-            };
-            Ok(Expr::new_explicit(NodeType::NamespaceDef(new_ns_def), e.params.clone(), e.line, e.col))
         }
 
         // Default: recurse into all params

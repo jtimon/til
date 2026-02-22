@@ -537,8 +537,6 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             }
             Ok(EvalResult::new(&temp_name))
         },
-        // Issue #108: NamespaceDef already processed by init - members merged into type
-        NodeType::NamespaceDef(_ns_def) => Ok(EvalResult::new("")),
         // NamedArg is handled inside FCall processing
         NodeType::NamedArg(_) => {
             return Err(e.lang_error(&context.path, "eval", "NamedArg should only appear inside FCall"))

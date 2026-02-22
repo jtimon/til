@@ -2451,8 +2451,23 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_namespace_definition(child) {
-                emit_namespace_func_prototypes(child, context, output)?
+            switch child.node_type {
+            case NodeType.Declaration(ns2b2_decl):
+                if child.params.len().gt(0) {
+                    ns2b2_inner := child.get(0)?
+                    switch ns2b2_inner.node_type {
+                    case NodeType.StructDef(ns2b2_sd):
+                        if ns2b2_sd.ns.members.len().gt(0) {
+                            emit_namespace_func_prototypes(ns2b2_sd.ns, ns2b2_decl.name, context, output)?
+                        }
+                    case NodeType.EnumDef(ns2b2_ed):
+                        if ns2b2_ed.ns.members.len().gt(0) {
+                            emit_namespace_func_prototypes(ns2b2_ed.ns, ns2b2_decl.name, context, output)?
+                        }
+                    case:
+                    }
+                }
+            case:
             }
         }
     case:
@@ -2563,8 +2578,23 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_namespace_definition(child) {
-                emit_namespace_func_bodies(child, output, ctx, context)?
+            switch child.node_type {
+            case NodeType.Declaration(ns5b2_decl):
+                if child.params.len().gt(0) {
+                    ns5b2_inner := child.get(0)?
+                    switch ns5b2_inner.node_type {
+                    case NodeType.StructDef(ns5b2_sd):
+                        if ns5b2_sd.ns.members.len().gt(0) {
+                            emit_namespace_func_bodies(ns5b2_sd.ns, ns5b2_decl.name, output, ctx, context)?
+                        }
+                    case NodeType.EnumDef(ns5b2_ed):
+                        if ns5b2_ed.ns.members.len().gt(0) {
+                            emit_namespace_func_bodies(ns5b2_ed.ns, ns5b2_decl.name, output, ctx, context)?
+                        }
+                    case:
+                    }
+                }
+            case:
             }
         }
     case:
@@ -2696,16 +2726,6 @@ is_struct_declaration : func(expr: Expr) returns Bool throws Str = {
     case:
     }
 
-    return false
-}
-
-// Issue #108: Check if expression is a namespace definition
-is_namespace_definition : func(expr: Expr) returns Bool = {
-    switch expr.node_type {
-    case NodeType.NamespaceDef(_ns_def):
-        return true
-    case:
-    }
     return false
 }
 
@@ -4111,44 +4131,36 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: SF
 }
 
 // Issue #108: Emit namespace function prototypes (forward declarations)
-emit_namespace_func_prototypes : proc(expr: Expr, context: Context, mut output: Str) throws Str = {
-    switch expr.node_type {
-    case NodeType.NamespaceDef(ns_def):
-        type_name := til_name(ns_def.type_name)
-        for member: Declaration in ns_def.members {
-            func_expr := cast(Expr, ns_def.default_values.get(member.name)?)
-            catch (err: KeyNotFoundError) {
-                // member has no default value, skip
-            }
-            switch func_expr.node_type {
-            case NodeType.FuncDef(func_def):
-                mangled_name := type_name.concat("_").concat(member.name)
-                emit_func_signature(mangled_name, func_def, context, output)?
-                output.push_str(";\n")
-            case:
-            }
+emit_namespace_func_prototypes : proc(ns_def: SNamespaceDef, decl_name: Str, context: Context, mut output: Str) throws Str = {
+    type_name := til_name(decl_name)
+    for member: Declaration in ns_def.members {
+        func_expr := cast(Expr, ns_def.default_values.get(member.name)?)
+        catch (err: KeyNotFoundError) {
+            // member has no default value, skip
         }
-    case:
+        switch func_expr.node_type {
+        case NodeType.FuncDef(func_def):
+            mangled_name := type_name.concat("_").concat(member.name)
+            emit_func_signature(mangled_name, func_def, context, output)?
+            output.push_str(";\n")
+        case:
+        }
     }
 }
 
 // Issue #108: Emit namespace function bodies
-emit_namespace_func_bodies : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str = {
-    switch expr.node_type {
-    case NodeType.NamespaceDef(ns_def):
-        type_name := til_name(ns_def.type_name)
-        for member: Declaration in ns_def.members {
-            func_expr := cast(Expr, ns_def.default_values.get(member.name)?)
-            catch (err: KeyNotFoundError) {
-                // member has no default value, skip
-            }
-            switch func_expr.node_type {
-            case NodeType.FuncDef(func_def):
-                emit_struct_func_body(type_name, member, func_def, output, ctx, context)?
-            case:
-            }
+emit_namespace_func_bodies : proc(ns_def: SNamespaceDef, decl_name: Str, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str = {
+    type_name := til_name(decl_name)
+    for member: Declaration in ns_def.members {
+        func_expr := cast(Expr, ns_def.default_values.get(member.name)?)
+        catch (err: KeyNotFoundError) {
+            // member has no default value, skip
         }
-    case:
+        switch func_expr.node_type {
+        case NodeType.FuncDef(func_def):
+            emit_struct_func_body(type_name, member, func_def, output, ctx, context)?
+        case:
+        }
     }
 }
 
@@ -4923,9 +4935,6 @@ emit_expr : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenConte
         throw expr.lang_error(context.path, "ccodegen", "Pattern should have been desugared with Switch")
     case NodeType.NamedArg(na):
         throw expr.error(context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")
-    // Issue #108: NamespaceDef already processed by init - members merged into type
-    case NodeType.NamespaceDef(_ns_def):
-        // Nothing to emit - namespace functions are emitted in pass 5b2
     case NodeType.ForIn(fi):
         throw expr.lang_error(context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")
     case:
