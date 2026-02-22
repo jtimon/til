@@ -402,6 +402,26 @@ function calls. Root cause: functions like =Expr.new_explicit= take params by-re
 was consumed. The variable becomes a deletion candidate, gets deleted at function
 end, and corrupts the returned Expr that shares the same data buffer.
 
+*** Issue #105 Step 4a regression (2026-02-22)
+
+Commit 96361e5d (Move NamespaceDef into StructDef/EnumDef as =ns= field)
+introduced a performance regression:
+- til_interpreted: 794s/4406MB -> 1245s/8253MB (+56% time, +87% memory)
+- til_built: 639s/9989MB -> 1086s/21863MB (+70% time, +119% memory)
+
+Root cause: 3 phases (desugarer, garbager, ufcs) now recurse into
+=ns.default_values= (namespace method bodies) inside the StructDef handler.
+Before, NamespaceDef was a separate sibling node at Body level. These phases
+hit the default case which just cloned it opaquely -- no recursion into
+method body Expr trees. Only precomp had explicit NamespaceDef handling.
+
+After embedding ns in StructDef, each phase's StructDef handler explicitly
+iterates =ns.default_values= and calls =desugar_expr= / =garbager_recursive= /
+=ufcs_expr= on each method body. This is more correct behavior -- namespace
+method bodies should be fully processed by all phases -- but expensive.
+
+Accepted as cost of correctness. Will be absorbed by Issue #117 optimizations.
+
 *** Root cause analysis (2026-02-17)
 
 The fundamental problem is that TIL/C has no ownership tracking. Every struct

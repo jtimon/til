@@ -290,7 +290,7 @@ The pattern variable ~decl~ only exists inside the case block. All logic using i
 
 ** if let Some(x) = ...
 
-Rust uses ~if let~ for Option destructuring. TIL uses ~get~ + ~create_alias~ for
+Rust uses ~if let~ for Option destructuring. TIL uses ~get~ + ~cast~ for
 zero-copy access, or ~contains_key~ for existence-only checks:
 
 Rust:
@@ -300,10 +300,9 @@ if let Some(val) = map.get(key) {
 }
 #+end_src
 
-TIL (zero-copy with get + create_alias):
+TIL (zero-copy with get + cast):
 #+begin_src til
-val_ref := map.get(key)?
-create_alias(val, ValType, val_ref.data)
+val := cast(ValType, map.get(key)?)
 // use val (zero-copy alias into map storage)
 
 catch (err: KeyNotFoundError) {
@@ -333,8 +332,7 @@ if let Some(temp_var) = ctx.hoisted_exprs.get(&expr_addr) {
 
 TIL:
 #+begin_src til
-temp_ref := ctx.hoisted_exprs.get(expr_addr)?
-create_alias(temp_var, Str, temp_ref.data)
+temp_var := cast(Str, ctx.hoisted_exprs.get(expr_addr)?)
 output.push_str(temp_var)
 return
 catch (err: KeyNotFoundError) {
@@ -444,8 +442,7 @@ TIL (reverse range loop):
 #+begin_src til
 // Iterate len-1 down to 0 (inclusive) - use sub(0, 1) as end
 for i in items.len().sub(1)..sub(0, 1) {
-    item_ref := items.get(i)?
-    create_alias(item, T, item_ref.data)
+    item := cast(T, items.get(i)?)
     // use item
 }
 #+end_src
@@ -516,21 +513,20 @@ for (i, item) in items.iter().enumerate() {
 
 TIL:
 #+begin_src til
-// Preferred: for-in loop (zero-copy, uses get + create_alias internally)
+// Preferred: for-in loop (zero-copy, uses get + cast internally)
 for item: T in items {
     // use item
 }
 
-// When you need the index: range loop with get + create_alias
+// When you need the index: range loop with get + cast
 for i in 0..items.len() {
-    item_ref := items.get(i)?
-    create_alias(item, T, item_ref.data)
+    item := cast(T, items.get(i)?)
     // use i and item
 }
 #+end_src
 
 Note: TIL's ~for item: T in vec~ iterates by reference (zero-copy). For indexed access,
-use range loop with ~get~ + ~create_alias~.
+use range loop with ~get~ + ~cast~.
 
 ** Return type and error translation patterns
 
@@ -648,9 +644,8 @@ is_struct_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
     case NodeType.Declaration(_):
         if not(expr.params.is_empty()) {
-            first_ref := expr.params.get(0)?
+            first := cast(Expr, expr.params.get(0)?)
             catch (err: IndexOutOfBoundsError) { return false }
-            create_alias(first, Expr, first_ref.data)
             switch first.node_type {
             case NodeType.StructDef(_):
                 return true
@@ -668,7 +663,7 @@ Translation rules for this pattern:
 |------|-----|-------|
 | ~if let Pattern = expr { ... }~ | ~switch expr { case Pattern: ... case: }~ | Empty default case required |
 | ~!expr.is_empty()~ | ~not(expr.is_empty())~ | Use ~not()~ for negation |
-| ~expr.params[0]~ | ~ref := expr.params.get(0)?; create_alias(first, T, ref.data)~ | get+create_alias pattern |
+| ~expr.params[0]~ | ~first := cast(T, expr.params.get(0)?)~ | get+cast pattern |
 | Single ~false~ at end | Single ~return false~ at end | Empty default cases fall through |
 
 Note on ~is_empty()~: We added ~is_empty()~ methods to Vec, Map, and Str specifically to make
@@ -921,9 +916,9 @@ if not(self.ptr.is_null()) { ... }
 if self.ptr.is_null() { ... }
 #+end_src
 
-** Vec/Map access patterns (get + create_alias)
+** Vec/Map access patterns (get + cast)
 
-Rust returns references directly. TIL uses ~get~ + ~create_alias~ for zero-copy access:
+Rust returns references directly. TIL uses ~get~ + ~cast~ for zero-copy access:
 
 Rust:
 #+begin_src rust
@@ -933,11 +928,9 @@ let val = map.get(&key)?;
 
 TIL:
 #+begin_src til
-item_ref := vec.get(i)?  // returns Ptr, throws IndexOutOfBoundsError
-create_alias(item, T, item_ref.data)  // zero-copy alias into vec storage
+item := cast(T, vec.get(i)?)  // zero-copy alias into vec storage
 
-val_ref := map.get(key)?  // returns Ptr, throws KeyNotFoundError
-create_alias(val, V, val_ref.data)  // zero-copy alias into map storage
+val := cast(V, map.get(key)?)  // zero-copy alias into map storage
 #+end_src
 
 For existence checks only (don't need the value):
@@ -946,6 +939,48 @@ if map.contains_key(key) {
     // key exists
 }
 #+end_src
+
+** Mutable access with cast (in-place mutation)
+
+~cast~ can be used in ~mut~ declarations to get a mutable alias into collection
+storage, allowing in-place mutation without extracting and reinserting:
+
+Rust (~deps[idx]~ returns a mutable reference via indexing):
+#+begin_src rust
+// ccodegen.rs
+deps[idx].push(dep_idx);
+#+end_src
+
+TIL (~mut~ + ~cast~ gives a mutable alias into Vec storage):
+#+begin_src til
+// ccodegen.til
+mut dep_vec := cast(Vec, deps.get(idx)?)
+dep_vec.push(dep_idx)  // modifies the Vec in-place inside deps
+#+end_src
+
+Rust (~.last_mut()~ returns a mutable reference to last element):
+#+begin_src rust
+// init.rs
+if let Some(frame) = self.frames.last_mut() {
+    frame.heap_index.set(name.clone(), offset);
+    frame.symbols.set(name, symbol);
+}
+#+end_src
+
+TIL:
+#+begin_src til
+// init.til
+mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
+current_frame.heap_index.set(name.clone(), offset)
+current_frame.symbols.set(name, symbol)
+#+end_src
+
+This works because ~cast~ creates a zero-copy alias (pointer into collection
+storage). When declared ~mut~, you can call mutating methods on it, and the
+changes apply directly to the collection element. No need to ~set~ back.
+
+NOTE: The alias is only valid while the collection is not resized. Pushing to
+a Vec may reallocate its storage, invalidating existing aliases.
 
 ** HashMap.insert vs Map.insert/set
 
@@ -1005,8 +1040,7 @@ for (member_name, default_expr) in &struct_def.default_values {
 TIL:
 #+begin_src til
 for member_name: Str in struct_def.default_values.keys {
-    val_ref := struct_def.default_values.get(member_name)?
-    create_alias(default_expr, Expr, val_ref.data)
+    default_expr := cast(Expr, struct_def.default_values.get(member_name)?)
     switch default_expr.node_type {
     case NodeType.FuncDef(func_def):
         mangled_name := format(struct_name, "_", member_name)
@@ -1021,7 +1055,7 @@ for member_name: Str in struct_def.default_values.keys {
 
 Key differences:
 - Rust: ~for (key, value) in &map~ - direct iteration over pairs
-- TIL: ~for key: KeyType in map.keys~ + ~get~ + ~create_alias~ - iterate keys, get values by ref
+- TIL: ~for key: KeyType in map.keys~ + ~get~ + ~cast~ - iterate keys, get values by ref
 - Catch is technically unnecessary (key came from .keys), but compiler requires it
 
 ** Catch blocks placement
@@ -1037,8 +1071,7 @@ Place catch immediately after the throwing call, before using the result:
 lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
     for frame: ScopeFrame in self.frames {
         if frame.funcs.contains_key(name) {
-            val_ref := frame.funcs.get(name)?
-            create_alias(func_def, SFuncDef, val_ref.data)
+            func_def := cast(SFuncDef, frame.funcs.get(name)?)
             return func_def
 
             catch (err: KeyNotFoundError) {
@@ -1077,10 +1110,9 @@ for item: T in vec {
     // use item
 }
 
-// When index is needed: get + create_alias
+// When index is needed: get + cast
 for i in vec.len().sub(1)..sub(0, 1) {
-    item_ref := vec.get(i)?
-    create_alias(item, T, item_ref.data)
+    item := cast(T, vec.get(i)?)
     // use item
 
     catch (err: IndexOutOfBoundsError) {
@@ -1117,8 +1149,7 @@ TIL (when index is needed):
 #+begin_src til
 process := func(items: Vec) returns Result throws Str {
     for i in 0..items.len() {
-        item_ref := items.get(i)?
-        create_alias(item, Item, item_ref.data)
+        item := cast(Item, items.get(i)?)
         // ...
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1320,8 +1351,7 @@ The ~throws~ section is completely independent of func/proc. Both can throw:
 #+begin_src til
 // Pure function that can throw
 get_value := func(map: Map, key: Str) returns Str throws KeyNotFoundError {
-    val_ref := map.get(key)?
-    create_alias(result, Str, val_ref.data)
+    result := cast(Str, map.get(key)?)
     return result
 }
 
@@ -1423,7 +1453,7 @@ The translation is mechanical:
 7. UFCS works similarly: ~a.method(b)~ in both languages
 8. Default case: ~_~ -> empty ~case:~
 9. NULL check: ~!= NULL~ -> ~not(ptr.is_null())~ or ~not(NULL.eq(ptr.data))~
-10. ~vec[i]~ / ~map.get(key)~ -> ~get~ + ~create_alias~ (zero-copy)
+10. ~vec[i]~ / ~map.get(key)~ -> ~get~ + ~cast~ (zero-copy); ~mut~ + ~cast~ for in-place mutation
 11. Catch blocks come before final return/throw
 12. Not-equal: ~!=~ or ~.ne()~ -> ~not(eq())~ or ~not(x.eq(y))~ (TIL has no ~ne~ function)
 13. Enum comparison: ~==~ on enums -> use ~switch~ or type-specific ~_to_str~ functions (enums have no ~eq~ method, ~enum_to_str~ ignores payloads)
@@ -1433,7 +1463,7 @@ The translation is mechanical:
 17. ~HashMap.insert()~ -> ~Map.set()~ (Rust overwrites, TIL's ~insert~ throws on duplicate; use ~set~ to match Rust behavior)
 18. ~vec.extend(std::iter::repeat(v).take(n))~ -> ~vec.extend_with(v, n)~
 19. Prefer method chaining: ~x.gt(0)~ over ~gt(x, 0)~, ~a.and(b)~ over ~and(a, b)~
-20. HashMap iteration: ~for (k, v) in &map~ -> ~for k: T in map.keys { ref := map.get(k)?; create_alias(v, V, ref.data) }~
+20. HashMap iteration: ~for (k, v) in &map~ -> ~for k: T in map.keys { v := cast(V, map.get(k)?) }~
 21. ~Option<T>~ struct fields/params -> ~Ptr~ (NULL = None); read with ~ptr.copy_to_dynamic(local, size_of(T))~
 22. Variable shadowing: TIL doesn't allow it. Rename in BOTH Rust and TIL to use unique names (see dedicated section)
 23. Tuples: TIL doesn't have tuples. Use structs instead in BOTH Rust and TIL with the same struct name and fields (e.g., ~HashSet<(String, usize, usize)>~ -> ~HashSet<FunctionLocal>~ with ~FunctionLocal~ struct)
