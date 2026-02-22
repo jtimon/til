@@ -66,20 +66,32 @@ add : func(a: I64, b: I64) returns I64 = {
 literally be implemented as):
 
 #+BEGIN_SRC til
-Type := enum { StructDef, EnumDef, FuncSig }
+Type := enum { StructDef, EnumDef, FuncSig, FuncDef }
 #+END_SRC
 
 Each variant serves as both a specific metatype and a value of ~Type~:
 
-| Metatype    | Defines                 | Instance example                      |
-|-------------+-------------------------+---------------------------------------|
-| ~StructDef~ | Data layout (fields)    | ~p := Point(x=10)~ is a Point         |
-| ~EnumDef~   | Tagged union (variants) | ~c := Color.Red~ is a Color           |
-| ~FuncSig~   | Calling convention      | ~add : BinaryOp = (a, b) { ... }~     |
+| Metatype    | Defines                     | Instance example                      |
+|-------------+-----------------------------+---------------------------------------|
+| ~StructDef~ | Data layout (fields)        | ~p := Point(x=10)~ is a Point         |
+| ~EnumDef~   | Tagged union (variants)     | ~c := Color.Red~ is a Color           |
+| ~FuncSig~   | Calling convention (types)  | ~BinaryOp := func(I64, I64) ret I64~  |
+| ~FuncDef~   | Concrete function (sig+body)| ~add : BinaryOp = (a, b) { ... }~     |
 
-A function definition is an instance of its signature, just like a struct
-value is an instance of its struct definition. This is consistent across
-all three.
+~FuncSig~ is a pure type -- it defines the function signature: parameter
+types, return types, throw types, and func/proc kind. Parameter *names*
+are NOT part of the signature, only types.
+
+~FuncDef~ is a concrete function definition -- it has a ~FuncSig~ (its type)
+plus argument names, modifiers, and a body. A FuncDef is to its FuncSig what
+a struct instance is to its StructDef: the signature is the type, the
+definition is the value.
+
+#+BEGIN_SRC til
+// Internally, FuncDef contains a FuncSig:
+// FuncDef = { sig: FuncSig, args: [Declaration], body: [Expr], source_path: Str }
+// FuncSig = { function_type, arg_types: [ValueType], return_types, throw_types }
+#+END_SRC
 
 Function types are *structural*: two signatures with the same parameter
 types, return type, and throws are the same type regardless of name.
@@ -88,10 +100,11 @@ types, return type, and throws are the same type regardless of name.
 Collections can be specific or general:
 #+BEGIN_SRC til
 Vec.new(I64)        // Vec of I64
-Vec.new(BinaryOp)   // Vec of function definitions with the same signature (aka for the same function pointer)
+Vec.new(BinaryOp)   // Vec of function pointers with the same signature
 Vec.new(FuncSig)    // Vec of function signatures (different signatures)
+Vec.new(FuncDef)    // Vec of function definitions (different definitions)
 Vec.new(StructDef)  // Vec of struct definitions
-Vec.new(Type)       // Vec of any type definition (structs, enums, funcsigs)
+Vec.new(Type)       // Vec of any type definition
 #+END_SRC
 
 ** Type inference rules

@@ -686,11 +686,19 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
         throw t.error(lexer.path, "ext_func/ext_proc cannot have a body")
     }
 
+    // Issue #91: Split args into sig (types+modifiers) and arg_names
+    mut arg_names := Vec.new(Str)
+    for arg: Declaration in args {
+        arg_names.push(arg.name.clone())
+    }
     mut func_def := SFuncDef()
-    func_def.function_type = function_type
-    func_def.args = args
-    func_def.return_types = return_types
-    func_def.throw_types = throw_types
+    func_def.sig = FuncSig(
+        function_type=function_type,
+        args=args,
+        return_types=return_types,
+        throw_types=throw_types
+    )
+    func_def.arg_names = arg_names
     func_def.body = body
     func_def.source_path = lexer.path.clone()
 
@@ -1987,11 +1995,15 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit
                     arg.is_own = false
                     args.push(arg)
                 }
+                // Issue #91: Binding tuple form - arg names come from binding
                 mut func_def := SFuncDef()
-                func_def.function_type = FunctionType.FTFunc
-                func_def.args = args
-                func_def.return_types = Vec.new(ValueType)
-                func_def.throw_types = Vec.new(ValueType)
+                func_def.sig = FuncSig(
+                    function_type=FunctionType.FTFunc,
+                    args=args,
+                    return_types=Vec.new(ValueType),
+                    throw_types=Vec.new(ValueType)
+                )
+                func_def.arg_names = binding_names
                 func_def.body = body.params
                 func_def.source_path = lexer.path
                 func_expr := expr_new_parse(NodeType.FuncDef(func_def), t.clone(), Vec.new(Expr))

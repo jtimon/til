@@ -312,14 +312,14 @@ fn validate_func_arg_count(path: &str, e: &Expr, f_name: &str, func_def: &SFuncD
     let provided_args = e.params.len() - 1;
 
     // Check zero-arg functions
-    if func_def.args.len() == 0 && provided_args > 0 {
+    if func_def.sig.args.len() == 0 && provided_args > 0 {
         return Some(e.error(path, "type", &format!("Function/procedure '{}' expects 0 args, but {} were provided.", f_name, provided_args)));
     }
 
     let has_multi_arg = func_proc_has_multi_arg(&func_def);
 
     // Count required args (those without default values)
-    let required_args = func_def.args.iter().filter(|a| a.default_value.is_none()).count();
+    let required_args = func_def.sig.args.iter().filter(|a| a.default_value.is_none()).count();
 
     // Check arg count for non-variadic functions
     // Must provide at least required args, and at most total args
@@ -328,16 +328,16 @@ fn validate_func_arg_count(path: &str, e: &Expr, f_name: &str, func_def: &SFuncD
             return Some(e.error(path, "type", &format!("Function/procedure '{}' expects at least {} args, but {} were provided.",
                                                  f_name, required_args, provided_args)));
         }
-        if provided_args > func_def.args.len() {
+        if provided_args > func_def.sig.args.len() {
             return Some(e.error(path, "type", &format!("Function/procedure '{}' expects at most {} args, but {} were provided.",
-                                                 f_name, func_def.args.len(), provided_args)));
+                                                 f_name, func_def.sig.args.len(), provided_args)));
         }
     }
 
     // Check minimum count for variadic functions
-    if has_multi_arg && func_def.args.len() - 1 > provided_args {
+    if has_multi_arg && func_def.sig.args.len() - 1 > provided_args {
         return Some(e.error(path, "type", &format!("Function/procedure '{}' expects at least {} args, but {} were provided.",
-                                             f_name, func_def.args.len() - 1, provided_args)));
+                                             f_name, func_def.sig.args.len() - 1, provided_args)));
     }
 
     None
@@ -488,8 +488,8 @@ fn check_forin_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>,
     match context.scope_stack.lookup_func(&len_method) {
         Some(func_def) => {
             // Verify returns I64
-            if func_def.return_types.len() != 1 ||
-               func_def.return_types[0] != ValueType::TCustom("I64".to_string()) {
+            if func_def.sig.return_types.len() != 1 ||
+               func_def.sig.return_types[0] != ValueType::TCustom("I64".to_string()) {
                 errors.push(e.error(&context.path, "type", &format!(
                     "for-in loop: '{}.len()' must return I64", type_name)));
             }
@@ -507,16 +507,16 @@ fn check_forin_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>,
         Some(func_def) => {
             // Verify signature: get(self, I64) returns Ptr throws IndexOutOfBoundsError
             let mut throws_index_error = false;
-            for t in &func_def.throw_types {
+            for t in &func_def.sig.throw_types {
                 if *t == ValueType::TCustom("IndexOutOfBoundsError".to_string()) {
                     throws_index_error = true;
                     break;
                 }
             }
-            let valid = func_def.args.len() >= 2
-                && func_def.args[1].value_type == ValueType::TCustom("I64".to_string())
-                && !func_def.return_types.is_empty()
-                && func_def.return_types[0] == ValueType::TCustom("Ptr".to_string())
+            let valid = func_def.sig.args.len() >= 2
+                && func_def.sig.args[1].value_type == ValueType::TCustom("I64".to_string())
+                && !func_def.sig.return_types.is_empty()
+                && func_def.sig.return_types[0] == ValueType::TCustom("Ptr".to_string())
                 && throws_index_error;
 
             if !valid {
@@ -618,9 +618,9 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
     let f_name = get_func_name_in_call(&e);
 
     // Issue #132: Check mandatory ? for throwing functions
-    let func_throws = !func_def.throw_types.is_empty();
+    let func_throws = !func_def.sig.throw_types.is_empty();
     if func_throws && !does_throw {
-        let throw_types_str = func_def.throw_types.iter()
+        let throw_types_str = func_def.sig.throw_types.iter()
             .map(|t| value_type_to_str(t))
             .collect::<Vec<_>>()
             .join(", ");
@@ -638,7 +638,7 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
         return Ok(errors);
     }
 
-    let max_arg_def = func_def.args.len();
+    let max_arg_def = func_def.sig.args.len();
     let mut def_arg_idx: usize = 0;  // Bug #61: Track definition arg separately from provided arg
     for fcall_arg_idx in 0..e.params.len() - 1 {
         let arg_expr = match e.get(fcall_arg_idx + 1) {
@@ -664,7 +664,7 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
 
         // Bug #61: Skip optional args before variadic when type doesn't match
         while def_arg_idx < max_arg_def {
-            let current_def = &func_def.args[def_arg_idx];
+            let current_def = &func_def.sig.args[def_arg_idx];
             let expected = match &current_def.value_type {
                 ValueType::TMulti(inner) => str_to_value_type(&inner.clone()),
                 _ => current_def.value_type.clone(),
@@ -687,7 +687,7 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
             // Types don't match - check if we can skip this optional arg
             let has_default = current_def.default_value.is_some();
             let variadic_follows = def_arg_idx + 1 < max_arg_def &&
-                matches!(&func_def.args[def_arg_idx + 1].value_type, ValueType::TMulti(_));
+                matches!(&func_def.sig.args[def_arg_idx + 1].value_type, ValueType::TMulti(_));
 
             if has_default && variadic_follows {
                 def_arg_idx += 1;
@@ -697,7 +697,7 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
             break;  // Can't skip, will report type error
         }
 
-        let arg = match func_def.args.get(std::cmp::min(def_arg_idx, max_arg_def - 1)) {
+        let arg = match func_def.sig.args.get(std::cmp::min(def_arg_idx, max_arg_def - 1)) {
             Some(arg) => arg,
             None => {
                 errors.push(e.lang_error(&context.path, "type", &format!("argument index {} out of bounds for function '{}'", def_arg_idx, f_name)));
@@ -819,13 +819,13 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
                     };
                     let mut sig_ok = false;
                     if let (Some(expected_fd), Some(found_fd)) = (expected_fd, found_fd) {
-                        let args_match = expected_fd.args.len() == found_fd.args.len()
-                            && expected_fd.args.iter().zip(found_fd.args.iter())
+                        let args_match = expected_fd.sig.args.len() == found_fd.sig.args.len()
+                            && expected_fd.sig.args.iter().zip(found_fd.sig.args.iter())
                                 .all(|(a, b)| a.value_type == b.value_type);
                         let func_kind_match = expected_fd.is_proc() == found_fd.is_proc();
                         sig_ok = args_match
-                            && expected_fd.return_types == found_fd.return_types
-                            && expected_fd.throw_types == found_fd.throw_types
+                            && expected_fd.sig.return_types == found_fd.sig.return_types
+                            && expected_fd.sig.throw_types == found_fd.sig.throw_types
                             && func_kind_match;
                         if !sig_ok && !func_kind_match {
                             let expected_kind = if expected_fd.is_proc() { "proc" } else { "func" };
@@ -894,7 +894,7 @@ fn check_fcall_return_usage(context: &Context, e: &Expr, expr_context: ExprConte
     };
 
     // Check if this function returns a value
-    let returns_value = func_def.return_types.len() > 0;
+    let returns_value = func_def.sig.return_types.len() > 0;
 
     if returns_value && expr_context == ExprContext::ValueDiscarded {
         let f_name = get_func_name_in_call(e);
@@ -922,7 +922,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
         errors.push(e.error(&context.path, "type", "Procs not allowed in pure modes"));
     }
     let mut has_variadic = false;
-    for (i, arg) in func_def.args.iter().enumerate() {
+    for (i, arg) in func_def.sig.args.iter().enumerate() {
         if has_variadic {
             errors.push(e.error(&context.path, "type", &format!("Variadic argument '{}' must be the last (only one variadic argument allowed).", &arg.name)));
         }
@@ -932,7 +932,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 if arg.is_mut {
                     errors.push(e.error(&context.path, "type", &format!("Variadic argument '{}' cannot be 'mut'.", &arg.name)));
                 }
-                if i != func_def.args.len() - 1 {
+                if i != func_def.sig.args.len() - 1 {
                     errors.push(e.error(&context.path, "type", &format!("Variadic argument '{}' must be the last.", &arg.name)));
                 }
                 has_variadic = true;
@@ -988,8 +988,8 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     }
 
     // TODO re-enable test when it is decided what to do with free, memcpy and memset
-    // if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
-    //     if func_def.return_types.len() == 0 && func_def.throw_types.len() == 0 {
+    // if func_def.sig.function_type == FunctionType::FTFunc || func_def.sig.function_type == FunctionType::FTFuncExt {
+    //     if func_def.sig.return_types.len() == 0 && func_def.sig.throw_types.len() == 0 {
     //         errors.push(e.error(&context.path, "type", "funcs must return or throw something, use a proc instead"));
     //     }
     // }
@@ -1004,7 +1004,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
 
     // Issue #91: Skip type-checking function signature definitions
     // These have empty body and type-only args (no names)
-    if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty()) {
+    if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty()) {
         context.scope_stack.function_locals = saved_function_locals;
         context.scope_stack.used_symbols = saved_used_symbols;
         return Ok(errors);
@@ -1013,7 +1013,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     // Skip body type-checking for macros with Type parameters.
     // These bodies contain placeholder types (T) that only resolve at expansion time.
     // The expanded result is type-checked separately.
-    if func_def.is_macro() && func_def.args.iter().any(|a|
+    if func_def.is_macro() && func_def.sig.args.iter().any(|a|
         matches!(&a.value_type, ValueType::TCustom(t) if t == "Type" || t == "Dynamic"))
     {
         context.scope_stack.function_locals = saved_function_locals;
@@ -1048,14 +1048,14 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     let mut thrown_types: Vec<ThrownType> = Vec::new();
     errors.extend(check_body_returns_throws(context, e, func_def, &func_def.body, &mut thrown_types, &mut return_found)?);
 
-    if !return_found && func_def.return_types.len() > 0 {
+    if !return_found && func_def.sig.return_types.len() > 0 {
         errors.push(e.error(&context.path, "type", "No return statments found in function that returns "));
     }
 
     // Filter and report only the thrown types that are not declared
     for te in &thrown_types {
         let mut is_declared = false;
-        for declared in &func_def.throw_types {
+        for declared in &func_def.sig.throw_types {
             if value_type_to_str(declared) == te.type_str {
                 is_declared = true;
                 break;
@@ -1066,7 +1066,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
         }
     }
 
-    for declared_throw in &func_def.throw_types {
+    for declared_throw in &func_def.sig.throw_types {
         let declared_str = value_type_to_str(declared_throw);
         let mut is_thrown = false;
         for te in &thrown_types {
@@ -1102,7 +1102,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
 pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDef, body: &[Expr], thrown_types: &mut Vec<ThrownType>, return_found: &mut bool) -> Result<Vec<String>, String> {
 
     let mut errors = vec![];
-    let returns_len = func_def.return_types.len();
+    let returns_len = func_def.sig.return_types.len();
     let mut unconditional_exit_in_sequence = false;
 
     for p in body.iter() {
@@ -1128,7 +1128,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
                 } else {
                     for i in 0..p.params.len() {
-                        let expected_value_type_opt = match func_def.return_types.get(i) {
+                        let expected_value_type_opt = match func_def.sig.return_types.get(i) {
                             Some(t) => Some(t),
                             None => {
                                 errors.push(e.lang_error(&context.path, "type", &format!("Fewer return values than provided at position {}", i)));
@@ -1165,13 +1165,13 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                                         context.scope_stack.lookup_func(tn),
                                                         context.scope_stack.lookup_func(&combined),
                                                     ) {
-                                                        let args_match = expected_fd.args.len() == found_fd.args.len()
-                                                            && expected_fd.args.iter().zip(found_fd.args.iter())
+                                                        let args_match = expected_fd.sig.args.len() == found_fd.sig.args.len()
+                                                            && expected_fd.sig.args.iter().zip(found_fd.sig.args.iter())
                                                                 .all(|(a, b)| a.value_type == b.value_type);
                                                         let func_kind_match = expected_fd.is_proc() == found_fd.is_proc();
                                                         funcsig_return_ok = args_match
-                                                            && expected_fd.return_types == found_fd.return_types
-                                                            && expected_fd.throw_types == found_fd.throw_types
+                                                            && expected_fd.sig.return_types == found_fd.sig.return_types
+                                                            && expected_fd.sig.throw_types == found_fd.sig.throw_types
                                                             && func_kind_match;
                                                         if !funcsig_return_ok && !func_kind_match {
                                                             let expected_kind = if expected_fd.is_proc() { "proc" } else { "func" };
@@ -1317,7 +1317,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             NodeType::FCall(_) => {
                 match get_func_def_for_fcall(&context, p) {
                     Ok(Some(called_func_def)) => {
-                        for called_throw in &called_func_def.throw_types {
+                        for called_throw in &called_func_def.sig.throw_types {
                             let called_throw_str = value_type_to_str(called_throw);
                             let error_msg = format!(
                                 "Function throws '{}', but it is not declared in this function's throws section.",
@@ -1335,7 +1335,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                     Ok(Some(arg_nested_func_def)) => {
                                         // Add the nested function's own throw types (only if it has ?)
                                         if matches!(arg.node_type, NodeType::FCall(true)) {
-                                            for arg_nested_throw in &arg_nested_func_def.throw_types {
+                                            for arg_nested_throw in &arg_nested_func_def.sig.throw_types {
                                                 let arg_nested_throw_str = value_type_to_str(arg_nested_throw);
                                                 let arg_nested_error_msg = format!(
                                                     "Function throws '{}', but it is not declared in this function's throws section.",
@@ -1391,7 +1391,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                 match get_func_def_for_fcall(&context, ctor_arg) {
                                     Ok(Some(ctor_nested_func_def)) => {
                                         // Track the function's declared throw types
-                                        for ctor_called_throw in &ctor_nested_func_def.throw_types {
+                                        for ctor_called_throw in &ctor_nested_func_def.sig.throw_types {
                                             let ctor_called_throw_str = value_type_to_str(ctor_called_throw);
                                             let ctor_error_msg = format!(
                                                 "Function throws '{}', but it is not declared in this function's throws section.",
@@ -1414,7 +1414,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                         match get_func_def_for_fcall(&context, ctor_named_value_expr) {
                                             Ok(Some(ctor_named_nested_func_def)) => {
                                                 // Track the function's declared throw types
-                                                for ctor_named_called_throw in &ctor_named_nested_func_def.throw_types {
+                                                for ctor_named_called_throw in &ctor_named_nested_func_def.sig.throw_types {
                                                     let ctor_named_called_throw_str = value_type_to_str(ctor_named_called_throw);
                                                     let ctor_named_error_msg = format!(
                                                         "Function throws '{}', but it is not declared in this function's throws section.",
@@ -1609,7 +1609,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         if !is_constructor {
                         match get_func_def_for_fcall(&context, initializer) {
                             Ok(Some(decl_called_func_def)) => {
-                                for decl_called_throw in &decl_called_func_def.throw_types {
+                                for decl_called_throw in &decl_called_func_def.sig.throw_types {
                                     let decl_called_throw_str = value_type_to_str(decl_called_throw);
                                     let decl_error_msg = format!(
                                         "Function throws '{}', but it is not declared in this function's throws section.",
@@ -1680,7 +1680,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         if !assign_is_constructor {
                         match get_func_def_for_fcall(&context, assign_initializer) {
                             Ok(Some(assign_called_func_def)) => {
-                                for assign_called_throw in &assign_called_func_def.throw_types {
+                                for assign_called_throw in &assign_called_func_def.sig.throw_types {
                                     let assign_called_throw_str = value_type_to_str(assign_called_throw);
                                     let assign_error_msg = format!(
                                         "Function throws '{}', but it is not declared in this function's throws section.",
@@ -1840,8 +1840,8 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Res
 
         // Issue #91: Detect function signature definitions (empty body + type-only args)
         if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-            if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
-                && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+            if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
+                && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
                 value_type = ValueType::TType(TTypeDef::TFuncSig);
             }
         }
@@ -1860,7 +1860,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Res
             }
         }
         if let Some(resolved_fd) = sig_resolved_fd {
-            let resolved_value_type = ValueType::TFunction(resolved_fd.function_type.clone());
+            let resolved_value_type = ValueType::TFunction(resolved_fd.sig.function_type.clone());
             context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: resolved_value_type, is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
             // Type-check the function body using the resolved func_def (with proper arg types)
             context.scope_stack.push(ScopeType::Function);
@@ -2679,7 +2679,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> Result<bool, String> {
 }
 
 pub fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
-    for a in &func_def.args {
+    for a in &func_def.sig.args {
         match a.value_type {
             ValueType::TMulti(_) => {
                 return true;
@@ -2757,8 +2757,8 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                     let mut inferred = get_value_type(context, inner_e)?;
                     // Issue #91: Detect function signature definitions
                     if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-                        if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
-                            && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+                        if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
+                            && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
                             inferred = ValueType::TType(TTypeDef::TFuncSig);
                         }
                     }
@@ -2807,14 +2807,14 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                             let sfd = sfd.clone();
                             if let Some(inner_e) = new_params.first_mut() {
                                 if let NodeType::FuncDef(ref mut func_def) = inner_e.node_type {
-                                    if func_def.args.len() == sfd.args.len() {
-                                        for (i, sig_arg) in sfd.args.iter().enumerate() {
-                                            func_def.args[i].value_type = sig_arg.value_type.clone();
+                                    if func_def.sig.args.len() == sfd.sig.args.len() {
+                                        for (i, sig_arg) in sfd.sig.args.iter().enumerate() {
+                                            func_def.sig.args[i].value_type = sig_arg.value_type.clone();
                                         }
                                     }
-                                    func_def.return_types = sfd.return_types.clone();
-                                    func_def.throw_types = sfd.throw_types.clone();
-                                    func_def.function_type = sfd.function_type.clone();
+                                    func_def.sig.return_types = sfd.sig.return_types.clone();
+                                    func_def.sig.throw_types = sfd.sig.throw_types.clone();
+                                    func_def.sig.function_type = sfd.sig.function_type.clone();
                                 }
                             }
                         }
@@ -2840,7 +2840,7 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
         // FuncDef - push function scope and recurse into body
         NodeType::FuncDef(func_def) => {
             // Skip body resolution for macros with Type parameters
-            if func_def.is_macro() && func_def.args.iter().any(|a|
+            if func_def.is_macro() && func_def.sig.args.iter().any(|a|
                 matches!(&a.value_type, ValueType::TCustom(t) if t == "Type" || t == "Dynamic"))
             {
                 return Ok(e.clone());
@@ -2849,7 +2849,7 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
             context.scope_stack.push(ScopeType::Function);
 
             // Register function parameters in scope
-            for arg in &func_def.args {
+            for arg in &func_def.sig.args {
                 context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
                     value_type: arg.value_type.clone(),
                     is_mut: arg.is_mut,
@@ -2868,10 +2868,8 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
             let _ = context.scope_stack.pop();
 
             let new_func_def = SFuncDef {
-                function_type: func_def.function_type.clone(),
-                args: func_def.args.clone(),
-                return_types: func_def.return_types.clone(),
-                throw_types: func_def.throw_types.clone(),
+                sig: func_def.sig.clone(),
+                arg_names: func_def.arg_names.clone(),
                 body: new_body,
                 source_path: func_def.source_path.clone(),
             };

@@ -14,8 +14,8 @@ import("self.precomp_ext")
 /// For `make_vec3(I64)` where `make_vec3` takes `T: Type`, returns {"T": "I64"}.
 build_type_param_subs : func(func_def: SFuncDef, fcall: Expr) returns Map throws Str = {
     mut subs := Map.new(Str, Str)
-    for i in 0..func_def.args.len() {
-        arg := cast(Declaration, func_def.args.get(i)?)
+    for i in 0..func_def.sig.args.len() {
+        arg := cast(Declaration, func_def.sig.args.get(i)?)
         switch arg.value_type {
         case ValueType.TCustom(type_name):
             if type_name.eq("Type").or(type_name.eq("Dynamic")) {
@@ -103,7 +103,7 @@ substitute_type_params_in_expr : func(e: Expr, subs: Map) returns Expr = {
 /// Substitute type param names in a FuncDef's args, return types, throw types, and body.
 substitute_type_params_in_funcdef : func(func_def: SFuncDef, subs: Map) returns SFuncDef = {
     mut new_args := Vec.new(Declaration)
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         mut substituted := false
         switch arg.value_type {
         case ValueType.TCustom(type_name):
@@ -120,7 +120,7 @@ substitute_type_params_in_funcdef : func(func_def: SFuncDef, subs: Map) returns 
         }
     }
     mut new_returns := Vec.new(ValueType)
-    for rt: ValueType in func_def.return_types {
+    for rt: ValueType in func_def.sig.return_types {
         mut rt_substituted := false
         switch rt {
         case ValueType.TCustom(type_name):
@@ -137,7 +137,7 @@ substitute_type_params_in_funcdef : func(func_def: SFuncDef, subs: Map) returns 
         }
     }
     mut new_throws := Vec.new(ValueType)
-    for tt: ValueType in func_def.throw_types {
+    for tt: ValueType in func_def.sig.throw_types {
         mut tt_substituted := false
         switch tt {
         case ValueType.TCustom(type_name):
@@ -158,10 +158,13 @@ substitute_type_params_in_funcdef : func(func_def: SFuncDef, subs: Map) returns 
         new_body.push(substitute_type_params_in_expr(stmt, subs))
     }
     mut new_func_def := SFuncDef()
-    new_func_def.function_type = func_def.function_type
-    new_func_def.args = new_args
-    new_func_def.return_types = new_returns
-    new_func_def.throw_types = new_throws
+    new_func_def.sig = FuncSig(
+        function_type=func_def.sig.function_type,
+        args=new_args,
+        return_types=new_returns,
+        throw_types=new_throws
+    )
+    new_func_def.arg_names = func_def.arg_names.clone()
     new_func_def.body = new_body
     new_func_def.source_path = func_def.source_path.clone()
     return new_func_def
@@ -353,9 +356,9 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                     }
                     if found_func {
                         if func_def.is_macro() {
-                            if func_def.return_types.len().gt(0) {
+                            if func_def.sig.return_types.len().gt(0) {
                                 // Extract all data from func_def before mutable borrows
-                                macro_return_type := cast(ValueType, func_def.return_types.get(0)?)
+                                macro_return_type := cast(ValueType, func_def.sig.return_types.get(0)?)
                                 catch (_err: IndexOutOfBoundsError) {
                                     panic(loc(), "IndexOutOfBoundsError getting return type after len check")
                                 }
@@ -936,7 +939,7 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
             return false
         }
         // Funcs with no return type can't be folded (nothing to fold to)
-        if func_def.return_types.len().eq(0) {
+        if func_def.sig.return_types.len().eq(0) {
             return false
         }
         // Functions that can throw are allowed - if they actually throw,
@@ -1100,7 +1103,7 @@ precomp_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef)
 precomp_func_def : proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str = {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType.Function)
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
         context.scope_stack.declare_symbol(arg.name, sym)?
     }
@@ -1114,13 +1117,17 @@ precomp_func_def : proc(mut context: Context, e: Expr, func_def: SFuncDef) retur
     // Pop the function scope frame
     _ := context.scope_stack.pop()?
 
-    mut new_func_def := SFuncDef()
-    new_func_def.function_type = func_def.function_type
-    new_func_def.args = func_def.args.clone()
-    new_func_def.return_types = func_def.return_types.clone()
-    new_func_def.throw_types = func_def.throw_types.clone()
-    new_func_def.body = new_body
-    new_func_def.source_path = func_def.source_path.clone()
+    new_func_def := SFuncDef(
+        sig=FuncSig(
+            function_type=func_def.sig.function_type,
+            args=func_def.sig.args,
+            return_types=func_def.sig.return_types,
+            throw_types=func_def.sig.throw_types
+        ),
+        arg_names=func_def.arg_names,
+        body=new_body,
+        source_path=func_def.source_path
+    )
 
     catch (err: IndexOutOfBoundsError) {
         throw format("precomp_func_def: ", err.msg)
@@ -1144,14 +1151,14 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
     case NodeType.FuncDef(func_def):
         if func_def.body.len().eq(0) {
             mut all_type_only := true
-            for arg: Declaration in func_def.args {
+            for arg: Declaration in func_def.sig.args {
                 if not(arg.name.eq("")) {
                     all_type_only = false
                 }
             }
             if all_type_only {
                 mut is_func_or_proc := false
-                switch func_def.function_type {
+                switch func_def.sig.function_type {
                 case FunctionType.FTFunc:
                     is_func_or_proc = true
                 case FunctionType.FTProc:
@@ -1213,7 +1220,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
                 if not(has_sig_func_def) {
                     sig_func_def = sig_sfd
                     has_sig_func_def = true
-                    value_type = ValueType.TFunction(sig_sfd.function_type)
+                    value_type = ValueType.TFunction(sig_sfd.sig.function_type)
                 }
             case:
             }
@@ -1308,19 +1315,19 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         switch inner_e.node_type {
         case NodeType.FuncDef(precomp_orig_fd):
             mut precomp_resolved_fd := precomp_orig_fd.clone()
-            if not(precomp_resolved_fd.args.len().eq(sig_func_def.args.len())) {
-                throw e.lang_error(context.path, "precomp", format("'", decl.name, "' has ", precomp_resolved_fd.args.len().to_str(), " parameters but function signature expects ", sig_func_def.args.len().to_str(), "."))
+            if not(precomp_resolved_fd.sig.args.len().eq(sig_func_def.sig.args.len())) {
+                throw e.lang_error(context.path, "precomp", format("'", decl.name, "' has ", precomp_resolved_fd.sig.args.len().to_str(), " parameters but function signature expects ", sig_func_def.sig.args.len().to_str(), "."))
             }
             mut precomp_arg_idx := 0
-            for precomp_sig_arg: Declaration in sig_func_def.args {
-                mut precomp_resolved_arg := cast(Declaration, precomp_resolved_fd.args.get(precomp_arg_idx)?)
+            for precomp_sig_arg: Declaration in sig_func_def.sig.args {
+                mut precomp_resolved_arg := cast(Declaration, precomp_resolved_fd.sig.args.get(precomp_arg_idx)?)
                 precomp_resolved_arg.value_type = precomp_sig_arg.value_type
-                precomp_resolved_fd.args.set(precomp_arg_idx, precomp_resolved_arg)?
+                precomp_resolved_fd.sig.args.set(precomp_arg_idx, precomp_resolved_arg)?
                 precomp_arg_idx = add(precomp_arg_idx, 1)
             }
-            precomp_resolved_fd.return_types = sig_func_def.return_types
-            precomp_resolved_fd.throw_types = sig_func_def.throw_types
-            precomp_resolved_fd.function_type = sig_func_def.function_type
+            precomp_resolved_fd.sig.return_types = sig_func_def.sig.return_types
+            precomp_resolved_fd.sig.throw_types = sig_func_def.sig.throw_types
+            precomp_resolved_fd.sig.function_type = sig_func_def.sig.function_type
             resolved_inner_e = Expr(node_type=NodeType.FuncDef(precomp_resolved_fd), params=inner_e.params, line=inner_e.line, col=inner_e.col)
             has_resolved_inner = true
         case:

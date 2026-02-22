@@ -71,21 +71,21 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
 /// Collect all type names from a function definition (args, return types, throw types, body)
 collect_used_types_from_func : proc(context: Context, func_def: SFuncDef, mut used_types: Set) throws Str = {
     // Collect from arguments
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         type_name := extract_type_name(arg.value_type)
         if type_name.len().gt(0) {
             _ := used_types.insert(type_name)
         }
     }
     // Collect from return types
-    for ret_type: ValueType in func_def.return_types {
+    for ret_type: ValueType in func_def.sig.return_types {
         ret_type_name := extract_type_name(ret_type)
         if ret_type_name.len().gt(0) {
             _ := used_types.insert(ret_type_name)
         }
     }
     // Collect from throw types
-    for throw_type: ValueType in func_def.throw_types {
+    for throw_type: ValueType in func_def.sig.throw_types {
         throw_type_name := extract_type_name(throw_type)
         if throw_type_name.len().gt(0) {
             _ := used_types.insert(throw_type_name)
@@ -190,7 +190,7 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
             if fptr_func_name.len().gt(0) {
                 fptr_fd := context.scope_stack.lookup_func(fptr_func_name)?
                 mut fptr_arg_i := 0
-                for fptr_arg: Declaration in fptr_fd.args {
+                for fptr_arg: Declaration in fptr_fd.sig.args {
                     switch fptr_arg.value_type {
                     case ValueType.TCustom(fptr_type_name):
                         fptr_type_sym := context.scope_stack.lookup_symbol(fptr_type_name)?
@@ -471,7 +471,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
             collect_used_types_from_func(context, func_def, used_types)?
 
             // Check if this function has variadic parameters (TMulti)
-            for arg: Declaration in func_def.args {
+            for arg: Declaration in func_def.sig.args {
                 switch arg.value_type {
                 case ValueType.TMulti(_):
                     needs_variadic_support = true
@@ -490,7 +490,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
             }
             // Issue #91: Remove parameter names from called set - they're variables, not functions
             // This handles function-pointer parameters like `op` in `func(op: BinaryIntOp, ...)`
-            for cr_arg: Declaration in func_def.args {
+            for cr_arg: Declaration in func_def.sig.args {
                 if cr_arg.name.len().gt(0) {
                     called.remove(cr_arg.name)
                 }
@@ -756,7 +756,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
             collect_used_types_from_func(context, eq_func_def, used_types)?
 
             // Issue #108: Also check for variadic params in second loop
-            for arg: Declaration in eq_func_def.args {
+            for arg: Declaration in eq_func_def.sig.args {
                 switch arg.value_type {
                 case ValueType.TMulti(_):
                     needs_variadic_support = true
@@ -1016,12 +1016,12 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                         mut is_func_sig := false
                         if func_def.body.is_empty().and(func_def.is_ext().not()) {
                             mut all_unnamed := true
-                            for fs_arg: Declaration in func_def.args {
+                            for fs_arg: Declaration in func_def.sig.args {
                                 if fs_arg.name.len().gt(0) {
                                     all_unnamed = false
                                 }
                             }
-                            switch func_def.function_type {
+                            switch func_def.sig.function_type {
                             case FunctionType.FTFunc:
                                 is_func_sig = all_unnamed
                             case FunctionType.FTProc:

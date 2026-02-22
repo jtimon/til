@@ -89,11 +89,16 @@ generate_delete_method : func(struct_name: Str, struct_def: SStructDef, line: I6
 
     mut args := Vec.new(Declaration)
     args.push(self_decl)
+    mut arg_names := Vec.new(Str)
+    arg_names.push(self_param_name)
     func_def := SFuncDef(
-        function_type=FunctionType.FTProc,
-        args=args,
-        return_types=Vec.new(ValueType),
-        throw_types=Vec.new(ValueType),
+        sig=FuncSig(
+            function_type=FunctionType.FTProc,
+            args=args,
+            return_types=Vec.new(ValueType),
+            throw_types=Vec.new(ValueType)
+        ),
+        arg_names=arg_names,
         body=body_stmts,
         source_path=""
     )
@@ -189,11 +194,16 @@ generate_clone_method : func(struct_name: Str, struct_def: SStructDef, line: I64
     return_types.push(ValueType.TCustom(struct_name))
     mut body := Vec.new(Expr)
     body.push(return_stmt)
+    mut arg_names := Vec.new(Str)
+    arg_names.push(self_param_name)
     func_def := SFuncDef(
-        function_type=FunctionType.FTFunc,
-        args=args,
-        return_types=return_types,
-        throw_types=Vec.new(ValueType),
+        sig=FuncSig(
+            function_type=FunctionType.FTFunc,
+            args=args,
+            return_types=return_types,
+            throw_types=Vec.new(ValueType)
+        ),
+        arg_names=arg_names,
         body=body,
         source_path=""
     )
@@ -224,11 +234,16 @@ generate_enum_delete_method : func(enum_name: Str, line: I64, col: I64) returns 
 
     mut args := Vec.new(Declaration)
     args.push(self_decl)
+    mut arg_names := Vec.new(Str)
+    arg_names.push("_self")
     func_def := SFuncDef(
-        function_type=FunctionType.FTProc,
-        args=args,
-        return_types=Vec.new(ValueType),
-        throw_types=Vec.new(ValueType),
+        sig=FuncSig(
+            function_type=FunctionType.FTProc,
+            args=args,
+            return_types=Vec.new(ValueType),
+            throw_types=Vec.new(ValueType)
+        ),
+        arg_names=arg_names,
         body=Vec.new(Expr),
         source_path=""
     )
@@ -257,11 +272,16 @@ generate_enum_clone_method : func(enum_name: Str, line: I64, col: I64) returns E
     return_types.push(ValueType.TCustom(enum_name))
     mut body := Vec.new(Expr)
     body.push(return_stmt)
+    mut arg_names := Vec.new(Str)
+    arg_names.push("self")
     func_def := SFuncDef(
-        function_type=FunctionType.FTFunc,
-        args=args,
-        return_types=return_types,
-        throw_types=Vec.new(ValueType),
+        sig=FuncSig(
+            function_type=FunctionType.FTFunc,
+            args=args,
+            return_types=return_types,
+            throw_types=Vec.new(ValueType)
+        ),
+        arg_names=arg_names,
         body=body,
         source_path=""
     )
@@ -492,10 +512,13 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
             new_body.push(preinit_expr_inner(stmt)?)
         }
         new_func_def := SFuncDef(
-            function_type=func_def.function_type,
-            args=func_def.args,
-            return_types=func_def.return_types,
-            throw_types=func_def.throw_types,
+            sig=FuncSig(
+                function_type=func_def.sig.function_type,
+                args=func_def.sig.args,
+                return_types=func_def.sig.return_types,
+                throw_types=func_def.sig.throw_types
+            ),
+            arg_names=func_def.arg_names,
             body=new_body,
             source_path=func_def.source_path
         )

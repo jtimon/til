@@ -23,6 +23,7 @@ typedef struct til_Map til_Map;
 typedef struct til_SEnumDef til_SEnumDef;
 typedef struct til_Declaration til_Declaration;
 typedef struct til_PatternInfo til_PatternInfo;
+typedef struct til_FuncSig til_FuncSig;
 typedef struct til_SFuncDef til_SFuncDef;
 typedef struct til_SStructDef til_SStructDef;
 typedef struct til_SNamespaceDef til_SNamespaceDef;
@@ -201,11 +202,16 @@ struct til_Vec {
     til_I64 cap;
 };
 
-struct til_SFuncDef {
+struct til_FuncSig {
     til_FunctionType function_type;
     til_Vec args;
     til_Vec return_types;
     til_Vec throw_types;
+};
+
+struct til_SFuncDef {
+    til_FuncSig sig;
+    til_Vec arg_names;
     til_Vec body;
     til_Str source_path;
 };
@@ -622,6 +628,7 @@ const til_I64 til_size_of_Map = sizeof(til_Map);
 const til_I64 til_size_of_SEnumDef = sizeof(til_SEnumDef);
 const til_I64 til_size_of_Declaration = sizeof(til_Declaration);
 const til_I64 til_size_of_PatternInfo = sizeof(til_PatternInfo);
+const til_I64 til_size_of_FuncSig = sizeof(til_FuncSig);
 const til_I64 til_size_of_SFuncDef = sizeof(til_SFuncDef);
 const til_I64 til_size_of_SStructDef = sizeof(til_SStructDef);
 const til_I64 til_size_of_SNamespaceDef = sizeof(til_SNamespaceDef);
@@ -733,6 +740,7 @@ static inline til_I64 til_size_of(const til_Str* type_name) {
     if (strcmp((char*)type_name->c_string.data, "SEnumDef") == 0) return til_size_of_SEnumDef;
     if (strcmp((char*)type_name->c_string.data, "Declaration") == 0) return til_size_of_Declaration;
     if (strcmp((char*)type_name->c_string.data, "PatternInfo") == 0) return til_size_of_PatternInfo;
+    if (strcmp((char*)type_name->c_string.data, "FuncSig") == 0) return til_size_of_FuncSig;
     if (strcmp((char*)type_name->c_string.data, "SFuncDef") == 0) return til_size_of_SFuncDef;
     if (strcmp((char*)type_name->c_string.data, "SStructDef") == 0) return til_size_of_SStructDef;
     if (strcmp((char*)type_name->c_string.data, "SNamespaceDef") == 0) return til_size_of_SNamespaceDef;

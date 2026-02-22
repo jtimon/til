@@ -939,14 +939,14 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
     case NodeType.FuncDef(eval_func_def):
         if eval_func_def.body.len().eq(0) {
             mut eval_all_type_only := true
-            for eval_arg: Declaration in eval_func_def.args {
+            for eval_arg: Declaration in eval_func_def.sig.args {
                 if not(eval_arg.name.eq("")) {
                     eval_all_type_only = false
                 }
             }
             if eval_all_type_only {
                 mut eval_is_func_or_proc := false
-                switch eval_func_def.function_type {
+                switch eval_func_def.sig.function_type {
                 case FunctionType.FTFunc:
                     eval_is_func_or_proc = true
                 case FunctionType.FTProc:
@@ -972,7 +972,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 eval_sfd := context.scope_stack.lookup_func(eval_sig_name)?
                 catch (err: KeyNotFoundError) { }
                 if not(eval_is_sig_ref) {
-                    value_type = ValueType.TFunction(eval_sfd.function_type)
+                    value_type = ValueType.TFunction(eval_sfd.sig.function_type)
                     eval_is_sig_ref = true
                 }
             case:
@@ -1991,7 +1991,7 @@ eval_user_func_proc_call : proc(func_def: SFuncDef, name: Str, mut context: Cont
     mut pass_by_ref_params := Vec.new(Str)
     mut params_consumed := false
 
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         if not(params_consumed) {
             // Use set() to allow overwriting - Rust's HashMap.insert overwrites
             function_frame.symbols.set(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
@@ -2553,8 +2553,8 @@ eval_user_func_proc_call : proc(func_def: SFuncDef, name: Str, mut context: Cont
     // Save struct/enum return value info BEFORE popping (needed for return handling)
     mut saved_return_offset := 0
     mut has_saved_return_offset := false
-    if func_def.return_types.len().eq(1) {
-        return_type := cast(ValueType, func_def.return_types.get(0)?)
+    if func_def.sig.return_types.len().eq(1) {
+        return_type := cast(ValueType, func_def.sig.return_types.get(0)?)
         mut is_tcustom := false
         mut custom_type_name := ""
         switch return_type {
@@ -2589,8 +2589,8 @@ eval_user_func_proc_call : proc(func_def: SFuncDef, name: Str, mut context: Cont
     // Save enum value if returning an enum variable (not constructor)
     mut saved_enum_value := EnumVal()
     mut has_saved_enum_value := false
-    if func_def.return_types.len().eq(1) {
-        ret_return_type := cast(ValueType, func_def.return_types.get(0)?)
+    if func_def.sig.return_types.len().eq(1) {
+        ret_return_type := cast(ValueType, func_def.sig.return_types.get(0)?)
         mut ret_is_tcustom := false
         mut ret_custom_type_name := ""
         switch ret_return_type {
@@ -2755,8 +2755,8 @@ eval_user_func_proc_call : proc(func_def: SFuncDef, name: Str, mut context: Cont
 
     // If function returns a user-defined struct or enum, copy it back to caller frame as temp return val
     // NOTE: Frame already popped above, using saved_return_offset and saved_enum_value
-    if func_def.return_types.len().eq(1) {
-        copy_ret_return_type := cast(ValueType, func_def.return_types.get(0)?)
+    if func_def.sig.return_types.len().eq(1) {
+        copy_ret_return_type := cast(ValueType, func_def.sig.return_types.get(0)?)
         mut copy_ret_is_tcustom := false
         mut copy_ret_custom_type_name := ""
         switch copy_ret_return_type {

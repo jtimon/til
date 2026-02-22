@@ -645,11 +645,16 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) ->
 
     restore_loop_var_counter(saved_loop_counter);
 
+    // Issue #91: Split args into sig (types+modifiers) and arg_names
+    let arg_names: Vec<String> = args.iter().map(|a| a.name.clone()).collect();
     let func_def = SFuncDef{
-        function_type: function_type,
-        args: args,
-        return_types: return_types,
-        throw_types: throw_types,
+        sig: FuncSig {
+            function_type: function_type,
+            args: args,
+            return_types: return_types,
+            throw_types: throw_types,
+        },
+        arg_names: arg_names,
         body: body,
         source_path: lexer.path.clone(),
     };
@@ -1717,14 +1722,18 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_ty
             }
             lexer.advance(1)?; // consume '{'
             let body = parse_body(lexer, TokenType::RightBrace)?;
-            let args: Vec<Declaration> = binding_names.iter().map(|name| {
-                Declaration { name: name.clone(), value_type: str_to_value_type(INFER_TYPE), is_mut: false, is_copy: false, is_own: false, default_value: None }
+            // Issue #91: Binding tuple form - arg names come from binding, types inferred later
+            let sig_args: Vec<Declaration> = binding_names.iter().map(|n| {
+                Declaration { name: n.clone(), value_type: str_to_value_type(INFER_TYPE), is_mut: false, is_copy: false, is_own: false, default_value: None }
             }).collect();
             let func_def = SFuncDef {
-                function_type: FunctionType::FTFunc,
-                args: args,
-                return_types: Vec::new(),
-                throw_types: Vec::new(),
+                sig: FuncSig {
+                    function_type: FunctionType::FTFunc,
+                    args: sig_args,
+                    return_types: Vec::new(),
+                    throw_types: Vec::new(),
+                },
+                arg_names: binding_names,
                 body: body.params,
                 source_path: lexer.path.clone(),
             };

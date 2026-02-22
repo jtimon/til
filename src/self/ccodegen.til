@@ -209,13 +209,13 @@ has_reassignment_of : proc(stmts: Vec, var_name: Str) returns Bool = {
 // placed directly into _ret. Returns the var name or "" if not applicable.
 find_ret_var_for_placement : proc(func_def: SFuncDef) returns Str throws Str = {
     // Must be a throwing function with struct/enum return type
-    if func_def.throw_types.is_empty() {
+    if func_def.sig.throw_types.is_empty() {
         return ""
     }
-    if func_def.return_types.is_empty() {
+    if func_def.sig.return_types.is_empty() {
         return ""
     }
-    first_ret_type := cast(ValueType, func_def.return_types.get(0)?)
+    first_ret_type := cast(ValueType, func_def.sig.return_types.get(0)?)
     catch (err: IndexOutOfBoundsError) {
         return ""
     }
@@ -264,7 +264,7 @@ find_ret_var_for_placement : proc(func_def: SFuncDef) returns Str throws Str = {
     }
 
     // Must not be a function parameter (params have their own storage)
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         if arg.name.eq(ret_var_name) {
             return ""
         }
@@ -282,7 +282,7 @@ find_ret_var_for_placement : proc(func_def: SFuncDef) returns Str throws Str = {
     // (e.g. new_body = f(new_body, ...)). The optimization writes to *_ret
     // immediately, destroying the aliased input before it's read.
     ret_type_str := value_type_to_str(first_ret_type)
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         if value_type_to_str(arg.value_type).eq(ret_type_str) {
             return ""
         }
@@ -984,7 +984,7 @@ emit_arg_string : proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hoist
         mut fd_throwing := SFuncDef()
         mut is_throwing := false
         fd_throwing = get_fcall_func_def(context, arg)?
-        if not(fd_throwing.throw_types.is_empty()) {
+        if not(fd_throwing.sig.throw_types.is_empty()) {
             is_throwing = true
         }
         catch (err: KeyNotFoundError) {
@@ -1272,8 +1272,8 @@ emit_throwing_arg_string : proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param_
             is_variadic_arg := not(i.lt(variadic_regular_count))
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
-            if i.lt(fd.args.len()) {
-                param_decl := cast(Declaration, fd.args.get(i)?)
+            if i.lt(fd.sig.args.len()) {
+                param_decl := cast(Declaration, fd.sig.args.get(i)?)
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     nested_by_ref = param_needs_by_ref(param_decl)
@@ -1291,10 +1291,10 @@ emit_throwing_arg_string : proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param_
     temp_suffix := next_mangled(ctx)
 
     // Get return type
-    if fd.return_types.is_empty() {
+    if fd.sig.return_types.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Throwing call has no return type")
     }
-    first_ret := cast(ValueType, fd.return_types.get(0)?)
+    first_ret := cast(ValueType, fd.sig.return_types.get(0)?)
     c_type := til_type_to_c(first_ret)?
 
     // Declare temp variable
@@ -1306,7 +1306,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param_
 
     // Declare error variables for each throw type (skip empty struct errors)
     mut err_idx := 0
-    for throw_type: ValueType in fd.throw_types {
+    for throw_type: ValueType in fd.sig.throw_types {
         if is_empty_error_struct(context, throw_type) {
             err_idx.inc()
             continue
@@ -1375,7 +1375,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param_
 
     // Error output pointers (skip empty error structs - they don't have a param slot)
     err_idx = 0
-    for throw_type: ValueType in fd.throw_types {
+    for throw_type: ValueType in fd.sig.throw_types {
         if is_empty_error_struct(context, throw_type) {
             err_idx.inc()
             continue
@@ -1410,7 +1410,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param_
     hoist_output.push_str(");\n")
 
     // Emit error handling - check for local catches first, then propagate
-    emit_error_handling(fd.throw_types, temp_suffix, hoist_output, indent, ctx, context)?
+    emit_error_handling(fd.sig.throw_types, temp_suffix, hoist_output, indent, ctx, context)?
 
     // Delete variadic array if constructed
     if not(variadic_arr_var.is_empty()) {
@@ -1581,8 +1581,8 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
             is_variadic_arg := not(i.lt(vi.regular_count))
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
-            if i.lt(fd.args.len()) {
-                param_decl := cast(Declaration, fd.args.get(i)?)
+            if i.lt(fd.sig.args.len()) {
+                param_decl := cast(Declaration, fd.sig.args.get(i)?)
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     nested_by_ref = param_needs_by_ref(param_decl)
@@ -1599,10 +1599,10 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
     temp_var := next_mangled(ctx)
 
     // Get return type
-    if fd.return_types.is_empty() {
+    if fd.sig.return_types.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
     }
-    first_ret := cast(ValueType, fd.return_types.get(0)?)
+    first_ret := cast(ValueType, fd.sig.return_types.get(0)?)
     c_type := til_type_to_c(first_ret)?
 
     // Declare temp variable
@@ -2066,8 +2066,8 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
             dont_delete(nested_arg)
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
-            if fd_found.and(i.lt(fd_opt.args.len())) {
-                param_decl := cast(Declaration, fd_opt.args.get(i)?)
+            if fd_found.and(i.lt(fd_opt.sig.args.len())) {
+                param_decl := cast(Declaration, fd_opt.sig.args.get(i)?)
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 // Issue #91: Function pointer params are passed by value
                 mut nested_is_fptr := false
@@ -2174,8 +2174,8 @@ get_c_type_for_expr : proc(arg: Expr, context: Context) returns Str throws Str =
         }
     case NodeType.FCall(_):
         fd := get_fcall_func_def(context, arg)?
-        if not(fd.return_types.is_empty()) {
-            ret_type := cast(ValueType, fd.return_types.get(0)?)
+        if not(fd.sig.return_types.is_empty()) {
+            ret_type := cast(ValueType, fd.sig.return_types.get(0)?)
             return til_type_to_c(ret_type)?
         }
         catch (err: KeyNotFoundError) {
@@ -2585,7 +2585,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     if context.mode_def.needs_main_proc {
         fd := context.scope_stack.lookup_func("main")?
         catch (err: KeyNotFoundError) { }
-        for fd_arg: Declaration in fd.args {
+        for fd_arg: Declaration in fd.sig.args {
             switch fd_arg.value_type {
             case ValueType.TMulti:
                 main_has_variadic = true
@@ -2979,7 +2979,7 @@ collect_func_info : proc(expr: Expr, mut ctx: CodegenContext) throws Str = {
             case NodeType.FuncDef(func_def):
                 // Top-level function - check for variadic args (TMulti)
                 mut idx := 0
-                for func_def_arg: Declaration in func_def.args {
+                for func_def_arg: Declaration in func_def.sig.args {
                     switch func_def_arg.value_type {
                     case ValueType.TMulti(elem_type):
                         mut info := VariadicParamInfo()
@@ -3977,7 +3977,7 @@ emit_enum_method_bodies : proc(expr: Expr, mut output: Str, mut ctx: CodegenCont
                         // Create a fake Declaration for emit_struct_func_body
                         method_decl := Declaration(
                             name=method_name,
-                            value_type=ValueType.TFunction(func_def.function_type),
+                            value_type=ValueType.TFunction(func_def.sig.function_type),
                             is_mut=false,
                             is_copy=false,
                             is_own=false,
@@ -4005,13 +4005,13 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: SF
     }
 
     // Set current function context
-    ctx.current_throw_types = func_def.throw_types.clone()
-    ctx.current_return_types = func_def.return_types.clone()
+    ctx.current_throw_types = func_def.sig.throw_types.clone()
+    ctx.current_return_types = func_def.sig.return_types.clone()
     // Track mut params for pointer dereference (-> vs .)
     ctx.current_ref_params.clear()
     // Track variadic params - they're passed as til_Array* so need dereference
     ctx.current_variadic_params.clear()
-    for func_def_arg: Declaration in func_def.args {
+    for func_def_arg: Declaration in func_def.sig.args {
         // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
         if not(func_def_arg.is_copy) {
             _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
@@ -4028,7 +4028,7 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: SF
     mut function_frame := ScopeFrame()
     function_frame.scope_type = ScopeType.Function
     // Register function parameters in the frame
-    for func_def_arg: Declaration in func_def.args {
+    for func_def_arg: Declaration in func_def.sig.args {
         mut info := SymbolInfo()
         info.value_type = func_def_arg.value_type
         info.is_mut = func_def_arg.is_mut
@@ -4055,7 +4055,7 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: SF
 
     // Bug #99: Suppress -Wunused-parameter for intentionally unused params
     // _-prefixed params are always unused; all params unused in empty-body functions
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         if arg.name.starts_with("_").or(func_def.body.is_empty()) {
             c_name := til_var_name(arg.name, value_type_to_c_prefix(arg.value_type))
             output.push_str("    (void)")
@@ -4078,12 +4078,12 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: SF
 
     // Add implicit return at end to silence gcc -Wreturn-type warnings
     // when all paths return inside branches but gcc can't prove exhaustiveness
-    if not(func_def.throw_types.is_empty()) {
+    if not(func_def.sig.throw_types.is_empty()) {
         // Throwing functions return int (0=success, 1+=error)
         output.push_str("    return 0;\n")
-    } else if not(func_def.return_types.is_empty()) {
+    } else if not(func_def.sig.return_types.is_empty()) {
         // Non-throwing functions with return type - add zero-initialized fallback
-        ret_type_vt := cast(ValueType, func_def.return_types.get(0)?)
+        ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
         ret_type := til_type_to_c(ret_type_vt)?
         output.push_str("    return (")
         output.push_str(ret_type)
@@ -4306,17 +4306,17 @@ is_empty_error_struct : func(context: Context, throw_type: ValueType) returns Bo
 //   RetType func_name(args...)
 // Issue #119: Empty struct errors don't get parameters - only status code matters
 emit_func_signature : proc(func_name: Str, func_def: SFuncDef, context: Context, mut output: Str) throws Str = {
-    is_throwing := not(func_def.throw_types.is_empty())
+    is_throwing := not(func_def.sig.throw_types.is_empty())
 
     if is_throwing {
         // Throwing function returns int status code
         output.push_str("int ")
     } else {
         // Non-throwing function returns its actual type
-        if func_def.return_types.is_empty() {
+        if func_def.sig.return_types.is_empty() {
             output.push_str("void ")
         } else {
-            ret_type_vt := cast(ValueType, func_def.return_types.get(0)?)
+            ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
             ret_type := til_type_to_c(ret_type_vt)?
             output.push_str(ret_type)
             output.push_str(" ")
@@ -4330,8 +4330,8 @@ emit_func_signature : proc(func_name: Str, func_def: SFuncDef, context: Context,
 
     if is_throwing {
         // Output params first: return value pointer, then error pointers
-        if not(func_def.return_types.is_empty()) {
-            thr_ret_type_vt := cast(ValueType, func_def.return_types.get(0)?)
+        if not(func_def.sig.return_types.is_empty()) {
+            thr_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
             thr_ret_type := til_type_to_c(thr_ret_type_vt)?
             output.push_str(thr_ret_type)
             output.push_str("* _ret")
@@ -4339,8 +4339,8 @@ emit_func_signature : proc(func_name: Str, func_def: SFuncDef, context: Context,
         }
 
         // Issue #119: Skip empty struct errors - only status code matters
-        for i in 0..func_def.throw_types.len() {
-            throw_type := cast(ValueType, func_def.throw_types.get(i)?)
+        for i in 0..func_def.sig.throw_types.len() {
+            throw_type := cast(ValueType, func_def.sig.throw_types.get(i)?)
             if is_empty_error_struct(context, throw_type) {
                 // Skip this error parameter for empty struct
             } else {
@@ -4357,7 +4357,7 @@ emit_func_signature : proc(func_name: Str, func_def: SFuncDef, context: Context,
     }
 
     // Input parameters
-    for func_def_arg: Declaration in func_def.args {
+    for func_def_arg: Declaration in func_def.sig.args {
         if param_count.gt(0) {
             output.push_str(", ")
         }
@@ -4505,13 +4505,13 @@ is_func_sig_declaration : func(expr: Expr) returns Bool throws Str = {
             case NodeType.FuncDef(func_def):
                 if func_def.body.is_empty() {
                     mut all_unnamed := true
-                    for fs_arg: Declaration in func_def.args {
+                    for fs_arg: Declaration in func_def.sig.args {
                         if fs_arg.name.len().gt(0) {
                             all_unnamed = false
                         }
                     }
                     if all_unnamed {
-                        switch func_def.function_type {
+                        switch func_def.sig.function_type {
                         case FunctionType.FTFunc:
                             return true
                         case FunctionType.FTProc:
@@ -4551,17 +4551,17 @@ emit_func_sig_typedef : proc(expr: Expr, context: Context, mut output: Str) thro
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
-                is_throwing := not(func_def.throw_types.is_empty())
+                is_throwing := not(func_def.sig.throw_types.is_empty())
                 type_name := til_name(decl.name)
 
                 output.push_str("typedef ")
 
                 if is_throwing {
                     output.push_str("int ")
-                } else if func_def.return_types.is_empty() {
+                } else if func_def.sig.return_types.is_empty() {
                     output.push_str("void ")
                 } else {
-                    ret_type_vt := cast(ValueType, func_def.return_types.get(0)?)
+                    ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
                     ret_type := til_type_to_c(ret_type_vt)?
                     output.push_str(ret_type)
                     output.push_str(" ")
@@ -4575,15 +4575,15 @@ emit_func_sig_typedef : proc(expr: Expr, context: Context, mut output: Str) thro
 
                 if is_throwing {
                     // Output params first: return value pointer, then error pointers
-                    if not(func_def.return_types.is_empty()) {
-                        thr_ret_type_vt := cast(ValueType, func_def.return_types.get(0)?)
+                    if not(func_def.sig.return_types.is_empty()) {
+                        thr_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
                         thr_ret_type := til_type_to_c(thr_ret_type_vt)?
                         output.push_str(thr_ret_type)
                         output.push_str("*")
                         param_count.inc()
                     }
-                    for td_i in 0..func_def.throw_types.len() {
-                        throw_type := cast(ValueType, func_def.throw_types.get(td_i)?)
+                    for td_i in 0..func_def.sig.throw_types.len() {
+                        throw_type := cast(ValueType, func_def.sig.throw_types.get(td_i)?)
                         if is_empty_error_struct(context, throw_type) {
                             // Skip empty struct errors
                         } else {
@@ -4599,7 +4599,7 @@ emit_func_sig_typedef : proc(expr: Expr, context: Context, mut output: Str) thro
                 }
 
                 // Input parameter types (no names for typedef)
-                for func_def_arg: Declaration in func_def.args {
+                for func_def_arg: Declaration in func_def.sig.args {
                     if param_count.gt(0) {
                         output.push_str(", ")
                     }
@@ -4649,13 +4649,13 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 }
 
                 // Set current function context for return/throw generation
-                ctx.current_throw_types = func_def.throw_types.clone()
-                ctx.current_return_types = func_def.return_types.clone()
+                ctx.current_throw_types = func_def.sig.throw_types.clone()
+                ctx.current_return_types = func_def.sig.return_types.clone()
                 // Track ref params for pointer dereference (-> vs .)
                 ctx.current_ref_params.clear()
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params.clear()
-                for func_def_arg: Declaration in func_def.args {
+                for func_def_arg: Declaration in func_def.sig.args {
                     // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
                     // Issue #91: Skip FuncSig-typed params - they're passed by value (function pointers)
                     if not(func_def_arg.is_copy) {
@@ -4682,7 +4682,7 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 function_frame.scope_type = ScopeType.Function
                 // Register function parameters in the frame
                 // For variadic params (TMulti), register as Array type
-                for func_def_arg: Declaration in func_def.args {
+                for func_def_arg: Declaration in func_def.sig.args {
                     mut value_type := func_def_arg.value_type
                     switch func_def_arg.value_type {
                     case ValueType.TMulti(elem):
@@ -4715,7 +4715,7 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
 
                 // Bug #99: Suppress -Wunused-parameter for intentionally unused params
                 // _-prefixed params are always unused; all params unused in empty-body functions
-                for arg: Declaration in func_def.args {
+                for arg: Declaration in func_def.sig.args {
                     if arg.name.starts_with("_").or(func_def.body.is_empty()) {
                         c_name := til_var_name(arg.name, value_type_to_c_prefix(arg.value_type))
                         output.push_str("    (void)")
@@ -4737,10 +4737,10 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 emit_stmts(func_def.body, output, 1, ctx, context)?
 
                 // Add implicit return at end to silence gcc -Wreturn-type warnings
-                if not(func_def.throw_types.is_empty()) {
+                if not(func_def.sig.throw_types.is_empty()) {
                     output.push_str("    return 0;\n")
-                } else if not(func_def.return_types.is_empty()) {
-                    ret_type_vt := cast(ValueType, func_def.return_types.get(0)?)
+                } else if not(func_def.sig.return_types.is_empty()) {
+                    ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
                     ret_type := til_type_to_c(ret_type_vt)?
                     output.push_str("    return (")
                     output.push_str(ret_type)
@@ -5231,8 +5231,8 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
             // Get function name from the FCall
             // Check if this function is a throwing function
             fd := get_fcall_func_def(context, maybe_fcall)?
-            if not(fd.throw_types.is_empty()) {
-                throw_types := fd.throw_types
+            if not(fd.sig.throw_types.is_empty()) {
+                throw_types := fd.sig.throw_types
 
                 // Collect subsequent catch blocks
                 mut catch_blocks := Vec.new(Expr)
@@ -5313,7 +5313,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
             if not(variadic_fcall_info.elem_type.is_empty()) {
                 // Check that this is NOT a throwing function (those are handled above)
                 variadic_fd := get_fcall_func_def(context, maybe_fcall)?
-                mut is_throwing := not(variadic_fd.throw_types.is_empty())
+                mut is_throwing := not(variadic_fd.sig.throw_types.is_empty())
                 catch (err: KeyNotFoundError) {
                     is_throwing = false
                 }
@@ -5395,8 +5395,8 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
             is_variadic_arg := i.gteq(regular_count)
             mut param_type := Ptr()
             mut by_ref := false
-            if i.lt(func_def_opt.args.len()) {
-                param_decl := cast(Declaration, func_def_opt.args.get(i)?)
+            if i.lt(func_def_opt.sig.args.len()) {
+                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)?)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -5423,8 +5423,8 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
     mut ret_type := "int"
     if not(decl_name.eq("")).or(not(assign_name.eq(""))) {
         fd2 := get_fcall_func_def(context, fcall)?
-        if not(fd2.return_types.is_empty()) {
-            first_ret := cast(ValueType, fd2.return_types.get(0)?)
+        if not(fd2.sig.return_types.is_empty()) {
+            first_ret := cast(ValueType, fd2.sig.return_types.get(0)?)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) {
                 ret_type = "int"
@@ -5465,8 +5465,8 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
         } else {
             // Bug #97: Register in scope FIRST so we can get the type-mangled name
             fd3 := get_fcall_func_def(context, fcall)?
-            if not(fd3.return_types.is_empty()) {
-                first_type := cast(ValueType, fd3.return_types.get(0)?)
+            if not(fd3.sig.return_types.is_empty()) {
+                first_type := cast(ValueType, fd3.sig.return_types.get(0)?)
                 mut sym_info := SymbolInfo()
                 sym_info.value_type = first_type
                 sym_info.is_mut = true
@@ -5609,7 +5609,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
     fd := get_fcall_func_def(context, fcall)?
-    mut func_has_return := not(fd.return_types.is_empty())
+    mut func_has_return := not(fd.sig.return_types.is_empty())
     mut needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
         func_has_return = false
@@ -5639,8 +5639,8 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
             is_variadic_arg := i.gteq(variadic_regular_count)
             mut param_type := Ptr()
             mut by_ref := false
-            if i.lt(func_def_opt.args.len()) {
-                param_decl := cast(Declaration, func_def_opt.args.get(i)?)
+            if i.lt(func_def_opt.sig.args.len()) {
+                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)?)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -5658,8 +5658,8 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
     mut ret_type := "int"
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)?
-        if not(fd3.return_types.is_empty()) {
-            first_ret := cast(ValueType, fd3.return_types.get(0)?)
+        if not(fd3.sig.return_types.is_empty()) {
+            first_ret := cast(ValueType, fd3.sig.return_types.get(0)?)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) {
                 ret_type = "int"
@@ -5674,8 +5674,8 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
-        if not(fd4.return_types.is_empty()) {
-            first_type := cast(ValueType, fd4.return_types.get(0)?)
+        if not(fd4.sig.return_types.is_empty()) {
+            first_type := cast(ValueType, fd4.sig.return_types.get(0)?)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
@@ -6030,7 +6030,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
     // Only if function actually returns something AND we're capturing it
     func_def_opt := get_fcall_func_def(context, fcall)?
     mut have_func_def := true
-    mut func_has_return := not(func_def_opt.return_types.is_empty())
+    mut func_has_return := not(func_def_opt.sig.return_types.is_empty())
     mut needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
         have_func_def = false
@@ -6055,8 +6055,8 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
             is_variadic_arg := i.gteq(prop_variadic_regular_count)
             mut param_type := Ptr()
             mut by_ref := false
-            if have_func_def.and(i.lt(func_def_opt.args.len())) {
-                param_decl := cast(Declaration, func_def_opt.args.get(i)?)
+            if have_func_def.and(i.lt(func_def_opt.sig.args.len())) {
+                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)?)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -6074,8 +6074,8 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
     mut ret_type := "int"
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)?
-        if not(fd3.return_types.is_empty()) {
-            first_ret := cast(ValueType, fd3.return_types.get(0)?)
+        if not(fd3.sig.return_types.is_empty()) {
+            first_ret := cast(ValueType, fd3.sig.return_types.get(0)?)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) { ret_type = "int" }
         }
@@ -6087,8 +6087,8 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
-        if not(fd4.return_types.is_empty()) {
-            first_type := cast(ValueType, fd4.return_types.get(0)?)
+        if not(fd4.sig.return_types.is_empty()) {
+            first_type := cast(ValueType, fd4.sig.return_types.get(0)?)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
@@ -6347,7 +6347,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
     // Only if function actually returns something AND we're capturing it
     func_def_opt := get_fcall_func_def(context, fcall)?
     mut have_func_def := true
-    mut func_has_return := not(func_def_opt.return_types.is_empty())
+    mut func_has_return := not(func_def_opt.sig.return_types.is_empty())
     mut needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
         have_func_def = false
@@ -6372,8 +6372,8 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
             is_variadic_arg := i.gteq(goto_variadic_regular_count)
             mut param_type := Ptr()
             mut by_ref := false
-            if have_func_def.and(i.lt(func_def_opt.args.len())) {
-                param_decl := cast(Declaration, func_def_opt.args.get(i)?)
+            if have_func_def.and(i.lt(func_def_opt.sig.args.len())) {
+                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)?)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -6391,8 +6391,8 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
     mut ret_type := "int"
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)?
-        if not(fd3.return_types.is_empty()) {
-            first_ret := cast(ValueType, fd3.return_types.get(0)?)
+        if not(fd3.sig.return_types.is_empty()) {
+            first_ret := cast(ValueType, fd3.sig.return_types.get(0)?)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) { ret_type = "int" }
         }
@@ -6404,8 +6404,8 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
-        if not(fd4.return_types.is_empty()) {
-            first_type := cast(ValueType, fd4.return_types.get(0)?)
+        if not(fd4.sig.return_types.is_empty()) {
+            first_type := cast(ValueType, fd4.sig.return_types.get(0)?)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
@@ -6707,13 +6707,13 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 prev_mangling_counter := ctx.mangling_counter
                 prev_ret_var_alias := ctx.ret_var_alias.clone()
 
-                ctx.current_throw_types = func_def.throw_types.clone()
-                ctx.current_return_types = func_def.return_types.clone()
+                ctx.current_throw_types = func_def.sig.throw_types.clone()
+                ctx.current_return_types = func_def.sig.return_types.clone()
                 ctx.current_function_name = mangled_name.clone()
                 ctx.mangling_counter = 0  // Reset counter per-function for determinism
 
                 // Bug #60: Track ref and variadic params - all non-copy args are by pointer
-                for func_def_arg: Declaration in func_def.args {
+                for func_def_arg: Declaration in func_def.sig.args {
                     if not(func_def_arg.is_copy) {
                         _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
                     }
@@ -6728,7 +6728,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 // Push scope frame for function
                 mut function_frame := ScopeFrame()
                 function_frame.scope_type = ScopeType.Function
-                for func_def_arg: Declaration in func_def.args {
+                for func_def_arg: Declaration in func_def.sig.args {
                     mut value_type := func_def_arg.value_type
                     switch func_def_arg.value_type {
                     case ValueType.TMulti(_):
@@ -6752,7 +6752,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
 
                 // Bug #99: Suppress -Wunused-parameter for intentionally unused params
                 // _-prefixed params are always unused; all params unused in empty-body functions
-                for arg: Declaration in func_def.args {
+                for arg: Declaration in func_def.sig.args {
                     if arg.name.starts_with("_").or(func_def.body.is_empty()) {
                         c_name := til_var_name(arg.name, value_type_to_c_prefix(arg.value_type))
                         func_output.push_str("    (void)")
@@ -6772,10 +6772,10 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
 
                 emit_stmts(func_def.body, func_output, 1, ctx, context)?
                 // Add implicit return at end to silence gcc -Wreturn-type warnings
-                if not(func_def.throw_types.is_empty()) {
+                if not(func_def.sig.throw_types.is_empty()) {
                     func_output.push_str("    return 0;\n")
-                } else if not(func_def.return_types.is_empty()) {
-                    ret_type_vt := cast(ValueType, func_def.return_types.get(0)?)
+                } else if not(func_def.sig.return_types.is_empty()) {
+                    ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
                     ret_type := til_type_to_c(ret_type_vt)?
                     func_output.push_str("    return (")
                     func_output.push_str(ret_type)
@@ -6905,7 +6905,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                     catch (err: KeyNotFoundError) {
                         // Not a function call we can look up
                     }
-                    if found_fd.and(not(fd.throw_types.is_empty())) {
+                    if found_fd.and(not(fd.sig.throw_types.is_empty())) {
                         // Hoist the throwing call
                         base_temp := emit_arg_string(rhs_first_param, Ptr(), false, output, indent, ctx, context)?
                         // Append field chain: temp.field1.field2...
@@ -7448,11 +7448,11 @@ emit_assignment : proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut 
                 fd_found = false
             }
             if fd_found {
-            if not(fd.throw_types.is_empty()) {
+            if not(fd.sig.throw_types.is_empty()) {
                 // RHS is a throwing function call - emit with error propagation
                 // (typer should ensure non-throwing context doesn't call throwing functions without catch)
                 // Pass raw name so function can properly handle field access on mut params
-                emit_throwing_call_propagate(rhs_expr, fd.throw_types, "", name, output, indent, ctx, context)?
+                emit_throwing_call_propagate(rhs_expr, fd.sig.throw_types, "", name, output, indent, ctx, context)?
                 return
             }
             }
@@ -7544,10 +7544,10 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 catch (err: KeyNotFoundError) {
                     // REM: no func def found
                 }
-                if thr_fd_found.and(not(thr_fd.throw_types.is_empty())) {
+                if thr_fd_found.and(not(thr_fd.sig.throw_types.is_empty())) {
                     // Return expression is a throwing function call - emit with error propagation
                     // The result will be stored via the assign_name "*_ret"
-                    emit_throwing_call_propagate(thr_return_expr, thr_fd.throw_types, "", "*_ret", output, indent, ctx, context)?
+                    emit_throwing_call_propagate(thr_return_expr, thr_fd.sig.throw_types, "", "*_ret", output, indent, ctx, context)?
                     output.push_str(indent_str)
                     output.push_str("return 0;\n")
                     return
@@ -7663,8 +7663,8 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                         arg := cast(Expr, regular_args.get(i)?)
                         mut param_type := Ptr()
                         mut by_ref := true
-                        if i.lt(var_fd.args.len()) {
-                            param_decl := cast(Declaration, var_fd.args.get(i)?)
+                        if i.lt(var_fd.sig.args.len()) {
+                            param_decl := cast(Declaration, var_fd.sig.args.get(i)?)
                             param_type.data = to_ptr(param_decl.value_type)
                             // Issue #91: Function pointer params are passed by value
                             mut ret_is_fptr := false
@@ -7840,8 +7840,8 @@ emit_throw : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 // Only check func_def's return types if we successfully got it (nh_thrown_type_name still empty)
                 if nh_thrown_type_name.is_empty() {
                     // It's a function - use its return type as the thrown type
-                    if not(func_def.return_types.is_empty()) {
-                        nh_ret_type := cast(ValueType, func_def.return_types.get(0)?)
+                    if not(func_def.sig.return_types.is_empty()) {
+                        nh_ret_type := cast(ValueType, func_def.sig.return_types.get(0)?)
                         switch nh_ret_type {
                         case ValueType.TCustom(type_name):
                             nh_thrown_type_name = type_name.clone()
@@ -8481,7 +8481,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         // Get param info for by-ref handling
         mut param_info := Vec.new(ParamTypeInfo)
         fd := get_fcall_func_def(context, expr)?
-        for fd_arg: Declaration in fd.args {
+        for fd_arg: Declaration in fd.sig.args {
             mut pi := ParamTypeInfo()
             pi.value_type = fd_arg.value_type
             pi.has_value_type = true
@@ -9039,7 +9039,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             // Expression-level variadic calls - emit regular args with by-ref handling
             mut var_param_info := Vec.new(ParamTypeInfo)
             var_fd := get_fcall_func_def(context, expr)?
-            for fd_arg: Declaration in var_fd.args {
+            for fd_arg: Declaration in var_fd.sig.args {
                 mut var_pi := ParamTypeInfo()
                 var_pi.value_type = fd_arg.value_type
                 var_pi.has_value_type = true
@@ -9124,7 +9124,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             // Expression-level call: emit args with by-ref handling
             mut nv_param_info := Vec.new(ParamTypeInfo)
             nv_fd := get_fcall_func_def(context, expr)?
-            for fd_arg: Declaration in nv_fd.args {
+            for fd_arg: Declaration in nv_fd.sig.args {
                 mut nv_pi := ParamTypeInfo()
                 nv_pi.value_type = fd_arg.value_type
                 nv_pi.has_value_type = true

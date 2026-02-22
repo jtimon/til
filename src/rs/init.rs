@@ -525,12 +525,12 @@ pub fn get_func_name_in_call(e: &Expr) -> String {
 }
 
 fn value_type_func_proc(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
-    match func_def.return_types.len() {
+    match func_def.sig.return_types.len() {
         0 => {
             return Err(e.error(path, "init", &format!("func '{}' does not return anything", name)));
         },
         1 => {
-            match func_def.return_types.get(0) {
+            match func_def.sig.return_types.get(0) {
                 Some(ValueType::TCustom(type_str)) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
                 // Issue #105: Allow struct as a return type for first-class structs
                 Some(ValueType::TType(TTypeDef::TStructDef)) => Ok(ValueType::TType(TTypeDef::TStructDef)),
@@ -950,7 +950,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
         NodeType::LLiteral(Literal::Number(_)) => Ok(ValueType::TCustom("I64".to_string())),
         NodeType::LLiteral(Literal::Str(_)) => Ok(ValueType::TCustom("Str".to_string())),
         NodeType::LLiteral(Literal::List(_)) => Ok(ValueType::TCustom("List".to_string())),
-        NodeType::FuncDef(func_def) => match func_def.function_type {
+        NodeType::FuncDef(func_def) => match func_def.sig.function_type {
             FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunction(FunctionType::FTFunc)),
             FunctionType::FTProc | FunctionType::FTProcExt => Ok(ValueType::TFunction(FunctionType::FTProc)),
             FunctionType::FTMacro => Ok(ValueType::TFunction(FunctionType::FTMacro)),
@@ -1219,7 +1219,7 @@ fn collect_anon_funcs(context: &mut Context, e: &Expr) {
             context.anon_func_map.insert((e.line, e.col), temp_name.clone());
             context.scope_stack.declare_func(temp_name.clone(), func_def.clone());
             context.scope_stack.declare_symbol(temp_name, SymbolInfo {
-                value_type: ValueType::TFunction(func_def.function_type.clone()),
+                value_type: ValueType::TFunction(func_def.sig.function_type.clone()),
                 is_mut: false, is_copy: false, is_own: false, is_comptime_const: false,
             });
             // Recurse into anon func body for nested anon funcs
@@ -1309,8 +1309,8 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
             };
             // Issue #91: Detect function signature definitions
             if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-                if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
-                    && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+                if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
+                    && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
                     value_type = ValueType::TType(TTypeDef::TFuncSig);
                 }
             }
@@ -1321,7 +1321,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                 if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
                     if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
                         if let Some(sfd) = context.scope_stack.lookup_func(sig_name) {
-                            value_type = ValueType::TFunction(sfd.function_type.clone());
+                            value_type = ValueType::TFunction(sfd.sig.function_type.clone());
                             sig_func_def = Some(sfd.clone());
                             is_sig_ref = true;
                         }
@@ -1346,14 +1346,14 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                 // Issue #91: Resolve arg types from function signature
                                 let registered_func_def = if let Some(ref sig) = sig_func_def {
                                     let mut resolved = func_def.clone();
-                                    if resolved.args.len() == sig.args.len() {
-                                        for (i, sig_arg) in sig.args.iter().enumerate() {
-                                            resolved.args[i].value_type = sig_arg.value_type.clone();
+                                    if resolved.sig.args.len() == sig.sig.args.len() {
+                                        for (i, sig_arg) in sig.sig.args.iter().enumerate() {
+                                            resolved.sig.args[i].value_type = sig_arg.value_type.clone();
                                         }
                                     }
-                                    resolved.return_types = sig.return_types.clone();
-                                    resolved.throw_types = sig.throw_types.clone();
-                                    resolved.function_type = sig.function_type.clone();
+                                    resolved.sig.return_types = sig.sig.return_types.clone();
+                                    resolved.sig.throw_types = sig.sig.throw_types.clone();
+                                    resolved.sig.function_type = sig.sig.function_type.clone();
                                     resolved
                                 } else {
                                     func_def.clone()

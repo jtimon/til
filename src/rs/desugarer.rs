@@ -955,7 +955,7 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
             // Issue #110: Push function scope with parameters so switch desugaring can look them up
             context.scope_stack.push(ScopeType::Function);
-            for arg in &func_def.args {
+            for arg in &func_def.sig.args {
                 context.scope_stack.declare_symbol(
                     arg.name.clone(),
                     SymbolInfo {
@@ -976,10 +976,8 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             let _ = context.scope_stack.pop();
             context.precomp_forin_counter = saved_counter;
             let new_func_def = SFuncDef {
-                function_type: func_def.function_type.clone(),
-                args: func_def.args.clone(),
-                return_types: func_def.return_types.clone(),
-                throw_types: func_def.throw_types.clone(),
+                sig: func_def.sig.clone(),
+                arg_names: func_def.arg_names.clone(),
                 body: new_body,
                 source_path: func_def.source_path.clone(),
             };

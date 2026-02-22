@@ -372,7 +372,7 @@ validate_func_arg_count : func(path: Str, e: Expr, f_name: Str, func_def: SFuncD
 
     // Count required args (those without default values)
     mut required_args := 0
-    for arg_decl: Declaration in func_def.args {
+    for arg_decl: Declaration in func_def.sig.args {
         if NULL.eq(arg_decl.default_value.data) {
             required_args.inc()
         }
@@ -385,14 +385,14 @@ validate_func_arg_count : func(path: Str, e: Expr, f_name: Str, func_def: SFuncD
         if provided_args.lt(required_args) {
             return e.error(path, "type", format("Function/procedure '", f_name, "' expects at least ", I64.to_str(required_args), " args, but ", I64.to_str(provided_args), " were provided."))
         }
-        if provided_args.gt(func_def.args.len()) {
-            return e.error(path, "type", format("Function/procedure '", f_name, "' expects at most ", I64.to_str(func_def.args.len()), " args, but ", I64.to_str(provided_args), " were provided."))
+        if provided_args.gt(func_def.sig.args.len()) {
+            return e.error(path, "type", format("Function/procedure '", f_name, "' expects at most ", I64.to_str(func_def.sig.args.len()), " args, but ", I64.to_str(provided_args), " were provided."))
         }
     }
 
     // Check minimum count for variadic functions
-    if has_multi_arg.and(func_def.args.len().sub(1).gt(provided_args)) {
-        return e.error(path, "type", format("Function/procedure '", f_name, "' expects at least ", I64.to_str(func_def.args.len().sub(1)), " args, but ", I64.to_str(provided_args), " were provided."))
+    if has_multi_arg.and(func_def.sig.args.len().sub(1).gt(provided_args)) {
+        return e.error(path, "type", format("Function/procedure '", f_name, "' expects at least ", I64.to_str(func_def.sig.args.len().sub(1)), " args, but ", I64.to_str(provided_args), " were provided."))
     }
 
     return ""
@@ -581,10 +581,10 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
     mut len_func := SFuncDef()
     len_func = context.scope_stack.lookup_func(len_method)?
     // Verify returns I64
-    if not(len_func.return_types.len().eq(1)) {
+    if not(len_func.sig.return_types.len().eq(1)) {
         errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".len()' must return I64")))
     } else {
-        ret_type := cast(ValueType, len_func.return_types.get(0)?)
+        ret_type := cast(ValueType, len_func.sig.return_types.get(0)?)
         switch ret_type {
         case ValueType.TCustom(ret_name):
             if not(ret_name.eq("I64")) {
@@ -603,9 +603,9 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
     mut get_func := SFuncDef()
     get_func = context.scope_stack.lookup_func(get_method)?
     // Verify signature: get(self, I64) returns Ptr throws IndexOutOfBoundsError
-    mut valid := get_func.args.len().gteq(2)
+    mut valid := get_func.sig.args.len().gteq(2)
     if valid {
-        arg1 := cast(Declaration, get_func.args.get(1)?)
+        arg1 := cast(Declaration, get_func.sig.args.get(1)?)
         switch arg1.value_type {
         case ValueType.TCustom(arg1_name):
             if not(arg1_name.eq("I64")) {
@@ -617,10 +617,10 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
     }
     if valid {
         // Check returns Ptr
-        if get_func.return_types.len().eq(0) {
+        if get_func.sig.return_types.len().eq(0) {
             valid = false
         } else {
-            get_ret_type := cast(ValueType, get_func.return_types.get(0)?)
+            get_ret_type := cast(ValueType, get_func.sig.return_types.get(0)?)
             switch get_ret_type {
             case ValueType.TCustom(ret_name):
                 if not(ret_name.eq("Ptr")) {
@@ -634,7 +634,7 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
     if valid {
         // Check throws IndexOutOfBoundsError
         mut throws_index_error := false
-        for throw_type: ValueType in get_func.throw_types {
+        for throw_type: ValueType in get_func.sig.throw_types {
             switch throw_type {
             case ValueType.TCustom(throw_name):
                 if throw_name.eq("IndexOutOfBoundsError") {
@@ -781,11 +781,11 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
     f_name = get_func_name_in_call(e_clone)?
 
     // Issue #132: Check mandatory ? for throwing functions
-    func_throws := func_def.throw_types.len().gt(0)
+    func_throws := func_def.sig.throw_types.len().gt(0)
     if func_throws.and(not(does_throw)) {
         mut throw_types_str := ""
-        for ti in 0..func_def.throw_types.len() {
-            tt := cast(ValueType, func_def.throw_types.get(ti)?)
+        for ti in 0..func_def.sig.throw_types.len() {
+            tt := cast(ValueType, func_def.sig.throw_types.get(ti)?)
             catch (idx_err: IndexOutOfBoundsError) {
                 panic(loc(), "IndexOutOfBoundsError iterating throw_types: ", idx_err.msg)
             }
@@ -806,7 +806,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
         return errors
     }
 
-    max_arg_def := func_def.args.len()
+    max_arg_def := func_def.sig.args.len()
     mut def_arg_idx: I64 = 0  // Bug #61: Track definition arg separately from provided arg
     for fcall_arg_idx in 0..e_clone.params.len().sub(1) {
         mut arg_expr := Expr()
@@ -830,7 +830,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
 
         // Bug #61: Skip optional args before variadic when type doesn't match
         while def_arg_idx.lt(max_arg_def) {
-            current_def := cast(Declaration, func_def.args.get(def_arg_idx)?)
+            current_def := cast(Declaration, func_def.sig.args.get(def_arg_idx)?)
             catch (idx_err: IndexOutOfBoundsError) {
                 break
             }
@@ -886,7 +886,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
             has_default := not(NULL.eq(current_def.default_value.data))
             mut variadic_follows := false
             if def_arg_idx.add(1).lt(max_arg_def) {
-                next_def := cast(Declaration, func_def.args.get(def_arg_idx.add(1))?)
+                next_def := cast(Declaration, func_def.sig.args.get(def_arg_idx.add(1))?)
                 catch (idx_err: IndexOutOfBoundsError) {
                     panic(loc(), "IndexOutOfBoundsError after bounds check: ", idx_err.msg)
                 }
@@ -911,7 +911,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
             arg_idx = max_arg_def.sub(1)
         }
 
-        arg := cast(Declaration, func_def.args.get(arg_idx)?)
+        arg := cast(Declaration, func_def.sig.args.get(arg_idx)?)
         catch (idx_err: IndexOutOfBoundsError) {
             errors.push(e_clone.lang_error(context.path, "type", format("argument index ", I64.to_str(def_arg_idx), " out of bounds for function '", f_name, "'")))
             return errors
@@ -1090,12 +1090,12 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                         }
                         mut sig_ok := false
                         if have_expected.and(have_found) {
-                            mut args_match := expected_fd.args.len().eq(found_fd.args.len())
+                            mut args_match := expected_fd.sig.args.len().eq(found_fd.sig.args.len())
                             if args_match {
                                 mut ai := 0
-                                while ai.lt(expected_fd.args.len()) {
-                                    ea := cast(Declaration, expected_fd.args.get(ai)?)
-                                    fa := cast(Declaration, found_fd.args.get(ai)?)
+                                while ai.lt(expected_fd.sig.args.len()) {
+                                    ea := cast(Declaration, expected_fd.sig.args.get(ai)?)
+                                    fa := cast(Declaration, found_fd.sig.args.get(ai)?)
                                     if not(value_type_to_str(ea.value_type).eq(value_type_to_str(fa.value_type))) {
                                         args_match = false
                                     }
@@ -1104,12 +1104,12 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                             }
                             func_kind_match := expected_fd.is_proc().eq(found_fd.is_proc())
                             // Compare return_types element by element
-                            mut return_types_match := expected_fd.return_types.len().eq(found_fd.return_types.len())
+                            mut return_types_match := expected_fd.sig.return_types.len().eq(found_fd.sig.return_types.len())
                             if return_types_match {
                                 mut ri := 0
-                                while ri.lt(expected_fd.return_types.len()) {
-                                    ert := cast(ValueType, expected_fd.return_types.get(ri)?)
-                                    frt := cast(ValueType, found_fd.return_types.get(ri)?)
+                                while ri.lt(expected_fd.sig.return_types.len()) {
+                                    ert := cast(ValueType, expected_fd.sig.return_types.get(ri)?)
+                                    frt := cast(ValueType, found_fd.sig.return_types.get(ri)?)
                                     if not(value_type_to_str(ert).eq(value_type_to_str(frt))) {
                                         return_types_match = false
                                     }
@@ -1117,12 +1117,12 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                                 }
                             }
                             // Compare throw_types element by element
-                            mut throw_types_match := expected_fd.throw_types.len().eq(found_fd.throw_types.len())
+                            mut throw_types_match := expected_fd.sig.throw_types.len().eq(found_fd.sig.throw_types.len())
                             if throw_types_match {
                                 mut thi := 0
-                                while thi.lt(expected_fd.throw_types.len()) {
-                                    ett := cast(ValueType, expected_fd.throw_types.get(thi)?)
-                                    ftt := cast(ValueType, found_fd.throw_types.get(thi)?)
+                                while thi.lt(expected_fd.sig.throw_types.len()) {
+                                    ett := cast(ValueType, expected_fd.sig.throw_types.get(thi)?)
+                                    ftt := cast(ValueType, found_fd.sig.throw_types.get(thi)?)
                                     if not(value_type_to_str(ett).eq(value_type_to_str(ftt))) {
                                         throw_types_match = false
                                     }
@@ -1219,7 +1219,7 @@ check_fcall_return_usage : proc(context: Context, e: Expr, expr_context: ExprCon
     }
 
     // Check if this function returns a value
-    returns_value := func_def.return_types.len().gt(0)
+    returns_value := func_def.sig.return_types.len().gt(0)
 
     // Compare ExprContext using enum_to_str since enums don't have eq()
     mut is_discarded := false
@@ -1268,7 +1268,7 @@ check_namespace_def : proc(mut context: Context, _e: Expr, ns_def: SNamespaceDef
 }
 
 has_type_params : func(func_def: SFuncDef) returns Bool = {
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         switch arg.value_type {
         case ValueType.TCustom(type_name):
             if type_name.eq("Type").or(type_name.eq("Dynamic")) {
@@ -1293,8 +1293,8 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
         errors.push(e.error(context.path, "type", "Procs not allowed in pure modes"))
     }
     mut has_variadic := false
-    for i in 0..func_def.args.len() {
-        arg := cast(Declaration, func_def.args.get(i)?)
+    for i in 0..func_def.sig.args.len() {
+        arg := cast(Declaration, func_def.sig.args.get(i)?)
 
         if has_variadic {
             errors.push(e.error(context.path, "type", format("Variadic argument '", arg.name, "' must be the last (only one variadic argument allowed).")))
@@ -1305,7 +1305,7 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
             if arg.is_mut {
                 errors.push(e.error(context.path, "type", format("Variadic argument '", arg.name, "' cannot be 'mut'.")))
             }
-            if not(i.eq(func_def.args.len().sub(1))) {
+            if not(i.eq(func_def.sig.args.len().sub(1))) {
                 errors.push(e.error(context.path, "type", format("Variadic argument '", arg.name, "' must be the last.")))
             }
             has_variadic = true
@@ -1349,8 +1349,8 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
     }
 
     // TODO re-enable test when it is decided what to do with free, memcpy and memset
-    // if func_def.function_type == FunctionType.FTFunc || func_def.function_type == FunctionType.FTFuncExt {
-    //     if func_def.return_types.len() == 0 && func_def.throw_types.len() == 0 {
+    // if func_def.sig.function_type == FunctionType.FTFunc || func_def.sig.function_type == FunctionType.FTFuncExt {
+    //     if func_def.sig.return_types.len() == 0 && func_def.sig.throw_types.len() == 0 {
     //         errors.push(e.error(context.path, "type", "funcs must return or throw something, use a proc instead"))
     //     }
     // }
@@ -1367,8 +1367,8 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
     // These have empty body and type-only args (no names)
     if func_def.body.len().eq(0) {
         mut all_unnamed := true
-        for sig_i in 0..func_def.args.len() {
-            sig_arg := cast(Declaration, func_def.args.get(sig_i)?)
+        for sig_i in 0..func_def.sig.args.len() {
+            sig_arg := cast(Declaration, func_def.sig.args.get(sig_i)?)
             if not(sig_arg.name.eq("")) {
                 all_unnamed = false
             }
@@ -1408,7 +1408,7 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
     mut thrown_types := Vec.new(ThrownType)
     errors.extend(check_body_returns_throws(context, e, func_def, func_def.body, thrown_types, return_found)?)
 
-    if not(return_found).and(func_def.return_types.len().gt(0)) {
+    if not(return_found).and(func_def.sig.return_types.len().gt(0)) {
         errors.push(e.error(context.path, "type", "No return statments found in function that returns "))
     }
 
@@ -1416,8 +1416,8 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
     for te: ThrownType in thrown_types {
         mut is_declared := false
         mut decl_idx := 0
-        while decl_idx.lt(func_def.throw_types.len()) {
-            declared := cast(ValueType, func_def.throw_types.get(decl_idx)?)
+        while decl_idx.lt(func_def.sig.throw_types.len()) {
+            declared := cast(ValueType, func_def.sig.throw_types.get(decl_idx)?)
             if value_type_to_str(declared).eq(te.type_str) {
                 is_declared = true
             }
@@ -1430,8 +1430,8 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
 
     // Warn about declared throws that are never thrown
     mut decl_throw_idx := 0
-    while decl_throw_idx.lt(func_def.throw_types.len()) {
-        declared_throw := cast(ValueType, func_def.throw_types.get(decl_throw_idx)?)
+    while decl_throw_idx.lt(func_def.sig.throw_types.len()) {
+        declared_throw := cast(ValueType, func_def.sig.throw_types.get(decl_throw_idx)?)
         mut declared_str := value_type_to_str(declared_throw)
 
         mut is_thrown := false
@@ -1470,7 +1470,7 @@ check_func_proc_types : proc(func_def: SFuncDef, mut context: Context, e: Expr) 
 check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncDef, body: Vec, mut thrown_types: Vec, mut return_found: Bool) returns Vec throws Str = {
 
     mut errors := Vec.new(Str)
-    returns_len := func_def.return_types.len()
+    returns_len := func_def.sig.return_types.len()
     mut unconditional_exit_in_sequence := false
 
     for p: Expr in body {
@@ -1502,7 +1502,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
                     errors.push(e.error(context.path, "type", "Suggestion: Update returns section here"))
                 } else {
                     for i in 0..p.params.len() {
-                        expected_value_type := cast(ValueType, func_def.return_types.get(i)?)
+                        expected_value_type := cast(ValueType, func_def.sig.return_types.get(i)?)
 
                         return_val_e := cast(Expr, p.params.get(i)?)
 
@@ -1542,11 +1542,11 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
                                         ret_found_fd_found = true
                                         catch (err: KeyNotFoundError) { }
                                         if ret_expected_fd_found.and(ret_found_fd_found) {
-                                            mut ret_args_match := ret_expected_fd.args.len().eq(ret_found_fd.args.len())
+                                            mut ret_args_match := ret_expected_fd.sig.args.len().eq(ret_found_fd.sig.args.len())
                                             if ret_args_match {
-                                                for ret_ai in 0..ret_expected_fd.args.len() {
-                                                    ret_ea := cast(Declaration, ret_expected_fd.args.get(ret_ai)?)
-                                                    ret_fa := cast(Declaration, ret_found_fd.args.get(ret_ai)?)
+                                                for ret_ai in 0..ret_expected_fd.sig.args.len() {
+                                                    ret_ea := cast(Declaration, ret_expected_fd.sig.args.get(ret_ai)?)
+                                                    ret_fa := cast(Declaration, ret_found_fd.sig.args.get(ret_ai)?)
                                                     if not(value_type_to_str(ret_ea.value_type).eq(value_type_to_str(ret_fa.value_type))) {
                                                         ret_args_match = false
                                                     }
@@ -1554,24 +1554,24 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
                                             }
                                             mut ret_func_kind_match := ret_expected_fd.is_proc().eq(ret_found_fd.is_proc())
                                             mut ret_returns_match := true
-                                            if not(ret_expected_fd.return_types.len().eq(ret_found_fd.return_types.len())) {
+                                            if not(ret_expected_fd.sig.return_types.len().eq(ret_found_fd.sig.return_types.len())) {
                                                 ret_returns_match = false
                                             } else {
-                                                for ret_ri in 0..ret_expected_fd.return_types.len() {
-                                                    ret_er := cast(ValueType, ret_expected_fd.return_types.get(ret_ri)?)
-                                                    ret_fr := cast(ValueType, ret_found_fd.return_types.get(ret_ri)?)
+                                                for ret_ri in 0..ret_expected_fd.sig.return_types.len() {
+                                                    ret_er := cast(ValueType, ret_expected_fd.sig.return_types.get(ret_ri)?)
+                                                    ret_fr := cast(ValueType, ret_found_fd.sig.return_types.get(ret_ri)?)
                                                     if not(value_type_to_str(ret_er).eq(value_type_to_str(ret_fr))) {
                                                         ret_returns_match = false
                                                     }
                                                 }
                                             }
                                             mut ret_throws_match := true
-                                            if not(ret_expected_fd.throw_types.len().eq(ret_found_fd.throw_types.len())) {
+                                            if not(ret_expected_fd.sig.throw_types.len().eq(ret_found_fd.sig.throw_types.len())) {
                                                 ret_throws_match = false
                                             } else {
-                                                for ret_ti in 0..ret_expected_fd.throw_types.len() {
-                                                    ret_et := cast(ValueType, ret_expected_fd.throw_types.get(ret_ti)?)
-                                                    ret_ft := cast(ValueType, ret_found_fd.throw_types.get(ret_ti)?)
+                                                for ret_ti in 0..ret_expected_fd.sig.throw_types.len() {
+                                                    ret_et := cast(ValueType, ret_expected_fd.sig.throw_types.get(ret_ti)?)
+                                                    ret_ft := cast(ValueType, ret_found_fd.sig.throw_types.get(ret_ti)?)
                                                     if not(value_type_to_str(ret_et).eq(value_type_to_str(ret_ft))) {
                                                         ret_throws_match = false
                                                     }
@@ -1714,7 +1714,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
 
             case NodeType.FCall(_):
                 mut called_func_def := get_func_def_for_fcall(context, p)?
-                for called_throw: ValueType in called_func_def.throw_types {
+                for called_throw: ValueType in called_func_def.sig.throw_types {
                     called_throw_str := value_type_to_str(called_throw)
                     error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1738,7 +1738,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
                         mut arg_nested_func_def := get_func_def_for_fcall(context, arg)?
                         // Add the nested function's own throw types (only if it has ?)
                         if arg_does_throw {
-                            for arg_nested_throw: ValueType in arg_nested_func_def.throw_types {
+                            for arg_nested_throw: ValueType in arg_nested_func_def.sig.throw_types {
                                 arg_nested_throw_str := value_type_to_str(arg_nested_throw)
                                 arg_nested_error_msg := format("Function throws '", arg_nested_throw_str, "', but it is not declared in this function's throws section.")
                                 mut arg_nested_te1 := ThrownType()
@@ -1797,7 +1797,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
                         switch ctor_arg.node_type {
                         case NodeType.FCall(_):
                             mut ctor_nested_func_def := get_func_def_for_fcall(context, ctor_arg)?
-                            for ctor_called_throw: ValueType in ctor_nested_func_def.throw_types {
+                            for ctor_called_throw: ValueType in ctor_nested_func_def.sig.throw_types {
                                 ctor_called_throw_str := value_type_to_str(ctor_called_throw)
                                 ctor_error_msg := format("Function throws '", ctor_called_throw_str, "', but it is not declared in this function's throws section.")
                                 mut ctor_te1 := ThrownType()
@@ -1822,7 +1822,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
                                 switch ctor_named_value_expr.node_type {
                                 case NodeType.FCall(_):
                                     mut ctor_named_nested_func_def := get_func_def_for_fcall(context, ctor_named_value_expr)?
-                                    for ctor_named_called_throw: ValueType in ctor_named_nested_func_def.throw_types {
+                                    for ctor_named_called_throw: ValueType in ctor_named_nested_func_def.sig.throw_types {
                                         ctor_named_called_throw_str := value_type_to_str(ctor_named_called_throw)
                                         ctor_named_error_msg := format("Function throws '", ctor_named_called_throw_str, "', but it is not declared in this function's throws section.")
                                         mut ctor_named_te1 := ThrownType()
@@ -2057,7 +2057,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
 
                         if not(is_constructor) {
                             mut decl_called_func_def := get_func_def_for_fcall(context, initializer)?
-                            for decl_called_throw: ValueType in decl_called_func_def.throw_types {
+                            for decl_called_throw: ValueType in decl_called_func_def.sig.throw_types {
                                 decl_called_throw_str := value_type_to_str(decl_called_throw)
                                 decl_error_msg := format("Function throws '", decl_called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -2132,7 +2132,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: SFuncD
 
                         if not(assign_is_constructor) {
                             mut assign_called_func_def := get_func_def_for_fcall(context, assign_initializer)?
-                            for assign_called_throw: ValueType in assign_called_func_def.throw_types {
+                            for assign_called_throw: ValueType in assign_called_func_def.sig.throw_types {
                                 assign_called_throw_str := value_type_to_str(assign_called_throw)
                                 assign_error_msg := format("Function throws '", assign_called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -2294,15 +2294,15 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
         case NodeType.FuncDef(typer_sig_fd):
             if typer_sig_fd.body.len().eq(0) {
                 mut typer_all_unnamed := true
-                for typer_sig_i in 0..typer_sig_fd.args.len() {
-                    typer_sig_arg := cast(Declaration, typer_sig_fd.args.get(typer_sig_i)?)
+                for typer_sig_i in 0..typer_sig_fd.sig.args.len() {
+                    typer_sig_arg := cast(Declaration, typer_sig_fd.sig.args.get(typer_sig_i)?)
                     if not(typer_sig_arg.name.eq("")) {
                         typer_all_unnamed = false
                     }
                 }
                 if typer_all_unnamed {
                     mut typer_is_func_or_proc := false
-                    switch typer_sig_fd.function_type {
+                    switch typer_sig_fd.sig.function_type {
                     case FunctionType.FTFunc:
                         typer_is_func_or_proc = true
                     case FunctionType.FTProc:
@@ -2324,7 +2324,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
             switch typer_sig_sym.value_type {
             case ValueType.TType(TTypeDef.TFuncSig):
                 typer_resolved_fd := context.scope_stack.lookup_func(decl.name)?
-                resolved_value_type := ValueType.TFunction(typer_resolved_fd.function_type)
+                resolved_value_type := ValueType.TFunction(typer_resolved_fd.sig.function_type)
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=resolved_value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                 // Type-check the function body using the resolved func_def
                 context.scope_stack.push(ScopeType.Function)
@@ -3470,7 +3470,7 @@ is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str 
 }
 
 func_proc_has_multi_arg : func(func_def: SFuncDef) returns Bool = {
-    for a: Declaration in func_def.args {
+    for a: Declaration in func_def.sig.args {
         switch a.value_type {
         case ValueType.TMulti(multi_type):
             return true
@@ -3905,15 +3905,15 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
             case NodeType.FuncDef(resolve_sig_fd):
                 if resolve_sig_fd.body.len().eq(0) {
                     mut resolve_all_unnamed := true
-                    for resolve_sig_i in 0..resolve_sig_fd.args.len() {
-                        resolve_sig_arg := cast(Declaration, resolve_sig_fd.args.get(resolve_sig_i)?)
+                    for resolve_sig_i in 0..resolve_sig_fd.sig.args.len() {
+                        resolve_sig_arg := cast(Declaration, resolve_sig_fd.sig.args.get(resolve_sig_i)?)
                         if not(resolve_sig_arg.name.eq("")) {
                             resolve_all_unnamed = false
                         }
                     }
                     if resolve_all_unnamed {
                         mut resolve_is_func_or_proc := false
-                        switch resolve_sig_fd.function_type {
+                        switch resolve_sig_fd.sig.function_type {
                         case FunctionType.FTFunc:
                             resolve_is_func_or_proc = true
                         case FunctionType.FTProc:
@@ -3978,17 +3978,17 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
                 switch resolve_inner.node_type {
                 case NodeType.FuncDef(resolve_fd):
                     mut resolved_fd := resolve_fd.clone()
-                    if resolved_fd.args.len().eq(resolve_sfd.args.len()) {
-                        for ri in 0..resolve_sfd.args.len() {
-                            rsig_arg := cast(Declaration, resolve_sfd.args.get(ri)?)
-                            mut rfd_arg := cast(Declaration, resolved_fd.args.get(ri)?)
+                    if resolved_fd.sig.args.len().eq(resolve_sfd.sig.args.len()) {
+                        for ri in 0..resolve_sfd.sig.args.len() {
+                            rsig_arg := cast(Declaration, resolve_sfd.sig.args.get(ri)?)
+                            mut rfd_arg := cast(Declaration, resolved_fd.sig.args.get(ri)?)
                             rfd_arg.value_type = rsig_arg.value_type
-                            resolved_fd.args.set(ri, rfd_arg)?
+                            resolved_fd.sig.args.set(ri, rfd_arg)?
                         }
                     }
-                    resolved_fd.return_types = resolve_sfd.return_types.clone()
-                    resolved_fd.throw_types = resolve_sfd.throw_types.clone()
-                    resolved_fd.function_type = resolve_sfd.function_type
+                    resolved_fd.sig.return_types = resolve_sfd.sig.return_types.clone()
+                    resolved_fd.sig.throw_types = resolve_sfd.sig.throw_types.clone()
+                    resolved_fd.sig.function_type = resolve_sfd.sig.function_type
                     resolved_inner_expr := Expr(node_type=NodeType.FuncDef(resolved_fd), params=resolve_inner.params, line=resolve_inner.line, col=resolve_inner.col)
                     resolve_decl_params.set(0, resolved_inner_expr)?
                 case:
@@ -4038,7 +4038,7 @@ resolve_funcdef : proc(mut context: Context, e: Expr, func_def: SFuncDef) return
     context.scope_stack.push(ScopeType.Function)
 
     // Register function parameters in scope
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         context.scope_stack.declare_symbol(arg.name, SymbolInfo(
             value_type=arg.value_type,
             is_mut=arg.is_mut,
@@ -4061,10 +4061,13 @@ resolve_funcdef : proc(mut context: Context, e: Expr, func_def: SFuncDef) return
     }
 
     new_func_def := SFuncDef(
-        function_type=func_def.function_type,
-        args=func_def.args,
-        return_types=func_def.return_types,
-        throw_types=func_def.throw_types,
+        sig=FuncSig(
+            function_type=func_def.sig.function_type,
+            args=func_def.sig.args,
+            return_types=func_def.sig.return_types,
+            throw_types=func_def.sig.throw_types
+        ),
+        arg_names=func_def.arg_names,
         body=new_body,
         source_path=func_def.source_path
     )

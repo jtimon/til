@@ -113,39 +113,30 @@ FunctionType := enum {
     FTProcExt,
 }
 
-SFuncDef := struct {
+// Issue #91: FuncSig is the type-level signature (types + modifiers, no arg names)
+FuncSig := struct {
     mut function_type: FunctionType = FunctionType.FTFunc
-    mut args: Vec = Vec.new(Declaration)
-    mut return_types: Vec = Vec.new(ValueType)  // "returns" conflicts with TIL keyword
-    mut throw_types: Vec = Vec.new(ValueType)   // "throws" conflicts with TIL keyword
-    mut body: Vec = Vec.new(Expr)
-    mut source_path: Str = ""  // Path to the file where this function was defined
+    mut args: Vec = Vec.new(Declaration)      // name kept for backward compat, types + modifiers
+    mut return_types: Vec = Vec.new(ValueType)
+    mut throw_types: Vec = Vec.new(ValueType)
 
 namespace:
-    clone : func(self: SFuncDef) returns SFuncDef = {
-        mut result := SFuncDef()
+    clone : func(self: FuncSig) returns FuncSig = {
+        mut result := FuncSig()
         result.function_type = self.function_type
-        // Deep clone args
         for arg: Declaration in self.args {
             result.args.push(arg.clone())
         }
-        // Deep clone return_types
         for rt: ValueType in self.return_types {
             result.return_types.push(value_type_clone(rt))
         }
-        // Deep clone throw_types
         for tt: ValueType in self.throw_types {
             result.throw_types.push(value_type_clone(tt))
         }
-        // Deep clone body
-        for e: Expr in self.body {
-            result.body.push(e.clone())
-        }
-        result.source_path = self.source_path.clone()
         return result
     }
 
-    is_proc : func(self: SFuncDef) returns Bool = {
+    is_proc : func(self: FuncSig) returns Bool = {
         ft := self.function_type
         switch ft {
         case FunctionType.FTProc:
@@ -157,7 +148,7 @@ namespace:
         }
     }
 
-    is_ext : func(self: SFuncDef) returns Bool = {
+    is_ext : func(self: FuncSig) returns Bool = {
         ft := self.function_type
         switch ft {
         case FunctionType.FTFuncExt:
@@ -169,7 +160,7 @@ namespace:
         }
     }
 
-    is_macro : func(self: SFuncDef) returns Bool = {
+    is_macro : func(self: FuncSig) returns Bool = {
         ft := self.function_type
         switch ft {
         case FunctionType.FTMacro:
@@ -177,6 +168,40 @@ namespace:
         case:
             return false
         }
+    }
+}
+
+// Issue #91: SFuncDef = FuncSig (type) + arg names (instance) + body + source_path
+SFuncDef := struct {
+    mut sig: FuncSig = FuncSig()
+    mut arg_names: Vec = Vec.new(Str)
+    mut body: Vec = Vec.new(Expr)
+    mut source_path: Str = ""
+
+namespace:
+    clone : func(self: SFuncDef) returns SFuncDef = {
+        mut result := SFuncDef()
+        result.sig = self.sig.clone()
+        for n: Str in self.arg_names {
+            result.arg_names.push(n.clone())
+        }
+        for e: Expr in self.body {
+            result.body.push(e.clone())
+        }
+        result.source_path = self.source_path.clone()
+        return result
+    }
+
+    is_proc : func(self: SFuncDef) returns Bool = {
+        return self.sig.is_proc()
+    }
+
+    is_ext : func(self: SFuncDef) returns Bool = {
+        return self.sig.is_ext()
+    }
+
+    is_macro : func(self: SFuncDef) returns Bool = {
+        return self.sig.is_macro()
     }
 }
 

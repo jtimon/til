@@ -6,7 +6,7 @@ use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SEnumDef, EnumVariant, SFuncDef, SNamespaceDef, Declaration, Literal, TTypeDef,
+    Expr, NodeType, ValueType, SStructDef, SEnumDef, EnumVariant, SFuncDef, FuncSig, SNamespaceDef, Declaration, Literal, TTypeDef,
     FunctionType, PatternInfo, value_type_to_str, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
@@ -20,7 +20,7 @@ use crate::rs::preinit::{generate_struct_methods, generate_enum_methods};
 /// For `make_vec3(I64)` where `make_vec3` takes `T: Type`, returns {"T": "I64"}.
 fn build_type_param_subs(func_def: &SFuncDef, fcall: &Expr) -> HashMap<String, String> {
     let mut subs = HashMap::new();
-    for (i, arg) in func_def.args.iter().enumerate() {
+    for (i, arg) in func_def.sig.args.iter().enumerate() {
         if let ValueType::TCustom(ref type_name) = arg.value_type {
             if type_name == "Type" || type_name == "Dynamic" {
                 // FCall params: [0] = function name identifier, [1..] = arguments
@@ -78,7 +78,7 @@ fn substitute_type_params_in_expr(e: &Expr, subs: &HashMap<String, String>) -> E
 
 /// Substitute type param names in a FuncDef's args, return types, throw types, and body.
 fn substitute_type_params_in_funcdef(func_def: &SFuncDef, subs: &HashMap<String, String>) -> SFuncDef {
-    let new_args = func_def.args.iter().map(|arg| {
+    let new_args = func_def.sig.args.iter().map(|arg| {
         if let ValueType::TCustom(ref type_name) = arg.value_type {
             if let Some(concrete) = subs.get(type_name) {
                 let mut new_arg = arg.clone();
@@ -88,7 +88,7 @@ fn substitute_type_params_in_funcdef(func_def: &SFuncDef, subs: &HashMap<String,
         }
         arg.clone()
     }).collect();
-    let new_returns = func_def.return_types.iter().map(|rt| {
+    let new_returns = func_def.sig.return_types.iter().map(|rt| {
         if let ValueType::TCustom(ref type_name) = rt {
             if let Some(concrete) = subs.get(type_name) {
                 return ValueType::TCustom(concrete.clone());
@@ -96,7 +96,7 @@ fn substitute_type_params_in_funcdef(func_def: &SFuncDef, subs: &HashMap<String,
         }
         rt.clone()
     }).collect();
-    let new_throws = func_def.throw_types.iter().map(|tt| {
+    let new_throws = func_def.sig.throw_types.iter().map(|tt| {
         if let ValueType::TCustom(ref type_name) = tt {
             if let Some(concrete) = subs.get(type_name) {
                 return ValueType::TCustom(concrete.clone());
@@ -106,10 +106,13 @@ fn substitute_type_params_in_funcdef(func_def: &SFuncDef, subs: &HashMap<String,
     }).collect();
     let new_body = func_def.body.iter().map(|e| substitute_type_params_in_expr(e, subs)).collect();
     SFuncDef {
-        function_type: func_def.function_type.clone(),
-        args: new_args,
-        return_types: new_returns,
-        throw_types: new_throws,
+        sig: FuncSig {
+            function_type: func_def.sig.function_type.clone(),
+            args: new_args,
+            return_types: new_returns,
+            throw_types: new_throws,
+        },
+        arg_names: func_def.arg_names.clone(),
         body: new_body,
         source_path: func_def.source_path.clone(),
     }
@@ -215,9 +218,9 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                     // Check if the function is a macro returning struct
                     let f_name = get_func_name_in_call(inner_e);
                     if let Some(func_def) = context.scope_stack.lookup_func(&f_name) {
-                        if func_def.is_macro() && !func_def.return_types.is_empty() {
+                        if func_def.is_macro() && !func_def.sig.return_types.is_empty() {
                             // Extract all data from func_def before mutable borrows
-                            let macro_return_type = func_def.return_types[0].clone();
+                            let macro_return_type = func_def.sig.return_types[0].clone();
                             let type_subs = build_type_param_subs(&func_def, inner_e);
                             let macro_ns_stmts = extract_namespace_stmts_from_macro(&func_def);
                             let macro_internal_name = extract_internal_type_name(&func_def);
@@ -627,7 +630,7 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> Result<bool, String> {
                 return Ok(false);
             }
             // Funcs with no return type can't be folded (nothing to fold to)
-            if func_def.return_types.is_empty() {
+            if func_def.sig.return_types.is_empty() {
                 return Ok(false);
             }
             // Functions that can throw are allowed - if they actually throw,
@@ -800,7 +803,7 @@ fn precomp_namespace_def(context: &mut Context, e: &Expr, ns_def: &SNamespaceDef
 fn precomp_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Result<Expr, String> {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType::Function);
-    for arg in &func_def.args {
+    for arg in &func_def.sig.args {
         context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
             value_type: arg.value_type.clone(),
             is_mut: arg.is_mut,
@@ -820,10 +823,8 @@ fn precomp_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Resu
     let _ = context.scope_stack.pop();
 
     let new_func_def = SFuncDef {
-        function_type: func_def.function_type.clone(),
-        args: func_def.args.clone(),
-        return_types: func_def.return_types.clone(),
-        throw_types: func_def.throw_types.clone(),
+        sig: func_def.sig.clone(),
+        arg_names: func_def.arg_names.clone(),
         body: new_body,
         source_path: func_def.source_path.clone(),
     };
@@ -843,8 +844,8 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     // Issue #91: Detect function signature definitions
     // A FuncDef with empty body and type-only args (no names) is a function signature type
     if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-        if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
-            && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+        if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
+            && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
             value_type = ValueType::TType(TTypeDef::TFuncSig);
         }
     }
@@ -858,7 +859,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
             if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
                 if let Some(sfd) = context.scope_stack.lookup_func(sig_name) {
                     sig_func_def = Some(sfd.clone());
-                    value_type = ValueType::TFunction(sfd.function_type.clone());
+                    value_type = ValueType::TFunction(sfd.sig.function_type.clone());
                 }
             }
         }
@@ -933,19 +934,19 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     let resolved_inner_e;
     if let Some(ref sig) = sig_func_def {
         if let NodeType::FuncDef(ref func_def) = inner_e.node_type {
-            if func_def.args.len() != sig.args.len() {
+            if func_def.sig.args.len() != sig.sig.args.len() {
                 return Err(e.lang_error(&context.path, "precomp", &format!(
                     "'{}' has {} parameters but function signature '{}' expects {}.",
-                    decl.name, func_def.args.len(),
-                    value_type_to_str(&decl.value_type), sig.args.len())));
+                    decl.name, func_def.sig.args.len(),
+                    value_type_to_str(&decl.value_type), sig.sig.args.len())));
             }
             let mut resolved_fd = func_def.clone();
-            for (i, sig_arg) in sig.args.iter().enumerate() {
-                resolved_fd.args[i].value_type = sig_arg.value_type.clone();
+            for (i, sig_arg) in sig.sig.args.iter().enumerate() {
+                resolved_fd.sig.args[i].value_type = sig_arg.value_type.clone();
             }
-            resolved_fd.return_types = sig.return_types.clone();
-            resolved_fd.throw_types = sig.throw_types.clone();
-            resolved_fd.function_type = sig.function_type.clone();
+            resolved_fd.sig.return_types = sig.sig.return_types.clone();
+            resolved_fd.sig.throw_types = sig.sig.throw_types.clone();
+            resolved_fd.sig.function_type = sig.sig.function_type.clone();
             resolved_inner_e = Some(Expr::new_clone(NodeType::FuncDef(resolved_fd), &inner_e, inner_e.params.clone()));
         } else {
             resolved_inner_e = None;

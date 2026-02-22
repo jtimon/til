@@ -66,37 +66,51 @@ pub enum FunctionType {
     FTProcExt,
 }
 
+// Issue #91: FuncSig is the type-level signature (types + modifiers, no arg names)
 #[derive(Debug, Clone, PartialEq)]
-pub struct SFuncDef {
+pub struct FuncSig {
     pub function_type: FunctionType,
-    pub args: Vec<Declaration>,
-    pub return_types: Vec<ValueType>,  // "returns" conflicts with TIL keyword
-    pub throw_types: Vec<ValueType>,   // "throws" conflicts with TIL keyword
-    pub body: Vec<Expr>,
-    pub source_path: String,  // Path to the file where this function was defined
+    pub args: Vec<Declaration>,      // name is always "" -- types + modifiers only
+    pub return_types: Vec<ValueType>,
+    pub throw_types: Vec<ValueType>,
 }
 
-impl SFuncDef {
-    pub fn is_proc(self: &SFuncDef) -> bool {
+impl FuncSig {
+    pub fn is_proc(&self) -> bool {
         match self.function_type {
             FunctionType::FTProc | FunctionType::FTProcExt => true,
             FunctionType::FTFunc | FunctionType::FTFuncExt | FunctionType::FTMacro => false,
         }
     }
 
-    pub fn is_ext(self: &SFuncDef) -> bool {
+    pub fn is_ext(&self) -> bool {
         match self.function_type {
             FunctionType::FTFuncExt | FunctionType::FTProcExt => true,
             FunctionType::FTFunc | FunctionType::FTProc | FunctionType::FTMacro => false,
         }
     }
 
-    pub fn is_macro(self: &SFuncDef) -> bool {
+    pub fn is_macro(&self) -> bool {
         match self.function_type {
             FunctionType::FTMacro => true,
             FunctionType::FTFunc | FunctionType::FTProc | FunctionType::FTFuncExt | FunctionType::FTProcExt => false,
         }
     }
+}
+
+// Issue #91: SFuncDef = FuncSig (type) + arg names (instance) + body + source_path
+#[derive(Debug, Clone, PartialEq)]
+pub struct SFuncDef {
+    pub sig: FuncSig,
+    pub arg_names: Vec<String>,      // paired by index with sig.args
+    pub body: Vec<Expr>,
+    pub source_path: String,  // Path to the file where this function was defined
+}
+
+impl SFuncDef {
+    pub fn is_proc(&self) -> bool { self.sig.is_proc() }
+    pub fn is_ext(&self) -> bool { self.sig.is_ext() }
+    pub fn is_macro(&self) -> bool { self.sig.is_macro() }
 }
 
 #[derive(Debug, Clone, PartialEq)]

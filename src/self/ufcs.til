@@ -44,10 +44,10 @@ reorder_named_args : func(context: Context, e: Expr, func_def: SFuncDef) returns
     // Bug #61: Check if there are optional args before variadic that might need defaults
     // This happens when the provided arg type doesn't match the optional arg type
     mut has_optional_before_variadic := false
-    if is_variadic.and(func_def.args.len().gt(1)) {
+    if is_variadic.and(func_def.sig.args.len().gt(1)) {
         mut check_j := 0
-        while check_j.lt(func_def.args.len().sub(1)) {
-            check_def_arg := cast(Declaration, func_def.args.get(check_j)?)
+        while check_j.lt(func_def.sig.args.len().sub(1)) {
+            check_def_arg := cast(Declaration, func_def.sig.args.get(check_j)?)
             if not(NULL.eq(check_def_arg.default_value.data)) {
                 has_optional_before_variadic = true
             }
@@ -58,7 +58,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: SFuncDef) returns
     // Check if we need to fill in default values (fewer args than params)
     // Don't apply to variadic functions (unless they have optional args before the variadic)
     mut needs_defaults := false
-    if not(is_variadic).and(call_args_len.lt(func_def.args.len())) {
+    if not(is_variadic).and(call_args_len.lt(func_def.sig.args.len())) {
         needs_defaults = true
     }
     if has_optional_before_variadic {
@@ -80,8 +80,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: SFuncDef) returns
         mut call_arg_idx: I64 = 0
 
         // Process optional args before the variadic
-        while def_arg_idx.lt(func_def.args.len().sub(1)) {
-            opt_def_arg := cast(Declaration, func_def.args.get(def_arg_idx)?)
+        while def_arg_idx.lt(func_def.sig.args.len().sub(1)) {
+            opt_def_arg := cast(Declaration, func_def.sig.args.get(def_arg_idx)?)
 
             // Check if we have a provided arg that matches this def arg's type
             mut matches := false
@@ -160,7 +160,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: SFuncDef) returns
     mut final_args := Vec.new(Expr)
     mut final_args_set := Vec.new(Bool)
     i = 0
-    while i.lt(func_def.args.len()) {
+    while i.lt(func_def.sig.args.len()) {
         final_args.push(Expr())
         final_args_set.push(false)
         i.inc()
@@ -169,8 +169,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: SFuncDef) returns
     // Place positional arguments
     i = 0
     while i.lt(positional_count) {
-        if i.gteq(func_def.args.len()) {
-            throw e.error(context.path, "ufcs", format("Too many positional arguments: expected at most ", func_def.args.len().to_str()))
+        if i.gteq(func_def.sig.args.len()) {
+            throw e.error(context.path, "ufcs", format("Too many positional arguments: expected at most ", func_def.sig.args.len().to_str()))
         }
         final_args.set(i, e.get(i.add(1))?)?
         final_args_set.set(i, true)?
@@ -186,11 +186,11 @@ reorder_named_args : func(context: Context, e: Expr, func_def: SFuncDef) returns
             // Find the parameter index by name
             mut param_idx := sub(0, 1)
             mut search_j := 0
-            while search_j.lt(func_def.args.len()) {
-                search_arg_decl := cast(Declaration, func_def.args.get(search_j)?)
+            while search_j.lt(func_def.sig.args.len()) {
+                search_arg_decl := cast(Declaration, func_def.sig.args.get(search_j)?)
                 if search_arg_decl.name.eq(arg_name) {
                     param_idx = search_j
-                    search_j = func_def.args.len() // break
+                    search_j = func_def.sig.args.len() // break
                 } else {
                     search_j.inc()
                 }
@@ -221,7 +221,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: SFuncDef) returns
             result.push(final_arg)
         } else {
             // Check if this parameter has a default value
-            final_arg_decl := cast(Declaration, func_def.args.get(i)?)
+            final_arg_decl := cast(Declaration, func_def.sig.args.get(i)?)
             if not(NULL.eq(final_arg_decl.default_value.data)) {
                 mut final_default_expr := Expr()
                 memcpy(to_ptr(final_default_expr), final_arg_decl.default_value.data, size_of(Expr))
@@ -361,7 +361,7 @@ ufcs_struct_def : proc(mut context: Context, e: Expr, struct_def: SStructDef) re
 ufcs_func_def : proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str = {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType.Function)
-    for arg: Declaration in func_def.args {
+    for arg: Declaration in func_def.sig.args {
         sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own, is_comptime_const=false)
         context.scope_stack.declare_symbol(arg.name, sym)?
     }
@@ -375,13 +375,17 @@ ufcs_func_def : proc(mut context: Context, e: Expr, func_def: SFuncDef) returns 
     // Pop the function scope frame
     _ := context.scope_stack.pop()?
 
-    mut new_func_def := SFuncDef()
-    new_func_def.function_type = func_def.function_type
-    new_func_def.args = func_def.args.clone()
-    new_func_def.return_types = func_def.return_types.clone()
-    new_func_def.throw_types = func_def.throw_types.clone()
-    new_func_def.body = new_body
-    new_func_def.source_path = func_def.source_path.clone()
+    new_func_def := SFuncDef(
+        sig=FuncSig(
+            function_type=func_def.sig.function_type,
+            args=func_def.sig.args,
+            return_types=func_def.sig.return_types,
+            throw_types=func_def.sig.throw_types
+        ),
+        arg_names=func_def.arg_names,
+        body=new_body,
+        source_path=func_def.source_path
+    )
 
     catch (err: IndexOutOfBoundsError) {
         throw format("ufcs_func_def: ", err.msg)
@@ -614,10 +618,10 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                     // Only transform if argument count matches
                     // new_e.params includes func name at [0], so actual args are params.len() - 1
                     call_arg_count := new_e.params.len().sub(1)
-                    method_arg_count := method_def.args.len()
+                    method_arg_count := method_def.sig.args.len()
                     // Check if method has variadic args (marked with TMulti value type)
                     mut method_is_variadic := false
-                    for arg: Declaration in method_def.args {
+                    for arg: Declaration in method_def.sig.args {
                         switch arg.value_type {
                         case ValueType.TMulti(_):
                             method_is_variadic = true

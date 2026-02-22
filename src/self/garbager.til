@@ -53,7 +53,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
 
         // Build local name->type map for clone-after-get and own-transfer detection
         mut local_types := Map.new(Str, Str)
-        for arg_def: Declaration in func_def.args {
+        for arg_def: Declaration in func_def.sig.args {
             switch arg_def.value_type {
             case ValueType.TCustom(type_name):
                 local_types.set(arg_def.name, type_name)
@@ -80,7 +80,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         mut cand_types := Vec.new(Str)
 
         // 3a: copy/own params
-        for arg_def: Declaration in func_def.args {
+        for arg_def: Declaration in func_def.sig.args {
             if arg_def.is_copy.or(arg_def.is_own) {
                 switch arg_def.value_type {
                 case ValueType.TCustom(type_name):
@@ -141,7 +141,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         // copy/own params: ASAP after last use (deep copies, no aliasing).
         // locals: at function end (shared offsets mean locals can alias).
         mut param_names := Vec.new(Str)
-        for parg: Declaration in func_def.args {
+        for parg: Declaration in func_def.sig.args {
             if parg.is_copy.or(parg.is_own) {
                 param_names.push(parg.name)
             }
@@ -279,10 +279,13 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         }
 
         new_func_def := SFuncDef(
-            function_type=func_def.function_type,
-            args=func_def.args.clone(),
-            return_types=func_def.return_types.clone(),
-            throw_types=func_def.throw_types.clone(),
+            sig=FuncSig(
+                function_type=func_def.sig.function_type,
+                args=func_def.sig.args,
+                return_types=func_def.sig.return_types,
+                throw_types=func_def.sig.throw_types
+            ),
+            arg_names=func_def.arg_names,
             body=new_body,
             source_path=func_def.source_path
         )
@@ -585,10 +588,10 @@ detect_shallow_copy_outparam : proc(stmt: Expr, local_types: Map, context: Conte
     }
 
     // Build "Type.method" name from resolved func_def's first arg type
-    if resolved.func_def.args.len().eq(0) {
+    if resolved.func_def.sig.args.len().eq(0) {
         return false
     }
-    first_arg := cast(Declaration, resolved.func_def.args.get(0)?)
+    first_arg := cast(Declaration, resolved.func_def.sig.args.get(0)?)
     catch (err: IndexOutOfBoundsError) {
         return false
     }
@@ -618,8 +621,8 @@ detect_shallow_copy_outparam : proc(stmt: Expr, local_types: Map, context: Conte
     }
 
     // Find last mut arg (the out-param)
-    last_arg_idx := resolved.func_def.args.len().sub(1)
-    last_arg := cast(Declaration, resolved.func_def.args.get(last_arg_idx)?)
+    last_arg_idx := resolved.func_def.sig.args.len().sub(1)
+    last_arg := cast(Declaration, resolved.func_def.sig.args.get(last_arg_idx)?)
     catch (err: IndexOutOfBoundsError) {
         return false
     }
@@ -767,8 +770,8 @@ transform_fcall_copy_params : proc(context: Context, e: Expr, mut new_params: Ve
     }
 
     // For each arg: if is_copy AND struct type AND identifier, wrap in Type.clone()
-    for i in 0..func_def.args.len() {
-        arg_def := cast(Declaration, func_def.args.get(i)?)
+    for i in 0..func_def.sig.args.len() {
+        arg_def := cast(Declaration, func_def.sig.args.get(i)?)
         catch (err: IndexOutOfBoundsError) {
             panic(loc(), "IndexOutOfBoundsError in args loop: ", err.msg)
         }
@@ -1016,9 +1019,9 @@ collect_own_transfers_recursive : proc(e: Expr, context: Context, local_types: M
                     if resolved.is_ufcs {
                         arg_start = 1
                     }
-                    for i in 0..resolved.func_def.args.len() {
+                    for i in 0..resolved.func_def.sig.args.len() {
                         if i.gteq(arg_start) {
-                            arg_def := cast(Declaration, resolved.func_def.args.get(i)?)
+                            arg_def := cast(Declaration, resolved.func_def.sig.args.get(i)?)
                             mut param_idx := 0
                             if resolved.is_ufcs {
                                 param_idx = i

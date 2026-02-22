@@ -40,12 +40,12 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
 
     // Bug #61: Check if there are optional args before variadic that might need defaults
     // This happens when the provided arg type doesn't match the optional arg type
-    let has_optional_before_variadic = is_variadic && func_def.args.len() > 1 &&
-        func_def.args.iter().take(func_def.args.len() - 1).any(|a| a.default_value.is_some());
+    let has_optional_before_variadic = is_variadic && func_def.sig.args.len() > 1 &&
+        func_def.sig.args.iter().take(func_def.sig.args.len() - 1).any(|a| a.default_value.is_some());
 
     // Check if we need to fill in default values (fewer args than params)
     // Don't apply to variadic functions (unless they have optional args before the variadic)
-    let needs_defaults = (!is_variadic && call_args.len() < func_def.args.len()) || has_optional_before_variadic;
+    let needs_defaults = (!is_variadic && call_args.len() < func_def.sig.args.len()) || has_optional_before_variadic;
 
     // If no named args and no defaults needed, return unchanged
     if !has_named_args && !needs_defaults {
@@ -61,8 +61,8 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
         let mut call_arg_idx: usize = 0;
 
         // Process optional args before the variadic
-        while def_arg_idx < func_def.args.len() - 1 {  // -1 to stop before variadic
-            let opt_def_arg = &func_def.args[def_arg_idx];
+        while def_arg_idx < func_def.sig.args.len() - 1 {  // -1 to stop before variadic
+            let opt_def_arg = &func_def.sig.args[def_arg_idx];
 
             // Check if we have a provided arg that matches this def arg's type
             let mut matches = false;
@@ -120,12 +120,12 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
     }
 
     // Build result: first positional args, then fill in from named args
-    let mut final_args: Vec<Option<Expr>> = vec![None; func_def.args.len()];
+    let mut final_args: Vec<Option<Expr>> = vec![None; func_def.sig.args.len()];
 
     // Place positional arguments
     for (i, arg) in call_args.iter().take(positional_count).enumerate() {
-        if i >= func_def.args.len() {
-            return Err(e.error(&context.path, "ufcs", &format!("Too many positional arguments: expected at most {}", func_def.args.len())));
+        if i >= func_def.sig.args.len() {
+            return Err(e.error(&context.path, "ufcs", &format!("Too many positional arguments: expected at most {}", func_def.sig.args.len())));
         }
         final_args[i] = Some(arg.clone());
     }
@@ -135,7 +135,7 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
         if let NodeType::NamedArg(arg_name) = &arg.node_type {
             // Find the parameter index by name
             let mut param_idx: Option<usize> = None;
-            for (i, p) in func_def.args.iter().enumerate() {
+            for (i, p) in func_def.sig.args.iter().enumerate() {
                 if &p.name == arg_name {
                     param_idx = Some(i);
                     break;
@@ -165,10 +165,10 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
             Some(arg) => result.push(arg),
             None => {
                 // Check if this parameter has a default value
-                if let Some(default_expr) = &func_def.args[i].default_value {
+                if let Some(default_expr) = &func_def.sig.args[i].default_value {
                     result.push((**default_expr).clone());
                 } else {
-                    return Err(e.error(&context.path, "ufcs", &format!("Missing argument for parameter '{}'", func_def.args[i].name)));
+                    return Err(e.error(&context.path, "ufcs", &format!("Missing argument for parameter '{}'", func_def.sig.args[i].name)));
                 }
             }
         }
@@ -281,7 +281,7 @@ fn ufcs_namespace_def(context: &mut Context, e: &Expr, ns_def: &SNamespaceDef) -
 fn ufcs_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Result<Expr, String> {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType::Function);
-    for arg in &func_def.args {
+    for arg in &func_def.sig.args {
         context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
             value_type: arg.value_type.clone(),
             is_mut: arg.is_mut,
@@ -301,10 +301,8 @@ fn ufcs_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Result<
     let _ = context.scope_stack.pop();
 
     let new_func_def = SFuncDef {
-        function_type: func_def.function_type.clone(),
-        args: func_def.args.clone(),
-        return_types: func_def.return_types.clone(),
-        throw_types: func_def.throw_types.clone(),
+        sig: func_def.sig.clone(),
+        arg_names: func_def.arg_names.clone(),
         body: new_body,
         source_path: func_def.source_path.clone(),
     };
@@ -456,9 +454,9 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         // Only transform if argument count matches
                         // e.params includes func name at [0], so actual args are params.len() - 1
                         let call_arg_count = e.params.len() - 1;
-                        let method_arg_count = method_def.args.len();
+                        let method_arg_count = method_def.sig.args.len();
                         // Check if method has variadic args (marked with TMulti value type)
-                        let method_is_variadic = method_def.args.iter().any(|arg| matches!(arg.value_type, ValueType::TMulti(_)));
+                        let method_is_variadic = method_def.sig.args.iter().any(|arg| matches!(arg.value_type, ValueType::TMulti(_)));
                         if call_arg_count == method_arg_count || method_is_variadic {
                             // Transform: func(target, args...) -> Type.func(target, args...)
                             let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), e.get(0)?, Vec::new());

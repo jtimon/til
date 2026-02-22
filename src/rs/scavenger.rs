@@ -68,19 +68,19 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
 /// Collect all type names from a function definition (args, return types, throw types, body)
 fn collect_used_types_from_func(context: &Context, func_def: &crate::rs::parser::SFuncDef, used_types: &mut HashSet<String>) -> Result<(), String> {
     // Collect from arguments
-    for arg in &func_def.args {
+    for arg in &func_def.sig.args {
         if let Some(type_name) = extract_type_name(&arg.value_type) {
             used_types.insert(type_name);
         }
     }
     // Collect from return types
-    for ret_type in &func_def.return_types {
+    for ret_type in &func_def.sig.return_types {
         if let Some(ret_type_name) = extract_type_name(ret_type) {
             used_types.insert(ret_type_name);
         }
     }
     // Collect from throw types
-    for throw_type in &func_def.throw_types {
+    for throw_type in &func_def.sig.throw_types {
         if let Some(throw_type_name) = extract_type_name(throw_type) {
             used_types.insert(throw_type_name);
         }
@@ -195,7 +195,7 @@ fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<S
                 let func_name = get_combined_name_from_identifier(e.get(0)?);
                 if !func_name.is_empty() {
                     if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
-                        for (i, arg) in func_def.args.iter().enumerate() {
+                        for (i, arg) in func_def.sig.args.iter().enumerate() {
                             if let crate::rs::parser::ValueType::TCustom(ref type_name) = arg.value_type {
                                 if let Some(type_sym) = context.scope_stack.lookup_symbol(type_name) {
                                     if type_sym.value_type == crate::rs::parser::ValueType::TType(crate::rs::parser::TTypeDef::TFuncSig) {
@@ -428,7 +428,7 @@ fn compute_reachable(
             collect_used_types_from_func(context, &func_def, &mut used_types)?;
 
             // Check if this function has variadic parameters (TMulti)
-            for arg in &func_def.args {
+            for arg in &func_def.sig.args {
                 if let crate::rs::parser::ValueType::TMulti(_) = &arg.value_type {
                     needs_variadic_support = true;
                     break;
@@ -445,7 +445,7 @@ fn compute_reachable(
             }
             // Issue #91: Remove parameter names from called set - they're variables, not functions
             // This handles function-pointer parameters like `op` in `func(op: BinaryIntOp, ...)`
-            for arg in &func_def.args {
+            for arg in &func_def.sig.args {
                 if !arg.name.is_empty() {
                     called.remove(&arg.name);
                 }
@@ -608,7 +608,7 @@ fn compute_reachable(
             collect_used_types_from_func(context, &func_def, &mut used_types)?;
 
             // Issue #108: Also check for variadic params in second loop
-            for arg in &func_def.args {
+            for arg in &func_def.sig.args {
                 if let crate::rs::parser::ValueType::TMulti(_) = &arg.value_type {
                     needs_variadic_support = true;
                     break;
@@ -825,8 +825,8 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                                 // Issue #91: FuncSig declarations (empty body, unnamed args)
                                 // are type definitions, not functions - always keep them
                                 let is_func_sig = func_def.body.is_empty()
-                                    && func_def.args.iter().all(|a| a.name.is_empty())
-                                    && matches!(func_def.function_type, crate::rs::parser::FunctionType::FTFunc | crate::rs::parser::FunctionType::FTProc);
+                                    && func_def.sig.args.iter().all(|a| a.name.is_empty())
+                                    && matches!(func_def.sig.function_type, crate::rs::parser::FunctionType::FTFunc | crate::rs::parser::FunctionType::FTProc);
                                 // Function declaration - keep if reachable, external, or FuncSig
                                 if func_def.is_ext() || is_func_sig || reachable.contains(&decl.name) {
                                     new_params.push(stmt.clone());

@@ -52,7 +52,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
             // Build local name->type map for clone-after-get and own-transfer detection
             let mut local_types: HashMap<String, String> = HashMap::new();
-            for arg_def in &func_def.args {
+            for arg_def in &func_def.sig.args {
                 if let ValueType::TCustom(type_name) = &arg_def.value_type {
                     local_types.insert(arg_def.name.clone(), type_name.clone());
                 }
@@ -72,7 +72,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             let mut candidates: Vec<(String, String)> = Vec::new();
 
             // 3a: copy/own params
-            for arg_def in &func_def.args {
+            for arg_def in &func_def.sig.args {
                 if arg_def.is_copy || arg_def.is_own {
                     if let ValueType::TCustom(type_name) = &arg_def.value_type {
                         candidates.push((arg_def.name.clone(), type_name.clone()));
@@ -112,7 +112,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             // copy/own params: ASAP after last use (deep copies, no aliasing).
             // locals: at function end (shared offsets mean locals can alias).
             let mut param_names: HashSet<String> = HashSet::new();
-            for arg_def in &func_def.args {
+            for arg_def in &func_def.sig.args {
                 if arg_def.is_copy || arg_def.is_own {
                     param_names.insert(arg_def.name.clone());
                 }
@@ -199,10 +199,8 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             let new_body = final_body;
 
             let new_func_def = SFuncDef {
-                function_type: func_def.function_type.clone(),
-                args: func_def.args.clone(),
-                return_types: func_def.return_types.clone(),
-                throw_types: func_def.throw_types.clone(),
+                sig: func_def.sig.clone(),
+                arg_names: func_def.arg_names.clone(),
                 body: new_body,
                 source_path: func_def.source_path.clone(),
             };
@@ -456,10 +454,10 @@ fn detect_shallow_copy_outparam(stmt: &Expr, local_types: &HashMap<String, Strin
     let func_def = &resolved.func_def;
 
     // Build "Type.method" name from resolved func_def's first arg type
-    if func_def.args.is_empty() {
+    if func_def.sig.args.is_empty() {
         return Ok(None);
     }
-    let self_type = match &func_def.args[0].value_type {
+    let self_type = match &func_def.sig.args[0].value_type {
         ValueType::TCustom(t) => t.clone(),
         _ => return Ok(None),
     };
@@ -476,8 +474,8 @@ fn detect_shallow_copy_outparam(stmt: &Expr, local_types: &HashMap<String, Strin
     }
 
     // Find last mut arg (the out-param)
-    let last_arg_idx = func_def.args.len() - 1;
-    if !func_def.args[last_arg_idx].is_mut {
+    let last_arg_idx = func_def.sig.args.len() - 1;
+    if !func_def.sig.args[last_arg_idx].is_mut {
         return Ok(None);
     }
 
@@ -587,7 +585,7 @@ fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec
     };
 
     // For each arg: if is_copy AND struct type AND identifier, wrap in Type.clone()
-    let arg_defs: &Vec<Declaration> = &func_def.args;
+    let arg_defs: &Vec<Declaration> = &func_def.sig.args;
     for (i, arg_def) in arg_defs.iter().enumerate() {
         let param_idx = i + 1; // params[0] is the function name
         if param_idx >= new_params.len() {
@@ -766,7 +764,7 @@ fn collect_own_transfers_recursive(e: &Expr, context: &Context, local_types: &Ha
                     // so skip args[0] (self) and map args[k] -> params[k] for k >= 1.
                     // For direct calls (Vec.push(tokens, t)), map args[i] -> params[i+1].
                     let arg_start: usize = if is_ufcs { 1 } else { 0 };
-                    for (i, arg_def) in func_def.args.iter().enumerate() {
+                    for (i, arg_def) in func_def.sig.args.iter().enumerate() {
                         if i < arg_start { continue; }
                         let param_idx = if is_ufcs { i } else { i + 1 };
                         if param_idx < e.params.len() && arg_def.is_own {

@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use crate::rs::ordered_map::OrderedMap;
 
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SEnumDef, SFuncDef, SNamespaceDef, FunctionType,
+    Expr, NodeType, ValueType, SStructDef, SEnumDef, SFuncDef, FuncSig, SNamespaceDef, FunctionType,
     Declaration,
 };
 
@@ -82,10 +82,13 @@ fn generate_delete_method(struct_name: &str, struct_def: &SStructDef, line: usiz
     }
 
     let func_def = SFuncDef {
-        function_type: FunctionType::FTProc,
-        args: vec![self_decl],
-        return_types: vec![],
-        throw_types: vec![],
+        sig: FuncSig {
+            function_type: FunctionType::FTProc,
+            args: vec![self_decl],
+            return_types: vec![],
+            throw_types: vec![],
+        },
+        arg_names: vec![self_param_name.to_string()],
         body: body_stmts,
         source_path: String::new(),
     };
@@ -197,10 +200,13 @@ fn generate_clone_method(struct_name: &str, struct_def: &SStructDef, line: usize
     );
 
     let func_def = SFuncDef {
-        function_type: FunctionType::FTFunc,
-        args: vec![self_decl],
-        return_types: vec![ValueType::TCustom(struct_name.to_string())],
-        throw_types: vec![],
+        sig: FuncSig {
+            function_type: FunctionType::FTFunc,
+            args: vec![self_decl],
+            return_types: vec![ValueType::TCustom(struct_name.to_string())],
+            throw_types: vec![],
+        },
+        arg_names: vec![self_param_name.to_string()],
         body: vec![return_stmt],
         source_path: String::new(),
     };
@@ -232,10 +238,13 @@ fn generate_enum_delete_method(enum_name: &str, line: usize, col: usize) -> Expr
     };
 
     let func_def = SFuncDef {
-        function_type: FunctionType::FTProc,
-        args: vec![self_decl],
-        return_types: vec![],
-        throw_types: vec![],
+        sig: FuncSig {
+            function_type: FunctionType::FTProc,
+            args: vec![self_decl],
+            return_types: vec![],
+            throw_types: vec![],
+        },
+        arg_names: vec!["_self".to_string()],
         body: vec![],
         source_path: String::new(),
     };
@@ -262,10 +271,13 @@ fn generate_enum_clone_method(enum_name: &str, line: usize, col: usize) -> Expr 
     );
 
     let func_def = SFuncDef {
-        function_type: FunctionType::FTFunc,
-        args: vec![self_decl],
-        return_types: vec![ValueType::TCustom(enum_name.to_string())],
-        throw_types: vec![],
+        sig: FuncSig {
+            function_type: FunctionType::FTFunc,
+            args: vec![self_decl],
+            return_types: vec![ValueType::TCustom(enum_name.to_string())],
+            throw_types: vec![],
+        },
+        arg_names: vec!["self".to_string()],
         body: vec![return_stmt],
         source_path: String::new(),
     };
@@ -444,10 +456,8 @@ fn preinit_expr_inner(e: &Expr) -> Result<Expr, String> {
                 new_body.push(preinit_expr_inner(stmt)?);
             }
             let new_func_def = SFuncDef {
-                function_type: func_def.function_type.clone(),
-                args: func_def.args.clone(),
-                return_types: func_def.return_types.clone(),
-                throw_types: func_def.throw_types.clone(),
+                sig: func_def.sig.clone(),
+                arg_names: func_def.arg_names.clone(),
                 body: new_body,
                 source_path: func_def.source_path.clone(),
             };

@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use crate::rs::init::{Context, SymbolInfo, EnumVal, EnumPayload, ScopeFrame, ScopeType, get_value_type, get_func_name_in_call, init_import_declarations, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, FunctionType, SFuncDef,
+    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, FunctionType, SFuncDef, FuncSig,
     value_type_to_str, get_combined_name, parse_tokens,
 };
 use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, type_check, check_body_returns_throws, typer_import_declarations, ThrownType};
@@ -63,7 +63,7 @@ fn to_ast_str(e: &Expr) -> String {
         //     return ast_str;
         // },
         NodeType::FuncDef(func_def) => {
-            match func_def.function_type {
+            match func_def.sig.function_type {
                 FunctionType::FTFunc => return "(func)".to_string(),
                 FunctionType::FTProc => return "(proc)".to_string(),
                 FunctionType::FTMacro => return "(macro)".to_string(),
@@ -194,15 +194,15 @@ fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &SFuncDef
     let has_multi_arg = func_proc_has_multi_arg(func_def);
 
     // Check exact count for non-variadic functions
-    if !has_multi_arg && func_def.args.len() != provided_args {
+    if !has_multi_arg && func_def.sig.args.len() != provided_args {
         return Err(e.lang_error(path, "eval", &format!("func '{}' expected {} args, but {} were provided.",
-                                                 name, func_def.args.len(), provided_args)));
+                                                 name, func_def.sig.args.len(), provided_args)));
     }
 
     // Check minimum count for variadic functions
-    if has_multi_arg && func_def.args.len() - 1 > provided_args {
+    if has_multi_arg && func_def.sig.args.len() - 1 > provided_args {
         return Err(e.lang_error(path, "eval", &format!("func '{}' expected at least {} args, but {} were provided.",
-                                                 name, func_def.args.len() - 1, provided_args)));
+                                                 name, func_def.sig.args.len() - 1, provided_args)));
     }
 
     Ok(())
@@ -970,8 +970,8 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
     };
     // Issue #91: Detect function signature definitions
     if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-        if func_def.body.is_empty() && func_def.args.iter().all(|a| a.name.is_empty())
-            && matches!(func_def.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+        if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
+            && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
             value_type = ValueType::TType(TTypeDef::TFuncSig);
         }
     }
@@ -981,7 +981,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
         if let Some(sym) = context.scope_stack.lookup_symbol(sig_name) {
             if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
                 if let Some(sfd) = context.scope_stack.lookup_func(sig_name) {
-                    value_type = ValueType::TFunction(sfd.function_type.clone());
+                    value_type = ValueType::TFunction(sfd.sig.function_type.clone());
                     is_sig_ref = true;
                 }
             }
@@ -1867,7 +1867,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     let mut pass_by_ref_params: std::collections::HashSet<String> = std::collections::HashSet::new(); // Track which params used pass-by-ref
     let mut params_consumed = false;
 
-    for arg in &func_def.args {
+    for arg in &func_def.sig.args {
         if !params_consumed {
         function_frame.symbols.insert(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
         match &arg.value_type {
@@ -2358,8 +2358,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
     // Save struct/enum return value info BEFORE popping (needed for return handling)
     // Bug #160: Deterministic dispatch - instance fields use get_field_offset
-    let saved_return_offset: Option<usize> = if func_def.return_types.len() == 1 {
-        if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
+    let saved_return_offset: Option<usize> = if func_def.sig.return_types.len() == 1 {
+        if let ValueType::TCustom(ref custom_type_name) = func_def.sig.return_types[0] {
             match custom_type_name.as_str() {
                 "I64" | "U8" | "Str" => None,
                 _ => {
@@ -2378,8 +2378,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     };
 
     // Save enum value if returning an enum variable (not constructor)
-    let saved_enum_value: Option<EnumVal> = if func_def.return_types.len() == 1 {
-        if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
+    let saved_enum_value: Option<EnumVal> = if func_def.sig.return_types.len() == 1 {
+        if let ValueType::TCustom(ref custom_type_name) = func_def.sig.return_types[0] {
             if let Some(custom_symbol) = context.scope_stack.lookup_symbol(custom_type_name) {
                 if custom_symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
                     if !result_str.contains('.') {
@@ -2538,8 +2538,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
     // If function returns a user-defined struct or enum, copy it back to caller frame as temp return val
     // NOTE: Frame already popped above, using saved_return_offset and saved_enum_value
-    if func_def.return_types.len() == 1 {
-        if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
+    if func_def.sig.return_types.len() == 1 {
+        if let ValueType::TCustom(ref custom_type_name) = func_def.sig.return_types[0] {
             // Skip primitive types I64, U8, Str - they return values directly
             match custom_type_name.as_str() {
                 "I64" | "U8" | "Str" => { /* Do nothing for primitive types */ },
@@ -2779,7 +2779,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         errors.extend(type_errors);
 
         // Check throw/catch and return things in the root body of the file (for modes script and test, for example)
-        let func_def = SFuncDef{args: vec![], body: vec![], function_type: FunctionType::FTProc, return_types: vec![], throw_types: vec![], source_path: path.clone()};
+        let func_def = SFuncDef{sig: FuncSig{function_type: FunctionType::FTProc, args: vec![], return_types: vec![], throw_types: vec![]}, arg_names: vec![], body: vec![], source_path: path.clone()};
         let mut thrown_types: Vec<ThrownType> = vec![];
         let mut return_found = false;
         errors.extend(check_body_returns_throws(context, &resolved_e, &func_def, resolved_e.params.as_slice(), &mut thrown_types, &mut return_found)?);
