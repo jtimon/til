@@ -170,7 +170,7 @@ format_maxrss := func(kb: I64) returns Str {
 run_timed := proc(mut output: Str, mut time_ms: I64, mut maxrss_kb: I64, cmd: Str) returns I64 {
     // Build wrapped command based on OS
     mut wrapped := ""
-    if g_is_linux {
+    if g_has_gnu_time {
         wrapped = format("LC_ALL=C time -v bash -c '", cmd, "' 2>&1")
     } else {
         // Group braces + 2>&1 needed so bash time stderr output gets captured
@@ -179,7 +179,7 @@ run_timed := proc(mut output: Str, mut time_ms: I64, mut maxrss_kb: I64, cmd: St
     mut full_output := ""
     exit_code := full_output.run_cmd("bash", "-c", wrapped)
 
-    if g_is_linux {
+    if g_has_gnu_time {
         // Linux: parse GNU time output using markers
         // Truncate huge outputs (e.g., gcc errors) to prevent hangs
         max_output := 2000

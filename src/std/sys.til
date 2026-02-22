@@ -3,12 +3,20 @@ mode lib
 // Global flag: true on Linux, false on macOS (Darwin)
 mut g_is_linux := true
 
+// Global flag: true if GNU time (time -v) is available
+mut g_has_gnu_time := false
+
 // Detect OS at startup - call from main() before using g_is_linux
 detect_os := proc() {
     mut uname_out := ""
     _ := uname_out.run_cmd("uname")
     if uname_out.find("Darwin").gt(sub(0, 1)) {
         g_is_linux = false
+    }
+    // Detect GNU time availability (Linux may not have it, e.g. containers)
+    // Use file_mtime to check if /usr/bin/time exists (no subprocess needed)
+    if g_is_linux.and(file_mtime("/usr/bin/time").gt(sub(0, 1))) {
+        g_has_gnu_time = true
     }
 }
 
