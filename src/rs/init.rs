@@ -518,6 +518,8 @@ pub fn get_func_name_in_call(e: &Expr) -> String {
                 NodeType::Identifier(f_name) => return f_name.clone(),
                 // Issue #105: anonymous struct instantiation - struct { ... }(args)
                 NodeType::StructDef(_) => return "AnonStructInline".to_string(),
+                // Issue #106: anonymous enum in expression position
+                NodeType::EnumDef(_) => return "AnonEnumInline".to_string(),
                 node_type => return e.exit_error(
                     "init", &format!("in get_func_name_in_call(): Identifiers can only contain identifiers, found '{:?}'", node_type)),
             }
@@ -1650,6 +1652,8 @@ pub struct Context {
     pub anon_struct_decls: Vec<Expr>,
     // Issue #106: Counter for anonymous enum definitions (first-class enums)
     pub anon_enum_counter: usize,
+    // Issue #106: Pending anonymous enum declarations to inject into AST
+    pub anon_enum_decls: Vec<Expr>,
     // Issue #91: Counter and map for anonymous inline functions
     pub anon_func_counter: usize,
     pub anon_func_map: HashMap<(usize, usize), String>,  // (line, col) -> temp name
@@ -1687,8 +1691,9 @@ impl Context {
             // Issue #105: Initialize anonymous struct counter and pending declarations
             anon_struct_counter: 0,
             anon_struct_decls: Vec::new(),
-            // Issue #106: Initialize anonymous enum counter
+            // Issue #106: Initialize anonymous enum counter and pending declarations
             anon_enum_counter: 0,
+            anon_enum_decls: Vec::new(),
             // Issue #91: Initialize anonymous function counter and map
             anon_func_counter: 0,
             anon_func_map: HashMap::new(),

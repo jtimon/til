@@ -284,6 +284,11 @@ first_variant_name : macro(T: Type) returns Str = {
 assert_eq_str(loc(), "Red", first_variant_name(Color106))
 assert_eq_str(loc(), "None", first_variant_name(TaggedVal106))
 
+// Issue #106: Anonymous enum as inline argument
+assert_eq(loc(), 3, count_variants(enum { Red, Green, Blue }))
+assert_eq(loc(), 2, count_variants(enum { None, Some: I64 }))
+assert_eq_str(loc(), "A", first_variant_name(enum { A, B, C }))
+
 // Issue #105 Step 4d: Explicit metatype annotations
 // StructDef annotation
 MetaPoint : StructDef = struct {

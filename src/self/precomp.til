@@ -688,11 +688,26 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                 }
                 modified = true
             }
+            mut struct_result := p
             if was_expanded {
-                new_params.push(expanded_p)
+                struct_result = expanded_p
+                modified = true
+            }
+            // Issue #106: Recurse into function/proc body to expand anonymous enum definitions
+            mut pending_enum_decls := Vec.new(Expr)
+            mut enum_was_expanded := false
+            expanded_enum_p := expand_anon_enum_fcalls_recursive(context, struct_result, pending_enum_decls, enum_was_expanded)?
+            if pending_enum_decls.len().gt(0) {
+                for ped: Expr in pending_enum_decls {
+                    new_params.push(ped.clone())
+                }
+                modified = true
+            }
+            if enum_was_expanded {
+                new_params.push(expanded_enum_p)
                 modified = true
             } else {
-                new_params.push(p)
+                new_params.push(struct_result)
             }
         }
     }
@@ -880,6 +895,114 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
         return Expr.new_clone(e.node_type, e, ear_new_params)
     }
     return e.clone()
+}
+
+/// Issue #106: Recursively walk an expression and expand anonymous enum definitions.
+/// Sets was_expanded to true and returns modified expr if any change was made.
+/// pending_decls collects enum declarations to inject at top level.
+expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pending_decls: Vec, mut was_expanded: Bool) returns Expr throws Str = {
+    // Check if this is a bare EnumDef node -- replace with a registered anonymous enum
+    switch e.node_type {
+    case NodeType.EnumDef(eaer_enum_def):
+        eaer_temp := format("AnonEnum", I64.to_str(context.anon_enum_counter))
+        context.anon_enum_counter.inc()
+        context.scope_stack.declare_enum(eaer_temp, eaer_enum_def.clone())?
+        context.scope_stack.declare_symbol(eaer_temp, SymbolInfo(value_type=ValueType.TType(TTypeDef.TEnumDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+        // Generate enum methods (delete/clone) and set ns on enum
+        mut eaer_updated_enum_def := eaer_enum_def.clone()
+        eaer_auto_ns := generate_enum_methods(eaer_temp, false, false, e.line, e.col)
+        if eaer_auto_ns.members.len().gt(0) {
+            eaer_updated_enum_def.ns = eaer_auto_ns
+            mut eaer_ns_errors := Vec.new(Str)
+            init_namespace_into_enum(context, eaer_temp, eaer_updated_enum_def.ns, e, eaer_ns_errors)?
+            if eaer_ns_errors.len().gt(0) {
+                throw eaer_ns_errors.join("\n")
+            }
+        }
+        context.scope_stack.declare_enum(eaer_temp, eaer_updated_enum_def.clone())?
+        // Build enum definition declaration for codegen
+        mut eaer_decl := Declaration()
+        eaer_decl.name = eaer_temp.clone()
+        eaer_decl.value_type = ValueType.TType(TTypeDef.TEnumDef)
+        eaer_decl.is_mut = false
+        eaer_decl.is_copy = false
+        eaer_decl.is_own = false
+        mut eaer_dp := Vec.new(Expr)
+        eaer_dp.push(Expr.new_clone(NodeType.EnumDef(eaer_updated_enum_def), e, Vec.new(Expr)))
+        eaer_decl_expr := Expr.new_clone(NodeType.Declaration(eaer_decl), e, eaer_dp)
+        pending_decls.push(eaer_decl_expr)
+        // Replace EnumDef with Identifier
+        eaer_id := Expr.new_clone(NodeType.Identifier(eaer_temp), e, Vec.new(Expr))
+        was_expanded = true
+        return eaer_id
+    case:
+    }
+
+    // Check if this is a Declaration with an EnumDef value (e.g. Color := enum { ... })
+    // Only process if the enum isn't already registered (avoids duplicating top-level enums)
+    switch e.node_type {
+    case NodeType.Declaration(eaer_decl):
+        if e.params.len().gt(0) {
+            eaer_first := cast(Expr, e.params.get(0)?)
+            switch eaer_first.node_type {
+            case NodeType.EnumDef(_):
+                if context.scope_stack.has_enum(eaer_decl.name) {
+                    // Already registered at top level - skip
+                    return e.clone()
+                }
+                // Not registered yet (inside function body) - let it through
+                return e.clone()
+            case:
+            }
+        }
+    case:
+    }
+
+    // Recurse into child expressions
+    mut eaer_any_changed := false
+    mut eaer_new_params := Vec.new(Expr)
+    for eaer_cp: Expr in e.params {
+        mut eaer_cp_changed := false
+        eaer_cp_result := expand_anon_enum_fcalls_recursive(context, eaer_cp, pending_decls, eaer_cp_changed)?
+        if eaer_cp_changed {
+            eaer_new_params.push(eaer_cp_result)
+            eaer_any_changed = true
+        } else {
+            eaer_new_params.push(eaer_cp.clone())
+        }
+    }
+
+    // Also recurse into FuncDef bodies
+    switch e.node_type {
+    case NodeType.FuncDef(eaer_func_def):
+        mut eaer_body_changed := false
+        mut eaer_new_body := Vec.new(Expr)
+        for eaer_bs: Expr in eaer_func_def.body {
+            mut eaer_bs_changed := false
+            eaer_bs_result := expand_anon_enum_fcalls_recursive(context, eaer_bs, pending_decls, eaer_bs_changed)?
+            if eaer_bs_changed {
+                eaer_new_body.push(eaer_bs_result)
+                eaer_body_changed = true
+            } else {
+                eaer_new_body.push(eaer_bs.clone())
+            }
+        }
+        if eaer_body_changed {
+            mut eaer_new_func_def := eaer_func_def.clone()
+            eaer_new_func_def.body = eaer_new_body
+            was_expanded = true
+            return Expr.new_clone(NodeType.FuncDef(eaer_new_func_def), e, eaer_new_params)
+        }
+    case:
+    }
+
+    if eaer_any_changed {
+        was_expanded = true
+        return Expr.new_clone(e.node_type, e, eaer_new_params)
+    }
+    return e.clone()
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // ---------- Main entry point
@@ -1216,6 +1339,7 @@ precomp_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
         saved_decl_count := context.anon_struct_decls.len()
+        saved_enum_decl_count := context.anon_enum_decls.len()
         result := precomp_expr(context, p)?
         // Issue #105: inject pending anonymous struct declarations before the statement that uses them
         if context.anon_struct_decls.len().gt(saved_decl_count) {
@@ -1224,6 +1348,13 @@ precomp_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 new_params.push(pending_decl.clone())
             }
             context.anon_struct_decls = Vec.new(Expr)
+        }
+        // Issue #106: inject pending anonymous enum declarations before the statement that uses them
+        if context.anon_enum_decls.len().gt(saved_enum_decl_count) {
+            for pending_enum_decl: Expr in context.anon_enum_decls {
+                new_params.push(pending_enum_decl.clone())
+            }
+            context.anon_enum_decls = Vec.new(Expr)
         }
         new_params.push(result)
     }

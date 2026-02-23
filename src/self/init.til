@@ -780,6 +780,9 @@ get_func_name_in_call : func(e: Expr) returns Str throws Str = {
     // Issue #105: anonymous struct instantiation - struct { ... }(args)
     case NodeType.StructDef(_):
         func_name = "AnonStructInline"
+    // Issue #106: anonymous enum in expression position
+    case NodeType.EnumDef(_):
+        func_name = "AnonEnumInline"
     case:
         mut param_node_type_str := enum_to_str(param.node_type)
         throw format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", param_node_type_str, "'")
@@ -2259,6 +2262,8 @@ Context := struct {
     mut anon_struct_decls: Vec = Vec.new(Expr)
     // Issue #106: Counter for anonymous enum definitions (first-class enums)
     mut anon_enum_counter: I64 = 0
+    // Issue #106: Pending anonymous enum declarations to inject into AST
+    mut anon_enum_decls: Vec = Vec.new(Expr)
     // Issue #91: Counter and map for anonymous inline functions
     mut anon_func_counter: I64 = 0
     mut anon_func_map: Map = Map.new(Str, Str)  // "(line,col)" -> temp name

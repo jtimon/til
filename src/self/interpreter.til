@@ -440,7 +440,7 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
     case NodeType.EnumDef(enum_def):
         // Issue #106: First-class enums - register as anonymous enum and return the name
         // Register in global frame so it survives function scope pops (e.g. macro returns)
-        enum_temp_name := format("__anon_enum_", I64.to_str(context.anon_enum_counter))
+        enum_temp_name := format("AnonEnum", I64.to_str(context.anon_enum_counter))
         context.anon_enum_counter.inc()
         context.scope_stack.declare_enum_global(enum_temp_name, enum_def.clone())?
         return EvalResult.new(enum_temp_name)

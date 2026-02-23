@@ -494,11 +494,26 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
             }
             modified = true;
         }
-        if maybe_expanded.is_some() {
-            new_params.push(maybe_expanded.unwrap());
+        let struct_result = if maybe_expanded.is_some() {
+            modified = true;
+            maybe_expanded.unwrap()
+        } else {
+            p.clone()
+        };
+        // Issue #106: Recurse into function/proc body to expand anonymous enum definitions
+        let mut pending_enum_decls = Vec::new();
+        let maybe_enum_expanded = expand_anon_enum_fcalls_recursive(context, &struct_result, &mut pending_enum_decls)?;
+        if !pending_enum_decls.is_empty() {
+            for decl in pending_enum_decls {
+                new_params.push(decl);
+            }
+            modified = true;
+        }
+        if maybe_enum_expanded.is_some() {
+            new_params.push(maybe_enum_expanded.unwrap());
             modified = true;
         } else {
-            new_params.push(p.clone());
+            new_params.push(struct_result);
         }
     }
 
@@ -636,6 +651,101 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
         let mut new_body = Vec::new();
         for stmt in &func_def.body {
             if let Some(expanded) = expand_anon_struct_fcalls_recursive(context, stmt, pending_decls)? {
+                new_body.push(expanded);
+                body_changed = true;
+            } else {
+                new_body.push(stmt.clone());
+            }
+        }
+        if body_changed {
+            let mut new_func_def = func_def.clone();
+            new_func_def.body = new_body;
+            return Ok(Some(Expr::new_clone(NodeType::FuncDef(new_func_def), e, new_params)));
+        }
+    }
+
+    if any_changed {
+        Ok(Some(Expr::new_clone(e.node_type.clone(), e, new_params)))
+    } else {
+        Ok(None)
+    }
+}
+
+// Issue #106: Expand anonymous enum definitions in FCall arguments and declarations
+// Mirrors expand_anon_struct_fcalls_recursive but for EnumDef nodes.
+// Key difference: enums appear as Type arguments (any param position), not as constructors (first param).
+fn expand_anon_enum_fcalls_recursive(context: &mut Context, e: &Expr, pending_decls: &mut Vec<Expr>) -> Result<Option<Expr>, String> {
+    // Check if this is a bare EnumDef node -- replace with a registered anonymous enum
+    if let NodeType::EnumDef(enum_def) = &e.node_type {
+        let temp_name = format!("AnonEnum{}", context.anon_enum_counter);
+        context.anon_enum_counter += 1;
+        context.scope_stack.declare_enum(temp_name.clone(), enum_def.clone());
+        context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
+            value_type: ValueType::TType(TTypeDef::TEnumDef),
+            is_mut: false, is_copy: false, is_own: false, is_comptime_const: false,
+        });
+        // Generate enum methods (delete/clone) and set ns on enum
+        let mut updated_enum_def = enum_def.clone();
+        if let Some(auto_ns) = generate_enum_methods(&temp_name, false, false, e.line, e.col) {
+            updated_enum_def.ns = auto_ns;
+            let mut ns_errors_vec = Vec::new();
+            crate::rs::init::init_namespace_into_enum(context, &temp_name, &updated_enum_def.ns, e, &mut ns_errors_vec);
+            if !ns_errors_vec.is_empty() {
+                return Err(ns_errors_vec.join("\n"));
+            }
+        }
+        context.scope_stack.declare_enum(temp_name.clone(), updated_enum_def.clone());
+        // Build enum definition declaration for codegen
+        let enum_decl = Declaration {
+            name: temp_name.clone(),
+            value_type: ValueType::TType(TTypeDef::TEnumDef),
+            is_mut: false, is_copy: false, is_own: false, default_value: None,
+        };
+        let enum_decl_expr = Expr::new_clone(
+            NodeType::Declaration(enum_decl),
+            e,
+            vec![Expr::new_clone(NodeType::EnumDef(updated_enum_def), e, vec![])],
+        );
+        pending_decls.push(enum_decl_expr);
+        // Replace EnumDef with Identifier
+        let id_expr = Expr::new_clone(NodeType::Identifier(temp_name.clone()), e, vec![]);
+        return Ok(Some(id_expr));
+    }
+
+    // Check if this is a Declaration with an EnumDef value (e.g. Color := enum { ... })
+    // Only process if the enum isn't already registered (avoids duplicating top-level enums)
+    if let NodeType::Declaration(decl) = &e.node_type {
+        if !e.params.is_empty() {
+            if let NodeType::EnumDef(_) = &e.params[0].node_type {
+                if context.scope_stack.lookup_enum(&decl.name).is_some() {
+                    // Already registered at top level - skip
+                    return Ok(None);
+                }
+                // Not registered yet (inside function body) - let it through for
+                // normal processing by precomp_declaration
+                return Ok(None);
+            }
+        }
+    }
+
+    // Recurse into child expressions
+    let mut any_changed = false;
+    let mut new_params = Vec::new();
+    for p in &e.params {
+        if let Some(expanded) = expand_anon_enum_fcalls_recursive(context, p, pending_decls)? {
+            new_params.push(expanded);
+            any_changed = true;
+        } else {
+            new_params.push(p.clone());
+        }
+    }
+
+    // Also recurse into FuncDef bodies
+    if let NodeType::FuncDef(func_def) = &e.node_type {
+        let mut body_changed = false;
+        let mut new_body = Vec::new();
+        for stmt in &func_def.body {
+            if let Some(expanded) = expand_anon_enum_fcalls_recursive(context, stmt, pending_decls)? {
                 new_body.push(expanded);
                 body_changed = true;
             } else {
@@ -935,10 +1045,18 @@ fn precomp_body(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     let mut new_params = Vec::new();
     for p in &e.params {
         let saved_decl_count = context.anon_struct_decls.len();
+        let saved_enum_decl_count = context.anon_enum_decls.len();
         let result = precomp_expr(context, p)?;
         // Issue #105: inject pending anonymous struct declarations before the statement that uses them
         if context.anon_struct_decls.len() > saved_decl_count {
             let pending: Vec<Expr> = context.anon_struct_decls.drain(saved_decl_count..).collect();
+            for decl in pending {
+                new_params.push(decl);
+            }
+        }
+        // Issue #106: inject pending anonymous enum declarations before the statement that uses them
+        if context.anon_enum_decls.len() > saved_enum_decl_count {
+            let pending: Vec<Expr> = context.anon_enum_decls.drain(saved_enum_decl_count..).collect();
             for decl in pending {
                 new_params.push(decl);
             }

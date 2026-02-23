@@ -520,7 +520,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::EnumDef(enum_def) => {
             // Issue #106: First-class enums - register as anonymous enum and return the name
             // Register in global frame so it survives function scope pops (e.g. macro returns)
-            let temp_name = format!("__anon_enum_{}", context.anon_enum_counter);
+            let temp_name = format!("AnonEnum{}", context.anon_enum_counter);
             context.anon_enum_counter += 1;
             if let Some(global_frame) = context.scope_stack.frames.first_mut() {
                 global_frame.enums.insert(temp_name.clone(), enum_def.clone());
