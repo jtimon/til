@@ -13,6 +13,113 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #186: Symbol tracking performance -- is_consumed flag, is_used on SymbolInfo
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Performance, correctness, and better error messages
+:STATUS: Open
+:RELATED: Issue #185 (own at call sites), Bug #101 (unused variable warnings), Issue #117 (ASAP destruction)
+:END:
+
+*** Current state (Rust analysis)
+
+**** Unused variable tracking (Bug #101)
+
+~used_symbols~ is a ~HashSet<String>~ on ~ScopeStack~ (function-level, not
+per-symbol). Every identifier reference calls ~mark_symbol_used(name)~ which
+does ~self.used_symbols.insert(name.to_string())~ -- a string allocation + hash
++ insert for every single identifier use in the program.
+
+At function exit, ~get_unused_symbols()~ iterates ~function_locals~ Vec and
+checks each name against the HashSet. The ~function_locals~ Vec itself uses
+linear search for deduplication (~is_already_processed~ scans the whole Vec).
+
+Location: ~src/rs/init.rs:101~ (~used_symbols~), ~src/rs/init.rs:160~
+(~mark_symbol_used~), ~src/rs/init.rs:166~ (~get_unused_symbols~),
+~src/rs/typer.rs:270~ (call site), ~src/rs/typer.rs:1094~ (unused check).
+
+**** Own-consumed variable tracking (Issue #117)
+
+When a variable is passed to an ~own~ parameter, the typer calls
+~remove_symbol(var_name)~ (~src/rs/typer.rs:880~) which physically removes
+the symbol from the scope frame's HashMap. If ~removal_tracking_depth > 0~,
+it also logs the removal in ~removed_log: Vec<RemovedSymbol>~.
+
+The removal tracking exists because Bug #162 found that ~check_body_returns_throws~
+re-walks the AST for UFCS resolution and needs the consumed symbols back.
+So the typer saves/drains/restores consumed symbols around the two walks
+(~src/rs/typer.rs:1047-1054~).
+
+This means every own-consumption triggers:
+1. HashMap remove
+2. Vec push (if tracking)
+3. Vec split_off (drain)
+4. Vec iteration + HashMap re-insert (restore)
+
+All for what could be a single boolean flag on the symbol.
+
+*** Proposed improvement: flags on SymbolInfo
+
+Instead of removing symbols and tracking them separately, add flags directly
+to ~SymbolInfo~:
+
+#+BEGIN_SRC rust
+pub struct SymbolInfo {
+    pub value_type: ValueType,
+    pub is_mut: bool,
+    pub is_copy: bool,
+    pub is_own: bool,
+    pub is_comptime_const: bool,
+    // NEW:
+    pub is_consumed: bool,       // ownership was transferred
+    pub consumed_by: String,     // which function consumed it (for error msg)
+    pub consumed_line: i64,      // where (for error msg)
+    pub consumed_col: i64,       // where (for error msg)
+    pub is_used: bool,           // variable was referenced at least once
+}
+#+END_SRC
+
+Benefits:
+- ~is_consumed~: No HashMap remove/re-insert cycle. Just set a flag. The
+  "Undefined symbol" check becomes: "is symbol absent? -> undefined. is symbol
+  consumed? -> ownership transferred error. otherwise -> valid."
+- ~is_used~: No separate HashSet. Just set a flag on lookup. ~get_unused_symbols~
+  iterates symbols in scope and checks the flag. Saves all the string allocations
+  from ~mark_symbol_used~.
+- Eliminates ~removed_log~, ~removal_tracking_depth~, ~begin/end_removal_tracking~,
+  ~drain_removals_since~, ~restore_removed~ -- all replaced by a single flag that
+  can be set/unset.
+- The save/restore dance in ~check_func_proc_types~ becomes: save consumed state,
+  clear flags, walk, restore flags.
+
+*** Performance impact
+
+Every identifier use currently does: ~used_symbols.insert(name.to_string())~
+= 1 heap allocation + hash computation + HashSet insert. With ~is_used~ on
+SymbolInfo: ~lookup_symbol(name)~ already happens, just set a bool on the
+result. Zero extra allocations.
+
+Every own-transfer currently does: HashMap remove + conditional Vec push +
+later Vec split_off + HashMap re-inserts. With ~is_consumed~ on SymbolInfo:
+set 4 fields on the already-looked-up symbol. Zero extra allocations.
+
+For TIL (compiled C), the difference is even larger because Map/Set operations
+involve dynamic dispatch through the eval heap.
+
+*** Implementation notes
+
+- ~has_symbol~ must return false for consumed symbols (or add ~has_live_symbol~)
+  so existing "Undefined symbol" paths still trigger
+- ~lookup_symbol~ should still find consumed symbols so the error path can
+  read ~consumed_by~ / ~consumed_line~
+- Need ~lookup_symbol_any~ (finds consumed too) vs ~lookup_symbol~ (skips consumed)
+  OR keep one ~lookup_symbol~ and check ~is_consumed~ at each call site
+- The typer's save/restore for Bug #162 becomes: snapshot consumed flags before
+  first walk, restore after (instead of the remove/log/drain/restore cycle)
+- ~is_used~ replaces the entire ~used_symbols: HashSet<String>~ field on ScopeStack
+- ~function_locals~ Vec is still needed for shadowing detection (it tracks
+  declaration locations, not just names)
+
 ** Issue #182: Closures -- explicit capture lists for functions and blocks
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
