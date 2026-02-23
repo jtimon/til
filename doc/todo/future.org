@@ -14,6 +14,165 @@ see features.org. For bugs, see bugs.org.
 
 * Open Issues
 
+** Bug #130: Unify type resolution with type checking into single pass
+:PROPERTIES:
+:DISCOVERED: 2026-01-21
+:IMPACT: Two separate passes (check_types + resolve_inferred_types) when one would suffice
+:STATUS: Open
+:RELATED: Bug #128 (completed prerequisite work)
+:END:
+
+*** Description
+Currently typer has two passes: check_types() validates types, then resolve_inferred_types()
+replaces INFER_TYPE with concrete types. These should be merged into a single pass that
+both checks types and resolves INFER_TYPE in one traversal.
+
+*** Background
+Bug #128 cleaned up INFER_TYPE handling across the codebase (Steps 2-6). This is the
+remaining work (was Step 7) split into its own bug for clarity.
+
+*** Fix
+Merge check_types() and resolve_inferred_types() into a single function that:
+1. Validates types as it traverses
+2. Replaces INFER_TYPE with resolved types in the same pass
+3. Returns the modified AST with all types resolved
+
+Files: src/rs/typer.rs, src/self/typer.til
+
+** Issue #152: Migrate doc/todo files to numbered issue system
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:IMPACT: Documentation cleanup, better tracking
+:STATUS: Open
+:END:
+
+*** Description
+Several doc/todo files use older TODO/checklist systems instead of the numbered
+issue tracking system. These should be reviewed and migrated.
+
+*** Files Using Numbered System (done)
+- bugs.org - Bug #N format
+- future.org - Issue #N format
+- post.org - Issue #N format
+- os.org - Issue #N format
+- optimizations.org - Optimization #N format
+
+*** Files to Migrate
+
+**** post_old.org (31KB) - partial extraction done
+Remaining items to extract or delete:
+- List/Tuple support
+- Negative number literals
+- Guards for pattern matching
+- Default keyword for switch
+- Struct literals
+- Cast operations
+- Operator overloading
+- Type checking edge cases
+- safe_script mode
+- pure mode
+- Performance optimizations
+- Memory management
+- Better error messages
+- Code quality improvements
+- Memory error handling
+- More test cases
+- Improve documentation
+- Other number types
+- Unset default values in structs
+- Better import caching
+
+Likely duplicates to verify:
+- Closures -> Issue #91 (First-Class Functions)
+- Macros -> Issue #88 (Macro Support)
+- Error handling -> Bug #98 (ext_proc error types) - FIXED
+- Code quality -> Issue #142 (Context Error Helpers)
+
+**** wish.org (1.6KB) - wishlist/checklist
+- Forbidden keywords with helpful error messages
+- Dynamic error messages with user identifiers
+
+**** clone.org (6.3KB) - task tracker
+- 368 missing .clone() calls to port from Rust to TIL
+- 6/14 files done
+
+**** introspection.org (6.4KB) - design doc
+- Runtime introspection system design
+- has_const/has_field implemented, more TODO
+
+**** special.org (8.6KB) - technical debt catalog
+- Catalog of Rust special cases for primitive types
+- Reference doc, may not need issues
+
+**** mandatory.org (7.8KB) - completed feature
+- clone/len/size requirements - all phases complete
+- Could be moved to doc/ as reference
+
+**** pre.org - DONE (migrated to fixed.org as #pre, file deleted)
+
+**** pass_by_ref.org - DONE (content already in doc/ownership.org, file deleted)
+
+**** 108.org (11.8KB) - deep dive doc
+- Detailed design for Issue #108 (Namespaces)
+- Supplement to future.org entry
+
+**** Obsolete files (can delete)
+- shadow.org (3KB) - obsolete plan, Bug #65 already fixed
+- byref_plan.org, byref-params-plan.md - likely obsolete
+- attempt_const.org - likely obsolete attempt
+- wip_offsets.org - likely obsolete WIP
+- scope.org, scope_refactor_prep.md - likely obsolete
+- precomp_overhaul.org - likely obsolete
+
+**** Unchecked files
+- dry.org (21KB)
+- techdebt.org (22.8KB)
+- self_hosting.org (24KB)
+- self.md (15KB)
+
+*** After Migration
+Delete or archive files once content is properly tracked in numbered issues.
+
+** Bug #169: Get rid of memcmp
+:PROPERTIES:
+:DISCOVERED: 2026-02-10
+:IMPACT: Semantic correctness -- memcmp compares raw bytes (pointers, padding) not logical values
+:STATUS: Step 1 done (pure TIL memcmp). Steps 2-4 blocked by Dynamic having no type dispatch.
+:RELATED: Bug #166 (container type info duplication, memcmp elem_size=0 breakage)
+:END:
+
+*** Problem
+Containers (Vec, Set, Map, HashMap) use ~memcmp~ to compare elements. This
+compares raw struct bytes -- meaning pointer values, padding bytes, and all.
+Two structs with identical logical content but different pointer addresses
+(e.g. two Str with same text but different allocations) will compare as
+NOT equal. Creates interpreted/compiled divergence.
+
+*** Current usage (as of 2026-02-20)
+7 call sites in production code, all in containers:
+- set.til (3): insert, remove, contains -- element comparison
+- vec.til (2): _is_str_type (type tag check) + contains (element comparison)
+- map.til (1): key comparison for non-Str keys
+- hashmap.til (1): key comparison for non-Str keys
+All containers already special-case Str (using Str.eq()). memcmp is the
+fallback for all other types. Works correctly for value types (I64, U8, Bool)
+since their raw bytes ARE the value. Broken for any struct with heap pointers.
+
+*** Blocker
+Containers hold ~Dynamic~ parameters and use ~elem_type~ (a string) to know
+the type. They already special-case Str. Could extend the pattern to dispatch
+.eq() for other types, but that's a lot of per-type boilerplate. In practice
+memcmp works for value types (I64, U8, Bool) which are the common case.
+The real problem is only for struct types with heap pointers as container
+elements, which is rare.
+
+*** Plan
+- Step 1: Replace ext_func memcmp with pure TIL implementation (DONE)
+  Removed C/Rust/TIL-interpreter implementations. memcmp is now a regular
+  TIL function in mem.til using byte-by-byte comparison via memcpy+to_ptr.
+- Step 2: Extend elem_type dispatch to cover more types if needed
+- Step 3: Remove memcmp entirely (or keep for low-level use only)
+
 ** Issue #186: Symbol tracking performance -- is_consumed flag, is_used on SymbolInfo
 :PROPERTIES:
 :DISCOVERED: 2026-02-23

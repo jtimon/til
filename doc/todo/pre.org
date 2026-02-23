@@ -1686,6 +1686,361 @@ Move all OS-specific code into ~ext.c~ and precompile it for each target:
 - Size impact of shipping multiple .o files?
 - Alternative: use ~zig cc~ which bundles everything (simpler but adds dependency)
 
+** Bug #170: Scope-exit deletion for local variables
+:PROPERTIES:
+:DISCOVERED: 2026-02-11
+:IMPACT: Memory leak -- locals only deleted at function end (or never if catch blocks exist)
+:STATUS: Open -- two approaches failed 2026-02-11, see implementation notes
+:RELATED: Bug #165 (memory leak), Bug #159 (shallow copies), Issue #117 (ASAP destruction)
+:END:
+
+*** Problem
+The garbager deletes local mut variables at function end only (and skips them
+entirely if the function has catch blocks). Locals declared in inner scopes
+(if/while/for) leak until function end or forever. copy/own params get ASAP
+deletion after last use, but locals don't.
+
+*** Design: unified scope-exit deletion
+One concept: *delete at scope exit*. Every deletable variable gets deleted when
+its declaring scope ends. All current deletion triggers are specific cases of
+scope exit:
+
+| Trigger                  | What it is                                    |
+|--------------------------+-----------------------------------------------|
+| ~}~ of if/while/for      | Scope exit for variables declared inside       |
+| ~return~                  | Scope exit for entire function                 |
+| ~throw~                   | Scope exit for entire function                 |
+| ~own~ arg call            | Early scope exit for that one variable         |
+
+Reverse declaration order within a scope naturally handles the container-
+outlives-alias problem: ~elem := vec.get(0)~ is declared after ~vec~, so
+~elem~ is deleted first, then ~vec~.
+
+*** What the garbager needs to do
+
+**** For each scope boundary (~}~ of if/while/for/block):
+Insert ~Type.delete(var)~ for each deletable mut variable declared in that
+scope, in reverse declaration order. Respect ~dont_delete~ as today.
+
+**** For ~return~ statements:
+Insert deletes for ALL in-scope deletable mut variables before the return.
+Reverse declaration order, innermost scope first.
+
+**** For ~throw~ paths:
+Same as return -- delete everything in scope before the throw. But only
+variables guaranteed to have been initialized (declared before the throw
+point, not conditionally).
+
+**** For ~own~ transfers:
+Already handled: variable is consumed, removed from deletion candidates.
+
+*** Open questions
+
+1. *Const locals:* Should const locals also get scope-exit deletion (relying
+   on reverse declaration order for safety), or only mut locals for now?
+   Const locals are more likely to be aliases (field extractions), but reverse
+   declaration order may handle that. Need to verify with concrete examples.
+
+2. *Catch blocks:* Keep current conservative approach (skip all deletion if
+   any catch exists) or implement smarter analysis (only skip variables whose
+   initialization could be skipped by a throw)? Smarter is more complex but
+   covers more functions since many functions have catch blocks.
+
+3. *Scope tracking in garbager:* Currently does a flat scan of function body.
+   Needs to understand nesting (if/while/for bodies are nested Expr params).
+   The garbager already recurses into bodies for other transforms -- need to
+   check if scope info is available or needs threading through.
+
+4. *ccodegen impact:* If garbager inserts scope-exit deletes into the AST,
+   ccodegen just emits them -- probably no ccodegen changes needed. Verify.
+
+5. *Reassignment:* ~mut x := Str.new("a"); x = Str.new("b")~ -- the old value
+   leaks. Scope-exit deletion only frees the final value. The old value needs
+   clone-on-assign + delete-old-value semantics (Bug #159 territory, not this
+   bug).
+
+*** Implementation attempt 2026-02-11 -- two approaches failed
+
+**** Attempt 1: ASAP deletion for top-level locals
+Changed end-of-function locals to use ~find_last_use_index()~ (same as
+copy/own params). Result: 89/92 tests failed with ~free(): invalid pointer~.
+
+Root cause: shallow-copy aliasing (Bug #159). Pattern:
+#+begin_example
+mut tokens := lex("mode safe_script")
+mut first_token := Token()
+tokens.get(0, first_token)   // shallow copy -- first_token aliases tokens[0]
+// ... more code using first_token ...
+// ASAP: Vec.delete(tokens) inserted here (last direct reference to "tokens")
+// ... first_token.text is now dangling -- freed with tokens
+#+end_example
+
+~Vec.get()~, ~Array.get()~, field access -- all do shallow memcpy. The
+extracted value aliases heap pointers in the container. Deleting the container
+ASAP frees the shared heap data while the alias is still live.
+
+The original code comment was correct:
+: // locals: at function end (shared offsets mean locals can alias).
+
+ASAP deletion is only safe for copy/own params because the garbager inserts
+~Type.clone()~ for those, giving them independent heap data.
+
+**** Attempt 2: Collect inner-scope locals, delete at function end
+Added ~collect_declarations_recursive()~ to scan Body nodes inside
+if/while/for and add their declarations to the function-end deletion list.
+Result: 69/92 tests failed with signal 11 (SIGSEGV).
+
+Root cause: conditional initialization. Pattern:
+#+begin_example
+func foo(x: I64) {
+    if x > 0 {
+        mut thing := SomeStruct()   // only initialized when x > 0
+    }
+    // garbager inserts: SomeStruct.delete(thing)  -- SIGSEGV when x <= 0
+}
+#+end_example
+
+Inner-scope variables are only initialized when the scope executes. Inserting
+unconditional ~delete()~ at function end crashes when the scope was skipped.
+
+**** What would work: scope-exit deletion in the Body handler
+The correct approach: insert ~Type.delete(var)~ at the end of the BODY node
+where the variable was declared, not at function end. This guarantees the
+variable is initialized (we're inside the scope that declared it).
+
+Still has the shallow-copy aliasing risk (Bug #159), but no worse than
+current function-end deletion for top-level locals. The aliasing risk is
+mitigated by reverse declaration order: if ~elem := vec.get(0)~ is declared
+after ~vec~, then ~elem~ is deleted first, then ~vec~.
+
+Needs:
+- Modify ~garbager_recursive~ Body handler to scan for declarations and
+  append deletes at body end
+- Per-scope ~dont_delete~ / ~own_transfer~ filtering (or inherit from parent)
+- Per-scope ~has_any_catch~ check
+- Name collision avoidance: TIL has flat namespace, helper functions must not
+  collide with ~collect_declarations_recursive~ in ccodegen.til
+
+Also learned: name ~collect_declarations_recursive~ already exists in
+ccodegen.til. TIL's flat namespace causes collision. Any new helpers in
+garbager.til need prefixed names (e.g., ~garbager_collect_decls~).
+
+** Bug #159: Shallow copy semantics for structs with Ptr/Vec fields (REOPENED)
+:PROPERTIES:
+:DISCOVERED: 2026-01-31
+:IMPACT: Memory corruption, prevents ASAP deletion, root cause of memory leaks
+:STATUS: Open -- interpreter copy_fields removed; ccodegen shallow copies remain; deep Vec.clone/delete blocked on Issue #91 (function pointers); Map.get eliminated, cast replaces create_alias
+:RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak), Bug #170 (scope-exit deletion blocked by this), Issue #91 (function pointers needed for deep clone/delete)
+:END:
+
+*** Description
+When doing =mut cloned := original=, the interpreter used =copy_fields= which did
+a byte-level copy. For structs containing Ptr or Vec fields, both the original and
+clone shared the same underlying memory.
+
+*** What was done (2026-02-07, originally declared fixed)
+Removed =copy_fields= (shallow copy) from the interpreter. Replaced with:
+1. Garbager inserts =Type.clone()= calls for struct-typed identifier args (4 sites)
+2. Interpreter uses offset binding or memcpy instead of copy_fields
+
+Steps completed:
+- Step 1: preinit generates clone/delete methods
+- Step 2: Dynamic type info added to Ptr
+- Step 3: mut declarations (clone + offset binding)
+- Step 4: Function copy params (clone + offset binding)
+- Step 5: Struct literal fields (memcpy)
+- Step 6: Assignment statements (memcpy)
+- Step 7: Nested member assign + own params (memcpy), copy_fields deleted
+- Step 8: Own params simplified to pure offset binding
+
+Dead code removed: =copy_fields=, =SavedOffsets=, =insert_struct_instance_into_frame=,
+=EvalArenaMapping= import.
+
+Test: src/test/bug159.til (passes all 4 modes)
+
+*** What remains -- shallow copies still present
+The interpreter fix only addressed =copy_fields=. Shallow copies remain throughout
+the codebase via memcpy in generated C code and core library operations.
+
+**** 1. ccodegen -- Function return values (partially addressed by Bug #168)
+- =*_ret = value;= -- 696 remaining (was 976, commits 1/1b/2 eliminated 280)
+- Non-throwing by-value returns: 485 =return til_*= statements
+- See Bug #168 in pre.org for full details and commit history
+
+**** 2. src/core/ptr.til -- Raw memcpy operations
+- =copy_to_dynamic= (line 108): =memcpy(to_ptr(dest), self.data, size)=
+- =copy_from_dynamic= (line 103): =memcpy(self.data, to_ptr(src), size)=
+- =copy_to= (line 93): =memcpy(dest.data, self.data, size)=
+- =copy_from= (line 89): =memcpy(self.data, src.data, size)=
+- =dereference= (line 113): =memcpy(to_ptr(dest), self.data, size)=
+- =Ptr.clone= (line 72): copies struct bytes, shared heap pointer
+
+**** 3. src/core/vec.til -- Collection operations using copy_to/from_dynamic
+Handled by =dont_delete= in garbager: the shallow copies still happen, but the
+aliased data is not double-freed. The copies still leak memory (root cause of #165).
+- =get= REMOVED, =push=, =set=, =clone=, =extend=, =extend_with=, =contains=, =remove=,
+  =insert_at=, =to_str=, =split_off=, =pop= -- all use copy_to/from_dynamic
+
+**** 4. src/core/set.til -- Uses Vec internally, same dont_delete protection
+- =insert=, =remove=, =contains=, =get= REMOVED -- copy_to_dynamic for comparison/retrieval
+
+**** 5. src/core/array.til -- Direct memcpy, same dont_delete protection
+- =get= REMOVED, =set=, =clone= -- copy_to/from_dynamic
+
+**** 6. ccodegen -- enum_get_payload
+- Shallow memcpy of enum payload data
+
+**** 7. ccodegen -- create_alias directive (FIXED)
+=create_alias= replaced by =cast(Type, Ptr)= which emits =Type* var = (Type*)ptr.data;=
+-- true pointer aliasing, zero copy in both interpreter and ccodegen.
+
+*** Step 9: Clone-after-get for container out-params (2026-02-11)
+Container =get()= and =pop()= methods extract elements via =copy_to_dynamic=
+(memcpy), creating shallow copies that alias the container's internal heap
+pointers. The garbager now inserts =elem = ElemType.clone(elem)= after every
+container get/pop call where the out-param is a local variable with a deletable
+struct type.
+
+Whitelist of affected methods:
+- =Vec.pop= (Vec.get, Array.get, Set.get, Map.get all REMOVED)
+- =HashMap.get=, =List.get=, =List.pop=
+
+New garbager functions:
+- =build_clone_assignment_expr= -- builds AST for =var = Type.clone(var)=
+- =detect_shallow_copy_outparam= -- checks if stmt is a whitelisted get/pop call
+- =insert_clone_after_get= / =process_stmt_for_clone_after_get= -- inserts clones
+  after matching calls, recursing into nested Body/If/While/For/Switch nodes
+
+Step 2.7 in FuncDef handler runs after local_types is built, before Step 3
+(delete candidate collection). The =local_types= map was moved earlier (from
+Step 4 to after Step 2.5) so it's available for both clone-after-get and
+own-transfer detection.
+
+All 92 tests pass in all 4 modes.
+
+*** Parameter passing semantics (unchanged)
+| Mode      | Semantics                                      |
+|-----------+------------------------------------------------|
+| (default) | By reference - share offset                    |
+| =mut=     | By reference - share offset                    |
+| =own=     | Ownership transfer - share offset, remove src  |
+| =copy=    | Deep copy - garbager inserts clone, bind result |
+
+*** Step 3b attempts -- local deletion (2026-02-17, FAILED)
+
+Multiple attempts to enable ASAP deletion for local variables at function end.
+All reverted. This is the key step needed to actually FREE the cloned data.
+
+**** Attempt 1: ASAP deletion for locals (89/92 fail, free(): invalid pointer)
+Shallow-copy aliasing via Vec.get(), field access etc. creates aliases to
+local's heap data. Deleting local ASAP frees data still referenced through aliases.
+
+**** Attempt 2: Inner-scope collection to function-end (69/92 fail, SIGSEGV)
+Variables declared inside if/while/for may never be initialized. Unconditional
+delete at function end crashes when scope was skipped.
+
+**** Attempt 3: Garbager clone gaps + step 3b (88/92 SIGSEGV)
+- Fix A: Clone ALL Identifier-init declarations (removed is_mut check)
+- Fix B: Clone field-access assignments (removed params.is_empty check)
+- Fix C: Remove has_any_catch restriction, zero-init hoisted locals
+
+Fixes A+B alone pass 92/92 but are net-negative on memory (more clones, no deletes).
+Step 3b crashes because cloned locals get embedded in returned data via by-ref
+function calls. Root cause: functions like =Expr.new_explicit= take params by-ref
+(not =own=), so =collect_own_transfers= doesn't detect that the caller's variable
+was consumed. The variable becomes a deletion candidate, gets deleted at function
+end, and corrupts the returned Expr that shares the same data buffer.
+
+*** Issue #105 Step 4a regression (2026-02-22)
+
+Commit 96361e5d (Move NamespaceDef into StructDef/EnumDef as =ns= field)
+introduced a performance regression:
+- til_interpreted: 794s/4406MB -> 1245s/8253MB (+56% time, +87% memory)
+- til_built: 639s/9989MB -> 1086s/21863MB (+70% time, +119% memory)
+
+Root cause: 3 phases (desugarer, garbager, ufcs) now recurse into
+=ns.default_values= (namespace method bodies) inside the StructDef handler.
+Before, NamespaceDef was a separate sibling node at Body level. These phases
+hit the default case which just cloned it opaquely -- no recursion into
+method body Expr trees. Only precomp had explicit NamespaceDef handling.
+
+After embedding ns in StructDef, each phase's StructDef handler explicitly
+iterates =ns.default_values= and calls =desugar_expr= / =garbager_recursive= /
+=ufcs_expr= on each method body. This is more correct behavior -- namespace
+method bodies should be fully processed by all phases -- but expensive.
+
+Accepted as cost of correctness. Will be absorbed by Issue #117 optimizations.
+
+*** Root cause analysis (2026-02-17)
+
+The fundamental problem is that TIL/C has no ownership tracking. Every struct
+assignment is a shallow memcpy. The garbager inserts clones for some patterns,
+but many sources of shallow copies remain:
+
+1. *ccodegen return values*: =*_ret = var= is a shallow copy. The returned local
+   and =*_ret= share heap pointers. (Bug #168)
+2. *Vec.clone*: byte-wise copy of buffer. Element heap pointers are shared.
+3. *Vec.delete*: frees only the buffer, not element heap data.
+4. *Consuming functions*: =Expr.new_explicit=, =build_clone_call_expr= etc. take
+   struct params by-ref instead of =own=. The garbager can't detect ownership transfer.
+5. *Collection .get()*: copy_to_dynamic memcpy creates aliases. Partially mitigated
+   by clone-after-get (Step 9). Map.get eliminated (2026-02-20). Vec/Array/Set .get()
+   remain -- should use get + cast (zero-copy pointer into collection storage).
+
+*** Remediation plan
+
+**** Phase 1: Eliminate copying .get() from all collections (no dependencies) -- DONE
+All copying .get() methods removed from Vec, Map, Array, Set, List.
+All callers converted to get + cast (zero-copy pointer into storage).
+(~get~ was previously named ~get_by_ref~, renamed for simplicity.)
+
+=.pop()= methods (Vec.pop, List.pop) are NOT part of Phase 1 -- pop removes the
+element from the collection, so a zero-copy pointer into storage would dangle.
+Pop needs ownership transfer (move semantics). Ideal API: pop returns a Ptr
+(is_borrowed=false), caller uses cast. Internally, pop would get the last
+element, clone it, decrement length, return Ptr to the clone. But cloning a
+type-erased Dynamic element requires calling =Type.clone()= from =self.type_name=
+at runtime -- blocked by Phase 2 (Issue #91, function pointers).
+
+**** Phase 2: Function pointer builtins (Issue #91, minimal scope)
+Deep Vec.clone/delete requires calling Type.clone()/Type.delete() on type-erased
+Dynamic elements. TIL has no function pointer support (Issue #91). Minimal fix:
+4 new builtins that work with raw I64 function pointer values:
+- =delete_fn_of(T: Type) returns I64= -- returns address of =til_T_delete=
+- =clone_fn_of(T: Type) returns I64= -- returns address of =til_T_clone=
+- =call_delete_fn(fn_ptr: I64, elem: Ptr)= -- casts I64 to fn ptr and calls it
+- =call_clone_fn(fn_ptr: I64, src: Ptr, dst: Ptr)= -- same for clone
+
+Vec gets two new fields: =delete_fn: I64= and =clone_fn: I64=, set at Vec.new(T)
+time when T is still concrete. Vec.delete iterates elements calling delete_fn.
+Vec.clone iterates elements calling clone_fn. Map/Set/Array cascade through Vec.
+
+**** Phase 3: =own= params on consuming functions
+Functions that embed their parameter data (Expr.new_explicit, build_clone_call_expr,
+etc.) must take =own= + =dont_delete= internally. This lets =collect_own_transfers=
+exclude caller variables from deletion candidates. Vec.push/set/insert_at already
+use this pattern correctly.
+
+**** Phase 4: Garbager skips delete for returned locals
+Part of Issue #117 (ASAP destruction). When a local variable is returned
+(=return var=), the garbager should NOT insert a delete for it -- the caller
+now owns the data via =*_ret=. The garbager already has =dont_delete_vars= --
+returned locals should be added to that set.
+
+**** Phase 5: Garbager clone gaps
+- Clone ALL Identifier-init declarations (not just mut)
+- Clone field-access assignments (remove params.is_empty check)
+
+**** Phase 6: Enable step 3b (local deletion)
+With Phases 2-5 complete, local deletion is safe:
+- =own= params -> collect_own_transfers excludes consumed variables
+- Deep Vec.clone/delete -> no shared element data
+- Return move -> returned locals zeroed, deletion is no-op
+- Clone gaps -> all declarations/assignments produce owned data
+
+Changes: remove has_any_catch restriction, zero-init hoisted locals,
+add delete-before-return (exclude returned var).
+
 ** Bug #80: ccodegen.til generates different C code than ccodegen.rs
 :PROPERTIES:
 :DISCOVERED: 2026-01-01
