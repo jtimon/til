@@ -191,36 +191,15 @@ like how ~throws~ sits after ~returns~. Full order would be:
 - Jai Primer: explicit capture lists, same philosophy
 - doc/first_class.org: full design document
 
-** Issue #181: Standalone body blocks and first-class bodies
+** Issue #181: First-class bodies -- store, pass, and return code blocks
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
-:IMPACT: Ergonomics -- eliminates ~if true {}~ hack, enables closures/lambdas later
-:STATUS: Step 1 done (2026-02-23), Step 2 open
-:RELATED: Issue #91 (first-class functions), Issue #105 (first-class types), Issue #106 (first-class enums), Issue #182 (closures), doc/first_class.org
+:IMPACT: Language feature -- bodies as values, zero-argument closures
+:STATUS: Open
+:RELATED: Issue #91 (first-class functions), Issue #105 (first-class structs), Issue #106 (first-class enums), Issue #182 (closures), doc/first_class.org
 :END:
 
-*** Step 1: Standalone body blocks [DONE 2026-02-23]
-
-Bare ~{ ... }~ blocks already worked -- the parser (~parse_statement~) already
-had a ~LeftBrace~ case that calls ~parse_body~, and both interpreter and ccodegen
-already handle Body nodes. The only ~if true { ... }~ in the codebase (typer.til)
-has been replaced with a standalone block.
-
-#+BEGIN_SRC til
-// Before:
-if true {
-    temp := compute()
-    use_temp(temp)
-}
-
-// After:
-{
-    temp := compute()
-    use_temp(temp)
-}
-#+END_SRC
-
-*** Step 2: First-class bodies (future)
+*** Description
 
 Bodies as values that can be stored, passed, and returned:
 
@@ -239,9 +218,15 @@ make_block : func() returns Body = {
 }
 #+END_SRC
 
-This is closely related to first-class functions (#91) and could share
-infrastructure. A Body is essentially a zero-argument closure. Step 2 should
-be designed alongside #91 to avoid duplicated effort.
+A Body is essentially a zero-argument closure. Should be designed alongside
+#91 (first-class functions) and #182 (closures) to share infrastructure and
+avoid duplicated effort.
+
+*** Note
+
+Standalone bare ~{ ... }~ blocks already work (parser, interpreter, and
+ccodegen all handle Body nodes). This issue is about making bodies into
+first-class values, not about block syntax.
 
 ** Issue #180: Bang operator ~!~ for panic-on-throw (Rust ~.unwrap()~ equivalent)
 :PROPERTIES:

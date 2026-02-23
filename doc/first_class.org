@@ -1,6 +1,6 @@
 #+TITLE: First-Class Everything: Unified Syntax Discussion
 #+DATE: 2026-02-19
-#+RELATED: Issue #91, #105, #106, #107, #108, #161
+#+RELATED: Issue #91, #105, #106, #107, #108, #161, #181
 
 * Core Principle
 
@@ -644,6 +644,209 @@ MyResult := make_result(I64, Str)
 | Zig        | ~const E = union(enum) { }~ | No                         |
 | TIL        | ~enum { Circle(radius: I64) }~ | Not yet                  |
 
+* Bodies (Issue #181)
+
+A Body is a sequence of statements -- what other languages call a "block".
+They already exist everywhere in TIL: function definitions have one, ~if~
+has one or two (with else), ~switch~ can have many (one per case), ~while~
+and ~for~ have one each. But today a Body is always attached to a control
+structure. What if it were a first-class value?
+
+** What a Body is
+
+A Body is zero or more statements executed in sequence. It is the simplest
+unit of executable code -- simpler than a function (no signature, no
+parameters, no return type). A Body is essentially a zero-argument, void
+closure with no captures.
+
+#+BEGIN_SRC til
+// A Body in its natural habitat (inside an if):
+if condition {
+    x = x.add(1)
+    println(x)
+}
+
+// The stuff between { } is the Body: two statements.
+#+END_SRC
+
+** First-class bodies: store, pass, return
+
+Making Body a first-class value means treating it like any other value:
+
+#+BEGIN_SRC til
+// Store in a variable
+cleanup : Body = {
+    file.close()
+    temp.delete()
+    println("done")
+}
+
+// Pass as argument
+run_twice : proc(b: Body) = {
+    b()
+    b()
+}
+run_twice({ println("hello") })
+
+// Return from a function
+make_greeting : func(name: Str) returns Body = {
+    return { println("hello", name) }  // captures name -- needs #182
+}
+
+// Store in a struct field
+Task : struct {
+    mut on_complete : Body
+}
+t := Task(on_complete={ println("finished") })
+t.on_complete()
+
+// Store in a collection
+steps := Vec.new(Body)
+steps.push({ println("step 1") })
+steps.push({ println("step 2") })
+for step in steps {
+    step()
+}
+#+END_SRC
+
+** Relationship to functions and closures
+
+A Body is simpler than a function:
+
+| Construct         | Has params | Has return type | Has captures | Has body |
+|-------------------+------------+-----------------+--------------+----------|
+| Body              | No         | No              | No*          | Yes      |
+| func (no closure) | Yes        | Yes             | No           | Yes      |
+| func (closure)    | Yes        | Yes             | Yes (#182)   | Yes      |
+
+*Without captures (#182), a Body can only access globals. With captures,
+a Body becomes a zero-argument closure:
+
+#+BEGIN_SRC til
+mut total := 0
+data := Vec.from(1, 2, 3)
+
+// Body with capture list (depends on #182)
+summer : Body = [mut total, data] {
+    for item in data {
+        total = total.add(item)
+    }
+}
+summer()
+// total is now 6
+#+END_SRC
+
+A Body is to ~proc()~ what a literal is to a named constant -- the
+anonymous, inline version. In fact, ~proc()~ with no arguments and no
+return value is almost the same thing as a Body. The distinction is that
+a Body has no function overhead (no frame push/pop in the interpreter, no
+C function call in codegen) -- it executes in the caller's scope.
+
+** Use cases
+
+*** Deferred execution (cleanup, finally)
+#+BEGIN_SRC til
+// Like Go's defer, but explicit
+cleanup := { file.close() }
+// ... do work ...
+cleanup()
+#+END_SRC
+
+*** Callbacks and hooks
+#+BEGIN_SRC til
+Widget : struct {
+    mut on_click : Body
+    mut on_hover : Body
+}
+#+END_SRC
+
+*** Builder patterns
+#+BEGIN_SRC til
+with_transaction : proc(db: Database, action: Body) = {
+    db.begin()
+    action()
+    db.commit()
+
+    catch (err: DatabaseError) {
+        db.rollback()
+    }
+}
+
+with_transaction(db, {
+    db.insert(record1)
+    db.insert(record2)
+})
+#+END_SRC
+
+*** Test setup/teardown
+#+BEGIN_SRC til
+run_test : proc(name: Str, setup: Body, test: Body, teardown: Body) = {
+    println("Running:", name)
+    setup()
+    test()
+    teardown()
+}
+#+END_SRC
+
+** Scope semantics: inline vs isolated
+
+Open question: when a Body executes, does it share the caller's scope
+(like an inlined block) or get its own scope (like a function call)?
+
+*** Option A: Inline (shared scope)
+The Body executes as if its statements were pasted at the call site.
+It can see and modify all local variables. This is how bare ~{ }~ blocks
+work today.
+
+Pro: simple, powerful, zero overhead.
+Con: passing a Body as argument is weird -- which scope does it execute in?
+
+*** Option B: Isolated (own scope, captures only)
+The Body gets its own scope. It can only access what it captures (requires
+#182). This is safer and more predictable for stored/passed bodies.
+
+Pro: predictable, composable, no spooky action at a distance.
+Con: needs capture lists (#182) to be useful.
+
+*** Option C: Both
+Bare ~{ }~ blocks are inline (current behavior). Body values (stored,
+passed, returned) are isolated and require captures. The distinction is
+structural: a bare block in a control flow position is inline; a Body
+assigned to a variable or passed as an argument is isolated.
+
+This is probably the right answer. It matches how most languages work:
+inline blocks share scope, callbacks/closures are isolated.
+
+** Comparison with other languages
+
+| Language   | Block-as-value             | Notes                             |
+|------------+----------------------------+-----------------------------------|
+| Ruby       | ~{ \vert\vert ... }~ / ~do ... end~ | Blocks and Procs are first-class |
+| Smalltalk  | ~[ ... ]~                  | Blocks are objects                |
+| Swift      | ~{ () -> Void in ... }~    | Closures (always have captures)   |
+| Kotlin     | ~{ ... }~ (lambda)         | Trailing lambda syntax            |
+| Zig        | No first-class blocks      | Comptime blocks are special       |
+| Rust       | ~\vert\vert { ... }~ (closure) | No bare blocks as values      |
+| Go         | ~func() { ... }()~        | Must wrap in function             |
+| TIL        | ~Body = { ... }~ (proposed)| Simpler than closure              |
+
+Ruby is the closest precedent. Ruby blocks can be passed to methods
+implicitly (~yield~) or explicitly (~&block~), and ~Proc.new~ wraps a
+block into a first-class value. TIL's Body would be similar to Ruby's
+Proc but without implicit passing.
+
+** Implementation considerations
+
+- Parser: Body literals ~{ ... }~ are already parsed. The new part is
+  allowing them in expression position (RHS of ~:=~, function arguments,
+  return values).
+- Typer: new ~Body~ type (or reuse ~proc()~ signature internally).
+- Interpreter: a Body value is just a reference to an AST node list.
+  Executing it means evaluating those nodes in the appropriate scope.
+- Ccodegen: a Body could compile to a C function with no arguments and
+  void return, or to an inlined block depending on scope semantics.
+- Scavenger: must track what a Body references to keep those alive.
+
 * Reunified Namespaces
 
 ** Decision: ~namespace:~ keyword inside type bodies
@@ -801,6 +1004,7 @@ No decision yet. ~namespace:~ works for now.
 |------------+--------------------------------+----------------------------------------|
 | Variable   | ~x : I64~                      | ~x : I64 = 5~ or ~x := 5~             |
 | Function   | ~F : func(I64) returns I64~    | ~f : func(I64) returns I64 = { ... }~  |
+| Body       | (no separate type decl)        | ~b : Body = { ... }~ or ~b := { ... }~ |
 | Struct     | ~S : struct { ... }~           | (struct decl IS the definition)        |
 | Enum       | ~E : enum { ... }~             | (enum decl IS the definition)          |
 

@@ -24,7 +24,7 @@
 | #   | Issue                                            | Category         |
 |-----+--------------------------------------------------+------------------|
 | 182 | Closures -- explicit capture lists               | Language feature |
-| 181 | Standalone body blocks and first-class bodies    | Language feature |
+| 181 | First-class bodies -- store, pass, return blocks | Language feature |
 | 180 | Bang operator ! for panic-on-throw (unwrap)     | Language feature |
 | 106 | First-Class Enums                                | Language feature |
 |  91 | First-Class Functions                            | Language feature |
