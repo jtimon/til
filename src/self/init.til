@@ -2715,5 +2715,6 @@ namespace:
                 # Not a custom type
             }
         }
+        struct_def.delete() // #183
     }
 }

@@ -3040,6 +3040,7 @@ check_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) re
         }
     }
 
+    merged_struct.delete() // #183
     return errors
 }
 

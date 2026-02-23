@@ -183,6 +183,21 @@ the popped ScopeFrame, or the Maps inside are already freed by Vec.pop
 internals. The change is correct and harmless but not where the big leaks
 are. All sites marked with ~// TODO remove this #183 workaround~.
 
+*** Attempt 2: StructDef.delete() for cloned locals -- small improvement
+
+Key finding: ~lookup_struct~ returns an alias in the interpreter (pointer
+into scope stack's map), not an owned copy. Deleting lookup results causes
+SIGSEGV (all 89 tests crash). Only *cloned* StructDef locals are safe to
+delete.
+
+Two sites added:
+- typer.til ~check_struct_def~: ~merged_struct~ (cloned via ~lookup_result.clone()~)
+- init.til ~register_struct_fields_for_typecheck~: ~struct_def~ (cloned via ~lookup_struct()?.clone()~)
+
+Result: til_interpreted 8227MB -> 8160MB (-67MB), til_built 21834MB -> 21757MB (-77MB).
+Small but real. Most StructDef locals come from ~lookup_struct~ (alias), so
+few sites are safe without first cloning the lookup result.
+
 *** Relationship to #117
 
 This is a manual version of what #117 will automate. Each manual delete
