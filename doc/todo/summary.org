@@ -4,83 +4,83 @@
 
 * bugs.org (11 bugs/issues)
 
-| #   | Bug/Issue                                                        | Impact                      |
-|-----+------------------------------------------------------------------+-----------------------------|
-| 172 | Codegen bug returning for-in loop variable of same type         | Codegen                     |
-| 170 | Scope-exit deletion for local variables (blocked by #159)       | Memory leak                 |
-| 169 | Get rid of memcmp                                               | Code quality                |
-| 165 | Compiled TIL binary leaks 200-800x memory vs Rust              | Memory leak                 |
-| 159 | Shallow copy semantics not fully eliminated                     | Memory corruption           |
-| 152 | Migrate doc/todo files to numbered issue system                 | Documentation cleanup       |
-| 133 | Precomputed heap values have invalid pointers at runtime        | Partial fix (nested broken) |
-| 130 | Unify type resolution with type checking into single pass       | Architecture                |
-| 113 | Self-hosted interpreter fails with "symbol 'msg' not found"     | Not reproducible            |
-|  99 | Eliminate all C compiler warnings and enable -Werror            | Code quality                |
-|  94 | gcc warnings cause bug47.til compilation failure (blocked by #99) | Build issue               |
-|  80 | ccodegen.til generates different C code than ccodegen.rs        | Divergence                  |
+| #    | Issue                                                       | Status           |
+|------+-------------------------------------------------------------+------------------|
+| #172 | Codegen bug returning for-in loop variable of same type     | Open             |
+| #170 | Scope-exit deletion for local variables                     | Blocked by #159  |
+| #169 | Get rid of memcmp                                           | Partial          |
+| #165 | Compiled TIL binary leaks 200-800x memory vs Rust           | Blocked by #159  |
+| #159 | Shallow copy semantics not fully eliminated                 | Open             |
+| #152 | Migrate doc/todo files to numbered issue system             | Open             |
+| #133 | Precomputed heap values have invalid pointers at runtime    | Partial          |
+| #130 | Unify type resolution with type checking into single pass   | Open             |
+| #113 | Self-hosted interpreter fails with "symbol 'msg' not found" | Not reproducible |
+| #99  | Eliminate all C compiler warnings and enable -Werror        | Open             |
+| #94  | gcc warnings cause bug47.til compilation failure            | Blocked by #99   |
+| #80  | ccodegen.til generates different C code than ccodegen.rs    | Active           |
 
 * features.org (13 issues)
 
-| #   | Issue                                            | Category         |
-|-----+--------------------------------------------------+------------------|
-| 188 | Defer statement                                  | Language feature |
-| 182 | Closures -- explicit capture lists               | Language feature |
-| 181 | First-class bodies -- store, pass, return blocks | Language feature |
-| 180 | Bang operator ! for panic-on-throw (unwrap)      | Language feature |
-| 161 | Namespace constants, static mutables, immutables | Language feature |
-| 153 | Enable field/method access on Dynamic parameters | Language feature |
-| 151 | Explicit pointer/reference syntax                | Language feature |
-| 111 | Support returns Dynamic                          | Language feature |
-| 106 | First-Class Enums                                | Language feature |
-|  91 | First-Class Functions                            | Language feature |
-|  88 | Macro Support (Compile-Time Evaluation)          | Language feature |
-|  83 | No spread/splat operator for variadic forwarding | Language feature |
-|  64 | Custom main args in mode cli don't work          | Language feature |
+| #    | Issue                                            | Status      |
+|------+--------------------------------------------------+-------------|
+| #188 | Defer statement                                  | Open        |
+| #182 | Closures -- explicit capture lists               | Open        |
+| #181 | First-class bodies -- store, pass, return blocks | Open        |
+| #180 | Bang operator ! for panic-on-throw (unwrap)      | In progress |
+| #161 | Namespace constants, static mutables, immutables | Open        |
+| #153 | Enable field/method access on Dynamic parameters | Open        |
+| #151 | Explicit pointer/reference syntax                | Open        |
+| #111 | Support returns Dynamic                          | Open        |
+| #106 | First-Class Enums                                | Partial     |
+|  #91 | First-Class Functions                            | In progress |
+|  #88 | Macro Support (Compile-Time Evaluation)          | Partial     |
+|  #83 | No spread/splat operator for variadic forwarding | Open        |
+|  #64 | Custom main args in mode cli don't work          | Deferred    |
 
 * future.org (5 issues)
 
-| #   | Issue                                                | Category           |
-|-----+------------------------------------------------------+--------------------|
-| 186 | Symbol tracking perf -- is_consumed, is_used         | Performance        |
-| 178 | Eliminate TTypeDef, unify type representation        | Internal cleanup   |
-| 142 | Code Simplification - Context Error Helpers          | Cleanup            |
-| 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design         |
-|  66 | Variable Shadowing Policy                            | Language semantics |
+| #    | Issue                                                | Status |
+|------+------------------------------------------------------+--------|
+| #186 | Symbol tracking perf -- is_consumed, is_used         | Open   |
+| #178 | Eliminate TTypeDef, unify type representation        | Open   |
+| #142 | Code Simplification - Context Error Helpers          | Open   |
+| #138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | Open   |
+|  #66 | Variable Shadowing Policy                            | Open   |
 
 * optimizations.org (2 issues)
 
-| #   | Issue                                  | Category     |
-|-----+----------------------------------------+--------------|
-| 167 | Benchmark HashMap vs Map/OrderedMap    | Benchmarking |
-| 112 | HashMap type slower than Map in TIL    | Blocked      |
+| #    | Issue                               | Status  |
+|------+-------------------------------------+---------|
+| #167 | Benchmark HashMap vs Map/OrderedMap | Open    |
+| #112 | HashMap type slower than Map in TIL | Blocked |
 
 * pre.org (12 issues)
 
-| #   | Issue                                              | Category          |
-|-----+----------------------------------------------------+-------------------|
-| 187 | Integrated profiling for self-hosted compiler      | Performance       |
-| 185 | Require own at call sites, better consumed errors  | Usability         |
-| 184 | Integer-based enum comparison                      | Performance       |
-| 183 | Manual delete calls as temporary memory management | Memory mgmt       |
-| 179 | Typer should reject cast() in non-declaration pos  | Type checker      |
-| 175 | Unify C calling convention -- all return via _ret  | Codegen           |
-| 168 | ccodegen returns create copies interpreter doesn't | Memory mgmt       |
-| 135 | True cross-compilation via precompiled ext.o       | Build system      |
-| 117 | ASAP Destruction (auto-delete on last use)         | Memory mgmt       |
-| 115 | Owned struct fields and auto-generated methods     | Memory mgmt       |
-| 100 | Get rid of rstil                                   | Architecture goal |
-|  82 | make.til - Replace Makefile with TIL               | Build system      |
+| #    | Issue                                              | Status      |
+|------+----------------------------------------------------+-------------|
+| #187 | Integrated profiling for self-hosted compiler      | Open        |
+| #185 | Require own at call sites, better consumed errors  | Open        |
+| #184 | Integer-based enum comparison                      | Open        |
+| #183 | Manual delete calls as temporary memory management | In progress |
+| #179 | Typer should reject cast() in non-declaration pos  | Open        |
+| #175 | Unify C calling convention -- all return via _ret  | Open        |
+| #168 | ccodegen returns create copies interpreter doesn't | Partial     |
+| #135 | True cross-compilation via precompiled ext.o       | Open        |
+| #117 | ASAP Destruction (auto-delete on last use)         | In progress |
+| #115 | Owned struct fields and auto-generated methods     | Open        |
+| #100 | Get rid of rstil                                   | Blocked     |
+|  #82 | make.til - Replace Makefile with TIL               | Partial     |
 
 * post.org (9 issues)
 
-| #   | Issue                                             | Category         |
-|-----+---------------------------------------------------+------------------|
-| 156 | Implement match keyword (expression-based switch) | Language feature |
-| 155 | Add Unicode support to TIL                        | Lexer            |
-| 154 | Template vs Dynamic compilation mode              | Compiler feature |
-| 122 | Add regex support to standard library             | Feature          |
-| 121 | Directory traversal (readdir/walk)                | Feature          |
-| 109 | Proper Imports                                    | Language feature |
-| 104 | TempleOS Support                                  | Platform         |
-| 103 | Mode GUI                                          | Feature          |
-|  90 | Parser: remove {} requirement for ext_func/proc   | Syntax           |
+| #    | Issue                                             | Status  |
+|------+---------------------------------------------------+---------|
+| #156 | Implement match keyword (expression-based switch) | Partial |
+| #155 | Add Unicode support to TIL                        | Open    |
+| #154 | Template vs Dynamic compilation mode              | Open    |
+| #122 | Add regex support to standard library             | Open    |
+| #121 | Directory traversal (readdir/walk)                | Open    |
+| #109 | Proper Imports                                    | Open    |
+| #104 | TempleOS Support                                  | Open    |
+| #103 | Mode GUI                                          | Open    |
+|  #90 | Parser: remove {} requirement for ext_func/proc   | Open    |
