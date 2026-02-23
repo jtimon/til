@@ -345,13 +345,7 @@ detect_enum_switch_from_cases : func(context: Context, e: Expr) returns VariantI
                 switch first_param.node_type {
                 case NodeType.Identifier(_variant_name):
                     // This looks like Type.Variant - check if Type is an enum
-                    mut is_enum := false
-                    mut _enum_def := context.scope_stack.lookup_enum(name)?
-                    is_enum = true
-                    catch (err: KeyNotFoundError) {
-                        // Not an enum
-                    }
-                    if is_enum {
+                    if context.scope_stack.has_enum(name) {
                         return VariantInfo(type_name=name, variant_name="__is_enum__")
                     }
                 case:
@@ -362,13 +356,7 @@ detect_enum_switch_from_cases : func(context: Context, e: Expr) returns VariantI
                 mut symbol_info := context.scope_stack.lookup_symbol(name)?
                 switch symbol_info.value_type {
                 case ValueType.TCustom(type_name):
-                    mut var_is_enum := false
-                    mut _var_enum_def := context.scope_stack.lookup_enum(type_name)?
-                    var_is_enum = true
-                    catch (err: KeyNotFoundError) {
-                        // Not an enum
-                    }
-                    if var_is_enum {
+                    if context.scope_stack.has_enum(type_name) {
                         return VariantInfo(type_name=type_name, variant_name="__is_enum__")
                     }
                 case:
@@ -381,13 +369,7 @@ detect_enum_switch_from_cases : func(context: Context, e: Expr) returns VariantI
             // FCall pattern might be Type.Variant(...) for enum with payload
             fcall_info := get_case_variant_info(case_pattern)
             if fcall_info.type_name.len().gt(0) {
-                mut fcall_is_enum := false
-                mut _fcall_enum_def := context.scope_stack.lookup_enum(fcall_info.type_name)?
-                fcall_is_enum = true
-                catch (err: KeyNotFoundError) {
-                    // Not an enum
-                }
-                if fcall_is_enum {
+                if context.scope_stack.has_enum(fcall_info.type_name) {
                     return VariantInfo(type_name=fcall_info.type_name, variant_name="__is_enum__")
                 }
             }
@@ -842,11 +824,9 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     mut vt := get_value_type(context, switch_expr)?
     switch vt {
     case ValueType.TCustom(type_name):
-        mut _enum_def := context.scope_stack.lookup_enum(type_name)?
-        is_enum_switch = true
-        enum_type_name = type_name
-        catch (err: KeyNotFoundError) {
-            // Not an enum
+        if context.scope_stack.has_enum(type_name) {
+            is_enum_switch = true
+            enum_type_name = type_name
         }
     case:
     }

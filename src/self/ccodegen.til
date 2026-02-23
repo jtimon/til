@@ -905,15 +905,7 @@ is_pure_lvalue : func(arg: Expr, context: Context) returns Bool = {
                         return false  // Enum constructor is NOT an lvalue
                     }
                     // Check if it's a struct type (struct constructor like Type.CONSTANT)
-                    // Rust: if context.scope_stack.lookup_struct(name).is_some() { return false; }
-                    // TIL: use flag pattern since lookup_struct throws on not found
-                    mut is_struct := false
-                    _ := context.scope_stack.lookup_struct(name)?
-                    is_struct = true
-                    catch (err: KeyNotFoundError) {
-                        // REM: Not a struct, continue checking
-                    }
-                    if is_struct {
+                    if context.scope_stack.has_struct(name) {
                         return false  // Struct constant access is NOT an lvalue (it's a global)
                     }
                 case:
@@ -1994,24 +1986,22 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
         value_type := get_value_type(context, ets_inner_arg)?
         switch value_type {
         case ValueType.TCustom(enum_type_name):
-            _ := context.scope_stack.lookup_enum(enum_type_name)?
-            // Pass Dynamic param type so enum constructors get hoisted properly
-            dynamic_type := ValueType.TCustom("Dynamic")
-            mut dynamic_ptr := Ptr()
-            dynamic_ptr.data = to_ptr(dynamic_type)
-            ets_inner_str := emit_arg_string(ets_inner_arg, dynamic_ptr, false, hoist_output, indent, ctx, context)?
-            // ets_inner_str will be "(til_Dynamic*)&x" for lvalues or "(til_Dynamic*)&_tmpX" for hoisted
-            // Strip the Dynamic prefix and keep just the &...
-            dynamic_prefix := format("(", TIL_PREFIX, "Dynamic*)")
-            mut ref_str := ""
-            if ets_inner_str.starts_with(dynamic_prefix) {
-                ref_str = ets_inner_str.get_substr(dynamic_prefix.len(), ets_inner_str.len())?
-            } else {
-                ref_str = format("&", ets_inner_str)
-            }
-            return format(til_name(enum_type_name), "_to_str(", ref_str, ")")
-            catch (err: KeyNotFoundError) {
-                // REM: Not an enum, fall through
+            if context.scope_stack.has_enum(enum_type_name) {
+                // Pass Dynamic param type so enum constructors get hoisted properly
+                dynamic_type := ValueType.TCustom("Dynamic")
+                mut dynamic_ptr := Ptr()
+                dynamic_ptr.data = to_ptr(dynamic_type)
+                ets_inner_str := emit_arg_string(ets_inner_arg, dynamic_ptr, false, hoist_output, indent, ctx, context)?
+                // ets_inner_str will be "(til_Dynamic*)&x" for lvalues or "(til_Dynamic*)&_tmpX" for hoisted
+                // Strip the Dynamic prefix and keep just the &...
+                dynamic_prefix := format("(", TIL_PREFIX, "Dynamic*)")
+                mut ref_str := ""
+                if ets_inner_str.starts_with(dynamic_prefix) {
+                    ref_str = ets_inner_str.get_substr(dynamic_prefix.len(), ets_inner_str.len())?
+                } else {
+                    ref_str = format("&", ets_inner_str)
+                }
+                return format(til_name(enum_type_name), "_to_str(", ref_str, ")")
             }
         case:
         }
@@ -2195,19 +2185,18 @@ get_c_type_for_expr : proc(arg: Expr, context: Context) returns Str throws Str =
         }
         // Check for struct/enum constructor
         func_name := get_fcall_func_name(arg)?
-        _ := context.scope_stack.lookup_struct(func_name)?
-        return til_name(func_name)
         catch (err: KeyNotFoundError) {
-            // REM: Not a struct, check enum
+            throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for FCall")
+        }
+        if context.scope_stack.has_struct(func_name) {
+            return til_name(func_name)
         }
         // Check enum constructor
         underscore_pos := func_name.find("_")
         if underscore_pos.gt(0) {
             enum_name := func_name.get_substr(0, underscore_pos)?
-            _ := context.scope_stack.lookup_enum(enum_name)?
-            return til_name(enum_name)
-            catch (err: KeyNotFoundError) {
-                // REM: Not an enum
+            if context.scope_stack.has_enum(enum_name) {
+                return til_name(enum_name)
             }
         }
         throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for FCall")
@@ -2824,11 +2813,7 @@ emit_constant_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenCo
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.LLiteral(lit):
-                _has_str := context.scope_stack.lookup_struct("Str")?
-                mut has_str_bool := true
-                catch (err: KeyNotFoundError) {
-                    has_str_bool = false
-                }
+                has_str_bool := context.scope_stack.has_struct("Str")
                 // Use the declaration's explicit type if available, otherwise infer from literal
                 mut c_type := ""
                 switch lit {
@@ -4878,14 +4863,12 @@ emit_expr : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenConte
                     }
                 }
                 // Check if this is a struct constant access
-                _type_struct_def := context.scope_stack.lookup_struct(name)?
-                // Struct constant: Type.constant -> til_Type_constant
-                output.push_str(til_name(name))
-                output.push_str("_")
-                output.push_str(type_field)
-                return
-                catch (err: KeyNotFoundError) {
-                    // Not a struct constant, continue
+                if context.scope_stack.has_struct(name) {
+                    // Struct constant: Type.constant -> til_Type_constant
+                    output.push_str(til_name(name))
+                    output.push_str("_")
+                    output.push_str(type_field)
+                    return
                 }
             case:
             }
@@ -7378,10 +7361,9 @@ get_struct_construction_type : func(expr: Expr, context: Context) returns Str = 
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.Identifier(name):
-                // Use lookup_struct to check if this is a known struct type
+                // Use has_struct to check if this is a known struct type
                 if first_param.params.is_empty() {
-                    _ := context.scope_stack.lookup_struct(name)?
-                    catch (err: KeyNotFoundError) {
+                    if not(context.scope_stack.has_struct(name)) {
                         return ""
                     }
                     mut only_named_args := expr.params.len().eq(1)
@@ -8647,9 +8629,9 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 output.push_str("), 0})")
             } else {
                 // Literal type name - create Str compound literal
-                _ := context.scope_stack.lookup_struct("Str")?
-                emit_str_literal(type_name, output)
-                catch (err: KeyNotFoundError) {
+                if context.scope_stack.has_struct("Str") {
+                    emit_str_literal(type_name, output)
+                } else {
                     output.push_str("\"")
                     output.push_str(type_name)
                     output.push_str("\"")
@@ -8670,7 +8652,9 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         switch value_type {
         case ValueType.TCustom(enum_type_name):
             // Verify it's an enum type
-            _ := context.scope_stack.lookup_enum(enum_type_name)?
+            if not(context.scope_stack.has_enum(enum_type_name)) {
+                throw format("ccodegen: enum_to_str argument '", enum_type_name, "' is not an enum type")
+            }
             output.push_str(til_name(enum_type_name))
             output.push_str("_to_str(")
             // Bug #143: At expression level, just use & - caller handles hoisting via emit_arg_string
@@ -8678,12 +8662,6 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             emit_expr(enum_arg, output, 0, ctx, context)?
             output.push_str(")")
             return
-            catch (err: KeyNotFoundError) {
-                mut err_msg := "ccodegen: enum_to_str argument '"
-                err_msg.push_str(enum_type_name)
-                err_msg.push_str("' is not an enum type")
-                throw err_msg
-            }
         case:
             throw "ccodegen: enum_to_str argument has non-custom type"
         }
@@ -8920,29 +8898,27 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 mut candidate := type_name.clone()
                 candidate.push_str(".")
                 candidate.push_str(orig_func_name)
-                _ := context.scope_stack.lookup_func(candidate)?
-                // Emit as Type_method(fcall_result, args...)
-                output.push_str(TIL_PREFIX)
-                output.push_str(type_name)
-                output.push_str("_")
-                output.push_str(orig_func_name)
-                output.push_str("(")
-                emit_expr(second_param, output, 0, ctx, context)?
-                mut ri := 2
-                while ri.lt(expr.params.len()) {
-                    output.push_str(", ")
-                    remaining_arg := cast(Expr, expr.params.get(ri)?)
-                    dont_delete(remaining_arg)
-                    emit_expr(remaining_arg, output, 0, ctx, context)?
-                    ri.inc()
-                }
-                output.push_str(")")
-                if is_stmt_level {
-                    output.push_str(";\n")
-                }
-                return
-                catch (err: KeyNotFoundError) {
-                    // REM: function not found, continue below
+                if context.scope_stack.has_func(candidate) {
+                    // Emit as Type_method(fcall_result, args...)
+                    output.push_str(TIL_PREFIX)
+                    output.push_str(type_name)
+                    output.push_str("_")
+                    output.push_str(orig_func_name)
+                    output.push_str("(")
+                    emit_expr(second_param, output, 0, ctx, context)?
+                    mut ri := 2
+                    while ri.lt(expr.params.len()) {
+                        output.push_str(", ")
+                        remaining_arg := cast(Expr, expr.params.get(ri)?)
+                        dont_delete(remaining_arg)
+                        emit_expr(remaining_arg, output, 0, ctx, context)?
+                        ri.inc()
+                    }
+                    output.push_str(")")
+                    if is_stmt_level {
+                        output.push_str(";\n")
+                    }
+                    return
                 }
             case:
                 // REM: not TCustom
@@ -9330,9 +9306,9 @@ emit_str_literal : proc(s: Str, mut output: Str) = {
 emit_literal : proc(lit: Literal, mut output: Str, context: Context) throws Str = {
     switch lit {
     case Literal.Str(s):
-        _has_str := context.scope_stack.lookup_struct("Str")?
-        emit_str_literal(s, output)
-        catch (err: KeyNotFoundError) {
+        if context.scope_stack.has_struct("Str") {
+            emit_str_literal(s, output)
+        } else {
             // No Str struct - emit raw string
             output.push_str("\"")
             // Escape special characters for C string literals

@@ -240,20 +240,7 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
                     // Validate type exists
                     mut cast_type_valid := cast_type_name.eq("I64").or(cast_type_name.eq("U8")).or(cast_type_name.eq("Bool")).or(cast_type_name.eq("Str"))
                     if not(cast_type_valid) {
-                        mut cast_found_struct := false
-                        mut _cast_struct_def := context.scope_stack.lookup_struct(cast_type_name)?
-                        cast_found_struct = true
-                        catch (err: KeyNotFoundError) {
-                            // Not a struct
-                        }
-                        if not(cast_found_struct) {
-                            mut _cast_enum_def := context.scope_stack.lookup_enum(cast_type_name)?
-                            cast_found_struct = true
-                            catch (err: KeyNotFoundError) {
-                                // Not an enum either
-                            }
-                        }
-                        cast_type_valid = cast_found_struct
+                        cast_type_valid = context.scope_stack.has_struct(cast_type_name).or(context.scope_stack.has_enum(cast_type_name))
                     }
                     if not(cast_type_valid) {
                         errors.push(e.error(context.path, "type", format("cast: unknown type '", cast_type_name, "'")))
@@ -286,14 +273,8 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
                 errors.extend(check_types_with_context(context, e0, ExprContext.ValueUsed)?)
             }
         } else {
-            mut func_found := false
+            mut func_found := context.scope_stack.has_func(name)
             mut symbol_found := false
-            mut dummy_func := FuncDef()
-            dummy_func = context.scope_stack.lookup_func(name)?
-            func_found = true
-            catch (err: KeyNotFoundError) {
-                func_found = false  // Bug #68 fix: is_some() = false when throws
-            }
             mut dummy_symbol := SymbolInfo()
             dummy_symbol = context.scope_stack.lookup_symbol(name)?
             symbol_found = true
@@ -2363,10 +2344,8 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
             }
             // During type checking, register struct fields so they can be accessed in the code
             // Memory allocation and default value evaluation happens during runtime in eval_declaration
-            _struct_def := context.scope_stack.lookup_struct(custom_type)?
-            context.register_struct_fields_for_typecheck(decl.name, custom_type)?
-            catch (err: KeyNotFoundError) {
-                // Not a struct, skip field registration
+            if context.scope_stack.has_struct(custom_type) {
+                context.register_struct_fields_for_typecheck(decl.name, custom_type)?
             }
 
         case ValueType.TFunction(FunctionType.FTFunc):
@@ -2420,13 +2399,7 @@ check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Ve
     }
 
     // Check if it's a function (can't assign to functions)
-    mut is_func := true
-    _func_def := context.scope_stack.lookup_func(var_name)?
-    catch (err: KeyNotFoundError) {
-        is_func = false
-    }
-
-    if is_func {
+    if context.scope_stack.has_func(var_name) {
         errors.push(e.error(context.path, "type", format("function '", var_name, "' cannot be assigned to.")))
     } else {
         // Check if symbol exists
@@ -2632,12 +2605,7 @@ check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws 
                     errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded)?)
                 } else {
                     // Variant not found
-                    mut enum_exists := true
-                    mut _check_enum := context.scope_stack.lookup_enum(enum_name)?
-                    catch (err: KeyNotFoundError) {
-                        enum_exists = false
-                    }
-                    if enum_exists {
+                    if context.scope_stack.has_enum(enum_name) {
                         errors.push(case_expr.error(context.path, "type", format("Unknown variant '", variant, "'")))
                     }
                     errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded)?)

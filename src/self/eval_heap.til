@@ -1378,13 +1378,7 @@ namespace:
                 result = Expr.new_explicit(NodeType.LLiteral(Literal.Str(str_val)), Vec.new(Expr), 0, 0)
             } else {
                 // Check if nested struct
-                mut is_struct := false
-                _struct_def := ctx.scope_stack.lookup_struct(custom_type)?
-                is_struct = true
-                catch (err: KeyNotFoundError) {
-                    // Not a struct
-                }
-                if is_struct {
+                if ctx.scope_stack.has_struct(custom_type) {
                     result = EvalHeap.to_struct_literal(ctx, field_id, custom_type, e)?
                 } else {
                     throw e.lang_error(ctx.path, "heap", format("field_to_literal: unsupported nested type '", custom_type, "'"))

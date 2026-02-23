@@ -1853,13 +1853,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
 
     case NodeType.Declaration(decl):
         // Check if already declared as func
-        mut found_as_func := false
-        mut existing_func := FuncDef()
-        existing_func = context.scope_stack.lookup_func(decl.name)?
-        found_as_func = true
-        catch (err: KeyNotFoundError) {
-            found_as_func = false
-        }
+        mut found_as_func := context.scope_stack.has_func(decl.name)
         // Check if already declared as symbol
         mut found_as_symbol := false
         mut existing_symbol := SymbolInfo()

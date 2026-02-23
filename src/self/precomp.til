@@ -1039,13 +1039,7 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
                 return false
             }
             // Try to look up as struct
-            mut is_struct := false
-            _ := context.scope_stack.lookup_struct(combined_name)?
-            is_struct = true
-            catch (err3: KeyNotFoundError) {
-                // REM: Not a struct
-            }
-            if is_struct {
+            if context.scope_stack.has_struct(combined_name) {
                 // It's a struct constructor - check all args are comptime
                 mut struct_j := 1
                 while struct_j.lt(e.params.len()) {
@@ -1157,8 +1151,7 @@ eval_comptime : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             return Expr.new_clone(NodeType.LLiteral(Literal.Str(result.value)), e, Vec.new(Expr))
         }
         // Check if it's a struct type - result.value is the instance name
-        _struct_def := context.scope_stack.lookup_struct(type_name)?
-        catch (err: KeyNotFoundError) {
+        if not(context.scope_stack.has_struct(type_name)) {
             // For enums and other types: eval_expr was called (catching any errors),
             // but we can't convert the result back to AST literal, so return original
             return e.clone()
@@ -1897,13 +1890,7 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
     // 3. Struct constructor - create instance like eval does (before arg transform)
     if not(combined_name.eq("")) {
-        mut struct_found := false
-        _dummy_struct := context.scope_stack.lookup_struct(combined_name)?
-        struct_found = true
-        catch (err: KeyNotFoundError) {
-            // Not found
-        }
-        if struct_found {
+        if context.scope_stack.has_struct(combined_name) {
             _ := create_default_instance(context, combined_name, e)?
             switch func_expr.node_type {
             case NodeType.Identifier(id_name):

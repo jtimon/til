@@ -35,11 +35,7 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
             name := get_combined_name_from_identifier(e0)?
             if name.len().gt(0).and(name.find(".").lt(0)) {
                 // Check if this is a struct constructor
-                mut fcall_found_struct := false
-                _dummy := context.scope_stack.lookup_struct(name)?
-                fcall_found_struct = true
-                catch (err: KeyNotFoundError) { }
-                if fcall_found_struct {
+                if context.scope_stack.has_struct(name) {
                     _ := used_types.insert(name)
                 }
             }
@@ -47,15 +43,8 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
     case NodeType.Identifier(name):
         // Type references - check if this is a known struct or enum
         if name.len().gt(0).and(e.params.len().eq(0)) {
-            mut ident_found_struct := false
-            _dummy_struct := context.scope_stack.lookup_struct(name)?
-            ident_found_struct = true
-            catch (err: KeyNotFoundError) { }
-
-            mut found_enum := false
-            _dummy_enum := context.scope_stack.lookup_enum(name)?
-            found_enum = true
-            catch (err: KeyNotFoundError) { }
+            ident_found_struct := context.scope_stack.has_struct(name)
+            found_enum := context.scope_stack.has_enum(name)
 
             if ident_found_struct.or(found_enum) {
                 _ := used_types.insert(name.clone())
@@ -635,13 +624,12 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                         mut found_method := false
                         for builtin: Str in builtin_types {
                             builtin_full_method := format(builtin, ".", method_name)
-                            mut _builtin_dummy_fd := FuncDef()
-                            _builtin_dummy_fd = context.scope_stack.lookup_func(builtin_full_method)?
-                            // Found a matching method - mark it reachable instead
-                            mark_reachable(builtin_full_method, reachable, worklist)
-                            found_method = true
-                            break
-                            catch (err: KeyNotFoundError) { }
+                            if context.scope_stack.has_func(builtin_full_method) {
+                                // Found a matching method - mark it reachable instead
+                                mark_reachable(builtin_full_method, reachable, worklist)
+                                found_method = true
+                                break
+                            }
                         }
 
                         // Also check user-defined structs for the method
@@ -649,12 +637,11 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                             struct_names := context.scope_stack.get_all_struct_names()
                             for struct_name: Str in struct_names {
                                 user_full_method := format(struct_name, ".", method_name)
-                                mut _user_dummy_fd := FuncDef()
-                                _user_dummy_fd = context.scope_stack.lookup_func(user_full_method)?
-                                mark_reachable(user_full_method, reachable, worklist)
-                                found_method = true
-                                break
-                                catch (err: KeyNotFoundError) { }
+                                if context.scope_stack.has_func(user_full_method) {
+                                    mark_reachable(user_full_method, reachable, worklist)
+                                    found_method = true
+                                    break
+                                }
                             }
                         }
 
@@ -692,11 +679,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
         if method_dot_pos.gt(0) {
             struct_name := func_name.get_substr(0, method_dot_pos)?
             // Only add if this is actually a struct (not an enum)
-            mut method_found_struct := false
-            _dummy := context.scope_stack.lookup_struct(struct_name)?
-            method_found_struct = true
-            catch (err: KeyNotFoundError) { }
-            if method_found_struct {
+            if context.scope_stack.has_struct(struct_name) {
                 _ := used_types.insert(struct_name)
             }
         }
@@ -715,17 +698,9 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
         is_primitive := eq_type_name.eq("Str").or(eq_type_name.eq("I64")).or(eq_type_name.eq("U8")).or(eq_type_name.eq("Bool"))
         if not(is_primitive) {
             // Check if this is a struct with an eq method
-            mut eq_found_struct := false
-            _sd := context.scope_stack.lookup_struct(eq_type_name)?
-            eq_found_struct = true
-            catch (err: KeyNotFoundError) { }
-            if eq_found_struct {
+            if context.scope_stack.has_struct(eq_type_name) {
                 eq_method_name := format(eq_type_name, ".eq")
-                mut found_eq := false
-                _fd := context.scope_stack.lookup_func(eq_method_name)?
-                found_eq = true
-                catch (err: KeyNotFoundError) { }
-                if found_eq {
+                if context.scope_stack.has_func(eq_method_name) {
                     mark_reachable(eq_method_name, reachable, worklist)
                 }
             }

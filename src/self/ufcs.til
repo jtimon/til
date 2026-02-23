@@ -723,13 +723,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                     }
                     if assoc_has_type_name {
                         mut assoc_method_name := format(custom_type_name, ".", ufcs_func_name)
-                        mut assoc_method_found := false
-                        _dummy2 := context.scope_stack.lookup_func(assoc_method_name)?
-                        assoc_method_found = true
-                        catch (err: KeyNotFoundError) {
-                            // Not found
-                        }
-                        if assoc_method_found {
+                        if context.scope_stack.has_func(assoc_method_name) {
                             mut assoc_new_id_e := Expr.new_clone(NodeType.Identifier(assoc_method_name), func_expr, Vec.new(Expr))
                             mut assoc_new_args := Vec.new(Expr)
                             assoc_new_args.push(assoc_new_id_e)
@@ -748,13 +742,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 }
 
                 // Fall back to standalone function
-                mut standalone_found := false
-                _dummy3 := context.scope_stack.lookup_func(ufcs_func_name)?
-                standalone_found = true
-                catch (err: KeyNotFoundError) {
-                    // Not found
-                }
-                if standalone_found {
+                if context.scope_stack.has_func(ufcs_func_name) {
                     mut standalone_new_id_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
                     mut standalone_new_args := Vec.new(Expr)
                     standalone_new_args.push(standalone_new_id_e)

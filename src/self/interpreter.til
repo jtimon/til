@@ -149,9 +149,8 @@ read_struct_primitive_fields : proc(ctx: Context, instance_id: Str, struct_type:
                     // Bug #43 fix: Read actual string VALUE, not pointer
                     str_val := string_from_context(ctx, field_id, e)?
                     values.set(key, str_val)
-                } else {
+                } else if ctx.scope_stack.has_struct(type_name) {
                     // For nested structs (Vec, etc.), recursively read primitive fields
-                    _dummy_struct := ctx.scope_stack.lookup_struct(type_name)?
                     mut nested_key := ""
                     if prefix.eq("") {
                         nested_key = decl.name
@@ -164,14 +163,15 @@ read_struct_primitive_fields : proc(ctx: Context, instance_id: Str, struct_type:
                         v := cast(Str, nested_values.get(k)?)
                         values.set(k, v)
                     }
-                    catch (err: KeyNotFoundError) {
-                        // struct not found, skip
-                    }
                 }
             }
         }
     }
     return values
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(ctx.path, "read_struct_primitive_fields", format("key not found: ", err.msg))
+    }
 }
 
 /// Pre-evaluate all default values for a struct type, including nested structs.
@@ -203,18 +203,10 @@ eval_struct_defaults : proc(mut ctx: Context, struct_type: Str, e: Expr) returns
                 if is_custom {
                     // Skip primitives, enums, and Str (handled specially)
                     if not(type_name.eq("U8")).and(not(type_name.eq("I64"))).and(not(type_name.eq("Str"))) {
-                        mut is_enum := false
-                        _dummy_enum := ctx.scope_stack.lookup_enum(type_name)?
-                        is_enum = true
-                        catch (err: KeyNotFoundError) {
-                            is_enum = false
-                        }
-                        if not(is_enum) {
-                            _dummy_struct := ctx.scope_stack.lookup_struct(type_name)?
-                            // Eagerly create template for nested struct (handles forward refs)
-                            mut _ := create_default_instance(ctx, type_name, e)?
-                            catch (err: KeyNotFoundError) {
-                                // struct not found, skip
+                        if not(ctx.scope_stack.has_enum(type_name)) {
+                            if ctx.scope_stack.has_struct(type_name) {
+                                // Eagerly create template for nested struct (handles forward refs)
+                                mut _ := create_default_instance(ctx, type_name, e)?
                             }
                         }
                     }
@@ -234,15 +226,7 @@ eval_struct_defaults : proc(mut ctx: Context, struct_type: Str, e: Expr) returns
                 // Handle nested structs recursively (get their defaults)
                 if is_custom {
                     if not(type_name.eq("U8")).and(not(type_name.eq("I64"))).and(not(type_name.eq("Str"))) {
-                        mut is_enum2 := false
-                        _dummy_enum2 := ctx.scope_stack.lookup_enum(type_name)?
-                        is_enum2 = true
-                        catch (err: KeyNotFoundError) {
-                            is_enum2 = false
-                        }
-                        if not(is_enum2) {
-                            _dummy_struct2 := ctx.scope_stack.lookup_struct(type_name)?
-
+                        if not(ctx.scope_stack.has_enum(type_name)).and(ctx.scope_stack.has_struct(type_name)) {
                             // First, get static defaults for nested structs (Str, Vec fields)
                             mut nested := Map.new(Str, Str)
                             nested = eval_struct_defaults(ctx, type_name, e)?
@@ -259,10 +243,6 @@ eval_struct_defaults : proc(mut ctx: Context, struct_type: Str, e: Expr) returns
                             for prim_k: Str in primitive_values.keys {
                                 prim_v := cast(Str, primitive_values.get(prim_k)?)
                                 defaults.set(prim_k, prim_v)
-                            }
-
-                            catch (err: KeyNotFoundError) {
-                                // struct not found, skip
                             }
                         }
                     }
@@ -1135,13 +1115,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                         switch first_param.node_type {
                         case NodeType.Identifier(potentially_struct_name):
                             if first_param.params.len().eq(0) {
-                                mut is_struct := false
-                                _ := context.scope_stack.lookup_struct(potentially_struct_name)?
-                                is_struct = true
-                                catch (err: KeyNotFoundError) {
-                                    // is_struct stays false - struct not found
-                                }
-                                if is_struct {
+                                if context.scope_stack.has_struct(potentially_struct_name) {
                                     insert_struct_instance(context, declaration.name, custom_type_name, e)?
                                     return EvalResult.new("")
                                 }
