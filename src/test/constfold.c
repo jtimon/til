@@ -28,6 +28,7 @@ typedef struct til_FuncSig til_FuncSig;
 typedef struct til_FuncDef til_FuncDef;
 typedef struct til_StructDef til_StructDef;
 typedef struct til_Literal til_Literal;
+typedef struct til_FCallInfo til_FCallInfo;
 typedef struct til_NodeType til_NodeType;
 typedef struct til_ValueType til_ValueType;
 typedef struct til_CfVec2 til_CfVec2;
@@ -76,6 +77,11 @@ struct til_HeapEntry {
 };
 
 struct til_DivideByZero {
+};
+
+struct til_FCallInfo {
+    til_Bool does_throw;
+    til_Bool is_bang;
 };
 
 struct til_Ptr {
@@ -268,7 +274,7 @@ typedef union {
     til_Str Assignment;
     til_Declaration Declaration;
     til_EnumDef EnumDef;
-    til_Bool FCall;
+    til_FCallInfo FCall;
     til_Str ForIn;
     til_FuncDef FuncDef;
     til_Str Identifier;
@@ -326,7 +332,7 @@ static inline til_NodeType til_NodeType_make_EnumDef(til_EnumDef value) {
     return result;
 }
 
-static inline til_NodeType til_NodeType_make_FCall(til_Bool value) {
+static inline til_NodeType til_NodeType_make_FCall(til_FCallInfo value) {
     til_NodeType result = { .tag = til_NodeType_FCall };
     result.payload.FCall = value;
     return result;
@@ -625,6 +631,7 @@ const til_I64 til_size_of_PatternInfo = sizeof(til_PatternInfo);
 const til_I64 til_size_of_FuncSig = sizeof(til_FuncSig);
 const til_I64 til_size_of_FuncDef = sizeof(til_FuncDef);
 const til_I64 til_size_of_StructDef = sizeof(til_StructDef);
+const til_I64 til_size_of_FCallInfo = sizeof(til_FCallInfo);
 const til_I64 til_size_of_Dynamic = sizeof(til_Dynamic);
 const til_I64 til_size_of_Type = sizeof(til_Type);
 const til_I64 til_size_of_CfVec2 = sizeof(til_CfVec2);
@@ -736,6 +743,7 @@ static inline til_I64 til_size_of(const til_Str* type_name) {
     if (strcmp((char*)type_name->c_string.data, "FuncSig") == 0) return til_size_of_FuncSig;
     if (strcmp((char*)type_name->c_string.data, "FuncDef") == 0) return til_size_of_FuncDef;
     if (strcmp((char*)type_name->c_string.data, "StructDef") == 0) return til_size_of_StructDef;
+    if (strcmp((char*)type_name->c_string.data, "FCallInfo") == 0) return til_size_of_FCallInfo;
     if (strcmp((char*)type_name->c_string.data, "Dynamic") == 0) return til_size_of_Dynamic;
     if (strcmp((char*)type_name->c_string.data, "Type") == 0) return til_size_of_Type;
     if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) return til_size_of_CfVec2;

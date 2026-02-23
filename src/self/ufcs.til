@@ -127,7 +127,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
             call_arg_idx.inc()
         }
 
-        return Expr.new_clone(NodeType.FCall(get_fcall_does_throw(e)), e, result)
+        return Expr.new_clone(NodeType.FCall(get_fcall_info(e)), e, result)
     }
 
     // Count positional args (before first named arg)
@@ -238,7 +238,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
         i.inc()
     }
 
-    final_result := Expr.new_clone(NodeType.FCall(get_fcall_does_throw(e)), e, result)
+    final_result := Expr.new_clone(NodeType.FCall(get_fcall_info(e)), e, result)
 
     catch (err: IndexOutOfBoundsError) {
         throw format("reorder_named_args: ", err.msg)
@@ -659,7 +659,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                             new_args.push(arg)
                             j.inc()
                         }
-                        return Expr.new_clone(NodeType.FCall(get_fcall_does_throw(func_expr)), func_expr, new_args)
+                        return Expr.new_clone(NodeType.FCall(get_fcall_info(func_expr)), func_expr, new_args)
                     }
                     catch (err: KeyNotFoundError) {
                         // Method not found - fall through
@@ -742,7 +742,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                                 assoc_new_args.push(assoc_arg)
                                 assoc_j.inc()
                             }
-                            return Expr.new_clone(NodeType.FCall(get_fcall_does_throw(func_expr)), func_expr, assoc_new_args)
+                            return Expr.new_clone(NodeType.FCall(get_fcall_info(func_expr)), func_expr, assoc_new_args)
                         }
                     }
                 }
@@ -767,7 +767,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                         standalone_new_args.push(standalone_arg)
                         standalone_j.inc()
                     }
-                    return Expr.new_clone(NodeType.FCall(get_fcall_does_throw(func_expr)), func_expr, standalone_new_args)
+                    return Expr.new_clone(NodeType.FCall(get_fcall_info(func_expr)), func_expr, standalone_new_args)
                 }
             case:
             }

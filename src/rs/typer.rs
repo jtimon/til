@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::rs::init::{Context, SymbolInfo, RemovedSymbol, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
-    Expr, NodeType, ValueType, EnumDef, StructDef, FuncDef, NamespaceDef, Declaration, PatternInfo, FunctionType, TTypeDef,
+    Expr, NodeType, ValueType, EnumDef, StructDef, FuncDef, FCallInfo, NamespaceDef, Declaration, PatternInfo, FunctionType, TTypeDef,
     value_type_to_str, str_to_value_type,
 };
 
@@ -214,7 +214,8 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 }
             }
         },
-        NodeType::FCall(does_throw) => {
+        NodeType::FCall(ref fcall_info) => {
+            let does_throw = fcall_info.does_throw;
             // Special handling for import() calls - type-check the imported file
             let f_name = get_func_name_in_call(&e);
             if f_name == "import" {
@@ -242,7 +243,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                     errors.extend(check_types_with_context(context, e.params.get(2).unwrap(), ExprContext::ValueUsed)?);
                 }
             } else {
-                errors.extend(check_fcall(context, &e, *does_throw)?);
+                errors.extend(check_fcall(context, &e, does_throw)?);
                 // Check if return value usage is correct for this context
                 errors.extend(check_fcall_return_usage(context, &e, expr_context)?);
             }
@@ -1343,7 +1344,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                                 match get_func_def_for_fcall(&context, arg) {
                                     Ok(Some(arg_nested_func_def)) => {
                                         // Add the nested function's own throw types (only if it has ?)
-                                        if matches!(arg.node_type, NodeType::FCall(true)) {
+                                        if matches!(arg.node_type, NodeType::FCall(ref info) if info.does_throw) {
                                             for arg_nested_throw in &arg_nested_func_def.sig.throw_types {
                                                 let arg_nested_throw_str = value_type_to_str(arg_nested_throw);
                                                 let arg_nested_error_msg = format!(
@@ -2465,8 +2466,8 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                             new_args.push(new_e);
                             new_args.extend(fcall_expr.params[1..].to_vec());
                             // Issue #132: Preserve does_throw flag from original FCall
-                            let does_throw = matches!(fcall_expr.node_type, NodeType::FCall(true));
-                            *fcall_expr = Expr::new_clone(NodeType::FCall(does_throw), fcall_expr.params.get(0).unwrap(), new_args);
+                            let typer_fcall_info = if let NodeType::FCall(ref info) = fcall_expr.node_type { info.clone() } else { FCallInfo { does_throw: false, is_bang: false } };
+                            *fcall_expr = Expr::new_clone(NodeType::FCall(typer_fcall_info), fcall_expr.params.get(0).unwrap(), new_args);
                             return Ok(Some(func_def.clone()));
                         }
                     }
@@ -2496,8 +2497,8 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                         ufcs_new_args.extend(fcall_expr.params[1..].to_vec());
 
                         // Issue #132: Preserve does_throw flag from original FCall
-                        let does_throw = matches!(fcall_expr.node_type, NodeType::FCall(true));
-                        *fcall_expr = Expr::new_clone(NodeType::FCall(does_throw), fcall_expr.params.get(0).unwrap(), ufcs_new_args);
+                        let typer_fcall_info = if let NodeType::FCall(ref info) = fcall_expr.node_type { info.clone() } else { FCallInfo { does_throw: false, is_bang: false } };
+                        *fcall_expr = Expr::new_clone(NodeType::FCall(typer_fcall_info), fcall_expr.params.get(0).unwrap(), ufcs_new_args);
                         return Ok(Some(ufcs_func_def.clone()))
                     }
 
@@ -2518,8 +2519,8 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                                     assoc_new_args.extend(fcall_expr.params[1..].to_vec());
 
                                     // Issue #132: Preserve does_throw flag from original FCall
-                                    let does_throw = matches!(fcall_expr.node_type, NodeType::FCall(true));
-                                    *fcall_expr = Expr::new_clone(NodeType::FCall(does_throw), fcall_expr.params.get(0).unwrap(), assoc_new_args);
+                                    let typer_fcall_info = if let NodeType::FCall(ref info) = fcall_expr.node_type { info.clone() } else { FCallInfo { does_throw: false, is_bang: false } };
+                                    *fcall_expr = Expr::new_clone(NodeType::FCall(typer_fcall_info), fcall_expr.params.get(0).unwrap(), assoc_new_args);
                                     return Ok(Some(assoc_func_def.clone()))
                                 }
                             },

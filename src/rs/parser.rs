@@ -923,14 +923,15 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
         params.push(e);
         params.extend(arg_list.params);
         // Issue #132: Check for ? after function call (indicates call to throwing function)
-        // Issue #180: ! is a synonym for ? (panic on throw, desugared later)
-        let does_throw = if lexer.peek().token_type == TokenType::QuestionMark || lexer.peek().token_type == TokenType::ExclamationMark {
+        // Issue #180: ! is bang operator (panic on throw, desugared later)
+        let is_bang = lexer.peek().token_type == TokenType::ExclamationMark;
+        let does_throw = if lexer.peek().token_type == TokenType::QuestionMark || is_bang {
             lexer.advance(1)?;
             true
         } else {
             false
         };
-        let mut result = Expr::new_parse(NodeType::FCall(does_throw), lexer.get_token(initial_current)?.clone(), params);
+        let mut result = Expr::new_parse(NodeType::FCall(FCallInfo { does_throw, is_bang }), lexer.get_token(initial_current)?.clone(), params);
 
         // Handle chained method calls and field access: a.method1().method2().field.method3()
         // Bug #32 fix: Support field access after method calls (not just method calls)
@@ -971,14 +972,15 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                     new_params.extend(method_args.params);
 
                     // Issue #132: Check for ? after chained method call
-                    // Issue #180: ! is a synonym for ?
-                    let method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark || lexer.peek().token_type == TokenType::ExclamationMark {
+                    // Issue #180: ! is bang operator (panic on throw)
+                    let method_is_bang = lexer.peek().token_type == TokenType::ExclamationMark;
+                    let method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark || method_is_bang {
                         lexer.advance(1)?;
                         true
                     } else {
                         false
                     };
-                    result = Expr::new_parse(NodeType::FCall(method_does_throw), method_t, new_params);
+                    result = Expr::new_parse(NodeType::FCall(FCallInfo { does_throw: method_does_throw, is_bang: method_is_bang }), method_t, new_params);
                 } else {
                     // Bug #32 fix: Field access on expression result (no parentheses)
                     // Collect all field names in the chain until we hit something else
@@ -1022,14 +1024,15 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                                 new_params.extend(method_args.params);
 
                                 // Issue #132: Check for ? after field chain method call
-                                // Issue #180: ! is a synonym for ?
-                                let field_method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark || lexer.peek().token_type == TokenType::ExclamationMark {
+                                // Issue #180: ! is bang operator (panic on throw)
+                                let field_method_is_bang = lexer.peek().token_type == TokenType::ExclamationMark;
+                                let field_method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark || field_method_is_bang {
                                     lexer.advance(1)?;
                                     true
                                 } else {
                                     false
                                 };
-                                result = Expr::new_parse(NodeType::FCall(field_method_does_throw), next_field_t, new_params);
+                                result = Expr::new_parse(NodeType::FCall(FCallInfo { does_throw: field_method_does_throw, is_bang: field_method_is_bang }), next_field_t, new_params);
                                 break;
                             } else {
                                 // Another field access
@@ -1181,7 +1184,7 @@ fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
                 let mut params = Vec::new();
                 params.push(struct_expr);
                 params.extend(arg_list.params);
-                return Ok(Expr::new_parse(NodeType::FCall(false), t.clone(), params));
+                return Ok(Expr::new_parse(NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), t.clone(), params));
             }
             return Ok(struct_expr);
         },
@@ -1421,7 +1424,7 @@ fn desugar_range_for(
     // Helper to create forward while loop
     let make_fwd_while = |body: &Expr| {
         let cond = Expr::new_explicit(
-            NodeType::FCall(false),  // Issue #132: lt doesn't throw
+            NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),  // Issue #132: lt doesn't throw
             vec![
                 Expr::new_parse(
                     NodeType::Identifier(loop_var_name.to_string()),
@@ -1433,7 +1436,7 @@ fn desugar_range_for(
             initial_token.line, initial_token.col,
         );
         let inc = Expr::new_explicit(
-            NodeType::FCall(false),  // Issue #132: inc doesn't throw
+            NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),  // Issue #132: inc doesn't throw
             vec![Expr::new_parse(NodeType::Identifier(loop_var_name.to_string()), initial_token.clone(), vec![
                 Expr::new_parse(NodeType::Identifier("inc".to_string()), initial_token.clone(), vec![]),
             ])],
@@ -1450,7 +1453,7 @@ fn desugar_range_for(
     // Helper to create reverse while loop
     let make_rev_while = |body: &Expr| {
         let cond = Expr::new_explicit(
-            NodeType::FCall(false),  // Issue #132: gt doesn't throw
+            NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),  // Issue #132: gt doesn't throw
             vec![
                 Expr::new_parse(
                     NodeType::Identifier(loop_var_name.to_string()),
@@ -1462,7 +1465,7 @@ fn desugar_range_for(
             initial_token.line, initial_token.col,
         );
         let dec = Expr::new_explicit(
-            NodeType::FCall(false),  // Issue #132: dec doesn't throw
+            NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),  // Issue #132: dec doesn't throw
             vec![Expr::new_parse(NodeType::Identifier(loop_var_name.to_string()), initial_token.clone(), vec![
                 Expr::new_parse(NodeType::Identifier("dec".to_string()), initial_token.clone(), vec![]),
             ])],
@@ -1490,7 +1493,7 @@ fn desugar_range_for(
             let fwd_while = make_fwd_while(body_expr);
             let rev_while = make_rev_while(body_expr);
             let direction_cond = Expr::new_explicit(
-                NodeType::FCall(false),  // Issue #132: lt doesn't throw
+                NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),  // Issue #132: lt doesn't throw
                 vec![
                     Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![]),
                     start_expr.clone(),

@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use crate::rs::init::{Context, SymbolInfo, EnumVal, EnumPayload, ScopeFrame, ScopeType, get_value_type, get_func_name_in_call, init_import_declarations, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, FunctionType, FuncDef, FuncSig,
+    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, FunctionType, FuncDef, FCallInfo, FuncSig,
     value_type_to_str, get_combined_name, parse_tokens,
 };
 use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, type_check, check_body_returns_throws, typer_import_declarations, ThrownType};
@@ -795,6 +795,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             i64_lit_temp_var_name
                                         },
                                         // Bug #56 fix: Handle FCall (e.g., x.clone()) for Str payloads
+                                        // Issue #180: Also handle FCall for non-Str struct payloads (e.g., FCallInfo())
                                         NodeType::FCall(_) if struct_type_name == "Str" => {
                                             let str_fcall_temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().heap_index.len());
                                             let str_fcall_string_value = &payload_result.value;
@@ -809,6 +810,11 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
                                             EvalHeap::insert_string(context, &str_fcall_temp_var_name, &str_fcall_string_value.to_string(), e)?;
                                             str_fcall_temp_var_name
+                                        },
+                                        NodeType::FCall(_) => {
+                                            // FCall returning a struct (e.g., FCallInfo()) - already evaluated,
+                                            // payload_result.value is the temp var name holding the struct
+                                            payload_result.value.clone()
                                         },
                                         _ => return Err(e.error(&context.path, "eval", &format!("Enum variant payload must be a variable, literal, or function call, got {:?}", payload_expr.node_type))),
                                     };
@@ -2739,7 +2745,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
     for import_str in context.mode_def.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
-        let import_fcall_expr = Expr{node_type: NodeType::FCall(false), params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+        let import_fcall_expr = Expr{node_type: NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
 
         // Mode imports need full processing: init, typer, eval
         // (Regular imports have init done during main file's init, but mode imports happen before that)
@@ -2797,7 +2803,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
             for str_arg in main_args {
                 main_params.push(Expr{node_type: NodeType::LLiteral(Literal::Str(str_arg)), line: 0, col: 0, params: Vec::new()});
             }
-            e.params.push(Expr{node_type: NodeType::FCall(false), line: 0, col: 0, params: main_params});
+            e.params.push(Expr{node_type: NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), line: 0, col: 0, params: main_params});
         }
         // Issue #105: Expand struct-returning macros before type checking
         e = crate::rs::precomp::expand_struct_macros(context, &e)?;

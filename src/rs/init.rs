@@ -7,7 +7,7 @@ use crate::rs::mode::{ModeDef, can_be_imported, parse_mode, mode_from_name};
 use crate::rs::ordered_map::OrderedMap;
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, FunctionType, ValueType, FuncDef, TTypeDef, Literal, EnumDef, StructDef, NamespaceDef, PatternInfo,
+    Expr, NodeType, FunctionType, ValueType, FuncDef, FCallInfo, TTypeDef, Literal, EnumDef, StructDef, NamespaceDef, PatternInfo,
     value_type_to_str, str_to_value_type, parse_tokens,
 };
 use crate::rs::preinit::preinit_expr;
@@ -1173,7 +1173,7 @@ pub fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str
     for import_str in context.mode_def.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
-        let import_fcall_expr = Expr{node_type: NodeType::FCall(false), params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+        let import_fcall_expr = Expr{node_type: NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
         if let Err(error_string) = init_import_declarations(context, &import_fcall_expr, &import_str) {
             context.mode_def = previous_mode;
             context.path = original_path;

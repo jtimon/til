@@ -5,7 +5,7 @@
 use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
 use crate::rs::typer::func_proc_has_multi_arg;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, StructDef, EnumDef, FuncDef, NamespaceDef, INFER_TYPE,
+    Expr, NodeType, ValueType, StructDef, EnumDef, FuncDef, FCallInfo, NamespaceDef, INFER_TYPE,
 };
 
 // ---------- Named argument reordering
@@ -96,8 +96,8 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &FuncDef) -> Result
         }
 
         // Issue #132: Preserve does_throw flag from original FCall
-        let does_throw = matches!(e.node_type, NodeType::FCall(true));
-        return Ok(Expr::new_clone(NodeType::FCall(does_throw), e, result));
+        let fcall_info = if let NodeType::FCall(ref info) = e.node_type { info.clone() } else { FCallInfo { does_throw: false, is_bang: false } };
+        return Ok(Expr::new_clone(NodeType::FCall(fcall_info), e, result));
     }
 
     // Count positional args (before first named arg)
@@ -175,8 +175,8 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &FuncDef) -> Result
     }
 
     // Issue #132: Preserve does_throw flag from original FCall
-    let does_throw = matches!(e.node_type, NodeType::FCall(true));
-    Ok(Expr::new_clone(NodeType::FCall(does_throw), e, result))
+    let fcall_info = if let NodeType::FCall(ref info) = e.node_type { info.clone() } else { FCallInfo { does_throw: false, is_bang: false } };
+    Ok(Expr::new_clone(NodeType::FCall(fcall_info), e, result))
 }
 
 // ---------- Main entry point
@@ -474,8 +474,8 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                             new_args.push(new_e);
                             new_args.extend(e.params[1..].to_vec());
                             // Issue #132: Preserve does_throw flag from original FCall
-                            let does_throw = matches!(e.node_type, NodeType::FCall(true));
-                            return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.params.get(0).unwrap(), new_args));
+                            let fcall_info = if let NodeType::FCall(ref info) = e.node_type { info.clone() } else { FCallInfo { does_throw: false, is_bang: false } };
+                            return Ok(Expr::new_clone(NodeType::FCall(fcall_info), e.params.get(0).unwrap(), new_args));
                         }
                     }
                 }
@@ -520,8 +520,8 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                                 assoc_new_args.push(receiver_expr);
                                 assoc_new_args.extend(e.params[1..].to_vec());
                                 // Issue #132: Preserve does_throw flag from original FCall
-                                let does_throw = matches!(e.node_type, NodeType::FCall(true));
-                                return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.params.get(0).unwrap(), assoc_new_args));
+                                let fcall_info = if let NodeType::FCall(ref info) = e.node_type { info.clone() } else { FCallInfo { does_throw: false, is_bang: false } };
+                                return Ok(Expr::new_clone(NodeType::FCall(fcall_info), e.params.get(0).unwrap(), assoc_new_args));
                             }
                         }
                     }
@@ -538,8 +538,8 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     standalone_new_args.push(receiver_expr);
                     standalone_new_args.extend(e.params[1..].to_vec());
                     // Issue #132: Preserve does_throw flag from original FCall
-                    let does_throw = matches!(e.node_type, NodeType::FCall(true));
-                    return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.params.get(0).unwrap(), standalone_new_args));
+                    let fcall_info = if let NodeType::FCall(ref info) = e.node_type { info.clone() } else { FCallInfo { does_throw: false, is_bang: false } };
+                    return Ok(Expr::new_clone(NodeType::FCall(fcall_info), e.params.get(0).unwrap(), standalone_new_args));
                 }
             }
         }

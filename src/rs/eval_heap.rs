@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
 use crate::rs::init::{Context, SymbolInfo, EnumVal, ScopeFrame, ScopeType};
-use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str, NodeType, Literal};
+use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str, NodeType, FCallInfo, Literal};
 // EvalHeap: Memory management for the TIL interpreter
 
 pub struct EvalHeap {
@@ -1097,7 +1097,7 @@ impl EvalHeap {
             params.push(named_arg);
         }
 
-        Ok(Expr::new_explicit(NodeType::FCall(false), params, 0, 0))
+        Ok(Expr::new_explicit(NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), params, 0, 0))
     }
 
     /// Helper: read a field value from EvalHeap and convert to literal Expr

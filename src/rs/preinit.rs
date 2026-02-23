@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use crate::rs::ordered_map::OrderedMap;
 
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, StructDef, EnumDef, FuncDef, FuncSig, NamespaceDef, FunctionType,
+    Expr, NodeType, ValueType, StructDef, EnumDef, FuncDef, FuncSig, FCallInfo, NamespaceDef, FunctionType,
     Declaration,
 };
 
@@ -72,7 +72,7 @@ fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize
         );
 
         let delete_call = Expr::new_explicit(
-            NodeType::FCall(false),
+            NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),
             vec![delete_access],
             line,
             col,
@@ -158,7 +158,7 @@ fn generate_clone_method(struct_name: &str, struct_def: &StructDef, line: usize,
             );
 
             Expr::new_explicit(
-                NodeType::FCall(false),
+                NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),
                 vec![clone_access],
                 line,
                 col,
@@ -186,7 +186,7 @@ fn generate_clone_method(struct_name: &str, struct_def: &StructDef, line: usize,
     struct_literal_params.extend(named_args);
 
     let struct_literal = Expr::new_explicit(
-        NodeType::FCall(false),
+        NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),
         struct_literal_params,
         line,
         col,

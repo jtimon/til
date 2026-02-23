@@ -22,7 +22,7 @@ make_call : func(name: Str, args: Vec, line: I64, col: I64) returns Expr = {
     mut params := Vec.new(Expr)
     params.push(make_id(name, line, col))
     for arg: Expr in args { params.push(arg) }
-    return Expr.new_explicit(NodeType.FCall(false), params, line, col)
+    return Expr.new_explicit(NodeType.FCall(FCallInfo()), params, line, col)
 }
 
 /// Create a string literal
@@ -1328,7 +1328,7 @@ build_default_value : func(context: Context, vt: ValueType, line: I64, col: I64)
                     mut enum_call_args := Vec.new(Expr)
                     enum_call_args.push(enum_id)
                     enum_call_args.push(default_arg)
-                    return Expr.new_explicit(NodeType.FCall(false), enum_call_args, line, col)
+                    return Expr.new_explicit(NodeType.FCall(FCallInfo()), enum_call_args, line, col)
                 } else {
                     // Variant has no payload - just the identifier chain
                     return enum_id
@@ -1337,13 +1337,13 @@ build_default_value : func(context: Context, vt: ValueType, line: I64, col: I64)
                 // Empty enum - fall back to struct-like constructor (shouldn't happen)
                 mut empty_args := Vec.new(Expr)
                 empty_args.push(make_id(type_name, line, col))
-                return Expr.new_explicit(NodeType.FCall(false), empty_args, line, col)
+                return Expr.new_explicit(NodeType.FCall(FCallInfo()), empty_args, line, col)
             }
         } else {
             // Not an enum - use struct-like constructor: TYPE()
             mut struct_args := Vec.new(Expr)
             struct_args.push(make_id(type_name, line, col))
-            return Expr.new_explicit(NodeType.FCall(false), struct_args, line, col)
+            return Expr.new_explicit(NodeType.FCall(FCallInfo()), struct_args, line, col)
         }
     case:
         // For function types and other types, use a placeholder (shouldn't typically happen)

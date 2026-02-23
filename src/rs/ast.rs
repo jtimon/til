@@ -156,11 +156,18 @@ pub enum Literal {
     List(String), // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
 }
 
+// Issue #180: FCall payload struct
+#[derive(Debug, Clone, PartialEq)]
+pub struct FCallInfo {
+    pub does_throw: bool,  // true if ? or ! (call to throwing func)
+    pub is_bang: bool,     // true if ! (panic on throw, desugared to catch+panic)
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeType {
     Body,
     LLiteral(Literal),
-    FCall(bool),  // Issue #132: bool indicates if call has '?' suffix (calls throwing func)
+    FCall(FCallInfo),  // Issue #132/#180: function call with throw/bang info
     Identifier(String),
     Declaration(Declaration),
     Assignment(String),

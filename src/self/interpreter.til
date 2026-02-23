@@ -757,6 +757,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                 case:
                                 }
                             // Bug #56 fix: Handle FCall (e.g., x.clone()) for Str payloads
+                            // Issue #180: Also handle FCall for non-Str struct payloads (e.g., FCallInfo())
                             case NodeType.FCall(_):
                                 if struct_type_name.eq("Str") {
                                     str_fcall_last_frame := context.scope_stack.last_frame()?
@@ -767,6 +768,11 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
 
                                     EvalHeap.insert_string(context, str_fcall_temp_var_name, str_fcall_string_value, e)?
                                     struct_var_name = str_fcall_temp_var_name
+                                    struct_var_set = true
+                                } else {
+                                    // FCall returning a struct - already evaluated,
+                                    // payload_result.value is the temp var name holding the struct
+                                    struct_var_name = payload_result.value
                                     struct_var_set = true
                                 }
                             case:
@@ -3080,7 +3086,7 @@ main_interpret : proc(skip_init_and_typecheck: Bool, mut context: Context, path:
         // Create synthetic import expression
         import_func_name_expr := Expr(node_type=NodeType.Identifier("import"), line=0, col=0)
         import_path_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(import_str)), line=0, col=0)
-        mut import_fcall_expr := Expr(node_type=NodeType.FCall(false), line=0, col=0)
+        mut import_fcall_expr := Expr(node_type=NodeType.FCall(FCallInfo()), line=0, col=0)
         import_fcall_expr.params.push(import_func_name_expr)
         import_fcall_expr.params.push(import_path_expr)
 
@@ -3142,7 +3148,7 @@ main_interpret : proc(skip_init_and_typecheck: Bool, mut context: Context, path:
         // For modes that require a main proc, add an implicit call to main
         if context.mode_def.needs_main_proc {
             main_ident_expr := Expr(node_type=NodeType.Identifier("main"), line=0, col=0)
-            mut main_call_expr := Expr(node_type=NodeType.FCall(false), line=0, col=0)
+            mut main_call_expr := Expr(node_type=NodeType.FCall(FCallInfo()), line=0, col=0)
             main_call_expr.params.push(main_ident_expr)
 
             // Add string args

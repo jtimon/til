@@ -513,7 +513,7 @@ build_clone_call_expr : func(type_name: Str, src_expr: Expr, line: I64, col: I64
     type_clone_access.params.push(clone_ident)
 
     // FCall node with the source expression as argument
-    mut clone_call := Expr(node_type=NodeType.FCall(false), line=line, col=col)
+    mut clone_call := Expr(node_type=NodeType.FCall(FCallInfo()), line=line, col=col)
     clone_call.params.push(type_clone_access)
     clone_call.params.push(src_expr)
     return clone_call
@@ -565,7 +565,7 @@ build_delete_call_expr : func(type_name: Str, var_name: Str, line: I64, col: I64
     mut type_delete_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
     type_delete_access.params.push(delete_ident)
     var_expr := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
-    mut delete_call := Expr(node_type=NodeType.FCall(false), line=line, col=col)
+    mut delete_call := Expr(node_type=NodeType.FCall(FCallInfo()), line=line, col=col)
     delete_call.params.push(type_delete_access)
     delete_call.params.push(var_expr)
     return delete_call

@@ -4,7 +4,7 @@
 
 use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, StructDef, EnumDef, NamespaceDef, FuncDef, Literal,
+    Expr, NodeType, ValueType, StructDef, EnumDef, NamespaceDef, FuncDef, FCallInfo, Literal,
     Declaration, str_to_value_type, transform_continue_with_step,
 };
 
@@ -22,7 +22,7 @@ fn make_id(name: &str, line: usize, col: usize) -> Expr {
 fn make_call(name: &str, args: Vec<Expr>, line: usize, col: usize) -> Expr {
     let mut params = vec![make_id(name, line, col)];
     params.extend(args);
-    Expr::new_explicit(NodeType::FCall(false), params, line, col)
+    Expr::new_explicit(NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), params, line, col)
 }
 
 /// Create a string literal
@@ -120,18 +120,18 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
                             if let Some(payload_vt) = payload_type {
                                 // Variant has a payload - need FCall with default value (recursive)
                                 let default_arg = build_default_value(context, payload_vt, line, col);
-                                Expr::new_explicit(NodeType::FCall(false), vec![enum_id, default_arg], line, col)
+                                Expr::new_explicit(NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), vec![enum_id, default_arg], line, col)
                             } else {
                                 // Variant has no payload - just the identifier chain
                                 enum_id
                             }
                         } else {
                             // Empty enum - fall back to struct-like constructor (shouldn't happen)
-                            Expr::new_explicit(NodeType::FCall(false), vec![make_id(type_name, line, col)], line, col)
+                            Expr::new_explicit(NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), vec![make_id(type_name, line, col)], line, col)
                         }
                     } else {
                         // Not an enum - use struct-like constructor: TYPE()
-                        Expr::new_explicit(NodeType::FCall(false), vec![make_id(type_name, line, col)], line, col)
+                        Expr::new_explicit(NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), vec![make_id(type_name, line, col)], line, col)
                     }
                 }
             }

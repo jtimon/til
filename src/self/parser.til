@@ -1023,8 +1023,9 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
         }
         initial_token2 := lexer.get_token(initial_current)?.clone()
         // Issue #132: Check for ? after function call (indicates call to throwing function)
-        // Issue #180: ! is a synonym for ? (panic on throw, desugared later)
+        // Issue #180: ! is bang operator (panic on throw, desugared later)
         mut does_throw := false
+        mut is_bang := false
         does_throw_peek := lexer.peek()?
         switch does_throw_peek.token_type {
         case TokenType.QuestionMark:
@@ -1033,10 +1034,11 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
         case TokenType.ExclamationMark:
             lexer.advance(1)?
             does_throw = true
+            is_bang = true
         case:
             does_throw = false
         }
-        result = expr_new_parse(NodeType.FCall(does_throw), initial_token2, fcall_params)
+        result = expr_new_parse(NodeType.FCall(FCallInfo(does_throw=does_throw, is_bang=is_bang)), initial_token2, fcall_params)
 
         // Handle chained method calls: a.method1().method2().method3()
         mut continue_loop := true
@@ -1075,8 +1077,9 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                         }
 
                         // Issue #132: Check for ? after chained method call
-                        // Issue #180: ! is a synonym for ?
+                        // Issue #180: ! is bang operator (panic on throw, desugared later)
                         mut method_does_throw := false
+                        mut method_is_bang := false
                         method_does_throw_peek := lexer.peek()?
                         switch method_does_throw_peek.token_type {
                         case TokenType.QuestionMark:
@@ -1085,10 +1088,11 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                         case TokenType.ExclamationMark:
                             lexer.advance(1)?
                             method_does_throw = true
+                            method_is_bang = true
                         case:
                             method_does_throw = false
                         }
-                        result = expr_new_parse(NodeType.FCall(method_does_throw), method_t, new_params)
+                        result = expr_new_parse(NodeType.FCall(FCallInfo(does_throw=method_does_throw, is_bang=method_is_bang)), method_t, new_params)
                     case:
                         // Bug #32 fix: Field access on expression result (no parentheses)
                         // Collect all field names in the chain until we hit something else
@@ -1135,8 +1139,9 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                                         }
 
                                         // Issue #132: Check for ? after field method call
-                                        // Issue #180: ! is a synonym for ?
+                                        // Issue #180: ! is bang operator (panic on throw, desugared later)
                                         mut field_method_does_throw := false
+                                        mut field_method_is_bang := false
                                         field_method_does_throw_peek := lexer.peek()?
                                         switch field_method_does_throw_peek.token_type {
                                         case TokenType.QuestionMark:
@@ -1145,10 +1150,11 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                                         case TokenType.ExclamationMark:
                                             lexer.advance(1)?
                                             field_method_does_throw = true
+                                            field_method_is_bang = true
                                         case:
                                             field_method_does_throw = false
                                         }
-                                        result = expr_new_parse(NodeType.FCall(field_method_does_throw), next_field_t, new_params2)
+                                        result = expr_new_parse(NodeType.FCall(FCallInfo(does_throw=field_method_does_throw, is_bang=field_method_is_bang)), next_field_t, new_params2)
                                         continue_field_loop = false
                                     case:
                                         // Another field access
@@ -1347,7 +1353,7 @@ parse_primary : func(mut lexer: Lexer) returns Expr throws Str = {
             for arg: Expr in arg_list.params {
                 fcall_params.push(arg.clone())
             }
-            result = expr_new_parse(NodeType.FCall(false), t.clone(), fcall_params)
+            result = expr_new_parse(NodeType.FCall(FCallInfo()), t.clone(), fcall_params)
         }
     case TokenType.Namespace:
         throw t.error(lexer.path, "Separate 'namespace TypeName { }' blocks are no longer supported. Use 'namespace:' inside the struct/enum body instead.")
@@ -1631,7 +1637,7 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
         mut cond_params := Vec.new(Expr)
         cond_params.push(cond_var)
         cond_params.push(end.clone())
-        cond := Expr.new_explicit(NodeType.FCall(false),cond_params, tok.line, tok.col)
+        cond := Expr.new_explicit(NodeType.FCall(FCallInfo()),cond_params, tok.line, tok.col)
 
         mut inc_method_params := Vec.new(Expr)
         inc_method := expr_new_parse(NodeType.Identifier("inc"), tok.clone(), Vec.new(Expr))
@@ -1639,7 +1645,7 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
         inc_var := expr_new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), inc_method_params)
         mut inc_params := Vec.new(Expr)
         inc_params.push(inc_var)
-        inc := Expr.new_explicit(NodeType.FCall(false),inc_params, tok.line, tok.col)
+        inc := Expr.new_explicit(NodeType.FCall(FCallInfo()),inc_params, tok.line, tok.col)
 
         // Bug #57 fix: Transform continue statements to include increment before continue
         transformed_body := transform_continue_with_step(body, inc)
@@ -1663,7 +1669,7 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
         mut cond_params := Vec.new(Expr)
         cond_params.push(cond_var)
         cond_params.push(end.clone())
-        cond := Expr.new_explicit(NodeType.FCall(false),cond_params, tok.line, tok.col)
+        cond := Expr.new_explicit(NodeType.FCall(FCallInfo()),cond_params, tok.line, tok.col)
 
         mut dec_method_params := Vec.new(Expr)
         dec_method := expr_new_parse(NodeType.Identifier("dec"), tok.clone(), Vec.new(Expr))
@@ -1671,7 +1677,7 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
         dec_var := expr_new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), dec_method_params)
         mut dec_params := Vec.new(Expr)
         dec_params.push(dec_var)
-        dec := Expr.new_explicit(NodeType.FCall(false),dec_params, tok.line, tok.col)
+        dec := Expr.new_explicit(NodeType.FCall(FCallInfo()),dec_params, tok.line, tok.col)
 
         // Bug #57 fix: Transform continue statements to include decrement before continue
         transformed_body := transform_continue_with_step(body, dec)
@@ -1704,7 +1710,7 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
             dir_cond_params.push(dir_lt_ident)
             dir_cond_params.push(start_expr.clone())
             dir_cond_params.push(end_expr.clone())
-            dir_cond_expr := Expr.new_explicit(NodeType.FCall(false),dir_cond_params, initial_token.line, initial_token.col)
+            dir_cond_expr := Expr.new_explicit(NodeType.FCall(FCallInfo()),dir_cond_params, initial_token.line, initial_token.col)
 
             mut fwd_body_params := Vec.new(Expr)
             fwd_body_params.push(fwd_while)

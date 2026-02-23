@@ -363,7 +363,7 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
         import_path_expr.col = 0
 
         mut import_fcall_expr := Expr()
-        import_fcall_expr.node_type = NodeType.FCall(false)
+        import_fcall_expr.node_type = NodeType.FCall(FCallInfo())
         import_fcall_expr.params = Vec.new(Expr)
         import_fcall_expr.params.push(import_func_name_expr)
         import_fcall_expr.params.push(import_path_expr)

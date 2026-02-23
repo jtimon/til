@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use crate::rs::init::Context;
-use crate::rs::parser::{Expr, NodeType, ValueType, FuncDef, StructDef, EnumDef, NamespaceDef, Declaration};
+use crate::rs::parser::{Expr, NodeType, ValueType, FuncDef, FCallInfo, StructDef, EnumDef, NamespaceDef, Declaration};
 
 /// Result of resolving a function call, including UFCS detection.
 struct ResolvedFCall {
@@ -389,7 +389,7 @@ fn build_clone_call_expr(type_name: &str, src_expr: Expr, line: usize, col: usiz
 
     // FCall node with the source expression as argument
     Expr::new_explicit(
-        NodeType::FCall(false),
+        NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),
         vec![type_clone_access, src_expr],
         line,
         col,
@@ -434,7 +434,7 @@ fn build_delete_call_expr(type_name: &str, var_name: &str, line: usize, col: usi
         NodeType::Identifier(type_name.to_string()), vec![delete_ident], line, col);
     let var_expr = Expr::new_explicit(
         NodeType::Identifier(var_name.to_string()), vec![], line, col);
-    Expr::new_explicit(NodeType::FCall(false), vec![type_delete_access, var_expr], line, col)
+    Expr::new_explicit(NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), vec![type_delete_access, var_expr], line, col)
 }
 
 /// Build AST for var = Type.clone(var): Assignment with RHS = clone FCall.

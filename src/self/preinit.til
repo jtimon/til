@@ -78,7 +78,7 @@ generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64
 
                 mut delete_call_params := Vec.new(Expr)
                 delete_call_params.push(delete_access)
-                delete_call := Expr.new_explicit(NodeType.FCall(false), delete_call_params, line, col)
+                delete_call := Expr.new_explicit(NodeType.FCall(FCallInfo()), delete_call_params, line, col)
 
                 body_stmts.push(delete_call)
             }
@@ -164,7 +164,7 @@ generate_clone_method : func(struct_name: Str, struct_def: StructDef, line: I64,
 
                 mut clone_call_params := Vec.new(Expr)
                 clone_call_params.push(clone_access)
-                field_value = Expr.new_explicit(NodeType.FCall(false), clone_call_params, line, col)
+                field_value = Expr.new_explicit(NodeType.FCall(FCallInfo()), clone_call_params, line, col)
             }
 
             mut named_arg_params := Vec.new(Expr)
@@ -182,7 +182,7 @@ generate_clone_method : func(struct_name: Str, struct_def: StructDef, line: I64,
         struct_literal_params.push(na)
     }
 
-    struct_literal := Expr.new_explicit(NodeType.FCall(false), struct_literal_params, line, col)
+    struct_literal := Expr.new_explicit(NodeType.FCall(FCallInfo()), struct_literal_params, line, col)
 
     mut return_params := Vec.new(Expr)
     return_params.push(struct_literal)

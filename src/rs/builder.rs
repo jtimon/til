@@ -6,7 +6,7 @@ use std::io::ErrorKind;
 use std::process::Command;
 use std::collections::HashSet;
 use crate::rs::lexer::lexer_from_source;
-use crate::rs::parser::{parse_tokens, Expr, NodeType};
+use crate::rs::parser::{parse_tokens, Expr, NodeType, FCallInfo};
 use crate::rs::mode::{parse_mode, ModeDef};
 use crate::rs::ccodegen;
 use crate::rs::init::{import_path_to_file_path, init_import_declarations, Context};
@@ -271,7 +271,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, cc: Option<&str>, transla
     for import_str in context.mode_def.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(crate::rs::parser::Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
-        let import_fcall_expr = Expr{node_type: NodeType::FCall(false), params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+        let import_fcall_expr = Expr{node_type: NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
 
         // Mode imports need init and typer phases (no eval for builder)
         if let Err(error_string) = init_import_declarations(&mut context, &import_fcall_expr, &import_str) {

@@ -298,10 +298,16 @@ literal_clone : func(lit: Literal) returns Literal = {
     return lit
 }
 
+// Issue #180: FCall payload struct
+FCallInfo := struct {
+    mut does_throw: Bool = false  // true if ? or ! (call to throwing func)
+    mut is_bang: Bool = false     // true if ! (panic on throw, desugared to catch+panic)
+}
+
 NodeType := enum {
     Body,
     LLiteral: Literal,
-    FCall: Bool,  // Issue #132: Bool indicates if call has ? (does_throw)
+    FCall: FCallInfo,  // Issue #132/#180: function call with throw/bang info
     Identifier: Str,
     Declaration: Declaration,
     Assignment: Str,
@@ -357,8 +363,8 @@ node_type_clone : func(nt: NodeType) returns NodeType = {
     case NodeType.ForIn(s):
         forin_cloned := s.clone()
         return NodeType.ForIn(forin_cloned)
-    case NodeType.FCall(does_throw):
-        return NodeType.FCall(does_throw)
+    case NodeType.FCall(info):
+        return NodeType.FCall(FCallInfo(does_throw=info.does_throw, is_bang=info.is_bang))
     case:
         // Simple variants (Body, Return, etc.) have no payload to clone
         return nt

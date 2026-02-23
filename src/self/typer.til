@@ -8,13 +8,13 @@ import("self.init")
 //
 // Translated from src/rs/typer.rs
 
-// Helper function to extract does_throw from an FCall node type (Issue #132)
-get_fcall_does_throw : func(e: Expr) returns Bool = {
+// Helper function to extract FCallInfo from an FCall node type (Issue #132/#180)
+get_fcall_info : func(e: Expr) returns FCallInfo = {
     switch e.node_type {
-    case NodeType.FCall(does_throw):
-        return does_throw
+    case NodeType.FCall(info):
+        return FCallInfo(does_throw=info.does_throw, is_bang=info.is_bang)
     case:
-        return false
+        return FCallInfo()
     }
 }
 
@@ -203,7 +203,8 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
                 errors.push(e.error(context.path, "type", format("Range start and end must be of same type, found '", value_type_to_str(left_type), "' and '", value_type_to_str(right_type), "'")))
             }
         }
-    case NodeType.FCall(does_throw):
+    case NodeType.FCall(fcall_info):
+        does_throw := fcall_info.does_throw
         // Special handling for import() calls - type-check the imported file
         mut f_name := get_func_name_in_call(e)?
         if f_name.eq("import") {
@@ -1737,10 +1738,10 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     arg := cast(Expr, p.params.get(argi)?)
                     dont_delete(arg)
                     switch arg.node_type {
-                    case NodeType.FCall(arg_does_throw):
+                    case NodeType.FCall(arg_fcall_info):
                         mut arg_nested_func_def := get_func_def_for_fcall(context, arg)?
                         // Add the nested function's own throw types (only if it has ?)
-                        if arg_does_throw {
+                        if arg_fcall_info.does_throw {
                             for arg_nested_throw: ValueType in arg_nested_func_def.sig.throw_types {
                                 arg_nested_throw_str := value_type_to_str(arg_nested_throw)
                                 arg_nested_error_msg := format("Function throws '", arg_nested_throw_str, "', but it is not declared in this function's throws section.")
@@ -3162,7 +3163,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                             k.inc()
                         }
                         method_e0b := cast(Expr, fcall_expr.params.get(0)?)
-                        fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_does_throw(fcall_expr)), method_e0b, new_args)
+                        fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_info(fcall_expr)), method_e0b, new_args)
                         return method_func_def
                     }
                 case:
@@ -3227,7 +3228,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                         ufcs_k.inc()
                     }
                     ufcs_e0b := cast(Expr, fcall_expr.params.get(0)?)
-                    fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_does_throw(fcall_expr)), ufcs_e0b, ufcs_new_args)
+                    fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_info(fcall_expr)), ufcs_e0b, ufcs_new_args)
                     return ufcs_fn_def
                 }
 
@@ -3265,7 +3266,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                                 assoc_m.inc()
                             }
                             assoc_e0b := cast(Expr, fcall_expr.params.get(0)?)
-                            fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_does_throw(fcall_expr)), assoc_e0b, assoc_new_args)
+                            fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_info(fcall_expr)), assoc_e0b, assoc_new_args)
                             return assoc_func_def
                         }
                     case:
@@ -3866,7 +3867,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
         catch_params.push(resolved_catch_body)
         return Expr.new_explicit(e.node_type, catch_params, e.line, e.col)
 
-    case NodeType.FCall(does_throw):
+    case NodeType.FCall(_):
         // Recurse into params
         fcall_params := resolve_params(context, e)?
         return Expr.new_clone(e.node_type, e, fcall_params)

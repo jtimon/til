@@ -1593,7 +1593,7 @@ init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: 
     for import_str: Str in context.mode_def.imports {
         import_func_name_expr := Expr(node_type=NodeType.Identifier("import"), line=0, col=0)
         import_path_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(import_str)), line=0, col=0)
-        mut import_fcall_expr := Expr(node_type=NodeType.FCall(false), line=0, col=0)
+        mut import_fcall_expr := Expr(node_type=NodeType.FCall(FCallInfo()), line=0, col=0)
         import_fcall_expr.params.push(import_func_name_expr)
         import_fcall_expr.params.push(import_path_expr)
 
