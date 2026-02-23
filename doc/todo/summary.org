@@ -19,18 +19,23 @@
 |  94 | gcc warnings cause bug47.til compilation failure (blocked by #99) | Build issue               |
 |  80 | ccodegen.til generates different C code than ccodegen.rs        | Divergence                  |
 
-* features.org (6 issues)
+* features.org (11 issues)
 
 | #   | Issue                                            | Category         |
 |-----+--------------------------------------------------+------------------|
 | 182 | Closures -- explicit capture lists               | Language feature |
 | 181 | First-class bodies -- store, pass, return blocks | Language feature |
 | 180 | Bang operator ! for panic-on-throw (unwrap)     | Language feature |
+| 111 | Support returns Dynamic                          | Language feature |
+|  88 | Macro Support (Compile-Time Evaluation)          | Language feature |
 | 106 | First-Class Enums                                | Language feature |
 |  91 | First-Class Functions                            | Language feature |
 |  83 | No spread/splat operator for variadic forwarding | Language feature |
+| 161 | Namespace constants, static mutables, immutables | Language feature |
+| 151 | Explicit pointer/reference syntax                | Language feature |
+|  64 | Custom main args in mode cli don't work          | Language feature |
 
-* future.org (12 issues)
+* future.org (10 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
@@ -40,14 +45,12 @@
 | 142 | Code Simplification - Context Error Helpers      | Cleanup            |
 | 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design     |
 | 112 | HashMap type slower than Map in TIL              | Blocked            |
-| 111 | Support returns Dynamic                          | Feature            |
 | 178 | Eliminate TTypeDef, unify type representation    | Internal cleanup   |
 | 100 | Get rid of rstil                                 | Architecture goal  |
 |  89 | Constant folding only works at global scope      | Optimization       |
-|  88 | Macro Support (Compile-Time Evaluation)          | Language feature   |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (12 issues)
+* pre.org (10 issues)
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
@@ -58,14 +61,12 @@
 | 179 | Typer should reject cast() in non-declaration pos  | Type checker |
 | 175 | Unify C calling convention -- all return via _ret  | Codegen      |
 | 168 | ccodegen returns create copies interpreter doesn't | Memory mgmt  |
-| 161 | Namespace constants, static mutables, immutables   | Language     |
-| 151 | Explicit pointer/reference syntax                  | Language     |
 | 135 | True cross-compilation via precompiled ext.o       | Build system |
 | 117 | ASAP Destruction (auto-delete on last use)         | Memory mgmt  |
 | 115 | Owned struct fields and auto-generated methods     | Memory mgmt  |
 |  82 | make.til - Replace Makefile with TIL               | Build system |
 
-* post.org (11 issues)
+* post.org (10 issues)
 
 | #   | Issue                                             | Category         |
 |-----+---------------------------------------------------+------------------|
@@ -78,5 +79,4 @@
 | 104 | TempleOS Support                                  | Platform         |
 | 103 | Mode GUI                                          | Feature          |
 |  90 | Parser: remove {} requirement for ext_func/proc   | Syntax           |
-|  64 | Custom main args in mode cli don't work           | CLI mode         |
 |  51 | Precomp doesn't propagate constants through params | Optimization    |

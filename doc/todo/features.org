@@ -508,6 +508,171 @@ Typer, interpreter, ccodegen, scavenger all updated.
 - src/rs/init.rs / src/self/init.til (SFuncDef, ScopeFrame, ValueType, dispatch)
 - src/test/function_pointers.til (test cases)
 
+** Issue #111: Support returns Dynamic
+:PROPERTIES:
+:DISCOVERED: 2026-01-13
+:IMPACT: Cleaner API for Vec.get, enum_payload, etc.
+:STATUS: Open
+:RELATED: Issue #110 (enum_payload needs this)
+:END:
+
+*** Description
+Allow functions to return Dynamic type. Currently Vec.get uses inout parameter
+as workaround. With ~returns Dynamic~, APIs become cleaner and closer to Rust/templates.
+
+*** Key Constraint
+Disallow type inference for Dynamic returns - caller must annotate the type:
+#+BEGIN_SRC til
+val: I64 = vec.get(0)      // OK - type annotated
+val := vec.get(0)          // ERROR - can't infer Dynamic return
+#+END_SRC
+
+This sidesteps inference complexity while enabling the feature.
+
+*** Benefits
+- Vec.get returns value directly instead of inout param
+- enum_payload (Issue #110) can work cleanly
+- Closer to Rust and future templates
+- More idiomatic TIL
+
+*** Refactor Opportunity
+Once implemented, refactor collection APIs in src/core and src/self:
+- Array/Vec: get, pop, etc. return value instead of inout
+- Set/Map: get, contains, etc. return value instead of inout
+Big cleanup of self-hosted code.
+
+*** Example
+Current (workaround):
+#+BEGIN_SRC til
+mut val: I64 = 0
+vec.get(0, mut val)  // inout parameter
+#+END_SRC
+
+With returns Dynamic:
+#+BEGIN_SRC til
+val: I64 = vec.get(0)  // direct return
+#+END_SRC
+
+** Issue #88: Macro Support (Compile-Time Evaluation)
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:IMPACT: Language feature, metaprogramming, compile-time computation
+:STATUS: Partial (Step 1 done, Step 2 open)
+:RELATED: doc/metaprogramming.org (full vision)
+:END:
+
+*** Background
+
+The ~macro~ keyword is parsed and creates ~FTMacro~ function type. This issue
+tracks implementing true compile-time macro evaluation in two steps.
+
+*** Step 1: Forced Compile-Time Evaluation [DONE 2026-01-26]
+
+Macros are now forced to evaluate at compile-time (at global scope). If arguments
+are not compile-time constants, an error is raised instead of deferring to runtime.
+
+Changes made:
+- Added ~is_macro()~ helper to SFuncDef (parser.rs/parser.til)
+- Added ~is_macro_fcall()~ and macro handling in precomp (precomp.rs/precomp.til)
+- Added src/test/macros.til with tests including recursive factorial/fibonacci
+
+| Aspect              | Funcs                       | Macros           |
+|---------------------|-----------------------------|------------------|
+| Args not comptime   | Silent skip, run at runtime | ERROR            |
+| Evaluation          | Optional optimization       | Mandatory        |
+
+Note: This is essentially "strict constant folding" - macros can compute values
+at compile-time (factorial, fibonacci, etc.) but cannot yet generate types or code.
+
+*** Step 2: Code/Type Generation [OPEN]
+
+The real metaprogramming power - macros that generate types and code:
+
+1. *Return StructDef*: Generate types at compile-time
+   #+BEGIN_SRC til
+   make_point := macro(n: I64) returns StructDef {
+       // Generate Point2D, Point3D, etc. based on n
+   }
+   #+END_SRC
+
+2. *Return FuncDef*: Generate functions at compile-time
+   #+BEGIN_SRC til
+   make_getter := macro(field_name: Str) returns FuncDef {
+       // Generate a getter function for the given field
+   }
+   #+END_SRC
+
+3. *Return Expr*: Generate AST/code to be inserted
+   #+BEGIN_SRC til
+   debug_print := macro(expr: Expr) returns Expr {
+       // Generate: println("expr = ", expr)
+   }
+   #+END_SRC
+
+4. *Quote/unquote syntax*: ~quote { $var }~ for AST building
+
+This requires:
+- Extending return type handling to allow StructDef, FuncDef, Expr
+- AST quoting mechanism
+- See doc/metaprogramming.org for full design
+
+*** Possible Path: Implicit Splice via Unused Return
+
+When a macro returns Expr and the result is not captured, the compiler splices
+the returned AST in place. No special syntax needed - behavior depends on usage:
+
+#+BEGIN_SRC til
+// Macro that returns Expr for "a: I64 = 42"
+declare_const := macro(name: Ident, T: Type, value: Dynamic) returns Expr {
+    // import parser, construct declaration AST, return it
+}
+
+// Not captured -> splice the Expr here (becomes: a: I64 = 42)
+declare_const(a, I64, 42)
+
+// Discarded -> same behavior, splice
+_ := declare_const(a, I64, 42)
+
+// Captured -> get Expr as data for inspection/manipulation
+my_ast := declare_const(a, I64, 42)
+#+END_SRC
+
+This avoids needing special macro invocation syntax (~!~, ~@~, etc.). The
+distinction is implicit: capture the Expr to get data, ignore it to splice code.
+
+*** Possible Path: Postfix ~!~ Syntax (like ~?~ for errors)
+
+Instead of implicit behavior, use explicit postfix ~!~ to mark macro splices.
+This is consistent with TIL's postfix ~?~ for error handling:
+
+#+BEGIN_SRC til
+// Error handling - postfix ?
+risky_call()?
+
+// Macro splice - postfix !
+declare_const(a, I64, 42)!
+
+// Throwing macro - both!
+scary_macro(args)!?
+#+END_SRC
+
+Advantages:
+- Explicit - clear what's a macro splice vs normal call
+- Consistent with existing postfix ~?~ convention
+- Captures work naturally: ~my_ast := macro_call()~ gets Expr data (no ~!~)
+- Splices are obvious: ~macro_call()!~ splices the returned AST
+
+Comparison with Rust:
+- Rust: prefix ~macro_name!(args)~
+- TIL: postfix ~macro_name(args)!~
+
+Both paths depend on: ~returns Expr~ support (related to Issue #111 ~returns
+Dynamic~, but could be implemented independently as a narrower feature for macros).
+
+*** References
+- doc/metaprogramming.org: Full macro/generics design vision
+- src/test/macros.til: Current macro tests
+
 ** Issue #106: First-Class Enums
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
@@ -549,3 +714,429 @@ parameter substitution in variant payload types.
 - Anonymous enum as inline arguments: =some_function(enum {A, B})=
 - Multiple type parameters in enum macros
 - Enum macros with complex payload types (structs, nested enums)
+
+** Issue #161: Namespace constants, static mutables, and per-instance immutables
+:PROPERTIES:
+:DISCOVERED: 2026-02-04
+:IMPACT: Unified syntax for type-level and instance-level data
+:STATUS: Open - detailed plan ready
+:RELATED: Issue #108 (namespace blocks - implemented)
+:END:
+
+*** Overview
+
+Follow-up to Issue #108 (namespace blocks for associated functions). This issue
+extends namespaces to support constants and mutable state, and adds per-instance
+immutable fields to structs.
+
+After this issue, four kinds of declarations exist:
+
+| Location  | Syntax             | Meaning                          |
+|-----------+--------------------+----------------------------------|
+| namespace | ~Max := 100~       | Associated constant (static)     |
+| namespace | ~mut counter := 0~ | Associated mutable (static)      |
+| struct    | ~id := 0~          | Per-instance immutable (frozen)  |
+| struct    | ~mut name := ""~   | Per-instance mutable             |
+
+*** Step 1: Associated constants in namespace blocks
+
+Move type-level constants from standalone globals into type namespaces.
+
+**** Current state
+Constants are standalone globals with naming conventions:
+#+BEGIN_SRC til
+MAX_I64 := 9223372036854775807
+MIN_I64 := -9223372036854775808
+I64_SIZE := 8
+#+END_SRC
+
+**** Target state
+Constants live in type namespaces:
+#+BEGIN_SRC til
+namespace I64 {
+    Max := 9223372036854775807
+    Min := -9223372036854775808
+    Size := 8
+}
+// Usage: I64.Max instead of MAX_I64
+#+END_SRC
+
+**** Implementation
+
+***** Step 1.1: Verify namespace blocks support constants
+Namespace blocks already support function definitions. Verify they also support
+constant declarations (non-mut, non-function). This likely already works since
+init.rs merges all namespace members into the type.
+
+Test with:
+#+BEGIN_SRC til
+namespace I64 {
+    TestConst := 42
+}
+assert_eq(loc(), 42, I64.TestConst)
+#+END_SRC
+
+Files to check: init.rs:1311-1400, init.til (NamespaceDef handling)
+
+***** Step 1.2: Audit existing constants
+Find all type-related constants in the codebase:
+- I64: MAX_I64, MIN_I64, I64_SIZE
+- U8: (check if any exist)
+- Str: (check if any exist)
+- Other types in src/core/
+
+***** Step 1.3: Migrate constants to namespaces
+For each type, move constants into namespace blocks:
+#+BEGIN_SRC til
+// Before (in i64.til)
+MAX_I64 := 9223372036854775807
+
+// After (in i64.til)
+namespace I64 {
+    Max := 9223372036854775807
+}
+#+END_SRC
+
+***** Step 1.4: Update all usages
+Find and replace all old constant names:
+- ~MAX_I64~ -> ~I64.Max~
+- ~MIN_I64~ -> ~I64.Min~
+- etc.
+
+***** Step 1.5: Port to TIL
+All changes to .rs files must be ported to .til files.
+
+*** Step 2: Associated mutable state in namespace blocks
+
+Allow ~mut~ declarations in namespace blocks - these work like static variables.
+
+**** Use case
+#+BEGIN_SRC til
+Soldier := struct {
+    mut id := 0
+    mut name := "unknown"
+}
+
+namespace Soldier {
+    mut counter := 0  // Static counter shared by all instances
+
+    new := func(name: Str = "unknown") returns Soldier {
+        s := Soldier(id=counter, name=name)
+        counter = counter + 1
+        return s
+    }
+}
+
+// Usage:
+s1 := Soldier.new("Alice")  // id=0
+s2 := Soldier.new("Bob")    // id=1
+#+END_SRC
+
+**** Implementation
+
+***** Step 2.1: Parser - allow mut in namespace blocks
+Check if parser already accepts ~mut~ declarations in namespace blocks.
+If not, update parse_namespace_definition to accept them.
+
+Files: parser.rs, parser.til
+
+***** Step 2.2: Init - register namespace mutables
+When init processes NamespaceDef, it currently registers functions.
+Extend to also register mutable variables with their initial values.
+
+The mutable needs to be:
+- Registered as a symbol with is_mut=true
+- Stored in the global scope (not per-instance)
+
+Files: init.rs, init.til
+
+***** Step 2.3: Interpreter - handle namespace mutable access
+When evaluating ~TypeName.mutable_var~, look up and return/assign the value.
+This is similar to how ~TypeName.constant~ works, but allows mutation.
+
+Files: interpreter.rs, interpreter.til
+
+***** Step 2.4: Ccodegen - emit namespace mutable as static
+In C, namespace mutables become static variables:
+#+BEGIN_SRC c
+// For: namespace Soldier { mut counter := 0 }
+static long long til_Soldier_counter = 0;
+#+END_SRC
+
+Files: ccodegen.rs, ccodegen.til, scavenger.rs, scavenger.til
+
+***** Step 2.5: Port to TIL
+All changes to .rs files must be ported to .til files.
+
+*** Step 3: Per-instance immutable fields in structs
+
+Allow non-mut fields in structs that are set at construction and frozen afterward.
+
+**** Use case
+#+BEGIN_SRC til
+Entry := struct {
+    id := 0              // Immutable after construction
+    mut name := ""       // Mutable
+    mut desc := ""       // Mutable
+}
+
+mut e := Entry(id=get_unique_id(), name="test", desc="description")
+e.name = "new name"  // OK - name is mut
+e.id = 999           // ERROR - id is not mut, frozen after construction
+#+END_SRC
+
+**** Current state
+Non-mut fields in structs are currently used for associated constants/functions:
+#+BEGIN_SRC til
+MyStruct := struct {
+    static_const := 42       // Associated constant (no mut)
+    mut instance_data := 0   // Instance field (mut)
+}
+#+END_SRC
+
+After Issue #108, functions are in namespace blocks. But constants in struct
+still work as associated constants (e.g., Cell.CHAR_WIDTH in hello_gui.til).
+
+**** Design decision
+With namespace blocks, associated constants should move to namespaces (Step 1).
+This frees up non-mut struct fields for a new meaning: per-instance immutables.
+
+Migration path:
+1. Step 1 moves associated constants to namespaces
+2. Step 3 repurposes non-mut fields for instance immutables
+3. Deprecation warning for old pattern during transition
+
+**** Implementation
+
+***** Step 3.1: Migrate existing struct constants to namespaces
+Before changing semantics, move all existing struct constants to namespace blocks.
+Example from hello_gui.til:
+#+BEGIN_SRC til
+// Before
+Cell := struct {
+    CHAR_WIDTH := 8
+    LINE_HEIGHT := 16
+}
+
+// After
+Cell := struct {}
+namespace Cell {
+    CHAR_WIDTH := 8
+    LINE_HEIGHT := 16
+}
+#+END_SRC
+
+***** Step 3.2: Typer - track field mutability
+The typer needs to know which struct fields are mutable vs immutable.
+Add check: if assigning to a non-mut field after construction, emit error.
+
+Challenge: distinguishing construction from assignment.
+- Construction: ~Entry(id=42)~ - allowed to set immutable fields
+- Assignment: ~e.id = 42~ - not allowed for immutable fields
+
+Files: typer.rs, typer.til
+
+***** Step 3.3: Interpreter - enforce field immutability
+After struct construction, track which fields are frozen.
+Reject mutations to immutable fields.
+
+Approach: In eval_set, before modifying a struct field, check if field is mut.
+If not mut and struct already exists, error.
+
+Files: interpreter.rs, interpreter.til
+
+***** Step 3.4: Ccodegen - enforce field immutability (optional)
+Could add runtime checks in generated C, or rely on typer catching it.
+Typer-only enforcement is simpler and sufficient.
+
+***** Step 3.5: Port to TIL
+All changes to .rs files must be ported to .til files.
+
+*** Testing
+
+**** Step 1 tests
+#+BEGIN_SRC til
+// Test namespace constants
+namespace I64 {
+    TestMax := 9223372036854775807
+}
+assert_eq(loc(), 9223372036854775807, I64.TestMax)
+#+END_SRC
+
+**** Step 2 tests
+#+BEGIN_SRC til
+// Test namespace mutable (static)
+Counter := struct {}
+namespace Counter {
+    mut value := 0
+    increment := func() returns I64 {
+        value = value + 1
+        return value
+    }
+}
+assert_eq(loc(), 1, Counter.increment())
+assert_eq(loc(), 2, Counter.increment())
+assert_eq(loc(), 2, Counter.value)
+#+END_SRC
+
+**** Step 3 tests
+#+BEGIN_SRC til
+// Test per-instance immutable
+ImmutableTest := struct {
+    id := 0        // Immutable
+    mut name := "" // Mutable
+}
+
+mut t := ImmutableTest(id=42, name="test")
+assert_eq(loc(), 42, t.id)
+t.name = "changed"  // OK
+// t.id = 99       // Should error: cannot assign to immutable field
+#+END_SRC
+
+*** Verification
+1. Run ~make benchmark~ after each step - all tests must pass
+2. Port each .rs change to .til immediately
+3. Test both interpreter and compiler modes
+
+** Issue #151: Explicit pointer/reference syntax for the language
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:IMPACT: Enables working with references without copying, foundational language feature
+:STATUS: Open - design phase
+:RELATED: Bug #144 (for-in copies), Issue #117 (ASAP destruction), Issue #115 (owned fields)
+:END:
+
+*** Description
+TIL currently lacks explicit pointer/reference syntax at the language level.
+The ~Ptr~ type exists internally, but users cannot express "reference to T"
+in type annotations. Every dereference (~Ptr.dereference~, ~copy_to_dynamic~)
+makes a copy - there's no way to access data through a pointer without copying.
+
+*** The Core Problem
+~Ptr.dereference(T, dest)~ copies data into ~dest~. There's no syntax to say
+"give me a reference to T that I can read/write through without copying".
+
+This affects:
+- For-in loops (Bug #144) - each iteration copies the element
+- Any code working with collections - must copy to access
+- Performance-sensitive code - unnecessary copying
+
+*** Current Workaround (Ptr directly)
+Users can work with raw Ptr and manual offset calculation, but this is:
+- Error-prone (manual size calculations)
+- Not type-safe (Ptr is untyped)
+- Verbose (explicit memcpy everywhere)
+
+*** What We Need
+A way to express "pointer to T" or "reference to T" in the type system,
+with syntax for:
+1. Taking a reference: ~&x~ or ~ptr(x)~ or similar
+2. Dereferencing for access: ~*p~ or ~p^~ or auto-deref
+3. Type annotations: ~&T~ or ~*T~ or ~Ptr(T)~ or ~ref T~
+
+*** Syntax Options
+
+**** Option A: Ampersand (Rust/C++ style)
+#+BEGIN_SRC til
+p: &Vec2 = &my_vec              // p is reference to Vec2
+println(p.x)                    // auto-deref for field access
+p.x = 10                        // write through reference (if &mut)
+#+END_SRC
+Pros: Familiar to Rust/C++ users
+Cons: If we add operator overloading (~a & b~ -> ~a.and(b)~), conflicts with ~&x~
+
+**** Option B: Asterisk (C style)
+#+BEGIN_SRC til
+p: *Vec2 = &my_vec              // p is pointer to Vec2
+println((*p).x)                 // explicit deref required
+println(p->x)                   // or arrow syntax
+#+END_SRC
+Pros: Familiar to C users
+Cons: Verbose; if we add operator overloading (~a * b~ -> ~a.mul(b)~), conflicts with ~*p~
+
+**** Option C: Caret (Pascal/Delphi style)
+#+BEGIN_SRC til
+p: ^Vec2 = @my_vec              // p is pointer to Vec2
+println(p^.x)                   // explicit deref with ^
+#+END_SRC
+Pros: Unambiguous, no conflict with existing operators
+Cons: Less familiar to modern programmers
+
+**** Option D: Keyword (ref/ptr)
+#+BEGIN_SRC til
+p: ref Vec2 = ref my_vec        // explicit keyword
+println(p.x)                    // auto-deref
+#+END_SRC
+Pros: Readable, no symbol conflicts
+Cons: More verbose
+
+*** Design Questions
+
+1. **First-class types or sugar?**
+   - First-class: ~&T~ is a distinct type from ~T~
+   - Sugar: ~&T~ desugars to ~Ptr~ with type info attached
+
+2. **Auto-deref or explicit?**
+   - Rust-style: ~p.field~ auto-derefs
+   - C-style: must write ~(*p).field~ or ~p->field~
+
+3. **Mutable vs immutable references?**
+   - Rust has ~&T~ (immutable) and ~&mut T~ (mutable)
+   - Could mirror TIL's existing ~mut~ keyword: ~&T~ vs ~mut &T~ or ~&mut T~
+
+4. **Interaction with existing parameter keywords?**
+   - TIL already has ~mut~, ~copy~, ~own~ for parameters
+   - How does ~&T~ interact? Is ~mut p: &T~ different from ~p: &mut T~?
+
+5. **Lifetime tracking?**
+   - Probably not for v1 - rely on Issue #117 (ASAP destruction)
+   - Could add later if needed
+
+*** Implementation Approach
+
+Desugars to existing Ptr operations:
+- ~&x~ -> wraps ~to_ptr(x)~ with type info
+- Field access ~p.field~ -> offset calculation + typed read
+- Assignment ~p.field = v~ -> offset calculation + typed write
+- No actual copy until value is bound to a non-reference variable
+
+*** Relationship to Other Issues
+
+- **Bug #144** (for-in copies): Could be solved with ref syntax, but also
+  has a simpler workaround using Ptr directly in desugaring
+- **Issue #117** (ASAP destruction): Safety net for any copies that do happen
+- **Issue #115** (owned fields): ~own~ vs borrowed semantics for struct fields
+- **ownership.org**: Documents existing ~mut~/~copy~/~own~ parameter semantics
+
+*** Note on For-In Loops (Bug #144)
+
+For-in loops are the most visible symptom, but solving Bug #144 doesn't require
+this full feature. A simpler workaround using Ptr in the desugaring could work.
+This issue is about the general language feature; Bug #144 is a specific application.
+
+** Bug #64: Custom main args in mode cli don't work properly
+:PROPERTIES:
+:DISCOVERED: 2025-12-30
+:IMPACT: CLI programs must use args: ..Str and parse manually
+:STATUS: Deferred to post-self-hosting
+:END:
+
+*** Description
+Mode cli has two issues with custom main signatures:
+
+1. I64 parameters cause a type error even when the caller provides a valid integer string (interpreted mode)
+2. Custom named parameters don't work at all in compiled mode - only ~args: ..Str~ works
+
+*** Workaround
+Use ~args: ..Str~ and parse manually:
+#+BEGIN_SRC til
+main := proc(args: ..Str) {
+    name := args.get(0)
+    count := args.get(1).to_i64()
+    println("name:", name, "count:", count.to_str())
+}
+#+END_SRC
+
+*** Fix (deferred)
+1. The interpreter should auto-convert Str args to I64 when main expects I64.
+2. The C codegen should unpack argv into individual named parameters for custom signatures.

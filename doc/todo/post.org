@@ -51,33 +51,6 @@ my_type : func(a: I64) returns I64        // no initializer = type only
 This unifies function declarations with the general ~name : Type = value~
 pattern. See Issue #91 for details.
 
-** Bug #64: Custom main args in mode cli don't work properly
-:PROPERTIES:
-:DISCOVERED: 2025-12-30
-:IMPACT: CLI programs must use args: ..Str and parse manually
-:STATUS: Deferred to post-self-hosting
-:END:
-
-*** Description
-Mode cli has two issues with custom main signatures:
-
-1. I64 parameters cause a type error even when the caller provides a valid integer string (interpreted mode)
-2. Custom named parameters don't work at all in compiled mode - only ~args: ..Str~ works
-
-*** Workaround
-Use ~args: ..Str~ and parse manually:
-#+BEGIN_SRC til
-main := proc(args: ..Str) {
-    name := args.get(0)
-    count := args.get(1).to_i64()
-    println("name:", name, "count:", count.to_str())
-}
-#+END_SRC
-
-*** Fix (deferred)
-1. The interpreter should auto-convert Str args to I64 when main expects I64.
-2. The C codegen should unpack argv into individual named parameters for custom signatures.
-
 ** Issue #104: TempleOS Support
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
