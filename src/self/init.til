@@ -2373,7 +2373,7 @@ namespace:
     // Pop the current function scope and restore the previous path
     pop_function_scope : proc(mut self: Context, saved_path: Str) throws Str = {
         self.path = saved_path
-        _ := self.scope_stack.pop()?
+        self.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }

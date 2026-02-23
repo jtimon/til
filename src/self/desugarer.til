@@ -991,7 +991,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
         // Pop the scope if we pushed one
         if pushed_scope {
-            _ := context.scope_stack.pop()?
+            context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         }
 
         // Check if this is a default case
@@ -1543,7 +1543,7 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             new_body.push(desugar_expr(context, stmt)?)
         }
 
-        _ := context.scope_stack.pop()?
+        context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         context.precomp_forin_counter = saved_counter
         new_func_def := FuncDef(
             sig=FuncSig(

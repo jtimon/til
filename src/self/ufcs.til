@@ -386,7 +386,7 @@ ufcs_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns E
     }
 
     // Pop the function scope frame
-    _ := context.scope_stack.pop()?
+    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
 
     new_func_def := FuncDef(
         sig=FuncSig(
@@ -547,7 +547,7 @@ ufcs_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     new_body := ufcs_expr(context, body_expr)?
 
     // Pop the scope frame
-    _ := context.scope_stack.pop()?
+    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
 
     // Return the transformed catch with original var_name, type, and new body
     mut new_params := Vec.new(Expr)

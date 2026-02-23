@@ -270,7 +270,7 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
     case NodeType.FuncDef(func_def):
         context.scope_stack.push(ScopeType.Function)
         errors.extend(check_func_proc_types(func_def, context, e)?)
-        _ := context.scope_stack.pop()?
+        context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         catch (err: Str) {
             // Ignore pop error
         }
@@ -666,7 +666,7 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
         errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded)?)
     }
 
-    _ := context.scope_stack.pop()?
+    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -1255,7 +1255,7 @@ check_namespace_def : proc(mut context: Context, _e: Expr, ns_def: NamespaceDef)
         case NodeType.FuncDef(func_def):
             context.scope_stack.push(ScopeType.Function)
             errors.extend(check_func_proc_types(func_def, context, inner_e)?)
-            _ := context.scope_stack.pop()?
+            context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         case:
         }
 
@@ -1704,7 +1704,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     mut catch_thrown_types := Vec.new(ThrownType)
                     errors.extend(check_body_returns_throws(context, e, func_def, catch_body_expr.params, catch_thrown_types, return_found)?)
                     thrown_types.extend(catch_thrown_types)
-                    _ := context.scope_stack.pop()?
+                    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                     catch (err: Str) {
                         // Ignore pop error
                     }
@@ -1894,7 +1894,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     context.scope_stack.push(ScopeType.Block)
                     context.scope_stack.declare_symbol(forin_var_name, SymbolInfo(value_type=ValueType.TCustom(var_type_name), is_mut=true))?
                     errors.extend(check_body_returns_throws(context, e, func_def, forin_body_expr.params, forin_thrown_types, return_found)?)
-                    _ := context.scope_stack.pop()?
+                    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                 }
                 thrown_types.extend(forin_thrown_types)
 
@@ -1979,7 +1979,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                                 context.scope_stack.push(ScopeType.Block)
                                 context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))?
                                 errors.extend(check_body_returns_throws(context, e, func_def, switch_body_expr.params, switch_thrown_types, return_found)?)
-                                _ := context.scope_stack.pop()?
+                                context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                                 handled = true
                             }
                         case:
@@ -2228,7 +2228,7 @@ check_catch_statement : proc(mut context: Context, e: Expr) returns Vec throws S
 
     // Catch body statements discard return values
     errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded)?)
-    _ := context.scope_stack.pop()?
+    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
     catch (err: Str) {
         // Ignore pop error
     }
@@ -2338,7 +2338,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
                 // Type-check the function body using the resolved func_def
                 context.scope_stack.push(ScopeType.Function)
                 errors.extend(check_func_proc_types(typer_resolved_fd, context, inner_e)?)
-                _ := context.scope_stack.pop()?
+                context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                 return errors
                 catch (err: KeyNotFoundError) {
                     // REM: func not registered yet, fall through
@@ -2624,7 +2624,7 @@ check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws 
                     context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))?
                     // Switch case body statements discard return values
                     errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded)?)
-                    _ := context.scope_stack.pop()?
+                    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                 } else if variant_found {
                     // Variant exists but has no payload (NULL pointer)
                     errors.push(case_expr.error(context.path, "type", format("Variant '", variant, "' has no payload, cannot use pattern matching")))
@@ -3604,21 +3604,21 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
         // Body - push block scope
         context.scope_stack.push(ScopeType.Block)
         resolved_params := resolve_params(context, e)?
-        _ := context.scope_stack.pop()?
+        context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         return Expr.new_clone(e.node_type, e, resolved_params)
 
     case NodeType.If:
         // If - push block scope
         context.scope_stack.push(ScopeType.Block)
         if_params := resolve_params(context, e)?
-        _ := context.scope_stack.pop()?
+        context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         return Expr.new_clone(e.node_type, e, if_params)
 
     case NodeType.While:
         // While - push block scope
         context.scope_stack.push(ScopeType.Block)
         while_params := resolve_params(context, e)?
-        _ := context.scope_stack.pop()?
+        context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         return Expr.new_clone(e.node_type, e, while_params)
 
     case NodeType.ForIn(var_type_name):
@@ -3645,7 +3645,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
 
         forin_params := resolve_params(context, e)?
 
-        _ := context.scope_stack.pop()?
+        context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
 
         return Expr.new_clone(e.node_type, e, forin_params)
 
@@ -3719,7 +3719,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
                             context.scope_stack.push(ScopeType.Block)
                             context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))?
                             new_params.push(resolve_inferred_types(context, body_expr)?)
-                            _ := context.scope_stack.pop()?
+                            context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                         } else {
                             // No payload or variant not found, just process body normally
                             new_params.push(resolve_inferred_types(context, body_expr)?)
@@ -3854,7 +3854,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
 
         // Process body only
         resolved_catch_body := resolve_inferred_types(context, catch_body_expr)?
-        _ := context.scope_stack.pop()?
+        context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         catch (err: Str) {
             // Ignore pop error
         }
@@ -4080,7 +4080,7 @@ resolve_funcdef : proc(mut context: Context, e: Expr, func_def: FuncDef) returns
         new_body.push(resolve_inferred_types(context, stmt)?)
     }
 
-    _ := context.scope_stack.pop()?
+    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
 
     catch (err: IndexOutOfBoundsError) {
         throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError in FuncDef: ", err.msg))

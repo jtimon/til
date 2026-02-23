@@ -2584,7 +2584,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
             }
         }
         // Pop frame and restore path before returning
-        _ := context.scope_stack.pop()?
+        context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         context.path = saved_path
         return result // CLEANUP SITE 3: Propagate throw from function body
     }
@@ -2712,7 +2712,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                 mut_arg_symbol_info_found = true
                 catch (err: KeyNotFoundError) { }
                 if not(mut_arg_symbol_info_found) {
-                    _ := context.scope_stack.pop()?
+                    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                     context.path = saved_path
                     throw e.lang_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", mut_arg_type_name, "' as an mut argument. Undefined symbol."))
                 }
@@ -2741,25 +2741,25 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                     if mut_arg_offset_found {
                         collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Struct(MutArgStructData(offset=mut_arg_offset, type_name=mut_arg_type_name.clone(), was_passed_by_ref=was_passed_by_ref))))
                     } else {
-                        _ := context.scope_stack.pop()?
+                        context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                         context.path = saved_path
                         throw e.lang_error(context.path, "eval", format("Missing struct heap index for argument '", m.arg_name, "'"))
                     }
                 } else {
-                    _ := context.scope_stack.pop()?
+                    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                     context.path = saved_path
                     throw e.lang_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", mut_arg_type_name, "' as a mut argument. Not an enum or struct, but a '", value_type_to_str(mut_arg_symbol_info.value_type), "'."))
                 }
             }
         } else {
-            _ := context.scope_stack.pop()?
+            context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
             context.path = saved_path
             throw e.todo_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", value_type_to_str(m.value_type), "' as a mut argument. Only structs and enums allowed for now."))
         }
     }
 
     // Pop function frame BEFORE writing mut args back to caller
-    _ := context.scope_stack.pop()?
+    context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
     context.path = saved_path.clone()
 
     // Write collected mut_args values to caller's frame (now on top)

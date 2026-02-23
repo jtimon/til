@@ -126,6 +126,17 @@ Double-frees are harmless (eval heap catches them), so being overly
 aggressive with deletes is safe. Being overly aggressive with dont_delete
 was not (missing one alias = use-after-free).
 
+*** Attempt 1: scope_stack.pop()?.delete() -- no measurable improvement
+
+Replaced all 28 ~_ := context.scope_stack.pop()?~ sites with
+~context.scope_stack.pop()?.delete()~ across interpreter.til, typer.til,
+ufcs.til, precomp.til, desugarer.til, init.til.
+
+Result: 0 memory improvement. Garbager likely already inserts delete for
+the popped ScopeFrame, or the Maps inside are already freed by Vec.pop
+internals. The change is correct and harmless but not where the big leaks
+are. All sites marked with ~// TODO remove this #183 workaround~.
+
 *** Relationship to #117
 
 This is a manual version of what #117 will automate. Each manual delete
