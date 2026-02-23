@@ -2416,18 +2416,23 @@ check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Ve
                 errors.push(e.error(context.path, "type", format("Cannot assign to constant '", var_name, "', Suggestion: declare it as 'mut'.")))
             }
             // Additional check: if this is a field access (e.g., "s.value"), also check base instance mutability
+            // Issue #161: For namespace mutables, the full name is a registered mut symbol,
+            // so skip the base mutability check (the base is a type name, not an instance)
+            sym_is_mut := symbol_info.is_mut
             if var_name.contains(".") {
                 mut parts := var_name.split(".")?
                 if parts.len().gt(0) {
                     base_var := cast(Str, parts.get(0)?)
                     // Bug #101: Mark base variable as used
                     context.scope_stack.mark_symbol_used(base_var)
-                    mut base_info := context.scope_stack.lookup_symbol(base_var)?
-                    if not(base_info.is_mut).and(not(base_info.is_copy)).and(not(base_info.is_own)) {
-                        errors.push(e.error(context.path, "type", format("Cannot assign to field of constant '", base_var, "', Suggestion: declare it as 'mut ", base_var, "'.")))
-                    }
-                    catch (err: KeyNotFoundError) {
-                        // Base not found - already handled
+                    if not(sym_is_mut) {
+                        mut base_info := context.scope_stack.lookup_symbol(base_var)?
+                        if not(base_info.is_mut).and(not(base_info.is_copy)).and(not(base_info.is_own)) {
+                            errors.push(e.error(context.path, "type", format("Cannot assign to field of constant '", base_var, "', Suggestion: declare it as 'mut ", base_var, "'.")))
+                        }
+                        catch (err: KeyNotFoundError) {
+                            // Base not found - already handled
+                        }
                     }
                 }
             }
@@ -3768,8 +3773,40 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
             ns_resolved_expr := resolve_inferred_types(context, ns_value_expr)?
             ns_new_default_values.set(ns_name, ns_resolved_expr)
         }
+        // Issue #161: Resolve INFER_TYPE in namespace member declarations
+        mut ns_new_members := Vec.new(Declaration)
+        for ns_member: Declaration in struct_def.ns.members {
+            mut ns_member_type_name := ""
+            switch ns_member.value_type {
+            case ValueType.TCustom(ns_mtn):
+                ns_member_type_name = ns_mtn
+            case:
+                ns_member_type_name = ""
+            }
+
+            mut ns_resolved_type := ns_member.value_type
+            if ns_member_type_name.eq(INFER_TYPE) {
+                mut ns_has_default := true
+                ns_default_value := cast(Expr, ns_new_default_values.get(ns_member.name)?)
+                catch (err: KeyNotFoundError) {
+                    ns_has_default = false
+                }
+                if ns_has_default {
+                    ns_resolved_type = get_value_type(context, ns_default_value)?
+                }
+            }
+
+            ns_new_members.push(Declaration(
+                name=ns_member.name,
+                value_type=ns_resolved_type,
+                is_mut=ns_member.is_mut,
+                is_copy=ns_member.is_copy,
+                is_own=ns_member.is_own,
+                default_value=ns_member.default_value
+            ))
+        }
         new_ns := NamespaceDef(
-            members=struct_def.ns.members.clone(),
+            members=ns_new_members,
             default_values=ns_new_default_values
         )
 
@@ -3834,6 +3871,68 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
         catch_params.push(catch_type_expr)
         catch_params.push(resolved_catch_body)
         return Expr.new_explicit(e.node_type, catch_params, e.line, e.col)
+
+    // Issue #161: Resolve INFER_TYPE in enum namespace member declarations
+    case NodeType.EnumDef(enum_def):
+        // Recurse into ns default_values (function bodies)
+        mut enum_ns_new_default_values := Map.new(Str, Expr)
+        for enum_ns_name: Str in enum_def.ns.default_values.keys {
+            enum_ns_value_expr := cast(Expr, enum_def.ns.default_values.get(enum_ns_name)?)
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
+            }
+            enum_ns_resolved_expr := resolve_inferred_types(context, enum_ns_value_expr)?
+            enum_ns_new_default_values.set(enum_ns_name, enum_ns_resolved_expr)
+        }
+        // Resolve INFER_TYPE in namespace member declarations
+        mut enum_ns_new_members := Vec.new(Declaration)
+        for enum_ns_member: Declaration in enum_def.ns.members {
+            mut enum_ns_member_type_name := ""
+            switch enum_ns_member.value_type {
+            case ValueType.TCustom(enum_ns_mtn):
+                enum_ns_member_type_name = enum_ns_mtn
+            case:
+                enum_ns_member_type_name = ""
+            }
+
+            mut enum_ns_resolved_type := enum_ns_member.value_type
+            if enum_ns_member_type_name.eq(INFER_TYPE) {
+                mut enum_ns_has_default := true
+                enum_ns_default_value := cast(Expr, enum_ns_new_default_values.get(enum_ns_member.name)?)
+                catch (err: KeyNotFoundError) {
+                    enum_ns_has_default = false
+                }
+                if enum_ns_has_default {
+                    enum_ns_resolved_type = get_value_type(context, enum_ns_default_value)?
+                }
+            }
+
+            enum_ns_new_members.push(Declaration(
+                name=enum_ns_member.name,
+                value_type=enum_ns_resolved_type,
+                is_mut=enum_ns_member.is_mut,
+                is_copy=enum_ns_member.is_copy,
+                is_own=enum_ns_member.is_own,
+                default_value=enum_ns_member.default_value
+            ))
+        }
+        enum_new_ns := NamespaceDef(
+            members=enum_ns_new_members,
+            default_values=enum_ns_new_default_values
+        )
+        // Recurse into method default_values
+        mut enum_new_methods := enum_def.methods.clone()
+        for enum_method_name: Str in enum_new_methods.keys {
+            enum_method_expr := cast(Expr, enum_new_methods.get(enum_method_name)?)
+            enum_new_methods.set(enum_method_name, resolve_inferred_types(context, enum_method_expr)?)
+        }
+        catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
+        new_enum_def := EnumDef(
+            variants=enum_def.variants.clone(),
+            methods=enum_new_methods,
+            ns=enum_new_ns
+        )
+        return Expr.new_explicit(NodeType.EnumDef(new_enum_def), e.params, e.line, e.col)
 
     case NodeType.FCall(_):
         // Recurse into params

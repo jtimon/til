@@ -583,7 +583,7 @@ build_clone_assignment_expr : func(type_name: Str, var_name: Str, line: I64, col
 
 /// Check if stmt is a container get/pop call with a shallow-copy out-param.
 /// Returns true if match, with var_name and type_name via out-params.
-detect_shallow_copy_outparam : proc(stmt: Expr, local_types: Map, context: Context, mut out_var: Str, mut out_type: Str) returns Bool throws Str = {
+detect_shallow_copy_outparam : proc(stmt: Expr, local_types: Map, context: Context, mut out_var: Str, mut out_type: Str) returns Bool = {
     switch stmt.node_type {
     case NodeType.FCall(_):
     case:
@@ -682,7 +682,7 @@ insert_clone_after_get : proc(stmts: Vec, local_types: Map, context: Context) re
         processed := process_stmt_for_clone_after_get(stmt, local_types, context)?
         mut det_var := ""
         mut det_type := ""
-        needs_clone := detect_shallow_copy_outparam(processed, local_types, context, det_var, det_type)?
+        needs_clone := detect_shallow_copy_outparam(processed, local_types, context, det_var, det_type)
         det_line := processed.line
         det_col := processed.col
         result.push(processed)
@@ -938,7 +938,7 @@ collect_identifier_chain : proc(e: Expr, mut chain: Vec) = {
 
 /// Resolve a function call from its identifier chain, handling UFCS and chained field access.
 /// For UFCS calls, self is implicit so arg-to-param mapping differs.
-resolve_fcall_from_chain : proc(chain: Vec, local_types: Map, context: Context) returns ResolvedFCall throws Str, KeyNotFoundError = {
+resolve_fcall_from_chain : proc(chain: Vec, local_types: Map, context: Context) returns ResolvedFCall throws KeyNotFoundError = {
     if chain.len().eq(0) {
         throw KeyNotFoundError(msg="resolve_fcall_from_chain: empty chain")
     }
@@ -994,6 +994,10 @@ resolve_fcall_from_chain : proc(chain: Vec, local_types: Map, context: Context) 
         }
         mut member := Declaration()
         member = struct_def.get_member(field_name)?
+        catch (member_err: Str) {
+            // Member not found (e.g., namespace mutable) - can't resolve chain
+            throw KeyNotFoundError(msg=format("resolve_fcall_from_chain: member '", field_name, "' not found in '", current_type, "'"))
+        }
         switch member.value_type {
         case ValueType.TCustom(next_type):
             current_type = next_type

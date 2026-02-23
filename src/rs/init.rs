@@ -1039,22 +1039,34 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
 
                 match &id_current_type {
                     ValueType::TType(TTypeDef::TStructDef) => {
-                        // If it's a struct, resolve its member
-                        let type_struct_def = context.scope_stack.lookup_struct(name)
-                            .ok_or_else(|| e.error(&context.path, "init", &format!("Struct '{}' not found", name)))?;
+                        // Issue #161: Check if the full name is a registered namespace symbol first
+                        let full_name = format!("{}.{}", name, member_name);
+                        if let Some(ns_symbol) = context.scope_stack.lookup_symbol(&full_name) {
+                            id_current_type = ns_symbol.value_type.clone();
+                        } else {
+                            // Fall back to struct member lookup
+                            let type_struct_def = context.scope_stack.lookup_struct(name)
+                                .ok_or_else(|| e.error(&context.path, "init", &format!("Struct '{}' not found", name)))?;
 
-                        let type_decl = type_struct_def.get_member_or_err(member_name, name, &context.path, e)?;
-                        id_current_type = type_decl.value_type.clone();
+                            let type_decl = type_struct_def.get_member_or_err(member_name, name, &context.path, e)?;
+                            id_current_type = type_decl.value_type.clone();
+                        }
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
-                        // If it's an enum, resolve the variant
-                        let nested_enum_def = context.scope_stack.lookup_enum(name)
-                            .ok_or_else(|| e.error(&context.path, "init", &format!("Enum '{}' not found", name)))?;
-
-                        if nested_enum_def.contains_key(member_name) {
-                            return Ok(ValueType::TCustom(name.to_string()));
+                        // Issue #161: Check if the full name is a registered namespace symbol first
+                        let full_name = format!("{}.{}", name, member_name);
+                        if let Some(ns_symbol) = context.scope_stack.lookup_symbol(&full_name) {
+                            id_current_type = ns_symbol.value_type.clone();
                         } else {
-                            return Err(e.error(&context.path, "init", &format!("Enum '{}' has no value '{}'", name, member_name)));
+                            // Fall back to enum variant lookup
+                            let nested_enum_def = context.scope_stack.lookup_enum(name)
+                                .ok_or_else(|| e.error(&context.path, "init", &format!("Enum '{}' not found", name)))?;
+
+                            if nested_enum_def.contains_key(member_name) {
+                                return Ok(ValueType::TCustom(name.to_string()));
+                            } else {
+                                return Err(e.error(&context.path, "init", &format!("Enum '{}' has no value '{}'", name, member_name)));
+                            }
                         }
                     },
                     ValueType::TCustom(nested_custom_type_name) => {
@@ -1262,6 +1274,11 @@ pub fn init_namespace_into_struct(context: &mut Context, type_name: &str, ns_def
     if let Some(existing_struct) = context.scope_stack.lookup_struct(type_name) {
         let mut merged_struct = existing_struct.clone();
         for member_decl in &ns_def.members {
+            // Issue #161: Don't merge mut namespace members into struct members --
+            // they are static variables, not instance fields
+            if member_decl.is_mut {
+                continue;
+            }
             if let Some(existing_member) = merged_struct.get_member(&member_decl.name) {
                 if existing_member.is_mut {
                     errors.push(e.error(&context.path, "init", &format!(
@@ -1279,22 +1296,20 @@ pub fn init_namespace_into_struct(context: &mut Context, type_name: &str, ns_def
         context.scope_stack.declare_struct(type_name.to_string(), merged_struct);
     }
 
-    // Register associated funcs and constants from namespace
+    // Register associated funcs, constants, and mutables from namespace
     for member_decl in &ns_def.members {
-        if !member_decl.is_mut {
-            if let Some(member_expr) = ns_def.default_values.get(&member_decl.name) {
-                let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
-                let full_name = format!("{}.{}", type_name, member_decl.name);
-                context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
-                    value_type: member_value_type.clone(),
-                    is_mut: member_decl.is_mut,
-                    is_copy: member_decl.is_copy,
-                    is_own: member_decl.is_own,
-                    is_comptime_const: false
-                });
-                if let NodeType::FuncDef(func_def) = &member_expr.node_type {
-                    context.scope_stack.declare_func(full_name, func_def.clone());
-                }
+        if let Some(member_expr) = ns_def.default_values.get(&member_decl.name) {
+            let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+            let full_name = format!("{}.{}", type_name, member_decl.name);
+            context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
+                value_type: member_value_type.clone(),
+                is_mut: member_decl.is_mut,
+                is_copy: member_decl.is_copy,
+                is_own: member_decl.is_own,
+                is_comptime_const: false
+            });
+            if let NodeType::FuncDef(func_def) = &member_expr.node_type {
+                context.scope_stack.declare_func(full_name, func_def.clone());
             }
         }
     }
@@ -1305,7 +1320,12 @@ pub fn init_namespace_into_enum(context: &mut Context, type_name: &str, ns_def: 
     if let Some(existing_enum) = context.scope_stack.lookup_enum(type_name) {
         let mut merged_enum = existing_enum.clone();
         for (name, expr) in &ns_def.default_values {
-            merged_enum.methods.insert(name.clone(), expr.clone());
+            // Issue #161: Don't merge mut namespace members into enum methods --
+            // they are static variables, not methods
+            let is_mut_member = ns_def.members.iter().any(|m| m.name == *name && m.is_mut);
+            if !is_mut_member {
+                merged_enum.methods.insert(name.clone(), expr.clone());
+            }
         }
         context.scope_stack.declare_enum(type_name.to_string(), merged_enum);
     } else {
@@ -1313,22 +1333,20 @@ pub fn init_namespace_into_enum(context: &mut Context, type_name: &str, ns_def: 
             "namespace for '{}': enum type not found", type_name)));
     }
 
-    // Register associated funcs and constants from namespace
+    // Register associated funcs, constants, and mutables from namespace
     for member_decl in &ns_def.members {
-        if !member_decl.is_mut {
-            if let Some(member_expr) = ns_def.default_values.get(&member_decl.name) {
-                let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
-                let full_name = format!("{}.{}", type_name, member_decl.name);
-                context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
-                    value_type: member_value_type.clone(),
-                    is_mut: member_decl.is_mut,
-                    is_copy: member_decl.is_copy,
-                    is_own: member_decl.is_own,
-                    is_comptime_const: false
-                });
-                if let NodeType::FuncDef(func_def) = &member_expr.node_type {
-                    context.scope_stack.declare_func(full_name, func_def.clone());
-                }
+        if let Some(member_expr) = ns_def.default_values.get(&member_decl.name) {
+            let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+            let full_name = format!("{}.{}", type_name, member_decl.name);
+            context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
+                value_type: member_value_type.clone(),
+                is_mut: member_decl.is_mut,
+                is_copy: member_decl.is_copy,
+                is_own: member_decl.is_own,
+                is_comptime_const: false
+            });
+            if let NodeType::FuncDef(func_def) = &member_expr.node_type {
+                context.scope_stack.declare_func(full_name, func_def.clone());
             }
         }
     }

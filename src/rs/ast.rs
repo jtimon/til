@@ -137,9 +137,11 @@ impl StructDef {
         e: &Expr
     ) -> Result<&Declaration, String> {
         self.get_member(member_name)
-            .ok_or_else(|| e.error(path, "type", &format!(
-                "Struct '{}' has no member '{}'", struct_name, member_name
-            )))
+            .ok_or_else(|| {
+                e.error(path, "type", &format!(
+                    "Struct '{}' has no member '{}'", struct_name, member_name
+                ))
+            })
     }
 }
 

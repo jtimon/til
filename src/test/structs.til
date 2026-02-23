@@ -484,3 +484,18 @@ test_anonymous_structs := proc() {
     assert_eq(loc(), 0, s.y)
 }
 test_anonymous_structs()
+
+// Issue #161: mutable static namespace variable (struct)
+Counter161 := struct {
+namespace:
+    mut next_id := 0
+}
+
+test_ns_mut_struct := proc() = {
+    assert_eq(loc(), 0, Counter161.next_id)
+    Counter161.next_id = 1
+    assert_eq(loc(), 1, Counter161.next_id)
+    Counter161.next_id = Counter161.next_id.add(1)
+    assert_eq(loc(), 2, Counter161.next_id)
+}
+test_ns_mut_struct()

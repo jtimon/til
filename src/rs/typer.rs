@@ -1933,13 +1933,18 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Result<V
             errors.push(e.error(&context.path, "type", &format!("Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", var_name)));
         }
         // Additional check: if this is a field access (e.g., "s.value"), also check base instance mutability
+        // Issue #161: For namespace mutables, the full name is a registered mut symbol,
+        // so skip the base mutability check (the base is a type name, not an instance)
+        let sym_is_mut = symbol_info.is_mut;
         if var_name.contains('.') {
             let base_var = var_name.split('.').next().unwrap();
             // Bug #101: Mark base variable as used
             context.scope_stack.mark_symbol_used(base_var);
-            if let Some(base_info) = context.scope_stack.lookup_symbol(base_var) {
-                if !base_info.is_mut && !base_info.is_copy && !base_info.is_own {
-                    errors.push(e.error(&context.path, "type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
+            if !sym_is_mut {
+                if let Some(base_info) = context.scope_stack.lookup_symbol(base_var) {
+                    if !base_info.is_mut && !base_info.is_copy && !base_info.is_own {
+                        errors.push(e.error(&context.path, "type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
+                    }
                 }
             }
         }
@@ -3099,8 +3104,29 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 let resolved_expr = resolve_inferred_types(context, ns_value_expr)?;
                 ns_new_default_values.insert(name.clone(), resolved_expr);
             }
+            // Issue #161: Resolve INFER_TYPE in namespace member declarations
+            let mut ns_new_members = Vec::new();
+            for ns_member in &struct_def.ns.members {
+                let ns_resolved_type = match &ns_member.value_type {
+                    ValueType::TCustom(s) if s == INFER_TYPE => {
+                        match ns_new_default_values.get(&ns_member.name) {
+                            Some(ns_default_value) => get_value_type(context, ns_default_value)?,
+                            None => ns_member.value_type.clone(),
+                        }
+                    },
+                    _ => ns_member.value_type.clone(),
+                };
+                ns_new_members.push(Declaration {
+                    name: ns_member.name.clone(),
+                    value_type: ns_resolved_type,
+                    is_mut: ns_member.is_mut,
+                    is_copy: ns_member.is_copy,
+                    is_own: ns_member.is_own,
+                    default_value: ns_member.default_value.clone(),
+                });
+            }
             let new_ns = NamespaceDef {
-                members: struct_def.ns.members.clone(),
+                members: ns_new_members,
                 default_values: ns_new_default_values,
             };
 
@@ -3110,6 +3136,52 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 ns: new_ns,
             };
             Ok(Expr::new_explicit(NodeType::StructDef(new_struct_def), e.params.clone(), e.line, e.col))
+        }
+
+        // Issue #161: Resolve INFER_TYPE in enum namespace member declarations
+        NodeType::EnumDef(enum_def) => {
+            // Recurse into ns default_values (function bodies)
+            let mut ns_new_default_values = HashMap::new();
+            for (name, ns_value_expr) in &enum_def.ns.default_values {
+                let resolved_expr = resolve_inferred_types(context, ns_value_expr)?;
+                ns_new_default_values.insert(name.clone(), resolved_expr);
+            }
+            // Resolve INFER_TYPE in namespace member declarations
+            let mut ns_new_members = Vec::new();
+            for ns_member in &enum_def.ns.members {
+                let ns_resolved_type = match &ns_member.value_type {
+                    ValueType::TCustom(s) if s == INFER_TYPE => {
+                        match ns_new_default_values.get(&ns_member.name) {
+                            Some(ns_default_value) => get_value_type(context, ns_default_value)?,
+                            None => ns_member.value_type.clone(),
+                        }
+                    },
+                    _ => ns_member.value_type.clone(),
+                };
+                ns_new_members.push(Declaration {
+                    name: ns_member.name.clone(),
+                    value_type: ns_resolved_type,
+                    is_mut: ns_member.is_mut,
+                    is_copy: ns_member.is_copy,
+                    is_own: ns_member.is_own,
+                    default_value: ns_member.default_value.clone(),
+                });
+            }
+            let new_ns = NamespaceDef {
+                members: ns_new_members,
+                default_values: ns_new_default_values,
+            };
+            // Recurse into method default_values
+            let mut new_methods = enum_def.methods.clone();
+            for (_method_name, method_expr) in new_methods.iter_mut() {
+                *method_expr = resolve_inferred_types(context, method_expr)?;
+            }
+            let new_enum_def = EnumDef {
+                variants: enum_def.variants.clone(),
+                methods: new_methods,
+                ns: new_ns,
+            };
+            Ok(Expr::new_explicit(NodeType::EnumDef(new_enum_def), e.params.clone(), e.line, e.col))
         }
 
         // Default: recurse into all params

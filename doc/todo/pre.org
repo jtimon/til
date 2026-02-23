@@ -19,7 +19,7 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 :PROPERTIES:
 :DISCOVERED: 2026-02-04
 :IMPACT: Unified syntax for type-level and instance-level data
-:STATUS: Open - detailed plan ready
+:STATUS: Step 1 done (existing), Step 2 done (namespace mutable statics), Step 3 open
 :RELATED: Issue #108 (namespace blocks - implemented)
 :END:
 

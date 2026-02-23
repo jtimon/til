@@ -1162,7 +1162,38 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             // Issue #106: Also register in global frame so enum survives macro function scope pops
             context.scope_stack.declare_enum_global(declaration.name, enum_def.clone())?
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            // Issue #161: Process namespace mutable members for enums
+            for enum_ns_member_decl: Declaration in enum_def.ns.members {
+                if not(enum_ns_member_decl.is_mut) { continue }
+                mut enum_ns_has_default := false
+                enum_ns_default_value := cast(Expr, enum_def.ns.default_values.get(enum_ns_member_decl.name)?)
+                enum_ns_has_default = true
+                catch (err: KeyNotFoundError) {
+                }
+                if enum_ns_has_default {
+                    switch enum_ns_default_value.node_type {
+                    case NodeType.FuncDef(_):
+                    case:
+                        enum_ns_combined_name := format(declaration.name, ".", enum_ns_member_decl.name)
+                        enum_ns_result := eval_expr(context, enum_ns_default_value)?
+                        if enum_ns_result.is_throw {
+                            return enum_ns_result
+                        }
+                        enum_ns_expr_result_str := enum_ns_result.value
+                        EvalHeap.insert_primitive(context, enum_ns_combined_name, enum_ns_member_decl.value_type, enum_ns_expr_result_str, e)?
+                        context.scope_stack.declare_symbol(enum_ns_combined_name, SymbolInfo(value_type=enum_ns_member_decl.value_type, is_mut=enum_ns_member_decl.is_mut, is_copy=enum_ns_member_decl.is_copy, is_own=enum_ns_member_decl.is_own))?
+                    }
+                }
+            }
+            // Issue #161: Update scope stack enum's ns with resolved types from AST
+            updated_enum := context.scope_stack.lookup_enum(declaration.name)?.clone()
+            updated_enum.ns = enum_def.ns.clone()
+            context.scope_stack.declare_enum(declaration.name, updated_enum)?
             return EvalResult.new("")
+
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "eval", format("Enum '", declaration.name, "' not found in scope stack"))
+            }
         case:
             throw e.lang_error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(declaration.value_type), "', expected enum definition."))
         }
@@ -1238,9 +1269,40 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                     context.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=member_decl.value_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
                 }
             }
+            // Issue #161: Process namespace mutable members
+            for struct_ns_member_decl: Declaration in struct_def.ns.members {
+                if not(struct_ns_member_decl.is_mut) { continue }
+                mut struct_ns_has_default := false
+                struct_ns_default_value := cast(Expr, struct_def.ns.default_values.get(struct_ns_member_decl.name)?)
+                struct_ns_has_default = true
+                catch (err: KeyNotFoundError) {
+                }
+                if struct_ns_has_default {
+                    switch struct_ns_default_value.node_type {
+                    case NodeType.FuncDef(_):
+                    case:
+                        struct_ns_combined_name := format(declaration.name, ".", struct_ns_member_decl.name)
+                        struct_ns_result := eval_expr(context, struct_ns_default_value)?
+                        if struct_ns_result.is_throw {
+                            return struct_ns_result
+                        }
+                        struct_ns_expr_result_str := struct_ns_result.value
+                        EvalHeap.insert_primitive(context, struct_ns_combined_name, struct_ns_member_decl.value_type, struct_ns_expr_result_str, e)?
+                        context.scope_stack.declare_symbol(struct_ns_combined_name, SymbolInfo(value_type=struct_ns_member_decl.value_type, is_mut=struct_ns_member_decl.is_mut, is_copy=struct_ns_member_decl.is_copy, is_own=struct_ns_member_decl.is_own))?
+                    }
+                }
+            }
+            // Issue #161: Update scope stack struct's ns with resolved types from AST
+            updated_struct := context.scope_stack.lookup_struct(declaration.name)?.clone()
+            updated_struct.ns = struct_def.ns.clone()
+            context.scope_stack.declare_struct(declaration.name, updated_struct)?
             // Eagerly create default instance template for this struct type
             _ := create_default_instance(context, declaration.name, e)?
             return EvalResult.new("")
+
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "eval", format("Struct '", declaration.name, "' not found in scope stack"))
+            }
         case:
             throw e.lang_error(context.path, "eval", format("Cannot declare ", declaration.name, " of type ", enum_to_str(declaration.value_type), ", expected struct definition."))
         }
@@ -1277,19 +1339,30 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
 }
 
 eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns EvalResult throws Str = {
+    // Issue #161: Check if the full name is a namespace mutable first
     // For field access (e.g., "v.x"), extract the base variable name
-    mut base_var_name := var_name
+    mut symbol_info := SymbolInfo()
+    mut assign_found_symbol := false
     if var_name.contains(".") {
-        parts := var_name.split(".")?
-        if parts.len().gt(0) {
-            bvn := cast(Str, parts.get(0)?)
-            base_var_name = bvn
+        symbol_info = context.scope_stack.lookup_symbol(var_name)?
+        assign_found_symbol = true
+        catch (err: KeyNotFoundError) {
+            // Not a namespace symbol, fall back to base variable lookup
         }
     }
-
-    symbol_info := context.scope_stack.lookup_symbol(base_var_name)?
-    catch (err: KeyNotFoundError) {
-        throw e.lang_error(context.path, "eval", format("Symbol '", base_var_name, "' not found in context"))
+    if not(assign_found_symbol) {
+        mut base_var_name := var_name
+        if var_name.contains(".") {
+            parts := var_name.split(".")?
+            if parts.len().gt(0) {
+                bvn := cast(Str, parts.get(0)?)
+                base_var_name = bvn
+            }
+        }
+        symbol_info = context.scope_stack.lookup_symbol(base_var_name)?
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(context.path, "eval", format("Symbol '", base_var_name, "' not found in context"))
+        }
     }
 
     if not(symbol_info.is_mut) {
@@ -1478,6 +1551,34 @@ eval_identifier_expr_struct : proc(name: Str, mut context: Context, e: Expr) ret
     inner_e := cast(Expr, e.params.get(0)?)
     switch inner_e.node_type {
     case NodeType.Identifier(inner_name):
+        // Issue #161: Check if this is a namespace member (from struct_def.ns)
+        mut struct_ns_found := false
+        mut struct_ns_type_name := ""
+        for struct_ns_m: Declaration in struct_def.ns.members {
+            if struct_ns_m.name.eq(inner_name) {
+                struct_ns_found = true
+                switch struct_ns_m.value_type {
+                case ValueType.TCustom(struct_ns_tn):
+                    struct_ns_type_name = struct_ns_tn
+                case:
+                }
+            }
+        }
+        if struct_ns_found {
+            struct_ns_full_name := format(name, ".", inner_name)
+            if struct_ns_type_name.eq("I64") {
+                struct_ns_val := EvalHeap.get_i64(context, struct_ns_full_name, inner_e)?
+                return EvalResult.new(I64.to_str(struct_ns_val))
+            } else if struct_ns_type_name.eq("U8") {
+                struct_ns_u8_val : U8 = EvalHeap.get_u8(context, struct_ns_full_name, inner_e)?
+                return EvalResult.new(U8.to_str(struct_ns_u8_val))
+            } else if struct_ns_type_name.eq("Str") {
+                struct_ns_str_val := string_from_context(context, struct_ns_full_name, inner_e)?
+                return EvalResult.new(struct_ns_str_val)
+            } else {
+                return EvalResult.new(struct_ns_full_name)
+            }
+        }
         member_decl := struct_def.get_member_or_err(inner_name, name, context.path, e)?
         return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, member_decl)?
     case:
@@ -1733,8 +1834,39 @@ eval_identifier_expr : proc(name: Str, mut context: Context, e: Expr) returns Ev
         inner_e := cast(Expr, e.params.get(0)?)
         switch inner_e.node_type {
         case NodeType.Identifier(inner_name):
-            // TODO check that inner_name is in enum_def
-            // TODO check if that inner_name has an optional type
+            // Issue #161: Check if this is a namespace member (from enum_def.ns)
+            mut enum_ns_found := false
+            mut enum_ns_type_name := ""
+            enum_def := context.scope_stack.lookup_enum(name)?
+            for enum_ns_m: Declaration in enum_def.ns.members {
+                if enum_ns_m.name.eq(inner_name) {
+                    enum_ns_found = true
+                    switch enum_ns_m.value_type {
+                    case ValueType.TCustom(enum_ns_tn):
+                        enum_ns_type_name = enum_ns_tn
+                    case:
+                    }
+                }
+            }
+            catch (err: KeyNotFoundError) {
+                // Enum not found - skip namespace check
+            }
+            if enum_ns_found {
+                enum_ns_full_name := format(name, ".", inner_name)
+                if enum_ns_type_name.eq("I64") {
+                    enum_ns_val := EvalHeap.get_i64(context, enum_ns_full_name, inner_e)?
+                    return EvalResult.new(I64.to_str(enum_ns_val))
+                } else if enum_ns_type_name.eq("U8") {
+                    enum_ns_u8_val : U8 = EvalHeap.get_u8(context, enum_ns_full_name, inner_e)?
+                    return EvalResult.new(U8.to_str(enum_ns_u8_val))
+                } else if enum_ns_type_name.eq("Str") {
+                    enum_ns_str_val := string_from_context(context, enum_ns_full_name, inner_e)?
+                    return EvalResult.new(enum_ns_str_val)
+                } else {
+                    return EvalResult.new(enum_ns_full_name)
+                }
+            }
+            // Enum variant
             return EvalResult.new(format(name, ".", inner_name))
         case:
             throw e.lang_error(context.path, "eval", format("identifier '", name, "' should only have identifiers inside."))

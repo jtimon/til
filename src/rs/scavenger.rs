@@ -49,7 +49,7 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
         }
         NodeType::Identifier(name) => {
             // Type references - check if this is a known struct or enum
-            if !name.is_empty() && e.params.is_empty() {
+            if !name.is_empty() {
                 if context.scope_stack.has_struct(name)
                     || context.scope_stack.has_enum(name) {
                     used_types.insert(name.clone());

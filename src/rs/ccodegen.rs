@@ -1972,6 +1972,22 @@ fn get_c_type_for_expr(
                                     .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e));
                             }
                         }
+                        // Issue #161: Also check namespace members
+                        for m in &static_struct_def.ns.members {
+                            if &m.name == field_or_variant {
+                                return til_type_to_c(&m.value_type)
+                                    .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e));
+                            }
+                        }
+                    }
+                    // Issue #161: Check enum namespace members
+                    if let Some(enum_def) = context.scope_stack.lookup_enum(name) {
+                        for m in &enum_def.ns.members {
+                            if &m.name == field_or_variant {
+                                return til_type_to_c(&m.value_type)
+                                    .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e));
+                            }
+                        }
                     }
                 }
             }
@@ -1983,7 +1999,6 @@ fn get_c_type_for_expr(
 
 // Emit C code from AST (multi-pass architecture)
 pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
-    std::fs::write("tmp/debug_ccodegen.txt", "emit called\n").ok();
     let mut output = String::new();
     let mut ctx = CodegenContext::new();
 
@@ -2114,6 +2129,23 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
                             emit_namespace_func_prototypes(&enum_def.ns, &decl.name, context, &mut output)?;
                         },
                         _ => {}
+                    }
+                }
+            }
+        }
+    }
+    // 2b3: Issue #161 - namespace mutable variables (static C variables)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if let NodeType::Declaration(decl) = &child.node_type {
+                if let Some(value_expr) = child.params.first() {
+                    let ns_def_opt = match &value_expr.node_type {
+                        NodeType::StructDef(struct_def) if !struct_def.ns.members.is_empty() => Some(&struct_def.ns),
+                        NodeType::EnumDef(enum_def) if !enum_def.ns.members.is_empty() => Some(&enum_def.ns),
+                        _ => None,
+                    };
+                    if let Some(ns_def) = ns_def_opt {
+                        emit_namespace_mutable_vars(ns_def, &decl.name, &mut output)?;
                     }
                 }
             }
@@ -3539,6 +3571,30 @@ fn emit_namespace_func_prototypes(ns_def: &NamespaceDef, decl_name: &str, contex
     Ok(())
 }
 
+// Issue #161: Emit namespace mutable variables as file-scope C variables
+fn emit_namespace_mutable_vars(ns_def: &NamespaceDef, decl_name: &str, output: &mut String) -> Result<(), String> {
+    let type_name = til_name(decl_name);
+    for member in &ns_def.members {
+        if member.is_mut {
+            if let Some(default_expr) = ns_def.default_values.get(&member.name) {
+                if let NodeType::FuncDef(_) = &default_expr.node_type {
+                    continue; // Skip functions
+                }
+                let c_type = til_type_to_c(&member.value_type)?;
+                let var_name = format!("{}_{}", type_name, member.name);
+                // Emit with default value
+                let default_val = match &default_expr.node_type {
+                    NodeType::LLiteral(Literal::Number(n)) => n.to_string(),
+                    NodeType::LLiteral(Literal::Str(s)) => format!("\"{}\"", s),
+                    _ => "0".to_string(), // Default to 0 for complex expressions
+                };
+                output.push_str(&format!("{} {} = {};\n", c_type, var_name, default_val));
+            }
+        }
+    }
+    Ok(())
+}
+
 // Issue #108: Emit namespace function bodies
 fn emit_namespace_func_bodies(ns_def: &NamespaceDef, decl_name: &str, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     let type_name = til_name(decl_name);
@@ -4018,9 +4074,9 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                             return Ok(());
                         }
                     }
-                    // Check if this is a struct constant access
-                    if context.scope_stack.has_struct(name) {
-                        // Struct constant: Type.constant -> til_Type_constant
+                    // Check if this is a struct/enum namespace member access
+                    if context.scope_stack.has_struct(name) || context.scope_stack.has_enum(name) {
+                        // Namespace member: Type.member -> til_Type_member
                         output.push_str(&til_name(name));
                         output.push_str("_");
                         output.push_str(field);
@@ -6204,7 +6260,12 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
     if let Some(dot_pos) = name.find('.') {
         let base = &name[..dot_pos];
         let rest = &name[dot_pos + 1..];
-        if ctx.current_ref_params.contains(base) {
+        if context.scope_stack.has_struct(base) || context.scope_stack.has_enum(base) {
+            // Issue #161: Namespace member assignment: til_Type_member
+            output.push_str(&til_name(base));
+            output.push_str("_");
+            output.push_str(rest);
+        } else if ctx.current_ref_params.contains(base) {
             // Mut param field access: til_Type_self->field
             output.push_str(&resolve_var_name(base, ctx, context));
             output.push_str("->");

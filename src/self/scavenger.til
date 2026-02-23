@@ -42,7 +42,7 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
         }
     case NodeType.Identifier(name):
         // Type references - check if this is a known struct or enum
-        if name.len().gt(0).and(e.params.len().eq(0)) {
+        if name.len().gt(0) {
             ident_found_struct := context.scope_stack.has_struct(name)
             found_enum := context.scope_stack.has_enum(name)
 

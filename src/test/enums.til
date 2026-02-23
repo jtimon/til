@@ -1175,3 +1175,22 @@ test_bug137_enum_get_payload : proc() = {
     assert_eq_str(loc(), "SimpleColor.Red", enum_to_str(extracted))
 }
 test_bug137_enum_get_payload()
+
+// Issue #161: mutable static namespace variable (enum)
+LogLevel161 := enum {
+    Debug,
+    Info,
+    Warn,
+
+namespace:
+    mut default_level := 0
+}
+
+test_ns_mut_enum := proc() = {
+    assert_eq(loc(), 0, LogLevel161.default_level)
+    LogLevel161.default_level = 2
+    assert_eq(loc(), 2, LogLevel161.default_level)
+    LogLevel161.default_level = LogLevel161.default_level.add(1)
+    assert_eq(loc(), 3, LogLevel161.default_level)
+}
+test_ns_mut_enum()

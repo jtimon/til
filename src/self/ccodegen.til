@@ -2295,8 +2295,24 @@ get_c_type_for_expr : proc(arg: Expr, context: Context) returns Str throws Str =
                         return til_type_to_c(m.value_type)?
                     }
                 }
+                // Issue #161: Also check namespace members
+                for ns_m: Declaration in static_struct_def.ns.members {
+                    if ns_m.name.eq(field_or_variant) {
+                        return til_type_to_c(ns_m.value_type)?
+                    }
+                }
                 catch (err: KeyNotFoundError) {
                     // REM: Not a struct
+                }
+                // Issue #161: Check enum namespace members
+                static_enum_def := context.scope_stack.lookup_enum(name)?
+                for enum_ns_m: Declaration in static_enum_def.ns.members {
+                    if enum_ns_m.name.eq(field_or_variant) {
+                        return til_type_to_c(enum_ns_m.value_type)?
+                    }
+                }
+                catch (err: KeyNotFoundError) {
+                    // REM: Not an enum
                 }
             case:
             }
@@ -2464,6 +2480,31 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
                     case NodeType.EnumDef(ns2b2_ed):
                         if ns2b2_ed.ns.members.len().gt(0) {
                             emit_namespace_func_prototypes(ns2b2_ed.ns, ns2b2_decl.name, context, output)?
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+    // 2b3: Issue #161 - namespace mutable variables (static C variables)
+    switch ast.node_type {
+    case NodeType.Body:
+        for ns2b3_child: Expr in ast.params {
+            switch ns2b3_child.node_type {
+            case NodeType.Declaration(ns2b3_decl):
+                if ns2b3_child.params.len().gt(0) {
+                    ns2b3_inner := cast(Expr, ns2b3_child.params.get(0)?)
+                    switch ns2b3_inner.node_type {
+                    case NodeType.StructDef(ns2b3_sd):
+                        if ns2b3_sd.ns.members.len().gt(0) {
+                            emit_namespace_mutable_vars(ns2b3_sd.ns, ns2b3_decl.name, output)?
+                        }
+                    case NodeType.EnumDef(ns2b3_ed):
+                        if ns2b3_ed.ns.members.len().gt(0) {
+                            emit_namespace_mutable_vars(ns2b3_ed.ns, ns2b3_decl.name, output)?
                         }
                     case:
                     }
@@ -4158,6 +4199,47 @@ emit_namespace_func_prototypes : proc(ns_def: NamespaceDef, decl_name: Str, cont
     }
 }
 
+// Issue #161: Emit namespace mutable variables as file-scope C variables
+emit_namespace_mutable_vars : proc(ns_def: NamespaceDef, decl_name: Str, mut output: Str) throws Str = {
+    type_name := til_name(decl_name)
+    for member: Declaration in ns_def.members {
+        if member.is_mut {
+            mut has_default := false
+            default_expr := cast(Expr, ns_def.default_values.get(member.name)?)
+            has_default = true
+            catch (err: KeyNotFoundError) {
+            }
+            if has_default {
+                switch default_expr.node_type {
+                case NodeType.FuncDef(_):
+                case:
+                    c_type := til_type_to_c(member.value_type)?
+                    var_name := type_name.concat("_").concat(member.name)
+                    // Emit with default value
+                    mut default_val := "0"
+                    switch default_expr.node_type {
+                    case NodeType.LLiteral(lit):
+                        switch lit {
+                        case Literal.Number(n):
+                            default_val = n
+                        case Literal.Str(s):
+                            default_val = format("\"", s, "\"")
+                        case:
+                        }
+                    case:
+                    }
+                    output.push_str(c_type)
+                    output.push_str(" ")
+                    output.push_str(var_name)
+                    output.push_str(" = ")
+                    output.push_str(default_val)
+                    output.push_str(";\n")
+                }
+            }
+        }
+    }
+}
+
 // Issue #108: Emit namespace function bodies
 emit_namespace_func_bodies : proc(ns_def: NamespaceDef, decl_name: Str, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str = {
     type_name := til_name(decl_name)
@@ -4862,9 +4944,9 @@ emit_expr : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenConte
                         return
                     }
                 }
-                // Check if this is a struct constant access
-                if context.scope_stack.has_struct(name) {
-                    // Struct constant: Type.constant -> til_Type_constant
+                // Check if this is a struct/enum namespace member access
+                if context.scope_stack.has_struct(name).or(context.scope_stack.has_enum(name)) {
+                    // Namespace member: Type.member -> til_Type_member
                     output.push_str(til_name(name))
                     output.push_str("_")
                     output.push_str(type_field)
@@ -7518,7 +7600,12 @@ emit_assignment : proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut 
     if dot_pos.gteq(0) {
         base := name.get_substr(0, dot_pos)?
         rest := name.get_substr(dot_pos.add(1), name.len())?
-        if ctx.current_ref_params.contains(base) {
+        if context.scope_stack.has_struct(base).or(context.scope_stack.has_enum(base)) {
+            // Issue #161: Namespace member assignment: til_Type_member
+            output.push_str(til_name(base))
+            output.push_str("_")
+            output.push_str(rest)
+        } else if ctx.current_ref_params.contains(base) {
             // Mut param field access: til_Type_self->field
             output.push_str(resolve_var_name(base, ctx, context))
             output.push_str("->")

@@ -1461,24 +1461,46 @@ get_value_type : func(context: Context, e: Expr) returns ValueType throws Str = 
 
             switch id_current_type {
             case ValueType.TType(TTypeDef.TStructDef):
-                # If it's a struct, resolve its member
-                mut type_struct_def := context.scope_stack.lookup_struct(name)?
+                // Issue #161: Check if the full name is a registered namespace symbol first
+                ns_full_name := format(name, ".", member_name)
+                mut ns_symbol_found := false
+                ns_symbol := context.scope_stack.lookup_symbol(ns_full_name)?
+                ns_symbol_found = true
                 catch (err: KeyNotFoundError) {
-                    throw e.error(context.path, "init", format("Struct '", name, "' not found"))
                 }
-                mut type_decl := StructDef.get_member_or_err(type_struct_def, member_name, name, context.path, e)?
-                id_current_type = value_type_clone(type_decl.value_type)
+                if ns_symbol_found {
+                    id_current_type = value_type_clone(ns_symbol.value_type)
+                } else {
+                    // Fall back to struct member lookup
+                    mut type_struct_def := context.scope_stack.lookup_struct(name)?
+                    catch (err: KeyNotFoundError) {
+                        throw e.error(context.path, "init", format("Struct '", name, "' not found"))
+                    }
+                    mut type_decl := StructDef.get_member_or_err(type_struct_def, member_name, name, context.path, e)?
+                    id_current_type = value_type_clone(type_decl.value_type)
+                }
 
             case ValueType.TType(TTypeDef.TEnumDef):
-                # If it's an enum, resolve the variant
-                mut nested_enum_def := context.scope_stack.lookup_enum(name)?
+                // Issue #161: Check if the full name is a registered namespace symbol first
+                enum_ns_full_name := format(name, ".", member_name)
+                mut enum_ns_symbol_found := false
+                enum_ns_symbol := context.scope_stack.lookup_symbol(enum_ns_full_name)?
+                enum_ns_symbol_found = true
                 catch (err: KeyNotFoundError) {
-                    throw e.error(context.path, "init", format("Enum '", name, "' not found"))
                 }
-                if nested_enum_def.contains_key(member_name) {  // Bug #38 fix: use helper method
-                    return ValueType.TCustom(name)
+                if enum_ns_symbol_found {
+                    id_current_type = value_type_clone(enum_ns_symbol.value_type)
+                } else {
+                    // Fall back to enum variant lookup
+                    mut nested_enum_def := context.scope_stack.lookup_enum(name)?
+                    catch (err: KeyNotFoundError) {
+                        throw e.error(context.path, "init", format("Enum '", name, "' not found"))
+                    }
+                    if nested_enum_def.contains_key(member_name) {  // Bug #38 fix: use helper method
+                        return ValueType.TCustom(name)
+                    }
+                    throw e.error(context.path, "init", format("Enum '", name, "' has no value '", member_name, "'"))
                 }
-                throw e.error(context.path, "init", format("Enum '", name, "' has no value '", member_name, "'"))
 
             case ValueType.TCustom(nested_custom_type_name):
                 # If it's a custom type (a struct), resolve the member
@@ -1688,31 +1710,36 @@ init_namespace_into_struct : proc(mut context: Context, type_name: Str, ns_def: 
     }
     mut merged_struct := existing_struct.clone()
     for member_decl: Declaration in ns_def.members {
-        mut found_existing := false
-        mut existing_is_mut := false
-        for existing_member: Declaration in merged_struct.members {
-            if existing_member.name.eq(member_decl.name) {
-                found_existing = true
-                existing_is_mut = existing_member.is_mut
-            }
-        }
-        if found_existing {
-            if existing_is_mut {
-                errors.push(e.error(context.path, "init", format(
-                    "namespace for '", type_name, "': cannot override storage field '", member_decl.name, "'")))
-            } else {
-                mut new_members := Vec.new(Declaration)
-                for m: Declaration in merged_struct.members {
-                    if not(m.name.eq(member_decl.name)) {
-                        new_members.push(m.clone())
-                    }
+        // Issue #161: Don't merge mut namespace members into struct members --
+        // they are static variables, not instance fields
+        if member_decl.is_mut {
+        } else {
+            mut found_existing := false
+            mut existing_is_mut := false
+            for existing_member: Declaration in merged_struct.members {
+                if existing_member.name.eq(member_decl.name) {
+                    found_existing = true
+                    existing_is_mut = existing_member.is_mut
                 }
-                merged_struct.members.delete()
-                merged_struct.members = new_members
+            }
+            if found_existing {
+                if existing_is_mut {
+                    errors.push(e.error(context.path, "init", format(
+                        "namespace for '", type_name, "': cannot override storage field '", member_decl.name, "'")))
+                } else {
+                    mut new_members := Vec.new(Declaration)
+                    for m: Declaration in merged_struct.members {
+                        if not(m.name.eq(member_decl.name)) {
+                            new_members.push(m.clone())
+                        }
+                    }
+                    merged_struct.members.delete()
+                    merged_struct.members = new_members
+                    merged_struct.members.push(member_decl.clone())
+                }
+            } else {
                 merged_struct.members.push(member_decl.clone())
             }
-        } else {
-            merged_struct.members.push(member_decl.clone())
         }
     }
     for dv_name: Str in ns_def.default_values.keys {
@@ -1722,33 +1749,31 @@ init_namespace_into_struct : proc(mut context: Context, type_name: Str, ns_def: 
     catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
     context.scope_stack.declare_struct(type_name.clone(), merged_struct.clone())?
 
-    // Register associated funcs and constants from namespace
+    // Register associated funcs, constants, and mutables from namespace
     for ns_member_decl: Declaration in ns_def.members {
-        if not(ns_member_decl.is_mut) {
-            mut has_default_value := false
-            ns_member_expr := cast(Expr, ns_def.default_values.get(ns_member_decl.name)?)
-            has_default_value = true
-            catch (key_err: KeyNotFoundError) {
-                // No default value, skip
+        mut has_default_value := false
+        ns_member_expr := cast(Expr, ns_def.default_values.get(ns_member_decl.name)?)
+        has_default_value = true
+        catch (key_err: KeyNotFoundError) {
+            // No default value, skip
+        }
+        if has_default_value {
+            mut ns_member_vtype := ValueType.TCustom(INFER_TYPE)
+            ns_member_vtype = get_value_type(context, ns_member_expr)?
+            catch (err: Str) {
+                ns_member_vtype = ValueType.TCustom(INFER_TYPE)
             }
-            if has_default_value {
-                mut ns_member_vtype := ValueType.TCustom(INFER_TYPE)
-                ns_member_vtype = get_value_type(context, ns_member_expr)?
-                catch (err: Str) {
-                    ns_member_vtype = ValueType.TCustom(INFER_TYPE)
-                }
-                ns_full_name := format(type_name, ".", ns_member_decl.name)
-                context.scope_stack.declare_symbol(ns_full_name.clone(), SymbolInfo(
-                    value_type=value_type_clone(ns_member_vtype),
-                    is_mut=ns_member_decl.is_mut,
-                    is_copy=ns_member_decl.is_copy,
-                    is_own=ns_member_decl.is_own
-                ))?
-                switch ns_member_expr.node_type {
-                case NodeType.FuncDef(ns_func_def):
-                    context.scope_stack.declare_func(ns_full_name.clone(), ns_func_def.clone())?
-                case:
-                }
+            ns_full_name := format(type_name, ".", ns_member_decl.name)
+            context.scope_stack.declare_symbol(ns_full_name.clone(), SymbolInfo(
+                value_type=value_type_clone(ns_member_vtype),
+                is_mut=ns_member_decl.is_mut,
+                is_copy=ns_member_decl.is_copy,
+                is_own=ns_member_decl.is_own
+            ))?
+            switch ns_member_expr.node_type {
+            case NodeType.FuncDef(ns_func_def):
+                context.scope_stack.declare_func(ns_full_name.clone(), ns_func_def.clone())?
+            case:
             }
         }
     }
@@ -1765,39 +1790,46 @@ init_namespace_into_enum : proc(mut context: Context, type_name: Str, ns_def: Na
     }
     mut merged_enum := existing_enum.clone()
     for edv_name: Str in ns_def.default_values.keys {
-        edv_expr := cast(Expr, ns_def.default_values.get(edv_name)?)
-        merged_enum.methods.set(edv_name.clone(), edv_expr.clone())
+        // Issue #161: Don't merge mut namespace members into enum methods
+        mut is_mut_member := false
+        for edv_m: Declaration in ns_def.members {
+            if edv_m.name.eq(edv_name).and(edv_m.is_mut) {
+                is_mut_member = true
+            }
+        }
+        if not(is_mut_member) {
+            edv_expr := cast(Expr, ns_def.default_values.get(edv_name)?)
+            merged_enum.methods.set(edv_name.clone(), edv_expr.clone())
+        }
     }
     catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
     context.scope_stack.declare_enum(type_name.clone(), merged_enum)?
 
-    // Register associated funcs and constants from namespace
+    // Register associated funcs, constants, and mutables from namespace
     for ns_member_decl: Declaration in ns_def.members {
-        if not(ns_member_decl.is_mut) {
-            mut has_default_value := false
-            ns_member_expr := cast(Expr, ns_def.default_values.get(ns_member_decl.name)?)
-            has_default_value = true
-            catch (key_err: KeyNotFoundError) {
-                // No default value, skip
+        mut has_default_value := false
+        ns_member_expr := cast(Expr, ns_def.default_values.get(ns_member_decl.name)?)
+        has_default_value = true
+        catch (key_err: KeyNotFoundError) {
+            // No default value, skip
+        }
+        if has_default_value {
+            mut ns_member_vtype := ValueType.TCustom(INFER_TYPE)
+            ns_member_vtype = get_value_type(context, ns_member_expr)?
+            catch (err: Str) {
+                ns_member_vtype = ValueType.TCustom(INFER_TYPE)
             }
-            if has_default_value {
-                mut ns_member_vtype := ValueType.TCustom(INFER_TYPE)
-                ns_member_vtype = get_value_type(context, ns_member_expr)?
-                catch (err: Str) {
-                    ns_member_vtype = ValueType.TCustom(INFER_TYPE)
-                }
-                ns_full_name := format(type_name, ".", ns_member_decl.name)
-                context.scope_stack.declare_symbol(ns_full_name.clone(), SymbolInfo(
-                    value_type=value_type_clone(ns_member_vtype),
-                    is_mut=ns_member_decl.is_mut,
-                    is_copy=ns_member_decl.is_copy,
-                    is_own=ns_member_decl.is_own
-                ))?
-                switch ns_member_expr.node_type {
-                case NodeType.FuncDef(ns_func_def):
-                    context.scope_stack.declare_func(ns_full_name.clone(), ns_func_def.clone())?
-                case:
-                }
+            ns_full_name := format(type_name, ".", ns_member_decl.name)
+            context.scope_stack.declare_symbol(ns_full_name.clone(), SymbolInfo(
+                value_type=value_type_clone(ns_member_vtype),
+                is_mut=ns_member_decl.is_mut,
+                is_copy=ns_member_decl.is_copy,
+                is_own=ns_member_decl.is_own
+            ))?
+            switch ns_member_expr.node_type {
+            case NodeType.FuncDef(ns_func_def):
+                context.scope_stack.declare_func(ns_full_name.clone(), ns_func_def.clone())?
+            case:
             }
         }
     }

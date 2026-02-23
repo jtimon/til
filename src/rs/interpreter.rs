@@ -1050,6 +1050,61 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                         global_frame.enums.entry(declaration.name.to_string()).or_insert_with(|| enum_def.clone());
                     }
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                    // Issue #161: Process namespace mutable members for enums
+                    for ns_member_decl in &enum_def.ns.members {
+                        if !ns_member_decl.is_mut { continue; }
+                        if let Some(ns_default_value) = enum_def.ns.default_values.get(&ns_member_decl.name) {
+                            if let NodeType::FuncDef(_) = &ns_default_value.node_type {
+                                continue; // Functions are handled by init, not here
+                            }
+                            let ns_combined_name = format!("{}.{}", declaration.name, ns_member_decl.name);
+                            let ns_member_value_type = match &ns_member_decl.value_type {
+                                ValueType::TCustom(s) if s == INFER_TYPE => {
+                                    return Err(e.lang_error(&context.path, "eval", &format!("Namespace member '{}.{}' has INFER_TYPE - should have been resolved by typer",
+                                                                             &declaration.name, &ns_member_decl.name)));
+                                },
+                                _ => ns_member_decl.value_type.clone(),
+                            };
+                            match ns_member_value_type {
+                                ValueType::TCustom(ref ns_type_name) => {
+                                    let ns_result = eval_expr(context, ns_default_value)?;
+                                    if ns_result.is_throw {
+                                        return Ok(ns_result);
+                                    }
+                                    let ns_expr_result_str = ns_result.value;
+                                    match ns_type_name.as_str() {
+                                        "I64" | "U8" | "Str" => {
+                                            EvalHeap::insert_primitive(context, &ns_combined_name, &ns_member_value_type, &ns_expr_result_str, e)?;
+                                        },
+                                        _ => {
+                                            insert_struct_instance(context, &ns_combined_name, ns_type_name, e)?;
+                                            let ns_src_offset = context.scope_stack.lookup_var(&ns_expr_result_str)
+                                                .ok_or_else(|| e.lang_error(&context.path, "eval",
+                                                    &format!("Undefined variable '{}' for namespace member '{}'", ns_expr_result_str, ns_combined_name)))?;
+                                            let ns_dest_offset = context.get_field_offset(&ns_combined_name)?;
+                                            let ns_type_size = context.get_type_size(ns_type_name)?;
+                                            let ns_data = EvalHeap::g().get(ns_src_offset, ns_type_size).to_vec();
+                                            EvalHeap::g().set(ns_dest_offset, &ns_data)?;
+                                        },
+                                    }
+                                },
+                                _ => {
+                                    return Err(e.todo_error(&context.path, "eval", &format!("Cannot declare namespace member '{}.{}' of type '{}'",
+                                                                             &declaration.name,
+                                                                             &ns_member_decl.name,
+                                                                             value_type_to_str(&ns_member_decl.value_type))));
+                                },
+                            }
+                            context.scope_stack.declare_symbol(ns_combined_name.to_string(),
+                                                   SymbolInfo{value_type: ns_member_decl.value_type.clone(), is_mut: ns_member_decl.is_mut, is_copy: ns_member_decl.is_copy, is_own: ns_member_decl.is_own, is_comptime_const: false });
+                        }
+                    }
+                    // Issue #161: Update scope stack enum's ns with resolved types from AST
+                    if let Some(existing_enum) = context.scope_stack.lookup_enum(&declaration.name) {
+                        let mut updated_enum = existing_enum.clone();
+                        updated_enum.ns = enum_def.ns.clone();
+                        context.scope_stack.declare_enum(declaration.name.to_string(), updated_enum);
+                    }
                     return Ok(EvalResult::new(""));
                 },
                 _ => return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}', expected enum definition.",
@@ -1136,6 +1191,61 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                             context.scope_stack.declare_symbol(combined_name.to_string(),
                                                    SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false });
                         }
+                    }
+                    // Issue #161: Process namespace mutable members
+                    for ns_member_decl in &struct_def.ns.members {
+                        if !ns_member_decl.is_mut { continue; }
+                        if let Some(ns_default_value) = struct_def.ns.default_values.get(&ns_member_decl.name) {
+                            if let NodeType::FuncDef(_) = &ns_default_value.node_type {
+                                continue; // Functions are handled by init, not here
+                            }
+                            let ns_combined_name = format!("{}.{}", declaration.name, ns_member_decl.name);
+                            let ns_member_value_type = match &ns_member_decl.value_type {
+                                ValueType::TCustom(s) if s == INFER_TYPE => {
+                                    return Err(e.lang_error(&context.path, "eval", &format!("Namespace member '{}.{}' has INFER_TYPE - should have been resolved by typer",
+                                                                             &declaration.name, &ns_member_decl.name)));
+                                },
+                                _ => ns_member_decl.value_type.clone(),
+                            };
+                            match ns_member_value_type {
+                                ValueType::TCustom(ref ns_type_name) => {
+                                    let ns_result = eval_expr(context, ns_default_value)?;
+                                    if ns_result.is_throw {
+                                        return Ok(ns_result);
+                                    }
+                                    let ns_expr_result_str = ns_result.value;
+                                    match ns_type_name.as_str() {
+                                        "I64" | "U8" | "Str" => {
+                                            EvalHeap::insert_primitive(context, &ns_combined_name, &ns_member_value_type, &ns_expr_result_str, e)?;
+                                        },
+                                        _ => {
+                                            insert_struct_instance(context, &ns_combined_name, ns_type_name, e)?;
+                                            let ns_src_offset = context.scope_stack.lookup_var(&ns_expr_result_str)
+                                                .ok_or_else(|| e.lang_error(&context.path, "eval",
+                                                    &format!("Undefined variable '{}' for namespace member '{}'", ns_expr_result_str, ns_combined_name)))?;
+                                            let ns_dest_offset = context.get_field_offset(&ns_combined_name)?;
+                                            let ns_type_size = context.get_type_size(ns_type_name)?;
+                                            let ns_data = EvalHeap::g().get(ns_src_offset, ns_type_size).to_vec();
+                                            EvalHeap::g().set(ns_dest_offset, &ns_data)?;
+                                        },
+                                    }
+                                },
+                                _ => {
+                                    return Err(e.todo_error(&context.path, "eval", &format!("Cannot declare namespace member '{}.{}' of type '{}'",
+                                                                             &declaration.name,
+                                                                             &ns_member_decl.name,
+                                                                             value_type_to_str(&ns_member_decl.value_type))));
+                                },
+                            }
+                            context.scope_stack.declare_symbol(ns_combined_name.to_string(),
+                                                   SymbolInfo{value_type: ns_member_decl.value_type.clone(), is_mut: ns_member_decl.is_mut, is_copy: ns_member_decl.is_copy, is_own: ns_member_decl.is_own, is_comptime_const: false });
+                        }
+                    }
+                    // Issue #161: Update scope stack struct's ns with resolved types from AST
+                    if let Some(existing_struct) = context.scope_stack.lookup_struct(&declaration.name) {
+                        let mut updated_struct = existing_struct.clone();
+                        updated_struct.ns = struct_def.ns.clone();
+                        context.scope_stack.declare_struct(declaration.name.to_string(), updated_struct);
                     }
                     // Eagerly create default instance template for this struct type
                     create_default_instance(context, &declaration.name, e)?;
@@ -1253,17 +1363,26 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
 }
 
 fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    // Issue #161: Check if the full name is a namespace mutable first
     // For field access (e.g., "v.x"), extract the base variable name
-    let base_var_name = if var_name.contains('.') {
-        var_name.split('.').next().unwrap()
+    let symbol_info = if var_name.contains('.') {
+        if let Some(ns_sym) = context.scope_stack.lookup_symbol(var_name) {
+            ns_sym // Full name is a registered symbol (namespace member)
+        } else {
+            let base_var_name = var_name.split('.').next().unwrap();
+            match context.scope_stack.lookup_symbol(base_var_name) {
+                Some(sym) => sym,
+                None => {
+                    return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", base_var_name)));
+                }
+            }
+        }
     } else {
-        var_name
-    };
-
-    let symbol_info = match context.scope_stack.lookup_symbol(base_var_name) {
-        Some(sym) => sym,
-        None => {
-            return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", base_var_name)));
+        match context.scope_stack.lookup_symbol(var_name) {
+            Some(sym) => sym,
+            None => {
+                return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", var_name)));
+            }
         }
     };
     if !symbol_info.is_mut && !symbol_info.is_copy && !symbol_info.is_own {
@@ -1429,6 +1548,31 @@ fn eval_identifier_expr_struct(name: &str, context: &mut Context, e: &Expr) -> R
     let inner_e = e.params.get(0).unwrap();
     match &inner_e.node_type {
         NodeType::Identifier(inner_name) => {
+            // Issue #161: Check if this is a namespace member (from struct_def.ns)
+            let ns_member = struct_def.ns.members.iter().find(|m| m.name == *inner_name);
+            if let Some(ns_decl) = ns_member {
+                let full_name = format!("{}.{}", name, inner_name);
+                match &ns_decl.value_type {
+                    ValueType::TCustom(ref type_name) => {
+                        match type_name.as_str() {
+                            "I64" => {
+                                let val = EvalHeap::get_i64(context, &full_name, inner_e)?;
+                                return Ok(EvalResult::new(&val.to_string()));
+                            },
+                            "U8" => {
+                                let val = EvalHeap::get_u8(context, &full_name, inner_e)?;
+                                return Ok(EvalResult::new(&val.to_string()));
+                            },
+                            "Str" => {
+                                let val = string_from_context(context, &full_name, inner_e)?;
+                                return Ok(EvalResult::new(&val));
+                            },
+                            _ => return Ok(EvalResult::new(&full_name)),
+                        }
+                    },
+                    _ => return Ok(EvalResult::new(&full_name)),
+                }
+            }
             let member_decl = struct_def.get_member_or_err(inner_name, name, &context.path, e)?;
             return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, &member_decl);
         },
@@ -1658,9 +1802,36 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                 let inner_e = e.params.get(0).unwrap();
                 match &inner_e.node_type {
                     NodeType::Identifier(inner_name) => {
-                        // TODO check that inner_name is in enum_def
-                        // TODO check if that inner_name has an optional type
-                        return Ok(EvalResult::new(&format!("{}.{}", name, inner_name)));
+                        // Issue #161: Check if this is a namespace member (from enum_def.ns)
+                        if let Some(enum_def) = context.scope_stack.lookup_enum(name) {
+                            let ns_member = enum_def.ns.members.iter().find(|m| m.name == *inner_name);
+                            if let Some(ns_decl) = ns_member {
+                                let full_name = format!("{}.{}", name, inner_name);
+                                match &ns_decl.value_type {
+                                    ValueType::TCustom(ref type_name) => {
+                                        match type_name.as_str() {
+                                            "I64" => {
+                                                let val = EvalHeap::get_i64(context, &full_name, inner_e)?;
+                                                return Ok(EvalResult::new(&val.to_string()));
+                                            },
+                                            "U8" => {
+                                                let val = EvalHeap::get_u8(context, &full_name, inner_e)?;
+                                                return Ok(EvalResult::new(&val.to_string()));
+                                            },
+                                            "Str" => {
+                                                let val = string_from_context(context, &full_name, inner_e)?;
+                                                return Ok(EvalResult::new(&val));
+                                            },
+                                            _ => return Ok(EvalResult::new(&full_name)),
+                                        }
+                                    },
+                                    _ => return Ok(EvalResult::new(&full_name)),
+                                }
+                            }
+                        }
+                        // Enum variant
+                        let full_name = format!("{}.{}", name, inner_name);
+                        return Ok(EvalResult::new(&full_name));
                     },
                     _ => {
                         return Err(e.lang_error(&context.path, "eval", &format!("identifier '{}' should only have identifiers inside.", name)));
