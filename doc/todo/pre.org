@@ -15,6 +15,72 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #184: Integer-based enum comparison (replace string comparison)
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Performance -- enum switch/eq currently allocates and compares strings
+:STATUS: Open
+:RELATED: Bug #165 (memory leak), Bug #169 (get rid of memcmp), Issue #106 (first-class enums)
+:END:
+
+*** Problem
+
+Enum variant comparison in the interpreter uses string comparison. The
+desugarer transforms ~switch~ on enums to:
+
+#+BEGIN_SRC til
+// Desugared: eq(var, enum_to_str(CasePattern))
+eq(switch_var, enum_to_str(ValueType.TCustom))
+#+END_SRC
+
+Every case in every switch allocates a temporary Str via ~enum_to_str~.
+With 722 format() calls and thousands of switch evaluations during
+compilation, this leaks significant memory and wastes cycles on strcmp.
+
+In compiled C, enums are already integers (~typedef enum { ... }~) or
+tagged unions (~.tag~ field). Comparison is fast integer ~==~. The
+interpreter should match.
+
+*** Proposed solution
+
+1. Assign I64 constants to each variant during preinit/init (like C does):
+   ~ValueType.TCustom = 0, ValueType.TFunction = 1, ...~ etc.
+
+2. Auto-generate ~eq~ method on all enums in preinit (like delete/clone):
+   #+BEGIN_SRC til
+   eq : func(a: MyEnum, b: MyEnum) returns Bool = {
+       return a.tag.eq(b.tag)  // integer comparison
+   }
+   #+END_SRC
+
+3. Update desugarer to use ~EnumType.eq(var, pattern)~ instead of
+   ~eq(var, enum_to_str(pattern))~ for switch cases.
+
+4. The ~value_type_to_str(x).eq(value_type_to_str(y))~ pattern used in
+   17+ sites across interpreter/typer/ufcs/precomp becomes
+   ~ValueType.eq(x, y)~ -- no string allocation, just integer compare.
+
+*** Why not desugar enums to structs in TIL?
+
+Recurring thought: "should enums desugar to structs directly in TIL
+instead of being a special case through to ccodegen?"
+
+The blocker is unions. TIL only has tagged unions (enums), not raw unions.
+We don't want raw unions -- Rust doesn't have them outside ~unsafe~, and
+we agree with Rust on this. Enums ARE the tagged union type.
+
+But the tag itself can be an I64 constant instead of a string. This gets
+most of the performance benefit without needing to desugar the enum type
+away.
+
+*** Scope
+
+- preinit: auto-generate ~eq~ method for all enums
+- desugarer: use enum eq instead of enum_to_str + string eq
+- interpreter: enum values store integer tag alongside string (or replace)
+- Replace ~value_type_to_str(x).eq(value_type_to_str(y))~ with ~ValueType.eq(x, y)~
+  across 17+ sites in interpreter.til, typer.til, ufcs.til, precomp.til
+
 ** Issue #183: Manual delete calls as temporary memory management
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
