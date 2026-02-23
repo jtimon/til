@@ -1012,7 +1012,7 @@ val: I64 = vec.get(0)  // direct return
 :DISCOVERED: 2025-12-31
 :RESOLVED: 2026-01-30
 :IMPACT: Language design, Rust/TIL parity, developer experience
-:STATUS: Resolved - Bug #97 implemented option 1 (allow full shadowing)
+:STATUS: Open - shadowing check is too strict, needs scope-awareness (2026-02-23)
 :RELATED: Bug #65 (specific shadowing divergence), Bug #97 (fix via name mangling), Bug #173 (Rust typer missing shadowing check)
 :END:
 
@@ -1066,15 +1066,47 @@ To avoid Rust/TIL divergence like Bug #65:
 
 This rule is documented in CLAUDE.md.
 
+*** Problem: shadowing check is too strict (2026-02-23)
+
+The current check in ~typer.rs:check_declaration~ (Bug #97) uses ~function_locals~
+which is function-wide -- it tracks ALL declarations across the entire function body,
+regardless of scope. This means variables in separate scopes can't reuse names:
+
+#+begin_src til
+// FAILS: "Variable 'i' already declared in this function (shadowing not allowed)"
+test := func() returns I64 = {
+    mut sum := 0
+    for i in 0..3 { sum = sum.add(i) }
+    for i in 10..13 { sum = sum.add(i) }   // ERROR: 'i' already declared
+    return sum
+}
+#+end_src
+
+Range-for loops desugar to ~Body { mut i := start; while ... }~ (parser.rs:1504).
+Both Body blocks are at function scope level from the typer's perspective since
+~function_locals~ ignores scope nesting.
+
+For-in loops DON'T have this problem because the user's variable is declared via
+~cast()~ inside the while body, and ~cast~ declarations are created with the ForIn
+node's line/col. The internal variables (~_for_i_funcname_N~, ~_ref_forin_N~) use
+unique generated names.
+
+*Minimum fix*: the shadowing check should respect scope boundaries (Body blocks).
+Re-declaration in a sibling or nested scope is fine -- C itself handles this with
+block scoping (~{}~), so no codegen issues. The ~is_shadowing_in_function~ check
+needs scope tracking, or alternatively, the typer should push/pop the ~function_locals~
+set when entering/leaving Body nodes.
+
+Further relaxation (same-scope shadowing, type-change shadowing) can be decided later.
+
 *** Action Items
-- [ ] Fix nested-scope shadowing bug (high priority)
-- [ ] Evaluate shadowing usage in self-hosted codebase
-- [ ] Choose consistent shadowing policy
-- [ ] Implement in type checker
-- [ ] Document decision
+- [ ] Make shadowing check scope-aware (at minimum, separate Body blocks)
+- [ ] Decide on further relaxation (same-scope shadowing, type-change shadowing)
+- [ ] Document final policy
 
 *** References
 - Bug #65: Specific instance where shadowing caused divergence
+- Bug #97: Introduced the function-wide shadowing check
 - doc/todo/post.org: Original shadowing discussion (moved here)
 
 ** Issue #88: Macro Support (Compile-Time Evaluation)
