@@ -1531,6 +1531,8 @@ import_path_to_file_path : func(import_path: Str) returns Str = {
     mut full_path := format("src.", import_path)
     mut file_path := full_path.replace(".", MAIN_SEPARATOR_STR)
     mut result := format(file_path, ".til")
+    full_path.delete() // TODO #183
+    file_path.delete() // TODO #183
     return result
 }
 
