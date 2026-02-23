@@ -1571,6 +1571,8 @@ init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: 
     # Already done (or in progress)? Skip.
     # Adding to done at START handles both circular imports and re-imports.
     if context.imports_init_done.contains(path) {
+        path.delete()
+        original_path.delete()
         return
     }
 
@@ -1591,6 +1593,7 @@ init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: 
 
     # Lex the imported file
     mut lexer := lexer_from_source(path, source)?
+    source.delete() // #183
     catch (err: Str) {
         context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
@@ -1669,6 +1672,8 @@ init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: 
     # Restore context state
     context.mode_def = previous_mode
     context.path = original_path.clone()
+    path.delete() // #183
+    original_path.delete() // #183
 }
 
 // Issue #91: Walk an expression tree to find and register anonymous FuncDef nodes.
@@ -1678,9 +1683,15 @@ collect_anon_funcs : proc(mut context: Context, e: Expr) throws Str = {
     switch e.node_type {
     case NodeType.FuncDef(func_def):
         if func_def.body.len().gt(0) {
-            temp_name := format("__anon_func_", I64.to_str(context.anon_func_counter))
+            mut counter_str := I64.to_str(context.anon_func_counter)
+            temp_name := format("__anon_func_", counter_str)
+            counter_str.delete()
             context.anon_func_counter = context.anon_func_counter.add(1)
-            key := format("(", I64.to_str(e.line), ",", I64.to_str(e.col), ")")
+            mut line_str := I64.to_str(e.line)
+            mut col_str := I64.to_str(e.col)
+            key := format("(", line_str, ",", col_str, ")")
+            line_str.delete()
+            col_str.delete()
             context.anon_func_map.set(key, temp_name.clone())
             context.scope_stack.declare_func(temp_name.clone(), func_def.clone())?
             context.scope_stack.declare_symbol(temp_name, SymbolInfo(
@@ -2559,9 +2570,15 @@ namespace:
                 // Build candidate by joining parts[0..=i] with "."
                 cand0 := cast(Str, parts.get(0)?)
                 mut candidate := cand0
+                mut candidate_owned := false
                 for j in 1..i.add(1) {
                     part := cast(Str, parts.get(j)?)
-                    candidate = candidate.concat(".").concat(part)
+                    mut tmp := candidate.concat(".")
+                    mut old_candidate := candidate
+                    candidate = tmp.concat(part)
+                    tmp.delete()
+                    if candidate_owned { old_candidate.delete() }
+                    candidate_owned = true
                 }
                 mut offset := 0
                 offset = self.scope_stack.lookup_var(candidate)?
@@ -2580,9 +2597,15 @@ namespace:
         // Build base_var by joining parts[0..=base_end_idx] with "."
         bv0 := cast(Str, parts.get(0)?)
         mut base_var := bv0
+        mut base_var_owned := false
         for j2 in 1..base_end_idx.add(1) {
             bv_part := cast(Str, parts.get(j2)?)
-            base_var = base_var.concat(".").concat(bv_part)
+            mut bv_tmp := base_var.concat(".")
+            mut old_base_var := base_var
+            base_var = bv_tmp.concat(bv_part)
+            bv_tmp.delete()
+            if base_var_owned { old_base_var.delete() }
+            base_var_owned = true
         }
         // Get the base variable's type
         mut base_symbol := self.scope_stack.lookup_symbol(base_var)?
