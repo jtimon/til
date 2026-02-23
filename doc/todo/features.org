@@ -17,6 +17,53 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 
 * Open Issues
 
+** Issue #153: Enable field and method access on Dynamic parameters
+:PROPERTIES:
+:DISCOVERED: 2025-11-12
+:IMPACT: Dynamic typing, Python-like features, duck typing
+:STATUS: Open
+:RELATED: Issue #111 (returns Dynamic)
+:END:
+
+*** Problem
+Currently, ~Dynamic~ parameters skip type checking when passed to functions,
+but inside the function, field access and method calls are still type-checked
+and fail because ~Dynamic~ has no members.
+
+*** Current Behavior
+#+BEGIN_SRC til
+test_field_access := proc(obj: Dynamic) returns I64 {
+    return obj.x  // ERROR: Struct 'Dynamic' has no member 'x'
+}
+
+test_method_call := proc(obj: Dynamic) returns I64 {
+    return obj.sum()  // ERROR: Type 'Dynamic' has no method 'sum'
+}
+#+END_SRC
+
+*** Desired Behavior
+The type checker should skip validation for operations on ~Dynamic~ values:
+- Field access deferred to runtime
+- Method calls resolved at runtime
+- Duck typing patterns enabled
+
+*** Implementation Notes
+The type checker would need to:
+1. Recognize when an expression involves a ~Dynamic~ type
+2. Skip member/method existence validation for Dynamic expressions
+3. Defer checks to runtime (eval phase)
+4. Handle runtime errors gracefully when members/methods don't exist
+
+*** Use Cases
+- Generic helper functions that work with any struct
+- Duck typing patterns (if it has a ~.x~ field, use it)
+- Python-style flexible code
+
+*** Relationship to Issue #111
+Issue #111 is about ~returns Dynamic~ (functions returning Dynamic).
+This issue is about operations ON Dynamic values (~obj.field~, ~obj.method()~).
+Both improve the Dynamic type's usefulness.
+
 ** Issue #182: Closures -- explicit capture lists for functions and blocks
 :PROPERTIES:
 :DISCOVERED: 2026-02-23

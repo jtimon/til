@@ -1,0 +1,106 @@
+#+TITLE: Optimizations
+#+AUTHOR: TIL Development
+#+DATE: 2026-02-23
+# BOT: Issues use next number from doc/todo/next_issue_num.txt, then increment it.
+# BOT: Add new issues at the top of Open Issues section.
+# BOT: When implemented, move to Implemented Issues section in doc/todo/fixed.org.
+# BOT: Keep summary.org updated when adding/removing/moving issues.
+
+* Overview
+
+This document tracks performance optimization work -- benchmarking, data
+structure performance, and algorithmic improvements.
+
+For language features, see features.org. For bugs, see bugs.org.
+For architecture/cleanup, see future.org. For pre-1.0 work, see pre.org.
+
+* Open Issues
+
+** Issue #167: Benchmark HashMap vs Map (OrderedMap) in Rust and TIL
+:PROPERTIES:
+:DISCOVERED: 2026-02-10
+:IMPACT: Performance - understand when HashMap is actually faster
+:STATUS: Open
+:RELATED: Issue #112 (HashMap implementation), Bug #166 (container dedup)
+:END:
+
+*** Summary
+Systematically benchmark HashMap vs Map to understand when each wins.
+
+In Rust, the codebase used ~HashMap~ (std) everywhere until ~OrderedMap~ was
+introduced. In TIL, everything uses ~Map~ (sorted, O(log n) binary search).
+TIL has a ~HashMap~ implementation (Issue #112) but it was slower than Map in
+the two cases tested (small maps, ScopeFrame maps).
+
+The question: is HashMap ever faster, and if so, does that advantage translate
+to TIL?
+
+*** Plan
+1. In Rust: identify use cases where HashMap should win (large N, frequent
+   lookup, no ordering needed). Benchmark HashMap vs OrderedMap for each.
+2. For cases where HashMap wins in Rust, try the same in TIL. See if TIL's
+   HashMap also wins, or if TIL's overhead negates the algorithmic advantage.
+3. Document results:
+   - If HashMap wins for some cases in both Rust and TIL: use HashMap there
+   - If HashMap wins in Rust but not TIL: document the gap, investigate why
+   - If Map/OrderedMap wins everywhere: validates TIL's design choice of Map
+     as the shorter/default name. Document this.
+
+*** Context
+- Rust: ~HashMap~ (std, highly optimized SwissTable) vs ~OrderedMap~ (custom, sorted)
+- TIL: ~Map~ (sorted, binary search) vs ~HashMap~ (first attempt, separate chaining)
+- Only Map (TIL) and OrderedMap (Rust) are maintained equivalents by design.
+  TIL's HashMap is a first attempt and likely far less optimized than Rust's
+  std HashMap (which uses SwissTable/hashbrown). If HashMap wins in Rust but
+  loses in TIL, the fault may be in TIL's naive HashMap implementation, not
+  in the concept of hashing itself.
+- Issue #112 showed TIL HashMap 81% slower for ScopeFrame maps (til interpreted)
+  and 5-6% slower for small maps. But those were specific cases -- larger
+  collections with pure lookup workloads may differ.
+- For cases with few elements, the simpler sorted approach may win due to
+  cache locality and lower overhead. This is expected and would reinforce
+  TIL's choice of ~Map~ as the primary/shorter name.
+
+** Issue #112: Add HashMap type with O(1) lookup
+:PROPERTIES:
+:DISCOVERED: 2026-01-13
+:IMPACT: Performance - self-hosted interpreter 2.7x slower than Rust
+:STATUS: Blocked - TIL HashMap implementation too slow
+:END:
+
+*** Summary
+Created HashMap type with O(1) average lookup, but it's actually slower than
+the existing Map in TIL due to implementation overhead.
+
+*** What Was Done
+- Created ~HashMap~ type in ~src/std/hashmap.til~
+- Uses ~Str.hash()~ (FNV-1a) for string keys, FNV-1a on raw bytes for others
+- Separate chaining collision handling, power-of-2 buckets, 0.75 load factor
+- Same API as Map (get, set, insert, contains_key, remove, etc.)
+- Added 15 HashMap tests to ~src/test/maps.til~
+
+*** Attempts to Use HashMap - Both Failed
+
+**** Attempt 1: default_values and named_values
+Result: 5-6% slower (small maps, overhead exceeds benefit)
+
+**** Attempt 2: ScopeFrame maps (arena_index, symbols, funcs, enums, structs)
+Result: 81% slower (TIL HashMap implementation has too much overhead)
+
+| Metric          | Before   | After    | Change       |
+|-----------------+----------+----------+--------------|
+| til interpreted | 354.153s | 641.957s | +81% slower  |
+| til compiled    | 14.441s  | 16.423s  | +14% slower  |
+
+*** Root Cause
+TIL HashMap overhead is too high:
+- Hash computation via memcpy for non-Str keys
+- Bucket indirection and chain traversal
+- Key comparison via memcpy
+- These costs exceed O(n) linear scan benefit even for larger maps
+
+*** Possible Future Approaches
+- Consider using OrderedMap instead of HashMap in Rust itself
+- Optimize TIL HashMap (inline hash functions, avoid memcpy)
+- Profile to identify actual bottleneck
+- Accept interpreted TIL is slower, focus on compiled performance
