@@ -15,6 +15,57 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #183: Manual delete calls as temporary memory management
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Memory leak reduction until #117 automates destruction
+:STATUS: Open
+:RELATED: Issue #117 (ASAP Destruction), Bug #165 (200-800x memory leak), Bug #159 (shallow copies)
+:END:
+
+*** Description
+
+Until Issue #117 (ASAP Destruction) is fully implemented, manually insert
+~.delete()~ calls in TIL source code where variables go out of scope or
+are no longer needed -- the same way you would in C.
+
+*** Why this is safe
+
+- ~delete()~ implementations already handle double-frees safely. The eval
+  heap tracks allocations, so deleting an already-freed pointer is a no-op
+  (or logged), not undefined behavior.
+- Redundant deletes are harmless -- they just waste a few cycles on the
+  check.
+- As #117 automates more deletion patterns, the manual deletes become
+  redundant and can be removed incrementally.
+
+*** Approach
+
+1. Identify hot spots: functions that allocate heavily (format, concat,
+   split, clone, to_str, Vec/Map operations) and don't free results
+2. Add explicit ~result.delete()~ or ~temp.delete()~ calls after last use
+3. Focus on the self-hosted compiler files first (biggest memory consumers)
+4. Verify with benchmarks that memory usage drops without crashes
+
+*** Why not dont_delete (the opposite approach)
+
+~dont_delete~ was tried before -- assume everything gets deleted, whitelist
+what should be skipped. It never worked because shallow-copy aliasing (#159)
+makes it impossible to reliably know what is safe to skip. Too many hidden
+aliases, too many false negatives.
+
+This approach flips it: nothing gets deleted by default, you manually add
+deletes only where you *know* the value is owned and no longer needed.
+Double-frees are harmless (eval heap catches them), so being overly
+aggressive with deletes is safe. Being overly aggressive with dont_delete
+was not (missing one alias = use-after-free).
+
+*** Relationship to #117
+
+This is a manual version of what #117 will automate. Each manual delete
+we add now is a site where #117's auto-delete will eventually take over.
+When #117 handles a pattern, we remove the corresponding manual delete.
+
 ** Issue #179: ~cast()~ should work as function argument, not just declarations
 :PROPERTIES:
 :DISCOVERED: 2026-02-23

@@ -41,10 +41,11 @@
 |  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (9 issues)
+* pre.org (10 issues)
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
+| 183 | Manual delete calls as temporary memory management | Memory mgmt  |
 | 179 | Typer should reject cast() in non-declaration pos  | Type checker |
 | 175 | Unify C calling convention -- all return via _ret  | Codegen      |
 | 168 | ccodegen returns create copies interpreter doesn't | Memory mgmt  |
