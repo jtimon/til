@@ -17,37 +17,13 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
     switch e.node_type {
     // Recurse into FuncDef bodies
     case NodeType.FuncDef(func_def):
-        // Step 1: Strip dont_delete calls, collect protected var names
-        // Pre-scan entire body tree recursively for dont_delete var names
-        mut dont_delete_vars := garb_collect_dont_delete_vars_recursive(func_def.body)?
+        // Step 1: Strip dont_delete calls from the AST
         mut new_body := Vec.new(Expr)
         for stmt: Expr in func_def.body {
             if is_dont_delete_call(stmt) {
-                // already collected above, just skip
+                // dont_delete() call, strip from AST
             } else {
-                // Step 2: Collect cast var names
-                cast_var := get_cast_var(stmt)
-                if cast_var.len().gt(0) {
-                    dont_delete_vars.push(cast_var)
-                }
                 new_body.push(garbager_recursive(context, stmt)?)
-            }
-        }
-
-        // Step 2.5: Collect catch error variable names (they shadow locals in ccodegen)
-        for catch_stmt: Expr in new_body {
-            switch catch_stmt.node_type {
-            case NodeType.Catch:
-                if catch_stmt.params.len().gt(0) {
-                    catch_name_expr := cast(Expr, catch_stmt.params.get(0)?)
-                    dont_delete(catch_name_expr)
-                    switch catch_name_expr.node_type {
-                    case NodeType.Identifier(err_var_name):
-                        dont_delete_vars.push(err_var_name)
-                    case:
-                    }
-                }
-            case:
             }
         }
 
@@ -74,209 +50,6 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
 
         // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
         new_body = insert_clone_after_get(new_body, local_types, context)?
-
-        // Step 3: Collect delete candidates (parallel vecs: var names + type names)
-        mut cand_vars := Vec.new(Str)
-        mut cand_types := Vec.new(Str)
-
-        // 3a: copy/own params
-        for arg_def: Declaration in func_def.sig.args {
-            if arg_def.is_copy.or(arg_def.is_own) {
-                switch arg_def.value_type {
-                case ValueType.TCustom(type_name):
-                    cand_vars.push(arg_def.name)
-                    cand_types.push(type_name)
-                case:
-                }
-            }
-        }
-
-        // 3b: Scan new_body for Declaration nodes with owned init.
-        // Catch guard removed: ccodegen hoists struct locals to function top
-        // with zero-init, making unconditional deletes safe even with goto.
-        // Only delete locals whose RHS is provably owned (constructor, clone, etc.)
-        // to avoid freeing aliased data from shallow copies (Bug #159).
-        for stmt: Expr in new_body {
-            switch stmt.node_type {
-            case NodeType.Declaration(decl):
-                switch decl.value_type {
-                case ValueType.TCustom(type_name):
-                    mut is_owned := false
-                    if stmt.params.len().gt(0) {
-                        init_rhs := cast(Expr, stmt.params.get(0)?)
-                        dont_delete(init_rhs)
-                        is_owned = is_owned_init_expr(init_rhs)
-                    }
-                    if is_owned {
-                        cand_vars.push(decl.name)
-                        cand_types.push(type_name)
-                    }
-                case:
-                }
-            case:
-            }
-        }
-
-        // Step 4: Remove dont_delete_vars and own-transferred vars
-        own_transfers := collect_own_transfers(new_body, context, local_types)?
-        mut filtered_vars := Vec.new(Str)
-        mut filtered_types := Vec.new(Str)
-        for i in 0..cand_vars.len() {
-            var_name := cast(Str, cand_vars.get(i)?)
-            type_name := cast(Str, cand_types.get(i)?)
-            mut excluded := var_name.eq("_")
-            for dd: Str in dont_delete_vars {
-                if dd.eq(var_name) { excluded = true }
-            }
-            for ot: Str in own_transfers {
-                if ot.eq(var_name) { excluded = true }
-            }
-            if not(excluded) {
-                filtered_vars.push(var_name)
-                filtered_types.push(type_name)
-            }
-        }
-
-        // Step 5: Insert Type.delete(var) calls.
-        // copy/own params: ASAP after last use (deep copies, no aliasing).
-        // locals: at function end (shared offsets mean locals can alias).
-        mut param_names := Vec.new(Str)
-        for parg: Declaration in func_def.sig.args {
-            if parg.is_copy.or(parg.is_own) {
-                param_names.push(parg.name)
-            }
-        }
-
-        // Separate params (ASAP) from locals (end-of-function)
-        mut asap_vars := Vec.new(Str)
-        mut asap_types := Vec.new(Str)
-        mut end_vars := Vec.new(Str)
-        mut end_types := Vec.new(Str)
-        for ci in 0..filtered_vars.len() {
-            cv := cast(Str, filtered_vars.get(ci)?)
-            ct := cast(Str, filtered_types.get(ci)?)
-            mut is_param := false
-            for pn: Str in param_names {
-                if pn.eq(cv) { is_param = true }
-            }
-            if is_param {
-                asap_vars.push(cv)
-                asap_types.push(ct)
-            } else {
-                end_vars.push(cv)
-                end_types.push(ct)
-            }
-        }
-
-        // ASAP: insert after last use for copy/own params
-        body_len := new_body.len()
-        mut insert_positions := Vec.new(I64)
-        mut insert_del_calls := Vec.new(Expr)
-        mut ri := asap_vars.len()
-        while ri.gt(0) {
-            ri = ri.sub(1)
-            del_var := cast(Str, asap_vars.get(ri)?)
-            del_type := cast(Str, asap_types.get(ri)?)
-            last_use := find_last_use_index(new_body, del_var)
-            mut insert_pos := body_len
-            if last_use.gteq(0) {
-                insert_pos = last_use.add(1)
-            }
-            mut del_line := e.line
-            mut del_col := e.col
-            if insert_pos.gt(0).and(insert_pos.lteq(body_len)) {
-                prev_stmt := cast(Expr, new_body.get(insert_pos.sub(1))?)
-                del_line = prev_stmt.line
-                del_col = prev_stmt.col
-            } else {
-                if new_body.len().gt(0) {
-                    last_s := cast(Expr, new_body.get(new_body.len().sub(1))?)
-                    del_line = last_s.line
-                    del_col = last_s.col
-                }
-            }
-            insert_positions.push(insert_pos)
-            insert_del_calls.push(build_delete_call_expr(del_type, del_var, del_line, del_col))
-        }
-
-        // Build final_body: original statements with ASAP deletes interleaved
-        mut final_body := Vec.new(Expr)
-        for bi in 0..body_len {
-            body_stmt := cast(Expr, new_body.get(bi)?)
-            final_body.push(body_stmt)
-            for di in 0..insert_positions.len() {
-                dpos := cast(I64, insert_positions.get(di)?)
-                if dpos.eq(bi.add(1)) {
-                    dc := cast(Expr, insert_del_calls.get(di)?)
-                    final_body.push(dc)
-                }
-            }
-        }
-
-        // End-of-function: insert locals deletion in reverse declaration order.
-        // Deletes go BEFORE the last Return (so they actually execute),
-        // not after it (where they'd be dead code).
-        mut last_line := e.line
-        mut last_col := e.col
-        if final_body.len().gt(0) {
-            final_last_s := cast(Expr, final_body.get(final_body.len().sub(1))?)
-            last_line = final_last_s.line
-            last_col = final_last_s.col
-        }
-
-        // Don't delete the return variable -- it's the function's output
-        mut return_var_name := ""
-        mut last_is_return := false
-        if final_body.len().gt(0) {
-            final_last_stmt := cast(Expr, final_body.get(final_body.len().sub(1))?)
-            switch final_last_stmt.node_type {
-            case NodeType.Return:
-                last_is_return = true
-                if not(final_last_stmt.params.is_empty()) {
-                    ret_param := cast(Expr, final_last_stmt.params.get(0)?)
-                    switch ret_param.node_type {
-                    case NodeType.Identifier(ret_name):
-                        return_var_name = ret_name
-                    case:
-                    }
-                }
-            case:
-            }
-        }
-
-        // If the body ends with Return, insert deletes before it.
-        // If no Return at end (proc without explicit return), just append.
-        // Build delete calls into a temporary vec first.
-        mut delete_calls := Vec.new(Expr)
-        mut eri := end_vars.len()
-        while eri.gt(0) {
-            eri = eri.sub(1)
-            ev := cast(Str, end_vars.get(eri)?)
-            et := cast(Str, end_types.get(eri)?)
-            if not(return_var_name.eq("")).and(ev.eq(return_var_name)) {
-                continue
-            }
-            delete_calls.push(build_delete_call_expr(et, ev, last_line, last_col))
-        }
-
-        if last_is_return.and(final_body.len().gt(0)) {
-            // Pop the Return stmt, insert deletes, push Return back
-            mut return_stmt := Expr()
-            final_body.pop(return_stmt)?
-            for dc: Expr in delete_calls {
-                final_body.push(dc)
-            }
-            final_body.push(return_stmt)
-        } else {
-            for dc: Expr in delete_calls {
-                final_body.push(dc)
-            }
-        }
-        new_body = final_body
-
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
-        }
 
         new_func_def := FuncDef(
             sig=FuncSig(
@@ -495,16 +268,6 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
 /// Check if a declaration's RHS expression is provably owned (not an alias).
 /// Only locals with owned init are safe to delete at function end.
 /// Aliases from shallow copies (memcpy) would cause double-free if deleted.
-is_owned_init_expr : func(_rhs: Expr) returns Bool = {
-    // Disabled: local deletion is unsafe due to shallow-copy aliasing (Bug #159).
-    // A local initialized by .new() can have its data aliased by other locals
-    // through field access, container get, or function return memcpy.
-    // Deleting it at function end would corrupt those aliases.
-    // For now, only copy/own params get deletion (ASAP, no aliasing risk).
-    // Local deletion requires deep-copy semantics (Bug #159) to be safe.
-    return false
-}
-
 /// Build AST for Type.clone(src_expr): FCall( Identifier("Type").Identifier("clone"), src_expr )
 build_clone_call_expr : func(type_name: Str, src_expr: Expr, line: I64, col: I64) returns Expr = {
     // Type.clone access: Identifier("Type") with child Identifier("clone")
@@ -517,58 +280,6 @@ build_clone_call_expr : func(type_name: Str, src_expr: Expr, line: I64, col: I64
     clone_call.params.push(type_clone_access)
     clone_call.params.push(src_expr)
     return clone_call
-}
-
-/// Recursively check if any Identifier node in the expression tree matches var_name.
-/// Recurses into e.params (covers if/while/for/switch bodies stored as params).
-/// Does NOT recurse into nested FuncDef bodies (separate scope).
-expr_references_var : func(e: Expr, var_name: Str) returns Bool = {
-    switch e.node_type {
-    case NodeType.Identifier(name):
-        if name.eq(var_name) {
-            return true
-        }
-    case:
-    }
-    // Recurse into params (but not into nested FuncDef bodies)
-    for param: Expr in e.params {
-        if expr_references_var(param, var_name) {
-            return true
-        }
-    }
-    // For FuncDef nodes, do NOT recurse into body (separate scope).
-    // e.params on a FuncDef are only default arg values, already checked above.
-    return false
-}
-
-/// Scan body from end to start, return index of last statement referencing the variable.
-/// Returns -1 if not found.
-find_last_use_index : func(body: Vec, var_name: Str) returns I64 = {
-    mut i := body.len().sub(1)
-    while i.gteq(0) {
-        stmt := cast(Expr, body.get(i)?)
-        if expr_references_var(stmt, var_name) {
-            return i
-        }
-        i = i.sub(1)
-    }
-    return I64.sub(0, 1)
-
-    catch (err: IndexOutOfBoundsError) {
-        panic(loc(), "IndexOutOfBoundsError in find_last_use_index: ", err.msg)
-    }
-}
-
-/// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier("var") )
-build_delete_call_expr : func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr = {
-    delete_ident := Expr(node_type=NodeType.Identifier("delete"), line=line, col=col)
-    mut type_delete_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
-    type_delete_access.params.push(delete_ident)
-    var_expr := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
-    mut delete_call := Expr(node_type=NodeType.FCall(FCallInfo()), line=line, col=col)
-    delete_call.params.push(type_delete_access)
-    delete_call.params.push(var_expr)
-    return delete_call
 }
 
 /// Build AST for var = Type.clone(var): Assignment with RHS = clone FCall.
@@ -831,82 +542,10 @@ is_dont_delete_call : func(e: Expr) returns Bool = {
     }
 }
 
-/// Extract variable name from dont_delete(var) call.
-/// The variable is params[1] (params[0] is the function name).
-get_dont_delete_var : func(e: Expr) returns Str = {
-    if e.params.len().lt(2) {
-        return ""
-    }
-    param1 := cast(Expr, e.params.get(1)?)
-    dont_delete(param1)
-    switch param1.node_type {
-    case NodeType.Identifier(var_name):
-        return var_name
-    case:
-        return ""
-    }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-}
-
-/// Extract variable name from cast(Type, ptr) declaration: target := cast(Type, ptr)
-get_cast_var : func(e: Expr) returns Str = {
-    switch e.node_type {
-    case NodeType.Declaration(decl):
-        if not(e.params.is_empty()) {
-            init := cast(Expr, e.params.get(0)?)
-            dont_delete(init)
-            switch init.node_type {
-            case NodeType.FCall(_):
-                func_name := get_func_name(init)
-                if func_name.eq("cast") {
-                    return decl.name
-                }
-            case:
-            }
-        }
-    case:
-    }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-
-    return ""
-}
-
 /// Result of resolving a function call, including UFCS detection.
 ResolvedFCall := struct {
     mut func_def: FuncDef = FuncDef()
     mut is_ufcs: Bool = false
-}
-
-/// Recursively collect dont_delete var names from the entire body tree.
-/// Walks into Body, If, While, Catch children but not into nested FuncDef bodies.
-garb_collect_dont_delete_vars_recursive : func(stmts: Vec) returns Vec throws Str = {
-    mut result := Vec.new(Str)
-    for stmt: Expr in stmts {
-        garb_collect_dont_delete_vars_recursive_inner(stmt, result)?
-    }
-    return result
-}
-
-garb_collect_dont_delete_vars_recursive_inner : func(e: Expr, mut result: Vec) throws Str = {
-    if is_dont_delete_call(e) {
-        dd_var := get_dont_delete_var(e)
-        if dd_var.len().gt(0) {
-            result.push(dd_var)
-        }
-        return
-    }
-    // Recurse into params (covers Body, If, While, Catch children)
-    // but NOT into nested FuncDef bodies (separate scope)
-    switch e.node_type {
-    case NodeType.FuncDef(_):
-        return
-    case:
-    }
-    for param: Expr in e.params {
-        garb_collect_dont_delete_vars_recursive_inner(param, result)?
-    }
 }
 
 /// Walk an FCall's name expression to extract the full identifier chain.
@@ -1013,82 +652,6 @@ resolve_fcall_from_chain : proc(chain: Vec, local_types: Map, context: Context) 
 
     catch (err: IndexOutOfBoundsError) {
         throw KeyNotFoundError(msg=format("resolve_fcall_from_chain: ", err.msg))
-    }
-}
-
-collect_own_transfers : proc(stmts: Vec, context: Context, local_types: Map) returns Vec throws Str = {
-    mut result := Vec.new(Str)
-    for stmt: Expr in stmts {
-        collect_own_transfers_recursive(stmt, context, local_types, result)?
-    }
-    return result
-}
-
-collect_own_transfers_recursive : proc(e: Expr, context: Context, local_types: Map, mut result: Vec) throws Str = {
-    switch e.node_type {
-    case NodeType.FCall(_):
-        mut chain := Vec.new(Str)
-        get_fcall_identifier_chain(e, chain)
-        if chain.len().gt(0) {
-            last := cast(Str, chain.get(chain.len().sub(1))?)
-            if not(last.eq("clone")).and(not(last.eq("delete"))) {
-                mut resolved := ResolvedFCall()
-                mut found := false
-                resolved = resolve_fcall_from_chain(chain, local_types, context)?
-                found = true
-                catch (err: KeyNotFoundError) {
-                    // REM: Function not found in scope - skip, not all calls are to known functions
-                }
-                if found {
-                    // For UFCS calls (tokens.push(t)), self is implicit in the name,
-                    // so skip args[0] (self) and map args[k] -> params[k] for k >= 1.
-                    // For direct calls (Vec.push(tokens, t)), map args[i] -> params[i+1].
-                    mut arg_start := 0
-                    if resolved.is_ufcs {
-                        arg_start = 1
-                    }
-                    for i in 0..resolved.func_def.sig.args.len() {
-                        if i.gteq(arg_start) {
-                            arg_def := cast(Declaration, resolved.func_def.sig.args.get(i)?)
-                            mut param_idx := 0
-                            if resolved.is_ufcs {
-                                param_idx = i
-                            } else {
-                                param_idx = i.add(1)
-                            }
-                            if param_idx.lt(e.params.len()).and(arg_def.is_own) {
-                                param_expr := cast(Expr, e.params.get(param_idx)?)
-                                dont_delete(param_expr)
-                                switch param_expr.node_type {
-                                case NodeType.Identifier(var_name):
-                                    if param_expr.params.len().eq(0) {
-                                        result.push(var_name)
-                                    }
-                                case:
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    case:
-    }
-    // Recurse into children
-    for param: Expr in e.params {
-        collect_own_transfers_recursive(param, context, local_types, result)?
-    }
-    // Recurse into FuncDef body if present
-    switch e.node_type {
-    case NodeType.FuncDef(inner_func_def):
-        for stmt: Expr in inner_func_def.body {
-            collect_own_transfers_recursive(stmt, context, local_types, result)?
-        }
-    case:
-    }
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
     }
 }
 

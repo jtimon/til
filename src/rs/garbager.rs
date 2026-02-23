@@ -3,7 +3,6 @@
 // Issue #159: Insert clone() calls for deep copy semantics on struct assignments.
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 use crate::rs::init::Context;
 use crate::rs::parser::{Expr, NodeType, ValueType, FuncDef, FCallInfo, StructDef, EnumDef, NamespaceDef, Declaration};
 
@@ -23,31 +22,13 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     match &e.node_type {
         // Recurse into FuncDef bodies
         NodeType::FuncDef(func_def) => {
-            // Step 1: Strip dont_delete calls, collect protected var names
-            // Pre-scan entire body tree recursively for dont_delete var names
-            let mut dont_delete_vars: HashSet<String> = collect_dont_delete_vars_recursive(&func_def.body)?;
+            // Step 1: Strip dont_delete calls from the AST
             let mut new_body = Vec::new();
             for stmt in &func_def.body {
                 if is_dont_delete_call(stmt)? {
                     continue;
                 }
-                // Step 2: Collect cast var names
-                let cast_var = get_cast_var(stmt)?;
-                if !cast_var.is_empty() {
-                    dont_delete_vars.insert(cast_var);
-                }
                 new_body.push(garbager_recursive(context, stmt)?);
-            }
-
-            // Step 2.5: Collect catch error variable names (they shadow locals in ccodegen)
-            for stmt in &new_body {
-                if let NodeType::Catch = &stmt.node_type {
-                    if !stmt.params.is_empty() {
-                        if let NodeType::Identifier(err_var_name) = &stmt.params.get(0).unwrap().node_type {
-                            dont_delete_vars.insert(err_var_name.clone());
-                        }
-                    }
-                }
             }
 
             // Build local name->type map for clone-after-get and own-transfer detection
@@ -67,136 +48,6 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
             // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
             let new_body = insert_clone_after_get(&new_body, &local_types, context)?;
-
-            // Step 3: Collect delete candidates
-            let mut candidates: Vec<(String, String)> = Vec::new();
-
-            // 3a: copy/own params
-            for arg_def in &func_def.sig.args {
-                if arg_def.is_copy || arg_def.is_own {
-                    if let ValueType::TCustom(type_name) = &arg_def.value_type {
-                        candidates.push((arg_def.name.clone(), type_name.clone()));
-                    }
-                }
-            }
-
-            // 3b: Scan new_body for Declaration nodes with owned init.
-            // Catch guard removed: ccodegen hoists struct locals to function top
-            // with zero-init, making unconditional deletes safe even with goto.
-            // Only delete locals whose RHS is provably owned (constructor, clone, etc.)
-            // to avoid freeing aliased data from shallow copies (Bug #159).
-            for stmt in &new_body {
-                if let NodeType::Declaration(decl) = &stmt.node_type {
-                    if let ValueType::TCustom(type_name) = &decl.value_type {
-                        let is_owned = if !stmt.params.is_empty() {
-                            is_owned_init_expr(stmt.params.get(0).unwrap())?
-                        } else {
-                            false
-                        };
-                        if is_owned {
-                            candidates.push((decl.name.clone(), type_name.clone()));
-                        }
-                    }
-                }
-            }
-
-            // Step 4: Remove dont_delete_vars, own-transferred vars, and wildcards
-            let own_transfers = collect_own_transfers(&new_body, context, &local_types)?;
-            candidates.retain(|(var_name, _)| {
-                var_name != "_"
-                    && !dont_delete_vars.contains(var_name)
-                    && !own_transfers.contains(var_name)
-            });
-
-            // Step 5: Insert Type.delete(var) calls.
-            // copy/own params: ASAP after last use (deep copies, no aliasing).
-            // locals: at function end (shared offsets mean locals can alias).
-            let mut param_names: HashSet<String> = HashSet::new();
-            for arg_def in &func_def.sig.args {
-                if arg_def.is_copy || arg_def.is_own {
-                    param_names.insert(arg_def.name.clone());
-                }
-            }
-
-            // Separate params (ASAP) from locals (end-of-function)
-            let mut asap_candidates: Vec<(String, String)> = Vec::new();
-            let mut end_candidates: Vec<(String, String)> = Vec::new();
-            for (var_name, type_name) in &candidates {
-                if param_names.contains(var_name) {
-                    asap_candidates.push((var_name.clone(), type_name.clone()));
-                } else {
-                    end_candidates.push((var_name.clone(), type_name.clone()));
-                }
-            }
-
-            // ASAP: insert after last use for copy/own params
-            let body_len = new_body.len();
-            let mut inserts: HashMap<usize, Vec<Expr>> = HashMap::new();
-            asap_candidates.reverse();
-            for (var_name, type_name) in &asap_candidates {
-                let insert_pos = match find_last_use_index(&new_body, var_name) {
-                    Some(idx) => idx + 1,
-                    None => body_len,
-                };
-                let line = if insert_pos > 0 && insert_pos <= body_len {
-                    new_body[insert_pos - 1].line
-                } else {
-                    new_body.last().map_or(e.line, |s| s.line)
-                };
-                let col = if insert_pos > 0 && insert_pos <= body_len {
-                    new_body[insert_pos - 1].col
-                } else {
-                    new_body.last().map_or(e.col, |s| s.col)
-                };
-                inserts.entry(insert_pos).or_insert_with(Vec::new)
-                    .push(build_delete_call_expr(type_name, var_name, line, col));
-            }
-
-            // Build final_body: original statements with ASAP deletes interleaved
-            let mut final_body: Vec<Expr> = Vec::new();
-            for bi in 0..body_len {
-                final_body.push(new_body[bi].clone());
-                if let Some(delete_calls) = inserts.get(&(bi + 1)) {
-                    for dc in delete_calls {
-                        final_body.push(dc.clone());
-                    }
-                }
-            }
-
-            // End-of-function: insert locals deletion in reverse declaration order.
-            // Deletes go BEFORE the last Return (so they actually execute),
-            // not after it (where they'd be dead code).
-            let last_line = final_body.last().map_or(e.line, |s| s.line);
-            let last_col = final_body.last().map_or(e.col, |s| s.col);
-            end_candidates.reverse();
-
-            // Don't delete the return variable -- it's the function's output
-            let return_var_name = final_body.last()
-                .filter(|s| matches!(&s.node_type, NodeType::Return))
-                .and_then(|s| s.params.first())
-                .and_then(|p| if let NodeType::Identifier(name) = &p.node_type { Some(name.clone()) } else { None });
-            if let Some(ref ret_name) = return_var_name {
-                end_candidates.retain(|(var_name, _)| var_name != ret_name);
-            }
-
-            // Find the insertion point: before the last Return statement.
-            // If the body ends with Return, pop it, insert deletes, push it back.
-            // If no Return at end (proc without explicit return), just append.
-            let last_is_return = final_body.last()
-                .map(|s| matches!(&s.node_type, NodeType::Return))
-                .unwrap_or(false);
-            let return_stmt = if last_is_return {
-                Some(final_body.pop().unwrap())
-            } else {
-                None
-            };
-            for (var_name, type_name) in &end_candidates {
-                final_body.push(build_delete_call_expr(type_name, var_name, last_line, last_col));
-            }
-            if let Some(ret) = return_stmt {
-                final_body.push(ret);
-            }
-            let new_body = final_body;
 
             let new_func_def = FuncDef {
                 sig: func_def.sig.clone(),
@@ -358,18 +209,6 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     }
 }
 
-/// Check if a declaration's RHS expression is provably owned (not an alias).
-/// Only locals with owned init are safe to delete at function end.
-/// Aliases from shallow copies (memcpy) would cause double-free if deleted.
-fn is_owned_init_expr(_rhs: &Expr) -> Result<bool, String> {
-    // Disabled: local deletion is unsafe due to shallow-copy aliasing (Bug #159).
-    // A local initialized by .new() can have its data aliased by other locals
-    // through field access, container get, or function return memcpy.
-    // Deleting it at function end would corrupt those aliases.
-    // For now, only copy/own params get deletion (ASAP, no aliasing risk).
-    // Local deletion requires deep-copy semantics (Bug #159) to be safe.
-    Ok(false)
-}
 
 /// Build AST for Type.clone(src_expr): FCall( Identifier("Type").Identifier("clone"), src_expr )
 fn build_clone_call_expr(type_name: &str, src_expr: Expr, line: usize, col: usize) -> Expr {
@@ -394,47 +233,6 @@ fn build_clone_call_expr(type_name: &str, src_expr: Expr, line: usize, col: usiz
         line,
         col,
     )
-}
-
-/// Recursively check if any Identifier node in the expression tree matches var_name.
-/// Recurses into e.params (covers if/while/for/switch bodies stored as params).
-/// Does NOT recurse into nested FuncDef bodies (separate scope).
-fn expr_references_var(e: &Expr, var_name: &str) -> bool {
-    if let NodeType::Identifier(name) = &e.node_type {
-        if name == var_name {
-            return true;
-        }
-    }
-    // Recurse into params (but not into nested FuncDef bodies)
-    for param in &e.params {
-        if expr_references_var(param, var_name) {
-            return true;
-        }
-    }
-    // For FuncDef nodes, do NOT recurse into body (separate scope).
-    // e.params on a FuncDef are only default arg values, already checked above.
-    false
-}
-
-/// Scan body from end to start, return index of last statement referencing the variable.
-fn find_last_use_index(body: &[Expr], var_name: &str) -> Option<usize> {
-    for i in (0..body.len()).rev() {
-        if expr_references_var(&body[i], var_name) {
-            return Some(i);
-        }
-    }
-    None
-}
-
-/// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier("var") )
-fn build_delete_call_expr(type_name: &str, var_name: &str, line: usize, col: usize) -> Expr {
-    let delete_ident = Expr::new_explicit(
-        NodeType::Identifier("delete".to_string()), vec![], line, col);
-    let type_delete_access = Expr::new_explicit(
-        NodeType::Identifier(type_name.to_string()), vec![delete_ident], line, col);
-    let var_expr = Expr::new_explicit(
-        NodeType::Identifier(var_name.to_string()), vec![], line, col);
-    Expr::new_explicit(NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }), vec![type_delete_access, var_expr], line, col)
 }
 
 /// Build AST for var = Type.clone(var): Assignment with RHS = clone FCall.
@@ -627,62 +425,7 @@ fn is_dont_delete_call(e: &Expr) -> Result<bool, String> {
     Ok(false)
 }
 
-/// Extract variable name from dont_delete(var) call.
-/// The variable is params[1] (params[0] is the function name).
-fn get_dont_delete_var(e: &Expr) -> Result<String, String> {
-    if e.params.len() < 2 {
-        return Ok(String::new());
-    }
-    if let NodeType::Identifier(var_name) = &e.params.get(1).unwrap().node_type {
-        return Ok(var_name.clone());
-    }
-    Ok(String::new())
-}
 
-/// Extract variable name from cast(Type, ptr) declaration: target := cast(Type, ptr)
-fn get_cast_var(e: &Expr) -> Result<String, String> {
-    if let NodeType::Declaration(decl) = &e.node_type {
-        if !e.params.is_empty() {
-            let init = e.params.get(0).unwrap();
-            if let NodeType::FCall(_) = &init.node_type {
-                let name = get_func_name(init)?;
-                if name == "cast" {
-                    return Ok(decl.name.clone());
-                }
-            }
-        }
-    }
-    Ok(String::new())
-}
-
-/// Recursively collect dont_delete var names from the entire body tree.
-/// Walks into Body, If, While, Catch children but not into nested FuncDef bodies.
-fn collect_dont_delete_vars_recursive(stmts: &[Expr]) -> Result<HashSet<String>, String> {
-    let mut result = HashSet::new();
-    for stmt in stmts {
-        collect_dont_delete_vars_recursive_inner(stmt, &mut result)?;
-    }
-    Ok(result)
-}
-
-fn collect_dont_delete_vars_recursive_inner(e: &Expr, result: &mut HashSet<String>) -> Result<(), String> {
-    if is_dont_delete_call(e)? {
-        let var_name = get_dont_delete_var(e)?;
-        if !var_name.is_empty() {
-            result.insert(var_name);
-        }
-        return Ok(());
-    }
-    // Recurse into params (covers Body, If, While, Catch children)
-    // but NOT into nested FuncDef bodies (separate scope)
-    if let NodeType::FuncDef(_) = &e.node_type {
-        return Ok(());
-    }
-    for param in &e.params {
-        collect_dont_delete_vars_recursive_inner(param, result)?;
-    }
-    Ok(())
-}
 
 /// Walk an FCall's name expression to extract the full identifier chain.
 /// e.g., for `self.frames.push(frame)`, returns ["self", "frames", "push"]
@@ -750,54 +493,6 @@ fn resolve_fcall_from_chain(chain: &[String], local_types: &HashMap<String, Stri
     let resolved = format!("{}.{}", current_type, method_name);
     context.scope_stack.lookup_func(&resolved).cloned()
         .map(|fd| ResolvedFCall { func_def: fd, is_ufcs: true })
-}
-
-/// Scan statements for variables passed as `own` args to function calls.
-fn collect_own_transfers(stmts: &[Expr], context: &Context, local_types: &HashMap<String, String>) -> Result<HashSet<String>, String> {
-    let mut result = HashSet::new();
-    for stmt in stmts {
-        collect_own_transfers_recursive(stmt, context, local_types, &mut result)?;
-    }
-    Ok(result)
-}
-
-fn collect_own_transfers_recursive(e: &Expr, context: &Context, local_types: &HashMap<String, String>, result: &mut HashSet<String>) -> Result<(), String> {
-    if let NodeType::FCall(_) = &e.node_type {
-        let chain = get_fcall_identifier_chain(e);
-        if !chain.is_empty() {
-            let last = &chain[chain.len() - 1];
-            if last != "clone" && last != "delete" {
-                if let Some(resolved) = resolve_fcall_from_chain(&chain, local_types, context) {
-                    let func_def = &resolved.func_def;
-                    let is_ufcs = resolved.is_ufcs;
-                    // For UFCS calls (tokens.push(t)), self is implicit in the name,
-                    // so skip args[0] (self) and map args[k] -> params[k] for k >= 1.
-                    // For direct calls (Vec.push(tokens, t)), map args[i] -> params[i+1].
-                    let arg_start: usize = if is_ufcs { 1 } else { 0 };
-                    for (i, arg_def) in func_def.sig.args.iter().enumerate() {
-                        if i < arg_start { continue; }
-                        let param_idx = if is_ufcs { i } else { i + 1 };
-                        if param_idx < e.params.len() && arg_def.is_own {
-                            if let NodeType::Identifier(var_name) = &e.params.get(param_idx).unwrap().node_type {
-                                if e.params.get(param_idx).unwrap().params.is_empty() {
-                                    result.insert(var_name.clone());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    for param in &e.params {
-        collect_own_transfers_recursive(param, context, local_types, result)?;
-    }
-    if let NodeType::FuncDef(func_def) = &e.node_type {
-        for stmt in &func_def.body {
-            collect_own_transfers_recursive(stmt, context, local_types, result)?;
-        }
-    }
-    Ok(())
 }
 
 /// Issue #159 Step 5: Transform struct literal fields.

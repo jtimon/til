@@ -20,9 +20,9 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 ** Issue #188: Defer statement
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
-:IMPACT: Resource management, cleanup guarantees, memory management
-:STATUS: Open
-:RELATED: Issue #183 (manual delete calls), Issue #117 (ASAP destruction), Bug #170 (scope-exit deletion)
+:IMPACT: Resource management, cleanup guarantees, memory management -- step 2 of memory pipeline
+:STATUS: Open -- prerequisite for #170 (scope-exit) and #117 (ASAP destruction)
+:RELATED: Issue #183 (manual deletes, step 1), Bug #170 (scope-exit, step 3), Issue #117 (ASAP, step 4)
 :END:
 
 *** Description

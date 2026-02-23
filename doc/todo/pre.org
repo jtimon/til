@@ -512,10 +512,21 @@ away.
 ** Issue #183: Add manual .delete() calls to reduce memory
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
-:IMPACT: Memory leak reduction until #117 automates destruction
+:IMPACT: Memory leak reduction -- first step in memory management pipeline
 :STATUS: In Progress
-:RELATED: Issue #117 (ASAP Destruction), Bug #165 (200-800x memory leak), Bug #159 (shallow copies)
+:RELATED: Issue #188 (defer, step 2), Bug #170 (scope-exit, step 3), Issue #117 (ASAP, step 4)
 :END:
+
+*** Memory management strategy (pipeline order)
+
+1. *#183 (this)* -- manual .delete() calls in TIL source. Current work.
+2. *#188 (defer)* -- ~defer~ statement for scope-exit cleanup. AST desugaring.
+3. *#170 (scope-exit deletion)* -- garbager inserts deletes at scope boundaries. Depends on #188.
+4. *#117 (ASAP destruction)* -- fully automated last-use deletion. Final step.
+
+Each step subsumes the previous: when #188 lands, some #183 manual deletes become
+~defer~. When #170 lands, scope-exit handles most cases automatically. When #117
+finishes, all deletion is automated and manual deletes are removed.
 
 *** Description
 
@@ -920,9 +931,9 @@ must be identical.
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Open - Steps 1-9 done, Step 10A done, Step 10B done (98/98 pass)
-:DEPENDS: Bug #101 (unused warnings - shared infrastructure)
-:RELATED: Bug #114 (memory leak documentation), Bug #144 (for-in by-ref), Bug #168 (ccodegen return copies)
+:STATUS: Paused -- auto-delete code removed, will re-implement after #188/#170
+:DEPENDS: Bug #170 (scope-exit deletion), Issue #188 (defer), Bug #101 (unused warnings)
+:RELATED: Bug #114 (memory leak documentation), Bug #144 (for-in by-ref), Bug #168 (ccodegen return copies), Issue #183 (manual deletes)
 :END:
 
 *** Description
@@ -1973,8 +1984,9 @@ Move all OS-specific code into ~ext.c~ and precompile it for each target:
 :PROPERTIES:
 :DISCOVERED: 2026-02-11
 :IMPACT: Memory leak -- locals only deleted at function end (or never if catch blocks exist)
-:STATUS: Open -- two approaches failed 2026-02-11, see implementation notes
-:RELATED: Bug #165 (memory leak), Bug #159 (shallow copies), Issue #117 (ASAP destruction)
+:STATUS: Blocked by #188 (defer) -- step 3 of memory management pipeline
+:DEPENDS: Issue #188 (defer statement)
+:RELATED: Bug #165 (memory leak), Bug #159 (shallow copies), Issue #117 (ASAP destruction), Issue #183 (manual deletes)
 :END:
 
 *** Problem
