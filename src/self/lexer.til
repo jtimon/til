@@ -377,6 +377,8 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
     mut current_char := ""
     mut next_two := ""
     mut esc := ""
+    mut lookahead := ""
+    mut tmp_substr := ""
 
     while pos.lt(eof_pos) {
         start := pos
@@ -394,7 +396,9 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
             }
             // Look for a fractional part.
             if pos.lt(eof_pos) {
-                if source.get_substr(pos, pos.add(1))?.eq(".") {
+                tmp_substr.delete()
+                tmp_substr = source.get_substr(pos, pos.add(1))?
+                if tmp_substr.eq(".") {
                     if pos.add(1).lt(eof_pos) {
                         if source.is_digit(pos.add(1))? {
                             pos.inc()
@@ -468,35 +472,45 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
 
                 // reserved for two chars in a row
             case ".":
-                if source.get_substr(pos.add(1), pos.add(2))?.eq(".") {
+                lookahead.delete()
+                lookahead = source.get_substr(pos.add(1), pos.add(2))?
+                if lookahead.eq(".") {
                     pos.inc()
                     token_type = TokenType.DoubleDot
                 } else {
                     token_type = TokenType.Dot
                 }
             case "=":
-                if source.get_substr(pos.add(1), pos.add(2))?.eq("=") {
+                lookahead.delete()
+                lookahead = source.get_substr(pos.add(1), pos.add(2))?
+                if lookahead.eq("=") {
                     pos.inc()
                     token_type = TokenType.EqualEqual
                 } else {
                     token_type = TokenType.Equal
                 }
             case "<":
-                if source.get_substr(pos.add(1), pos.add(2))?.eq("=") {
+                lookahead.delete()
+                lookahead = source.get_substr(pos.add(1), pos.add(2))?
+                if lookahead.eq("=") {
                     pos.inc()
                     token_type = TokenType.LesserEqual
                 } else {
                     token_type = TokenType.Lesser
                 }
             case ">":
-                if source.get_substr(pos.add(1), pos.add(2))?.eq("=") {
+                lookahead.delete()
+                lookahead = source.get_substr(pos.add(1), pos.add(2))?
+                if lookahead.eq("=") {
                     pos.inc()
                     token_type = TokenType.GreaterEqual
                 } else {
                     token_type = TokenType.Greater
                 }
             case "!":
-                if source.get_substr(pos.add(1), pos.add(2))?.eq("=") {
+                lookahead.delete()
+                lookahead = source.get_substr(pos.add(1), pos.add(2))?
+                if lookahead.eq("=") {
                     pos.inc()
                     token_type = TokenType.NotEqual
                 } else {
@@ -508,34 +522,48 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
                 // Semicolons are completely optional - skip any number of them
             case ";":
                 pos.inc() // Skip the first semicolon
-                while lt(pos, eof_pos).and(source.get_substr(pos, pos.add(1))?.eq(";")) {
+                tmp_substr.delete()
+                tmp_substr = source.get_substr(pos, pos.add(1))?
+                while lt(pos, eof_pos).and(tmp_substr.eq(";")) {
                     pos.inc()
+                    tmp_substr.delete()
+                    tmp_substr = source.get_substr(pos, pos.add(1))?
                 }
                 should_process_token = false
 
                 // comments:
             case "#":
                 pos.inc()
-                while lt(pos.add(1), eof_pos).and(not(source.get_substr(pos, pos.add(1))?.eq("\n"))) {
+                tmp_substr.delete()
+                tmp_substr = source.get_substr(pos, pos.add(1))?
+                while lt(pos.add(1), eof_pos).and(not(tmp_substr.eq("\n"))) {
                     pos.inc()
+                    tmp_substr.delete()
+                    tmp_substr = source.get_substr(pos, pos.add(1))?
                 }
                 should_process_token = false
             case "/":
-                if source.get_substr(pos.add(1), pos.add(2))?.eq("/") {
+                lookahead.delete()
+                lookahead = source.get_substr(pos.add(1), pos.add(2))?
+                if lookahead.eq("/") {
                     // Single-line comment
                     pos.inc()
-                    while lt(pos.add(1), eof_pos).and(not(source.get_substr(pos, pos.add(1))?.eq("\n"))) {
+                    tmp_substr.delete()
+                    tmp_substr = source.get_substr(pos, pos.add(1))?
+                    while lt(pos.add(1), eof_pos).and(not(tmp_substr.eq("\n"))) {
                         pos.inc()
+                        tmp_substr.delete()
+                        tmp_substr = source.get_substr(pos, pos.add(1))?
                     }
                     should_process_token = false
-                } else if source.get_substr(pos.add(1), pos.add(2))?.eq("*") {
+                } else if lookahead.eq("*") {
                     // Nested block comment
                     pos = pos.add(2)
                     mut depth := 1
                     mut should_continue_parsing := true
 
                     while pos.lt(eof_pos.sub(1)).and(should_continue_parsing) {
-                        next_two.delete() // TODO #183
+                        next_two.delete()
                         next_two = source.get_substr(pos, pos.add(2))?
 
                         if next_two.eq("/*") {
@@ -548,7 +576,9 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
                                 should_continue_parsing = false
                             }
                         } else {
-                            if source.get_substr(pos, pos.add(1))?.eq("\n") {
+                            tmp_substr.delete()
+                            tmp_substr = source.get_substr(pos, pos.add(1))?
+                            if tmp_substr.eq("\n") {
                                 line.inc()
                                 start_line_pos = pos
                             }
@@ -579,7 +609,7 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
                         if source.get_substr(pos, pos.add(1))?.eq("\\") {
                             pos.inc() // if it's the escape character, skip it
                             if lt(pos.add(1), eof_pos) {
-                                esc.delete() // TODO #183
+                                esc.delete() // #183
                                 esc = source.get_substr(pos, pos.add(1))?
                                 switch esc {
                                 case "\"":
@@ -655,9 +685,11 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
 
     scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
 
-    current_char.delete() // TODO #183
-    next_two.delete() // TODO #183
-    esc.delete() // TODO #183
+    current_char.delete() // #183
+    next_two.delete() // #183
+    esc.delete() // #183
+    lookahead.delete() // #183
+    tmp_substr.delete() // #183
 
     catch (err: IndexOutOfBoundsError) {
         throw format(loc(), "scan_tokens: IndexOutOfBoundsError: ", err.msg)
