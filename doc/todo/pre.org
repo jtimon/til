@@ -15,6 +15,75 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #89: Constant folding only works at global scope
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:IMPACT: Performance, macro implementation
+:STATUS: Open
+:RELATED: Issue #88 (Macros need this), src/test/constfold.til, src/examples/lolalalo.til
+:END:
+
+*** Description
+
+Pure function calls with all compile-time known arguments are only constant
+folded at global scope. Inside function bodies, they are not folded even when
+all arguments are literals.
+
+#+BEGIN_SRC til
+double := func(x: I64) returns I64 { return x.mul(2) }
+
+// Global scope - folded to literal 10
+global_result := double(5)
+
+test := proc() {
+    // Inside function - NOT folded, calls double() at runtime
+    inner_result := double(10)
+}
+#+END_SRC
+
+*** Location
+
+~precomp_expr()~ in precomp.rs / precomp.til:
+#+BEGIN_SRC til
+at_global_scope := context.scope_stack.frames.len().eq(1)
+if at_global_scope.and(is_comptime_evaluable(context, const_folded)) {
+    const_folded = eval_comptime(context, const_folded)
+}
+#+END_SRC
+
+The ~at_global_scope~ guard has three locations:
+1. *FCall folding* in ~precomp_expr()~ -- converts call result to literal
+2. *Primitive storage* in ~precomp_declaration()~ -- stores I64/U8/Str in EvalArena
+3. *Struct instance storage* in ~precomp_declaration()~ -- stores structs in EvalArena
+
+*** Previous attempt (2026-01-07): removing all three failed
+
+Removing all three ~at_global_scope~ checks causes:
+~src/core/array.til:41:45: rstil insert_string_into_frame ERROR: Str template not found~
+
+Root cause: Locations 2 and 3 store values in EvalArena, which needs
+~default_instances["Str"]~ template. That template is created during eval of
+global Str declarations, but function bodies are precompiled BEFORE eval runs.
+So the template doesn't exist yet.
+
+*** Recommended fix: Location 1 only
+
+Location 1 (FCall folding) calls ~eval_comptime~ which converts the result to
+a literal and returns it. It does NOT store anything in EvalArena. So removing
+~at_global_scope~ from Location 1 only should work -- no template dependency.
+
+This would fold ~add(1, 2)~, ~concat("a", "b")~, and other pure func calls
+inside function bodies. Locations 2 and 3 can stay guarded for now.
+
+*** lolalalo.til restructured (2026-02-23)
+
+~src/examples/lolalalo.til~ was restructured to demonstrate the workaround:
+pure func calls (~make_poem_recursive~, ~make_poem_iterative~) are called at
+global scope with literal args, so precomp folds them to literal C strings.
+The proc (~test_lolalalo~) only does I/O on the pre-computed results.
+
+When this issue is fixed, those global-scope calls can move inside the proc.
+
 ** Issue #187: Integrated profiling for self-hosted compiler
 :PROPERTIES:
 :DISCOVERED: 2026-02-23

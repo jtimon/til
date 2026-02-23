@@ -35,7 +35,7 @@
 | 151 | Explicit pointer/reference syntax                | Language feature |
 |  64 | Custom main args in mode cli don't work          | Language feature |
 
-* future.org (10 issues)
+* future.org (9 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
@@ -47,13 +47,13 @@
 | 112 | HashMap type slower than Map in TIL              | Blocked            |
 | 178 | Eliminate TTypeDef, unify type representation    | Internal cleanup   |
 | 100 | Get rid of rstil                                 | Architecture goal  |
-|  89 | Constant folding only works at global scope      | Optimization       |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (10 issues)
+* pre.org (12 issues)
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
+|  89 | Constant folding only works at global scope        | Optimization |
 | 187 | Integrated profiling for self-hosted compiler      | Performance  |
 | 185 | Require own at call sites, better consumed errors  | Usability    |
 | 184 | Integer-based enum comparison                      | Performance  |
@@ -66,7 +66,7 @@
 | 115 | Owned struct fields and auto-generated methods     | Memory mgmt  |
 |  82 | make.til - Replace Makefile with TIL               | Build system |
 
-* post.org (10 issues)
+* post.org (9 issues)
 
 | #   | Issue                                             | Category         |
 |-----+---------------------------------------------------+------------------|
@@ -79,4 +79,3 @@
 | 104 | TempleOS Support                                  | Platform         |
 | 103 | Mode GUI                                          | Feature          |
 |  90 | Parser: remove {} requirement for ext_func/proc   | Syntax           |
-|  51 | Precomp doesn't propagate constants through params | Optimization    |

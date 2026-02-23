@@ -5,6 +5,23 @@
 # BOT: Implemented issues go at the top of Implemented Issues section.
 # BOT: Keep the same issue number - numbers are never reused.
 
+* Cancelled Issues
+
+** Optimization #51: Precomp doesn't propagate constants through function parameters
+:PROPERTIES:
+:DISCOVERED: 2025-12-19
+:CANCELLED: 2026-02-23
+:END:
+
+Cancelled. This was about making function parameters comptime when the caller
+passes literals -- per-call body specialization. Too complex (requires storing
+original bodies, caching specialized versions, unique codegen names). The right
+pattern is to call pure funcs at global scope or inside func bodies (once #89
+is fixed), not to propagate comptime-ness through parameter binding.
+
+The motivating example (lolalalo.til) was restructured to call pure funcs at
+global scope instead of routing literals through a proc.
+
 * Fixed Bugs
 
 ** Bug #171: make.til doesn't detect when it needs to rebuild itself

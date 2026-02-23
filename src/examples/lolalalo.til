@@ -66,25 +66,36 @@ make_poem_iterative : func(s1: Str, s2: Str) returns Str = {
     return poem
 }
 
-test_equal : proc(s1: Str, s2: Str) = {
-    recursive := make_poem_recursive(s1, s2)
-    iterative := make_poem_iterative(s1, s2)
+// Pure func calls at global scope -- precomp folds these to literal strings
+recursive_lo_la := make_poem_recursive("lo", "la")
+iterative_lo_la := make_poem_iterative("lo", "la")
+recursive_la_lo := make_poem_recursive("la", "lo")
+iterative_la_lo := make_poem_iterative("la", "lo")
 
-    preffix := "\nPara "
-    for_whom := preffix.concat(s1).concat(s2)
-
-    if Str.eq(recursive, iterative) {
-        println("PASS: recursive and iterative produce same output for ", s1, s2)
-        for_whom.concat(":\n").println()
-        println(recursive)
+test_lolalalo : proc() = {
+    if Str.eq(recursive_lo_la, iterative_lo_la) {
+        println("PASS: recursive and iterative produce same output for lo la")
+        println("\nPara lola:")
+        println(recursive_lo_la)
     } else {
-        println("FAIL: outputs differ for ", s1, s2)
+        println("FAIL: outputs differ for lo la")
         println("=== Recursive ===")
-        println(recursive)
+        println(recursive_lo_la)
         println("=== Iterative ===")
-        println(iterative)
+        println(iterative_lo_la)
+    }
+
+    if Str.eq(recursive_la_lo, iterative_la_lo) {
+        println("PASS: recursive and iterative produce same output for la lo")
+        println("\nPara lalo:")
+        println(recursive_la_lo)
+    } else {
+        println("FAIL: outputs differ for la lo")
+        println("=== Recursive ===")
+        println(recursive_la_lo)
+        println("=== Iterative ===")
+        println(iterative_la_lo)
     }
 }
 
-test_equal("lo", "la")
-test_equal("la", "lo")
+test_lolalalo()
