@@ -14,6 +14,74 @@ see features.org. For bugs, see bugs.org.
 
 * Open Issues
 
+** Issue #189: Replace Assignment NodeType with ext_func call
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Uniformity -- fewer NodeTypes in the AST
+:STATUS: Open -- idea stage, likely not worth it
+:RELATED: Issue #190 (Declaration as ext_func)
+:END:
+
+*** Description
+
+Instead of ~NodeType.Assignment(name)~, assignment could be modeled as
+~ext_func(Type, mut dest, src)~ -- a regular FCall with an external function.
+This would remove a special NodeType and treat assignment like any other operation.
+
+*** Potential disadvantages
+
+1. *Assignment is fundamental* -- it's one of the most frequent operations.
+   Having its own NodeType lets every compiler phase pattern-match directly
+   (~case NodeType.Assignment(name):~). As an FCall, every phase would need to
+   inspect the FCall, check if it's the special "assignment" ext_func, extract
+   dest/src -- more code and more fragile.
+
+2. *Assignment has special semantics* -- the dest is not evaluated the same way
+   as a normal argument. ~x = 5~ means "write to x's location", not "pass x's
+   value". An ext_func call would naturally evaluate both args, but assignment
+   needs lvalue semantics on the left side. Special-casing would still be needed.
+
+3. *The garbager and typer already understand Assignment* -- they pattern-match
+   on it for clone insertion, type checking, etc. Refactoring to use a generic
+   FCall dispatch would be a large change for no functional gain.
+
+4. *Readability* -- ~NodeType.Assignment("x")~ is self-documenting.
+   ~NodeType.FCall~ with a magic "assignment" identifier is not.
+
+** Issue #190: Replace Declaration NodeType with ext_func call
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Uniformity -- fewer NodeTypes in the AST
+:STATUS: Open -- idea stage, likely not worth it
+:RELATED: Issue #189 (Assignment as ext_func)
+:END:
+
+*** Description
+
+Same idea as #189 but for declarations. Instead of ~NodeType.Declaration(decl)~,
+declaration could be modeled as an ~ext_func~ or ~ext_proc~ call that binds a
+name to a value in the current scope.
+
+*** Potential disadvantages
+
+1. *Declarations carry rich metadata* -- the ~Declaration~ struct has name,
+   value_type, is_mut, is_copy, is_own, default_value. Encoding all of this
+   in an FCall's parameters would be awkward and lose type safety.
+
+2. *Declarations are structural, not operational* -- they define what exists in
+   a scope, not what to execute. The parser, typer, interpreter, and ccodegen
+   all treat declarations as scope-building constructs. Modeling them as function
+   calls conflates definition with execution.
+
+3. *Scope registration happens at declaration time* -- the typer and interpreter
+   register symbols when they see a Declaration. An FCall would need to be
+   recognized as "actually a declaration" before the same registration can happen,
+   adding indirection for no benefit.
+
+4. *Every compiler phase pattern-matches on Declaration* -- parser builds them,
+   typer validates them, interpreter evaluates them, ccodegen emits them. All
+   would need refactoring to extract declaration info from FCall parameters.
+
 ** Bug #130: Unify type resolution with type checking into single pass
 :PROPERTIES:
 :DISCOVERED: 2026-01-21
