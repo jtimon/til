@@ -76,19 +76,23 @@ substitute_type_params_in_expr : func(e: Expr, subs: Map) returns Expr = {
         // Pattern variant_name format is "EnumType.Variant" - substitute the enum type prefix
         dot_pos := pattern_info.variant_name.find(".")
         if dot_pos.gteq(0) {
-            enum_prefix := pattern_info.variant_name.get_substr(0, dot_pos)?
+            mut enum_prefix := pattern_info.variant_name.get_substr(0, dot_pos)?
             catch (_err: IndexOutOfBoundsError) {
                 panic(loc(), "substitute_type_params_in_expr: get_substr failed on pattern variant_name")
             }
             prefix_sub := cast(Str, subs.get(enum_prefix)?)
-            variant_suffix := pattern_info.variant_name.get_substr(dot_pos, pattern_info.variant_name.len())?
+            mut variant_suffix := pattern_info.variant_name.get_substr(dot_pos, pattern_info.variant_name.len())?
             catch (_err2: IndexOutOfBoundsError) {
                 panic(loc(), "substitute_type_params_in_expr: get_substr failed on pattern variant_name suffix")
             }
+            mut old_vn := new_variant_name
             new_variant_name = format(prefix_sub, variant_suffix)
+            old_vn.delete()
+            variant_suffix.delete()
             catch (_err: KeyNotFoundError) {
                 // Expected: enum prefix not in subs
             }
+            enum_prefix.delete()
         }
         return Expr.new_clone(NodeType.Pattern(PatternInfo(variant_name=new_variant_name, binding_var=pattern_info.binding_var.clone())), e, Vec.new(Expr))
     case:
@@ -345,7 +349,9 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                         switch esm_first_param.node_type {
                         case NodeType.StructDef(esm_struct_def):
                             esm_is_anon_struct = true
-                            esm_temp_name := format("AnonStruct", I64.to_str(context.anon_struct_counter))
+                            mut esm_counter_str := I64.to_str(context.anon_struct_counter)
+                            esm_temp_name := format("AnonStruct", esm_counter_str)
+                            esm_counter_str.delete()
                             context.anon_struct_counter.inc()
                             context.scope_stack.declare_struct(esm_temp_name, esm_struct_def.clone())?
                             context.scope_stack.declare_symbol(esm_temp_name.clone(), SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
@@ -733,7 +739,9 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
             switch ear_first.node_type {
             case NodeType.StructDef(ear_sd):
                 is_anon_fcall = true
-                ear_temp := format("AnonStruct", I64.to_str(context.anon_struct_counter))
+                mut ear_counter_str := I64.to_str(context.anon_struct_counter)
+                ear_temp := format("AnonStruct", ear_counter_str)
+                ear_counter_str.delete()
                 context.anon_struct_counter.inc()
                 context.scope_stack.declare_struct(ear_temp, ear_sd.clone())?
                 context.scope_stack.declare_symbol(ear_temp.clone(), SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
@@ -904,7 +912,9 @@ expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pend
     // Check if this is a bare EnumDef node -- replace with a registered anonymous enum
     switch e.node_type {
     case NodeType.EnumDef(eaer_enum_def):
-        eaer_temp := format("AnonEnum", I64.to_str(context.anon_enum_counter))
+        mut eaer_counter_str := I64.to_str(context.anon_enum_counter)
+        eaer_temp := format("AnonEnum", eaer_counter_str)
+        eaer_counter_str.delete()
         context.anon_enum_counter.inc()
         context.scope_stack.declare_enum(eaer_temp, eaer_enum_def.clone())?
         context.scope_stack.declare_symbol(eaer_temp, SymbolInfo(value_type=ValueType.TType(TTypeDef.TEnumDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
@@ -1975,7 +1985,9 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     // Register the anonymous struct and replace StructDef with Identifier
     switch func_expr.node_type {
     case NodeType.StructDef(pf_struct_def):
-        pf_temp_name := format("AnonStruct", I64.to_str(context.anon_struct_counter))
+        mut pf_counter_str := I64.to_str(context.anon_struct_counter)
+        pf_temp_name := format("AnonStruct", pf_counter_str)
+        pf_counter_str.delete()
         context.anon_struct_counter.inc()
         context.scope_stack.declare_struct(pf_temp_name, pf_struct_def.clone())?
         context.scope_stack.declare_symbol(pf_temp_name.clone(), SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
