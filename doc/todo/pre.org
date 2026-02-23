@@ -531,9 +531,11 @@ finishes, all deletion is automated and manual deletes are removed.
 *** Description
 
 Add manual ~.delete()~ calls in TIL source code where values are allocated
-and never freed -- the same way you would in C. Work through files in
-pipeline order (lexer, parser, init, typer, desugarer, ufcs, precomp,
-scavenger, ccodegen, interpreter, eval_heap, garbager), one commit per file.
+and never freed -- the same way you would in C. Work through files
+incrementally: a few functions at a time, one commit per batch. No need to
+be exhaustive in any single pass -- just add obviously safe deletes, skip
+anything uncertain, and come back for more later. Multiple passes per file
+is expected and fine.
 
 TIL-only changes. Rust returns references (no copies to delete).
 
@@ -556,12 +558,15 @@ TIL-only changes. Rust returns references (no copies to delete).
 | Attempt 1 | scope_stack.pop()?.delete()        | 8253 MB (+0)    |           |
 | Attempt 2 | StructDef.delete() for clones      | 8160 MB (-93)   | 21757 MB  |
 | 9489210f  | has_* for discarded lookups         | 8162 MB (~0)    | 21773 MB  |
-|           | lexer.til: 12 delete calls          | 8158 MB (-4)    | 21765 MB  |
+| 5b0d7bbd  | Remove #117 auto-delete from garb   | 7701 MB         | 21318 MB  |
+| 5e96534c  | lexer.til: lookahead/tmp_substr     | 7700 MB (-1)    | 21318 MB  |
 
 *** Done so far
 
 - ~scope_stack.pop()?.delete()~ on 28 sites. No improvement.
 - ~.delete()~ on 2 cloned StructDef locals (-93 MB).
+- lexer.til: ~lookahead~ and ~tmp_substr~ for two-char checks, semicolons,
+  comments, fractional dot scanning (-1 MB). First pass, not exhaustive.
 - ~has_struct/enum/func~ for ~30 discarded lookups (9489210f). Code
   simplification (-514 lines), neutral on memory. Rust consistency
   pending (~lookup_X().is_some()~ -> ~has_X()~).
