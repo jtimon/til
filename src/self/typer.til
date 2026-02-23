@@ -2274,7 +2274,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
 
     // Bug #97: Always register the declaration (allow shadowing/overwriting)
     // Block scopes value_type.
-    if true {
+    {
         mut value_type := decl.value_type
         switch value_type {
         case ValueType.TCustom(type_name):

@@ -191,47 +191,30 @@ like how ~throws~ sits after ~returns~. Full order would be:
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
 :IMPACT: Ergonomics -- eliminates ~if true {}~ hack, enables closures/lambdas later
-:STATUS: Open
-:RELATED: Issue #91 (first-class functions), Issue #105 (first-class types), Issue #106 (first-class enums), doc/first_class.org
+:STATUS: Step 1 done (2026-02-23), Step 2 open
+:RELATED: Issue #91 (first-class functions), Issue #105 (first-class types), Issue #106 (first-class enums), Issue #182 (closures), doc/first_class.org
 :END:
 
-*** Problem
+*** Step 1: Standalone body blocks [DONE 2026-02-23]
 
-Rust has standalone blocks ~{ ... }~ that create a new scope. TIL currently
-requires ~if true { ... }~ as a workaround:
-
-#+BEGIN_SRC rust
-// Rust: standalone block
-{
-    let temp = compute();
-    use_temp(temp);
-}
-// temp is out of scope
-#+END_SRC
+Bare ~{ ... }~ blocks already worked -- the parser (~parse_statement~) already
+had a ~LeftBrace~ case that calls ~parse_body~, and both interpreter and ccodegen
+already handle Body nodes. The only ~if true { ... }~ in the codebase (typer.til)
+has been replaced with a standalone block.
 
 #+BEGIN_SRC til
-// TIL: sad workaround
+// Before:
 if true {
     temp := compute()
     use_temp(temp)
 }
-#+END_SRC
 
-*** Step 1: Standalone body blocks
-
-Allow bare ~{ ... }~ blocks as statements, creating a new scope:
-
-#+BEGIN_SRC til
+// After:
 {
     temp := compute()
     use_temp(temp)
 }
-// temp is out of scope
 #+END_SRC
-
-Parser recognizes a ~{~ at statement level as a Body node (already exists in
-the AST). Interpreter and ccodegen already handle Body nodes, so this may
-mostly be a parser change.
 
 *** Step 2: First-class bodies (future)
 
