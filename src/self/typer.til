@@ -41,6 +41,7 @@ typer_import_declarations : proc(mut context: Context, import_path_str: Str) ret
     // Already done (or in progress)? Skip.
     // Adding to done at START handles both circular imports and re-imports.
     if context.imports_typer_done.contains(path) {
+        path.delete() // #183
         return errors
     }
 
@@ -561,9 +562,10 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
     }
 
     // Check TypeName.len() exists and returns I64
-    len_method := format(type_name, ".len")
+    mut len_method := format(type_name, ".len")
     mut len_func := FuncDef()
     len_func = context.scope_stack.lookup_func(len_method)?
+    len_method.delete() // #183
     // Verify returns I64
     if not(len_func.sig.return_types.len().eq(1)) {
         errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".len()' must return I64")))
@@ -583,9 +585,10 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
     }
 
     // Check TypeName.get() exists with right signature
-    get_method := format(type_name, ".get")
+    mut get_method := format(type_name, ".get")
     mut get_func := FuncDef()
     get_func = context.scope_stack.lookup_func(get_method)?
+    get_method.delete() // #183
     // Verify signature: get(self, I64) returns Ptr throws IndexOutOfBoundsError
     mut valid := get_func.sig.args.len().gteq(2)
     if valid {
@@ -775,11 +778,16 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                 panic(loc(), "IndexOutOfBoundsError iterating throw_types: ", idx_err.msg)
             }
             if ti.gt(0) {
+                mut old_tts := throw_types_str
                 throw_types_str = throw_types_str.concat(", ")
+                old_tts.delete()
             }
+            mut old_tts2 := throw_types_str
             throw_types_str = throw_types_str.concat(value_type_to_str(tt))
+            old_tts2.delete()
         }
         errors.push(e_clone.error(context.path, "type", format("Function '", f_name, "' throws ", throw_types_str, " but call is missing '?'. Add '?' after the closing parenthesis: ", f_name, "(...)?")))
+        throw_types_str.delete() // #183
     }
     if not(func_throws).and(does_throw) {
         errors.push(e_clone.error(context.path, "type", format("Function '", f_name, "' does not throw, remove the '?' from the call")))
@@ -3113,7 +3121,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
             if target_type_valid {
                 switch target_type {
                 case ValueType.TCustom(custom_type_name):
-                    method_name := format(custom_type_name, ".", combined_name)
+                    mut method_name := format(custom_type_name, ".", combined_name)
                     mut method_found := false
                     mut method_func_def := FuncDef()
                     method_func_def = context.scope_stack.lookup_func(method_name)?
@@ -3121,6 +3129,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                     catch (err: KeyNotFoundError) {
                         // Method not found, continue to other checks
                     }
+                    method_name.delete() // #183
                     if method_found {
                         // Transform: func(target, args...) -> Type.func(target, args...)
                         mut empty_params := Vec.new(Expr)
@@ -3216,7 +3225,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                 if ufcs_value_type_valid {
                     switch ufcs_value_type {
                     case ValueType.TCustom(custom_type_name):
-                        id_expr_name := format(custom_type_name, ".", ufcs_func_name)
+                        mut id_expr_name := format(custom_type_name, ".", ufcs_func_name)
                         mut assoc_found := false
                         mut assoc_func_def := FuncDef()
                         assoc_func_def = context.scope_stack.lookup_func(id_expr_name)?
@@ -3224,6 +3233,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                         catch (err: KeyNotFoundError) {
                             // Associated function not found
                         }
+                        id_expr_name.delete() // #183
                         if assoc_found {
                             mut assoc_empty_params := Vec.new(Expr)
                             assoc_e0 := cast(Expr, fcall_expr.params.get(0)?)
