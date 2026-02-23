@@ -13,6 +13,75 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #181: Standalone body blocks and first-class bodies
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Ergonomics -- eliminates ~if true {}~ hack, enables closures/lambdas later
+:STATUS: Open
+:RELATED: Issue #91 (first-class functions), Issue #105 (first-class types), Issue #106 (first-class enums), doc/first_class.org
+:END:
+
+*** Problem
+
+Rust has standalone blocks ~{ ... }~ that create a new scope. TIL currently
+requires ~if true { ... }~ as a workaround:
+
+#+BEGIN_SRC rust
+// Rust: standalone block
+{
+    let temp = compute();
+    use_temp(temp);
+}
+// temp is out of scope
+#+END_SRC
+
+#+BEGIN_SRC til
+// TIL: sad workaround
+if true {
+    temp := compute()
+    use_temp(temp)
+}
+#+END_SRC
+
+*** Step 1: Standalone body blocks
+
+Allow bare ~{ ... }~ blocks as statements, creating a new scope:
+
+#+BEGIN_SRC til
+{
+    temp := compute()
+    use_temp(temp)
+}
+// temp is out of scope
+#+END_SRC
+
+Parser recognizes a ~{~ at statement level as a Body node (already exists in
+the AST). Interpreter and ccodegen already handle Body nodes, so this may
+mostly be a parser change.
+
+*** Step 2: First-class bodies (future)
+
+Bodies as values that can be stored, passed, and returned:
+
+#+BEGIN_SRC til
+my_block : Body = {
+    println("hello")
+    some_call()
+}
+
+// Pass as argument
+run_block(my_block)
+
+// Return from function
+make_block : func() returns Body = {
+    return { println("deferred") }
+}
+#+END_SRC
+
+This is closely related to first-class functions (#91) and could share
+infrastructure. A Body is essentially a zero-argument closure. Step 2 should
+be designed alongside #91 to avoid duplicated effort.
+
 ** Issue #180: Bang operator ~!~ for panic-on-throw (Rust ~.unwrap()~ equivalent)
 :PROPERTIES:
 :DISCOVERED: 2026-02-23

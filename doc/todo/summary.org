@@ -19,10 +19,11 @@
 |  94 | gcc warnings cause bug47.til compilation failure (blocked by #99) | Build issue               |
 |  80 | ccodegen.til generates different C code than ccodegen.rs        | Divergence                  |
 
-* future.org (15 issues)
+* future.org (16 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
+| 181 | Standalone body blocks and first-class bodies    | Language feature   |
 | 180 | Bang operator ! for panic-on-throw (unwrap)     | Language feature   |
 | 167 | Benchmark HashMap vs Map/OrderedMap              | Benchmarking       |
 | 153 | Enable field/method access on Dynamic parameters | Language feature   |
