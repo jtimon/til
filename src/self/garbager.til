@@ -330,7 +330,7 @@ detect_shallow_copy_outparam : proc(stmt: Expr, local_types: Map, context: Conte
     catch (err: IndexOutOfBoundsError) {
         return false
     }
-    qualified := format(self_type, ".", method_name)
+    mut qualified := format(self_type, ".", method_name)
 
     // Check against whitelist
     mut whitelisted := false
@@ -340,6 +340,7 @@ detect_shallow_copy_outparam : proc(stmt: Expr, local_types: Map, context: Conte
     if qualified.eq("List.pop") {
         whitelisted = true
     }
+    qualified.delete()
     if not(whitelisted) {
         return false
     }
@@ -593,20 +594,29 @@ resolve_fcall_from_chain : proc(chain: Vec, local_types: Map, context: Context) 
 
     // Try direct lookup of the joined name (works for Type.method)
     mut full_name := ""
+    mut full_name_owned := false
     for ji in 0..chain.len() {
         part := cast(Str, chain.get(ji)?)
         if ji.gt(0) {
+            mut old_fn := full_name
             full_name = format(full_name, ".")
+            if full_name_owned { old_fn.delete() }
+            full_name_owned = true
         }
+        mut old_fn2 := full_name
         full_name = format(full_name, part)
+        if full_name_owned { old_fn2.delete() }
+        full_name_owned = true
     }
     mut direct_result := ResolvedFCall()
     direct_result.func_def = context.scope_stack.lookup_func(full_name)?
+    if full_name_owned { full_name.delete() }
     return direct_result
 
     catch (err: KeyNotFoundError) {
         // REM: Direct lookup failed, try UFCS resolution
     }
+    if full_name_owned { full_name.delete() }
 
     // UFCS resolution: resolve type through the chain, last part is the method
     method_name := cast(Str, chain.get(chain.len().sub(1))?)
@@ -645,9 +655,10 @@ resolve_fcall_from_chain : proc(chain: Vec, local_types: Map, context: Context) 
         }
     }
 
-    resolved := format(current_type, ".", method_name)
+    mut resolved := format(current_type, ".", method_name)
     mut ufcs_result := ResolvedFCall(is_ufcs=true)
     ufcs_result.func_def = context.scope_stack.lookup_func(resolved)?
+    resolved.delete()
     return ufcs_result
 
     catch (err: IndexOutOfBoundsError) {
