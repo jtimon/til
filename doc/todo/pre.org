@@ -15,17 +15,17 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
-** Issue #179: Typer should reject ~cast()~ in non-declaration positions
+** Issue #179: ~cast()~ should work as function argument, not just declarations
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
-:IMPACT: Better error messages -- currently fails silently in interpreter or at gcc level
+:IMPACT: Better error messages now, more flexible cast usage later
 :STATUS: Open
 :RELATED:
 :END:
 
 *** Description
 
-~cast(Type, expr)~ only works as a declaration directive:
+~cast(Type, expr)~ currently only works as a declaration directive:
 
 #+BEGIN_SRC til
 // WORKS -- cast in declaration
@@ -41,23 +41,29 @@ x := cast(I64, v.get(0)?).add(1)
 // Same errors as above
 #+END_SRC
 
-The typer should detect and reject ~cast()~ when used as:
-1. A function argument
-2. The receiver of a UFCS method call
+*** Phase 1: Reject invalid usage in typer
+
+The typer should detect and reject ~cast()~ when used in unsupported positions:
+1. As a function argument
+2. As the receiver of a UFCS method call
 3. Any position other than the RHS of a ~:=~ declaration
 
-*** Fix
+Currently these fail silently in the interpreter ("Core function 'cast' not
+implemented") or at gcc level ("implicit declaration of function 'til_cast'").
+A clear typer error is much better.
 
-Extract to declaration:
+Workaround: extract to declaration:
 #+BEGIN_SRC til
 // Instead of: result := add_one(cast(I64, v.get(0)?))
 e0 := cast(I64, v.get(0)?)
 result := add_one(e0)
-
-// Instead of: x := cast(I64, v.get(0)?).add(1)
-e0 := cast(I64, v.get(0)?)
-x := e0.add(1)
 #+END_SRC
+
+*** Phase 2: Support cast as function argument
+
+Teach the interpreter and ccodegen to handle ~cast()~ in argument position
+so that ~func(cast(Type, expr))~ works directly without needing a temporary
+declaration. UFCS on cast results (~cast(...).method()~) would also work.
 
 ** Issue #175: Unify C calling convention -- all functions return through ~_ret~ pointer
 :PROPERTIES:
