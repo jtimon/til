@@ -1,0 +1,566 @@
+#+TITLE: Language Features
+#+AUTHOR: TIL Development
+#+DATE: 2026-02-23
+# BOT: Issues use next number from doc/todo/next_issue_num.txt, then increment it.
+# BOT: Add new issues at the top of Open Issues section.
+# BOT: When implemented, move to Implemented Issues section in doc/todo/fixed.org.
+# BOT: Keep summary.org updated when adding/removing/moving issues.
+
+* Overview
+
+This document tracks language feature requests -- new syntax, new
+capabilities, new operators. Moved here from future.org to separate
+features from performance/architecture/cleanup work.
+
+For bugs, see bugs.org. For performance/architecture, see future.org.
+For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
+
+* Open Issues
+
+** Issue #182: Closures -- explicit capture lists for functions and blocks
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Language feature -- enables higher-order patterns that reference enclosing scope
+:STATUS: Open
+:RELATED: Issue #91 (first-class functions -- lambdas, function pointers), Issue #181 (standalone body blocks), doc/first_class.org
+:END:
+
+*** Description
+
+Closures are functions that access variables from their enclosing scope.
+TIL requires *explicit capture lists* using ~[square brackets]~, inspired
+by Jai (Jonathan Blow). If a function references an outer variable, it MUST
+be listed in the capture list. This makes dependencies visible and
+refactoring mechanical.
+
+*** Capture syntax
+
+#+BEGIN_SRC til
+scale := 3
+
+// Closure: captures scale from outer scope
+scaled := numbers.map(func(a: I64) returns I64 [scale] { return a.mul(scale) })
+
+// Normal form equivalent:
+scaled := numbers.map(func(I64) returns I64 = (a) [scale] { return a.mul(scale) })
+
+// Named closure:
+make_scaler : func(s: I64) returns Transformer = {
+    return func(a: I64) returns I64 [s] { return a.mul(s) }
+}
+triple := make_scaler(3)
+tripled := numbers.map(triple)  // [3, 6, 9, 12, 15]
+#+END_SRC
+
+*** Why explicit captures
+
+Implicit captures (like Python, JavaScript, Rust) feel magical:
+
+Problems:
+- *Reading*: you see ~scale~ and have to hunt for where it's defined.
+  Is it a global? A local three scopes up? A typo for a parameter?
+- *Refactoring*: extracting a block into a function means figuring out
+  ALL the implicit dependencies. Miss one and it breaks.
+- *Inlining*: moving a closure back inline means understanding what it
+  captures to know where it can safely go.
+
+Explicit captures solve all three:
+- *Reading*: ~[scale]~ tells you exactly what comes from outside.
+- *Refactoring*: captures become parameters. Mechanical transformation.
+- *Inlining*: captures tell you exactly what the block depends on.
+
+*** Capture semantics
+
+Captures follow the same rules as function parameters:
+
+| Capture syntax | Semantics                         | Same as param mode |
+|----------------+-----------------------------------+--------------------|
+| ~[x]~          | Const by reference (default)      | ~x: T~             |
+| ~[mut x]~      | Mutable reference                 | ~mut x: T~         |
+| ~[copy x]~     | Deep copy (snapshot)              | ~copy x: T~        |
+| ~[own x]~      | Ownership transfer (moved in)     | ~own x: T~         |
+
+#+BEGIN_SRC til
+mut total := 0
+data := Vec.from(1, 2, 3)
+
+// mut capture: closure can modify total
+data.for_each(func(x: I64) [mut total] { total = total.add(x) })
+
+// copy capture: closure gets a snapshot, original unchanged
+data.map(func(x: I64) returns I64 [copy total] { return x.add(total) })
+
+// own capture: moves data into the closure, caller can't use it after
+consume : proc() = [own data] { data.clear() }
+#+END_SRC
+
+No new rules to learn -- captures are just arguments that come from the
+enclosing scope instead of the call site.
+
+*** Block captures (depends on #181)
+
+Even without making a function, you can add a capture list to a bare
+code block to limit what it can see. This is an "insurance policy" that
+the block only touches specified state:
+
+#+BEGIN_SRC til
+mut total := 0
+mut count := 0
+data := Vec.from(1, 2, 3)
+
+// Only total and data are accessible inside this block
+[total, data] {
+    for item in data {
+        total = total.add(item)
+    }
+}
+// count is guaranteed untouched
+#+END_SRC
+
+*** Refactoring progression (from Jai)
+
+#+BEGIN_SRC til
+// Step 1: inline code
+total = total.add(x)
+
+// Step 2: block with captures (limit scope, verify dependencies)
+[total, x] {
+    total = total.add(x)
+}
+
+// Step 3: promote to lambda (add params, same captures)
+adder : func(a: I64) returns I64 = [total] { return total.add(a) }
+
+// Step 4: promote to pure function (captures become params, no more closure)
+adder : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+#+END_SRC
+
+Each step is mechanical. The capture list tells you exactly what needs to
+become a parameter when you promote to a pure function.
+
+*** Syntax decision needed
+
+Two options for how captures are specified:
+
+**** Option A: Square brackets (Jai-style, current first_class.org design)
+
+#+BEGIN_SRC til
+scaled := numbers.map(func(a: I64) returns I64 [scale] { return a.mul(scale) })
+
+// Block capture:
+[total, data] {
+    for item in data { total = total.add(item) }
+}
+#+END_SRC
+
+Pro: concise, visually distinct from parameters.
+Con: ~[]~ already used for array indexing in many languages. Inconsistent
+with ~returns~ and ~throws~ which are keywords, not punctuation.
+
+**** Option B: ~captures~ keyword (consistent with returns/throws)
+
+#+BEGIN_SRC til
+scaled := numbers.map(func(a: I64) captures scale returns I64 { return a.mul(scale) })
+
+// Block capture:
+captures total, data {
+    for item in data { total = total.add(item) }
+}
+#+END_SRC
+
+Pro: consistent with the existing ~returns~ / ~throws~ keyword pattern in
+function signatures -- no parentheses, just commas. Reads naturally: "func
+that takes I64, captures scale, returns I64". Searchable and greppable.
+Con: more verbose.
+
+**** Comparison
+
+#+BEGIN_SRC til
+// Option A:
+f : func(I64) returns I64 = (a) [scale, mut total] { ... }
+
+// Option B:
+f : func(I64) captures scale, mut total returns I64 = (a) { ... }
+#+END_SRC
+
+Note: with Option B, ~captures~ sits before ~returns~ in the signature,
+like how ~throws~ sits after ~returns~. Full order would be:
+~func(params) captures X returns Y throws Z~.
+
+*** References
+- Jai Primer: explicit capture lists, same philosophy
+- doc/first_class.org: full design document
+
+** Issue #181: Standalone body blocks and first-class bodies
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Ergonomics -- eliminates ~if true {}~ hack, enables closures/lambdas later
+:STATUS: Step 1 done (2026-02-23), Step 2 open
+:RELATED: Issue #91 (first-class functions), Issue #105 (first-class types), Issue #106 (first-class enums), Issue #182 (closures), doc/first_class.org
+:END:
+
+*** Step 1: Standalone body blocks [DONE 2026-02-23]
+
+Bare ~{ ... }~ blocks already worked -- the parser (~parse_statement~) already
+had a ~LeftBrace~ case that calls ~parse_body~, and both interpreter and ccodegen
+already handle Body nodes. The only ~if true { ... }~ in the codebase (typer.til)
+has been replaced with a standalone block.
+
+#+BEGIN_SRC til
+// Before:
+if true {
+    temp := compute()
+    use_temp(temp)
+}
+
+// After:
+{
+    temp := compute()
+    use_temp(temp)
+}
+#+END_SRC
+
+*** Step 2: First-class bodies (future)
+
+Bodies as values that can be stored, passed, and returned:
+
+#+BEGIN_SRC til
+my_block : Body = {
+    println("hello")
+    some_call()
+}
+
+// Pass as argument
+run_block(my_block)
+
+// Return from function
+make_block : func() returns Body = {
+    return { println("deferred") }
+}
+#+END_SRC
+
+This is closely related to first-class functions (#91) and could share
+infrastructure. A Body is essentially a zero-argument closure. Step 2 should
+be designed alongside #91 to avoid duplicated effort.
+
+** Issue #180: Bang operator ~!~ for panic-on-throw (Rust ~.unwrap()~ equivalent)
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Ergonomics -- cleaner translation of Rust .unwrap(), less boilerplate catch blocks
+:STATUS: In Progress
+:RELATED: rs2til.org (? operator semantics)
+:END:
+
+*** Progress
+
+- [X] Lexer: renamed ~TokenType.Not~ to ~TokenType.ExclamationMark~, removed error for ~!~
+- [X] Parser: ~!~ accepted as synonym for ~?~ at all 3 fcall sites (produces ~FCall(true)~)
+- [ ] Desugarer: generate catch blocks with ~panic(loc(), "TypeName")~ for each thrown type
+- [ ] Typer: consume thrown_types for ~!~ calls so user catch triggers "not among thrown types"
+- [ ] Test: ~src/test/panic_bang.til~ with ~expected_status=1~
+- [ ] Docs: update ~rs2til.org~ with ~!~ / ~.unwrap()~ mapping
+
+Currently ~!~ behaves identically to ~?~ (no desugaring yet).
+
+*** Description
+
+Currently ~?~ marks that a call may throw. There is no concise way to say
+"call this, and if it throws, panic." You must write a full catch block:
+
+#+BEGIN_SRC til
+result := might_fail(x)?
+catch (err: SomeError) { panic(loc(), err.msg) }
+#+END_SRC
+
+Propose ~!~ as an alternative to ~?~ meaning "panic on throw":
+
+#+BEGIN_SRC til
+result := might_fail(x)!   // panics if might_fail throws
+#+END_SRC
+
+This maps directly to Rust's ~.unwrap()~:
+
+#+BEGIN_SRC rust
+// Rust
+let result = might_fail(x).unwrap();
+
+// TIL equivalent
+result := might_fail(x)!
+#+END_SRC
+
+*** Implementation
+
+Desugarer transforms ~func()!~ by inserting a catch block with panic for
+every throwable type immediately after the call:
+
+#+BEGIN_SRC til
+// Before desugaring:
+result := might_fail(x)!
+
+// After desugaring:
+result := might_fail(x)?
+catch (err: SomeError) { panic(loc(), err.msg) }
+#+END_SRC
+
+Steps:
+1. Lexer: recognize ~!~ after fcall (new token or reuse existing)
+2. Parser: parse ~!~ like ~?~ but store a flag (e.g. ~FCall(does_throw=true, is_bang=true)~)
+3. Desugarer: for bang calls, look up the function's throw types and generate
+   a catch block with ~panic(loc(), err.msg)~ for each thrown type
+
+*** Notes
+
+- The desugarer needs access to function signatures to know which error types
+  to catch. This is already available via ~context.scope_stack.lookup_func~.
+- ~!~ should NOT be allowed on calls that don't throw (typer error).
+- Multiple throw types generate multiple catch blocks, all panicking.
+
+** Issue #83: No spread/splat operator for variadic argument forwarding
+:PROPERTIES:
+:DISCOVERED: 2026-01-03
+:IMPACT: Cannot forward variadic args to another variadic function
+:STATUS: Open
+:RELATED: Bug #95 (duplicate)
+:END:
+
+*** Description
+TIL lacks a spread/splat operator to expand an array/Vec into variadic arguments.
+This prevents:
+1. Forwarding variadic args from one function to another
+2. Passing dynamically collected arguments to variadic functions
+
+*** TIL Example (currently broken)
+#+BEGIN_SRC til
+run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
+    println(args)
+    return output_str.run_cmd(args)  // FAILS: args is Array, not spread
+}
+#+END_SRC
+
+*** Other languages
+
+**** JavaScript - prefix ~...~
+#+BEGIN_SRC javascript
+function wrapper(...args) {
+    return inner(...args);  // spread with ...
+}
+#+END_SRC
+
+**** Python - prefix ~*~
+#+BEGIN_SRC python
+def wrapper(*args):
+    return inner(*args)  # unpack with *
+#+END_SRC
+
+**** Ruby - prefix ~*~
+#+BEGIN_SRC ruby
+def wrapper(*args)
+    inner(*args)  # splat with *
+#+END_SRC
+
+**** Kotlin - prefix ~*~
+#+BEGIN_SRC kotlin
+fun wrapper(vararg args: String) {
+    inner(*args)  // spread with *
+}
+#+END_SRC
+
+**** Lua - ~unpack()~ / ~table.unpack()~
+#+BEGIN_SRC lua
+function wrapper(...)
+    local args = {...}
+    return inner(unpack(args))
+end
+#+END_SRC
+
+**** Go - suffix ~...~
+#+BEGIN_SRC go
+func wrapper(args ...string) {
+    inner(args...)  // spread with suffix ...
+}
+#+END_SRC
+
+**** Rust - no variadics, uses slices/iterators
+#+BEGIN_SRC rust
+// Rust doesn't have variadic functions in the same way
+// Uses slices or iterators instead
+command.args(&extra_args);  // args takes impl IntoIterator
+#+END_SRC
+
+*** Dynamic collection example
+#+BEGIN_SRC til
+// We have a Vec of args built dynamically
+extra_args := Vec.new(Str)
+extra_args.push("--verbose")
+extra_args.push("output.txt")
+
+// Want to call: run_cmd(output, exe_path, "--verbose", "output.txt")
+// But can't expand extra_args into variadic position
+#+END_SRC
+
+*** Syntax options for TIL
+| Option | Syntax                      | Notes                                    |
+|--------+-----------------------------+------------------------------------------|
+| A      | ~run_cmd(args...)~          | Go-style, suffix                         |
+| B      | ~run_cmd(*args)~            | Python/Ruby/Kotlin-style, prefix         |
+| C      | ~run_cmd(...args)~          | JavaScript-style, prefix                 |
+| D      | ~run_cmd(..args)~           | TIL-style, matches ~..Str~ in declaration |
+| E      | ~run_cmd(args.to_variadic())~ | Method on Array, no special syntax needed |
+| F      | ~run_cmd(spread(args))~     | Explicit spread function, like Lua       |
+
+*** Workaround
+For shell commands, build a command string with a for-in loop and use ~bash -c~:
+#+BEGIN_SRC til
+run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
+    mut cmd := ""
+    for arg: Str in args {
+        if cmd.len().gt(0) {
+            cmd = format(cmd, " ", arg)
+        } else {
+            cmd = arg
+        }
+    }
+    println(cmd)
+    return output_str.run_cmd("bash", "-c", cmd)
+}
+#+END_SRC
+
+** Issue #91: First-Class Functions
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:IMPACT: Language feature, polymorphism, higher-order programming
+:STATUS: In progress - FunctionSig type + function pointers done (2026-02-21), next: lambdas/collections
+:RELATED: Bug #90 (semicolon/body syntax), Bug #159 (needs func ptrs for deep clone/delete), Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), Issue #182 (Closures -- explicit captures), src/test/function_pointers.til, doc/first_class.org
+:END:
+
+*** Background
+
+Functions should be first-class values that can be passed as arguments,
+enabling polymorphism and higher-order programming patterns. Currently,
+~FuncDef~ exists but functions cannot be passed around as values.
+
+TIL is now self-hosting, so the earlier concern about "post-self-hosting timing"
+is resolved. Additionally, Bug #159 (shallow copy elimination) is blocked on
+function pointer support for deep Vec.clone/delete -- making this a priority.
+
+*** Core Semantics
+
+1. *Pass functions as arguments*: Functions can be passed to other functions
+   and called inside them.
+
+2. *Function type declarations*: A function type is a function with no body.
+   #+BEGIN_SRC til
+   // Function type declaration (no body):
+   BinaryOp := func(a: I64, b: I64) returns I64
+   // With throws:
+   Parser := func(s: Str) returns Ast throws ParseError
+   #+END_SRC
+
+3. *Throws are part of the signature*.
+
+4. *Separate func/proc types*: ~func~ and ~proc~ are distinct types.
+   A ~proc~ type cannot be passed where a ~func~ is expected (and vice versa).
+
+5. *No closures*: Functions can only reference their own parameters and globals.
+   Capturing enclosing scope variables is deferred (likely harder).
+
+6. *Return functions and store in struct fields*: Include if not too much extra
+   work over the basic "pass as arguments" support.
+
+*** Example
+#+BEGIN_SRC til
+// Define a function type (no body = type declaration)
+BinaryOp := func(a: I64, b: I64) returns I64
+
+// Function that takes a function as argument
+apply : func(op: BinaryOp, a: I64, b: I64) returns I64 = {
+    return op(a, b)
+}
+
+// Define functions matching the type
+add : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+mul : func(a: I64, b: I64) returns I64 = { return a.mul(b) }
+
+// Pass functions as arguments
+apply(add, 3, 5)  // returns 8
+apply(mul, 3, 5)  // returns 15
+#+END_SRC
+
+*** Syntax Decision
+
+**** New unified syntax (DONE - f9af099f, fb40690b, b0badfdd, 2026-02-21)
+Parser uses the unified ~name : Type = value~ syntax for functions,
+as designed in doc/first_class.org. Two equivalent forms:
+#+BEGIN_SRC til
+// Sugar form (names in signature):
+add : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+
+// Normal form (type-only params + binding tuple):
+add : func(I64, I64) returns I64 = (a, b) { return a.add(b) }
+#+END_SRC
+
+**** FunctionSig type definitions (DONE - 65fd0227, 2026-02-21)
+#+BEGIN_SRC til
+BinaryOp := func(I64, I64) returns I64 {}
+my_add : BinaryOp = (a, b) { return a.add(b) }
+#+END_SRC
+
+**** Function pointers (DONE - 2026-02-21)
+Pass functions as arguments, call through variable, signature compatibility checking.
+Typer, interpreter, ccodegen, scavenger all updated.
+
+*** What is missing
+- Lambda syntax (anonymous inline functions)
+- Storing function pointers in collections (Vec/Map of function pointers)
+- Returning functions from functions
+- Closures (Issue #182 -- explicit capture lists)
+
+*** Key Files
+- src/rs/parser.rs / src/self/parser.til (function type parsing)
+- src/rs/typer.rs / src/self/typer.til (signature matching)
+- src/rs/ccodegen.rs / src/self/ccodegen.til (function pointer emission)
+- src/rs/interpreter.rs / src/self/interpreter.til (function reference resolution)
+- src/rs/init.rs / src/self/init.til (SFuncDef, ScopeFrame, ValueType, dispatch)
+- src/test/function_pointers.til (test cases)
+
+** Issue #106: First-Class Enums
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Language feature, anonymous data structures
+:STATUS: Partial
+:RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs)
+:END:
+
+*** Description
+Allow anonymous enum type definitions to be passed as arguments:
+
+#+BEGIN_SRC til
+some_function(enum {A, B})
+#+END_SRC
+
+Similar in spirit to Issue #91 (first-class functions) but for enums.
+
+*** Progress (2026-02-20): Macro-returned enums with namespace support
+
+Implemented the same macro infrastructure that Issue #105 provides for structs,
+but for enums. Macro-returned enums now work with =namespace:= blocks and type
+parameter substitution in variant payload types.
+
+**** What works
+- =macro(T: Type) returns enum { ... }= syntax
+- Named enum pattern inside macro body (=TemplatedOption := enum { ... }=)
+- Internal-to-external name substitution (=TemplatedOption= -> =I64Option=)
+- Type substitution in variant payload types (=Some: T= -> =Some: I64=)
+- Pattern substitution in switch-case (=case TemplatedOption.Some(val):= -> =case I64Option.Some(val):=)
+- =namespace:= methods on macro-returned enums
+- Auto-generated delete/clone methods
+- Anonymous enum registration with =__anon_enum_N= temp names
+- Global frame enum registration (survives macro function scope pops)
+- =returns enum= in parser for macro return types
+
+**** Completed (2026-02-21) -- enum_def_of: runtime enum introspection
+
+**** What remains
+- Anonymous enum as inline arguments: =some_function(enum {A, B})=
+- Multiple type parameters in enum macros
+- Enum macros with complex payload types (structs, nested enums)

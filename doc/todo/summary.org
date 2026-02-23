@@ -19,33 +19,39 @@
 |  94 | gcc warnings cause bug47.til compilation failure (blocked by #99) | Build issue               |
 |  80 | ccodegen.til generates different C code than ccodegen.rs        | Divergence                  |
 
-* future.org (18 issues)
+* features.org (6 issues)
+
+| #   | Issue                                            | Category         |
+|-----+--------------------------------------------------+------------------|
+| 182 | Closures -- explicit capture lists               | Language feature |
+| 181 | Standalone body blocks and first-class bodies    | Language feature |
+| 180 | Bang operator ! for panic-on-throw (unwrap)     | Language feature |
+| 106 | First-Class Enums                                | Language feature |
+|  91 | First-Class Functions                            | Language feature |
+|  83 | No spread/splat operator for variadic forwarding | Language feature |
+
+* future.org (12 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
 | 186 | Symbol tracking perf -- is_consumed, is_used     | Performance        |
-| 182 | Closures -- explicit capture lists               | Language feature   |
-| 181 | Standalone body blocks and first-class bodies    | Language feature   |
-| 180 | Bang operator ! for panic-on-throw (unwrap)     | Language feature   |
 | 167 | Benchmark HashMap vs Map/OrderedMap              | Benchmarking       |
 | 153 | Enable field/method access on Dynamic parameters | Language feature   |
 | 142 | Code Simplification - Context Error Helpers      | Cleanup            |
 | 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design     |
 | 112 | HashMap type slower than Map in TIL              | Blocked            |
 | 111 | Support returns Dynamic                          | Feature            |
-| 106 | First-Class Enums                                | Language feature   |
 | 178 | Eliminate TTypeDef, unify type representation    | Internal cleanup   |
 | 100 | Get rid of rstil                                 | Architecture goal  |
-|  91 | First-Class Functions                            | Language feature   |
 |  89 | Constant folding only works at global scope      | Optimization       |
 |  88 | Macro Support (Compile-Time Evaluation)          | Language feature   |
-|  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
 * pre.org (12 issues)
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
+| 187 | Integrated profiling for self-hosted compiler      | Performance  |
 | 185 | Require own at call sites, better consumed errors  | Usability    |
 | 184 | Integer-based enum comparison                      | Performance  |
 | 183 | Manual delete calls as temporary memory management | Memory mgmt  |
