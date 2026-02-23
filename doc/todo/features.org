@@ -805,7 +805,7 @@ Dynamic~, but could be implemented independently as a narrower feature for macro
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
 :IMPACT: Language feature, anonymous data structures
-:STATUS: Partial
+:STATUS: Partial (anonymous inline done)
 :RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs)
 :END:
 
@@ -832,14 +832,22 @@ parameter substitution in variant payload types.
 - Pattern substitution in switch-case (=case TemplatedOption.Some(val):= -> =case I64Option.Some(val):=)
 - =namespace:= methods on macro-returned enums
 - Auto-generated delete/clone methods
-- Anonymous enum registration with =__anon_enum_N= temp names
+- Anonymous enum registration with =AnonEnumN= temp names
 - Global frame enum registration (survives macro function scope pops)
 - =returns enum= in parser for macro return types
 
 **** Completed (2026-02-21) -- enum_def_of: runtime enum introspection
 
+**** Completed (2026-02-23) -- Anonymous enum as inline arguments
+
+=expand_anon_enum_fcalls_recursive= in precomp walks the AST, finds bare
+EnumDef nodes, registers them as =AnonEnumN= with auto-generated
+delete/clone methods, and replaces with an Identifier. Pending declarations
+are injected before the statement that uses them in =precomp_body=.
+
+Tests: =count_variants(enum { Red, Green, Blue })= works in all 4 modes.
+
 **** What remains
-- Anonymous enum as inline arguments: =some_function(enum {A, B})=
 - Multiple type parameters in enum macros
 - Enum macros with complex payload types (structs, nested enums)
 

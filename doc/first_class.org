@@ -610,13 +610,22 @@ This is really reflection/metaprogramming territory.
 
 ** Anonymous enums
 #+BEGIN_SRC til
-// Inline enum type
+// Inline enum type as variable
 result : enum { Ok(val: I64), Err(msg: Str) } = Ok(val=42)
+
+// Inline enum as argument to macro (Issue #106)
+count_variants : macro(T: Type) returns I64 = {
+    def := enum_def_of(type_as_str(T))
+    return def.variants.len()
+}
+assert_eq(loc(), 3, count_variants(enum { Red, Green, Blue }))
+assert_eq(loc(), 2, count_variants(enum { None, Some: I64 }))
 #+END_SRC
 
-Open question: anonymous enums are basically sum types / tagged unions.
-Useful for one-off return types. TypeScript does this with union types
-(~number | string~). Rust doesn't have anonymous enums but has ~Result<T, E>~.
+Anonymous enums passed as inline arguments are expanded by
+=expand_anon_enum_fcalls_recursive= in precomp, which registers them as
+=AnonEnumN= with auto-generated delete/clone methods and replaces the
+EnumDef node with an Identifier.
 
 ** Returning enums from functions
 #+BEGIN_SRC til
@@ -642,7 +651,7 @@ MyResult := make_result(I64, Str)
 | TypeScript | N/A (union types instead)   | Yes: ~number \vert string~ |
 | Haskell    | ~data Shape = Circle Double~ | No (but easy to define)    |
 | Zig        | ~const E = union(enum) { }~ | No                         |
-| TIL        | ~enum { Circle(radius: I64) }~ | Not yet                  |
+| TIL        | ~enum { Circle(radius: I64) }~ | Yes (inline args)        |
 
 * Bodies (Issue #181)
 

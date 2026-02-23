@@ -25,7 +25,7 @@
 | #153 | Enable field/method access on Dynamic parameters | Open        |
 | #151 | Explicit pointer/reference syntax                | Open        |
 | #111 | Support returns Dynamic                          | Open        |
-| #106 | First-Class Enums                                | Partial     |
+| #106 | First-Class Enums                                | Partial (anon inline done) |
 |  #91 | First-Class Functions                            | In progress |
 |  #88 | Macro Support (Compile-Time Evaluation)          | Partial     |
 |  #83 | No spread/splat operator for variadic forwarding | Open        |
