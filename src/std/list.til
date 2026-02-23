@@ -207,7 +207,7 @@ namespace:
     }
 
     /** Free list memory. */
-    delete : proc(mut self: List) = {
+    delete : func(mut self: List) = {
         if not(self.data.is_null()) {
             self.data.delete()
         }

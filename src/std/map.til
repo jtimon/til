@@ -233,7 +233,7 @@ namespace:
     }
 
     /** Free map memory and reset. */
-    delete : proc(mut self: Map) = {
+    delete : func(mut self: Map) = {
         mut keys_arr := self.keys
         keys_arr.delete()
 

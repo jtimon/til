@@ -83,7 +83,7 @@ fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize
 
     let func_def = FuncDef {
         sig: FuncSig {
-            function_type: FunctionType::FTProc,
+            function_type: FunctionType::FTFunc,
             args: vec![self_decl],
             return_types: vec![],
             throw_types: vec![],
@@ -95,7 +95,7 @@ fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize
 
     let method_decl = Declaration {
         name: "delete".to_string(),
-        value_type: ValueType::TFunction(FunctionType::FTProc),
+        value_type: ValueType::TFunction(FunctionType::FTFunc),
         is_mut: false,
         is_copy: false,
         is_own: false,
@@ -239,7 +239,7 @@ fn generate_enum_delete_method(enum_name: &str, line: usize, col: usize) -> Expr
 
     let func_def = FuncDef {
         sig: FuncSig {
-            function_type: FunctionType::FTProc,
+            function_type: FunctionType::FTFunc,
             args: vec![self_decl],
             return_types: vec![],
             throw_types: vec![],
@@ -393,7 +393,7 @@ pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool,
         if needs_delete {
             let delete_decl = Declaration {
                 name: "delete".to_string(),
-                value_type: ValueType::TFunction(FunctionType::FTProc),
+                value_type: ValueType::TFunction(FunctionType::FTFunc),
                 is_mut: false,
                 is_copy: false,
                 is_own: false,

@@ -4761,6 +4761,34 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #89: Constant folding inside function bodies
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:IMPLEMENTED: 2026-02-23
+:IMPACT: Performance, code generation quality
+:STATUS: Implemented
+:RELATED: Issue #88 (Macros), src/test/constfold.til, src/examples/lolalalo.til
+:END:
+
+*** Summary
+Removed ~at_global_scope~ guard from FCall folding in precomp so pure func
+calls with literal args are now constant-folded inside function bodies.
+
+*** Changes
+- precomp.rs/til: removed at_global_scope guard from constfold path, added
+  try-catch for eval_comptime failures (silently skip unfoldable calls)
+- precomp.rs/til: macros inside function bodies skip if args aren't comptime
+  (error only at global scope)
+- precomp.rs/til: struct/enum constructors only fold at global scope (to avoid
+  ownership semantics changes, e.g., Str() becoming borrowed literal)
+- precomp.rs/til: zero-arg functions not folded inside bodies (likely stateful)
+- eval_comptime: U8 results skip folding (Literal.Number can't distinguish U8
+  from I64, causing type erasure in generated C)
+- All delete methods changed from proc to func (delete is infrastructure, not
+  a semantic side effect; also prevents delete from blocking constfold of callers)
+- preinit.rs/til: auto-generated delete methods use FTFunc instead of FTProc
+- bug41_liba_helper.til: print_debug changed from func to proc (has I/O)
+
 ** Issue #105: First-Class Structs
 :PROPERTIES:
 :DISCOVERED: 2026-01-12

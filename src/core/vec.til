@@ -157,7 +157,7 @@ namespace:
     }
 
     /** Free vec memory. */
-    delete : proc(mut self: Vec) = {
+    delete : func(mut self: Vec) = {
         if not(self.ptr.is_null()) {
             self.ptr.delete()
         }

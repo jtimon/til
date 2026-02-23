@@ -93,7 +93,7 @@ generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64
     arg_names.push(self_param_name)
     func_def := FuncDef(
         sig=FuncSig(
-            function_type=FunctionType.FTProc,
+            function_type=FunctionType.FTFunc,
             args=args,
             return_types=Vec.new(ValueType),
             throw_types=Vec.new(ValueType)
@@ -105,7 +105,7 @@ generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64
 
     method_decl := Declaration(
         name="delete",
-        value_type=ValueType.TFunction(FunctionType.FTProc),
+        value_type=ValueType.TFunction(FunctionType.FTFunc),
         is_mut=false,
         is_copy=false,
         is_own=false,
@@ -238,7 +238,7 @@ generate_enum_delete_method : func(enum_name: Str, line: I64, col: I64) returns 
     arg_names.push("_self")
     func_def := FuncDef(
         sig=FuncSig(
-            function_type=FunctionType.FTProc,
+            function_type=FunctionType.FTFunc,
             args=args,
             return_types=Vec.new(ValueType),
             throw_types=Vec.new(ValueType)
@@ -302,7 +302,7 @@ generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: 
         if needs_delete {
             delete_decl := Declaration(
                 name="delete",
-                value_type=ValueType.TFunction(FunctionType.FTProc),
+                value_type=ValueType.TFunction(FunctionType.FTFunc),
                 is_mut=false,
                 is_copy=false,
                 is_own=false,

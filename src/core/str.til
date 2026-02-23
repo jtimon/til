@@ -57,7 +57,7 @@ namespace:
         return cloned
     }
 
-    delete : proc(mut self: Str) = {
+    delete : func(mut self: Str) = {
         // Only free if the string is owned (cap > 0)
         if self.cap.gt(0) {
             self.c_string.delete()

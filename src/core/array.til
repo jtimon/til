@@ -61,7 +61,7 @@ namespace:
     }
 
     /** Free array memory. */
-    delete : proc(mut self: Array) = {
+    delete : func(mut self: Array) = {
         if not(self.ptr.is_null()) {
             self.ptr.delete()
         }

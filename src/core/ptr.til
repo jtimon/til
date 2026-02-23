@@ -40,7 +40,7 @@ namespace:
         return p
     }
 
-    delete : proc(mut self: Ptr) = {
+    delete : func(mut self: Ptr) = {
         if NULL.eq(self.data) {
             // Already deleted or never allocated - safe to call multiple times
             return

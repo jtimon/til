@@ -40,7 +40,7 @@ make_typed_ptr : macro(T: Type) returns struct = {
             catch (err: BadAlloc) { panic(loc(), "typed_ptr: malloc failed") }
         }
 
-        delete : proc(mut self: TemplatedPtr) = {
+        delete : func(mut self: TemplatedPtr) = {
             if NULL.eq(self.data) { return }
             if self.is_borrowed.eq(0) {
                 free(self.data)

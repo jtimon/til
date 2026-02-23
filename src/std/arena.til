@@ -84,7 +84,7 @@ namespace:
     }
 
     /** Free arena memory */
-    delete : proc(mut self: Arena) = {
+    delete : func(mut self: Arena) = {
         if not(self._ptr.is_null()) {
             self._ptr.delete()
         }

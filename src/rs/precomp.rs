@@ -673,29 +673,34 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             let mut const_folded = precomp_fcall(context, e)?;
 
             // Try compile-time constant folding for pure functions with literal args.
-            // Only fold at global scope - inside function definitions, values from other
-            // modules may not be available yet (import ordering). Interpreter doesn't
-            // evaluate function bodies during import either.
-            let at_global_scope = context.scope_stack.frames.len() == 1;
-
             // Check if this is a macro call - macros MUST be evaluated at compile-time
             // but only when called at global scope with comptime args (same as funcs,
             // just with an error if args aren't comptime instead of silent skip)
+            let at_global_scope = context.scope_stack.frames.len() == 1;
             let is_macro_call = is_macro_fcall(context, &const_folded);
-            if at_global_scope && is_macro_call {
-                // Macros require all arguments to be compile-time evaluable
-                if !is_comptime_evaluable(context, &const_folded)? {
+            if is_macro_call {
+                if is_comptime_evaluable(context, &const_folded)? {
+                    // Force compile-time evaluation
+                    const_folded = eval_comptime(context, &const_folded)?;
+                    return Ok(const_folded);
+                }
+                // At global scope, macros MUST have comptime args - error
+                if at_global_scope {
                     let f_name = get_func_name_in_call(&const_folded);
                     return Err(const_folded.error(&context.path, "precomp",
                         &format!("Macro '{}' requires all arguments to be compile-time constants", f_name)));
                 }
-                // Force compile-time evaluation
-                const_folded = eval_comptime(context, &const_folded)?;
-                return Ok(const_folded);
+                // Inside function bodies, macro args may depend on params - skip for now
             }
 
-            if at_global_scope && is_comptime_evaluable(context, &const_folded)? {
-                const_folded = eval_comptime(context, &const_folded)?;
+            if is_comptime_evaluable(context, &const_folded)? {
+                // Try to evaluate at compile time. If it fails (e.g., function body
+                // references symbols not available during precomp), silently skip
+                // and leave the call for runtime evaluation.
+                match eval_comptime(context, &const_folded) {
+                    Ok(folded) => const_folded = folded,
+                    Err(_) => {} // Not foldable at this point, leave for runtime
+                }
             }
             return Ok(const_folded);
         },
@@ -782,7 +787,14 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> Result<bool, String> {
                     // Could be a struct constructor - check if all args are comptime
                     let combined_name = crate::rs::parser::get_combined_name(&context.path, e.params.first().unwrap()).unwrap_or_default();
                     if context.scope_stack.has_struct(&combined_name) {
-                        // It's a struct constructor - check all args are comptime
+                        // Struct constructors can't be faithfully folded to AST literals
+                        // (e.g., Str() becomes a borrowed literal, not owned empty string).
+                        // Only fold at global scope where precomp_declaration handles storage.
+                        let at_global = context.scope_stack.frames.len() == 1;
+                        if !at_global {
+                            return Ok(false);
+                        }
+                        // At global scope: check all args are comptime
                         for i in 1..e.params.len() {
                             // Handle named args - check the value inside
                             let arg = e.params.get(i).unwrap();
@@ -799,7 +811,11 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> Result<bool, String> {
                     }
                     // Check if it's an enum constructor (e.g., Color.Green(true))
                     if context.scope_stack.is_enum_constructor(&combined_name) {
-                        // It's an enum constructor - check all args are comptime
+                        // Enum constructors: only fold at global scope
+                        let at_global = context.scope_stack.frames.len() == 1;
+                        if !at_global {
+                            return Ok(false);
+                        }
                         for i in 1..e.params.len() {
                             if !is_comptime_evaluable(context, e.params.get(i).unwrap())? {
                                 return Ok(false);
@@ -823,6 +839,12 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> Result<bool, String> {
             }
             // Functions that can throw are allowed - if they actually throw,
             // we'll report the error in eval_comptime.
+            // Inside function bodies: zero-arg functions likely depend on global
+            // mutable state (e.g., counters) - don't fold them.
+            let at_global = context.scope_stack.frames.len() == 1;
+            if !at_global && e.params.len() <= 1 {
+                return Ok(false); // No user args = likely stateful
+            }
             // All arguments must be comptime-evaluable
             for i in 1..e.params.len() {
                 if !is_comptime_evaluable(context, e.params.get(i).unwrap())? {
@@ -859,7 +881,9 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             Ok(Expr::new_clone(NodeType::LLiteral(Literal::Number(result.value.clone())), e, vec![]))
         },
         ValueType::TCustom(ref t) if t == "U8" => {
-            Ok(Expr::new_clone(NodeType::LLiteral(Literal::Number(result.value.clone())), e, vec![]))
+            // U8 literals can't be represented distinctly from I64 in the AST
+            // (both use Literal::Number), so skip folding to avoid type erasure.
+            Ok(e.clone())
         },
         ValueType::TCustom(ref t) if t == "Str" => {
             Ok(Expr::new_clone(NodeType::LLiteral(Literal::Str(result.value.clone())), e, vec![]))

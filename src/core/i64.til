@@ -193,7 +193,7 @@ namespace:
     }
 
     /** No-op delete for primitive type. Required for ASAP destruction. */
-    delete : proc(mut _self: I64) = {
+    delete : func(mut _self: I64) = {
     }
 
     /** Clone returns self for primitive type (value semantics). */

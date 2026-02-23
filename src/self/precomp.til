@@ -894,29 +894,34 @@ precomp_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     case NodeType.FCall(_):
         mut const_folded := precomp_fcall(context, e)?
         // Try compile-time constant folding for pure functions with literal args.
-        // Only fold at global scope - inside function definitions, values from other
-        // modules may not be available yet (import ordering). Interpreter doesn't
-        // evaluate function bodies during import either.
-        at_global_scope := context.scope_stack.frames.len().eq(1)
-
         // Check if this is a macro call - macros MUST be evaluated at compile-time
         // but only when called at global scope with comptime args (same as funcs,
         // just with an error if args aren't comptime instead of silent skip)
+        at_global_scope := context.scope_stack.frames.len().eq(1)
         is_macro_call := is_macro_fcall(context, const_folded)
-        if at_global_scope.and(is_macro_call) {
-            // Macros require all arguments to be compile-time evaluable
-            if not(is_comptime_evaluable(context, const_folded)?) {
+        if is_macro_call {
+            if is_comptime_evaluable(context, const_folded)? {
+                // Force compile-time evaluation
+                const_folded = eval_comptime(context, const_folded)?
+                return const_folded
+            }
+            // At global scope, macros MUST have comptime args - error
+            if at_global_scope {
                 f_name := get_func_name_in_call(const_folded)?
                 throw const_folded.error(context.path, "precomp",
                     format("Macro '", f_name, "' requires all arguments to be compile-time constants"))
             }
-            // Force compile-time evaluation
-            const_folded = eval_comptime(context, const_folded)?
-            return const_folded
+            // Inside function bodies, macro args may depend on params - skip for now
         }
 
-        if at_global_scope.and(is_comptime_evaluable(context, const_folded)?) {
+        if is_comptime_evaluable(context, const_folded)? {
+            // Try to evaluate at compile time. If it fails (e.g., function body
+            // references symbols not available during precomp), silently skip
+            // and leave the call for runtime evaluation.
             const_folded = eval_comptime(context, const_folded)?
+            catch (err: Str) {
+                // Not foldable at this point, leave for runtime
+            }
         }
         return const_folded
     case NodeType.If:
@@ -1040,7 +1045,14 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
             }
             // Try to look up as struct
             if context.scope_stack.has_struct(combined_name) {
-                // It's a struct constructor - check all args are comptime
+                // Struct constructors can't be faithfully folded to AST literals
+                // (e.g., Str() becomes a borrowed literal, not owned empty string).
+                // Only fold at global scope where precomp_declaration handles storage.
+                at_global := context.scope_stack.frames.len().eq(1)
+                if not(at_global) {
+                    return false
+                }
+                // At global scope: check all args are comptime
                 mut struct_j := 1
                 while struct_j.lt(e.params.len()) {
                     struct_arg := cast(Expr, e.params.get(struct_j)?)
@@ -1067,7 +1079,11 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
             }
             // Check if it's an enum constructor (e.g., Color.Green(true))
             if context.scope_stack.is_enum_constructor(combined_name) {
-                // It's an enum constructor - check all args are comptime
+                // Enum constructors: only fold at global scope
+                at_global2 := context.scope_stack.frames.len().eq(1)
+                if not(at_global2) {
+                    return false
+                }
                 mut k := 1
                 while k.lt(e.params.len()) {
                     arg := cast(Expr, e.params.get(k)?)
@@ -1097,6 +1113,12 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
         }
         // Functions that can throw are allowed - if they actually throw,
         // we'll report the error in eval_comptime.
+        // Inside function bodies: zero-arg functions likely depend on global
+        // mutable state (e.g., counters) - don't fold them.
+        at_global3 := context.scope_stack.frames.len().eq(1)
+        if not(at_global3).and(e.params.len().lteq(1)) {
+            return false  // No user args = likely stateful
+        }
         // All arguments must be comptime-evaluable
         mut fcall_i := 1
         while fcall_i.lt(e.params.len()) {
@@ -1145,7 +1167,9 @@ eval_comptime : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             return Expr.new_clone(NodeType.LLiteral(Literal.Number(result.value)), e, Vec.new(Expr))
         }
         if type_name.eq("U8") {
-            return Expr.new_clone(NodeType.LLiteral(Literal.Number(result.value)), e, Vec.new(Expr))
+            // U8 literals can't be represented distinctly from I64 in the AST
+            // (both use Literal.Number), so skip folding to avoid type erasure.
+            return e.clone()
         }
         if type_name.eq("Str") {
             return Expr.new_clone(NodeType.LLiteral(Literal.Str(result.value)), e, Vec.new(Expr))

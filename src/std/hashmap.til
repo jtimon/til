@@ -303,7 +303,7 @@ namespace:
     }
 
     /** Free map memory and reset. */
-    delete : proc(mut self: HashMap) = {
+    delete : func(mut self: HashMap) = {
         mut keys_arr := self.keys
         keys_arr.delete()
 

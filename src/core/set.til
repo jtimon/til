@@ -153,7 +153,7 @@ namespace:
     }
 
     /** Free set memory and reset */
-    delete : proc(mut self: Set) = {
+    delete : func(mut self: Set) = {
         self.elements.delete()
         self._size = 0
     }
