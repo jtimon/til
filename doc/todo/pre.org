@@ -15,6 +15,40 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #187: Integrated profiling for self-hosted compiler
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Developer experience, performance debugging
+:STATUS: Open
+:RELATED: Issue #183 (memory reduction), Bug #165 (memory leak)
+:END:
+
+*** Problem
+
+The self-hosted TIL compiler uses 5-8 GB of memory per test in interpreted mode
+and build times are measured in minutes. There is no way to know where the time
+or memory is going without external tools and guesswork. Every optimization
+attempt (Issue #183, Bug #165) involves blind changes and full rebuild cycles
+to measure impact.
+
+*** Proposed Solution
+
+Add built-in profiling to the interpreter and/or compiled output:
+- Memory: track allocations per phase (parser, init, typer, desugarer, etc.)
+- Time: measure wall-clock time per phase
+- Optionally: per-function call counts and cumulative time
+
+Output a summary at the end of a run (opt-in via flag or mode), e.g.:
+#+begin_example
+Phase          Time     Allocs   Memory
+parser         1.2s     12,340   45 MB
+init           3.4s     98,200   512 MB
+typer          2.1s     45,600   230 MB
+...
+#+end_example
+
+This would make memory/performance work targeted instead of blind.
+
 ** Issue #185: Require ~own~ keyword at call sites, improve consumed-variable errors
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
