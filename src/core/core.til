@@ -11,5 +11,3 @@ import("core.u8")
 import("core.heap_state")
 import("core.ast")
 
-Dynamic := struct {} // For dynamic arguments not checked at type checking phase
-Type := struct {} // For type name parameters (like Vec.new(T: Type))

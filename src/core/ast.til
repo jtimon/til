@@ -5,6 +5,9 @@ import("core.ptr")
 import("std.map")
 import("std.meta")          // enum_to_str (for auto-generated enum to_str methods)
 
+Dynamic := struct {} // For dynamic arguments not checked at type checking phase
+Type := struct {} // For type name parameters (like Vec.new(T: Type))
+
 // Bug #38 fix: Use a Vec to preserve variant order instead of Map
 EnumVariant := struct {
     mut name: Str = ""
