@@ -664,6 +664,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                     catch (err: KeyNotFoundError) {
                         // Method not found - fall through
                     }
+                    method_name.delete()
                 }
             }
         }
@@ -738,6 +739,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                             }
                             return Expr.new_clone(NodeType.FCall(get_fcall_info(func_expr)), func_expr, assoc_new_args)
                         }
+                        assoc_method_name.delete()
                     }
                 }
 
