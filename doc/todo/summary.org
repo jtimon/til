@@ -2,7 +2,7 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-02-23
 
-* bugs.org (11 bugs/issues)
+* bugs.org (10 bugs/issues)
 
 | #    | Issue                                                       | Status           |
 |------+-------------------------------------------------------------+------------------|
@@ -17,7 +17,6 @@
 | #113 | Self-hosted interpreter fails with "symbol 'msg' not found" | Not reproducible |
 | #99  | Eliminate all C compiler warnings and enable -Werror        | Open             |
 | #94  | gcc warnings cause bug47.til compilation failure            | Blocked by #99   |
-| #80  | ccodegen.til generates different C code than ccodegen.rs    | Active           |
 
 * features.org (13 issues)
 
@@ -54,7 +53,7 @@
 | #167 | Benchmark HashMap vs Map/OrderedMap | Open    |
 | #112 | HashMap type slower than Map in TIL | Blocked |
 
-* pre.org (12 issues)
+* pre.org (13 issues)
 
 | #    | Issue                                              | Status      |
 |------+----------------------------------------------------+-------------|
@@ -70,6 +69,7 @@
 | #115 | Owned struct fields and auto-generated methods     | Open        |
 | #100 | Get rid of rstil                                   | Blocked     |
 |  #82 | make.til - Replace Makefile with TIL               | Partial     |
+|  #80 | ccodegen.til generates different C code than ccodegen.rs | Active |
 
 * post.org (9 issues)
 
