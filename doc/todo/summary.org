@@ -13,7 +13,7 @@
 | #99  | Eliminate all C compiler warnings and enable -Werror        | Open             |
 | #94  | gcc warnings cause bug47.til compilation failure            | Blocked by #99   |
 
-* features.org (13 issues)
+* features.org (12 issues)
 
 | #    | Issue                                            | Status      |
 |------+--------------------------------------------------+-------------|
@@ -25,7 +25,6 @@
 | #153 | Enable field/method access on Dynamic parameters | Open        |
 | #151 | Explicit pointer/reference syntax                | Open        |
 | #111 | Support returns Dynamic                          | Open        |
-| #106 | First-Class Enums                                | Partial (anon inline done) |
 |  #91 | First-Class Functions                            | In progress |
 |  #88 | Macro Support (Compile-Time Evaluation)          | Partial     |
 |  #83 | No spread/splat operator for variadic forwarding | Open        |

@@ -4813,6 +4813,28 @@ template-like patterns where macros generate typed structs at compile time.
 - [X] Step 4d: Explicit metatype annotations (~Point : StructDef = struct { ... }~)
 - [X] All changes ported to both Rust and TIL, all 93 tests pass
 
+** Issue #106: First-Class Enums
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPLEMENTED: 2026-02-23
+:IMPACT: Language feature, anonymous data structures, templates
+:STATUS: Implemented
+:RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs)
+:END:
+
+Allow macros to return enum definitions via ~returns enum~. Enables
+template-like patterns where macros generate typed enums at compile time.
+
+- [X] Parser: ~enum~ as return type keyword in func/proc returns
+- [X] Init: defer enum registration for macro FCall RHS to precomp
+- [X] Precomp: ~expand_struct_macros()~ handles enum macros (name substitution, type substitution)
+- [X] Macro namespace support: ~namespace:~ inside macro-returned enums
+- [X] ~src/std/typed_option.til~: ~make_option(T)~ macro -- real generics for enums
+- [X] ~enum_def_of(type_name)~ runtime introspection via ext functions
+- [X] Anonymous enum expressions: ~some_macro(enum { A, B })~
+- [X] Explicit metatype annotations (~Color : EnumDef = enum { ... }~)
+- [X] All changes ported to both Rust and TIL, all 94 tests pass
+
 ** Issue #107: First-Class Namespaces (CANCELLED)
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
