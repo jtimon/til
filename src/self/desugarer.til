@@ -77,11 +77,15 @@ make_field_access : func(name: Str, fields: Vec, line: I64, col: I64) returns Ex
 
 /// Generate a unique temp variable name with optional function prefix
 make_temp_name : func(prefix: Str, func_name: Str, id: I64) returns Str = {
+    mut id_str := I64.to_str(id)
+    mut result := ""
     if func_name.len().gt(0) {
-        return format(prefix, "_", func_name, "_", I64.to_str(id))
+        result = format(prefix, "_", func_name, "_", id_str)
     } else {
-        return format(prefix, "_", I64.to_str(id))
+        result = format(prefix, "_", id_str)
     }
+    id_str.delete()
+    return result
 }
 
 /// Build: eq(var_name, enum_to_str(case_pattern))
@@ -543,11 +547,15 @@ build_case_condition : proc(
             // Include switch_id for global uniqueness across multiple switches
             original_name := pattern_info.binding_var
             mut unique_name := ""
+            mut sid_str := I64.to_str(switch_id)
+            mut cidx_str := I64.to_str(case_index)
             if func_name.len().gt(0) {
-                unique_name = format("_payload_", original_name, "_", func_name, "_", I64.to_str(switch_id), "_", I64.to_str(case_index))
+                unique_name = format("_payload_", original_name, "_", func_name, "_", sid_str, "_", cidx_str)
             } else {
-                unique_name = format("_payload_", original_name, "_", I64.to_str(switch_id), "_", I64.to_str(case_index))
+                unique_name = format("_payload_", original_name, "_", sid_str, "_", cidx_str)
             }
+            sid_str.delete()
+            cidx_str.delete()
 
             // Read the payload type
             mut vt := ValueType.TCustom("")
@@ -698,11 +706,15 @@ build_case_condition : proc(
 
                         // Generate unique name for inner payload variable
                         mut inner_var_name := ""
+                        mut inner_sid_str := I64.to_str(switch_id)
+                        mut inner_cidx_str := I64.to_str(case_index)
                         if func_name.len().gt(0) {
-                            inner_var_name = format("_inner_payload_", inner_type_name, "_", func_name, "_", I64.to_str(switch_id), "_", I64.to_str(case_index))
+                            inner_var_name = format("_inner_payload_", inner_type_name, "_", func_name, "_", inner_sid_str, "_", inner_cidx_str)
                         } else {
-                            inner_var_name = format("_inner_payload_", inner_type_name, "_", I64.to_str(switch_id), "_", I64.to_str(case_index))
+                            inner_var_name = format("_inner_payload_", inner_type_name, "_", inner_sid_str, "_", inner_cidx_str)
                         }
+                        inner_sid_str.delete()
+                        inner_cidx_str.delete()
 
                         // Build default value for the payload type
                         nested_default_val := build_default_value(context, nested_vt, line, col)
@@ -1032,11 +1044,13 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
         // Generate unique match flag name
         mut match_flag_name := ""
+        mut mf_sid_str := I64.to_str(switch_id)
         if func_name.len().gt(0) {
-            match_flag_name = format("_switch_matched_", func_name, "_", I64.to_str(switch_id))
+            match_flag_name = format("_switch_matched_", func_name, "_", mf_sid_str)
         } else {
-            match_flag_name = format("_switch_matched_", I64.to_str(switch_id))
+            match_flag_name = format("_switch_matched_", mf_sid_str)
         }
+        mf_sid_str.delete()
 
         // Declare match flag: mut _switch_matched := false
         stmts.push(make_decl(match_flag_name, ValueType.TCustom("Bool"), true, make_id("false", line, col), line, col))
@@ -1378,11 +1392,13 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
     forin_id := context.precomp_forin_counter
     context.precomp_forin_counter.inc()
     mut index_var_name := ""
+    mut forin_id_str := I64.to_str(forin_id)
     if context.current_precomp_func.len().gt(0) {
-        index_var_name = format("_for_i_", context.current_precomp_func, "_", I64.to_str(forin_id))
+        index_var_name = format("_for_i_", context.current_precomp_func, "_", forin_id_str)
     } else {
-        index_var_name = format("_for_i_", I64.to_str(forin_id))
+        index_var_name = format("_for_i_", forin_id_str)
     }
+    forin_id_str.delete()
     index_decl_expr := make_decl(index_var_name, str_to_value_type("I64"), true, make_num("0", e.line, e.col), e.line, e.col)
 
     // Build len(collection) - already desugared form
@@ -1398,7 +1414,9 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
 
     // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
     // Bug #97: Use unique name to avoid shadowing loop variable if it's also named "err"
-    catch_err_var := format("_err_forin_", I64.to_str(forin_id))
+    mut forin_id_str2 := I64.to_str(forin_id)
+    catch_err_var := format("_err_forin_", forin_id_str2)
+    forin_id_str2.delete()
 
     // Build _err_forin_N.msg (identifier with field access)
     mut msg_fields := Vec.new(Str)
