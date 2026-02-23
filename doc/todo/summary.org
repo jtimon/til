@@ -1,8 +1,8 @@
 #+TITLE: Open Bugs and Issues Summary
 #+AUTHOR: TIL Development
-#+DATE: 2026-02-20
+#+DATE: 2026-02-23
 
-* bugs.org (12 bugs/issues)
+* bugs.org (11 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                      |
 |-----+------------------------------------------------------------------+-----------------------------|
@@ -38,10 +38,11 @@
 |  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (8 issues)
+* pre.org (9 issues)
 
 | #   | Issue                                              | Category     |
 |-----+----------------------------------------------------+--------------|
+| 179 | Typer should reject cast() in non-declaration pos  | Type checker |
 | 175 | Unify C calling convention -- all return via _ret  | Codegen      |
 | 168 | ccodegen returns create copies interpreter doesn't | Memory mgmt  |
 | 161 | Namespace constants, static mutables, immutables   | Language     |

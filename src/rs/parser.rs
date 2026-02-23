@@ -1570,8 +1570,8 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     if range_expr.node_type != NodeType::Range {
         return Err(ident_token.error(&lexer.path, "Expected range expression (start..end) after 'in'. For collection iteration, use 'for VAR: TYPE in COLLECTION'"));
     }
-    let start_expr = range_expr.get(0)?.clone();
-    let end_expr = range_expr.get(1)?.clone();
+    let start_expr = range_expr.params.get(0).unwrap().clone();
+    let end_expr = range_expr.params.get(1).unwrap().clone();
 
     lexer.expect(TokenType::LeftBrace)?;
     let body_expr = parse_body(lexer, TokenType::RightBrace)?;
@@ -1588,7 +1588,7 @@ fn get_full_identifier_name(expr: &Expr) -> Result<String, String> {
             // Check if this is a dotted name: Identifier with params
             // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
             if expr.params.len() == 1 {
-                match &expr.get(0)?.node_type {
+                match &expr.params.get(0).unwrap().node_type {
                     NodeType::Identifier(param_name) => {
                         return Ok(format!("{}.{}", name, param_name));
                     },
@@ -1599,7 +1599,7 @@ fn get_full_identifier_name(expr: &Expr) -> Result<String, String> {
         }
         NodeType::FCall(_) if expr.params.len() >= 1 => {
             // For FCall, try to extract the function name
-            get_full_identifier_name(expr.get(0)?)
+            get_full_identifier_name(expr.params.get(0).unwrap())
         }
         _ => Ok(String::new()),
     }
@@ -1623,10 +1623,10 @@ fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
         // represented as an FCall itself (for the dot access)
 
         // Get the full variant name (handling dotted names)
-        let p0 = left.get(0)?;
+        let p0 = left.params.get(0).unwrap();
         let variant_name = get_full_identifier_name(p0)?;
 
-        let p1 = left.get(1)?;
+        let p1 = left.params.get(1).unwrap();
         match &p1.node_type {
             NodeType::Identifier(binding_var) => {
                 // Only treat as a binding variable if it's a simple identifier

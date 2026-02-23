@@ -195,14 +195,14 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             }
 
             // Range operands are used
-            errors.extend(check_types_with_context(context, e.get(0)?, ExprContext::ValueUsed)?);
-            errors.extend(check_types_with_context(context, e.get(1)?, ExprContext::ValueUsed)?);
+            errors.extend(check_types_with_context(context, e.params.get(0).unwrap(), ExprContext::ValueUsed)?);
+            errors.extend(check_types_with_context(context, e.params.get(1).unwrap(), ExprContext::ValueUsed)?);
 
-            let left_type = get_value_type(context, e.get(0)?);
+            let left_type = get_value_type(context, e.params.get(0).unwrap());
             if let Err(err) = &left_type {
                 errors.push(err.clone());
             }
-            let right_type = get_value_type(context, e.get(1)?);
+            let right_type = get_value_type(context, e.params.get(1).unwrap());
             if let Err(err) = &right_type {
                 errors.push(err.clone());
             }
@@ -219,7 +219,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             let f_name = get_func_name_in_call(&e);
             if f_name == "import" {
                 // Get the import path from the argument
-                if let Ok(path_expr) = e.get(1) {
+                if let Some(path_expr) = e.params.get(1) {
                     if let NodeType::LLiteral(Literal::Str(import_path)) = &path_expr.node_type {
                         errors.extend(typer_import_declarations(context, import_path));
                     }
@@ -229,7 +229,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             // Variable declaration handled by the Declaration node, not here
             if f_name == "cast" {
                 if e.params.len() >= 3 {
-                    if let NodeType::Identifier(type_name) = &e.get(1)?.node_type {
+                    if let NodeType::Identifier(type_name) = &e.params.get(1).unwrap().node_type {
                         // Validate type exists
                         let type_valid = matches!(type_name.as_str(), "I64" | "U8" | "Bool" | "Str")
                             || context.scope_stack.lookup_struct(type_name).is_some()
@@ -239,7 +239,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                         }
                     }
                     // Type-check the ptr expression (params[2])
-                    errors.extend(check_types_with_context(context, e.get(2)?, ExprContext::ValueUsed)?);
+                    errors.extend(check_types_with_context(context, e.params.get(2).unwrap(), ExprContext::ValueUsed)?);
                 }
             } else {
                 errors.extend(check_fcall(context, &e, *does_throw)?);
@@ -258,7 +258,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             if name == "_" && !e.params.is_empty() {
                 // Only check the base expression (params[0])
                 // params[1..] are field identifiers that don't need symbol lookup
-                errors.extend(check_types_with_context(context, e.get(0)?, ExprContext::ValueUsed)?);
+                errors.extend(check_types_with_context(context, e.params.get(0).unwrap(), ExprContext::ValueUsed)?);
             } else if !(context.scope_stack.has_func(name) || context.scope_stack.has_symbol(name)) {
                 errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", name)));
             } else if context.scope_stack.is_closure_capture(name) {
@@ -365,10 +365,10 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>, St
         return Ok(errors);
     }
 
-    let inner_e = match e.get(0) {
-        Ok(inner_e_) => inner_e_,
-        Err(error_str) => {
-            errors.push(error_str);
+    let inner_e = match e.params.get(0) {
+        Some(inner_e_) => inner_e_,
+        None => {
+            errors.push(e.error(&context.path, "type", "if statement missing condition"));
             return Ok(errors)
         },
     };
@@ -384,7 +384,7 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>, St
         },
     };
     // Type check condition
-    errors.extend(check_types_with_context(context, e.get(0)?, ExprContext::ValueUsed)?);
+    errors.extend(check_types_with_context(context, e.params.get(0).unwrap(), ExprContext::ValueUsed)?);
 
     // Issue #117: Type check then/else bodies with own-consumption isolation.
     // Uses lazy removal tracking instead of full symbol map cloning.
@@ -393,7 +393,7 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>, St
     let branch_count = e.params.len() - 1;
     for i in 1..e.params.len() {
         let mark = context.scope_stack.removal_mark();
-        errors.extend(check_types_with_context(context, e.get(i)?, ExprContext::ValueDiscarded)?);
+        errors.extend(check_types_with_context(context, e.params.get(i).unwrap(), ExprContext::ValueDiscarded)?);
         let removed = context.scope_stack.drain_removals_since(mark);
         context.scope_stack.restore_removed(&removed);
         consumed_per_branch.push(removed);
@@ -421,10 +421,10 @@ fn check_while_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>,
         return Ok(errors);
     }
 
-    let inner_e = match e.get(0) {
-        Ok(inner_e_) => inner_e_,
-        Err(error_str) => {
-            errors.push(error_str);
+    let inner_e = match e.params.get(0) {
+        Some(inner_e_) => inner_e_,
+        None => {
+            errors.push(e.error(&context.path, "type", "while statement missing condition"));
             return Ok(errors)
         },
     };
@@ -580,7 +580,7 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
                     .map(|s| s.members.iter().map(|m| (m.name.clone(), m.value_type.clone())).collect());
 
                 for struct_arg_idx in 1..e.params.len() {
-                    if let Ok(struct_arg) = e.get(struct_arg_idx) {
+                    if let Some(struct_arg) = e.params.get(struct_arg_idx) {
                         if let NodeType::NamedArg(field_name) = &struct_arg.node_type {
                             if let Some(ref members) = struct_members {
                                 let field_info = members.iter().find(|(n, _)| n == field_name);
@@ -651,10 +651,9 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
     let max_arg_def = func_def.sig.args.len();
     let mut def_arg_idx: usize = 0;  // Bug #61: Track definition arg separately from provided arg
     for fcall_arg_idx in 0..e.params.len() - 1 {
-        let arg_expr = match e.get(fcall_arg_idx + 1) {
-            Ok(expr) => expr,
-            Err(err) => {
-                errors.push(err);
+        let arg_expr = match e.params.get(fcall_arg_idx + 1) {
+            Some(expr) => expr,
+            None => {
                 return Ok(errors);
             }
         };
@@ -1215,7 +1214,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                 if p.params.len() != 1 {
                     errors.push(p.error(&context.path, "type", "Throw statement must have exactly one parameter."));
                 } else {
-                    let throw_param = p.get(0)?;
+                    let throw_param = p.params.get(0).unwrap();
                     // Recursively check this throw expression for throws (just in case, although users should avoid this)
                     // TODO fix this, not a priority
                     // errors.extend(
@@ -1243,9 +1242,9 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                 if p.params.len() != 3 {
                     errors.push(p.error(&context.path, "type", "Catch must have 3 parameters: variable, type, and body."));
                 } else {
-                    let var_name_expr = p.get(0)?;
-                    let err_type_expr = p.get(1)?;
-                    let catch_body_expr = p.get(2)?;
+                    let var_name_expr = p.params.get(0).unwrap();
+                    let err_type_expr = p.params.get(1).unwrap();
+                    let catch_body_expr = p.params.get(2).unwrap();
 
                     let var_name = match &var_name_expr.node_type {
                         NodeType::Identifier(name) => name.clone(),
@@ -1510,8 +1509,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
 
                 let mut si = 1;
                 while si + 1 < p.params.len() {
-                    let switch_case_expr = p.get(si)?;
-                    let switch_body_expr = p.get(si + 1)?;
+                    let switch_case_expr = p.params.get(si).unwrap();
+                    let switch_body_expr = p.params.get(si + 1).unwrap();
 
                     // Check case expression
                     errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(switch_case_expr), &mut switch_thrown_types, return_found)?);
@@ -1580,13 +1579,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                     }
 
                     if let NodeType::FCall(_) = initializer.node_type {
-                        let id_expr_opt = match initializer.get(0) {
-                            Ok(id_expr_) => Some(id_expr_),
-                            Err(err) => {
-                                errors.push(err);
-                                None
-                            },
-                        };
+                        let id_expr_opt = initializer.params.get(0);
 
                         let mut is_constructor = false;
                         if let Some(id_expr) = id_expr_opt {
@@ -1651,13 +1644,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                 if let Some(assign_initializer) = p.params.get(0) {
                     if let NodeType::FCall(_) = assign_initializer.node_type {
 
-                        let assign_id_expr_opt = match assign_initializer.get(0) {
-                            Ok(id_expr_) => Some(id_expr_),
-                            Err(err) => {
-                                errors.push(err);
-                                None
-                            },
-                        };
+                        let assign_id_expr_opt = assign_initializer.params.get(0);
 
                         let mut assign_is_constructor = false;
                         if let Some(assign_id_expr) = assign_id_expr_opt {
@@ -1735,9 +1722,9 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>,
         return Ok(errors)
     }
 
-    let err_var_expr = e.get(0)?;
-    let err_type_expr = e.get(1)?;
-    let body_expr = e.get(2)?;
+    let err_var_expr = e.params.get(0).unwrap();
+    let err_type_expr = e.params.get(1).unwrap();
+    let body_expr = e.params.get(2).unwrap();
 
     let var_name = match &err_var_expr.node_type {
         NodeType::Identifier(name) => name.clone(),
@@ -1806,10 +1793,10 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Res
     }
 
 
-    let inner_e = match e.get(0) {
-        Ok(inner_e_) => inner_e_,
-        Err(error_str) => {
-            errors.push(error_str);
+    let inner_e = match e.params.get(0) {
+        Some(inner_e_) => inner_e_,
+        None => {
+            errors.push(e.error(&context.path, "type", "declaration missing initializer"));
             return Ok(errors)
         },
     };
@@ -2011,9 +1998,9 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Result<V
     }
 
     // The RHS of an assignment is being used (assigned to the variable)
-    match e.get(0) {
-        Ok(inner_e) => errors.extend(check_types_with_context(context, inner_e, ExprContext::ValueUsed)?),
-        Err(err) => errors.push(err),
+    match e.params.get(0) {
+        Some(inner_e) => errors.extend(check_types_with_context(context, inner_e, ExprContext::ValueUsed)?),
+        None => errors.push(e.error(&context.path, "type", "assignment missing value")),
     }
     return Ok(errors);
 }
@@ -2021,8 +2008,8 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Result<V
 fn check_switch_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>, String> {
     let mut errors: Vec<String> = Vec::new();
 
-    let switch_expr_type = match e.get(0) {
-        Ok(expr) => {
+    let switch_expr_type = match e.params.get(0) {
+        Some(expr) => {
             // Bug #101: Check the switch expression to mark variables as used
             errors.extend(check_types_with_context(context, expr, ExprContext::ValueUsed)?);
             match get_value_type(context, expr) {
@@ -2033,8 +2020,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>
                 }
             }
         },
-        Err(err) => {
-            errors.push(err);
+        None => {
             return Ok(errors);
         }
     };
@@ -2047,7 +2033,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>
 
     let mut i = 1;
     while i < e.params.len() {
-        let case_expr = e.get(i)?;
+        let case_expr = e.params.get(i).unwrap();
 
         match &case_expr.node_type {
             NodeType::DefaultCase => {
@@ -2090,7 +2076,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>
             return Ok(errors)
         }
 
-        let body_expr = e.get(i)?;
+        let body_expr = e.params.get(i).unwrap();
 
         // Issue #117: Mark before each case body so removals can be restored
         let case_mark = context.scope_stack.removal_mark();
@@ -2168,7 +2154,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>
 
             let mut j = 1;
             while j < e.params.len() {
-                let exh_case_expr = e.get(j)?;
+                let exh_case_expr = e.params.get(j).unwrap();
                 match &exh_case_expr.node_type {
                     NodeType::Pattern(PatternInfo { variant_name: exh_variant_name, .. }) => {
                         // Pattern matching: case EnumType.Variant(binding)
@@ -2191,7 +2177,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Result<Vec<String>
                             matched_variants.push(exh_name.clone());
                         } else {
                             // case ExampleEnum.A
-                            let exh_variant_expr = exh_case_expr.get(0)?;
+                            let exh_variant_expr = exh_case_expr.params.get(0).unwrap();
                             if let NodeType::Identifier(variant) = &exh_variant_expr.node_type {
                                 if exh_name != &enum_name {
                                     errors.push(exh_case_expr.error(&context.path, "type", &format!("Mismatched enum type '{}', expected '{}'.", exh_name, enum_name)));
@@ -2468,19 +2454,19 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
             // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
             // This only applies when no standalone function with this name exists (checked above).
             if fcall_expr.params.len() >= 2 {
-                let first_arg = fcall_expr.get(1)?;
+                let first_arg = fcall_expr.params.get(1).unwrap();
                 if let Ok(target_type) = get_value_type(context, first_arg) {
                     if let ValueType::TCustom(custom_type_name) = target_type {
                         let method_name = format!("{}.{}", custom_type_name, combined_name);
                         if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
                             // Transform: func(target, args...) -> Type.func(target, args...)
-                            let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), fcall_expr.get(0)?, Vec::new());
+                            let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), fcall_expr.params.get(0).unwrap(), Vec::new());
                             let mut new_args = Vec::new();
                             new_args.push(new_e);
                             new_args.extend(fcall_expr.params[1..].to_vec());
                             // Issue #132: Preserve does_throw flag from original FCall
                             let does_throw = matches!(fcall_expr.node_type, NodeType::FCall(true));
-                            *fcall_expr = Expr::new_clone(NodeType::FCall(does_throw), fcall_expr.get(0)?, new_args);
+                            *fcall_expr = Expr::new_clone(NodeType::FCall(does_throw), fcall_expr.params.get(0).unwrap(), new_args);
                             return Ok(Some(func_def.clone()));
                         }
                     }
@@ -2503,7 +2489,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                     // Regular functions used with UFCS
                     if let Some(ufcs_func_def) = context.scope_stack.lookup_func(&ufcs_func_name.to_string()) {
 
-                        let ufcs_new_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), fcall_expr.get(0)?, Vec::new());
+                        let ufcs_new_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), fcall_expr.params.get(0).unwrap(), Vec::new());
                         let mut ufcs_new_args = Vec::new();
                         ufcs_new_args.push(ufcs_new_e);
                         ufcs_new_args.push(extra_arg_e);
@@ -2511,7 +2497,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
 
                         // Issue #132: Preserve does_throw flag from original FCall
                         let does_throw = matches!(fcall_expr.node_type, NodeType::FCall(true));
-                        *fcall_expr = Expr::new_clone(NodeType::FCall(does_throw), fcall_expr.get(0)?, ufcs_new_args);
+                        *fcall_expr = Expr::new_clone(NodeType::FCall(does_throw), fcall_expr.params.get(0).unwrap(), ufcs_new_args);
                         return Ok(Some(ufcs_func_def.clone()))
                     }
 
@@ -2525,7 +2511,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                                 let id_expr_name = format!("{}.{}", custom_type_name, ufcs_func_name);
                                 if let Some(assoc_func_def) = context.scope_stack.lookup_func(&id_expr_name) {
 
-                                    let assoc_new_e = Expr::new_clone(NodeType::Identifier(id_expr_name.clone()), fcall_expr.get(0)?, Vec::new());
+                                    let assoc_new_e = Expr::new_clone(NodeType::Identifier(id_expr_name.clone()), fcall_expr.params.get(0).unwrap(), Vec::new());
                                     let mut assoc_new_args = Vec::new();
                                     assoc_new_args.push(assoc_new_e);
                                     assoc_new_args.push(extra_arg_e);
@@ -2533,7 +2519,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
 
                                     // Issue #132: Preserve does_throw flag from original FCall
                                     let does_throw = matches!(fcall_expr.node_type, NodeType::FCall(true));
-                                    *fcall_expr = Expr::new_clone(NodeType::FCall(does_throw), fcall_expr.get(0)?, assoc_new_args);
+                                    *fcall_expr = Expr::new_clone(NodeType::FCall(does_throw), fcall_expr.params.get(0).unwrap(), assoc_new_args);
                                     return Ok(Some(assoc_func_def.clone()))
                                 }
                             },
@@ -2597,7 +2583,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> Result<bool, String> {
         NodeType::NamedArg(_) => {
             // Named args should be handled in FCall - check the value expr
             if !e.params.is_empty() {
-                return is_expr_calling_procs(context, e.get(0)?)
+                return is_expr_calling_procs(context, e.params.get(0).unwrap())
             }
             return Ok(false)
         },
@@ -2624,7 +2610,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> Result<bool, String> {
             // Also check if any of the arguments call procs
             // Skip the first param which is the function name itself
             for i in 1..e.params.len() {
-                if is_expr_calling_procs(context, e.get(i)?)? {
+                if is_expr_calling_procs(context, e.params.get(i).unwrap())? {
                     return Ok(true)
                 }
             }
@@ -2965,7 +2951,7 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
             // Process case/body pairs (params[1..] are case, body, case, body, ...)
             let mut i = 1;
             while i < e.params.len() {
-                let case_expr = e.get(i)?;
+                let case_expr = e.params.get(i).unwrap();
                 new_params.push(resolve_inferred_types(context, case_expr)?);
                 i += 1;
 
@@ -2973,7 +2959,7 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                     break;
                 }
 
-                let body_expr = e.get(i)?;
+                let body_expr = e.params.get(i).unwrap();
 
                 // For pattern matching, add binding variable to scope
                 if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case_expr.node_type {
@@ -3024,9 +3010,9 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 return Err(e.lang_error(&context.path, "resolve_types", "Catch node must have three parameters: variable, type, and body."));
             }
 
-            let err_var_expr = e.get(0)?;
-            let err_type_expr = e.get(1)?;
-            let body_expr = e.get(2)?;
+            let err_var_expr = e.params.get(0).unwrap();
+            let err_type_expr = e.params.get(1).unwrap();
+            let body_expr = e.params.get(2).unwrap();
 
             let var_name = match &err_var_expr.node_type {
                 NodeType::Identifier(name) => name.clone(),

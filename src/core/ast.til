@@ -413,17 +413,6 @@ namespace:
         return size_of(Expr)
     }
 
-    get : func(self: Expr, i: I64) returns Expr throws Str = {
-        if i.lt(self.params.len()) {
-            result := cast(Expr, self.params.get(i)?)
-            return result
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        throw self.lang_error("<internal>", "assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
-    }
-
     clone : func(self: Expr) returns Expr = {
         // Deep clone: clone node_type and each element in params
         mut cloned_params := Vec.new(Expr)

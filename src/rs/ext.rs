@@ -60,7 +60,7 @@ pub fn validate_arg_count(path: &str, e: &Expr, func_name: &str, expected: usize
 pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "malloc", 1, false)?;
 
-    let size_str = eval_or_throw!(context, e.get(1)?);
+    let size_str = eval_or_throw!(context, e.params.get(1).unwrap());
     let size = size_str.parse::<usize>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("Invalid size for 'malloc': {}", err))
     })?;
@@ -75,7 +75,7 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "free", 1, false)?;
 
-    let ptr_str = eval_or_throw!(context, e.get(1)?);
+    let ptr_str = eval_or_throw!(context, e.params.get(1).unwrap());
     // Issue #163: Actually free heap-allocated memory
     if let Ok(ptr) = ptr_str.parse::<usize>() {
         EvalHeap::g().heap_free(ptr);
@@ -87,9 +87,9 @@ pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
 pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "memset", 3, false)?;
 
-    let dest_str = eval_or_throw!(context, e.get(1)?);
-    let value_str = eval_or_throw!(context, e.get(2)?);
-    let size_str = eval_or_throw!(context, e.get(3)?);
+    let dest_str = eval_or_throw!(context, e.params.get(1).unwrap());
+    let value_str = eval_or_throw!(context, e.params.get(2).unwrap());
+    let size_str = eval_or_throw!(context, e.params.get(3).unwrap());
 
     let dest = match dest_str.trim().parse::<i64>() {
         Ok(v) => v as usize,
@@ -116,15 +116,15 @@ pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "memcpy", 3, false)?;
 
-    let dest_result = eval_expr(context, e.get(1)?)?;
+    let dest_result = eval_expr(context, e.params.get(1).unwrap())?;
     if dest_result.is_throw {
         return Ok(dest_result); // Propagate throw
     }
-    let src_result = eval_expr(context, e.get(2)?)?;
+    let src_result = eval_expr(context, e.params.get(2).unwrap())?;
     if src_result.is_throw {
         return Ok(src_result); // Propagate throw
     }
-    let size_result = eval_expr(context, e.get(3)?)?;
+    let size_result = eval_expr(context, e.params.get(3).unwrap())?;
     if size_result.is_throw {
         return Ok(size_result); // Propagate throw
     }
@@ -159,7 +159,7 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "to_ptr", 1, false)?;
 
-    let identifier_expr = e.get(1)?;
+    let identifier_expr = e.params.get(1).unwrap();
     let combined_name = get_combined_name(&context.path, identifier_expr)?;
     match context.scope_stack.lookup_var(&combined_name) {
         Some(addr) => Ok(EvalResult::new(&format!("{}", addr))),
@@ -170,7 +170,7 @@ pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "size_of", 1, false)?;
 
-    let type_expr = e.get(1)?;
+    let type_expr = e.params.get(1).unwrap();
     match &type_expr.node_type {
         NodeType::Identifier(type_name) => {
             // Check if this identifier is a string variable (Dynamic parameter storing a type name)
@@ -205,7 +205,7 @@ pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
 pub fn func_type_as_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "type_as_str", 1, false)?;
 
-    let type_expr = e.get(1)?;
+    let type_expr = e.params.get(1).unwrap();
     match &type_expr.node_type {
         NodeType::Identifier(type_name) => {
             // Check if this identifier is a string variable (Dynamic parameter storing a type name)
@@ -236,11 +236,11 @@ pub fn func_type_as_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
 
 pub fn func_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "lt", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result); // Propagate throw
     }
@@ -253,11 +253,11 @@ pub fn func_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
 pub fn func_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "gt", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result); // Propagate throw
     }
@@ -270,11 +270,11 @@ pub fn func_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
 pub fn func_u8_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "u8_lt", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result); // Propagate throw
     }
@@ -287,11 +287,11 @@ pub fn func_u8_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String>
 
 pub fn func_u8_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "u8_gt", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result); // Propagate throw
     }
@@ -304,11 +304,11 @@ pub fn func_u8_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String>
 
 pub fn func_u8_xor(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "u8_xor", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -321,11 +321,11 @@ pub fn func_u8_xor(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
 pub fn func_u8_and(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "u8_and", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -338,11 +338,11 @@ pub fn func_u8_and(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
 pub fn func_u8_or(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "u8_or", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -355,11 +355,11 @@ pub fn func_u8_or(context: &mut Context, e: &Expr) -> Result<EvalResult, String>
 
 pub fn func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "add", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result); // Propagate throw
     }
@@ -372,11 +372,11 @@ pub fn func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
 pub fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "sub", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result); // Propagate throw
     }
@@ -389,11 +389,11 @@ pub fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
 pub fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "mul", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result); // Propagate throw
     }
@@ -406,11 +406,11 @@ pub fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
 pub fn func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "div", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result); // Propagate throw
     }
@@ -427,11 +427,11 @@ pub fn func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
 pub fn func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "mod", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result); // Propagate throw
     }
@@ -449,11 +449,11 @@ pub fn func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 // Bitwise operations - don't really belong in arithmetics, but here for now
 pub fn func_i64_xor(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "I64_xor", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -466,11 +466,11 @@ pub fn func_i64_xor(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
 
 pub fn func_i64_and(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "I64_and", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -483,11 +483,11 @@ pub fn func_i64_and(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
 
 pub fn func_i64_or(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "I64_or", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -500,7 +500,7 @@ pub fn func_i64_or(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
 pub fn func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "str_to_i64", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result); // Propagate throw
     }
@@ -512,7 +512,7 @@ pub fn func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, St
 
 pub fn func_i64_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "i64_to_str", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result); // Propagate throw
     }
@@ -522,7 +522,7 @@ pub fn func_i64_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, St
 
 pub fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "enum_to_str", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result); // Propagate throw
     }
@@ -532,12 +532,12 @@ pub fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
 
 pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "enum_get_payload", 3, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result);
     }
     // Get payload type from second argument
-    let type_arg = e.get(2)?;
+    let type_arg = e.params.get(2).unwrap();
     let type_name = if let NodeType::Identifier(name) = &type_arg.node_type {
         name.clone()
     } else {
@@ -550,7 +550,7 @@ pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResu
     // After eval_expr, context.temp_enum_payload should contain the payload data
     if let Some(payload) = &context.temp_enum_payload {
         let payload_bytes = &payload.data;
-        let out_arg = e.get(3)?;
+        let out_arg = e.params.get(3).unwrap();
         if let NodeType::Identifier(out_name) = &out_arg.node_type {
             // For enum payloads, the actual bytes may be less than max type size
             // (e.g., Option.None is just 8 bytes tag, Option.Some(x) is 8 + payload)
@@ -592,12 +592,12 @@ pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResu
 /// In interpreter, we just use temp_enum_payload. The extra args are for ccodegen.
 pub fn func_enum_get_payload_type(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "enum_get_payload_type", 3, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result);
     }
     // Get payload type from third argument (for validation)
-    let type_arg = e.get(3)?;
+    let type_arg = e.params.get(3).unwrap();
     let expected_type_name = if let NodeType::Identifier(name) = &type_arg.node_type {
         name.clone()
     } else {
@@ -633,7 +633,7 @@ pub fn func_enum_get_payload_type(context: &mut Context, e: &Expr) -> Result<Eva
 
 pub fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "u8_to_i64", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result); // Propagate throw
     }
@@ -645,7 +645,7 @@ pub fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 
 pub fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "i64_to_u8", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result); // Propagate throw
     }
@@ -655,11 +655,11 @@ pub fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 
 pub fn func_u8_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "U8_add", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -674,11 +674,11 @@ pub fn func_u8_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
 pub fn func_u8_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "U8_sub", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -693,11 +693,11 @@ pub fn func_u8_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
 pub fn func_u8_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "U8_mul", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -712,11 +712,11 @@ pub fn func_u8_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
 pub fn func_u8_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "U8_div", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -731,11 +731,11 @@ pub fn func_u8_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
 pub fn func_u8_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "U8_mod", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
+    let a_result = eval_expr(context, e.params.get(1).unwrap())?;
     if a_result.is_throw {
         return Ok(a_result);
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
+    let b_result = eval_expr(context, e.params.get(2).unwrap())?;
     if b_result.is_throw {
         return Ok(b_result);
     }
@@ -756,7 +756,7 @@ pub fn func_u8_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 pub fn proc_single_print(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "single_print", 1, true)?;
 
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result); // Propagate throw
     }
@@ -776,7 +776,7 @@ pub fn proc_print_flush(context: &mut Context, e: &Expr) -> Result<EvalResult, S
 pub fn proc_input_read_line(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "input_read_line", 1, true)?;
 
-    let prompt_result = eval_expr(context, e.get(1)?)?;
+    let prompt_result = eval_expr(context, e.params.get(1).unwrap())?;
     if prompt_result.is_throw {
         return Ok(prompt_result);
     }
@@ -799,7 +799,7 @@ pub fn proc_input_read_line(context: &mut Context, e: &Expr) -> Result<EvalResul
 pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "readfile", 1, true)?;
 
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result); // Propagate throw
     }
@@ -820,13 +820,13 @@ pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
 pub fn proc_writefile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "writefile", 2, true)?;
 
-    let path_result = eval_expr(context, e.get(1)?)?;
+    let path_result = eval_expr(context, e.params.get(1).unwrap())?;
     if path_result.is_throw {
         return Ok(path_result);
     }
     let path = path_result.value;
 
-    let contents_result = eval_expr(context, e.get(2)?)?;
+    let contents_result = eval_expr(context, e.params.get(2).unwrap())?;
     if contents_result.is_throw {
         return Ok(contents_result);
     }
@@ -851,9 +851,9 @@ pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
     }
 
     // Get output variable name (must be identifier for mut assignment)
-    let output_var = e.get(1)?;
+    let output_var = e.params.get(1).unwrap();
 
-    let cmd_result = eval_expr(context, e.get(2)?)?;
+    let cmd_result = eval_expr(context, e.params.get(2).unwrap())?;
     if cmd_result.is_throw {
         return Ok(cmd_result);
     }
@@ -872,7 +872,7 @@ pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
 
     let mut args: Vec<String> = Vec::new();
     for i in 3..e.params.len() {
-        let arg_result = eval_expr(context, e.get(i)?)?;
+        let arg_result = eval_expr(context, e.params.get(i).unwrap())?;
         if arg_result.is_throw {
             return Ok(arg_result);
         }
@@ -926,7 +926,7 @@ impl SpawnedProcesses {
 pub fn proc_spawn_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "spawn_cmd", 1, true)?;
 
-    let cmd = eval_or_throw!(context, e.get(1)?);
+    let cmd = eval_or_throw!(context, e.params.get(1).unwrap());
 
     #[cfg(windows)]
     let child_result = Command::new("cmd").args(&["/C", &cmd]).spawn();
@@ -950,7 +950,7 @@ pub fn proc_spawn_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 pub fn proc_check_cmd_status(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "check_cmd_status", 1, true)?;
 
-    let pid_str = eval_or_throw!(context, e.get(1)?);
+    let pid_str = eval_or_throw!(context, e.params.get(1).unwrap());
     let pid = pid_str.parse::<i64>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("Invalid PID for check_cmd_status: {}", err))
     })?;
@@ -981,7 +981,7 @@ pub fn proc_check_cmd_status(context: &mut Context, e: &Expr) -> Result<EvalResu
 pub fn proc_sleep(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "sleep", 1, true)?;
 
-    let ms_str = eval_or_throw!(context, e.get(1)?);
+    let ms_str = eval_or_throw!(context, e.params.get(1).unwrap());
     let ms = ms_str.parse::<u64>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("Invalid milliseconds for sleep: {}", err))
     })?;
@@ -1005,7 +1005,7 @@ pub fn proc_get_thread_count(context: &mut Context, e: &Expr) -> Result<EvalResu
 pub fn func_file_mtime(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "file_mtime", 1, false)?;
 
-    let path = eval_or_throw!(context, e.get(1)?);
+    let path = eval_or_throw!(context, e.params.get(1).unwrap());
 
     match fs::metadata(&path) {
         Ok(metadata) => {
@@ -1025,7 +1025,7 @@ pub fn func_file_mtime(context: &mut Context, e: &Expr) -> Result<EvalResult, St
 pub fn func_list_dir_raw(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "list_dir_raw", 1, false)?;
 
-    let path = eval_or_throw!(context, e.get(1)?);
+    let path = eval_or_throw!(context, e.params.get(1).unwrap());
 
     match fs::read_dir(&path) {
         Ok(entries) => {
@@ -1044,7 +1044,7 @@ pub fn func_list_dir_raw(context: &mut Context, e: &Expr) -> Result<EvalResult, 
 pub fn func_fs_parent_dir(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "fs_parent_dir", 1, false)?;
 
-    let path = eval_or_throw!(context, e.get(1)?);
+    let path = eval_or_throw!(context, e.params.get(1).unwrap());
 
     match std::path::Path::new(&path).parent() {
         Some(parent) => Ok(EvalResult::new(parent.to_string_lossy().as_ref())),
@@ -1056,7 +1056,7 @@ pub fn func_fs_parent_dir(context: &mut Context, e: &Expr) -> Result<EvalResult,
 pub fn proc_fs_mkdir_p(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "fs_mkdir_p", 1, true)?;
 
-    let path = eval_or_throw!(context, e.get(1)?);
+    let path = eval_or_throw!(context, e.params.get(1).unwrap());
 
     match std::fs::create_dir_all(&path) {
         Ok(_) => Ok(EvalResult::new("0")),
@@ -1069,8 +1069,8 @@ pub fn proc_fs_mkdir_p(context: &mut Context, e: &Expr) -> Result<EvalResult, St
 pub fn func_has_const(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "has_const", 2, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let const_name = eval_or_throw!(context, e.get(2)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let const_name = eval_or_throw!(context, e.params.get(2).unwrap());
 
     // Check if type exists in struct_defs
     if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
@@ -1088,8 +1088,8 @@ pub fn func_has_const(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 pub fn func_has_field(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "has_field", 2, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let field_name = eval_or_throw!(context, e.get(2)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let field_name = eval_or_throw!(context, e.params.get(2).unwrap());
 
     // Check if type exists in struct_defs
     if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
@@ -1109,7 +1109,7 @@ pub fn func_has_field(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 pub fn func_struct_field_count(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "__struct_field_count", 1, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
 
     if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
         Ok(EvalResult::new(&format!("{}", struct_def.members.len())))
@@ -1123,8 +1123,8 @@ pub fn func_struct_field_count(context: &mut Context, e: &Expr) -> Result<EvalRe
 pub fn func_struct_field_name(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "__struct_field_name", 2, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let index_str = eval_or_throw!(context, e.get(2)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
     let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
         &format!("__struct_field_name: invalid index '{}'", index_str)))?;
 
@@ -1147,8 +1147,8 @@ pub fn func_struct_field_name(context: &mut Context, e: &Expr) -> Result<EvalRes
 pub fn func_struct_field_is_mut(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "__struct_field_is_mut", 2, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let index_str = eval_or_throw!(context, e.get(2)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
     let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
         &format!("__struct_field_is_mut: invalid index '{}'", index_str)))?;
 
@@ -1171,8 +1171,8 @@ pub fn func_struct_field_is_mut(context: &mut Context, e: &Expr) -> Result<EvalR
 pub fn func_struct_field_type_kind(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "__struct_field_type_kind", 2, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let index_str = eval_or_throw!(context, e.get(2)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
     let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
         &format!("__struct_field_type_kind: invalid index '{}'", index_str)))?;
 
@@ -1201,8 +1201,8 @@ pub fn func_struct_field_type_kind(context: &mut Context, e: &Expr) -> Result<Ev
 pub fn func_struct_field_type_arg(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "__struct_field_type_arg", 2, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let index_str = eval_or_throw!(context, e.get(2)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
     let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
         &format!("__struct_field_type_arg: invalid index '{}'", index_str)))?;
 
@@ -1233,7 +1233,7 @@ pub fn func_struct_field_type_arg(context: &mut Context, e: &Expr) -> Result<Eva
 pub fn func_enum_variant_count(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "__enum_variant_count", 1, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
 
     if let Some(enum_def) = context.scope_stack.lookup_enum(&type_name) {
         Ok(EvalResult::new(&format!("{}", enum_def.variants.len())))
@@ -1247,8 +1247,8 @@ pub fn func_enum_variant_count(context: &mut Context, e: &Expr) -> Result<EvalRe
 pub fn func_enum_variant_name(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "__enum_variant_name", 2, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let index_str = eval_or_throw!(context, e.get(2)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
     let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
         &format!("__enum_variant_name: invalid index '{}'", index_str)))?;
 
@@ -1271,8 +1271,8 @@ pub fn func_enum_variant_name(context: &mut Context, e: &Expr) -> Result<EvalRes
 pub fn func_enum_variant_has_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "__enum_variant_has_payload", 2, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let index_str = eval_or_throw!(context, e.get(2)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
     let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
         &format!("__enum_variant_has_payload: invalid index '{}'", index_str)))?;
 
@@ -1295,8 +1295,8 @@ pub fn func_enum_variant_has_payload(context: &mut Context, e: &Expr) -> Result<
 pub fn func_enum_variant_payload_type(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "__enum_variant_payload_type", 2, false)?;
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let index_str = eval_or_throw!(context, e.get(2)?);
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
     let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
         &format!("__enum_variant_payload_type: invalid index '{}'", index_str)))?;
 
@@ -1322,7 +1322,7 @@ pub fn func_enum_variant_payload_type(context: &mut Context, e: &Expr) -> Result
 pub fn func_exit(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "exit", 1, false)?;
 
-    let e_exit_code = e.get(1)?;
+    let e_exit_code = e.params.get(1).unwrap();
     let exit_code = match &e_exit_code.node_type {
         NodeType::LLiteral(Literal::Number(my_li64)) => my_li64.parse::<i64>()
             .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid number literal '{}': {}", *my_li64, err)))?,

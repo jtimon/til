@@ -303,7 +303,7 @@ create_default_instance : proc(mut ctx: Context, struct_type: Str, e: Expr) retu
     }
     first_mapping := cast(EvalHeapMapping, result.heap_mappings.get(0)?)
     template_offset := first_mapping.offset
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Cache the template offset
     g_heap.default_instances.set(struct_type, template_offset.clone())
@@ -338,7 +338,7 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
     case NodeType.FCall(_):
         // Issue #105: anonymous struct instantiation - struct { ... }(args)
         if e.params.len().gt(0) {
-            anon_first_param := e.get(0)?
+            anon_first_param := cast(Expr, e.params.get(0)?)
             switch anon_first_param.node_type {
             case NodeType.StructDef(anon_struct_def):
                 // Register anonymous struct type
@@ -372,29 +372,32 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
         return eval_identifier_expr(name, context, e)?
     case NodeType.If:
         _ := validate_conditional_params(context.path, e, "if", 2, 3)
-        cond_expr := e.get(0)?
+        cond_expr := cast(Expr, e.params.get(0)?)
         dont_delete(cond_expr)
         mut result_cond := eval_expr(context, cond_expr)?
         if result_cond.is_throw {
             return result_cond
         }
         if eval_condition_to_bool(context, result_cond, cond_expr)? {
-            return eval_expr(context, e.get(1)?)?
+            e1 := cast(Expr, e.params.get(1)?)
+            return eval_expr(context, e1)?
         } else if e.params.len().eq(3) {
-            return eval_expr(context, e.get(2)?)?
+            e2 := cast(Expr, e.params.get(2)?)
+            return eval_expr(context, e2)?
         } else {
             return EvalResult.new("")
         }
     case NodeType.While:
         _ := validate_conditional_params(context.path, e, "while", 2, 2)
-        mut while_cond_expr := e.get(0)?
+        mut while_cond_expr := cast(Expr, e.params.get(0)?)
         dont_delete(while_cond_expr)
         mut while_result_cond := eval_expr(context, while_cond_expr)?
         if while_result_cond.is_throw {
             return while_result_cond
         }
         while eval_condition_to_bool(context, while_result_cond, while_cond_expr)? {
-            result := eval_expr(context, e.get(1)?)?
+            while_body := cast(Expr, e.params.get(1)?)
+            result := eval_expr(context, while_body)?
             if result.is_return.or(result.is_throw) {
                 return result
             }
@@ -404,7 +407,8 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
             }
             // Continue just skips to the next iteration (re-evaluate condition)
             // No special handling needed - we just don't return
-            while_cond_expr = e.get(0)?
+            while_cond_refresh := cast(Expr, e.params.get(0)?)
+            while_cond_expr = while_cond_refresh
             while_result_cond = eval_expr(context, while_cond_expr)?
             if while_result_cond.is_throw {
                 return while_result_cond
@@ -419,7 +423,8 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
         } else if e.params.len().gt(1) {
             throw e.lang_error(context.path, "eval", "multiple return values not implemented yet")
         } else {
-            return_result := eval_expr(context, e.get(0)?)?
+            return_expr := cast(Expr, e.params.get(0)?)
+            return_result := eval_expr(context, return_expr)?
             if return_result.is_throw {
                 return return_result
             }
@@ -431,7 +436,7 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
         if not(e.params.len().eq(1)) {
             throw e.lang_error(context.path, "eval", "Throw can only return one value. This should have been caught before")
         } else {
-            param_expr := e.get(0)?
+            param_expr := cast(Expr, e.params.get(0)?)
             throw_result := eval_expr(context, param_expr)?
             if throw_result.is_throw {
                 return throw_result
@@ -472,6 +477,9 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
     return EvalResult.new("")
 }
 
@@ -489,7 +497,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
     if e.params.len().eq(0) {
         throw e.lang_error(context.path, "eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")
     }
-    func_expr := e.get(0)?
+    func_expr := cast(Expr, e.params.get(0)?)
 
     // Check if this is a struct instantiation
     mut is_struct := false
@@ -500,7 +508,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
         // is_struct stays false - struct not found
     }
     if is_struct {
-        id_expr := e.get(0)?
+        id_expr := cast(Expr, e.params.get(0)?)
         if id_expr.params.len().eq(0) {
             // Clone struct members to avoid issues
             struct_members := struct_def.members.clone()
@@ -508,7 +516,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
             // Check if this is a struct literal (has named args) or default constructor
             mut has_named_args := false
             for check_i in 1..e.params.len() {
-                check_arg := e.get(check_i)?
+                check_arg := cast(Expr, e.params.get(check_i)?)
                 dont_delete(check_arg)
                 switch check_arg.node_type {
                 case NodeType.NamedArg(_):
@@ -532,7 +540,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
 
                 // Process named arguments to override field values
                 for named_j in 1..e.params.len() {
-                    named_arg := e.get(named_j)?
+                    named_arg := cast(Expr, e.params.get(named_j)?)
                     dont_delete(named_arg)
                     mut field_name := ""
                     mut is_named_arg := false
@@ -559,7 +567,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                         }
 
                         // Evaluate the value expression
-                        named_value_expr := named_arg.get(0)?
+                        named_value_expr := cast(Expr, named_arg.params.get(0)?)
                         named_value_result := eval_expr(context, named_value_expr)?
                         if named_value_result.is_throw {
                             return named_value_result
@@ -664,7 +672,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                 }
 
                 // Evaluate the payload argument
-                payload_expr := e.get(1)?
+                payload_expr := cast(Expr, e.params.get(1)?)
                 payload_result := eval_expr(context, payload_expr)?
                 if payload_result.is_throw {
                     return payload_result
@@ -867,7 +875,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                 context.temp_enum_payload.data = heap_payload_ptr
 
                 // Return the enum variant name
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
                 catch (err: KeyNotFoundError) { throw err.msg }
                 return EvalResult.new(format(enum_type, ".", variant_name))
             }
@@ -898,23 +906,23 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
             throw e.lang_error(context.path, "eval", "Somehow function without name")
         }
         last_name := cast(Str, parts2.get(parts2.len().sub(1))?)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         return eval_core_func_proc_call(last_name, context, new_fcall_e, is_proc)?
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     catch (err: BadAlloc) { panic(loc(), "eval_func_proc_call: buy more ram") }
     return eval_user_func_proc_call(func_def, combined_name, context, new_fcall_e)?
 }
 
 eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr) returns EvalResult throws Str = {
-    inner_e := e.get(0)?
+    inner_e := cast(Expr, e.params.get(0)?)
 
     // cast(Type, ptr_expr) - create alias to data at ptr.data address
     switch inner_e.node_type {
     case NodeType.FCall(_):
         cast_f_name := get_func_name_in_call(inner_e)?
         if cast_f_name.eq("cast").and(inner_e.params.len().gteq(3)) {
-            cast_type_expr := inner_e.get(1)?
+            cast_type_expr := cast(Expr, inner_e.params.get(1)?)
             dont_delete(cast_type_expr)
             mut cast_type_name := ""
             switch cast_type_expr.node_type {
@@ -924,7 +932,8 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 throw e.lang_error(context.path, "eval", "cast: first argument must be a type name")
             }
             // Evaluate ptr_expr to get the Ptr
-            ptr_result := eval_expr(context, inner_e.get(2)?)?
+            e2 := cast(Expr, inner_e.params.get(2)?)
+            ptr_result := eval_expr(context, e2)?
             if ptr_result.is_throw { return ptr_result }
             // Look up the Ptr's heap address
             ptr_addr := context.scope_stack.lookup_var(ptr_result.value)?
@@ -1115,7 +1124,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 }
                 if is_fcall {
                     if inner_e.params.len().eq(1) {
-                        first_param := inner_e.get(0)?
+                        first_param := cast(Expr, inner_e.params.get(0)?)
                         dont_delete(first_param)
                         switch first_param.node_type {
                         case NodeType.Identifier(potentially_struct_name):
@@ -1283,7 +1292,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
     case:
         throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of unhandled type '", value_type_to_str(value_type), "'"))
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return EvalResult.new("")
 }
 
@@ -1314,7 +1323,7 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
         throw e.lang_error(context.path, "eval", format("in eval_assignment, while assigning to '", var_name, "': assignments must take exactly one value"))
     }
 
-    inner_e := e.get(0)?
+    inner_e := cast(Expr, e.params.get(0)?)
     value_type := get_value_type(context, inner_e)?
     catch (err: Str) {
         throw e.lang_error(context.path, "eval", err)
@@ -1451,7 +1460,7 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
     case:
         throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of unhandled type '", value_type_to_str(value_type), "'."))
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return EvalResult.new("")
 }
 
@@ -1486,7 +1495,7 @@ eval_identifier_expr_struct : proc(name: Str, mut context: Context, e: Expr) ret
     if e.params.len().eq(0) {
         return EvalResult.new(name)
     }
-    inner_e := e.get(0)?
+    inner_e := cast(Expr, e.params.get(0)?)
     switch inner_e.node_type {
     case NodeType.Identifier(inner_name):
         member_decl := struct_def.get_member_or_err(inner_name, name, context.path, e)?
@@ -1494,6 +1503,9 @@ eval_identifier_expr_struct : proc(name: Str, mut context: Context, e: Expr) ret
     case:
         throw e.lang_error(context.path, "eval", format("identifier '", name, "' should only have identifiers inside."))
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
     return EvalResult.new("")
 }
 
@@ -1575,7 +1587,7 @@ eval_custom_expr : proc(e: Expr, mut context: Context, name: Str, custom_type_na
         if e.params.len().eq(0) {
             throw e.lang_error(context.path, "eval", "eval_custom_expr: Expected at least one parameter")
         }
-        last_inner_e := e.get(e.params.len().sub(1))?
+        last_inner_e := cast(Expr, e.params.get(e.params.len().sub(1))?)
         dont_delete(last_inner_e)
 
         switch current_type {
@@ -1629,6 +1641,7 @@ eval_custom_expr : proc(e: Expr, mut context: Context, name: Str, custom_type_na
         throw e.lang_error(context.path, "eval", format("'", name, "' of type: '", custom_type_name, "': custom types are supposed to be struct or enum, found '", value_type_to_str(custom_symbol.value_type), "'."))
     }
     catch (err: BadAlloc) { panic(loc(), "eval_custom_expr: buy more ram") }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return EvalResult.new("")
 }
 
@@ -1639,7 +1652,7 @@ eval_identifier_expr : proc(name: Str, mut context: Context, e: Expr) returns Ev
     if name.eq("_") {
         if e.params.len().gt(0) {
             // Evaluate the base expression (params[0])
-            base_expr := e.get(0)?
+            base_expr := cast(Expr, e.params.get(0)?)
             base_result := eval_expr(context, base_expr)?
             if base_result.is_throw {
                 return base_result
@@ -1660,7 +1673,7 @@ eval_identifier_expr : proc(name: Str, mut context: Context, e: Expr) returns Ev
             // Build the full field path by traversing params[1..]
             mut current_name := result_name
             for path_i in 1..e.params.len() {
-                path_field_expr := e.get(path_i)?
+                path_field_expr := cast(Expr, e.params.get(path_i)?)
                 switch path_field_expr.node_type {
                 case NodeType.Identifier(path_field_name):
                     current_name = format(current_name, ".", path_field_name)
@@ -1676,7 +1689,7 @@ eval_identifier_expr : proc(name: Str, mut context: Context, e: Expr) returns Ev
                 // Get the struct definition to traverse the field chain
                 mut current_type := base_type_name
                 for type_i in 1..e.params.len() {
-                    type_field_expr := e.get(type_i)?
+                    type_field_expr := cast(Expr, e.params.get(type_i)?)
                     switch type_field_expr.node_type {
                     case NodeType.Identifier(type_field_name):
                         type_struct_def := context.scope_stack.lookup_struct(current_type)?
@@ -1737,7 +1750,7 @@ eval_identifier_expr : proc(name: Str, mut context: Context, e: Expr) returns Ev
         if e.params.len().eq(0) {
             return EvalResult.new(name)
         }
-        inner_e := e.get(0)?
+        inner_e := cast(Expr, e.params.get(0)?)
         switch inner_e.node_type {
         case NodeType.Identifier(inner_name):
             // TODO check that inner_name is in enum_def
@@ -1775,6 +1788,8 @@ eval_identifier_expr : proc(name: Str, mut context: Context, e: Expr) returns Ev
         throw e.todo_error(context.path, "eval", format("Can't use identifier '", name, "'. Type ", value_type_to_str(symbol_info.value_type), " not supported yet."))
     }
 
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
     return EvalResult.new("")
 }
 
@@ -1796,7 +1811,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                     // params[0]: error variable name (e.g., "err")
                     // params[1]: error type (e.g., "AllocError")
                     // params[2]: body
-                    var_expr := stmt.get(0)?
+                    var_expr := cast(Expr, stmt.params.get(0)?)
                     dont_delete(var_expr)
                     mut var_name := ""
                     switch var_expr.node_type {
@@ -1805,7 +1820,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                     case:
                         throw stmt.lang_error(context.path, "eval", "Catch variable must be an identifier")
                     }
-                    type_expr := stmt.get(1)?
+                    type_expr := cast(Expr, stmt.params.get(1)?)
                     dont_delete(type_expr)
                     mut type_name := ""
                     switch type_expr.node_type {
@@ -1914,7 +1929,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                                 }
                             }
 
-                            body_expr := stmt.get(2)?
+                            body_expr := cast(Expr, stmt.params.get(2)?)
                             dont_delete(body_expr)
                             catch_body_result := eval_body(context, body_expr.params)?
 
@@ -1970,7 +1985,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
         return pending_throw
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return EvalResult.new("")
 }
 
@@ -2027,7 +2042,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                 // Handle variadic args
                 mut values := Vec.new(Str)
                 for vi in param_index..e.params.len() {
-                    expr := e.get(vi)?
+                    expr := cast(Expr, e.params.get(vi)?)
                     dont_delete(expr)
                     arg_result := eval_expr(context, expr)?
                     if arg_result.is_throw {
@@ -2043,7 +2058,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                 params_consumed = true
 
             case ValueType.TCustom(custom_type_name):
-                current_arg := e.get(param_index)?
+                current_arg := cast(Expr, e.params.get(param_index)?)
 
                 // Issue #91: Handle function-typed parameters
                 // If parameter type is a FuncSig, the argument is a function name -
@@ -2875,7 +2890,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Frame already popped above
     catch (err: BadAlloc) { panic(loc(), "eval_user_func_proc_call: buy more ram") }
@@ -3228,10 +3243,14 @@ proc_eval_to_str : proc(mut context: Context, e: Expr) returns EvalResult throws
     validate_arg_count(context.path, e, "eval_to_str", 1, true)?
 
     path := "eval"  // Placeholder path
-    source_expr := eval_expr(context, e.get(1)?)?
+    e1 := cast(Expr, e.params.get(1)?)
+    source_expr := eval_expr(context, e1)?
     if source_expr.is_throw { return source_expr }
 
     str_source := format("mode script; ", source_expr.value)
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
     return main_interpret(false, context, path, str_source, Vec.new(Str))?
 }
 
@@ -3240,16 +3259,20 @@ proc_eval_file : proc(mut context: Context, e: Expr) returns EvalResult throws S
         throw e.lang_error(context.path, "eval", "Core proc 'eval_file' expects at least 1 parameter")
     }
 
-    result := eval_expr(context, e.get(1)?)?
+    e1 := cast(Expr, e.params.get(1)?)
+    result := eval_expr(context, e1)?
     if result.is_throw { return result }
     path := result.value
 
     mut main_args := Vec.new(Str)
     for i in 2..e.params.len() {
-        arg_result := eval_expr(context, e.get(i)?)?
+        ei := cast(Expr, e.params.get(i)?)
+        arg_result := eval_expr(context, ei)?
         if arg_result.is_throw { return arg_result }
         main_args.push(arg_result.value)
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     _ := interpret_file(path, main_args)?
     return EvalResult.new("")
@@ -3260,7 +3283,8 @@ proc_eval_file : proc(mut context: Context, e: Expr) returns EvalResult throws S
 proc_import : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
     validate_arg_count(context.path, e, "import", 1, true)?
 
-    result := eval_expr(context, e.get(1)?)?
+    e1 := cast(Expr, e.params.get(1)?)
+    result := eval_expr(context, e1)?
     if result.is_throw {
         return result // Propagate throw
     }
@@ -3309,4 +3333,5 @@ proc_import : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
             "While importing ", path, ":\n", eval_result.value))
     }
     return EvalResult.new("")
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }

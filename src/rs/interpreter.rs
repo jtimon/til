@@ -423,28 +423,28 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::Identifier(name) => eval_identifier_expr(&name, context, &e),
         NodeType::If => {
             validate_conditional_params(&context.path, e, "if", 2, 3)?;
-            let cond_expr = e.get(0)?;
+            let cond_expr = e.params.get(0).unwrap();
             let result_cond = eval_expr(context, cond_expr)?;
             if result_cond.is_throw {
                 return Ok(result_cond)
             }
             if eval_condition_to_bool(context, &result_cond, cond_expr)? {
-                return eval_expr(context, e.get(1)?)
+                return eval_expr(context, e.params.get(1).unwrap())
             } else if e.params.len() == 3 {
-                return eval_expr(context, e.get(2)?)
+                return eval_expr(context, e.params.get(2).unwrap())
             } else {
                 return Ok(EvalResult::new(""))
             }
         },
         NodeType::While => {
             validate_conditional_params(&context.path, e, "while", 2, 2)?;
-            let mut while_cond_expr = e.get(0)?;
+            let mut while_cond_expr = e.params.get(0).unwrap();
             let mut while_result_cond = eval_expr(context, while_cond_expr)?;
             if while_result_cond.is_throw {
                 return Ok(while_result_cond.clone())
             }
             while eval_condition_to_bool(context, &while_result_cond, while_cond_expr)? {
-                let result = eval_expr(context, e.get(1)?)?;
+                let result = eval_expr(context, e.params.get(1).unwrap())?;
                 if result.is_return || result.is_throw {
                     return Ok(result)
                 }
@@ -454,7 +454,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 }
                 // Continue just skips to the next iteration (re-evaluate condition)
                 // No special handling needed - we just don't return
-                while_cond_expr = e.get(0)?;
+                while_cond_expr = e.params.get(0).unwrap();
                 while_result_cond = eval_expr(context, while_cond_expr)?;
                 if while_result_cond.is_throw {
                     return Ok(while_result_cond)
@@ -469,7 +469,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             } else if e.params.len() > 1 {
                 return Err(e.lang_error(&context.path, "eval", "multiple return values not implemented yet"))
             } else {
-                let return_result = eval_expr(context, e.get(0)?)?;
+                let return_result = eval_expr(context, e.params.get(0).unwrap())?;
                 if return_result.is_throw {
                     return Ok(return_result)
                 }
@@ -482,7 +482,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             if e.params.len() != 1 {
                 return Err(e.lang_error(&context.path, "eval", "Throw can only return one value. This should have been caught before"))
             } else {
-                let param_expr = e.get(0)?;
+                let param_expr = e.params.get(0).unwrap();
                 let throw_result = eval_expr(context, param_expr)?;
                 if throw_result.is_throw {
                     return Ok(throw_result)
@@ -566,7 +566,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     };
 
     if let Some(struct_def) = context.scope_stack.lookup_struct(name) {
-        let id_expr = e.get(0)?;
+        let id_expr = e.params.get(0).unwrap();
         if id_expr.params.len() == 0 {
             // Clone struct members to avoid borrow issues
             let struct_members = struct_def.members.clone();
@@ -604,7 +604,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         let field_type = field_decl.value_type.clone();
 
                         // Evaluate the value expression
-                        let named_value_expr = named_arg.get(0)?;
+                        let named_value_expr = named_arg.params.get(0).unwrap();
                         let named_value_result = eval_expr(context, named_value_expr)?;
                         if named_value_result.is_throw {
                             return Ok(named_value_result);
@@ -713,7 +713,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                     }
 
                     // Evaluate the payload argument
-                    let payload_expr = e.get(1)?;
+                    let payload_expr = e.params.get(1).unwrap();
                     let payload_result = eval_expr(context, payload_expr)?;
                     if payload_result.is_throw {
                         return Ok(payload_result);
@@ -946,18 +946,18 @@ fn metatype_matches(declared: &ValueType, inferred: &ValueType) -> bool {
 }
 
 pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    let inner_e = e.get(0)?;
+    let inner_e = e.params.get(0).unwrap();
 
     // cast(Type, ptr_expr) - create alias to data at ptr.data address
     if let NodeType::FCall(_) = &inner_e.node_type {
         let cast_f_name = get_func_name_in_call(&inner_e);
         if cast_f_name == "cast" && inner_e.params.len() >= 3 {
-            let type_name = match &inner_e.get(1)?.node_type {
+            let type_name = match &inner_e.params.get(1).unwrap().node_type {
                 NodeType::Identifier(name) => name.clone(),
                 _ => return Err(e.lang_error(&context.path, "eval", "cast: first argument must be a type name")),
             };
             // Evaluate ptr_expr to get the Ptr
-            let ptr_result = eval_expr(context, inner_e.get(2)?)?;
+            let ptr_result = eval_expr(context, inner_e.params.get(2).unwrap())?;
             if ptr_result.is_throw {
                 return Ok(ptr_result);
             }
@@ -1203,7 +1203,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                     } else if custom_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                         // Special case for instantiation
                         if matches!(inner_e.node_type, NodeType::FCall(_)) && inner_e.params.len() == 1 {
-                            let first_param = inner_e.get(0)?;
+                            let first_param = inner_e.params.get(0).unwrap();
                             if let NodeType::Identifier(potentially_struct_name) = &first_param.node_type {
                                 if first_param.params.is_empty() {
                                     if context.scope_stack.has_struct(potentially_struct_name) {
@@ -1267,7 +1267,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
         return Err(e.lang_error(&context.path, "eval", &format!("in eval_assignment, while assigning to '{}': assignments must take exactly one value", var_name)));
     }
 
-    let inner_e = e.get(0)?;
+    let inner_e = e.params.get(0).unwrap();
     let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
@@ -1420,7 +1420,7 @@ fn eval_identifier_expr_struct(name: &str, context: &mut Context, e: &Expr) -> R
     if e.params.is_empty() {
         return Ok(EvalResult::new(name));
     }
-    let inner_e = e.get(0)?;
+    let inner_e = e.params.get(0).unwrap();
     match &inner_e.node_type {
         NodeType::Identifier(inner_name) => {
             let member_decl = struct_def.get_member_or_err(inner_name, name, &context.path, e)?;
@@ -1551,7 +1551,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
     // then params[1..] are field access on its result
     if name == "_" && !e.params.is_empty() {
         // Evaluate the base expression (params[0])
-        let base_expr = e.get(0)?;
+        let base_expr = e.params.get(0).unwrap();
         let base_result = eval_expr(context, base_expr)?;
         if base_result.is_throw {
             return Ok(base_result);
@@ -1572,7 +1572,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
         // Build the full field path by traversing params[1..]
         let mut current_name = result_name.clone();
         for i in 1..e.params.len() {
-            let field_expr = e.get(i)?;
+            let field_expr = e.params.get(i).unwrap();
             if let NodeType::Identifier(field_name) = &field_expr.node_type {
                 current_name = format!("{}.{}", current_name, field_name);
             } else {
@@ -1587,7 +1587,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                 // Get the struct definition to traverse the field chain
                 let mut current_type = type_name.clone();
                 for i in 1..e.params.len() {
-                    let field_expr = e.get(i)?;
+                    let field_expr = e.params.get(i).unwrap();
                     if let NodeType::Identifier(field_name) = &field_expr.node_type {
                         if let Some(struct_def) = context.scope_stack.lookup_struct(&current_type) {
                             if let Some(member) = struct_def.get_member(field_name) {
@@ -1649,7 +1649,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                 if e.params.is_empty() {
                     return Ok(EvalResult::new(name));
                 }
-                let inner_e = e.get(0)?;
+                let inner_e = e.params.get(0).unwrap();
                 match &inner_e.node_type {
                     NodeType::Identifier(inner_name) => {
                         // TODO check that inner_name is in enum_def
@@ -1716,12 +1716,12 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                     // params[0]: error variable name (e.g., "err")
                     // params[1]: error type (e.g., "AllocError")
                     // params[2]: body
-                    let var_expr = stmt.get(0)?;
+                    let var_expr = stmt.params.get(0).unwrap();
                     let var_name = match &var_expr.node_type {
                         NodeType::Identifier(name) => name,
                         _ => return Err(stmt.lang_error(&context.path, "eval", "Catch variable must be an identifier")),
                     };
-                    let type_expr = stmt.get(1)?;
+                    let type_expr = stmt.params.get(1).unwrap();
                     let type_name = match &type_expr.node_type {
                         NodeType::Identifier(name) => name,
                         _ => return Err(stmt.lang_error(&context.path, "eval", "Catch type must be an identifier")),
@@ -1803,7 +1803,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 }
                             }
 
-                            let body_expr = stmt.get(2)?;
+                            let body_expr = stmt.params.get(2).unwrap();
                             let result = eval_body(&mut context, &body_expr.params)?;
 
                             // Clean up the error variable binding after the catch block
@@ -1902,7 +1902,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
             ValueType::TMulti(ref multi_value_type) => {
                 let mut values = Vec::new();
                 for vi in param_index..e.params.len() {
-                    let expr = e.get(vi)?;
+                    let expr = e.params.get(vi).unwrap();
                     let result = eval_expr(context, expr)?;
                     if result.is_throw {
                         return Ok(result); // CLEANUP SITE 1: Propagate throw from variadic args
@@ -1927,7 +1927,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                 params_consumed = true;
             },
             ValueType::TCustom(ref custom_type_name) => {
-                let current_arg = e.get(param_index)?;
+                let current_arg = e.params.get(param_index).unwrap();
 
                 // Issue #91: Handle function-typed parameters
                 // If parameter type is a FuncSig, the argument is a function name -
@@ -2892,7 +2892,7 @@ pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
     ext::validate_arg_count(&context.path, e, "eval_to_str", 1, true)?;
 
     let path = "eval".to_string(); // Placeholder path
-    let source_expr = eval_expr(context, e.get(1)?)?;
+    let source_expr = eval_expr(context, e.params.get(1).unwrap())?;
     if source_expr.is_throw {
         return Ok(source_expr); // Propagate throw
     }
@@ -2906,7 +2906,7 @@ pub fn proc_eval_file(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
         return Err(e.lang_error(&context.path, "eval", "Core proc 'eval_file' expects at least 1 parameter"));
     }
 
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result); // Propagate throw
     }
@@ -2914,7 +2914,7 @@ pub fn proc_eval_file(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 
     let mut main_args = Vec::new();
     for i in 2..e.params.len() {
-        let arg_result = eval_expr(context, e.get(i)?)?;
+        let arg_result = eval_expr(context, e.params.get(i).unwrap())?;
         if arg_result.is_throw {
             return Ok(arg_result); // Propagate throw
         }
@@ -2930,7 +2930,7 @@ pub fn proc_eval_file(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     ext::validate_arg_count(&context.path, e, "import", 1, true)?;
 
-    let result = eval_expr(context, e.get(1)?)?;
+    let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result); // Propagate throw
     }

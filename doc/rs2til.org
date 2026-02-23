@@ -567,20 +567,26 @@ TIL uses throw/catch instead:
 - Caller uses catch block to handle the not-found case
 - ~map.contains_key(k)~ to check existence without fetching
 
-** The ? operator is mandatory in TIL (Issue #132)
+** The ? operator in TIL (Issue #132)
 
-Both Rust and TIL use ~?~ to mark calls to throwing functions:
+In Rust, ~?~ propagates errors -- it unwraps Ok or returns Err early.
+
+In TIL, ~?~ is NOT propagation. It simply marks that a call may throw.
+Whether the error is caught or propagated is determined by catch blocks,
+not by ~?~ itself. The ~?~ is just a required annotation.
+
 #+begin_src rust
 let x = foo()?;  // Rust: propagates error if foo() returns Err
-let y = bar()?.baz()?;  // chains propagation
 #+end_src
 
 #+begin_src til
-x := foo()?  // TIL: marks that foo() may throw
-y := bar()?.baz()?  // chains work the same way
+x := foo()?  // TIL: marks that foo() may throw, does NOT propagate
+// Error is caught by a catch block (if present) or propagated (if not)
 #+end_src
 
-Key difference: In Rust, ~?~ is optional (you can match on Result instead). In TIL, ~?~ is MANDATORY:
+Key differences from Rust:
+- In Rust, ~?~ is optional (you can match on Result instead). In TIL, ~?~ is MANDATORY
+- In Rust, ~?~ propagates the error. In TIL, ~?~ just marks the call as throwing
 - Calls to throwing functions MUST use ~?~
 - Calls to non-throwing functions MUST NOT use ~?~
 - The type checker enforces both rules

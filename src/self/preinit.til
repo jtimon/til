@@ -337,7 +337,7 @@ generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: 
 
 /// Collect all methods defined in namespace blocks.
 /// Returns a Set of "TypeName.methodName" strings.
-collect_namespace_methods : func(ast: Expr) returns Set throws Str = {
+collect_namespace_methods : func(ast: Expr) returns Set = {
     mut methods := Set.new(Str)
 
     switch ast.node_type {
@@ -346,7 +346,7 @@ collect_namespace_methods : func(ast: Expr) returns Set throws Str = {
             switch child.node_type {
             case NodeType.Declaration(decl):
                 if child.params.len().gt(0) {
-                    value_expr := child.get(0)?
+                    value_expr := cast(Expr, child.params.get(0)?)
                     dont_delete(value_expr)
                     switch value_expr.node_type {
                     case NodeType.StructDef(struct_def):
@@ -366,6 +366,8 @@ collect_namespace_methods : func(ast: Expr) returns Set throws Str = {
     case:
     }
 
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
     return methods
 }
 
@@ -380,7 +382,7 @@ StructNeedingMethods := struct {
 }
 
 /// Collect all structs that need auto-generated methods.
-collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) returns Vec throws Str = {
+collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) returns Vec = {
     mut structs := Vec.new(StructNeedingMethods)
 
     switch ast.node_type {
@@ -389,7 +391,7 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
             switch child.node_type {
             case NodeType.Declaration(decl):
                 if child.params.len().gt(0) {
-                    value_expr := child.get(0)?
+                    value_expr := cast(Expr, child.params.get(0)?)
                     dont_delete(value_expr)
 
                     switch value_expr.node_type {
@@ -452,6 +454,8 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
         }
     case:
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     return structs
 }
@@ -567,7 +571,7 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
     case NodeType.Declaration(decl):
         // For enum definitions, still add delete/clone directly (enums don't use namespace blocks yet)
         if e.params.len().gt(0) {
-            value_expr := e.get(0)?
+            value_expr := cast(Expr, e.params.get(0)?)
             dont_delete(value_expr)
 
             switch value_expr.node_type {
@@ -623,6 +627,8 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
             return Expr.new_clone(e.node_type, e, default_new_params)
         }
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Preinit phase entry point.
@@ -633,10 +639,10 @@ preinit_expr : func(e: Expr) returns Expr throws Str = {
     switch e.node_type {
     case NodeType.Body:
         // Pass 1: Collect namespace-defined methods
-        namespace_methods := collect_namespace_methods(e)?
+        namespace_methods := collect_namespace_methods(e)
 
         // Pass 2: Find structs that need auto-generated methods
-        structs_needing := collect_structs_needing_methods(e, namespace_methods)?
+        structs_needing := collect_structs_needing_methods(e, namespace_methods)
 
         // Pass 3: Process all children, setting ns on struct defs that need auto-generated methods
         mut new_params := Vec.new(Expr)
@@ -647,7 +653,7 @@ preinit_expr : func(e: Expr) returns Expr throws Str = {
             switch processed.node_type {
             case NodeType.Declaration(p_decl):
                 if processed.params.len().gt(0) {
-                    p_value_expr := processed.get(0)?
+                    p_value_expr := cast(Expr, processed.params.get(0)?)
                     dont_delete(p_value_expr)
                     switch p_value_expr.node_type {
                     case NodeType.StructDef(p_struct_def):
@@ -702,6 +708,8 @@ preinit_expr : func(e: Expr) returns Expr throws Str = {
 
             new_params.push(processed)
         }
+
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
         return Expr.new_clone(e.node_type, e, new_params)
     case:

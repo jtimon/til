@@ -52,7 +52,7 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &FuncDef) -> Result
         return Ok(e.clone());
     }
 
-    let mut result = vec![e.get(0)?.clone()]; // Keep function identifier
+    let mut result = vec![e.params.get(0).unwrap().clone()]; // Keep function identifier
 
     // Bug #61: Handle variadic functions with optional args before the variadic
     // Need to insert defaults for skipped optional args, then include all provided args
@@ -150,7 +150,7 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &FuncDef) -> Result
                     if arg.params.is_empty() {
                         return Err(arg.error(&context.path, "ufcs", &format!("Named argument '{}' has no value", arg_name)));
                     }
-                    final_args[idx] = Some(arg.get(0)?.clone());
+                    final_args[idx] = Some(arg.params.get(0).unwrap().clone());
                 },
                 None => {
                     return Err(arg.error(&context.path, "ufcs", &format!("Unknown parameter name '{}'", arg_name)));
@@ -322,7 +322,7 @@ fn ufcs_func_def(context: &mut Context, e: &Expr, func_def: FuncDef) -> Result<E
 /// Transform Declaration - register the declared variable in scope, then transform value
 fn ufcs_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::Declaration) -> Result<Expr, String> {
     // Get value type for the declared variable
-    let inner_e = e.get(0)?;
+    let inner_e = e.params.get(0).unwrap();
     let mut value_type = match get_value_type(context, &inner_e) {
         Ok(val_type) => val_type,
         Err(_) => ValueType::TCustom("Dynamic".to_string()), // Fallback for unresolved types
@@ -392,11 +392,11 @@ fn ufcs_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     }
 
     // Get the catch variable name and type
-    let var_name = match &e.get(0)?.node_type {
+    let var_name = match &e.params.get(0).unwrap().node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => return ufcs_params(context, e), // Not a simple identifier, use default handling
     };
-    let type_name = match &e.get(1)?.node_type {
+    let type_name = match &e.params.get(1).unwrap().node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => return ufcs_params(context, e), // Not a simple type, use default handling
     };
@@ -414,7 +414,7 @@ fn ufcs_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     });
 
     // Transform the catch body (params[2])
-    let new_body = ufcs_expr(context, e.get(2)?)?;
+    let new_body = ufcs_expr(context, e.params.get(2).unwrap())?;
 
     // Pop the scope frame
     let _ = context.scope_stack.pop();
@@ -423,7 +423,7 @@ fn ufcs_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     Ok(Expr::new_clone(
         NodeType::Catch,
         e,
-        vec![e.get(0)?.clone(), e.get(1)?.clone(), new_body],
+        vec![e.params.get(0).unwrap().clone(), e.params.get(1).unwrap().clone(), new_body],
     ))
 }
 
@@ -450,7 +450,7 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         // Associated methods take priority over standalone functions (checked below)
         // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
         if e.params.len() >= 2 {
-            let first_arg = e.get(1)?;
+            let first_arg = e.params.get(1).unwrap();
             if let Ok(target_type) = get_value_type(context, first_arg) {
                 // Get type name from value_type - TCustom or TMulti (variadic params become Array)
                 let custom_type_name = match &target_type {
@@ -469,13 +469,13 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         let method_is_variadic = method_def.sig.args.iter().any(|arg| matches!(arg.value_type, ValueType::TMulti(_)));
                         if call_arg_count == method_arg_count || method_is_variadic {
                             // Transform: func(target, args...) -> Type.func(target, args...)
-                            let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), e.get(0)?, Vec::new());
+                            let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), e.params.get(0).unwrap(), Vec::new());
                             let mut new_args = Vec::new();
                             new_args.push(new_e);
                             new_args.extend(e.params[1..].to_vec());
                             // Issue #132: Preserve does_throw flag from original FCall
                             let does_throw = matches!(e.node_type, NodeType::FCall(true));
-                            return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.get(0)?, new_args));
+                            return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.params.get(0).unwrap(), new_args));
                         }
                     }
                 }
@@ -514,14 +514,14 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         if let Some(ref type_name) = custom_type_name {
                             let assoc_method_name = format!("{}.{}", type_name, ufcs_func_name);
                             if context.scope_stack.has_func(&assoc_method_name) {
-                                let assoc_new_id_e = Expr::new_clone(NodeType::Identifier(assoc_method_name.clone()), e.get(0)?, Vec::new());
+                                let assoc_new_id_e = Expr::new_clone(NodeType::Identifier(assoc_method_name.clone()), e.params.get(0).unwrap(), Vec::new());
                                 let mut assoc_new_args = Vec::new();
                                 assoc_new_args.push(assoc_new_id_e);
                                 assoc_new_args.push(receiver_expr);
                                 assoc_new_args.extend(e.params[1..].to_vec());
                                 // Issue #132: Preserve does_throw flag from original FCall
                                 let does_throw = matches!(e.node_type, NodeType::FCall(true));
-                                return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.get(0)?, assoc_new_args));
+                                return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.params.get(0).unwrap(), assoc_new_args));
                             }
                         }
                     }
@@ -532,14 +532,14 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
                 // Fall back to standalone function
                 if context.scope_stack.has_func(&ufcs_func_name.to_string()) {
-                    let standalone_new_id_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), e.get(0)?, Vec::new());
+                    let standalone_new_id_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), e.params.get(0).unwrap(), Vec::new());
                     let mut standalone_new_args = Vec::new();
                     standalone_new_args.push(standalone_new_id_e);
                     standalone_new_args.push(receiver_expr);
                     standalone_new_args.extend(e.params[1..].to_vec());
                     // Issue #132: Preserve does_throw flag from original FCall
                     let does_throw = matches!(e.node_type, NodeType::FCall(true));
-                    return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.get(0)?, standalone_new_args));
+                    return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.params.get(0).unwrap(), standalone_new_args));
                 }
             }
         }

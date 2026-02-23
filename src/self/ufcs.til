@@ -27,7 +27,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
     mut has_named_args := false
     mut i := 1
     while i.lt(e.params.len()) {
-        mut arg := e.get(i)?
+        mut arg := cast(Expr, e.params.get(i)?)
         switch arg.node_type {
         case NodeType.NamedArg(_):
             has_named_args = true
@@ -71,7 +71,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
     }
 
     mut result := Vec.new(Expr)
-    result.push(e.get(0)?) // Keep function identifier
+    e0 := cast(Expr, e.params.get(0)?)
+    result.push(e0) // Keep function identifier
 
     // Bug #61: Handle variadic functions with optional args before the variadic
     // Need to insert defaults for skipped optional args, then include all provided args
@@ -86,7 +87,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
             // Check if we have a provided arg that matches this def arg's type
             mut matches := false
             if call_arg_idx.lt(call_args_len) {
-                mut provided_arg := e.get(call_arg_idx.add(1))?
+                mut provided_arg := cast(Expr, e.params.get(call_arg_idx.add(1))?)
                 mut found_type := ValueType.TCustom("")
                 found_type = get_value_type(context, provided_arg)?
                 catch (type_err: Str) {}
@@ -105,7 +106,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
 
             if matches {
                 // Use provided arg
-                result.push(e.get(call_arg_idx.add(1))?)
+                ecall_arg_idx := cast(Expr, e.params.get(call_arg_idx.add(1))?)
+                result.push(ecall_arg_idx)
                 call_arg_idx.inc()
             } else if not(NULL.eq(opt_def_arg.default_value.data)) {
                 // Use default - dereference the Ptr to Expr
@@ -120,7 +122,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
 
         // Add remaining provided args (for variadic)
         while call_arg_idx.lt(call_args_len) {
-            result.push(e.get(call_arg_idx.add(1))?)
+            remaining_arg := cast(Expr, e.params.get(call_arg_idx.add(1))?)
+            result.push(remaining_arg)
             call_arg_idx.inc()
         }
 
@@ -130,7 +133,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
     // Count positional args (before first named arg)
     mut positional_count := 0
     for count_i in 1..e.params.len() {
-        mut count_arg := e.get(count_i)?
+        mut count_arg := cast(Expr, e.params.get(count_i)?)
         switch count_arg.node_type {
         case NodeType.NamedArg(_):
             break
@@ -143,7 +146,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
     mut seen_named := false
     i = 1
     while i.lt(e.params.len()) {
-        mut check_arg := e.get(i)?
+        mut check_arg := cast(Expr, e.params.get(i)?)
         switch check_arg.node_type {
         case NodeType.NamedArg(_):
             seen_named = true
@@ -172,7 +175,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
         if i.gteq(func_def.sig.args.len()) {
             throw e.error(context.path, "ufcs", format("Too many positional arguments: expected at most ", func_def.sig.args.len().to_str()))
         }
-        final_args.set(i, e.get(i.add(1))?)?
+        ei := cast(Expr, e.params.get(i.add(1))?)
+        final_args.set(i, ei)?
         final_args_set.set(i, true)?
         i.inc()
     }
@@ -180,7 +184,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
     // Place named arguments
     i = positional_count.add(1)
     while i.lt(e.params.len()) {
-        mut named_arg := e.get(i)?
+        mut named_arg := cast(Expr, e.params.get(i)?)
         switch named_arg.node_type {
         case NodeType.NamedArg(arg_name):
             // Find the parameter index by name
@@ -205,7 +209,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
             if named_arg.params.len().eq(0) {
                 throw named_arg.error(context.path, "ufcs", format("Named argument '", arg_name, "' has no value"))
             }
-            final_args.set(param_idx, named_arg.get(0)?)?
+            named_value := cast(Expr, named_arg.params.get(0)?)
+            final_args.set(param_idx, named_value)?
             final_args_set.set(param_idx, true)?
         case:
         }
@@ -405,7 +410,7 @@ ufcs_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns E
 /// Transform Declaration - register the declared variable in scope, then transform value
 ufcs_declaration : proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str = {
     // Get value type for the declared variable
-    inner_e := e.get(0)?
+    inner_e := cast(Expr, e.params.get(0)?)
     mut value_type := ValueType.TCustom("Dynamic")
     value_type = get_value_type(context, inner_e)?
     catch (err: Str) {
@@ -537,7 +542,7 @@ ufcs_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     context.scope_stack.declare_symbol(var_name, sym)?
 
     // Transform the catch body (params[2])
-    body_expr := e.get(2)?
+    body_expr := cast(Expr, e.params.get(2)?)
     dont_delete(body_expr)
     new_body := ufcs_expr(context, body_expr)?
 
@@ -594,7 +599,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     if new_e.params.len().eq(0) {
         return new_e
     }
-    mut func_expr := new_e.get(0)?
+    mut func_expr := cast(Expr, new_e.params.get(0)?)
 
     switch func_expr.node_type {
     case NodeType.Identifier:
@@ -605,7 +610,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         // Associated methods take priority over standalone functions (checked below)
         // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
         if new_e.params.len().gteq(2) {
-            first_arg := new_e.get(1)?
+            first_arg := cast(Expr, new_e.params.get(1)?)
             dont_delete(first_arg)
             mut got_type := true
             mut target_type := get_value_type(context, first_arg)?
@@ -649,7 +654,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                         // Add remaining args from outer new_e (the transformed FCall)
                         mut j := 1
                         while j.lt(new_e.params.len()) {
-                            arg := new_e.get(j)?
+                            arg := cast(Expr, new_e.params.get(j)?)
                             dont_delete(arg)
                             new_args.push(arg)
                             j.inc()
@@ -678,7 +683,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
         // UFCS with dot notation (e.g., a.method(b) or a.field.method())
         if func_expr.params.len().gt(0) {
-            func_name_expr := func_expr.get(func_expr.params.len().sub(1))?
+            func_name_expr := cast(Expr, func_expr.params.get(func_expr.params.len().sub(1))?)
             dont_delete(func_name_expr)
 
             switch func_name_expr.node_type {
@@ -732,7 +737,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                             // Add remaining args from outer new_e
                             mut assoc_j := 1
                             while assoc_j.lt(new_e.params.len()) {
-                                assoc_arg := new_e.get(assoc_j)?
+                                assoc_arg := cast(Expr, new_e.params.get(assoc_j)?)
                                 dont_delete(assoc_arg)
                                 assoc_new_args.push(assoc_arg)
                                 assoc_j.inc()
@@ -757,7 +762,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                     // Add remaining args from outer new_e
                     mut standalone_j := 1
                     while standalone_j.lt(new_e.params.len()) {
-                        standalone_arg := new_e.get(standalone_j)?
+                        standalone_arg := cast(Expr, new_e.params.get(standalone_j)?)
                         dont_delete(standalone_arg)
                         standalone_new_args.push(standalone_arg)
                         standalone_j.inc()

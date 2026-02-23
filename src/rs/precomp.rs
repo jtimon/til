@@ -785,7 +785,7 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> Result<bool, String> {
                         // It's a struct constructor - check all args are comptime
                         for i in 1..e.params.len() {
                             // Handle named args - check the value inside
-                            let arg = e.get(i)?;
+                            let arg = e.params.get(i).unwrap();
                             let arg_to_check = if let NodeType::NamedArg(_) = &arg.node_type {
                                 arg.params.first().unwrap_or(arg)
                             } else {
@@ -801,7 +801,7 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> Result<bool, String> {
                     if context.scope_stack.is_enum_constructor(&combined_name) {
                         // It's an enum constructor - check all args are comptime
                         for i in 1..e.params.len() {
-                            if !is_comptime_evaluable(context, e.get(i)?)? {
+                            if !is_comptime_evaluable(context, e.params.get(i).unwrap())? {
                                 return Ok(false);
                             }
                         }
@@ -825,7 +825,7 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> Result<bool, String> {
             // we'll report the error in eval_comptime.
             // All arguments must be comptime-evaluable
             for i in 1..e.params.len() {
-                if !is_comptime_evaluable(context, e.get(i)?)? {
+                if !is_comptime_evaluable(context, e.params.get(i).unwrap())? {
                     return Ok(false);
                 }
             }
@@ -1031,7 +1031,7 @@ fn metatype_matches(declared: &ValueType, inferred: &ValueType) -> bool {
 /// Transform Declaration - register the declared variable in scope, then transform value
 fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::Declaration) -> Result<Expr, String> {
     // Eagerly create default instance template for this struct type
-    let inner_e = e.get(0)?;
+    let inner_e = e.params.get(0).unwrap();
     let mut value_type = match get_value_type(context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
@@ -1128,7 +1128,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
 
     // Bug #40 fix: For function declarations, set the function name and reset counter
     // BEFORE processing the body so for-in loops get deterministic names
-    let is_func_decl = !e.params.is_empty() && matches!(&e.get(0)?.node_type, NodeType::FuncDef(_));
+    let is_func_decl = !e.params.is_empty() && matches!(&e.params.get(0).unwrap().node_type, NodeType::FuncDef(_));
     let saved_func = context.current_precomp_func.clone();
     let saved_counter = context.precomp_forin_counter;
     if is_func_decl {
@@ -1314,11 +1314,11 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     }
 
     // Get the catch variable name and type
-    let var_name = match &e.get(0)?.node_type {
+    let var_name = match &e.params.get(0).unwrap().node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => return precomp_params(context, e), // Not a simple identifier, use default handling
     };
-    let type_name = match &e.get(1)?.node_type {
+    let type_name = match &e.params.get(1).unwrap().node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => return precomp_params(context, e), // Not a simple type, use default handling
     };
@@ -1336,7 +1336,7 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     });
 
     // Transform the catch body (params[2])
-    let new_body = precomp_expr(context, e.get(2)?)?;
+    let new_body = precomp_expr(context, e.params.get(2).unwrap())?;
 
     // Pop the scope frame
     let _ = context.scope_stack.pop();
@@ -1345,7 +1345,7 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     Ok(Expr::new_clone(
         NodeType::Catch,
         e,
-        vec![e.get(0)?.clone(), e.get(1)?.clone(), new_body],
+        vec![e.params.get(0).unwrap().clone(), e.params.get(1).unwrap().clone(), new_body],
     ))
 }
 

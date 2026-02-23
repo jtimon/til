@@ -207,7 +207,7 @@ has_reassignment_of : proc(stmts: Vec, var_name: Str) returns Bool = {
 
 // Bug #168: Pre-scan function body to find a single return variable that can be
 // placed directly into _ret. Returns the var name or "" if not applicable.
-find_ret_var_for_placement : proc(func_def: FuncDef) returns Str throws Str = {
+find_ret_var_for_placement : proc(func_def: FuncDef) returns Str = {
     // Must be a throwing function with struct/enum return type
     if func_def.sig.throw_types.is_empty() {
         return ""
@@ -241,7 +241,7 @@ find_ret_var_for_placement : proc(func_def: FuncDef) returns Str throws Str = {
         if ret_expr.params.is_empty() {
             return ""  // bare return with no value
         }
-        value := ret_expr.get(0)?
+        value := cast(Expr, ret_expr.params.get(0)?)
         dont_delete(value)
         switch value.node_type {
         case NodeType.Identifier(name):
@@ -289,6 +289,7 @@ find_ret_var_for_placement : proc(func_def: FuncDef) returns Str throws Str = {
     }
 
     return ret_var_name
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit a struct literal, using compound literal syntax if already_declared
@@ -328,7 +329,7 @@ til_func_name : func(name: Str) returns Str = {
 // - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
 // - Identifier("Vec") with params = [Identifier("new")] -> "Vec_new" (from parser)
 // Returns the C-ready name with underscores (not dots)
-get_func_name_string : func(first_param: Expr) returns Str throws Str = {
+get_func_name_string : func(first_param: Expr) returns Str throws KeyNotFoundError = {
     switch first_param.node_type {
     case NodeType.Identifier(name):
         if first_param.params.is_empty() {
@@ -346,7 +347,7 @@ get_func_name_string : func(first_param: Expr) returns Str throws Str = {
             return parts.join("_")
         }
     case:
-        throw "get_func_name_string: not an Identifier"
+        throw KeyNotFoundError(msg="get_func_name_string: not an Identifier")
     }
 
 }
@@ -354,7 +355,7 @@ get_func_name_string : func(first_param: Expr) returns Str throws Str = {
 // Get TIL function name from FCall's first param (for scope lookups)
 // Returns the dot-separated name like "Vec.new" or "I64.inc"
 // This avoids the fragile .replacen('_', ".", 1) hack which breaks on type names with underscores
-get_til_func_name_string : func(first_param: Expr) returns Str throws Str = {
+get_til_func_name_string : func(first_param: Expr) returns Str throws KeyNotFoundError = {
     switch first_param.node_type {
     case NodeType.Identifier(name):
         if first_param.params.is_empty() {
@@ -374,7 +375,7 @@ get_til_func_name_string : func(first_param: Expr) returns Str throws Str = {
             return parts.join(".")
         }
     case:
-        throw "get_til_func_name_string: not an Identifier"
+        throw KeyNotFoundError(msg="get_til_func_name_string: not an Identifier")
     }
 
 }
@@ -459,12 +460,12 @@ get_field_type_dependency : func(value_type: ValueType) returns Str throws KeyNo
 }
 
 /// Get struct dependencies (other struct types used as fields)
-get_struct_dependencies : func(expr: Expr) returns Vec throws Str = {
+get_struct_dependencies : func(expr: Expr) returns Vec = {
     mut deps := Vec.new(Str)
     switch expr.node_type {
     case NodeType.Declaration:
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.StructDef(struct_def):
@@ -485,14 +486,15 @@ get_struct_dependencies : func(expr: Expr) returns Vec throws Str = {
 
 
     return deps
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Get struct name from a struct declaration expression
-get_struct_name : func(expr: Expr) returns Str throws KeyNotFoundError, Str = {
+get_struct_name : func(expr: Expr) returns Str throws KeyNotFoundError = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.StructDef:
@@ -505,15 +507,16 @@ get_struct_name : func(expr: Expr) returns Str throws KeyNotFoundError, Str = {
 
 
     throw KeyNotFoundError(msg="not a struct declaration")
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Get enum dependencies (types used in payloads) as a Vec
-get_enum_dependencies : func(expr: Expr) returns Vec throws Str = {
+get_enum_dependencies : func(expr: Expr) returns Vec = {
     mut deps := Vec.new(Str)
     switch expr.node_type {
     case NodeType.Declaration:
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
@@ -539,14 +542,15 @@ get_enum_dependencies : func(expr: Expr) returns Vec throws Str = {
 
 
     return deps
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Get enum name from an enum-with-payloads declaration expression
-get_enum_name : func(expr: Expr) returns Str throws KeyNotFoundError, Str = {
+get_enum_name : func(expr: Expr) returns Str throws KeyNotFoundError = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.EnumDef:
@@ -559,24 +563,25 @@ get_enum_name : func(expr: Expr) returns Str throws KeyNotFoundError, Str = {
 
 
     throw KeyNotFoundError(msg="not an enum declaration")
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Get dependencies for a type (struct or enum-with-payloads)
-get_type_dependencies : func(expr: Expr) returns Vec throws Str = {
-    if is_struct_declaration(expr)? {
-        return get_struct_dependencies(expr)?
-    } else if is_enum_declaration(expr)?.and(is_enum_with_payloads(expr)?) {
-        return get_enum_dependencies(expr)?
+get_type_dependencies : func(expr: Expr) returns Vec = {
+    if is_struct_declaration(expr) {
+        return get_struct_dependencies(expr)
+    } else if is_enum_declaration(expr).and(is_enum_with_payloads(expr)) {
+        return get_enum_dependencies(expr)
     } else {
         return Vec.new(Str)
     }
 }
 
 /// Get name for a type (struct or enum-with-payloads)
-get_type_name : func(expr: Expr) returns Str throws KeyNotFoundError, Str = {
-    if is_struct_declaration(expr)? {
+get_type_name : func(expr: Expr) returns Str throws KeyNotFoundError = {
+    if is_struct_declaration(expr) {
         return get_struct_name(expr)?
-    } else if is_enum_declaration(expr)?.and(is_enum_with_payloads(expr)?) {
+    } else if is_enum_declaration(expr).and(is_enum_with_payloads(expr)) {
         return get_enum_name(expr)?
     } else {
         throw KeyNotFoundError(msg="not a type declaration")
@@ -585,7 +590,7 @@ get_type_name : func(expr: Expr) returns Str throws KeyNotFoundError, Str = {
 
 /// Topologically sort type declarations (structs and enums-with-payloads) by their dependencies
 /// Returns indices into the original vector in sorted order
-topological_sort_types : func(types: Vec) returns Vec throws Str = {
+topological_sort_types : func(types: Vec) returns Vec = {
     // Build name -> index map
     mut name_to_idx := Map.new(Str, I64)
     mut idx := 0
@@ -609,7 +614,7 @@ topological_sort_types : func(types: Vec) returns Vec throws Str = {
     idx = 0
     while idx.lt(types.len()) {
         dep_expr := cast(Expr, types.get(idx)?)
-        dep_names := get_type_dependencies(dep_expr)?
+        dep_names := get_type_dependencies(dep_expr)
         for dep_name: Str in dep_names {
             dep_idx := cast(I64, name_to_idx.get(dep_name)?)
             if not(dep_idx.eq(idx)) {
@@ -699,7 +704,7 @@ topological_sort_types : func(types: Vec) returns Vec throws Str = {
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     return result
 }
@@ -854,7 +859,7 @@ hoist_variadic_args : proc(elem_type: Str, variadic_args: Vec, already_hoisted: 
         ti.inc()
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     return arr_var
 }
@@ -867,22 +872,20 @@ detect_variadic_fcall : func(expr: Expr, ctx: CodegenContext) returns VariadicFC
     }
 
     // Get original TIL function name (with dots) for variadic map lookup
-    first_param := expr.get(0)?
+    first_param := cast(Expr, expr.params.get(0)?)
     dont_delete(first_param)
     orig_func_name := get_til_func_name_string(first_param)?
 
     info := cast(VariadicFCallInfo, ctx.func_variadic_args.get(orig_func_name)?)
-    catch (err: Str) {
-        throw KeyNotFoundError(msg="Not variadic: name error")
-    }
 
     return VariadicFCallInfo(elem_type=info.elem_type.clone(), regular_count=info.regular_count)
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Check if an expression is a pure lvalue (simple identifier or field access chain)
 /// A pure lvalue can use & directly without hoisting.
 /// Returns false for FCall results, enum constructors, and struct constructors.
-is_pure_lvalue : func(arg: Expr, context: Context) returns Bool throws Str = {
+is_pure_lvalue : func(arg: Expr, context: Context) returns Bool = {
     switch arg.node_type {
     case NodeType.Identifier(name):
         if arg.params.is_empty() {
@@ -892,7 +895,7 @@ is_pure_lvalue : func(arg: Expr, context: Context) returns Bool throws Str = {
             // Could be field access OR enum/struct constructor
             // Check if name.first_param is an enum constructor
             if not(arg.params.is_empty()) {
-                first_param := arg.get(0)?
+                first_param := cast(Expr, arg.params.get(0)?)
                 dont_delete(first_param)
                 switch first_param.node_type {
                 case NodeType.Identifier(variant):
@@ -932,6 +935,7 @@ is_pure_lvalue : func(arg: Expr, context: Context) returns Bool throws Str = {
     case:
         return false
     }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// This is the core of the single-pass hoist+emit approach (Bug #143 fix).
@@ -1046,7 +1050,7 @@ emit_arg_string : proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hoist
     switch arg.node_type {
     case NodeType.Identifier(ufcs_name):
         if ufcs_name.eq("_").and(not(arg.params.is_empty())) {
-            ufcs_first := arg.get(0)?
+            ufcs_first := cast(Expr, arg.params.get(0)?)
             dont_delete(ufcs_first)
             switch ufcs_first.node_type {
             case NodeType.FCall(_):
@@ -1054,7 +1058,7 @@ emit_arg_string : proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hoist
                 mut ufcs_result := base_str.clone()
                 mut ufcs_i := 1
                 while ufcs_i.lt(arg.params.len()) {
-                    ufcs_field := arg.get(ufcs_i)?
+                    ufcs_field := cast(Expr, arg.params.get(ufcs_i)?)
                     dont_delete(ufcs_field)
                     switch ufcs_field.node_type {
                     case NodeType.Identifier(field_name):
@@ -1076,12 +1080,13 @@ emit_arg_string : proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hoist
     emit_expr(arg, final_expr_str, 0, ctx, context)?
 
     return final_expr_str
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Helper for emit_arg_string: Handle Dynamic params
 emit_arg_string_dynamic : proc(arg: Expr, mut hoist_output: Str, indent: I64, indent_str: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     // Check if it's a pure lvalue
-    if is_pure_lvalue(arg, context)? {
+    if is_pure_lvalue(arg, context) {
         switch arg.node_type {
         case NodeType.Identifier(name):
             if arg.params.is_empty() {
@@ -1155,7 +1160,7 @@ emit_arg_string_dynamic : proc(arg: Expr, mut hoist_output: Str, indent: I64, in
 /// Helper for emit_arg_string: Handle by-ref params
 emit_arg_string_by_ref : proc(arg: Expr, mut hoist_output: Str, indent: I64, indent_str: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str = {
     // Check if it's a pure lvalue
-    if is_pure_lvalue(arg, context)? {
+    if is_pure_lvalue(arg, context) {
         switch arg.node_type {
         case NodeType.Identifier(name):
             if arg.params.is_empty() {
@@ -1200,7 +1205,7 @@ emit_arg_string_by_ref : proc(arg: Expr, mut hoist_output: Str, indent: I64, ind
     case NodeType.Identifier(id_name):
         // Handle UFCS chain: _[FCall, field...]
         if id_name.eq("_").and(not(arg.params.is_empty())) {
-            ufcs_first := arg.get(0)?
+            ufcs_first := cast(Expr, arg.params.get(0)?)
             dont_delete(ufcs_first)
             switch ufcs_first.node_type {
             case NodeType.FCall(_):
@@ -1208,7 +1213,7 @@ emit_arg_string_by_ref : proc(arg: Expr, mut hoist_output: Str, indent: I64, ind
                 mut chain_result := base_str.clone()
                 mut chain_i := 1
                 while chain_i.lt(arg.params.len()) {
-                    chain_field := arg.get(chain_i)?
+                    chain_field := cast(Expr, arg.params.get(chain_i)?)
                     dont_delete(chain_field)
                     switch chain_field.node_type {
                     case NodeType.Identifier(field_name):
@@ -1241,6 +1246,7 @@ emit_arg_string_by_ref : proc(arg: Expr, mut hoist_output: Str, indent: I64, ind
     hoist_output.push_str(";\n")
 
     return format("&", ref_temp)
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Helper: Emit a throwing FCall arg, hoisting it and returning temp var string
@@ -1267,7 +1273,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(arg.params.len()) {
-            nested_arg := arg.get(arg_idx)?
+            nested_arg := cast(Expr, arg.params.get(arg_idx)?)
             dont_delete(nested_arg)
             is_variadic_arg := not(i.lt(variadic_regular_count))
             mut nested_param_type := Ptr()
@@ -1336,7 +1342,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
             variadic_arg_strings.push(vas)
             vi.inc()
         }
-        variadic_arr_var = emit_variadic_array_with_strings(variadic_info.elem_type, variadic_arg_strings, hoist_output, indent, ctx)?
+        variadic_arr_var = emit_variadic_array_with_strings(variadic_info.elem_type, variadic_arg_strings, hoist_output, indent, ctx)
     }
 
     // Emit the function call with output pointers
@@ -1349,19 +1355,22 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
     if arg.params.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name")
     }
-    ta_first_param := arg.get(0)?
+    ta_first_param := cast(Expr, arg.params.get(0)?)
     dont_delete(ta_first_param)
     func_name := get_func_name_string(ta_first_param)?
+    catch (err: KeyNotFoundError) {
+        throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name (emit_arg_string_by_ref)")
+    }
     mut orig_func_name := func_name.clone()
     orig_func_name = get_til_func_name_string(ta_first_param)?
-    catch (err: Str) {
+    catch (err: KeyNotFoundError) {
         // REM: Use func_name as fallback
     }
     mut mangled_name := func_name.clone()
     mn_val := cast(Str, ctx.nested_func_names.get(orig_func_name)?)
     mangled_name = mn_val
     catch (err: KeyNotFoundError) {
-        // Expected: use func_name as fallback
+        // REM: Use func_name as fallback
     }
 
     // Emit function name
@@ -1421,7 +1430,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
         hoist_output.push_str(");\n")
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Return the temp var name with appropriate prefix
     return format_hoisted_result(temp_var, param_type, param_by_ref)
@@ -1576,7 +1585,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(arg.params.len()) {
-            nested_arg := arg.get(arg_idx)?
+            nested_arg := cast(Expr, arg.params.get(arg_idx)?)
             dont_delete(nested_arg)
             is_variadic_arg := not(i.lt(vi.regular_count))
             mut nested_param_type := Ptr()
@@ -1620,7 +1629,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
         variadic_arg_strings.push(vas)
         vai.inc()
     }
-    variadic_arr_var := emit_variadic_array_with_strings(vi.elem_type, variadic_arg_strings, hoist_output, indent, ctx)?
+    variadic_arr_var := emit_variadic_array_with_strings(vi.elem_type, variadic_arg_strings, hoist_output, indent, ctx)
 
     // Emit the function call
     hoist_output.push_str(indent_str)
@@ -1631,19 +1640,22 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
     if arg.params.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name")
     }
-    va_first_param := arg.get(0)?
+    va_first_param := cast(Expr, arg.params.get(0)?)
     dont_delete(va_first_param)
     func_name := get_func_name_string(va_first_param)?
+    catch (err: KeyNotFoundError) {
+        throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name")
+    }
     mut orig_func_name := func_name.clone()
     orig_func_name = get_til_func_name_string(va_first_param)?
-    catch (err: Str) {
+    catch (err: KeyNotFoundError) {
         // REM: Use func_name as fallback
     }
     mut mangled_name := func_name.clone()
     mn_val := cast(Str, ctx.nested_func_names.get(orig_func_name)?)
     mangled_name = mn_val
     catch (err: KeyNotFoundError) {
-        // Expected: use func_name as fallback
+        // REM: Use func_name as fallback
     }
 
     hoist_output.push_str(til_func_name(mangled_name))
@@ -1677,7 +1689,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
     hoist_output.push_str(variadic_arr_var)
     hoist_output.push_str(");\n")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Return the temp var name with appropriate prefix
     return format_hoisted_result(temp_var, param_type, param_by_ref)
@@ -1685,7 +1697,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
 
 /// Helper: Build variadic array using pre-computed arg strings
 /// Mirrors hoist_variadic_args but uses pre-computed arg_strings instead of emit_expr
-emit_variadic_array_with_strings : proc(elem_type: Str, arg_strings: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str = {
+emit_variadic_array_with_strings : proc(elem_type: Str, arg_strings: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext) returns Str = {
     indent_str := repeat("    ", indent)
     arr_var := next_mangled(ctx)
     err_suffix := next_mangled(ctx)
@@ -1799,7 +1811,7 @@ emit_variadic_array_with_strings : proc(elem_type: Str, arg_strings: Vec, mut ou
         ti.inc()
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     return arr_var
 }
@@ -1811,7 +1823,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
     if arg.params.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name")
     }
-    first_param := arg.get(0)?
+    first_param := cast(Expr, arg.params.get(0)?)
     dont_delete(first_param)
     func_name := get_func_name_string(first_param)?
 
@@ -1822,12 +1834,12 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
     mut field_values := Map.new(Str, Str)
     mut ai := 1
     while ai.lt(arg.params.len()) {
-        named_arg := arg.get(ai)?
+        named_arg := cast(Expr, arg.params.get(ai)?)
         dont_delete(named_arg)
         switch named_arg.node_type {
         case NodeType.NamedArg(field_name):
             if not(named_arg.params.is_empty()) {
-                value_expr := named_arg.get(0)?
+                value_expr := cast(Expr, named_arg.params.get(0)?)
                 dont_delete(value_expr)
                 // Find the field's expected type
                 mut field_type := Ptr()
@@ -1888,7 +1900,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
 
     mut orig_func_name := func_name.clone()
     orig_func_name = get_til_func_name_string(first_param)?
-    catch (err: Str) {
+    catch (err: KeyNotFoundError) {
         // REM: Use func_name as fallback
     }
 
@@ -1898,7 +1910,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
         if arg.params.len().lt(2) {
             throw arg.lang_error(context.path, "ccodegen", "to_ptr requires 1 argument")
         }
-        inner_arg := arg.get(1)?
+        inner_arg := cast(Expr, arg.params.get(1)?)
         dont_delete(inner_arg)
         // Check if arg is a Dynamic parameter (already void*)
         mut is_dynamic_param := false
@@ -1937,7 +1949,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
         if arg.params.len().lt(2) {
             throw arg.lang_error(context.path, "ccodegen", "size_of requires 1 argument")
         }
-        sizeof_arg := arg.get(1)?
+        sizeof_arg := cast(Expr, arg.params.get(1)?)
         dont_delete(sizeof_arg)
         mut sizeof_result := ""
         sizeof_result.push_str(TIL_PREFIX)
@@ -1977,7 +1989,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
         if arg.params.len().lt(2) {
             throw arg.lang_error(context.path, "ccodegen", "enum_to_str requires 1 argument")
         }
-        ets_inner_arg := arg.get(1)?
+        ets_inner_arg := cast(Expr, arg.params.get(1)?)
         dont_delete(ets_inner_arg)
         value_type := get_value_type(context, ets_inner_arg)?
         switch value_type {
@@ -2014,7 +2026,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
         if arg.params.len().lt(2) {
             throw arg.lang_error(context.path, "ccodegen", "type_as_str requires 1 argument")
         }
-        tas_arg := arg.get(1)?
+        tas_arg := cast(Expr, arg.params.get(1)?)
         dont_delete(tas_arg)
         switch tas_arg.node_type {
         case NodeType.Identifier(type_name):
@@ -2062,7 +2074,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(arg.params.len()) {
-            nested_arg := arg.get(arg_idx)?
+            nested_arg := cast(Expr, arg.params.get(arg_idx)?)
             dont_delete(nested_arg)
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
@@ -2155,7 +2167,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
 
     call_str.push_str(")")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     return call_str
 }
@@ -2204,7 +2216,7 @@ get_c_type_for_expr : proc(arg: Expr, context: Context) returns Str throws Str =
             // Bug #143: Handle UFCS chain with field access: _[FCall, field1, field2, ...]
             // After UFCS desugaring, x.method().field1.field2 becomes _[FCall, field1, field2]
             if name.eq("_") {
-                first_param := arg.get(0)?
+                first_param := cast(Expr, arg.params.get(0)?)
                 dont_delete(first_param)
                 switch first_param.node_type {
                 case NodeType.FCall(_):
@@ -2222,7 +2234,7 @@ get_c_type_for_expr : proc(arg: Expr, context: Context) returns Str throws Str =
                     mut current_type := struct_name.clone()
                     mut field_idx := 1
                     while field_idx.lt(arg.params.len()) {
-                        field_param := arg.get(field_idx)?
+                        field_param := cast(Expr, arg.params.get(field_idx)?)
                         dont_delete(field_param)
                         switch field_param.node_type {
                         case NodeType.Identifier(field_name):
@@ -2257,7 +2269,7 @@ get_c_type_for_expr : proc(arg: Expr, context: Context) returns Str throws Str =
                 }
             }
             // Type-qualified call or field access
-            typeq_first_param := arg.get(0)?
+            typeq_first_param := cast(Expr, arg.params.get(0)?)
             dont_delete(typeq_first_param)
             switch typeq_first_param.node_type {
             case NodeType.Identifier(field_or_variant):
@@ -2303,7 +2315,7 @@ get_c_type_for_expr : proc(arg: Expr, context: Context) returns Str throws Str =
         }
     case:
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for expression")
 }
@@ -2329,7 +2341,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            collect_func_info(child, ctx)?
+            collect_func_info(child, ctx)
         }
     case:
     }
@@ -2349,7 +2361,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_struct_declaration(child)? {
+            if is_struct_declaration(child) {
                 switch child.node_type {
                 case NodeType.Declaration(decl):
                     if decl.name.eq("I64").or(decl.name.eq("U8")).or(decl.name.eq("Bool")).or(decl.name.eq("Dynamic")).or(decl.name.eq("Type")) {
@@ -2365,7 +2377,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
                 }
             }
             // Also forward-declare enums with payloads (they're implemented as structs)
-            if is_enum_declaration(child)?.and(is_enum_with_payloads(child)?) {
+            if is_enum_declaration(child).and(is_enum_with_payloads(child)) {
                 switch child.node_type {
                 case NodeType.Declaration(decl):
                     enum_name := til_name(decl.name)
@@ -2386,7 +2398,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_enum_declaration(child)?.and(not(is_enum_with_payloads(child)?)) {
+            if is_enum_declaration(child).and(not(is_enum_with_payloads(child))) {
                 emit_enum_declaration(child, output)?
             }
         }
@@ -2399,14 +2411,14 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     case NodeType.Body:
         mut type_decls := Vec.new(Expr)
         for child: Expr in ast.params {
-            if is_struct_declaration(child)?.or(is_enum_declaration(child)?.and(is_enum_with_payloads(child)?)) {
+            if is_struct_declaration(child).or(is_enum_declaration(child).and(is_enum_with_payloads(child))) {
                 type_decls.push(child)
             }
         }
-        sorted_indices := topological_sort_types(type_decls)?
+        sorted_indices := topological_sort_types(type_decls)
         for idx: I64 in sorted_indices {
             child := cast(Expr, type_decls.get(idx)?)
-            if is_struct_declaration(child)? {
+            if is_struct_declaration(child) {
                 emit_struct_declaration(child, output)?
             } else {
                 emit_enum_declaration(child, output)?
@@ -2419,7 +2431,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_func_sig_declaration(child)? {
+            if is_func_sig_declaration(child) {
                 emit_func_sig_typedef(child, context, output)?
             }
         }
@@ -2431,7 +2443,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_func_declaration(child)? {
+            if is_func_declaration(child) {
                 emit_func_prototype(child, context, output)?
             }
         }
@@ -2441,7 +2453,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_enum_declaration(child)? {
+            if is_enum_declaration(child) {
                 emit_enum_method_prototypes(child, context, output)?
             }
         }
@@ -2454,7 +2466,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
             switch child.node_type {
             case NodeType.Declaration(ns2b2_decl):
                 if child.params.len().gt(0) {
-                    ns2b2_inner := child.get(0)?
+                    ns2b2_inner := cast(Expr, child.params.get(0)?)
                     switch ns2b2_inner.node_type {
                     case NodeType.StructDef(ns2b2_sd):
                         if ns2b2_sd.ns.members.len().gt(0) {
@@ -2491,7 +2503,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_struct_declaration(child)? {
+            if is_struct_declaration(child) {
                 emit_struct_constants(child, output, ctx, context)?
             }
         }
@@ -2502,8 +2514,8 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_enum_declaration(child)? {
-                emit_enum_size_of_constant(child, output, ctx)?
+            if is_enum_declaration(child) {
+                emit_enum_size_of_constant(child, output, ctx)
             }
         }
     case:
@@ -2514,7 +2526,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_enum_declaration(child)? {
+            if is_enum_declaration(child) {
                 emit_enum_to_str_for_declaration(child, output, context)?
             }
         }
@@ -2525,7 +2537,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_constant_declaration(child)? {
+            if is_constant_declaration(child) {
                 emit_constant_declaration(child, output, ctx, context)?
             }
         }
@@ -2537,7 +2549,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_global_declaration(child)? {
+            if is_global_declaration(child) {
                 emit_global_declaration(child, output, ctx, context)
             }
         }
@@ -2558,7 +2570,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_func_declaration(child)? {
+            if is_func_declaration(child) {
                 emit_func_declaration(child, output, ctx, context)?
             }
         }
@@ -2568,7 +2580,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_enum_declaration(child)? {
+            if is_enum_declaration(child) {
                 emit_enum_method_bodies(child, output, ctx, context)?
             }
         }
@@ -2581,7 +2593,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
             switch child.node_type {
             case NodeType.Declaration(ns5b2_decl):
                 if child.params.len().gt(0) {
-                    ns5b2_inner := child.get(0)?
+                    ns5b2_inner := cast(Expr, child.params.get(0)?)
                     switch ns5b2_inner.node_type {
                     case NodeType.StructDef(ns5b2_sd):
                         if ns5b2_sd.ns.members.len().gt(0) {
@@ -2637,7 +2649,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_global_declaration(child)? {
+            if is_global_declaration(child) {
                 switch child.node_type {
                 case NodeType.Declaration(decl):
                     // Bug #97: Use type-mangled name
@@ -2667,7 +2679,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
                 }
             case:
             }
-            if not(skip).and(not(is_func_declaration(child)?)).and(not(is_struct_declaration(child)?)).and(not(is_enum_declaration(child)?)).and(not(is_constant_declaration(child)?)) {
+            if not(skip).and(not(is_func_declaration(child))).and(not(is_struct_declaration(child))).and(not(is_enum_declaration(child))).and(not(is_constant_declaration(child))) {
                 main_stmts.push(child)
             }
         }
@@ -2706,16 +2718,16 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     output.push_str("    return 0;\n")
     output.push_str("}\n")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return output
 }
 
 // Check if an expression is a struct declaration (Name := struct {...})
-is_struct_declaration : func(expr: Expr) returns Bool throws Str = {
+is_struct_declaration : func(expr: Expr) returns Bool = {
     switch expr.node_type {
     case NodeType.Declaration:
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.StructDef:
@@ -2727,14 +2739,15 @@ is_struct_declaration : func(expr: Expr) returns Bool throws Str = {
     }
 
     return false
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Check if an expression is an enum declaration (Name := enum {...})
-is_enum_declaration : func(expr: Expr) returns Bool throws Str = {
+is_enum_declaration : func(expr: Expr) returns Bool = {
     switch expr.node_type {
     case NodeType.Declaration:
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.EnumDef:
@@ -2746,11 +2759,12 @@ is_enum_declaration : func(expr: Expr) returns Bool throws Str = {
     }
 
     return false
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Check if an expression is a top-level constant declaration (name := literal)
 // Constants are non-mut declarations with literal values (numbers, strings, bools)
-is_constant_declaration : func(expr: Expr) returns Bool throws Str = {
+is_constant_declaration : func(expr: Expr) returns Bool = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Must not be mutable
@@ -2758,7 +2772,7 @@ is_constant_declaration : func(expr: Expr) returns Bool throws Str = {
             return false
         }
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.LLiteral:
@@ -2786,6 +2800,7 @@ is_constant_declaration : func(expr: Expr) returns Bool throws Str = {
     }
 
     return false
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Check if an expression is a function call that uses out-params (i.e., the function throws)
@@ -2805,7 +2820,7 @@ emit_constant_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenCo
             }
 
             // Handle literal constants (numbers, strings)
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.LLiteral(lit):
@@ -2875,12 +2890,13 @@ emit_constant_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenCo
         }
     case:
     }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Check if an expression is a non-constant top-level declaration that needs to be a global
 // These are declarations that are NOT: functions, structs, enums, or literal constants
 // but are still non-mut and could be referenced from function bodies
-is_global_declaration : func(expr: Expr) returns Bool throws Str = {
+is_global_declaration : func(expr: Expr) returns Bool = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Skip true/false declarations - they're handled specially
@@ -2888,7 +2904,7 @@ is_global_declaration : func(expr: Expr) returns Bool throws Str = {
             return false
         }
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
                 // Skip these - they have their own handling
@@ -2920,6 +2936,7 @@ is_global_declaration : func(expr: Expr) returns Bool throws Str = {
     case:
     }
     return false
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit a global declaration as a static variable at file scope (type only, no initializer)
@@ -2950,7 +2967,7 @@ emit_global_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenCont
             }
 
             // Determine the C type from the initializer expression using get_value_type
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             mut have_vt := true
             vt := get_value_type(context, first_param)?
@@ -2985,15 +3002,16 @@ emit_global_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenCont
         }
     case:
     }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Collect function info (throw types, return types, names) from AST into context
 // Handles both top-level functions and struct methods
-collect_func_info : proc(expr: Expr, mut ctx: CodegenContext) throws Str = {
+collect_func_info : proc(expr: Expr, mut ctx: CodegenContext) = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
@@ -3016,6 +3034,7 @@ collect_func_info : proc(expr: Expr, mut ctx: CodegenContext) throws Str = {
         }
     case:
     }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
@@ -3024,7 +3043,7 @@ collect_nested_func_info : proc(expr: Expr, mut ctx: CodegenContext, context: Co
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
@@ -3060,19 +3079,19 @@ collect_nested_func_info : proc(expr: Expr, mut ctx: CodegenContext, context: Co
     case NodeType.If:
         // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
         if expr.params.len().gt(1) {
-            then_branch := expr.get(1)?
+            then_branch := cast(Expr, expr.params.get(1)?)
             dont_delete(then_branch)
             collect_nested_func_info(then_branch, ctx, context, parent_func_name)?
         }
         if expr.params.len().gt(2) {
-            else_branch := expr.get(2)?
+            else_branch := cast(Expr, expr.params.get(2)?)
             dont_delete(else_branch)
             collect_nested_func_info(else_branch, ctx, context, parent_func_name)?
         }
     case NodeType.While:
         // Check loop body (params[0] = condition, params[1] = body)
         if expr.params.len().gt(1) {
-            body := expr.get(1)?
+            body := cast(Expr, expr.params.get(1)?)
             dont_delete(body)
             collect_nested_func_info(body, ctx, context, parent_func_name)?
         }
@@ -3082,6 +3101,7 @@ collect_nested_func_info : proc(expr: Expr, mut ctx: CodegenContext, context: Co
             collect_nested_func_info(child, ctx, context, parent_func_name)?
         }
     }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit a struct declaration as a C struct (only mut fields become struct fields)
@@ -3094,7 +3114,7 @@ emit_struct_declaration : proc(expr: Expr, mut output: Str) throws Str = {
             return
         }
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.StructDef(struct_def):
@@ -3123,6 +3143,7 @@ emit_struct_declaration : proc(expr: Expr, mut output: Str) throws Str = {
 
 
     throw "emit_struct_declaration: not a struct declaration"
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
@@ -3131,7 +3152,7 @@ emit_struct_constants : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.StructDef(struct_def):
@@ -3188,14 +3209,15 @@ emit_struct_constants : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
     case:
     }
     // Not a struct, nothing to emit
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit size_of constant for an enum: til_size_of_EnumName = sizeof(til_EnumName)
-emit_enum_size_of_constant : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext) throws Str = {
+emit_enum_size_of_constant : proc(expr: Expr, mut output: Str, mut ctx: CodegenContext) = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
@@ -3216,6 +3238,7 @@ emit_enum_size_of_constant : proc(expr: Expr, mut output: Str, mut ctx: CodegenC
         }
     case:
     }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit til_size_of function for runtime type size lookup
@@ -3665,11 +3688,11 @@ enum_has_payloads : func(enum_def: EnumDef) returns Bool = {
 }
 
 // Check if an expression is an enum declaration with payloads
-is_enum_with_payloads : func(expr: Expr) returns Bool throws Str = {
+is_enum_with_payloads : func(expr: Expr) returns Bool = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
@@ -3680,6 +3703,7 @@ is_enum_with_payloads : func(expr: Expr) returns Bool throws Str = {
     case:
     }
     return false
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit an enum with payloads as a tagged union
@@ -3806,7 +3830,7 @@ emit_enum_declaration : proc(expr: Expr, mut output: Str) throws Str = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
@@ -3871,13 +3895,14 @@ emit_enum_declaration : proc(expr: Expr, mut output: Str) throws Str = {
 
 
     throw "emit_enum_declaration: not an enum declaration"
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit a _to_str function for an enum type
 // Takes a const pointer since we only read the enum
 // For simple enums: til_Str til_EnumName_to_str(const til_EnumName* e)
 // For enums with payloads: til_Str til_EnumName_to_str(const til_EnumName* e)
-emit_enum_to_str_function : proc(enum_name: Str, enum_def: EnumDef, mut output: Str) throws Str = {
+emit_enum_to_str_function : proc(enum_name: Str, enum_def: EnumDef, mut output: Str) = {
     has_payloads := enum_has_payloads(enum_def)
     mut variants := Vec.new(Str)
     for v: EnumVariant in enum_def.variants {
@@ -3927,7 +3952,7 @@ emit_enum_to_str_function : proc(enum_name: Str, enum_def: EnumDef, mut output: 
     output.push_str(I64.to_str(unknown_name.len()))
     output.push_str(", 0});\n}\n\n")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit _to_str function for an enum declaration node
@@ -3942,7 +3967,7 @@ emit_enum_to_str_for_declaration : proc(expr: Expr, mut output: Str, context: Co
         }
         if have_enum_def {
             c_enum_name := til_name(enum_name)
-            emit_enum_to_str_function(c_enum_name, enum_def, output)?
+            emit_enum_to_str_function(c_enum_name, enum_def, output)
             return
         }
     case:
@@ -3955,7 +3980,7 @@ emit_enum_method_prototypes : proc(expr: Expr, context: Context, mut output: Str
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
@@ -3977,7 +4002,7 @@ emit_enum_method_prototypes : proc(expr: Expr, context: Context, mut output: Str
         }
     case:
     }
-
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Issue #108: Emit enum method bodies (delete/clone)
@@ -3985,7 +4010,7 @@ emit_enum_method_bodies : proc(expr: Expr, mut output: Str, mut ctx: CodegenCont
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
@@ -4014,7 +4039,7 @@ emit_enum_method_bodies : proc(expr: Expr, mut output: Str, mut ctx: CodegenCont
         }
     case:
     }
-
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit a struct/namespace/enum function body with mangled name: TypeName_funcname
@@ -4085,7 +4110,7 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: Fu
     }
 
     // Bug #168: Pre-scan for return variable placement optimization
-    ctx.ret_var_alias = find_ret_var_for_placement(func_def)?
+    ctx.ret_var_alias = find_ret_var_for_placement(func_def)
     if not(ctx.ret_var_alias.is_empty()) {
         _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
     }
@@ -4460,7 +4485,7 @@ emit_func_prototype : proc(expr: Expr, context: Context, mut output: Str) throws
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
@@ -4470,7 +4495,7 @@ emit_func_prototype : proc(expr: Expr, context: Context, mut output: Str) throws
                 }
 
                 // Issue #91: Skip FuncSig declarations - they become typedefs, not functions
-                if is_func_sig_declaration(expr)? {
+                if is_func_sig_declaration(expr) {
                     return
                 }
 
@@ -4486,14 +4511,15 @@ emit_func_prototype : proc(expr: Expr, context: Context, mut output: Str) throws
 
 
     throw "emit_func_prototype: not a function declaration"
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Check if an expression is a function declaration (name := proc/func)
-is_func_declaration : func(expr: Expr) returns Bool throws Str = {
+is_func_declaration : func(expr: Expr) returns Bool = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(fd):
@@ -4504,14 +4530,15 @@ is_func_declaration : func(expr: Expr) returns Bool throws Str = {
     case:
     }
     return false
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Issue #91: Check if an expression is a FuncSig declaration (type-only args, empty body)
-is_func_sig_declaration : func(expr: Expr) returns Bool throws Str = {
+is_func_sig_declaration : func(expr: Expr) returns Bool = {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
@@ -4538,6 +4565,7 @@ is_func_sig_declaration : func(expr: Expr) returns Bool throws Str = {
     case:
     }
     return false
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Issue #91: Check if a parameter type is a FuncSig type (function pointer)
@@ -4559,7 +4587,7 @@ emit_func_sig_typedef : proc(expr: Expr, context: Context, mut output: Str) thro
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
@@ -4646,7 +4674,7 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
@@ -4656,7 +4684,7 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 }
 
                 // Issue #91: Skip FuncSig declarations - they become typedefs, not functions
-                if is_func_sig_declaration(expr)? {
+                if is_func_sig_declaration(expr) {
                     return
                 }
 
@@ -4737,7 +4765,7 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 }
 
                 // Bug #168: Pre-scan for return variable placement optimization
-                ctx.ret_var_alias = find_ret_var_for_placement(func_def)?
+                ctx.ret_var_alias = find_ret_var_for_placement(func_def)
                 if not(ctx.ret_var_alias.is_empty()) {
                     _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
                 }
@@ -4807,13 +4835,13 @@ emit_expr : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenConte
         // then params[1..] are the field chain
         if name.eq("_").and(not(expr.params.is_empty())) {
             // Emit the base expression (params[0])
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             emit_expr(first_param, output, indent, ctx, context)?
             // Then emit the field chain
             mut i := 1
             while i.lt(expr.params.len()) {
-                param := expr.get(i)?
+                param := cast(Expr, expr.params.get(i)?)
                 dont_delete(param)
                 switch param.node_type {
                 case NodeType.Identifier(field):
@@ -4828,7 +4856,7 @@ emit_expr : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenConte
 
         // Check for type-qualified access (Type.field or Type.Variant)
         if not(expr.params.is_empty()) {
-            type_first_param := expr.get(0)?
+            type_first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(type_first_param)
             switch type_first_param.node_type {
             case NodeType.Identifier(type_field):
@@ -4939,6 +4967,7 @@ emit_expr : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenConte
         throw expr.lang_error(context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")
     case:
     }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_body : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
@@ -4967,9 +4996,9 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
         if catch_block.params.len().gteq(3) {
             // Temporarily add the catch error variable to scope for type inference
             // catch (err: ErrType) { body } -> err_var=params[0], err_type=params[1], body=params[2]
-            err_var_param := catch_block.get(0)?
+            err_var_param := cast(Expr, catch_block.params.get(0)?)
             dont_delete(err_var_param)
-            err_type_param := catch_block.get(1)?
+            err_type_param := cast(Expr, catch_block.params.get(1)?)
             dont_delete(err_type_param)
             switch err_var_param.node_type {
             case NodeType.Identifier(err_var_name):
@@ -4988,7 +5017,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
             }
 
             // Bug #97: Use type-mangled names for shadowing support
-            catch_body := catch_block.get(2)?
+            catch_body := cast(Expr, catch_block.params.get(2)?)
             dont_delete(catch_body)
             decls := collect_declarations_in_body(catch_body, context)?
             for decl: CollectedDeclaration in decls {
@@ -5029,7 +5058,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
         switch scan_stmt.node_type {
         case NodeType.Catch:
             if scan_stmt.params.len().gteq(3) {
-                scan_err_type_param := scan_stmt.get(1)?
+                scan_err_type_param := cast(Expr, scan_stmt.params.get(1)?)
                 dont_delete(scan_err_type_param)
                 switch scan_err_type_param.node_type {
                 case NodeType.Identifier(scan_err_type_name):
@@ -5086,7 +5115,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
         case NodeType.Catch:
             // Get the error type this catch handles
             if stmt.params.len().gteq(3) {
-                stmt_err_type_param := stmt.get(1)?
+                stmt_err_type_param := cast(Expr, stmt.params.get(1)?)
                 dont_delete(stmt_err_type_param)
                 switch stmt_err_type_param.node_type {
                 case NodeType.Identifier(stmt_err_type_name):
@@ -5114,7 +5143,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                             output.push_str(":;\n")
 
                             // Bind error variable
-                            emit_err_var_param := stmt.get(0)?
+                            emit_err_var_param := cast(Expr, stmt.params.get(0)?)
                             dont_delete(emit_err_var_param)
                             switch emit_err_var_param.node_type {
                             case NodeType.Identifier(emit_err_var_name):
@@ -5146,7 +5175,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                             saved_catch_labels := ctx.local_catch_labels.clone()
                             saved_ref_params := ctx.current_ref_params.clone()
                             ctx.local_catch_labels.clear()
-                            catch_body_expr := stmt.get(2)?
+                            catch_body_expr := cast(Expr, stmt.params.get(2)?)
                             dont_delete(catch_body_expr)
                             emit_expr(catch_body_expr, output, indent.add(1), ctx, context)?
                             ctx.current_ref_params = saved_ref_params
@@ -5200,7 +5229,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
         case NodeType.Declaration(decl):
             // Check if declaration has an FCall as initializer
             if not(stmt.params.is_empty()) {
-                first_param := stmt.get(0)?
+                first_param := cast(Expr, stmt.params.get(0)?)
                 dont_delete(first_param)
                 switch first_param.node_type {
                 case NodeType.FCall(_):
@@ -5213,7 +5242,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
         case NodeType.Assignment(assign_name):
             // Check if assignment has an FCall as RHS
             if not(stmt.params.is_empty()) {
-                assign_first_param := stmt.get(0)?
+                assign_first_param := cast(Expr, stmt.params.get(0)?)
                 dont_delete(assign_first_param)
                 switch assign_first_param.node_type {
                 case NodeType.FCall(_):
@@ -5229,11 +5258,14 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
         if maybe_fcall_found {
             // eval functions from std.meta are only available in interpret mode
             if not(maybe_fcall.params.is_empty()) {
-                func_name_param := maybe_fcall.get(0)?
+                func_name_param := cast(Expr, maybe_fcall.params.get(0)?)
                 dont_delete(func_name_param)
                 func_name := get_til_func_name_string(func_name_param)?
                 if func_name.eq("eval_file").or(func_name.eq("eval_to_str")).or(func_name.eq("eval_to_ast_str")).or(func_name.eq("eval_to_expr")) {
                     throw maybe_fcall.error(context.path, "ccodegen", func_name.concat("() is only available in interpret mode, not in build/run"))
+                }
+                catch (err: KeyNotFoundError) {
+                    // REM: Rust's None case - not an identifier, skip eval check
                 }
             }
 
@@ -5352,12 +5384,13 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
 /// Get the function name from an FCall expression (returns underscore format like Type_method)
 /// This returns the name WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
-get_fcall_func_name : func(expr: Expr) returns Str throws Str = {
+get_fcall_func_name : func(expr: Expr) returns Str throws KeyNotFoundError = {
     // get_func_name_string already handles both nested identifiers (Type.method)
     // and precomp'd strings ("Type.method"), returning "Type_method" format
-    first_param := expr.get(0)?
+    first_param := cast(Expr, expr.params.get(0)?)
     dont_delete(first_param)
     return get_func_name_string(first_param)?
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Pre-scan function body to collect all catch blocks
@@ -5385,6 +5418,9 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
 
     // Get function name
     func_name := get_fcall_func_name(fcall)?
+    catch (err: KeyNotFoundError) {
+        throw fcall.lang_error(context.path, "ccodegen", "Cannot determine function name (emit_variadic_call)")
+    }
 
     // Calculate param info for by-ref param handling
     func_def_opt := get_fcall_func_def(context, fcall)?
@@ -5399,7 +5435,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(fcall.params.len()) {
-            arg := fcall.get(arg_idx)?
+            arg := cast(Expr, fcall.params.get(arg_idx)?)
             dont_delete(arg)
             is_variadic_arg := i.gteq(regular_count)
             mut param_type := Ptr()
@@ -5426,7 +5462,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
         variadic_arg_strings.push(vas)
         vi.inc()
     }
-    variadic_arr_var := emit_variadic_array_with_strings(elem_type, variadic_arg_strings, output, indent, ctx)?
+    variadic_arr_var := emit_variadic_array_with_strings(elem_type, variadic_arg_strings, output, indent, ctx)
 
     // Determine return type if we need to declare a variable
     mut ret_type := "int"
@@ -5588,7 +5624,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
         output.push_str(");\n")
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Clean up variadic array
     output.push_str(indent_str)
@@ -5604,6 +5640,9 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
 
     // Get function name
     mut func_name := get_fcall_func_name(fcall)?
+    catch (err: KeyNotFoundError) {
+        throw fcall.lang_error(context.path, "ccodegen", "Cannot determine function name (emit_throwing_call)")
+    }
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
     mangled_name := cast(Str, ctx.nested_func_names.get(func_name)?)
@@ -5643,7 +5682,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(fcall.params.len()) {
-            arg := fcall.get(arg_idx)?
+            arg := cast(Expr, fcall.params.get(arg_idx)?)
             dont_delete(arg)
             is_variadic_arg := i.gteq(variadic_regular_count)
             mut param_type := Ptr()
@@ -5661,7 +5700,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
             arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Declare local variables for return value and errors
     mut ret_type := "int"
@@ -5712,7 +5751,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
     // Bug #168: Try to write directly to destination instead of intermediate _ret_N
     mut dest_ptr := ""
     if needs_ret {
-        dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context)?
+        dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context)
     }
 
     // Declare temp for return value if needed (Bug #168: skip when writing to dest directly)
@@ -5756,11 +5795,11 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
         variadic_arg_strings.push(vi_as)
         vi_j.inc()
     }
-    variadic_arr_var = emit_variadic_array_with_strings(vi_info.elem_type, variadic_arg_strings, output, indent, ctx)?
+    variadic_arr_var = emit_variadic_array_with_strings(vi_info.elem_type, variadic_arg_strings, output, indent, ctx)
     has_variadic = true
     catch (err: KeyNotFoundError) {
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Generate the function call with output parameters
     output.push_str(indent_str)
@@ -5829,7 +5868,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
             nv_arg_i.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     output.push_str(");\n")
 
@@ -5891,7 +5930,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
     for catch_block: Expr in catch_blocks {
         if catch_block.params.len().gteq(3) {
             // Get error type name from catch block
-            err_type_param := catch_block.get(1)?
+            err_type_param := cast(Expr, catch_block.params.get(1)?)
             dont_delete(err_type_param)
             switch err_type_param.node_type {
             case NodeType.Identifier(err_type_name):
@@ -5919,7 +5958,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
                     output.push_str(") {\n")
 
                     // Bind error variable and add to scope for type resolution
-                    err_var_param := catch_block.get(0)?
+                    err_var_param := cast(Expr, catch_block.params.get(0)?)
                     dont_delete(err_var_param)
                     switch err_var_param.node_type {
                     case NodeType.Identifier(err_var_name):
@@ -5953,7 +5992,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
                     }
 
                     // Emit catch body
-                    catch_body := catch_block.get(2)?
+                    catch_body := cast(Expr, catch_block.params.get(2)?)
                     dont_delete(catch_body)
                     emit_expr(catch_body, output, indent.add(1), ctx, context)?
 
@@ -5975,7 +6014,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
 // Bug #168: Compute destination pointer expression for throwing calls.
 // Returns the address expression to pass directly as _ret instead of using _ret_N temp.
 // Returns "" when result is discarded (need temp as sink).
-build_dest_ptr_expr : func(decl_name: Str, assign_name: Str, ctx: CodegenContext, context: Context) returns Str throws Str = {
+build_dest_ptr_expr : func(decl_name: Str, assign_name: Str, ctx: CodegenContext, context: Context) returns Str = {
     if not(decl_name.eq("")) {
         if decl_name.eq("_") {
             return ""
@@ -6014,7 +6053,7 @@ build_dest_ptr_expr : func(decl_name: Str, assign_name: Str, ctx: CodegenContext
     }
     return ""
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Emit a throwing function call that propagates errors to the caller (no catch blocks)
@@ -6024,6 +6063,9 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
 
     // Get function name
     mut func_name := get_fcall_func_name(fcall)?
+    catch (err: KeyNotFoundError) {
+        throw fcall.lang_error(context.path, "ccodegen", "Cannot determine function name")
+    }
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
     mangled_name := cast(Str, ctx.nested_func_names.get(func_name)?)
@@ -6059,7 +6101,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(fcall.params.len()) {
-            arg := fcall.get(arg_idx)?
+            arg := cast(Expr, fcall.params.get(arg_idx)?)
             dont_delete(arg)
             is_variadic_arg := i.gteq(prop_variadic_regular_count)
             mut param_type := Ptr()
@@ -6077,7 +6119,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
             arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Look up the actual return type
     mut ret_type := "int"
@@ -6125,7 +6167,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
     // Bug #168: Try to write directly to destination instead of intermediate _ret_N
     mut dest_ptr := ""
     if needs_ret {
-        dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context)?
+        dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context)
     }
 
     // Declare temp for return value if needed (Bug #168: skip when writing to dest directly)
@@ -6170,11 +6212,11 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
         variadic_arg_strings.push(va_s)
         va_j.inc()
     }
-    variadic_arr_var = emit_variadic_array_with_strings(prop_vi2.elem_type, variadic_arg_strings, output, indent, ctx)?
+    variadic_arr_var = emit_variadic_array_with_strings(prop_vi2.elem_type, variadic_arg_strings, output, indent, ctx)
     catch (err: KeyNotFoundError) {
         // REM: Not variadic
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Generate the function call with output parameters
     output.push_str(indent_str)
@@ -6241,7 +6283,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
             nv_arg_i.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     output.push_str(");\n")
 
@@ -6341,6 +6383,9 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
 
     // Get function name
     mut func_name := get_fcall_func_name(fcall)?
+    catch (err: KeyNotFoundError) {
+        throw fcall.lang_error(context.path, "ccodegen", "Cannot determine function name")
+    }
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
     mangled_name := cast(Str, ctx.nested_func_names.get(func_name)?)
@@ -6376,7 +6421,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(fcall.params.len()) {
-            arg := fcall.get(arg_idx)?
+            arg := cast(Expr, fcall.params.get(arg_idx)?)
             dont_delete(arg)
             is_variadic_arg := i.gteq(goto_variadic_regular_count)
             mut param_type := Ptr()
@@ -6394,7 +6439,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
             arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Look up the actual return type
     mut ret_type := "int"
@@ -6442,7 +6487,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
     // Bug #168: Try to write directly to destination instead of intermediate _ret_N
     mut dest_ptr := ""
     if needs_ret {
-        dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context)?
+        dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context)
     }
 
     // Declare temp for return value if needed (Bug #168: skip when writing to dest directly)
@@ -6487,11 +6532,11 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
         variadic_arg_strings.push(va_s)
         va_j.inc()
     }
-    variadic_arr_var = emit_variadic_array_with_strings(goto_vi2.elem_type, variadic_arg_strings, output, indent, ctx)?
+    variadic_arr_var = emit_variadic_array_with_strings(goto_vi2.elem_type, variadic_arg_strings, output, indent, ctx)
     catch (err: KeyNotFoundError) {
         // REM: Not variadic
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Generate the function call with output parameters
     output.push_str(indent_str)
@@ -6558,7 +6603,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
             nv_arg_i.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     output.push_str(");\n")
 
@@ -6682,7 +6727,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
     }
     // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
     if not(expr.params.is_empty()) {
-        first_param := expr.get(0)?
+        first_param := cast(Expr, expr.params.get(0)?)
         dont_delete(first_param)
         switch first_param.node_type {
         case NodeType.FuncDef(func_def):
@@ -6777,7 +6822,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 }
 
                 // Bug #168: Pre-scan for return variable placement optimization
-                ctx.ret_var_alias = find_ret_var_for_placement(func_def)?
+                ctx.ret_var_alias = find_ret_var_for_placement(func_def)
                 if not(ctx.ret_var_alias.is_empty()) {
                     _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
                 }
@@ -6826,19 +6871,19 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
 
     // cast(Type, ptr_expr) - emit pointer-typed alias variable
     if not(expr.params.is_empty()) {
-        cast_rhs := expr.get(0)?
+        cast_rhs := cast(Expr, expr.params.get(0)?)
         dont_delete(cast_rhs)
         switch cast_rhs.node_type {
         case NodeType.FCall(_):
-            cast_first_param := cast_rhs.get(0)?
+            cast_first_param := cast(Expr, cast_rhs.params.get(0)?)
             dont_delete(cast_first_param)
             mut cast_f_name := ""
             cast_f_name = get_func_name_string(cast_first_param)?
-            catch (err: Str) {
-                // Not an identifier, skip
+            catch (err: KeyNotFoundError) {
+                // REM: Not an identifier, skip
             }
             if cast_f_name.eq("cast").and(cast_rhs.params.len().gteq(3)) {
-                cast_type_expr := cast_rhs.get(1)?
+                cast_type_expr := cast(Expr, cast_rhs.params.get(1)?)
                 dont_delete(cast_type_expr)
                 mut cast_type_name := ""
                 switch cast_type_expr.node_type {
@@ -6847,7 +6892,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 case:
                     throw "ccodegen: cast: first argument must be a type name"
                 }
-                cast_ptr_expr := cast_rhs.get(2)?
+                cast_ptr_expr := cast(Expr, cast_rhs.params.get(2)?)
                 dont_delete(cast_ptr_expr)
                 cast_var_type := ValueType.TCustom(cast_type_name.clone())
                 // Register in scope
@@ -6899,7 +6944,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
     mut rhs_string := ""
     mut has_rhs_string := false
     if not(expr.params.is_empty()) {
-        rhs := expr.get(0)?
+        rhs := cast(Expr, expr.params.get(0)?)
         dont_delete(rhs)
         switch rhs.node_type {
         case NodeType.FCall(_):
@@ -6909,7 +6954,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
             // Bug #157: Check for UFCS field access on throwing call
             // Pattern: Identifier("_") with params[0] = throwing FCall, params[1..] = field chain
             if name.eq("_").and(not(rhs.params.is_empty())) {
-                rhs_first_param := rhs.get(0)?
+                rhs_first_param := cast(Expr, rhs.params.get(0)?)
                 dont_delete(rhs_first_param)
                 switch rhs_first_param.node_type {
                 case NodeType.FCall(_):
@@ -6926,7 +6971,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                         // Append field chain: temp.field1.field2...
                         mut result := base_temp
                         for field_idx in 1..rhs.params.len() {
-                            field_expr := rhs.get(field_idx)?
+                            field_expr := cast(Expr, rhs.params.get(field_idx)?)
                             dont_delete(field_expr)
                             switch field_expr.node_type {
                             case NodeType.Identifier(field):
@@ -6952,7 +6997,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
             output.push_str(indent_str)
             // FCall at statement level (indent > 0) adds ";\n" itself
             // Other expressions need semicolon added explicitly
-            discard_first_param := expr.get(0)?
+            discard_first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(discard_first_param)
             switch discard_first_param.node_type {
             case NodeType.FCall(_):
@@ -6977,9 +7022,9 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
     mut struct_type := ""
     mut has_struct_type := false
     if not(expr.params.is_empty()) {
-        struct_first_param := expr.get(0)?
+        struct_first_param := cast(Expr, expr.params.get(0)?)
         dont_delete(struct_first_param)
-        struct_type = get_struct_construction_type(struct_first_param, context)?
+        struct_type = get_struct_construction_type(struct_first_param, context)
         if not(struct_type.is_empty()) {
             has_struct_type = true
         }
@@ -6989,9 +7034,9 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
     mut enum_type := ""
     mut has_enum_type := false
     if not(expr.params.is_empty()) {
-        enum_first_param := expr.get(0)?
+        enum_first_param := cast(Expr, expr.params.get(0)?)
         dont_delete(enum_first_param)
-        enum_type = get_enum_construction_type(enum_first_param, context)?
+        enum_type = get_enum_construction_type(enum_first_param, context)
         if not(enum_type.is_empty()) {
             has_enum_type = true
         }
@@ -7018,7 +7063,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
         if is_infer {
             // INFER_TYPE: need to infer from RHS
             if not(expr.params.is_empty()) {
-                type_first_param := expr.get(0)?
+                type_first_param := cast(Expr, expr.params.get(0)?)
                 dont_delete(type_first_param)
                 var_type = get_value_type(context, type_first_param)?
                 catch (err: Str) {
@@ -7065,16 +7110,16 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
         // Build map of named arg values from struct literal
         mut named_values := Map.new(Str, Expr)
         if not(expr.params.is_empty()) {
-            named_first_param := expr.get(0)?
+            named_first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(named_first_param)
             mut arg_idx := 1
             while arg_idx.lt(named_first_param.params.len()) {
-                named_arg := named_first_param.get(arg_idx)?
+                named_arg := cast(Expr, named_first_param.params.get(arg_idx)?)
                 dont_delete(named_arg)
                 switch named_arg.node_type {
                 case NodeType.NamedArg(field_name):
                     if not(named_arg.params.is_empty()) {
-                        named_value_expr := named_arg.get(0)?
+                        named_value_expr := cast(Expr, named_arg.params.get(0)?)
                         dont_delete(named_value_expr)
                         named_values.set(field_name.clone(), named_value_expr.clone())
                     }
@@ -7233,7 +7278,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
         }
         output.push_str(c_var_name.clone())
         output.push_str(" = ")
-        enum_emit_first_param := expr.get(0)?
+        enum_emit_first_param := cast(Expr, expr.params.get(0)?)
         dont_delete(enum_emit_first_param)
         emit_expr(enum_emit_first_param, output, 0, ctx, context)?
         output.push_str(";\n")
@@ -7266,7 +7311,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 if has_rhs_string {
                     output.push_str(rhs_string)
                 } else {
-                    init_first_param := expr.get(0)?
+                    init_first_param := cast(Expr, expr.params.get(0)?)
                     dont_delete(init_first_param)
                     emit_expr(init_first_param, output, 0, ctx, context)?
                 }
@@ -7309,7 +7354,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 if has_rhs_string {
                     output.push_str(rhs_string)
                 } else {
-                    const_emit_first_param := expr.get(0)?
+                    const_emit_first_param := cast(Expr, expr.params.get(0)?)
                     dont_delete(const_emit_first_param)
                     emit_expr(const_emit_first_param, output, 0, ctx, context)?
                 }
@@ -7325,11 +7370,11 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
 
 // Check if an expression is a struct construction call (TypeName() or TypeName(x=1, y=2))
 // Returns the type name if it is, empty string otherwise
-get_struct_construction_type : func(expr: Expr, context: Context) returns Str throws Str = {
+get_struct_construction_type : func(expr: Expr, context: Context) returns Str = {
     switch expr.node_type {
     case NodeType.FCall(_):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.Identifier(name):
@@ -7344,7 +7389,7 @@ get_struct_construction_type : func(expr: Expr, context: Context) returns Str th
                         only_named_args = true
                         mut i := 1
                         while i.lt(expr.params.len()) {
-                            arg := expr.get(i)?
+                            arg := cast(Expr, expr.params.get(i)?)
                             dont_delete(arg)
                             switch arg.node_type {
                             case NodeType.NamedArg(_):
@@ -7365,18 +7410,19 @@ get_struct_construction_type : func(expr: Expr, context: Context) returns Str th
     case:
     }
     return ""
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
 // Returns the type name if it is, empty string otherwise
 // AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
 // AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
-get_enum_construction_type : func(expr: Expr, context: Context) returns Str throws Str = {
+get_enum_construction_type : func(expr: Expr, context: Context) returns Str = {
     // Check FCall case: Type.Variant(value) or Type.Variant()
     switch expr.node_type {
     case NodeType.FCall(_):
         if not(expr.params.is_empty()) {
-            first_param := expr.get(0)?
+            first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(first_param)
             switch first_param.node_type {
             case NodeType.Identifier(type_name):
@@ -7391,7 +7437,7 @@ get_enum_construction_type : func(expr: Expr, context: Context) returns Str thro
                 if enum_def_found {
                     // Check if there's a nested identifier (the variant)
                     if not(first_param.params.is_empty()) {
-                        variant_param := first_param.get(0)?
+                        variant_param := cast(Expr, first_param.params.get(0)?)
                         dont_delete(variant_param)
                         switch variant_param.node_type {
                         case NodeType.Identifier(variant_name):
@@ -7414,7 +7460,7 @@ get_enum_construction_type : func(expr: Expr, context: Context) returns Str thro
             return ""
         }
         if not(expr.params.is_empty()) {
-            ident_variant_param := expr.get(0)?
+            ident_variant_param := cast(Expr, expr.params.get(0)?)
             dont_delete(ident_variant_param)
             switch ident_variant_param.node_type {
             case NodeType.Identifier(variant_name):
@@ -7428,6 +7474,7 @@ get_enum_construction_type : func(expr: Expr, context: Context) returns Str thro
     case:
     }
     return ""
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_funcdef : proc(_func_def: FuncDef, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
@@ -7450,7 +7497,7 @@ emit_assignment : proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut 
     mut rhs_str := ""
     mut has_rhs := false
     if not(expr.params.is_empty()) {
-        rhs_expr := expr.get(0)?
+        rhs_expr := cast(Expr, expr.params.get(0)?)
         dont_delete(rhs_expr)
 
         // Check if RHS is a call to a throwing function
@@ -7545,7 +7592,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     if is_throwing {
         // Throwing function: store value through _ret pointer and return 0 (success)
         if not(expr.params.is_empty()) {
-            thr_return_expr := expr.get(0)?
+            thr_return_expr := cast(Expr, expr.params.get(0)?)
             dont_delete(thr_return_expr)
 
             // Check if return expression is a call to a throwing function
@@ -7637,7 +7684,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         // Non-throwing function: normal return
         // Check if return expression is a variadic function call
         if not(expr.params.is_empty()) {
-            return_expr := expr.get(0)?
+            return_expr := cast(Expr, expr.params.get(0)?)
             dont_delete(return_expr)
             switch return_expr.node_type {
             case NodeType.FCall(_):
@@ -7653,7 +7700,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     mut variadic_args := Vec.new(Expr)
                     mut va_idx := add(1, variadic_fcall_info.regular_count)
                     while va_idx.lt(return_expr.params.len()) {
-                        va_arg := return_expr.get(va_idx)?
+                        va_arg := cast(Expr, return_expr.params.get(va_idx)?)
                         dont_delete(va_arg)
                         variadic_args.push(va_arg)
                         va_idx.inc()
@@ -7665,7 +7712,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     mut regular_args := Vec.new(Expr)
                     mut ra_idx := 1
                     while ra_idx.lt(add(1, variadic_fcall_info.regular_count)).and(ra_idx.lt(return_expr.params.len())) {
-                        ra_arg := return_expr.get(ra_idx)?
+                        ra_arg := cast(Expr, return_expr.params.get(ra_idx)?)
                         dont_delete(ra_arg)
                         regular_args.push(ra_arg)
                         ra_idx.inc()
@@ -7715,7 +7762,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     output.push_str(temp_var)
                     output.push_str(" = ")
                     // Emit the function call
-                    var_first_param := return_expr.get(0)?
+                    var_first_param := cast(Expr, return_expr.params.get(0)?)
                     dont_delete(var_first_param)
                     switch var_first_param.node_type {
                     case NodeType.Identifier(func_name):
@@ -7762,7 +7809,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         // Issue #91: If returning a function name where return type is FuncSig,
         // emit the C function name directly (function names decay to pointers in C)
         if not(expr.params.is_empty()) {
-            nv_return_expr := expr.get(0)?
+            nv_return_expr := cast(Expr, expr.params.get(0)?)
             dont_delete(nv_return_expr)
             mut nv_ret_is_func_sig := false
             if ctx.current_return_types.len().gt(0) {
@@ -7798,7 +7845,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         mut nv_return_str := ""
         mut has_nv_return := false
         if not(expr.params.is_empty()) {
-            ret_first_param := expr.get(0)?
+            ret_first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(ret_first_param)
             nv_return_str = emit_arg_string(ret_first_param, Ptr(), false, output, indent, ctx, context)?
             has_nv_return = true
@@ -7826,7 +7873,7 @@ emit_throw : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     }
 
     indent_str := repeat("    ", indent)
-    thrown_expr := expr.get(0)?
+    thrown_expr := cast(Expr, expr.params.get(0)?)
     dont_delete(thrown_expr)
 
     // Bug #143: Use emit_arg_string to handle hoisting of thrown expression
@@ -7840,7 +7887,7 @@ emit_throw : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     switch thrown_expr.node_type {
     case NodeType.FCall(_):
         if not(thrown_expr.params.is_empty()) {
-            nh_first_param := thrown_expr.get(0)?
+            nh_first_param := cast(Expr, thrown_expr.params.get(0)?)
             dont_delete(nh_first_param)
             switch nh_first_param.node_type {
             case NodeType.Identifier(name):
@@ -7983,7 +8030,7 @@ emit_throw : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         output.push_str(I64.to_str(nh_error_index.add(1)))
         output.push_str(";\n")
     } else {
-        throw concat("ccodegen: thrown type '", nh_thrown_type_name).concat("' not found in function's throw types")
+        throw concat("ccodegen: thrown type '", nh_thrown_type_name).concat("' not found in function's throw types: ").concat(ctx.current_function_name)
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -8002,7 +8049,7 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
     // Hoist declarations from both branches to before the if statement
     // (TIL has function-level scoping, not block-level scoping)
     // Bug #97: Use type-mangled names for shadowing support
-    then_body := expr.get(1)?
+    then_body := cast(Expr, expr.params.get(1)?)
     dont_delete(then_body)
     then_decls := collect_declarations_in_body(then_body, context)?
     for decl: CollectedDeclaration in then_decls {
@@ -8030,7 +8077,7 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
         }
     }
     if expr.params.len().gt(2) {
-        hoist_else_body := expr.get(2)?
+        hoist_else_body := cast(Expr, expr.params.get(2)?)
         dont_delete(hoist_else_body)
         else_decls := collect_declarations_in_body(hoist_else_body, context)?
         for else_decl: CollectedDeclaration in else_decls {
@@ -8060,7 +8107,7 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
     }
 
     // Bug #143: Use emit_arg_string to handle hoisting in condition
-    condition := expr.get(0)?
+    condition := cast(Expr, expr.params.get(0)?)
     dont_delete(condition)
     cond_str := emit_arg_string(condition, Ptr(), false, output, indent, ctx, context)?
     output.push_str(indent_str)
@@ -8096,7 +8143,7 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
 
     // Else branch (optional)
     if expr.params.len().gt(2) {
-        emit_else_body := expr.get(2)?
+        emit_else_body := cast(Expr, expr.params.get(2)?)
         dont_delete(emit_else_body)
         // Check if it's an else-if (nested If) or else block
         switch emit_else_body.node_type {
@@ -8122,6 +8169,7 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
     } else {
         output.push_str("\n")
     }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
@@ -8135,7 +8183,7 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     // Hoist declarations from loop body to before the while statement
     // (TIL has function-level scoping, not block-level scoping)
     // Bug #97: Use type-mangled names for shadowing support
-    body := expr.get(1)?
+    body := cast(Expr, expr.params.get(1)?)
     dont_delete(body)
     body_decls := collect_declarations_in_body(body, context)?
     for decl: CollectedDeclaration in body_decls {
@@ -8166,7 +8214,7 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     // Bug #143: Use emit_arg_string to process condition (handles hoisting for by-ref/throwing)
     // Emit hoisting to a separate buffer first to detect if needed
     mut hoist_buffer := ""
-    condition := expr.get(0)?
+    condition := cast(Expr, expr.params.get(0)?)
     dont_delete(condition)
     cond_str := emit_arg_string(condition, Ptr(), false, hoist_buffer, indent.add(1), ctx, context)?
 
@@ -8232,6 +8280,7 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
 
     output.push_str(indent_str)
     output.push_str("}\n")
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_break : proc(_expr: Expr, mut output: Str, indent: I64) = {
@@ -8338,19 +8387,19 @@ collect_declarations_recursive : proc(expr: Expr, mut decls: Vec, mut collected:
     case NodeType.If:
         // Recurse into if branches
         if expr.params.len().gteq(2) {
-            second_param := expr.get(1)?
+            second_param := cast(Expr, expr.params.get(1)?)
             dont_delete(second_param)
             collect_declarations_recursive(second_param, decls, collected, context)?
         }
         if expr.params.len().gteq(3) {
-            third_param := expr.get(2)?
+            third_param := cast(Expr, expr.params.get(2)?)
             dont_delete(third_param)
             collect_declarations_recursive(third_param, decls, collected, context)?
         }
     case NodeType.While:
         // Recurse into while body
         if expr.params.len().gteq(2) {
-            while_body := expr.get(1)?
+            while_body := cast(Expr, expr.params.get(1)?)
             dont_delete(while_body)
             collect_declarations_recursive(while_body, decls, collected, context)?
         }
@@ -8358,38 +8407,42 @@ collect_declarations_recursive : proc(expr: Expr, mut decls: Vec, mut collected:
         // Recurse into catch body (params[2] is catch body)
         // params[0] = err_var, params[1] = err_type, params[2] = body
         if expr.params.len().gteq(3) {
-            catch_body := expr.get(2)?
+            catch_body := cast(Expr, expr.params.get(2)?)
             dont_delete(catch_body)
             collect_declarations_recursive(catch_body, decls, collected, context)?
         }
     case:
         // REM: other node types don't contain declarations
     }
-
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str = {
     // First param is the function name (or Type.method for type-qualified calls)
     if expr.params.is_empty() {
-        throw "ccodegen: FCall with no params"
+        throw expr.lang_error(context.path, "ccodegen", "FCall with no params")
     }
 
     // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
-    first_param := expr.get(0)?
+    first_param := cast(Expr, expr.params.get(0)?)
     dont_delete(first_param)
     mut func_name := get_func_name_string(first_param)?
-    if func_name.is_empty() {
-        throw "ccodegen: FCall first param not Identifier"
+    catch (err: KeyNotFoundError) {
+        throw expr.lang_error(context.path, "ccodegen", "FCall first param not Identifier")
     }
 
     // For builtins, we need the original name with dots
-    orig_func_name := get_til_func_name_string(first_param)?
+    mut orig_func_name := func_name.clone()
+    orig_func_name = get_til_func_name_string(first_param)?
+    catch (err: KeyNotFoundError) {
+        // REM: Use func_name as fallback
+    }
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
     mn_val := cast(Str, ctx.nested_func_names.get(orig_func_name)?)
     func_name = mn_val
     catch (err: KeyNotFoundError) {
-        // Expected: use orig_func_name as fallback
+        // REM: Use orig_func_name as fallback
     }
 
     // Named args are already reordered by precomp, so no reordering needed here
@@ -8399,7 +8452,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     mut has_named_args := false
     mut arg_idx := 1
     while arg_idx.lt(expr.params.len()) {
-        arg := expr.get(arg_idx)?
+        arg := cast(Expr, expr.params.get(arg_idx)?)
         dont_delete(arg)
         switch arg.node_type {
         case NodeType.NamedArg(_):
@@ -8422,12 +8475,12 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             mut named_values := Map.new(Str, Expr)
             mut na_idx := 1
             while na_idx.lt(expr.params.len()) {
-                na_arg := expr.get(na_idx)?
+                na_arg := cast(Expr, expr.params.get(na_idx)?)
                 dont_delete(na_arg)
                 switch na_arg.node_type {
                 case NodeType.NamedArg(field_name):
                     if not(na_arg.params.is_empty()) {
-                        na_value_expr := na_arg.get(0)?
+                        na_value_expr := cast(Expr, na_arg.params.get(0)?)
                         dont_delete(na_value_expr)
                         named_values.set(field_name.clone(), na_value_expr.clone())
                     }
@@ -8528,7 +8581,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         mut prep_i := 0
         mut prep_arg_idx := 1
         while prep_arg_idx.lt(expr.params.len()) {
-            prep_arg := expr.get(prep_arg_idx)?
+            prep_arg := cast(Expr, expr.params.get(prep_arg_idx)?)
             dont_delete(prep_arg)
             // For variadic args (i >= regular_count), use by_ref=false because
             // they get stored in temp vars, not passed directly to the function.
@@ -8550,7 +8603,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             prep_arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
     if orig_func_name.eq("type_as_str") {
@@ -8558,7 +8611,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         if expr.params.len().lt(2) {
             throw "ccodegen: type_as_str requires 1 argument"
         }
-        type_arg := expr.get(1)?
+        type_arg := cast(Expr, expr.params.get(1)?)
         dont_delete(type_arg)
         switch type_arg.node_type {
         case NodeType.Identifier(type_name):
@@ -8611,7 +8664,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         if expr.params.len().lt(2) {
             throw "ccodegen: enum_to_str requires 1 argument"
         }
-        enum_arg := expr.get(1)?
+        enum_arg := cast(Expr, expr.params.get(1)?)
         dont_delete(enum_arg)
         value_type := get_value_type(context, enum_arg)?
         switch value_type {
@@ -8640,11 +8693,11 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         if expr.params.len().lt(4) {
             throw "ccodegen: enum_get_payload requires 3 arguments"
         }
-        payload_enum_arg := expr.get(1)?
+        payload_enum_arg := cast(Expr, expr.params.get(1)?)
         dont_delete(payload_enum_arg)
-        payload_type_arg := expr.get(2)?
+        payload_type_arg := cast(Expr, expr.params.get(2)?)
         dont_delete(payload_type_arg)
-        payload_out_arg := expr.get(3)?
+        payload_out_arg := cast(Expr, expr.params.get(3)?)
         dont_delete(payload_out_arg)
 
         output.push_str(TIL_PREFIX)
@@ -8705,11 +8758,11 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         if expr.params.len().lt(4) {
             throw arg.lang_error(context.path, "ccodegen", "enum_get_payload_type requires 3 arguments")
         }
-        ept_enum_arg := expr.get(1)?
+        ept_enum_arg := cast(Expr, expr.params.get(1)?)
         dont_delete(ept_enum_arg)
-        variant_arg := expr.get(2)?
+        variant_arg := cast(Expr, expr.params.get(2)?)
         dont_delete(variant_arg)
-        ept_payload_type_arg := expr.get(3)?
+        ept_payload_type_arg := cast(Expr, expr.params.get(3)?)
         dont_delete(ept_payload_type_arg)
 
         // Get variant name
@@ -8749,7 +8802,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         }
         output.push_str(TIL_PREFIX)
         output.push_str("size_of(&")
-        size_type_arg := expr.get(1)?
+        size_type_arg := cast(Expr, expr.params.get(1)?)
         dont_delete(size_type_arg)
         switch size_type_arg.node_type {
         case NodeType.Identifier(type_name):
@@ -8809,7 +8862,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         if expr.params.len().lt(2) {
             throw "ccodegen: to_ptr requires 1 argument"
         }
-        ptr_arg := expr.get(1)?
+        ptr_arg := cast(Expr, expr.params.get(1)?)
         dont_delete(ptr_arg)
         // Check if ptr_arg is a Dynamic parameter (void*) - just use the pointer directly
         mut is_dynamic_param := false
@@ -8857,7 +8910,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
 
     // Check for type-qualified call on FCall result: func_name(fcall_result, args...)
     if first_param.params.is_empty().and(expr.params.len().gteq(2)) {
-        second_param := expr.get(1)?
+        second_param := cast(Expr, expr.params.get(1)?)
         dont_delete(second_param)
         switch second_param.node_type {
         case NodeType.FCall(_):
@@ -8878,7 +8931,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 mut ri := 2
                 while ri.lt(expr.params.len()) {
                     output.push_str(", ")
-                    remaining_arg := expr.get(ri)?
+                    remaining_arg := cast(Expr, expr.params.get(ri)?)
                     dont_delete(remaining_arg)
                     emit_expr(remaining_arg, output, 0, ctx, context)?
                     ri.inc()
@@ -8970,7 +9023,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             variadic_arg_strings.push(varg_str)
             vi.inc()
         }
-        variadic_arr_var = emit_variadic_array_with_strings(elem_type, variadic_arg_strings, output, indent, ctx)?
+        variadic_arr_var = emit_variadic_array_with_strings(elem_type, variadic_arg_strings, output, indent, ctx)
         has_variadic_arr = true
         catch (err: KeyNotFoundError) {
             panic(loc(), "func_variadic_args.get failed: ", err.msg)
@@ -9081,14 +9134,14 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 if vexpr_arg_i.gt(0) {
                     output.push_str(", ")
                 }
-                vexpr_arg := expr.get(vexpr_arg_idx)?
+                vexpr_arg := cast(Expr, expr.params.get(vexpr_arg_idx)?)
                 dont_delete(vexpr_arg)
                 mut vexpr_by_ref := false
                 if vexpr_arg_i.lt(var_param_info.len()) {
                     vexpr_loop_pi := cast(ParamTypeInfo, var_param_info.get(vexpr_arg_i)?)
                     vexpr_by_ref = vexpr_loop_pi.by_ref
                 }
-                if vexpr_by_ref.and(is_pure_lvalue(vexpr_arg, context)?) {
+                if vexpr_by_ref.and(is_pure_lvalue(vexpr_arg, context)) {
                     switch vexpr_arg.node_type {
                     case NodeType.Identifier(name):
                         if vexpr_arg.params.is_empty().and(ctx.current_ref_params.contains(name).or(ctx.current_variadic_params.contains_key(name))) {
@@ -9167,7 +9220,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             mut nexpr_arg_i := 0
             mut nexpr_expr_i := 1
             while nexpr_expr_i.lt(expr.params.len()) {
-                nexpr_arg := expr.get(nexpr_expr_i)?
+                nexpr_arg := cast(Expr, expr.params.get(nexpr_expr_i)?)
                 dont_delete(nexpr_arg)
                 // Check if nexpr_arg is a type identifier - emit as string literal
                 mut nexpr_type_arg_name := ""

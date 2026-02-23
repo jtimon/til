@@ -38,7 +38,7 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
         NodeType::FCall(_) => {
             // Constructor calls - check if the function name is a known struct
             if !e.params.is_empty() {
-                let name = get_combined_name_from_identifier(e.get(0)?);
+                let name = get_combined_name_from_identifier(e.params.get(0).unwrap());
                 if !name.is_empty() && !name.contains('.') {
                     // Check if this is a struct constructor
                     if context.scope_stack.has_struct(&name) {
@@ -187,7 +187,7 @@ fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<S
     match &e.node_type {
         NodeType::FCall(_) => {
             if !e.params.is_empty() {
-                let func_name = get_combined_name_from_identifier(e.get(0)?);
+                let func_name = get_combined_name_from_identifier(e.params.get(0).unwrap());
                 if !func_name.is_empty() {
                     if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
                         for (i, arg) in func_def.sig.args.iter().enumerate() {
@@ -221,7 +221,7 @@ fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<S
         // Issue #91: `return add2` where add2 is a function name
         NodeType::Return => {
             if !e.params.is_empty() {
-                let ret_expr = e.get(0)?;
+                let ret_expr = e.params.get(0).unwrap();
                 let ret_name = get_combined_name_from_identifier(ret_expr);
                 if !ret_name.is_empty() && context.scope_stack.has_func(&ret_name) {
                     refs.insert(ret_name);
@@ -242,7 +242,7 @@ fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<S
         }
         NodeType::Catch => {
             if e.params.len() >= 3 {
-                collect_func_ptr_references(e.get(2)?, context, refs)?;
+                collect_func_ptr_references(e.params.get(2).unwrap(), context, refs)?;
             }
         }
         _ => {
@@ -260,7 +260,7 @@ fn collect_called_functions(e: &Expr, called: &mut HashSet<String>) -> Result<()
         NodeType::FCall(_) => {
             // After precomp, function calls have params[0] as Identifier(function_name)
             if !e.params.is_empty() {
-                let full_name = get_combined_name_from_identifier(e.get(0)?);
+                let full_name = get_combined_name_from_identifier(e.params.get(0).unwrap());
                 if !full_name.is_empty() {
                     called.insert(full_name);
                 }
@@ -280,7 +280,7 @@ fn collect_called_functions(e: &Expr, called: &mut HashSet<String>) -> Result<()
             // Catch has params[0]=name, params[1]=type, params[2]=body
             // Only recurse into body - type is not a function call
             if e.params.len() >= 3 {
-                collect_called_functions(e.get(2)?, called)?;
+                collect_called_functions(e.params.get(2).unwrap(), called)?;
             }
         }
         _ => {
@@ -333,7 +333,7 @@ fn register_declarations_recursive(context: &mut Context, e: &Expr) -> Result<()
     match &e.node_type {
         NodeType::Declaration(decl) => {
             if !e.params.is_empty() {
-                let inner = e.get(0)?;
+                let inner = e.params.get(0).unwrap();
                 match &inner.node_type {
                     NodeType::FuncDef(func_def) => {
                         // Function declaration
@@ -681,7 +681,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for stmt in &e.params {
                 if let NodeType::Declaration(_decl) = &stmt.node_type {
                     if !stmt.params.is_empty() {
-                        let inner = stmt.get(0)?;
+                        let inner = stmt.params.get(0).unwrap();
                         match &inner.node_type {
                             NodeType::FuncDef(_) => {
                                 // Skip function declarations
@@ -702,7 +702,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     NodeType::Declaration(_decl) => {
                         // Skip declarations - only their initializers matter if not functions
                         if !stmt.params.is_empty() {
-                            let inner = stmt.get(0)?;
+                            let inner = stmt.params.get(0).unwrap();
                             match &inner.node_type {
                                 NodeType::FuncDef(_) => {
                                     // Skip function declarations - they're not roots themselves
@@ -725,7 +725,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for stmt in &e.params {
                 if let NodeType::Declaration(_decl) = &stmt.node_type {
                     if !stmt.params.is_empty() {
-                        let inner = stmt.get(0)?;
+                        let inner = stmt.params.get(0).unwrap();
                         match &inner.node_type {
                             NodeType::FuncDef(_) => {
                                 // Skip function declarations
@@ -780,7 +780,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         for stmt in &e.params {
             if let NodeType::Declaration(_) = &stmt.node_type {
                 if !stmt.params.is_empty() {
-                    if let NodeType::EnumDef(enum_def) = &stmt.get(0)?.node_type {
+                    if let NodeType::EnumDef(enum_def) = &stmt.params.get(0).unwrap().node_type {
                         for variant in &enum_def.variants {
                             if let Some(payload_type) = &variant.payload_type {
                                 if let Some(payload_type_name) = extract_type_name(payload_type) {
@@ -819,7 +819,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             match &stmt.node_type {
                 NodeType::Declaration(decl) => {
                     if !stmt.params.is_empty() {
-                        let inner = stmt.get(0)?;
+                        let inner = stmt.params.get(0).unwrap();
                         match &inner.node_type {
                             NodeType::FuncDef(func_def) => {
                                 // Issue #91: FuncSig declarations (empty body, unnamed args)

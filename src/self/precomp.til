@@ -335,12 +335,12 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
         switch p.node_type {
         case NodeType.Declaration(decl):
             if p.params.len().gt(0) {
-                inner_e := p.get(0)?
+                inner_e := cast(Expr, p.params.get(0)?)
                 switch inner_e.node_type {
                 case NodeType.FCall(_):
                     // Issue #105: anonymous struct instantiation - struct { ... }(args)
                     if inner_e.params.len().gt(0) {
-                        esm_first_param := inner_e.get(0)?
+                        esm_first_param := cast(Expr, inner_e.params.get(0)?)
                         mut esm_is_anon_struct := false
                         switch esm_first_param.node_type {
                         case NodeType.StructDef(esm_struct_def):
@@ -697,6 +697,8 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
         }
     }
 
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
     if modified {
         return Expr.new_clone(e.node_type, e, new_params)
     }
@@ -712,7 +714,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
     switch e.node_type {
     case NodeType.FCall(_):
         if e.params.len().gt(0) {
-            ear_first := e.get(0)?
+            ear_first := cast(Expr, e.params.get(0)?)
             switch ear_first.node_type {
             case NodeType.StructDef(ear_sd):
                 is_anon_fcall = true
@@ -784,7 +786,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
     switch e.node_type {
     case NodeType.Declaration(ear_decl):
         if e.params.len().gt(0) {
-            ear_decl_inner := e.get(0)?
+            ear_decl_inner := cast(Expr, e.params.get(0)?)
             switch ear_decl_inner.node_type {
             case NodeType.StructDef(ear_decl_sd):
                 if context.scope_stack.has_struct(ear_decl.name) {
@@ -870,6 +872,8 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
         }
     case:
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     if ear_any_changed {
         was_expanded = true
@@ -1029,7 +1033,8 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
         func_def_found = true
         catch (err: KeyNotFoundError) {
             // Could be a struct constructor - check if all args are comptime
-            combined_name := get_combined_name(context.path, e.get(0)?)?
+            e0 := cast(Expr, e.params.get(0)?)
+            combined_name := get_combined_name(context.path, e0)?
             catch (err2: Str) {
                 return false
             }
@@ -1044,7 +1049,7 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
                 // It's a struct constructor - check all args are comptime
                 mut struct_j := 1
                 while struct_j.lt(e.params.len()) {
-                    struct_arg := e.get(struct_j)?
+                    struct_arg := cast(Expr, e.params.get(struct_j)?)
                     dont_delete(struct_arg)
                     // Handle named args - check the value inside
                     mut arg_to_check := struct_arg
@@ -1071,7 +1076,7 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
                 // It's an enum constructor - check all args are comptime
                 mut k := 1
                 while k.lt(e.params.len()) {
-                    arg := e.get(k)?
+                    arg := cast(Expr, e.params.get(k)?)
                     dont_delete(arg)
                     if not(is_comptime_evaluable(context, arg)?) {
                         return false
@@ -1101,7 +1106,7 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
         // All arguments must be comptime-evaluable
         mut fcall_i := 1
         while fcall_i.lt(e.params.len()) {
-            fcall_arg := e.get(fcall_i)?
+            fcall_arg := cast(Expr, e.params.get(fcall_i)?)
             dont_delete(fcall_arg)
             if not(is_comptime_evaluable(context, fcall_arg)?) {
                 return false
@@ -1112,6 +1117,8 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
     case:
         return false
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Evaluate a comptime-evaluable expression and convert result back to AST literal.
@@ -1339,7 +1346,7 @@ precomp_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) return
 /// Transform Declaration - register the declared variable in scope, then transform value
 precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str = {
     // Eagerly create default instance template for this struct type
-    inner_e := e.get(0)?
+    inner_e := cast(Expr, e.params.get(0)?)
     mut value_type := get_value_type(context, inner_e)?
     catch (err: Str) {
         throw e.lang_error(context.path, "precomp", err)
@@ -1780,7 +1787,7 @@ precomp_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     context.scope_stack.declare_symbol(var_name, sym)?
 
     // Transform the catch body (params[2])
-    body_expr := e.get(2)?
+    body_expr := cast(Expr, e.params.get(2)?)
     dont_delete(body_expr)
     new_body := precomp_expr(context, body_expr)?
 
@@ -1804,7 +1811,7 @@ precomp_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     // 1. Check for compile-time intrinsics (loc, _file, _line, _col)
     mut was_replaced := false
-    replaced := try_replace_comptime_intrinsic(context, e, was_replaced)?
+    replaced := try_replace_comptime_intrinsic(context, e, was_replaced)
     if was_replaced {
         return replaced
     }
@@ -1814,7 +1821,7 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         // Empty FCall, shouldn't happen but just return as-is
         return e.clone()
     }
-    mut func_expr := e.get(0)?
+    mut func_expr := cast(Expr, e.params.get(0)?)
 
     // Issue #105: anonymous struct instantiation - struct { ... }(args)
     // Register the anonymous struct and replace StructDef with Identifier
@@ -1935,7 +1942,8 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     if new_e.params.len().eq(0) {
         return new_e
     }
-    func_expr = new_e.get(0)?
+    e0 := cast(Expr, new_e.params.get(0)?)
+    func_expr = e0
 
     switch func_expr.node_type {
     case NodeType.Identifier:

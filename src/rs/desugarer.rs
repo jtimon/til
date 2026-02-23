@@ -270,10 +270,10 @@ fn get_case_variant_info(expr: &Expr) -> Result<VariantInfo, String> {
         NodeType::FCall(_) => {
             // FCall for Type.Variant (without payload extraction)
             if !expr.params.is_empty() {
-                let first = expr.get(0)?;
+                let first = expr.params.get(0).unwrap();
                 if let NodeType::Identifier(type_name) = &first.node_type {
                     if !first.params.is_empty() {
-                        if let NodeType::Identifier(variant_name) = &first.get(0)?.node_type {
+                        if let NodeType::Identifier(variant_name) = &first.params.get(0).unwrap().node_type {
                             return Ok(VariantInfo {
                                 type_name: type_name.clone(),
                                 variant_name: variant_name.clone(),
@@ -287,7 +287,7 @@ fn get_case_variant_info(expr: &Expr) -> Result<VariantInfo, String> {
         NodeType::Identifier(name) => {
             // Identifier with nested params: Type.Variant
             if !expr.params.is_empty() {
-                if let NodeType::Identifier(variant_name) = &expr.get(0)?.node_type {
+                if let NodeType::Identifier(variant_name) = &expr.params.get(0).unwrap().node_type {
                     return Ok(VariantInfo {
                         type_name: name.clone(),
                         variant_name: variant_name.clone(),
@@ -382,7 +382,7 @@ fn rename_identifier_in_expr(e: &Expr, old_name: &str, new_name: &str) -> Result
                 let mut decl_new_params = Vec::new();
                 if !e.params.is_empty() {
                     // The initializer is evaluated before the declaration, so rename in it
-                    decl_new_params.push(rename_identifier_in_expr(e.get(0)?, old_name, new_name)?);
+                    decl_new_params.push(rename_identifier_in_expr(e.params.get(0).unwrap(), old_name, new_name)?);
                     // Any remaining params (shouldn't exist for Declaration) - don't rename
                     for p in e.params.iter().skip(1) {
                         decl_new_params.push(p.clone());
@@ -429,7 +429,7 @@ fn detect_enum_switch_from_cases(context: &Context, e: &Expr) -> Result<(bool, S
     // Look at case patterns (params[1], params[3], params[5], ...)
     let mut i = 1;
     while i < e.params.len() {
-        let case_pattern = e.get(i)?;
+        let case_pattern = e.params.get(i).unwrap();
         match &case_pattern.node_type {
             NodeType::DefaultCase => {
                 // Skip default case
@@ -447,7 +447,7 @@ fn detect_enum_switch_from_cases(context: &Context, e: &Expr) -> Result<(bool, S
             NodeType::Identifier(name) => {
                 // Identifier with nested params like Type.Variant
                 if !case_pattern.params.is_empty() {
-                    if let NodeType::Identifier(_variant_name) = &case_pattern.get(0)?.node_type {
+                    if let NodeType::Identifier(_variant_name) = &case_pattern.params.get(0).unwrap().node_type {
                         // This looks like Type.Variant - check if Type is an enum
                         if context.scope_stack.lookup_enum(name.as_str()).is_some() {
                             return Ok((true, name.clone()));
@@ -489,7 +489,7 @@ fn infer_switch_type_from_cases(e: &Expr) -> Result<Option<ValueType>, String> {
     // Look at case patterns (params[1], params[3], params[5], ...)
     let mut i = 1;
     while i < e.params.len() {
-        let case_pattern = e.get(i)?;
+        let case_pattern = e.params.get(i).unwrap();
         match &case_pattern.node_type {
             NodeType::DefaultCase => {
                 // Skip default case
@@ -504,7 +504,7 @@ fn infer_switch_type_from_cases(e: &Expr) -> Result<Option<ValueType>, String> {
             NodeType::Range => {
                 // Check range bounds for type
                 if !case_pattern.params.is_empty() {
-                    if let NodeType::LLiteral(lit) = &case_pattern.get(0)?.node_type {
+                    if let NodeType::LLiteral(lit) = &case_pattern.params.get(0).unwrap().node_type {
                         match lit {
                             Literal::Number(_) => return Ok(Some(ValueType::TCustom("I64".to_string()))),
                             Literal::Str(_) => return Ok(Some(ValueType::TCustom("Str".to_string()))),
@@ -566,7 +566,7 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         return Err(e.lang_error(&context.path, "desugar", "Switch requires expression"));
     }
 
-    let switch_expr = e.get(0)?;
+    let switch_expr = e.params.get(0).unwrap();
     let line = e.line;
     let col = e.col;
 
@@ -659,8 +659,8 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
     let mut i = 1;
     while i + 1 < e.params.len() {
-        let case_pattern = e.get(i)?;
-        let case_body = e.get(i + 1)?;
+        let case_pattern = e.params.get(i).unwrap();
+        let case_body = e.params.get(i + 1).unwrap();
 
         // If the case pattern has a payload binding, declare it in scope before desugaring body
         // This allows nested switches in the body to see the payload variable's type
@@ -835,8 +835,8 @@ fn build_case_condition(
             if case_pattern.params.len() < 2 {
                 return Err("desugar: Range case requires start and end values".to_string());
             }
-            let low = case_pattern.get(0)?;
-            let high = case_pattern.get(1)?;
+            let low = case_pattern.params.get(0).unwrap();
+            let high = case_pattern.params.get(1).unwrap();
 
             let gteq_call = make_call("gteq", vec![make_id(switch_var_name, line, col), low.clone()], line, col);
             let lteq_call = make_call("lteq", vec![make_id(switch_var_name, line, col), high.clone()], line, col);
@@ -873,7 +873,7 @@ fn build_case_condition(
 
                 // Check for nested enum patterns - e.g., ValueType.TType(TTypeDef.TEnumDef)
                 if case_pattern.params.len() > 1 {
-                    let inner_pattern = case_pattern.get(1)?;
+                    let inner_pattern = case_pattern.params.get(1).unwrap();
                     let inner_info = get_case_variant_info(inner_pattern)?;
                     if !inner_info.variant_name.is_empty() {
                         // Nested enum pattern - use enum_get_payload_type for combined condition
@@ -1027,7 +1027,7 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Declaration(decl) => {
             // Issue #110: Set current_precomp_func for function declarations so switch
             // desugaring generates variable names with proper function prefixes
-            let is_func_decl = !e.params.is_empty() && matches!(&e.get(0)?.node_type, NodeType::FuncDef(_));
+            let is_func_decl = !e.params.is_empty() && matches!(&e.params.get(0).unwrap().node_type, NodeType::FuncDef(_));
             let saved_func = context.current_precomp_func.clone();
             if is_func_decl {
                 context.current_precomp_func = decl.name.clone();

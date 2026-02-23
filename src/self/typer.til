@@ -209,7 +209,7 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
         if f_name.eq("import") {
             // Get the import path from the argument
             if e.params.len().gt(1) {
-                mut path_expr := e.get(1)?
+                mut path_expr := cast(Expr, e.params.get(1)?)
                 switch path_expr.node_type {
                 case NodeType.LLiteral(lit):
                     switch lit {
@@ -227,7 +227,7 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
         // Variable declaration handled by the Declaration node, not here
         if f_name.eq("cast") {
             if e.params.len().gteq(3) {
-                cast_type_expr := e.get(1)?
+                cast_type_expr := cast(Expr, e.params.get(1)?)
                 dont_delete(cast_type_expr)
                 mut cast_type_name := ""
                 switch cast_type_expr.node_type {
@@ -259,7 +259,8 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
                     }
                 }
                 // Type-check the ptr expression (params[2])
-                errors.extend(check_types_with_context(context, e.get(2)?, ExprContext.ValueUsed)?)
+                e2 := cast(Expr, e.params.get(2)?)
+                errors.extend(check_types_with_context(context, e2, ExprContext.ValueUsed)?)
             }
         } else {
             errors.extend(check_fcall(context, e, does_throw)?)
@@ -280,7 +281,8 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
             if e.params.len().gt(0) {
                 // Only check the base expression (params[0])
                 // params[1..] are field identifiers that don't need symbol lookup
-                errors.extend(check_types_with_context(context, e.get(0)?, ExprContext.ValueUsed)?)
+                e0 := cast(Expr, e.params.get(0)?)
+                errors.extend(check_types_with_context(context, e0, ExprContext.ValueUsed)?)
             }
         } else {
             mut func_found := false
@@ -413,11 +415,9 @@ check_if_statement : proc(mut context: Context, e: Expr) returns Vec throws Str 
     }
 
     mut inner_e := Expr()
-    inner_e = e.get(0)?
-    catch (error_str: Str) {
-        errors.push(error_str)
-        return errors
-    }
+    e0 := cast(Expr, e.params.get(0)?)
+    inner_e = e0
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Type check the condition expression exists, but don't enforce it must be Bool
     // NOTE: Bool type checking removed - Bool is a regular struct, not a special primitive
@@ -431,7 +431,7 @@ check_if_statement : proc(mut context: Context, e: Expr) returns Vec throws Str 
     }
 
     // Type check condition
-    cond_expr := e.get(0)?
+    cond_expr := cast(Expr, e.params.get(0)?)
     dont_delete(cond_expr)
     errors.extend(check_types_with_context(context, cond_expr, ExprContext.ValueUsed)?)
 
@@ -442,7 +442,7 @@ check_if_statement : proc(mut context: Context, e: Expr) returns Vec throws Str 
     branch_count := e.params.len().sub(1)
     for i in 1..e.params.len() {
         mark := context.scope_stack.removal_mark()
-        branch_expr := e.get(i)?
+        branch_expr := cast(Expr, e.params.get(i)?)
         dont_delete(branch_expr)
         errors.extend(check_types_with_context(context, branch_expr, ExprContext.ValueDiscarded)?)
         mut removed := context.scope_stack.drain_removals_since(mark)?
@@ -490,11 +490,9 @@ check_while_statement : proc(mut context: Context, e: Expr) returns Vec throws S
     }
 
     mut inner_e := Expr()
-    inner_e = e.get(0)?
-    catch (error_str: Str) {
-        errors.push(error_str)
-        return errors
-    }
+    e0 := cast(Expr, e.params.get(0)?)
+    inner_e = e0
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Type check the condition expression exists, but don't enforce it must be Bool
     // NOTE: Bool type checking removed - Bool is a regular struct, not a special primitive
@@ -507,7 +505,7 @@ check_while_statement : proc(mut context: Context, e: Expr) returns Vec throws S
 
     // First param (condition) is used, second param (body) discards values
     for i in 0..e.params.len() {
-        p := e.get(i)?
+        p := cast(Expr, e.params.get(i)?)
         dont_delete(p)
         mut ctx := ExprContext.ValueDiscarded
         if i.eq(0) {
@@ -515,6 +513,9 @@ check_while_statement : proc(mut context: Context, e: Expr) returns Vec throws S
         }
         errors.extend(check_types_with_context(context, p, ctx)?)
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
     return errors
 }
 
@@ -541,7 +542,7 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
         errors.push(e.lang_error(context.path, "type", "ForIn: missing loop variable"))
         return errors
     }
-    mut var_expr := e.get(0)?
+    mut var_expr := cast(Expr, e.params.get(0)?)
     switch var_expr.node_type {
     case NodeType.Identifier(name):
         var_name = name
@@ -555,7 +556,7 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
         errors.push(e.lang_error(context.path, "type", "ForIn: missing collection expression"))
         return errors
     }
-    mut collection_expr := e.get(1)?
+    mut collection_expr := cast(Expr, e.params.get(1)?)
 
     // Type check the collection expression
     errors.extend(check_types_with_context(context, collection_expr, ExprContext.ValueUsed)?)
@@ -661,7 +662,7 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
 
     // Type check body
     if e.params.len().gteq(3) {
-        mut body_expr := e.get(2)?
+        mut body_expr := cast(Expr, e.params.get(2)?)
         errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded)?)
     }
 
@@ -708,7 +709,8 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
         // Type-check all arguments (both struct and enum constructors)
         for struct_arg_idx in 1..e_clone.params.len() {
             mut struct_arg := Expr()
-            struct_arg = e_clone.get(struct_arg_idx)?
+            estruct_arg_idx := cast(Expr, e_clone.params.get(struct_arg_idx)?)
+            struct_arg = estruct_arg_idx
             // Only validate field names for structs
             if is_struct {
                 switch struct_arg.node_type {
@@ -722,7 +724,7 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                         mut field_decl := _struct_def.get_member(field_name)?
                         mut expected_type := field_decl.value_type
                         if struct_arg.params.len().gt(0) {
-                            value_expr := struct_arg.get(0)?
+                            value_expr := cast(Expr, struct_arg.params.get(0)?)
                             dont_delete(value_expr)
                             mut actual_type := get_value_type(context, value_expr)?
                             // Bug #124: Allow I64 literals to be passed as U8 fields
@@ -811,11 +813,9 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
     mut def_arg_idx: I64 = 0  // Bug #61: Track definition arg separately from provided arg
     for fcall_arg_idx in 0..e_clone.params.len().sub(1) {
         mut arg_expr := Expr()
-        arg_expr = e_clone.get(fcall_arg_idx.add(1))?
-        catch (get_err: Str) {
-            errors.push(get_err)
-            return errors
-        }
+        efcall_arg_idx := cast(Expr, e_clone.params.get(fcall_arg_idx.add(1))?)
+        arg_expr = efcall_arg_idx
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
         // Function call arguments are being used (passed to the function)
         // This must happen BEFORE get_value_type so undefined symbol errors are detected
@@ -1193,6 +1193,8 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
             def_arg_idx = def_arg_idx.add(1)
         }
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     return errors
 }
@@ -1608,7 +1610,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                 if not(p.params.len().eq(1)) {
                     errors.push(p.error(context.path, "type", "Throw statement must have exactly one parameter."))
                 } else {
-                    mut throw_param := p.get(0)?
+                    mut throw_param := cast(Expr, p.params.get(0)?)
                     // Recursively check this throw expression for throws (just in case, although users should avoid this)
                     // TODO fix this, not a priority
 
@@ -1637,9 +1639,9 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                 if not(p.params.len().eq(3)) {
                     errors.push(p.error(context.path, "type", "Catch must have 3 parameters: variable, type, and body."))
                 } else {
-                    mut var_name_expr := p.get(0)?
-                    mut err_type_expr := p.get(1)?
-                    mut catch_body_expr := p.get(2)?
+                    mut var_name_expr := cast(Expr, p.params.get(0)?)
+                    mut err_type_expr := cast(Expr, p.params.get(1)?)
+                    mut catch_body_expr := cast(Expr, p.params.get(2)?)
 
                     mut var_name := ""
                     switch var_name_expr.node_type {
@@ -1732,7 +1734,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                 // Check nested function calls in arguments
                 mut argi := 1
                 while argi.lt(p.params.len()) {
-                    arg := p.get(argi)?
+                    arg := cast(Expr, p.params.get(argi)?)
                     dont_delete(arg)
                     switch arg.node_type {
                     case NodeType.FCall(arg_does_throw):
@@ -1764,7 +1766,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     // Bug #36 fix: Handle named arguments in struct literals (e.g., Map(keys=self.keys.clone()))
                     case NodeType.NamedArg(_):
                         if arg.params.len().gt(0) {
-                            named_arg_value_expr := arg.get(0)?
+                            named_arg_value_expr := cast(Expr, arg.params.get(0)?)
                             dont_delete(named_arg_value_expr)
                             switch named_arg_value_expr.node_type {
                             case NodeType.FCall(_):
@@ -1793,7 +1795,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     // Enum/struct constructor - but arguments may contain throwing function calls (Bug #36 fix)
                     mut argi2 := 1
                     while argi2.lt(p.params.len()) {
-                        ctor_arg := p.get(argi2)?
+                        ctor_arg := cast(Expr, p.params.get(argi2)?)
                         dont_delete(ctor_arg)
                         switch ctor_arg.node_type {
                         case NodeType.FCall(_):
@@ -1818,7 +1820,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                         // Bug #36 fix: Handle named arguments in struct literals
                         case NodeType.NamedArg(_):
                             if ctor_arg.params.len().gt(0) {
-                                ctor_named_value_expr := ctor_arg.get(0)?
+                                ctor_named_value_expr := cast(Expr, ctor_arg.params.get(0)?)
                                 dont_delete(ctor_named_value_expr)
                                 switch ctor_named_value_expr.node_type {
                                 case NodeType.FCall(_):
@@ -1852,14 +1854,14 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
             case NodeType.While:
                 mut while_thrown_types := Vec.new(ThrownType)
                 if p.params.len().gt(0) {
-                    while_cond_expr := p.get(0)?
+                    while_cond_expr := cast(Expr, p.params.get(0)?)
                     dont_delete(while_cond_expr)
                     mut while_single_cond := Vec.new(Expr)
                     while_single_cond.push(while_cond_expr)
                     errors.extend(check_body_returns_throws(context, e, func_def, while_single_cond, while_thrown_types, return_found)?)
                 }
                 if p.params.len().gt(1) {
-                    while_body_expr := p.get(1)?
+                    while_body_expr := cast(Expr, p.params.get(1)?)
                     dont_delete(while_body_expr)
                     errors.extend(check_body_returns_throws(context, e, func_def, while_body_expr.params, while_thrown_types, return_found)?)
                 }
@@ -1869,19 +1871,19 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                 // ForIn: params[0]=var, params[1]=collection, params[2]=body
                 mut forin_thrown_types := Vec.new(ThrownType)
                 if p.params.len().gt(1) {
-                    collection_expr := p.get(1)?
+                    collection_expr := cast(Expr, p.params.get(1)?)
                     dont_delete(collection_expr)
                     mut single_collection := Vec.new(Expr)
                     single_collection.push(collection_expr)
                     errors.extend(check_body_returns_throws(context, e, func_def, single_collection, forin_thrown_types, return_found)?)
                 }
                 if p.params.len().gt(2) {
-                    forin_body_expr := p.get(2)?
+                    forin_body_expr := cast(Expr, p.params.get(2)?)
                     dont_delete(forin_body_expr)
                     // Push scope and declare loop variable before checking body
                     mut forin_var_name := ""
                     if p.params.len().gt(0) {
-                        forin_var_expr := p.get(0)?
+                        forin_var_expr := cast(Expr, p.params.get(0)?)
                         dont_delete(forin_var_expr)
                         switch forin_var_expr.node_type {
                         case NodeType.Identifier(name):
@@ -1899,19 +1901,19 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
             case NodeType.If:
                 mut if_thrown_types := Vec.new(ThrownType)
                 if p.params.len().gt(0) {
-                    if_cond_expr := p.get(0)?
+                    if_cond_expr := cast(Expr, p.params.get(0)?)
                     dont_delete(if_cond_expr)
                     mut if_single_cond := Vec.new(Expr)
                     if_single_cond.push(if_cond_expr)
                     errors.extend(check_body_returns_throws(context, e, func_def, if_single_cond, if_thrown_types, return_found)?)
                 }
                 if p.params.len().gt(1) {
-                    then_block := p.get(1)?
+                    then_block := cast(Expr, p.params.get(1)?)
                     dont_delete(then_block)
                     errors.extend(check_body_returns_throws(context, e, func_def, then_block.params, if_thrown_types, return_found)?)
                 }
                 if p.params.len().gt(2) {
-                    else_block := p.get(2)?
+                    else_block := cast(Expr, p.params.get(2)?)
                     dont_delete(else_block)
                     errors.extend(check_body_returns_throws(context, e, func_def, else_block.params, if_thrown_types, return_found)?)
                 }
@@ -1924,7 +1926,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                 mut switch_expr_type := ValueType.TCustom("")
                 mut have_switch_type := false
                 if p.params.len().gt(0) {
-                    switch_expr := p.get(0)?
+                    switch_expr := cast(Expr, p.params.get(0)?)
                     dont_delete(switch_expr)
                     switch_expr_type = get_value_type(context, switch_expr)?
                     have_switch_type = true
@@ -1940,9 +1942,9 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
 
                 mut si := 1
                 while si.add(1).lt(p.params.len()) {
-                    switch_case_expr := p.get(si)?
+                    switch_case_expr := cast(Expr, p.params.get(si)?)
                     dont_delete(switch_case_expr)
-                    switch_body_expr := p.get(si.add(1))?
+                    switch_body_expr := cast(Expr, p.params.get(si.add(1))?)
                     dont_delete(switch_body_expr)
 
                     // Check case expression
@@ -1998,7 +2000,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                 // Bug #28 fix: Declare variables so subsequent statements can reference them
                 // This mirrors check_declaration's behavior but without full type inference
                 if p.params.len().gt(0) {
-                    initializer := p.get(0)?
+                    initializer := cast(Expr, p.params.get(0)?)
                     dont_delete(initializer)
 
                     // Try to infer the type from the initializer (only if not already declared)
@@ -2020,7 +2022,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     case NodeType.FCall(_):
                         mut is_constructor := false
 
-                        mut id_expr := initializer.get(0)?
+                        mut id_expr := cast(Expr, initializer.params.get(0)?)
                         switch id_expr.node_type {
                         case NodeType.Identifier(name):
                             // Only skip default constructor calls (simple StructName() with no dots)
@@ -2039,7 +2041,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                                 mut enum_symbol := context.scope_stack.lookup_symbol(name)?
                                 switch enum_symbol.value_type {
                                 case ValueType.TType(TTypeDef.TEnumDef):
-                                    enum_variant_expr := id_expr.get(0)?
+                                    enum_variant_expr := cast(Expr, id_expr.params.get(0)?)
                                     dont_delete(enum_variant_expr)
                                     switch enum_variant_expr.node_type {
                                     case NodeType.Identifier(variant_name):
@@ -2052,9 +2054,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                             }
                         case:
                         }
-                        catch (err: Str) {
-                            errors.push(err)
-                        }
+                        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
                         if not(is_constructor) {
                             mut decl_called_func_def := get_func_def_for_fcall(context, initializer)?
@@ -2088,14 +2088,14 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
 
             case NodeType.Assignment(var_name):
                 if p.params.len().gt(0) {
-                    assign_initializer := p.get(0)?
+                    assign_initializer := cast(Expr, p.params.get(0)?)
                     dont_delete(assign_initializer)
 
                     switch assign_initializer.node_type {
                     case NodeType.FCall(_):
                         mut assign_is_constructor := false
 
-                        mut assign_id_expr := assign_initializer.get(0)?
+                        mut assign_id_expr := cast(Expr, assign_initializer.params.get(0)?)
                         switch assign_id_expr.node_type {
                         case NodeType.Identifier(name):
                             // Only skip default constructor calls
@@ -2114,7 +2114,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                                 mut assign_symbol2 := context.scope_stack.lookup_symbol(name)?
                                 switch assign_symbol2.value_type {
                                 case ValueType.TType(TTypeDef.TEnumDef):
-                                    assign_variant_expr := assign_id_expr.get(0)?
+                                    assign_variant_expr := cast(Expr, assign_id_expr.params.get(0)?)
                                     dont_delete(assign_variant_expr)
                                     switch assign_variant_expr.node_type {
                                     case NodeType.Identifier(variant_name):
@@ -2127,9 +2127,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                             }
                         case:
                         }
-                        catch (err: Str) {
-                            errors.push(err)
-                        }
+                        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
                         if not(assign_is_constructor) {
                             mut assign_called_func_def := get_func_def_for_fcall(context, assign_initializer)?
@@ -2181,9 +2179,9 @@ check_catch_statement : proc(mut context: Context, e: Expr) returns Vec throws S
         return errors
     }
 
-    mut err_var_expr := e.get(0)?
-    mut err_type_expr := e.get(1)?
-    mut body_expr := e.get(2)?
+    mut err_var_expr := cast(Expr, e.params.get(0)?)
+    mut err_type_expr := cast(Expr, e.params.get(1)?)
+    mut body_expr := cast(Expr, e.params.get(2)?)
 
     mut var_name := ""
     switch err_var_expr.node_type {
@@ -2248,7 +2246,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
         return errors
     }
 
-    mut inner_e := e.get(0)?
+    mut inner_e := cast(Expr, e.params.get(0)?)
 
     mut already_declared := true
     mut _existing := context.scope_stack.lookup_symbol(decl.name)?
@@ -2521,7 +2519,7 @@ check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Ve
     }
 
     // The RHS of an assignment is being used (assigned to the variable)
-    mut inner_e := e.get(0)?
+    mut inner_e := cast(Expr, e.params.get(0)?)
     errors.extend(check_types_with_context(context, inner_e, ExprContext.ValueUsed)?)
     catch (err: Str) {
         errors.push(err)
@@ -2536,7 +2534,7 @@ check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Ve
 check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws Str = {
     mut errors := Vec.new(Str)
 
-    mut switch_expr := e.get(0)?
+    mut switch_expr := cast(Expr, e.params.get(0)?)
     // Bug #101: Check the switch expression to mark variables as used
     errors.extend(check_types_with_context(context, switch_expr, ExprContext.ValueUsed)?)
     mut switch_expr_type := get_value_type(context, switch_expr)?
@@ -2553,7 +2551,7 @@ check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws 
 
     mut i := 1
     while i.lt(e.params.len()) {
-        case_expr := e.get(i)?
+        case_expr := cast(Expr, e.params.get(i)?)
         dont_delete(case_expr)
 
         switch case_expr.node_type {
@@ -2590,7 +2588,7 @@ check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws 
             return errors
         }
 
-        body_expr := e.get(i)?
+        body_expr := cast(Expr, e.params.get(i)?)
         dont_delete(body_expr)
 
         // Issue #117: Mark before each case body so removals can be restored
@@ -2671,7 +2669,7 @@ check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws 
 
         mut j := 1
         while j.lt(e.params.len()) {
-            exh_case_expr := e.get(j)?
+            exh_case_expr := cast(Expr, e.params.get(j)?)
             dont_delete(exh_case_expr)
 
             switch exh_case_expr.node_type {
@@ -2698,7 +2696,7 @@ check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws 
                     matched_variants.push(exh_name)
                 } else {
                     // case ExampleEnum.A
-                    exh_variant_expr := exh_case_expr.get(0)?
+                    exh_variant_expr := cast(Expr, exh_case_expr.params.get(0)?)
                     dont_delete(exh_variant_expr)
                     switch exh_variant_expr.node_type {
                     case NodeType.Identifier(exh_variant):
@@ -2751,7 +2749,7 @@ check_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) re
     // Get struct name from first param (used for error messages)
     mut struct_name := "unknown"
     if e.params.len().gt(0) {
-        first_param := e.get(0)?
+        first_param := cast(Expr, e.params.get(0)?)
         switch first_param.node_type {
         case NodeType.Identifier(name):
             struct_name = name
@@ -2759,6 +2757,7 @@ check_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) re
             struct_name = "unknown"
         }
     }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Iterate through struct members
     for member_decl: Declaration in struct_def.members {
@@ -3064,7 +3063,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
     if fcall_expr.params.len().eq(0) {
         throw fcall_expr.lang_error(context.path, "type", "get_func_def_for_fcall_with_expr: Fcalls must have a name")
     }
-    mut func_expr := fcall_expr.get(0)?
+    mut func_expr := cast(Expr, fcall_expr.params.get(0)?)
 
     switch func_expr.node_type {
     case NodeType.Identifier(id_str):
@@ -3129,7 +3128,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
         // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
         // This only applies when no standalone function with this name exists (checked above).
         if fcall_expr.params.len().gteq(2) {
-            mut first_arg := fcall_expr.get(1)?
+            mut first_arg := cast(Expr, fcall_expr.params.get(1)?)
             mut target_type := ValueType.TCustom("")
             mut target_type_valid := true
             target_type = get_value_type(context, first_arg)?
@@ -3150,17 +3149,19 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                     if method_found {
                         // Transform: func(target, args...) -> Type.func(target, args...)
                         mut empty_params := Vec.new(Expr)
-                        mut new_e := Expr.new_clone(NodeType.Identifier(method_name), fcall_expr.get(0)?, empty_params)
+                        method_e0 := cast(Expr, fcall_expr.params.get(0)?)
+                        mut new_e := Expr.new_clone(NodeType.Identifier(method_name), method_e0, empty_params)
                         mut new_args := Vec.new(Expr)
                         new_args.push(new_e)
                         // Extend with params[1..]
                         mut k := 1
                         while k.lt(fcall_expr.params.len()) {
-                            mut arg_e := fcall_expr.get(k)?
+                            mut arg_e := cast(Expr, fcall_expr.params.get(k)?)
                             new_args.push(arg_e)
                             k.inc()
                         }
-                        fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_does_throw(fcall_expr)), fcall_expr.get(0)?, new_args)
+                        method_e0b := cast(Expr, fcall_expr.params.get(0)?)
+                        fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_does_throw(fcall_expr)), method_e0b, new_args)
                         return method_func_def
                     }
                 case:
@@ -3173,7 +3174,7 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
         if func_expr.params.len().gt(0) {
             // Get last param (function name)
             mut last_idx := func_expr.params.len().sub(1)
-            func_name_expr := func_expr.get(last_idx)?
+            func_name_expr := cast(Expr, func_expr.params.get(last_idx)?)
             dont_delete(func_name_expr)
 
             switch func_name_expr.node_type {
@@ -3212,18 +3213,20 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                 }
                 if ufcs_found {
                     mut ufcs_empty_params := Vec.new(Expr)
-                    mut ufcs_new_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), fcall_expr.get(0)?, ufcs_empty_params)
+                    ufcs_e0 := cast(Expr, fcall_expr.params.get(0)?)
+                    mut ufcs_new_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), ufcs_e0, ufcs_empty_params)
                     mut ufcs_new_args := Vec.new(Expr)
                     ufcs_new_args.push(ufcs_new_e)
                     ufcs_new_args.push(extra_arg_e)
                     // Extend with params[1..]
                     mut ufcs_k := 1
                     while ufcs_k.lt(fcall_expr.params.len()) {
-                        mut ufcs_arg_e := fcall_expr.get(ufcs_k)?
+                        mut ufcs_arg_e := cast(Expr, fcall_expr.params.get(ufcs_k)?)
                         ufcs_new_args.push(ufcs_arg_e)
                         ufcs_k.inc()
                     }
-                    fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_does_throw(fcall_expr)), fcall_expr.get(0)?, ufcs_new_args)
+                    ufcs_e0b := cast(Expr, fcall_expr.params.get(0)?)
+                    fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_does_throw(fcall_expr)), ufcs_e0b, ufcs_new_args)
                     return ufcs_fn_def
                 }
 
@@ -3248,18 +3251,20 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                         }
                         if assoc_found {
                             mut assoc_empty_params := Vec.new(Expr)
-                            mut assoc_new_e := Expr.new_clone(NodeType.Identifier(id_expr_name), fcall_expr.get(0)?, assoc_empty_params)
+                            assoc_e0 := cast(Expr, fcall_expr.params.get(0)?)
+                            mut assoc_new_e := Expr.new_clone(NodeType.Identifier(id_expr_name), assoc_e0, assoc_empty_params)
                             mut assoc_new_args := Vec.new(Expr)
                             assoc_new_args.push(assoc_new_e)
                             assoc_new_args.push(extra_arg_e)
                             // Extend with params[1..]
                             mut assoc_m := 1
                             while assoc_m.lt(fcall_expr.params.len()) {
-                                mut assoc_arg_e := fcall_expr.get(assoc_m)?
+                                mut assoc_arg_e := cast(Expr, fcall_expr.params.get(assoc_m)?)
                                 assoc_new_args.push(assoc_arg_e)
                                 assoc_m.inc()
                             }
-                            fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_does_throw(fcall_expr)), fcall_expr.get(0)?, assoc_new_args)
+                            assoc_e0b := cast(Expr, fcall_expr.params.get(0)?)
+                            fcall_expr = Expr.new_clone(NodeType.FCall(get_fcall_does_throw(fcall_expr)), assoc_e0b, assoc_new_args)
                             return assoc_func_def
                         }
                     case:
@@ -3378,7 +3383,7 @@ is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str 
         // Also check if any of the arguments call procs
         // Skip the first param which is the function name itself
         for i in 1..e.params.len() {
-            mut arg_e := e.get(i)?
+            mut arg_e := cast(Expr, e.params.get(i)?)
             if is_expr_calling_procs(context, arg_e)? {
                 return true
             }
@@ -3388,7 +3393,7 @@ is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str 
 
     case NodeType.Declaration(decl):
         if e.params.len().gt(0) {
-            mut inner_e := e.get(0)?
+            mut inner_e := cast(Expr, e.params.get(0)?)
             return is_expr_calling_procs(context, inner_e)?
         } else {
             e.exit_error("type", format("while declaring '", decl.name, "', parameter is unexpectedly missing."))
@@ -3397,7 +3402,7 @@ is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str 
 
     case NodeType.Assignment(var_name):
         if e.params.len().gt(0) {
-            mut assign_inner_e := e.get(0)?
+            mut assign_inner_e := cast(Expr, e.params.get(0)?)
             return is_expr_calling_procs(context, assign_inner_e)?
         } else {
             e.exit_error("type", format("while assigning ", var_name, ", parameter is unexpectedly missing."))
@@ -3455,7 +3460,7 @@ is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str 
     case NodeType.Catch:
         // The catch body is always the third parameter
         if e.params.len().gt(2) {
-            mut body_expr := e.get(2)?
+            mut body_expr := cast(Expr, e.params.get(2)?)
             return is_expr_calling_procs(context, body_expr)?
         } else {
             // TODO Err(lang_error) here instead
@@ -3472,6 +3477,8 @@ is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str 
         // Unknown node type - assume it might call procs to be safe
         return false
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     return false
 }
@@ -3620,7 +3627,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
 
         // Declare loop variable - get name from params[0], type from node_type
         if e.params.len().gt(0) {
-            var_expr := e.get(0)?
+            var_expr := cast(Expr, e.params.get(0)?)
             dont_delete(var_expr)
             switch var_expr.node_type {
             case NodeType.Identifier(var_name):
@@ -3650,7 +3657,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
         mut switch_expr_type := ValueType.TCustom("")
         mut has_switch_type := false
         if e.params.len().gt(0) {
-            switch_expr := e.get(0)?
+            switch_expr := cast(Expr, e.params.get(0)?)
             dont_delete(switch_expr)
             new_params.push(resolve_inferred_types(context, switch_expr)?)
             switch_expr_type = get_value_type(context, switch_expr)?
@@ -3664,7 +3671,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
         // Process case/body pairs (params[1..] are case, body, case, body, ...)
         mut i := 1
         while i.lt(e.params.len()) {
-            case_expr := e.get(i)?
+            case_expr := cast(Expr, e.params.get(i)?)
             dont_delete(case_expr)
             new_params.push(resolve_inferred_types(context, case_expr)?)
             i = i.add(1)
@@ -3673,7 +3680,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
                 break
             }
 
-            body_expr := e.get(i)?
+            body_expr := cast(Expr, e.params.get(i)?)
             dont_delete(body_expr)
 
             // For pattern matching, add binding variable to scope
@@ -3805,9 +3812,9 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
             throw e.lang_error(context.path, "resolve_types", "Catch node must have three parameters: variable, type, and body.")
         }
 
-        mut catch_var_expr := e.get(0)?
-        mut catch_type_expr := e.get(1)?
-        mut catch_body_expr := e.get(2)?
+        mut catch_var_expr := cast(Expr, e.params.get(0)?)
+        mut catch_type_expr := cast(Expr, e.params.get(1)?)
+        mut catch_body_expr := cast(Expr, e.params.get(2)?)
 
         mut catch_var_name := ""
         switch catch_var_expr.node_type {
@@ -3892,7 +3899,7 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
     if decl_type_name.eq(INFER_TYPE) {
         // Infer type from the value expression
         if e.params.len().gt(0) {
-            inner_e := e.get(0)?
+            inner_e := cast(Expr, e.params.get(0)?)
             dont_delete(inner_e)
             resolved_type = get_value_type(context, inner_e)?
             // Issue #91: Detect function signature definitions

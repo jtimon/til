@@ -74,6 +74,10 @@ When the user gives you instructions, OBEY THEM. Do exactly what they say. If th
 - **NEVER** Use shell scripts - use til scripts in `mode safe_script` instead. If safe_script is too limited for what you need, don't try a workaround - stop and ask the author of the language
 - **NEVER** Suggest or try git push - the user will push when ready
 
+## CRITICAL: TIL ? operator is NOT propagation
+In Rust, `?` propagates errors (unwraps Ok or returns Err early).
+In TIL, `?` is NOT propagation. It simply marks that a call may throw. Whether the error is caught or propagated is determined by catch blocks, not by `?` itself. The `?` is just a required annotation on calls to throwing functions. Do not describe `?` as "propagating" in TIL context.
+
 ## CRITICAL: Stay Within Project Directory
 - **NEVER** create or read files outside the project directory
 - **NEVER** use /tmp or any path outside this project

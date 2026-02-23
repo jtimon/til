@@ -31,7 +31,8 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
     case NodeType.FCall(_):
         // Constructor calls - check if the function name is a known struct
         if e.params.len().gt(0) {
-            name := get_combined_name_from_identifier(e.get(0)?)?
+            e0 := cast(Expr, e.params.get(0)?)
+            name := get_combined_name_from_identifier(e0)?
             if name.len().gt(0).and(name.find(".").lt(0)) {
                 // Check if this is a struct constructor
                 mut fcall_found_struct := false
@@ -66,6 +67,8 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
     for param: Expr in e.params {
         collect_used_types_from_expr(context, param, used_types)?
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Collect all type names from a function definition (args, return types, throw types, body)
@@ -187,7 +190,8 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
     switch e.node_type {
     case NodeType.FCall(_):
         if e.params.len().gt(0) {
-            fptr_func_name := get_combined_name_from_identifier(e.get(0)?)?
+            e0 := cast(Expr, e.params.get(0)?)
+            fptr_func_name := get_combined_name_from_identifier(e0)?
             if fptr_func_name.len().gt(0) {
                 fptr_fd := context.scope_stack.lookup_func(fptr_func_name)?
                 mut fptr_arg_i := 0
@@ -199,7 +203,7 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
                         case ValueType.TType(TTypeDef.TFuncSig):
                             // This parameter is a function pointer - check if the argument is a function name
                             if e.params.len().gt(fptr_arg_i.add(1)) {
-                                fptr_arg_expr := e.get(fptr_arg_i.add(1))?
+                                fptr_arg_expr := cast(Expr, e.params.get(fptr_arg_i.add(1))?)
                                 dont_delete(fptr_arg_expr)
                                 fptr_arg_name := get_combined_name_from_identifier(fptr_arg_expr)?
                                 if fptr_arg_name.len().gt(0) {
@@ -233,13 +237,14 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
         // Recurse into arguments
         mut fptr_i := 1
         while fptr_i.lt(e.params.len()) {
-            collect_func_ptr_references(e.get(fptr_i)?, context, refs)?
+            efptr_i := cast(Expr, e.params.get(fptr_i)?)
+            collect_func_ptr_references(efptr_i, context, refs)?
             fptr_i.inc()
         }
     // Issue #91: `return add2` where add2 is a function name
     case NodeType.Return:
         if e.params.len().gt(0) {
-            ret_expr := e.get(0)?
+            ret_expr := cast(Expr, e.params.get(0)?)
             dont_delete(ret_expr)
             ret_name := get_combined_name_from_identifier(ret_expr)?
             if ret_name.len().gt(0).and(context.scope_stack.has_func(ret_name)) {
@@ -258,13 +263,16 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
         }
     case NodeType.Catch:
         if e.params.len().gteq(3) {
-            collect_func_ptr_references(e.get(2)?, context, refs)?
+            e2 := cast(Expr, e.params.get(2)?)
+            collect_func_ptr_references(e2, context, refs)?
         }
     case:
         for param: Expr in e.params {
             collect_func_ptr_references(param, context, refs)?
         }
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Recursively collect all function names called within an expression.
@@ -273,7 +281,8 @@ collect_called_functions : proc(e: Expr, mut called: Set) throws Str = {
     case NodeType.FCall(_):
         // After precomp, function calls have params[0] as Identifier(function_name)
         if e.params.len().gt(0) {
-            full_name := get_combined_name_from_identifier(e.get(0)?)?
+            e0 := cast(Expr, e.params.get(0)?)
+            full_name := get_combined_name_from_identifier(e0)?
             if full_name.len().gt(0) {
                 _ := called.insert(full_name)
             }
@@ -281,7 +290,8 @@ collect_called_functions : proc(e: Expr, mut called: Set) throws Str = {
         // Recurse into arguments
         mut i := 1
         while i.lt(e.params.len()) {
-            collect_called_functions(e.get(i)?, called)?
+            ei := cast(Expr, e.params.get(i)?)
+            collect_called_functions(ei, called)?
             i.inc()
         }
     case NodeType.FuncDef(func_def):
@@ -293,7 +303,8 @@ collect_called_functions : proc(e: Expr, mut called: Set) throws Str = {
         // Catch has params[0]=name, params[1]=type, params[2]=body
         // Only recurse into body - type is not a function call
         if e.params.len().gteq(3) {
-            collect_called_functions(e.get(2)?, called)?
+            e2 := cast(Expr, e.params.get(2)?)
+            collect_called_functions(e2, called)?
         }
     case:
         // Recurse into all params
@@ -302,6 +313,7 @@ collect_called_functions : proc(e: Expr, mut called: Set) throws Str = {
         }
     }
 
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Get combined name from an identifier expression (handles a.b.c chains)
@@ -337,7 +349,7 @@ get_combined_name_from_identifier : proc(e: Expr) returns Str throws Str = {
         return ""
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Helper to add a function to both reachable and worklist at the same time
@@ -355,7 +367,7 @@ register_declarations_recursive : proc(mut context: Context, e: Expr) throws Str
     switch e.node_type {
     case NodeType.Declaration(decl):
         if e.params.len().gt(0) {
-            inner := e.get(0)?
+            inner := cast(Expr, e.params.get(0)?)
             switch inner.node_type {
             case NodeType.FuncDef(func_def):
                 // Function declaration
@@ -413,6 +425,7 @@ register_declarations_recursive : proc(mut context: Context, e: Expr) throws Str
     }
 
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Register all functions and structs from the AST into context.scope_stack.
@@ -657,7 +670,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     // Always add ext.c required types since ext.c is always included in generated C
     ext_c_types := get_ext_c_types()
     for ext_type: Str in ext_c_types {
@@ -726,7 +739,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
             case NodeType.Declaration(ns_reach_decl):
                 if ns_reach_decl.name.eq(eq_type_name) {
                     if stmt.params.len().gt(0) {
-                        ns_reach_inner := stmt.get(0)?
+                        ns_reach_inner := cast(Expr, stmt.params.get(0)?)
                         mut ns_reach_ns := NamespaceDef()
                         mut ns_reach_has_ns := false
                         switch ns_reach_inner.node_type {
@@ -845,7 +858,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return ComputeReachableResult(reachable=reachable, used_types=used_types, needs_variadic_support=needs_variadic_support)
 }
 
@@ -878,7 +891,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 switch stmt.node_type {
                 case NodeType.Declaration(decl):
                     if stmt.params.len().gt(0) {
-                        inner := stmt.get(0)?
+                        inner := cast(Expr, stmt.params.get(0)?)
                         switch inner.node_type {
                         case NodeType.FuncDef(_):
                             // Skip function declarations
@@ -898,7 +911,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 case NodeType.Declaration(decl):
                     // Skip declarations - only their initializers matter if not functions
                     if stmt.params.len().gt(0) {
-                        script_inner := stmt.get(0)?
+                        script_inner := cast(Expr, stmt.params.get(0)?)
                         switch script_inner.node_type {
                         case NodeType.FuncDef(_):
                             // Skip function declarations - they're not roots themselves
@@ -918,7 +931,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 switch stmt.node_type {
                 case NodeType.Declaration(decl):
                     if stmt.params.len().gt(0) {
-                        lib_inner := stmt.get(0)?
+                        lib_inner := cast(Expr, stmt.params.get(0)?)
                         switch lib_inner.node_type {
                         case NodeType.FuncDef(_):
                             // Skip function declarations
@@ -973,7 +986,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             switch step2b_stmt.node_type {
             case NodeType.Declaration(_):
                 if step2b_stmt.params.len().gt(0) {
-                    step2b_inner := step2b_stmt.get(0)?
+                    step2b_inner := cast(Expr, step2b_stmt.params.get(0)?)
                     switch step2b_inner.node_type {
                     case NodeType.EnumDef(step2b_enum_def):
                         for step2b_variant: EnumVariant in step2b_enum_def.variants {
@@ -1018,7 +1031,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 }
             }
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
         // Step 3: Build new AST - only include reachable function declarations
         // For structs, rebuild them without unreachable methods
@@ -1027,7 +1040,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             switch stmt.node_type {
             case NodeType.Declaration(decl):
                 if stmt.params.len().gt(0) {
-                    rebuild_inner := stmt.get(0)?
+                    rebuild_inner := cast(Expr, stmt.params.get(0)?)
                     switch rebuild_inner.node_type {
                     case NodeType.FuncDef(func_def):
                         // Issue #91: FuncSig declarations (empty body, unnamed args)
@@ -1080,5 +1093,8 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
     // Not a Body node - return unchanged
     mut result := e.clone()
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
     return result
 }

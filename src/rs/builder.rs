@@ -58,9 +58,9 @@ fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Ve
         for child in &ast.params {
             if let NodeType::FCall(_) = &child.node_type {
                 if !child.params.is_empty() {
-                    if let NodeType::Identifier(name) = &child.get(0)?.node_type {
+                    if let NodeType::Identifier(name) = &child.params.get(0).unwrap().node_type {
                         if name == "import" && child.params.len() > 1 {
-                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.get(1)?.node_type {
+                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.params.get(1).unwrap().node_type {
                                 let file_path = import_path_to_file_path(import_path);
                                 if !imported.contains(&file_path) {
                                     imported.insert(file_path.clone());
@@ -134,7 +134,7 @@ fn merge_asts(main_ast: Expr, dep_asts: Vec<Expr>) -> Result<Expr, String> {
 fn is_import_call(expr: &Expr) -> Result<bool, String> {
     if let NodeType::FCall(_) = &expr.node_type {
         if !expr.params.is_empty() {
-            if let NodeType::Identifier(name) = &expr.get(0)?.node_type {
+            if let NodeType::Identifier(name) = &expr.params.get(0).unwrap().node_type {
                 return Ok(name == "import");
             }
         }
@@ -148,9 +148,9 @@ fn collect_import_paths(ast: &Expr, collected: &mut HashSet<String>) -> Result<(
         for child in &ast.params {
             if let NodeType::FCall(_) = &child.node_type {
                 if !child.params.is_empty() {
-                    if let NodeType::Identifier(name) = &child.get(0)?.node_type {
+                    if let NodeType::Identifier(name) = &child.params.get(0).unwrap().node_type {
                         if name == "import" && child.params.len() > 1 {
-                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.get(1)?.node_type {
+                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.params.get(1).unwrap().node_type {
                                 let file_path = import_path_to_file_path(import_path);
                                 if !collected.contains(&file_path) {
                                     collected.insert(file_path.clone());

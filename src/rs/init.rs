@@ -512,8 +512,8 @@ pub fn get_func_name_in_call(e: &Expr) -> String {
     if e.params.len() == 0 {
         return e.exit_error("init", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
     }
-    match &e.get(0) {
-        Ok(param) => {
+    match e.params.get(0) {
+        Some(param) => {
             match &param.node_type {
                 NodeType::Identifier(f_name) => return f_name.clone(),
                 // Issue #105: anonymous struct instantiation - struct { ... }(args)
@@ -522,7 +522,7 @@ pub fn get_func_name_in_call(e: &Expr) -> String {
                     "init", &format!("in get_func_name_in_call(): Identifiers can only contain identifiers, found '{:?}'", node_type)),
             }
         },
-        Err(error_str) => return error_str.to_string(),
+        None => return e.exit_error("init", "get_func_name_in_call(): fcall nodes must have at least 1 parameter."),
     }
 }
 
@@ -616,7 +616,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
     // cast(Type, ptr_expr) returns the specified Type
     if f_name == "cast" && e.params.len() >= 3 {
-        if let NodeType::Identifier(type_name) = &e.get(1)?.node_type {
+        if let NodeType::Identifier(type_name) = &e.params.get(1).unwrap().node_type {
             return Ok(ValueType::TCustom(type_name.clone()));
         }
     }
@@ -625,7 +625,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
     // If e has 2+ params (func name + target + args), check if the target's type
     // has an associated method with this name, prioritizing it over standalone functions
     if e.params.len() >= 2 {
-        let first_arg = e.get(1)?;  // Get the UFCS target (skip func name at index 0)
+        let first_arg = e.params.get(1).unwrap();  // Get the UFCS target (skip func name at index 0)
 
         // Try to get the type of the first argument
         if let Ok(target_type) = get_value_type(context, first_arg) {
@@ -646,7 +646,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
         return value_type_func_proc(&context.path, &e, &f_name, func_def)
     } else if let Some(symbol) = context.scope_stack.lookup_symbol(&f_name) {
 
-        let id_expr = e.get(0)?;
+        let id_expr = e.params.get(0).unwrap();
         match &symbol.value_type {
             ValueType::TType(TTypeDef::TStructDef) => {
                 let struct_def = match context.scope_stack.lookup_struct(&f_name) {
@@ -741,7 +741,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                     return Err(e.error(&context.path, "init", &format!("Enum constructor {}.{} expects a payload of type {}", f_name, variant_name, value_type_to_str(payload_type))));
                                 }
                                 // Type check the payload argument
-                                let payload_expr = e.get(1)?;
+                                let payload_expr = e.params.get(1).unwrap();
                                 let payload_actual_type = get_value_type(context, payload_expr)?;
 
                                 // Verify payload type matches expected type
@@ -978,7 +978,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
         NodeType::EnumDef(_) => Ok(ValueType::TType(TTypeDef::TEnumDef)),
         NodeType::StructDef(_) => Ok(ValueType::TType(TTypeDef::TStructDef)),
         NodeType::FCall(_) => get_fcall_value_type(context, e),
-        NodeType::Range => Ok(ValueType::TCustom(format!("{}Range", value_type_to_str(&get_value_type(&context, e.get(0)?)?)))),
+        NodeType::Range => Ok(ValueType::TCustom(format!("{}Range", value_type_to_str(&get_value_type(&context, e.params.get(0).unwrap())?)))),
 
         NodeType::Identifier(name) => {
             // Bug #32 fix: Handle field access on expression results
@@ -986,12 +986,12 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
             // then traverse the field access chain in params[1..]
             if name == "_" && !e.params.is_empty() {
                 // Get the type of the base expression (params[0])
-                let base_expr = e.get(0)?;
+                let base_expr = e.params.get(0).unwrap();
                 let mut underscore_current_type = get_value_type(context, base_expr)?;
 
                 // Traverse the field access chain in params[1..]
                 for field_idx in 1..e.params.len() {
-                    let field_expr = e.get(field_idx)?;
+                    let field_expr = e.params.get(field_idx).unwrap();
                     let field_name = match &field_expr.node_type {
                         NodeType::Identifier(n) => n,
                         _ => return Err(e.error(&context.path, "init", "Expected identifier in field access chain")),
@@ -1090,7 +1090,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
         NodeType::NamedArg(_) => {
             // Named argument - return the type of the value expression
             if !e.params.is_empty() {
-                get_value_type(context, e.get(0)?)
+                get_value_type(context, e.params.get(0).unwrap())
             } else {
                 Err(e.error(&context.path, "init", "NamedArg must have a value expression"))
             }
@@ -1345,10 +1345,10 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
             let f_name = get_func_name_in_call(&e);
             if f_name == "import" {
                 // Extract import path (must be literal string)
-                let import_path_expr = match e.get(1) {
-                    Ok(import_path_expr_) => import_path_expr_,
-                    Err(err) => {
-                        errors.push(e.exit_error("import", &format!("{}:{}", context.path, err)));
+                let import_path_expr = match e.params.get(1) {
+                    Some(import_path_expr_) => import_path_expr_,
+                    None => {
+                        errors.push(e.exit_error("import", "import requires a path argument"));
                         return Ok(errors)
                     },
                 };
@@ -1390,10 +1390,10 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                 errors.push(e.exit_error("init", &format!("in init_context, while declaring {}, declarations must take exactly one value.", decl.name)));
                 return Ok(errors)
             }
-            let inner_e = match e.get(0) {
-                Ok(inner_e_) => inner_e_,
-                Err(error_str) => {
-                    errors.push(error_str);
+            let inner_e = match e.params.get(0) {
+                Some(inner_e_) => inner_e_,
+                None => {
+                    errors.push(e.exit_error("init", "Declaration has no value expression"));
                     return Ok(errors)
                 },
             };

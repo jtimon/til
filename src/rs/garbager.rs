@@ -43,7 +43,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for stmt in &new_body {
                 if let NodeType::Catch = &stmt.node_type {
                     if !stmt.params.is_empty() {
-                        if let NodeType::Identifier(err_var_name) = &stmt.get(0)?.node_type {
+                        if let NodeType::Identifier(err_var_name) = &stmt.params.get(0).unwrap().node_type {
                             dont_delete_vars.insert(err_var_name.clone());
                         }
                     }
@@ -89,7 +89,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 if let NodeType::Declaration(decl) = &stmt.node_type {
                     if let ValueType::TCustom(type_name) = &decl.value_type {
                         let is_owned = if !stmt.params.is_empty() {
-                            is_owned_init_expr(stmt.get(0)?)?
+                            is_owned_init_expr(stmt.params.get(0).unwrap())?
                         } else {
                             false
                         };
@@ -496,7 +496,7 @@ fn detect_shallow_copy_outparam(stmt: &Expr, local_types: &HashMap<String, Strin
     }
 
     // Check if call-site param is a bare identifier
-    let param_expr = stmt.get(param_idx)?;
+    let param_expr = stmt.params.get(param_idx).unwrap();
     if let NodeType::Identifier(var_name) = &param_expr.node_type {
         if param_expr.params.is_empty() {
             // Look up type in local_types
@@ -549,12 +549,12 @@ fn get_func_name(e: &Expr) -> Result<String, String> {
     if e.params.is_empty() {
         return Ok(String::new());
     }
-    let name_expr = e.get(0)?;
+    let name_expr = e.params.get(0).unwrap();
     match &name_expr.node_type {
         NodeType::Identifier(name) => {
             // Check for Type.method pattern: Identifier("Type") with child Identifier("method")
             if !name_expr.params.is_empty() {
-                if let NodeType::Identifier(method) = &name_expr.get(0)?.node_type {
+                if let NodeType::Identifier(method) = &name_expr.params.get(0).unwrap().node_type {
                     return Ok(format!("{}.{}", name, method));
                 }
             }
@@ -633,7 +633,7 @@ fn get_dont_delete_var(e: &Expr) -> Result<String, String> {
     if e.params.len() < 2 {
         return Ok(String::new());
     }
-    if let NodeType::Identifier(var_name) = &e.get(1)?.node_type {
+    if let NodeType::Identifier(var_name) = &e.params.get(1).unwrap().node_type {
         return Ok(var_name.clone());
     }
     Ok(String::new())
@@ -643,7 +643,7 @@ fn get_dont_delete_var(e: &Expr) -> Result<String, String> {
 fn get_cast_var(e: &Expr) -> Result<String, String> {
     if let NodeType::Declaration(decl) = &e.node_type {
         if !e.params.is_empty() {
-            let init = e.get(0)?;
+            let init = e.params.get(0).unwrap();
             if let NodeType::FCall(_) = &init.node_type {
                 let name = get_func_name(init)?;
                 if name == "cast" {
@@ -778,8 +778,8 @@ fn collect_own_transfers_recursive(e: &Expr, context: &Context, local_types: &Ha
                         if i < arg_start { continue; }
                         let param_idx = if is_ufcs { i } else { i + 1 };
                         if param_idx < e.params.len() && arg_def.is_own {
-                            if let NodeType::Identifier(var_name) = &e.get(param_idx)?.node_type {
-                                if e.get(param_idx)?.params.is_empty() {
+                            if let NodeType::Identifier(var_name) = &e.params.get(param_idx).unwrap().node_type {
+                                if e.params.get(param_idx).unwrap().params.is_empty() {
                                     result.insert(var_name.clone());
                                 }
                             }
@@ -831,8 +831,8 @@ fn transform_struct_literal_fields(context: &Context, e: &Expr, new_params: &mut
             };
             if let ValueType::TCustom(type_name) = &field_decl.value_type {
                 // Check if the NamedArg's value (params[0]) is an identifier
-                if !new_params[param_idx].params.is_empty() && is_identifier_expr(new_params[param_idx].get(0)?) {
-                    let arg_expr = new_params[param_idx].get(0)?.clone();
+                if !new_params[param_idx].params.is_empty() && is_identifier_expr(new_params[param_idx].params.get(0).unwrap()) {
+                    let arg_expr = new_params[param_idx].params.get(0).unwrap().clone();
                     let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
                     new_params[param_idx].params[0] = clone_call;
                 }
