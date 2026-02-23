@@ -706,6 +706,13 @@ topological_sort_types : func(types: Vec) returns Vec = {
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
+    // #183: Delete temporary collections
+    name_to_idx.delete()
+    deps.delete()
+    reverse_deps.delete()
+    in_degree.delete()
+    queue.delete()
+
     return result
 }
 
@@ -3847,6 +3854,8 @@ emit_enum_with_payloads : proc(enum_name: Str, enum_def: EnumDef, mut output: St
         output.push_str("    return result;\n")
         output.push_str("}\n\n")
     }
+    // #183: Delete cloned variants vec
+    variants.delete()
 
 }
 
@@ -4170,6 +4179,8 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: Fu
     // Pop the function scope frame
     mut _popped_frame := ScopeFrame()
     context.scope_stack.frames.pop(_popped_frame)?
+    // #183: Delete popped scope frame (no longer needed)
+    _popped_frame.delete()
 
     // Clear current function context
     ctx.current_throw_types.clear()
@@ -4374,6 +4385,10 @@ emit_hoisted_locals : proc(stmts: Vec, mut output: Str, mut ctx: CodegenContext)
         output.push_str(" = {};\n")
         _ := ctx.declared_vars.insert(c_var_name)
     }
+    // #183: Delete temporary collections
+    local_vars.delete()
+    local_types.delete()
+    seen.delete()
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -4859,6 +4874,8 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 // Pop the function scope frame
                 mut _popped_frame := ScopeFrame()
                 context.scope_stack.frames.pop(_popped_frame)?
+                // #183: Delete popped scope frame
+                _popped_frame.delete()
 
                 // Restore previous function name and counter
                 ctx.current_function_name = prev_function_name
@@ -5053,7 +5070,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
     indent_str := repeat("    ", indent)
 
     // Pre-scan for function-level catches (at the end of the block)
-    func_level_catches := prescan_func_level_catches(stmts)
+    mut func_level_catches := prescan_func_level_catches(stmts)
 
     // Hoist declarations from catch blocks to function level
     // (TIL has function-level scoping, not block-level scoping)
@@ -5392,6 +5409,8 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                         local_cli.temp_var = catch_info.temp_var.clone()
                         ctx.local_catch_labels.set(type_name.clone(), local_cli)
                     }
+                    // #183: Delete temporary map
+                    next_catches.delete()
                     emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)?
                     i.inc()
                     continue
@@ -5440,6 +5459,9 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
     for catch_entry: CatchLabelInfoEntry in all_catch_info {
         ctx.local_catch_labels.remove(catch_entry.type_name)
     }
+    // #183: Delete temporary collections
+    all_catch_info.delete()
+    func_level_catches.delete()
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -6911,6 +6933,15 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 // Pop scope frame
                 mut _popped_frame := ScopeFrame()
                 context.scope_stack.frames.pop(_popped_frame)?
+                // #183: Delete popped scope frame
+                _popped_frame.delete()
+
+                // #183: Delete overwritten ctx fields before restoring
+                ctx.current_throw_types.delete()
+                ctx.current_return_types.delete()
+                ctx.declared_vars.delete()
+                ctx.current_ref_params.delete()
+                ctx.current_variadic_params.delete()
 
                 // Restore context
                 ctx.current_throw_types = prev_throw_types
@@ -7318,6 +7349,9 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 }
             }
             output.push_str("};\n")
+            // #183: Delete temporary maps
+            named_values.delete()
+            hoisted_values.delete()
         }
 
         catch (err: KeyNotFoundError) {
@@ -8254,7 +8288,7 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     // Bug #97: Use type-mangled names for shadowing support
     body := cast(Expr, expr.params.get(1)?)
     dont_delete(body)
-    body_decls := collect_declarations_in_body(body, context)?
+    mut body_decls := collect_declarations_in_body(body, context)?
     for decl: CollectedDeclaration in body_decls {
         type_prefix := value_type_to_c_prefix(decl.value_type)
         c_var_name := til_var_name(decl.name, type_prefix)
@@ -8279,6 +8313,8 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             context.scope_stack.declare_symbol(decl.name.clone(), sym_info)?
         }
     }
+    // #183: Delete temporary collection
+    body_decls.delete()
 
     // Bug #143: Use emit_arg_string to process condition (handles hoisting for by-ref/throwing)
     // Emit hoisting to a separate buffer first to detect if needed
@@ -8419,6 +8455,8 @@ collect_declarations_in_body : proc(body: Expr, mut context: Context) returns Ve
     case:
         collect_declarations_recursive(body, decls, collected, context)?
     }
+    // #183: Delete temporary map
+    collected.delete()
 
     return decls
 }
@@ -8590,6 +8628,8 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 }
                 output.push_str("}")
             }
+            // #183: Delete temporary map
+            named_values.delete()
             return
         catch (err: KeyNotFoundError) {
             // REM: not a struct, continue below
