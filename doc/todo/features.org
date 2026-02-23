@@ -17,6 +17,87 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 
 * Open Issues
 
+** Issue #188: Defer statement
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Resource management, cleanup guarantees, memory management
+:STATUS: Open
+:RELATED: Issue #183 (manual delete calls), Issue #117 (ASAP destruction), Bug #170 (scope-exit deletion)
+:END:
+
+*** Description
+Add a ~defer~ statement that schedules code to run at scope exit, regardless of
+how the scope is exited (normal return, throw, early return). This is a
+well-established pattern in Go, Zig, Odin, and Swift (~defer~/~errdefer~).
+
+#+BEGIN_SRC til
+read_file := func(path: Str) returns Str = {
+    handle := open(path)?
+    defer close(handle)
+
+    contents := read_all(handle)?
+    return contents
+    // close(handle) runs here automatically
+}
+#+END_SRC
+
+*** Why this matters
+
+*Memory management (#183, #117, #170)*: Even with ASAP destruction and automatic
+delete insertion, there are cases where manual cleanup is needed -- aliases,
+borrowed pointers, partially constructed state. ~defer~ gives the programmer a
+clean way to express "clean this up when we leave" without tracking every exit path.
+
+#+BEGIN_SRC til
+process := func(data: Vec) returns Str = {
+    temp := data.clone()
+    defer Str.delete(temp)
+
+    if some_condition() {
+        return early_result()   // temp still gets deleted
+    }
+    return compute(temp)        // temp still gets deleted
+}
+#+END_SRC
+
+*Resource management*: When TIL eventually supports streaming file I/O, network
+sockets, database connections, etc., defer is the natural pattern for ensuring
+resources get released:
+
+#+BEGIN_SRC til
+query := func(db: Connection, sql: Str) returns Vec = {
+    stmt := db.prepare(sql)?
+    defer stmt.finalize()
+
+    results := stmt.execute()?
+    return results
+}
+#+END_SRC
+
+*** Semantics
+
+- Deferred statements execute in LIFO order (last defer runs first)
+- Execute on all scope exits: return, throw, end of block
+- The deferred expression is evaluated at defer time (captures current values)
+  but executed at scope exit
+- Multiple defers in the same scope stack up
+
+*** Implementation approach
+
+Desugar in the desugarer or garbager phase. For each scope with defers:
+1. Collect defer statements in order
+2. At every exit point (return, throw, end of body), insert the deferred
+   calls in reverse order before the exit
+
+This is purely an AST transformation -- no runtime support needed. Both
+interpreter and compiler benefit automatically.
+
+*** Scope
+
+- Parser: recognize ~defer~ keyword + expression/statement
+- Desugarer or garbager: insert deferred calls at exit points
+- Port to both Rust and TIL
+
 ** Issue #153: Enable field and method access on Dynamic parameters
 :PROPERTIES:
 :DISCOVERED: 2025-11-12

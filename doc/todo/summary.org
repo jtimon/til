@@ -19,10 +19,11 @@
 |  94 | gcc warnings cause bug47.til compilation failure (blocked by #99) | Build issue               |
 |  80 | ccodegen.til generates different C code than ccodegen.rs        | Divergence                  |
 
-* features.org (12 issues)
+* features.org (13 issues)
 
 | #   | Issue                                            | Category         |
 |-----+--------------------------------------------------+------------------|
+| 188 | Defer statement                                  | Language feature |
 | 182 | Closures -- explicit capture lists               | Language feature |
 | 181 | First-class bodies -- store, pass, return blocks | Language feature |
 | 180 | Bang operator ! for panic-on-throw (unwrap)      | Language feature |
