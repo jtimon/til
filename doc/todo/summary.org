@@ -13,7 +13,7 @@
 | #99  | Eliminate all C compiler warnings and enable -Werror        | Open             |
 | #94  | gcc warnings cause bug47.til compilation failure            | Blocked by #99   |
 
-* features.org (12 issues)
+* features.org (11 issues)
 
 | #    | Issue                                            | Status      |
 |------+--------------------------------------------------+-------------|
@@ -21,7 +21,6 @@
 | #182 | Closures -- explicit capture lists               | Open        |
 | #181 | First-class bodies -- store, pass, return blocks | Open        |
 | #180 | Bang operator ! for panic-on-throw (unwrap)      | In progress |
-| #161 | Namespace constants, static mutables, immutables | Open        |
 | #153 | Enable field/method access on Dynamic parameters | Open        |
 | #151 | Explicit pointer/reference syntax                | Open        |
 | #111 | Support returns Dynamic                          | Open        |
@@ -50,11 +49,12 @@
 | #167 | Benchmark HashMap vs Map/OrderedMap | Open    |
 | #112 | HashMap type slower than Map in TIL | Blocked |
 
-* pre.org (15 issues)
+* pre.org (16 issues)
 
 | #    | Issue                                                    | Status          |
 |------+----------------------------------------------------------+-----------------|
 | #187 | Integrated profiling for self-hosted compiler            | Open            |
+| #161 | Namespace constants, static mutables, immutables         | Open            |
 | #185 | Require own at call sites, better consumed errors        | Open            |
 | #184 | Integer-based enum comparison                            | Open            |
 | #183 | Manual delete calls as temporary memory management       | In progress     |
