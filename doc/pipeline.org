@@ -11,10 +11,12 @@ The pipeline processes source code through these phases in order:
 | Lexer     | Source string  | Tokens         | Tokenize source code                       |
 | Parser    | Tokens         | AST            | Build abstract syntax tree                 |
 | Mode      | Lexer          | ModeDef        | Parse mode declaration (test, script, etc) |
+| Preinit   | AST            | AST            | Auto-generate delete/clone methods         |
 | Init      | AST, Context   | Context        | Register declarations in scope             |
 | Typer     | AST, Context   | AST            | Type checking, validation, type completion |
 | Desugarer | AST, Context   | AST            | Desugar syntactic sugar constructs         |
 | UFCS      | AST, Context   | AST            | Desugar uniform function call syntax       |
+| Garbager  | AST, Context   | AST            | Insert clone/delete calls for memory mgmt  |
 | Precomp   | AST, Context   | AST            | Const-folding, macros                      |
 | Scavenger | AST, Context   | AST            | Remove unused declarations (build only)    |
 | Build     | AST, Context   | C source       | Generate C code (ccodegen)                 |
@@ -36,6 +38,13 @@ The pipeline processes source code through these phases in order:
 - Parses the mode declaration at start of file
 - Sets imports, permissions, and behavior flags
 - Entry: parse_mode()
+
+*** Preinit (src/rs/preinit.rs, src/self/preinit.til)
+- Auto-generates delete() and clone() methods for structs and enums
+- Issue #108: Methods are generated into namespace blocks, not struct definitions
+- Runs before Init so that auto-generated methods are registered in scope
+- Also runs during Init for imported files (init_import_declarations)
+- Entry: preinit_expr()
 
 *** Init (src/rs/init.rs, src/self/init.til)
 - Registers all declarations into scope stack:
@@ -74,6 +83,12 @@ The pipeline processes source code through these phases in order:
 - Runs after sugar because sugar may generate UFCS calls
 - Entry: ufcs_expr()
 
+*** Garbager (src/rs/garbager.rs, src/self/garbager.til)
+- Inserts clone() calls for copy params and struct literal fields (Issue #159)
+- Strips dont_delete() annotations and collects protected var names
+- Runs after UFCS so that all method calls are resolved
+- Entry: garbager_expr()
+
 *** Precomp (src/rs/precomp.rs, src/self/precomp.til)
 - Constant folding
 - Macro expansion
@@ -102,10 +117,10 @@ The builder (src/rs/builder.rs) and interpreter (src/rs/interpreter.rs) share
 the same phases up through scavenger, but diverge afterward:
 
 Build pipeline:
-  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> UFCS -> Precomp -> Scavenger -> Build -> GCC
+  Lexer -> Parser -> Mode -> Preinit -> Init -> Typer -> Desugarer -> UFCS -> Garbager -> Precomp -> Scavenger -> Build -> GCC
 
 Interpret pipeline:
-  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> UFCS -> Precomp -> Interpret
+  Lexer -> Parser -> Mode -> Preinit -> Init -> Typer -> Desugarer -> UFCS -> Garbager -> Precomp -> Interpret
 
 ** Import Processing
 

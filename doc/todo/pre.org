@@ -577,18 +577,19 @@ Add ~.delete()~ calls per file in pipeline order. One commit per file.
 Port to Rust for consistency once each file works.
 
 Files:
-- [X] lexer.til -- 12 deletes: current_char, next_two, esc, lit_string, suggestion
-- [ ] parser.til -- skipped (needs second pass, most allocs go to AST)
-- [ ] init.til
-- [ ] typer.til
+- [X] lexer.til -- lookahead, tmp_substr for two-char checks, comments, semicolons
+- [X] parser.til -- to_str/concat temporaries in next_loop_var, get_combined_name, etc.
+- [X] init.til -- concat chains in get_field_offset, to_str in collect_anon_funcs, import paths
+- [X] typer.til -- lookup_func results, concat chain in check_fcall, import path
+- [X] preinit.til -- format() temporaries for contains() checks
 - [ ] desugarer.til
 - [ ] ufcs.til
+- [ ] garbager.til
 - [ ] precomp.til
 - [ ] scavenger.til
 - [ ] ccodegen.til
 - [ ] interpreter.til
 - [ ] eval_heap.til
-- [ ] garbager.til
 
 ** Issue #179: ~cast()~ should work as function argument, not just declarations
 :PROPERTIES:

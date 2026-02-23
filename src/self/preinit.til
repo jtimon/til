@@ -412,7 +412,9 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
                                 has_delete_inline = true
                             }
                         }
-                        has_delete_namespace := namespace_methods.contains(format(decl.name, ".delete"))
+                        mut delete_key := format(decl.name, ".delete")
+                        has_delete_namespace := namespace_methods.contains(delete_key)
+                        delete_key.delete()
                         has_delete := has_delete_inline.or(has_delete_namespace)
 
                         mut has_clone_inline := false
@@ -430,7 +432,9 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
                                 has_clone_inline = true
                             }
                         }
-                        has_clone_namespace := namespace_methods.contains(format(decl.name, ".clone"))
+                        mut clone_key := format(decl.name, ".clone")
+                        has_clone_namespace := namespace_methods.contains(clone_key)
+                        clone_key.delete()
                         has_clone := has_clone_inline.or(has_clone_namespace)
 
                         needs_delete := not(has_delete)
