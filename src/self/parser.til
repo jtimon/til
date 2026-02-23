@@ -16,7 +16,10 @@ mut LOOP_VAR_COUNTER := 0
 next_loop_var : func() returns Str = {
     n := LOOP_VAR_COUNTER
     LOOP_VAR_COUNTER = add(LOOP_VAR_COUNTER, 1)
-    return concat("_loop_", n.to_str())
+    mut n_str := n.to_str()
+    result := concat("_loop_", n_str)
+    n_str.delete()
+    return result
 }
 
 save_loop_var_counter : func() returns I64 = {
@@ -1197,8 +1200,12 @@ get_combined_name : func(path: Str, e: Expr) returns Str throws Str = {
     nt := e.node_type
     switch nt {
         case NodeType.Identifier(id_str):
+            mut old := to_return
             to_return = to_return.concat(id_str)
+            old.delete()
+            old = to_return
             to_return = to_return.concat(".")
+            old.delete()
         case:
             throw e.lang_error(path, "parse", "get_combined_name() is to be called with Identifier expressions only")
     }
@@ -1207,15 +1214,21 @@ get_combined_name : func(path: Str, e: Expr) returns Str throws Str = {
         pnt := p.node_type
         switch pnt {
             case NodeType.Identifier(id_str):
+                mut old2 := to_return
                 to_return = to_return.concat(id_str)
+                old2.delete()
+                old2 = to_return
                 to_return = to_return.concat(".")
+                old2.delete()
             case:
                 throw e.lang_error(path, "parse", "the params of an identifier expression must be Identifier expressions only")
         }
     }
 
     // Remove the last '.'
+    mut old3 := to_return
     to_return = to_return.get_substr(0, to_return.len().sub(1))?
+    old3.delete()
     catch (err: IndexOutOfBoundsError) { throw concat("get_combined_name: ", err.msg) }
     return to_return
 }
@@ -1744,8 +1757,10 @@ parse_for_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOf
     // Replace _ with a unique generated name to avoid C redeclaration issues
     mut loop_var_name := ""
     if ident_token.token_str.eq("_") {
+        loop_var_name.delete()
         loop_var_name = next_loop_var()
     } else {
+        loop_var_name.delete()
         loop_var_name = ident_token.token_str.clone()
     }
 
@@ -1849,7 +1864,10 @@ get_full_identifier_name : func(e: Expr) returns Str throws Str = {
                 p0nt := p0.node_type
                 switch p0nt {
                     case NodeType.Identifier(param_name):
-                        result = name.concat(".").concat(param_name)
+                        result.delete()
+                        mut tmp := name.concat(".")
+                        result = tmp.concat(param_name)
+                        tmp.delete()
                     case:
                 }
             }
