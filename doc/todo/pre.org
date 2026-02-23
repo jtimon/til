@@ -15,6 +15,52 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #185: Require ~own~ keyword at call sites, improve consumed-variable errors
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Usability, readability, better error messages
+:STATUS: Open
+:RELATED: Issue #117 (ASAP destruction), Issue #115 (owned struct fields)
+:END:
+
+*** Problem
+
+When a function takes an ~own~ parameter, the caller just passes the variable
+normally. After the call, the variable is consumed (removed from scope by the
+garbager's ~collect_own_transfers~). If the caller tries to use it afterwards,
+they get "undefined symbol" -- a confusing error that doesn't explain WHY the
+symbol disappeared.
+
+#+begin_src til
+// Current: caller doesn't mark ownership transfer
+tokens.push(expr)   // 'expr' silently consumed if push takes 'own'
+println(expr.name)  // ERROR: "Undefined symbol 'expr'" -- confusing!
+#+end_src
+
+*** Proposed solution
+
+*Part 1: Require ~own~ at call sites*
+
+The caller must explicitly write ~own~ when passing to an ~own~ parameter:
+
+#+begin_src til
+tokens.push(own expr)   // explicit: caller acknowledges transfer
+println(expr.name)      // ERROR: better message (see Part 2)
+#+end_src
+
+Without ~own~ at the call site, the type checker should error:
+"Parameter 'value' of 'Vec.push' requires ownership transfer. Use 'own expr'."
+
+*Part 2: Better error for consumed variables*
+
+When a variable has been consumed by an ~own~ transfer, the error should say:
+"Variable 'expr' is no longer available -- ownership was transferred to
+'Vec.push' at line 42."
+
+This requires tracking which function consumed which variable (the garbager's
+~collect_own_transfers~ already knows this, but the information isn't propagated
+to error messages).
+
 ** Issue #184: Integer-based enum comparison (replace string comparison)
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
