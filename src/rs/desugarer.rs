@@ -935,6 +935,97 @@ fn build_str_eq_call_expr(expr: Expr, literal_str: &str, line: usize, col: usize
     make_call("eq", vec![expr, make_str(literal_str, line, col)], line, col)
 }
 
+// Issue #180: Build a catch block for bang operator desugaring
+// catch (err_var: error_type) { panic(loc(), err_var.msg) }
+fn build_bang_catch(err_var: &str, error_type: &str, line: usize, col: usize) -> Expr {
+    let panic_call = make_call("panic", vec![
+        make_call("loc", vec![], line, col),
+        make_field_access(err_var, vec!["msg"], line, col),
+    ], line, col);
+    Expr::new_explicit(
+        NodeType::Catch,
+        vec![make_id(err_var, line, col), make_id(error_type, line, col), make_body(vec![panic_call], line, col)],
+        line, col,
+    )
+}
+
+// Issue #180: Check if an expression contains a bang FCall and return its function name.
+// Returns the function name if found, or None.
+// Handles: func()! and result := func()!
+fn find_bang_func_name(e: &Expr) -> Option<String> {
+    match &e.node_type {
+        NodeType::FCall(info) if info.is_bang => {
+            // Direct bang call: func()!
+            if let Some(first) = e.params.get(0) {
+                if let NodeType::Identifier(name) = &first.node_type {
+                    return Some(name.clone());
+                }
+            }
+            None
+        },
+        NodeType::Declaration(_) | NodeType::Assignment(_) => {
+            // result := func()! -- bang FCall is in params
+            for p in &e.params {
+                if let Some(name) = find_bang_func_name(p) {
+                    return Some(name);
+                }
+            }
+            None
+        },
+        _ => None,
+    }
+}
+
+// Issue #180: Replace is_bang with false in an FCall, keeping does_throw true.
+// Modifies the expression in-place by cloning with updated FCallInfo.
+fn clear_bang_flag(e: &Expr) -> Expr {
+    match &e.node_type {
+        NodeType::FCall(info) if info.is_bang => {
+            Expr::new_clone(
+                NodeType::FCall(FCallInfo { does_throw: true, is_bang: false }),
+                e,
+                e.params.clone(),
+            )
+        },
+        NodeType::Declaration(_) | NodeType::Assignment(_) => {
+            let new_params: Vec<Expr> = e.params.iter().map(|p| clear_bang_flag(p)).collect();
+            Expr::new_clone(e.node_type.clone(), e, new_params)
+        },
+        _ => e.clone(),
+    }
+}
+
+// Issue #180: Desugar bang calls in a list of body statements.
+// For each statement with a bang FCall, appends catch blocks for each thrown type.
+fn desugar_bang_in_body(context: &Context, stmts: Vec<Expr>) -> Result<Vec<Expr>, String> {
+    let mut result = Vec::new();
+    for stmt in stmts {
+        if let Some(func_name) = find_bang_func_name(&stmt) {
+            if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
+                let throw_types = func_def.sig.throw_types.clone();
+                let line = stmt.line;
+                let col = stmt.col;
+                // Replace ! with ? (clear is_bang flag)
+                let cleared_stmt = clear_bang_flag(&stmt);
+                result.push(cleared_stmt);
+                // Generate catch blocks for each thrown type
+                for (i, throw_type) in throw_types.iter().enumerate() {
+                    if let ValueType::TCustom(type_name) = throw_type {
+                        let err_var = format!("_bang_err_{}", i);
+                        result.push(build_bang_catch(&err_var, type_name, line, col));
+                    }
+                }
+            } else {
+                // Function not found in scope -- leave as-is, typer will catch the error
+                result.push(stmt);
+            }
+        } else {
+            result.push(stmt);
+        }
+    }
+    Ok(result)
+}
+
 /// Desugarer phase entry point: Recursively desugar ForIn loops and Switch statements.
 pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     match &e.node_type {
@@ -972,6 +1063,8 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for stmt in &func_def.body {
                 new_body.push(desugar_expr(context, stmt)?);
             }
+            // Issue #180: Desugar bang calls in function body
+            let new_body = desugar_bang_in_body(context, new_body)?;
 
             let _ = context.scope_stack.pop();
             context.precomp_forin_counter = saved_counter;
@@ -1062,6 +1155,19 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
 
             Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+        },
+        // Issue #180: Body nodes need bang desugaring for their statements
+        NodeType::Body => {
+            if e.params.is_empty() {
+                Ok(e.clone())
+            } else {
+                let mut new_stmts = Vec::new();
+                for p in &e.params {
+                    new_stmts.push(desugar_expr(context, p)?);
+                }
+                let new_stmts = desugar_bang_in_body(context, new_stmts)?;
+                Ok(Expr::new_clone(e.node_type.clone(), e, new_stmts))
+            }
         },
         // For all other nodes, recurse into params
         _ => {

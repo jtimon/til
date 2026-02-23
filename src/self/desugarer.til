@@ -1505,6 +1505,133 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
     return make_body(outer_body_params, e.line, e.col)
 }
 
+// Issue #180: Build a catch block for bang operator desugaring
+// catch (err_var: error_type) { panic(loc(), err_var.msg) }
+build_bang_catch : func(err_var: Str, error_type: Str, line: I64, col: I64) returns Expr = {
+    mut panic_args := Vec.new(Expr)
+    panic_args.push(make_call("loc", Vec.new(Expr), line, col))
+    mut msg_fields := Vec.new(Str)
+    msg_fields.push("msg")
+    panic_args.push(make_field_access(err_var, msg_fields, line, col))
+    panic_call := make_call("panic", panic_args, line, col)
+    mut catch_params := Vec.new(Expr)
+    catch_params.push(make_id(err_var, line, col))
+    catch_params.push(make_id(error_type, line, col))
+    mut panic_body_stmts := Vec.new(Expr)
+    panic_body_stmts.push(panic_call)
+    catch_params.push(make_body(panic_body_stmts, line, col))
+    return Expr.new_explicit(NodeType.Catch, catch_params, line, col)
+}
+
+// Issue #180: Check if an expression contains a bang FCall and return its function name.
+// Returns the function name if found, or empty string.
+// Handles: func()! and result := func()!
+find_bang_func_name : func(e: Expr) returns Str = {
+    switch e.node_type {
+    case NodeType.FCall(info):
+        if info.is_bang {
+            if e.params.len().gt(0) {
+                first := cast(Expr, e.params.get(0)?)
+                dont_delete(first)
+                switch first.node_type {
+                case NodeType.Identifier(name):
+                    return name
+                case:
+                }
+            }
+        }
+        return ""
+    case NodeType.Declaration(_decl):
+        for p: Expr in e.params {
+            decl_result := find_bang_func_name(p)
+            if decl_result.len().gt(0) { return decl_result }
+        }
+        return ""
+    case NodeType.Assignment(_name):
+        for p: Expr in e.params {
+            assign_result := find_bang_func_name(p)
+            if assign_result.len().gt(0) { return assign_result }
+        }
+        return ""
+    case:
+        return ""
+    }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+// Issue #180: Replace is_bang with false in an FCall, keeping does_throw true.
+clear_bang_flag : func(e: Expr) returns Expr = {
+    switch e.node_type {
+    case NodeType.FCall(info):
+        if info.is_bang {
+            return Expr.new_clone(
+                NodeType.FCall(FCallInfo(does_throw=true, is_bang=false)),
+                e, e.params
+            )
+        }
+        return e.clone()
+    case NodeType.Declaration(_decl):
+        mut decl_new_params := Vec.new(Expr)
+        for p: Expr in e.params { decl_new_params.push(clear_bang_flag(p)) }
+        return Expr.new_clone(e.node_type, e, decl_new_params)
+    case NodeType.Assignment(_name):
+        mut assign_new_params := Vec.new(Expr)
+        for p: Expr in e.params { assign_new_params.push(clear_bang_flag(p)) }
+        return Expr.new_clone(e.node_type, e, assign_new_params)
+    case:
+        return e.clone()
+    }
+}
+
+// Issue #180: Desugar bang calls in a list of body statements.
+// For each statement with a bang FCall, appends catch blocks for each thrown type.
+desugar_bang_in_body : proc(context: Context, stmts: Vec) returns Vec throws Str = {
+    mut result := Vec.new(Expr)
+    mut stmt_i := 0
+    while stmt_i.lt(stmts.len()) {
+        stmt := cast(Expr, stmts.get(stmt_i)?)
+        dont_delete(stmt)
+        func_name := find_bang_func_name(stmt)
+        if func_name.len().gt(0) {
+            if context.scope_stack.has_func(func_name) {
+                func_def := context.scope_stack.lookup_func(func_name)?
+                dont_delete(func_def)
+                throw_types := func_def.sig.throw_types
+                dont_delete(throw_types)
+                line := stmt.line
+                col := stmt.col
+                // Replace ! with ? (clear is_bang flag)
+                cleared_stmt := clear_bang_flag(stmt)
+                result.push(cleared_stmt)
+                // Generate catch blocks for each thrown type
+                mut ti := 0
+                while ti.lt(throw_types.len()) {
+                    throw_type := cast(ValueType, throw_types.get(ti)?)
+                    dont_delete(throw_type)
+                    switch throw_type {
+                    case ValueType.TCustom(type_name):
+                        err_var := format("_bang_err_", to_str(ti))
+                        result.push(build_bang_catch(err_var, type_name, line, col))
+                    case:
+                    }
+                    ti.inc()
+                }
+            } else {
+                // Function not found in scope -- leave as-is, typer will catch the error
+                result.push(stmt)
+            }
+        } else {
+            result.push(stmt)
+        }
+        stmt_i.inc()
+    }
+    return result
+
+    catch (err: IndexOutOfBoundsError) { throw format("desugar_bang_in_body: ", err.msg) }
+    catch (err: KeyNotFoundError) { throw format("desugar_bang_in_body: ", err.msg) }
+}
+
 /// Desugarer phase entry point: Recursively desugar ForIn loops and Switch statements.
 desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     switch e.node_type {
@@ -1540,6 +1667,8 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         for stmt: Expr in func_def.body {
             new_body.push(desugar_expr(context, stmt)?)
         }
+        // Issue #180: Desugar bang calls in function body
+        new_body = desugar_bang_in_body(context, new_body)?
 
         context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         context.precomp_forin_counter = saved_counter
@@ -1649,6 +1778,18 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         }
 
         return Expr.new_clone(e.node_type, e, new_params)
+    // Issue #180: Body nodes need bang desugaring for their statements
+    case NodeType.Body:
+        if e.params.len().eq(0) {
+            return e.clone()
+        } else {
+            mut new_stmts := Vec.new(Expr)
+            for p: Expr in e.params {
+                new_stmts.push(desugar_expr(context, p)?)
+            }
+            new_stmts = desugar_bang_in_body(context, new_stmts)?
+            return Expr.new_clone(e.node_type, e, new_stmts)
+        }
     // For all other nodes, recurse into params
     case:
         if e.params.len().eq(0) {

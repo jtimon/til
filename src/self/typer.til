@@ -1705,8 +1705,12 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     unconditional_exit_in_sequence = false
                 }
 
-            case NodeType.FCall(_):
+            case NodeType.FCall(fcall_check_info):
+                // Issue #180: Check if this is a bang call (!) -- if so, skip throw tracking
+                // since the desugarer will insert catch+panic blocks
+                is_bang_call := fcall_check_info.is_bang
                 mut called_func_def := get_func_def_for_fcall(context, p)?
+                if is_bang_call.not() {
                 for called_throw: ValueType in called_func_def.sig.throw_types {
                     called_throw_str := value_type_to_str(called_throw)
                     error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
@@ -1719,6 +1723,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     fcall_te2.type_str = called_throw_str
                     fcall_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                     thrown_types.push(fcall_te2)
+                }
                 }
 
                 // Check nested function calls in arguments
@@ -2009,7 +2014,9 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     }
 
                     switch initializer.node_type {
-                    case NodeType.FCall(_):
+                    case NodeType.FCall(decl_fcall_info):
+                        // Issue #180: Check if this is a bang call (!)
+                        decl_is_bang := decl_fcall_info.is_bang
                         mut is_constructor := false
 
                         mut id_expr := cast(Expr, initializer.params.get(0)?)
@@ -2048,6 +2055,8 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
 
                         if not(is_constructor) {
                             mut decl_called_func_def := get_func_def_for_fcall(context, initializer)?
+                            // Issue #180: Skip throw tracking for bang calls
+                            if decl_is_bang.not() {
                             for decl_called_throw: ValueType in decl_called_func_def.sig.throw_types {
                                 decl_called_throw_str := value_type_to_str(decl_called_throw)
                                 decl_error_msg := format("Function throws '", decl_called_throw_str, "', but it is not declared in this function's throws section.")
@@ -2060,6 +2069,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                                 decl_te2.type_str = decl_called_throw_str
                                 decl_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                 thrown_types.push(decl_te2)
+                            }
                             }
 
                             mut decl_thrown_types := Vec.new(ThrownType)
@@ -2082,7 +2092,9 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     dont_delete(assign_initializer)
 
                     switch assign_initializer.node_type {
-                    case NodeType.FCall(_):
+                    case NodeType.FCall(assign_fcall_info):
+                        // Issue #180: Check if this is a bang call (!)
+                        assign_is_bang := assign_fcall_info.is_bang
                         mut assign_is_constructor := false
 
                         mut assign_id_expr := cast(Expr, assign_initializer.params.get(0)?)
@@ -2121,6 +2133,8 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
 
                         if not(assign_is_constructor) {
                             mut assign_called_func_def := get_func_def_for_fcall(context, assign_initializer)?
+                            // Issue #180: Skip throw tracking for bang calls
+                            if assign_is_bang.not() {
                             for assign_called_throw: ValueType in assign_called_func_def.sig.throw_types {
                                 assign_called_throw_str := value_type_to_str(assign_called_throw)
                                 assign_error_msg := format("Function throws '", assign_called_throw_str, "', but it is not declared in this function's throws section.")
@@ -2133,6 +2147,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                                 assign_te2.type_str = assign_called_throw_str
                                 assign_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                 thrown_types.push(assign_te2)
+                            }
                             }
 
                             mut assign_thrown_types := Vec.new(ThrownType)

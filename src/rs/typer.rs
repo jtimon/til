@@ -1325,8 +1325,12 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
             },
 
             NodeType::FCall(_) => {
+                // Issue #180: Check if this is a bang call (!) -- if so, skip throw tracking
+                // since the desugarer will insert catch+panic blocks
+                let is_bang_call = matches!(&p.node_type, NodeType::FCall(ref info) if info.is_bang);
                 match get_func_def_for_fcall(&context, p) {
                     Ok(Some(called_func_def)) => {
+                        if !is_bang_call {
                         for called_throw in &called_func_def.sig.throw_types {
                             let called_throw_str = value_type_to_str(called_throw);
                             let error_msg = format!(
@@ -1336,6 +1340,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
 
                             thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: p.error(&context.path, "type", &error_msg) });
                             thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
+                        }
                         }
 
                         for arg in p.params.iter().skip(1) {
@@ -1580,6 +1585,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                     }
 
                     if let NodeType::FCall(_) = initializer.node_type {
+                        // Issue #180: Check if this is a bang call (!)
+                        let decl_is_bang = matches!(&initializer.node_type, NodeType::FCall(ref info) if info.is_bang);
                         let id_expr_opt = initializer.params.get(0);
 
                         let mut is_constructor = false;
@@ -1613,6 +1620,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                         if !is_constructor {
                         match get_func_def_for_fcall(&context, initializer) {
                             Ok(Some(decl_called_func_def)) => {
+                                // Issue #180: Skip throw tracking for bang calls
+                                if !decl_is_bang {
                                 for decl_called_throw in &decl_called_func_def.sig.throw_types {
                                     let decl_called_throw_str = value_type_to_str(decl_called_throw);
                                     let decl_error_msg = format!(
@@ -1622,6 +1631,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
 
                                     thrown_types.push(ThrownType { type_str: decl_called_throw_str.clone(), msg: initializer.error(&context.path, "type", &decl_error_msg) });
                                     thrown_types.push(ThrownType { type_str: decl_called_throw_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
+                                }
                                 }
 
                                 let mut decl_thrown_types: Vec<ThrownType> = Vec::new();
@@ -1644,6 +1654,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
             NodeType::Assignment(_) => {
                 if let Some(assign_initializer) = p.params.get(0) {
                     if let NodeType::FCall(_) = assign_initializer.node_type {
+                        // Issue #180: Check if this is a bang call (!)
+                        let assign_is_bang = matches!(&assign_initializer.node_type, NodeType::FCall(ref info) if info.is_bang);
 
                         let assign_id_expr_opt = assign_initializer.params.get(0);
 
@@ -1678,6 +1690,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                         if !assign_is_constructor {
                         match get_func_def_for_fcall(&context, assign_initializer) {
                             Ok(Some(assign_called_func_def)) => {
+                                // Issue #180: Skip throw tracking for bang calls
+                                if !assign_is_bang {
                                 for assign_called_throw in &assign_called_func_def.sig.throw_types {
                                     let assign_called_throw_str = value_type_to_str(assign_called_throw);
                                     let assign_error_msg = format!(
@@ -1687,6 +1701,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
 
                                     thrown_types.push(ThrownType { type_str: assign_called_throw_str.clone(), msg: assign_initializer.error(&context.path, "type", &assign_error_msg) });
                                     thrown_types.push(ThrownType { type_str: assign_called_throw_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
+                                }
                                 }
 
                                 let mut assign_thrown_types: Vec<ThrownType> = Vec::new();

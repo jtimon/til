@@ -368,12 +368,15 @@ first-class values, not about block syntax.
 
 - [X] Lexer: renamed ~TokenType.Not~ to ~TokenType.ExclamationMark~, removed error for ~!~
 - [X] Parser: ~!~ accepted as synonym for ~?~ at all 3 fcall sites (produces ~FCall(true)~)
-- [ ] Desugarer: generate catch blocks with ~panic(loc(), "TypeName")~ for each thrown type
-- [ ] Typer: consume thrown_types for ~!~ calls so user catch triggers "not among thrown types"
+- [X] Parser step 2: changed ~FCall(bool)~ to ~FCall(FCallInfo)~ with ~does_throw~ and ~is_bang~ fields
+- [X] Typer: skip throw tracking for ~is_bang~ calls (FCall, Declaration, Assignment)
+- [X] Desugarer: generate ~catch (err: Type) { panic(loc(), err.msg) }~ for each thrown type
 - [ ] Test: ~src/test/panic_bang.til~ with ~expected_status=1~
 - [ ] Docs: update ~rs2til.org~ with ~!~ / ~.unwrap()~ mapping
 
-Currently ~!~ behaves identically to ~?~ (no desugaring yet).
+Works for direct function calls (e.g. ~might_fail(x)!~). Method calls
+(e.g. ~arr.get(i, val)!~) not yet supported -- desugarer runs before UFCS
+and cannot resolve method signatures via ~lookup_func~.
 
 *** Description
 
@@ -416,10 +419,22 @@ catch (err: SomeError) { panic(loc(), err.msg) }
 #+END_SRC
 
 Steps:
-1. Lexer: recognize ~!~ after fcall (new token or reuse existing)
-2. Parser: parse ~!~ like ~?~ but store a flag (e.g. ~FCall(does_throw=true, is_bang=true)~)
-3. Desugarer: for bang calls, look up the function's throw types and generate
-   a catch block with ~panic(loc(), err.msg)~ for each thrown type
+1. [DONE] Lexer: recognize ~!~ after fcall (new token or reuse existing)
+2. [DONE] Parser: parse ~!~ like ~?~ but store a flag (~FCall(FCallInfo(does_throw=true, is_bang=true))~)
+3. [DONE] Typer: when ~is_bang~ is true, skip adding throw types to ~thrown_types~
+   (in FCall, Declaration, and Assignment handlers of ~check_body_returns_throws~)
+4. [DONE] Desugarer: ~desugar_bang_in_body~ iterates body statements, finds bang FCalls
+   via ~find_bang_func_name~, looks up throw types via ~lookup_func~, generates
+   catch blocks via ~build_bang_catch~, and clears ~is_bang~ flag via ~clear_bang_flag~.
+   Integrated into FuncDef body and Body node handlers.
+
+*** Limitations
+
+- Only works for direct function calls where ~params[0]~ is ~Identifier(name)~
+  and ~lookup_func(name)~ succeeds. Method calls (UFCS) like ~arr.get(i, val)!~
+  are not yet supported because the desugarer runs before UFCS rewriting.
+- To support method calls, either move bang desugaring after UFCS, or add
+  type-aware method resolution to the desugarer.
 
 *** Notes
 
