@@ -13,6 +13,180 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #182: Closures -- explicit capture lists for functions and blocks
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Language feature -- enables higher-order patterns that reference enclosing scope
+:STATUS: Open
+:RELATED: Issue #91 (first-class functions -- lambdas, function pointers), Issue #181 (standalone body blocks), doc/first_class.org
+:END:
+
+*** Description
+
+Closures are functions that access variables from their enclosing scope.
+TIL requires *explicit capture lists* using ~[square brackets]~, inspired
+by Jai (Jonathan Blow). If a function references an outer variable, it MUST
+be listed in the capture list. This makes dependencies visible and
+refactoring mechanical.
+
+*** Capture syntax
+
+#+BEGIN_SRC til
+scale := 3
+
+// Closure: captures scale from outer scope
+scaled := numbers.map(func(a: I64) returns I64 [scale] { return a.mul(scale) })
+
+// Normal form equivalent:
+scaled := numbers.map(func(I64) returns I64 = (a) [scale] { return a.mul(scale) })
+
+// Named closure:
+make_scaler : func(s: I64) returns Transformer = {
+    return func(a: I64) returns I64 [s] { return a.mul(s) }
+}
+triple := make_scaler(3)
+tripled := numbers.map(triple)  // [3, 6, 9, 12, 15]
+#+END_SRC
+
+*** Why explicit captures
+
+Implicit captures (like Python, JavaScript, Rust) feel magical:
+
+Problems:
+- *Reading*: you see ~scale~ and have to hunt for where it's defined.
+  Is it a global? A local three scopes up? A typo for a parameter?
+- *Refactoring*: extracting a block into a function means figuring out
+  ALL the implicit dependencies. Miss one and it breaks.
+- *Inlining*: moving a closure back inline means understanding what it
+  captures to know where it can safely go.
+
+Explicit captures solve all three:
+- *Reading*: ~[scale]~ tells you exactly what comes from outside.
+- *Refactoring*: captures become parameters. Mechanical transformation.
+- *Inlining*: captures tell you exactly what the block depends on.
+
+*** Capture semantics
+
+Captures follow the same rules as function parameters:
+
+| Capture syntax | Semantics                         | Same as param mode |
+|----------------+-----------------------------------+--------------------|
+| ~[x]~          | Const by reference (default)      | ~x: T~             |
+| ~[mut x]~      | Mutable reference                 | ~mut x: T~         |
+| ~[copy x]~     | Deep copy (snapshot)              | ~copy x: T~        |
+| ~[own x]~      | Ownership transfer (moved in)     | ~own x: T~         |
+
+#+BEGIN_SRC til
+mut total := 0
+data := Vec.from(1, 2, 3)
+
+// mut capture: closure can modify total
+data.for_each(func(x: I64) [mut total] { total = total.add(x) })
+
+// copy capture: closure gets a snapshot, original unchanged
+data.map(func(x: I64) returns I64 [copy total] { return x.add(total) })
+
+// own capture: moves data into the closure, caller can't use it after
+consume : proc() = [own data] { data.clear() }
+#+END_SRC
+
+No new rules to learn -- captures are just arguments that come from the
+enclosing scope instead of the call site.
+
+*** Block captures (depends on #181)
+
+Even without making a function, you can add a capture list to a bare
+code block to limit what it can see. This is an "insurance policy" that
+the block only touches specified state:
+
+#+BEGIN_SRC til
+mut total := 0
+mut count := 0
+data := Vec.from(1, 2, 3)
+
+// Only total and data are accessible inside this block
+[total, data] {
+    for item in data {
+        total = total.add(item)
+    }
+}
+// count is guaranteed untouched
+#+END_SRC
+
+*** Refactoring progression (from Jai)
+
+#+BEGIN_SRC til
+// Step 1: inline code
+total = total.add(x)
+
+// Step 2: block with captures (limit scope, verify dependencies)
+[total, x] {
+    total = total.add(x)
+}
+
+// Step 3: promote to lambda (add params, same captures)
+adder : func(a: I64) returns I64 = [total] { return total.add(a) }
+
+// Step 4: promote to pure function (captures become params, no more closure)
+adder : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+#+END_SRC
+
+Each step is mechanical. The capture list tells you exactly what needs to
+become a parameter when you promote to a pure function.
+
+*** Syntax decision needed
+
+Two options for how captures are specified:
+
+**** Option A: Square brackets (Jai-style, current first_class.org design)
+
+#+BEGIN_SRC til
+scaled := numbers.map(func(a: I64) returns I64 [scale] { return a.mul(scale) })
+
+// Block capture:
+[total, data] {
+    for item in data { total = total.add(item) }
+}
+#+END_SRC
+
+Pro: concise, visually distinct from parameters.
+Con: ~[]~ already used for array indexing in many languages. Inconsistent
+with ~returns~ and ~throws~ which are keywords, not punctuation.
+
+**** Option B: ~captures~ keyword (consistent with returns/throws)
+
+#+BEGIN_SRC til
+scaled := numbers.map(func(a: I64) captures scale returns I64 { return a.mul(scale) })
+
+// Block capture:
+captures total, data {
+    for item in data { total = total.add(item) }
+}
+#+END_SRC
+
+Pro: consistent with the existing ~returns~ / ~throws~ keyword pattern in
+function signatures -- no parentheses, just commas. Reads naturally: "func
+that takes I64, captures scale, returns I64". Searchable and greppable.
+Con: more verbose.
+
+**** Comparison
+
+#+BEGIN_SRC til
+// Option A:
+f : func(I64) returns I64 = (a) [scale, mut total] { ... }
+
+// Option B:
+f : func(I64) captures scale, mut total returns I64 = (a) { ... }
+#+END_SRC
+
+Note: with Option B, ~captures~ sits before ~returns~ in the signature,
+like how ~throws~ sits after ~returns~. Full order would be:
+~func(params) captures X returns Y throws Z~.
+
+*** References
+- Jai Primer: explicit capture lists, same philosophy
+- doc/first_class.org: full design document
+
 ** Issue #181: Standalone body blocks and first-class bodies
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
@@ -1044,8 +1218,8 @@ Dynamic~, but could be implemented independently as a narrower feature for macro
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
 :IMPACT: Language feature, polymorphism, higher-order programming
-:STATUS: In progress - FunctionSig type + function pointers done (2026-02-21), next: closures/collections
-:RELATED: Bug #90 (semicolon/body syntax), Bug #159 (needs func ptrs for deep clone/delete), Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), src/test/function_pointers.til, doc/first_class.org
+:STATUS: In progress - FunctionSig type + function pointers done (2026-02-21), next: lambdas/collections
+:RELATED: Bug #90 (semicolon/body syntax), Bug #159 (needs func ptrs for deep clone/delete), Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), Issue #182 (Closures -- explicit captures), src/test/function_pointers.til, doc/first_class.org
 :END:
 
 *** Background
@@ -1171,7 +1345,7 @@ Pass functions as arguments, call through variable, signature compatibility chec
 - Tests: direct calls, cross-type compatibility, multiple function-typed params, nested higher-order,
   runtime dispatch (proc wrapper)
 
-Next: closures, storing function pointers in collections, lambdas.
+Next: lambdas, storing function pointers in collections, closures (Issue #182).
 
 *** Existing Infrastructure (as of 2026-02-21)
 
@@ -1241,10 +1415,10 @@ What is done:
 - Reusable patterns from #105 (structs) and #106 (enums) documented above
 
 What is missing:
-- Closures (capturing local variables)
+- Lambda syntax (anonymous inline functions)
 - Storing function pointers in collections (Vec/Map of function pointers)
-- Lambda syntax
 - Returning functions from functions
+- Closures (Issue #182 -- explicit capture lists)
 
 *** C Calling Convention (critical for codegen)
 
@@ -1345,13 +1519,11 @@ Uncomment and update ~src/test/function_pointers.til~:
 
 *** Deferred Features
 
-- *Closures*: Capturing enclosing scope variables (likely harder)
-- *Anonymous inline functions*: ~numbers.map(func(x: I64) returns I64 { return x.mul(2) })~
+- *Lambdas (anonymous inline functions)*: ~numbers.map(func(x: I64) returns I64 { return x.mul(2) })~
   Syntax already works via ~parse_func_proc_definition~ -- just needs the passing
   infrastructure from this issue. May work for free after Step 3/4.
-- *Optional parameter names in types*: ~func(I64) returns I64~ (extra parser work)
+- *Closures*: See Issue #182 (explicit capture lists, block captures)
 - *Storing in collections*: Vec/Map of function pointers
-- *Future syntax*: Move signature to type position (see Syntax Decision section)
 
 *** Key Files
 - src/rs/parser.rs / src/self/parser.til (function type parsing)
