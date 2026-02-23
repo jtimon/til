@@ -161,82 +161,70 @@ away.
 - Replace ~value_type_to_str(x).eq(value_type_to_str(y))~ with ~ValueType.eq(x, y)~
   across 17+ sites in interpreter.til, typer.til, ufcs.til, precomp.til
 
-** Issue #183: Manual delete calls as temporary memory management
+** Issue #183: Add manual .delete() calls to reduce memory
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
 :IMPACT: Memory leak reduction until #117 automates destruction
-:STATUS: Open
+:STATUS: In Progress
 :RELATED: Issue #117 (ASAP Destruction), Bug #165 (200-800x memory leak), Bug #159 (shallow copies)
 :END:
 
 *** Description
 
-Until Issue #117 (ASAP Destruction) is fully implemented, manually insert
-~.delete()~ calls in TIL source code where variables go out of scope or
-are no longer needed -- the same way you would in C.
+Add manual ~.delete()~ calls in TIL source code where values are allocated
+and never freed -- the same way you would in C. Work through files in
+pipeline order (lexer, parser, init, typer, desugarer, ufcs, precomp,
+scavenger, ccodegen, interpreter, eval_heap, garbager), one commit per file.
 
-*** Why this is safe
+TIL-only changes. Rust returns references (no copies to delete).
 
-- ~delete()~ implementations already handle double-frees safely. The eval
-  heap tracks allocations, so deleting an already-freed pointer is a no-op
-  (or logged), not undefined behavior.
-- Redundant deletes are harmless -- they just waste a few cycles on the
-  check.
-- As #117 automates more deletion patterns, the manual deletes become
-  redundant and can be removed incrementally.
+*** Constraints
 
-*** Approach
+- Lookup results (~lookup_struct~, ~lookup_enum~, ~lookup_func~) are aliases
+  in interpreted mode (pointer into scope stack map). Deleting them crashes.
+  Only cloned or newly-allocated values are safe to delete.
+- Double-frees are harmless (eval heap catches them), so being aggressive
+  with deletes is safe.
+- This is a manual version of what #117 will automate. When #117 handles a
+  pattern, we remove the corresponding manual delete.
 
-1. Identify hot spots: functions that allocate heavily (format, concat,
-   split, clone, to_str, Vec/Map operations) and don't free results
-2. Add explicit ~result.delete()~ or ~temp.delete()~ calls after last use
-3. Focus on the self-hosted compiler files first (biggest memory consumers)
-4. Verify with benchmarks that memory usage drops without crashes
+*** Memory trend
 
-*** Why not dont_delete (the opposite approach)
+| Commit    | Change                             | til_interpreted | til_built |
+|-----------+------------------------------------+-----------------+-----------|
+| Pre-#105  | Baseline before NamespaceDef embed | 4406 MB         |           |
+| 96361e5d  | #105 Step 4a: embed NamespaceDef   | 8253 MB (+3847) |           |
+| Attempt 1 | scope_stack.pop()?.delete()        | 8253 MB (+0)    |           |
+| Attempt 2 | StructDef.delete() for clones      | 8160 MB (-93)   | 21757 MB  |
+| 9489210f  | has_* for discarded lookups         | 8162 MB (~0)    | 21773 MB  |
+|           | lexer.til: 12 delete calls          | 8158 MB (-4)    | 21765 MB  |
 
-~dont_delete~ was tried before -- assume everything gets deleted, whitelist
-what should be skipped. It never worked because shallow-copy aliasing (#159)
-makes it impossible to reliably know what is safe to skip. Too many hidden
-aliases, too many false negatives.
+*** Done so far
 
-This approach flips it: nothing gets deleted by default, you manually add
-deletes only where you *know* the value is owned and no longer needed.
-Double-frees are harmless (eval heap catches them), so being overly
-aggressive with deletes is safe. Being overly aggressive with dont_delete
-was not (missing one alias = use-after-free).
+- ~scope_stack.pop()?.delete()~ on 28 sites. No improvement.
+- ~.delete()~ on 2 cloned StructDef locals (-93 MB).
+- ~has_struct/enum/func~ for ~30 discarded lookups (9489210f). Code
+  simplification (-514 lines), neutral on memory. Rust consistency
+  pending (~lookup_X().is_some()~ -> ~has_X()~).
 
-*** Attempt 1: scope_stack.pop()?.delete() -- no measurable improvement
+*** Remaining
 
-Replaced all 28 ~_ := context.scope_stack.pop()?~ sites with
-~context.scope_stack.pop()?.delete()~ across interpreter.til, typer.til,
-ufcs.til, precomp.til, desugarer.til, init.til.
+Add ~.delete()~ calls per file in pipeline order. One commit per file.
+Port to Rust for consistency once each file works.
 
-Result: 0 memory improvement. Garbager likely already inserts delete for
-the popped ScopeFrame, or the Maps inside are already freed by Vec.pop
-internals. The change is correct and harmless but not where the big leaks
-are. All sites marked with ~// TODO remove this #183 workaround~.
-
-*** Attempt 2: StructDef.delete() for cloned locals -- small improvement
-
-Key finding: ~lookup_struct~ returns an alias in the interpreter (pointer
-into scope stack's map), not an owned copy. Deleting lookup results causes
-SIGSEGV (all 89 tests crash). Only *cloned* StructDef locals are safe to
-delete.
-
-Two sites added:
-- typer.til ~check_struct_def~: ~merged_struct~ (cloned via ~lookup_result.clone()~)
-- init.til ~register_struct_fields_for_typecheck~: ~struct_def~ (cloned via ~lookup_struct()?.clone()~)
-
-Result: til_interpreted 8227MB -> 8160MB (-67MB), til_built 21834MB -> 21757MB (-77MB).
-Small but real. Most StructDef locals come from ~lookup_struct~ (alias), so
-few sites are safe without first cloning the lookup result.
-
-*** Relationship to #117
-
-This is a manual version of what #117 will automate. Each manual delete
-we add now is a site where #117's auto-delete will eventually take over.
-When #117 handles a pattern, we remove the corresponding manual delete.
+Files:
+- [X] lexer.til -- 12 deletes: current_char, next_two, esc, lit_string, suggestion
+- [ ] parser.til -- skipped (needs second pass, most allocs go to AST)
+- [ ] init.til
+- [ ] typer.til
+- [ ] desugarer.til
+- [ ] ufcs.til
+- [ ] precomp.til
+- [ ] scavenger.til
+- [ ] ccodegen.til
+- [ ] interpreter.til
+- [ ] eval_heap.til
+- [ ] garbager.til
 
 ** Issue #179: ~cast()~ should work as function argument, not just declarations
 :PROPERTIES:

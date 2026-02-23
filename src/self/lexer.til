@@ -274,16 +274,23 @@ is_digit : func(source: Str, pos: I64) returns Bool throws Str = {
 }
 
 is_id_start : func(source: Str, pos: I64) returns Bool throws Str = {
-    current_char := source.get_substr(pos, pos.add(1))?
+    mut current_char := source.get_substr(pos, pos.add(1))?
     switch current_char {
-    case "a".."z": return true
-    case "A".."Z": return true
-    case "_": return true
+    case "a".."z":
+        current_char.delete() // TODO #183
+        return true
+    case "A".."Z":
+        current_char.delete() // TODO #183
+        return true
+    case "_":
+        current_char.delete() // TODO #183
+        return true
     case:
     }
     catch (err: IndexOutOfBoundsError) {
         throw format("is_id_start: ", err.msg)
     }
+    current_char.delete() // TODO #183
     return false
 }
 
@@ -409,6 +416,7 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
             scan_push_token(tokens, TokenType.Number, source.get_substr(start, pos)?, line, start.sub(start_line_pos))
         } else {
 
+            current_char.delete() // TODO #183
             current_char = source.get_substr(pos, pos.add(1))?
             mut token_type := TokenType.Invalid
             mut should_process_token := true
@@ -527,6 +535,7 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
                     mut should_continue_parsing := true
 
                     while pos.lt(eof_pos.sub(1)).and(should_continue_parsing) {
+                        next_two.delete() // TODO #183
                         next_two = source.get_substr(pos, pos.add(2))?
 
                         if next_two.eq("/*") {
@@ -570,6 +579,7 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
                         if source.get_substr(pos, pos.add(1))?.eq("\\") {
                             pos.inc() // if it's the escape character, skip it
                             if lt(pos.add(1), eof_pos) {
+                                esc.delete() // TODO #183
                                 esc = source.get_substr(pos, pos.add(1))?
                                 switch esc {
                                 case "\"":
@@ -602,6 +612,7 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
                     token_type = TokenType.UnterminatedString
                 } else {
                     scan_push_token(tokens, TokenType.String, lit_string, line, start.sub(start_line_pos))
+                    lit_string.delete() // TODO #183
                     token_type = TokenType.String
                 }
 
@@ -643,6 +654,10 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
     } // while
 
     scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
+
+    current_char.delete() // TODO #183
+    next_two.delete() // TODO #183
+    esc.delete() // TODO #183
 
     catch (err: IndexOutOfBoundsError) {
         throw format(loc(), "scan_tokens: IndexOutOfBoundsError: ", err.msg)
@@ -779,6 +794,7 @@ print_if_lex_error : proc(path: Str, tokens: Vec, index: I64, t: Token, mut erro
     case:
         // No error, do nothing
     }
+    suggestion.delete() // TODO #183
 }
 
 lexer_from_source : proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError = {
