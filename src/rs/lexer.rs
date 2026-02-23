@@ -13,9 +13,8 @@ pub enum TokenType {
 
     // One or two character tokens.
     Dot, DoubleDot,
-    QuestionMark,
-    Not, NotEqual,
-    Equal, EqualEqual,
+    QuestionMark, ExclamationMark,
+    Equal, EqualEqual, NotEqual,
     Greater, GreaterEqual,
     Lesser, LesserEqual,
     // Semicolons are skipped by lexer (treated as whitespace)
@@ -206,7 +205,7 @@ fn token_type_to_str(tt: &TokenType) -> &'static str {
         TokenType::Colon => ":",
         TokenType::Equal => "=",
         TokenType::EqualEqual => "==",
-        TokenType::Not => "!",
+        TokenType::ExclamationMark => "!",
         TokenType::NotEqual => "!=",
         TokenType::Lesser => "<",
         TokenType::LesserEqual => "<=",
@@ -372,7 +371,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
                 "=" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::EqualEqual } else { TokenType::Equal },
                 "<" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::LesserEqual } else { TokenType::Lesser },
                 ">" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::GreaterEqual } else { TokenType::Greater },
-                "!" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::NotEqual } else { TokenType::Not },
+                "!" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::NotEqual } else { TokenType::ExclamationMark },
 
                 // Semicolons are completely optional - skip any number of them
                 ";" => {
@@ -607,8 +606,8 @@ fn print_if_lex_error(path: &String, tokens: &Vec<Token>, index: usize, t: &Toke
         TokenType::GreaterEqual => {
             print_lex_error(path, t, errors_found, "Operator '>=' is not supported yet\nSuggestion: use core func 'gteq' instead");
         },
-        TokenType::Not => {
-            print_lex_error(path, t, errors_found, "Operator '!' is not supported yet\nSuggestion: use core func 'not' instead");
+        TokenType::ExclamationMark => {
+            // Issue #180: TokenType::ExclamationMark (!) is now used for bang operator (panic on throw)
         },
         _ => {
             // No error, do nothing

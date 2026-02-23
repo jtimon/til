@@ -923,7 +923,8 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
         params.push(e);
         params.extend(arg_list.params);
         // Issue #132: Check for ? after function call (indicates call to throwing function)
-        let does_throw = if lexer.peek().token_type == TokenType::QuestionMark {
+        // Issue #180: ! is a synonym for ? (panic on throw, desugared later)
+        let does_throw = if lexer.peek().token_type == TokenType::QuestionMark || lexer.peek().token_type == TokenType::ExclamationMark {
             lexer.advance(1)?;
             true
         } else {
@@ -970,7 +971,8 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                     new_params.extend(method_args.params);
 
                     // Issue #132: Check for ? after chained method call
-                    let method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark {
+                    // Issue #180: ! is a synonym for ?
+                    let method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark || lexer.peek().token_type == TokenType::ExclamationMark {
                         lexer.advance(1)?;
                         true
                     } else {
@@ -1020,7 +1022,8 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                                 new_params.extend(method_args.params);
 
                                 // Issue #132: Check for ? after field chain method call
-                                let field_method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark {
+                                // Issue #180: ! is a synonym for ?
+                                let field_method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark || lexer.peek().token_type == TokenType::ExclamationMark {
                                     lexer.advance(1)?;
                                     true
                                 } else {

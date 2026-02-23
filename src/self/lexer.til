@@ -11,14 +11,13 @@ TokenType := enum {
     Eof,
 
     // Single-character tokens.
-    Minus, Plus, Slash, Star, QuestionMark,
+    Minus, Plus, Slash, Star, QuestionMark, ExclamationMark,
     LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
     Comma, Colon,
 
     // One or two character tokens.
     Dot, DoubleDot,
-    Not, NotEqual,
-    Equal, EqualEqual,
+    Equal, EqualEqual, NotEqual,
     Greater, GreaterEqual,
     Lesser, LesserEqual,
     // Semicolons are skipped by lexer (treated as whitespace)
@@ -245,7 +244,7 @@ token_type_to_str : func(tt: TokenType) returns Str = {
     case TokenType.Colon: return ":"
     case TokenType.Equal: return "="
     case TokenType.EqualEqual: return "=="
-    case TokenType.Not: return "!"
+    case TokenType.ExclamationMark: return "!"
     case TokenType.NotEqual: return "!="
     case TokenType.Lesser: return "<"
     case TokenType.LesserEqual: return "<="
@@ -493,7 +492,7 @@ scan_tokens : proc(source: Str) returns Vec throws Str = {
                     pos.inc()
                     token_type = TokenType.NotEqual
                 } else {
-                    token_type = TokenType.Not
+                    token_type = TokenType.ExclamationMark
                 }
             case "?":
                 token_type = TokenType.QuestionMark
@@ -774,8 +773,8 @@ print_if_lex_error : proc(path: Str, tokens: Vec, index: I64, t: Token, mut erro
     case TokenType.GreaterEqual:
         print_lex_error(path, t, errors_found, "Operator '>=' is not supported yet\nSuggestion: use core func 'gteq' instead")
 
-    case TokenType.Not:
-        print_lex_error(path, t, errors_found, "Operator '!' is not supported yet\nSuggestion: use core func 'not' instead")
+    case TokenType.ExclamationMark:
+        // Issue #180: TokenType.ExclamationMark (!) is now used for bang operator (panic on throw)
 
     case:
         // No error, do nothing

@@ -350,9 +350,20 @@ be designed alongside #91 to avoid duplicated effort.
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
 :IMPACT: Ergonomics -- cleaner translation of Rust .unwrap(), less boilerplate catch blocks
-:STATUS: Open
+:STATUS: In Progress
 :RELATED: rs2til.org (? operator semantics)
 :END:
+
+*** Progress
+
+- [X] Lexer: renamed ~TokenType.Not~ to ~TokenType.ExclamationMark~, removed error for ~!~
+- [X] Parser: ~!~ accepted as synonym for ~?~ at all 3 fcall sites (produces ~FCall(true)~)
+- [ ] Desugarer: generate catch blocks with ~panic(loc(), "TypeName")~ for each thrown type
+- [ ] Typer: consume thrown_types for ~!~ calls so user catch triggers "not among thrown types"
+- [ ] Test: ~src/test/panic_bang.til~ with ~expected_status=1~
+- [ ] Docs: update ~rs2til.org~ with ~!~ / ~.unwrap()~ mapping
+
+Currently ~!~ behaves identically to ~?~ (no desugaring yet).
 
 *** Description
 

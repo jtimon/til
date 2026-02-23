@@ -1023,10 +1023,14 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
         }
         initial_token2 := lexer.get_token(initial_current)?.clone()
         // Issue #132: Check for ? after function call (indicates call to throwing function)
+        // Issue #180: ! is a synonym for ? (panic on throw, desugared later)
         mut does_throw := false
         does_throw_peek := lexer.peek()?
         switch does_throw_peek.token_type {
         case TokenType.QuestionMark:
+            lexer.advance(1)?
+            does_throw = true
+        case TokenType.ExclamationMark:
             lexer.advance(1)?
             does_throw = true
         case:
@@ -1071,10 +1075,14 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                         }
 
                         // Issue #132: Check for ? after chained method call
+                        // Issue #180: ! is a synonym for ?
                         mut method_does_throw := false
                         method_does_throw_peek := lexer.peek()?
                         switch method_does_throw_peek.token_type {
                         case TokenType.QuestionMark:
+                            lexer.advance(1)?
+                            method_does_throw = true
+                        case TokenType.ExclamationMark:
                             lexer.advance(1)?
                             method_does_throw = true
                         case:
@@ -1127,10 +1135,14 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                                         }
 
                                         // Issue #132: Check for ? after field method call
+                                        // Issue #180: ! is a synonym for ?
                                         mut field_method_does_throw := false
                                         field_method_does_throw_peek := lexer.peek()?
                                         switch field_method_does_throw_peek.token_type {
                                         case TokenType.QuestionMark:
+                                            lexer.advance(1)?
+                                            field_method_does_throw = true
+                                        case TokenType.ExclamationMark:
                                             lexer.advance(1)?
                                             field_method_does_throw = true
                                         case:
