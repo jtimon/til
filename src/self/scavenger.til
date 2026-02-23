@@ -948,6 +948,9 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             }
             // Recompute
             mut new_cr_result := compute_reachable(context, extended_roots, e)?
+            // Delete first-pass Sets before overwriting with second-pass results
+            reachable.delete()
+            used_types.delete()
             reachable = new_cr_result.reachable
             used_types = new_cr_result.used_types
             // Ignore needs_variadic_support on second pass
@@ -1061,6 +1064,10 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         }
 
         mut result_node_type := node_type_clone(e.node_type)
+
+        // #183: Delete Sets from ComputeReachableResult (no longer needed after building new_params)
+        reachable.delete()
+        used_types.delete()
 
         return Expr(node_type=result_node_type, params=new_params, line=e.line, col=e.col)
     case:
