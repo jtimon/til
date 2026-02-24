@@ -161,23 +161,9 @@ Benefits: re-testable, catches rstil/til divergences, promotable to real tests
 
 ## Permissions Already Granted
 Don't ask permission for:
-- `make`, `make benchmark`, `make rstil`, `rustc`
-- `python3`, `python` - running any Python scripts within the project
-- `git status`, `git log`, `git diff`, `git add`, `git commit`
-- `timeout N ./bin/rstil file.til`
+- `make`, `make benchmark`, `make rstil`
 - Reading any project file within the project
 - Creating/editing files in `tmp/`
-- **Shell commands within project - FULL FREEDOM:**
-  - ALL standard Unix commands: `cd`, `mv`, `cp`, `rm`, `mkdir`, `chmod`, `ls`, `pwd`
-  - Text processing: `sed`, `awk`, `grep`, `find`, `cat`, `head`, `tail`, `sort`, `uniq`, `wc`, `tr`, `cut`
-  - File operations: create temp files, move files, copy files, remove files
-  - Combine commands freely (pipes, redirects, command chaining with `&&` or `;`)
-  - Use relative paths from project root or absolute paths within project
-  - No need to ask permission for ANY shell operation within project directory
-  - Only restriction: stay within project directory (no /tmp, no ~/)
-- **Running Python scripts within the project - FULL FREEDOM:**
-  - Any Python code that operates only on files within the project
-  - No need to ask permission - just run it
 - Removing `.backup` files
 
 ## Never Allowed - Must Ask/Warn First
