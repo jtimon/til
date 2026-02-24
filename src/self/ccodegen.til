@@ -596,6 +596,7 @@ get_type_name : func(expr: Expr) returns Str throws KeyNotFoundError = {
 topological_sort_types : func(types: Vec) returns Vec = {
     // Build name -> index map
     mut name_to_idx := Map.new(Str, I64)
+    defer name_to_idx.delete()
     mut idx := 0
     while idx.lt(types.len()) {
         expr := cast(Expr, types.get(idx)?)
@@ -609,6 +610,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
 
     // Build adjacency list (dependencies)
     mut deps := Vec.new(Vec)
+    defer deps.delete()
     mut i := 0
     while i.lt(types.len()) {
         deps.push(Vec.new(I64))
@@ -617,7 +619,8 @@ topological_sort_types : func(types: Vec) returns Vec = {
     idx = 0
     while idx.lt(types.len()) {
         dep_expr := cast(Expr, types.get(idx)?)
-        dep_names := get_type_dependencies(dep_expr)
+        mut dep_names := get_type_dependencies(dep_expr)
+        defer dep_names.delete()
         for dep_name: Str in dep_names {
             dep_idx := cast(I64, name_to_idx.get(dep_name)?)
             if not(dep_idx.eq(idx)) {
@@ -634,6 +637,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
     // Kahn's algorithm for topological sort
     // If A depends on B, B must come first, so reverse the edges
     mut reverse_deps := Vec.new(Vec)
+    defer reverse_deps.delete()
     i = 0
     while i.lt(types.len()) {
         reverse_deps.push(Vec.new(I64))
@@ -651,6 +655,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
 
     // Calculate in-degree for reversed graph
     mut in_degree := Vec.new(I64)
+    defer in_degree.delete()
     i = 0
     while i.lt(types.len()) {
         in_degree.push(0)
@@ -664,6 +669,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
     }
 
     mut queue := Vec.new(I64)
+    defer queue.delete()
     idx = 0
     while idx.lt(in_degree.len()) {
         queue_degree := cast(I64, in_degree.get(idx)?)
@@ -709,13 +715,6 @@ topological_sort_types : func(types: Vec) returns Vec = {
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
-    // #183: Delete temporary collections
-    name_to_idx.delete()
-    deps.delete()
-    reverse_deps.delete()
-    in_degree.delete()
-    queue.delete()
-
     return result
 }
 
@@ -744,6 +743,7 @@ hoist_variadic_args : proc(elem_type: Str, variadic_args: Vec, already_hoisted: 
 
     // Hoist variadic args into temp vars (needed to pass address to Array.set)
     mut arg_temps := Vec.new(Str)
+    defer arg_temps.delete()
     c_elem_type := format(TIL_PREFIX, elem_type)
     mut i := 0
     while i.lt(variadic_args.len()) {
@@ -1271,6 +1271,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
     // First, recursively process this call's arguments
     // For variadic args (i >= regular_count), use by_ref=false because they get stored in temp vars
     mut nested_arg_strings := Vec.new(Str)
+    defer nested_arg_strings.delete()
     if arg.params.len().gt(1) {
         mut i := 0
         mut arg_idx := 1
@@ -1338,6 +1339,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
     if has_variadic {
         // Build variadic array using the nested arg strings
         mut variadic_arg_strings := Vec.new(Str)
+        defer variadic_arg_strings.delete()
         mut vi := variadic_info.regular_count
         while vi.lt(nested_arg_strings.len()) {
             vas := cast(Str, nested_arg_strings.get(vi)?)
@@ -1583,6 +1585,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
     // First, recursively process this call's arguments
     // For variadic args (i >= regular_count), use by_ref=false because they get stored in temp vars
     mut nested_arg_strings := Vec.new(Str)
+    defer nested_arg_strings.delete()
     if arg.params.len().gt(1) {
         mut i := 0
         mut arg_idx := 1
@@ -1625,6 +1628,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
 
     // Build variadic array using the nested arg strings
     mut variadic_arg_strings := Vec.new(Str)
+    defer variadic_arg_strings.delete()
     mut vai := vi.regular_count
     while vai.lt(nested_arg_strings.len()) {
         vas := cast(Str, nested_arg_strings.get(vai)?)
@@ -1727,6 +1731,7 @@ emit_variadic_array_with_strings : proc(elem_type: Str, arg_strings: Vec, mut ou
 
     // Hoist variadic args into temp vars (needed to pass address to Array.set)
     mut arg_temps := Vec.new(Str)
+    defer arg_temps.delete()
     mut asi := 0
     while asi.lt(arg_strings.len()) {
         arg_str := cast(Str, arg_strings.get(asi)?)
@@ -1834,6 +1839,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
     struct_def := context.scope_stack.lookup_struct(func_name)?
     // Process named args (field values) with emit_arg_string
     mut field_values := Map.new(Str, Str)
+    defer field_values.delete()
     mut ai := 1
     while ai.lt(arg.params.len()) {
         named_arg := cast(Expr, arg.params.get(ai)?)
@@ -2070,6 +2076,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
 
     // Process nested args
     mut nested_arg_strings := Vec.new(Str)
+    defer nested_arg_strings.delete()
     if arg.params.len().gt(1) {
         mut i := 0
         mut arg_idx := 1
