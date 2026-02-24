@@ -270,7 +270,15 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 // params[1..] are field identifiers that don't need symbol lookup
                 errors.extend(check_types_with_context(context, e.params.get(0).unwrap(), ExprContext::ValueUsed)?);
             } else if !(context.scope_stack.has_func(name) || context.scope_stack.has_symbol(name)) {
-                errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", name)));
+                // Issue #185: Check if symbol was consumed by ownership transfer
+                if let Some(consumed) = context.scope_stack.lookup_consumed_symbol(name) {
+                    errors.push(e.error(&context.path, "type", &format!(
+                        "Variable '{}' was consumed by ownership transfer to '{}'.", name, consumed.consumed_by)));
+                    errors.push(consumed.expr.error(&context.path, "type", &format!(
+                        "Ownership of '{}' was transferred here.", name)));
+                } else {
+                    errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", name)));
+                }
             } else if context.scope_stack.is_closure_capture(name) {
                 // Bug #50: Closures not supported yet
                 errors.push(e.todo_error(&context.path, "type", &format!(
@@ -704,7 +712,14 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
 
         // Function call arguments are being used (passed to the function)
         // This must happen BEFORE get_value_type so undefined symbol errors are detected
+        let errors_before = errors.len();
         errors.extend(check_types_with_context(context, &arg_expr, ExprContext::ValueUsed)?);
+
+        // Issue #185: If check_types_with_context already reported errors (e.g. consumed variable),
+        // skip get_value_type to avoid redundant "Undefined symbol" errors.
+        if errors.len() > errors_before {
+            return Ok(errors);
+        }
 
         // Bug #61: Get provided type early to check if we should skip optional args
         let found_type = match get_value_type(&context, arg_expr) {
@@ -930,12 +945,12 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
         }
 
         // Bug #49: Handle ownership transfer for 'own' parameters
-        // Remove the symbol from scope so subsequent uses get "undefined symbol" error
+        // Issue #185: Track consumed variable for better error messages
         if arg.is_own {
             if let NodeType::Identifier(var_name) = &arg_expr.node_type {
                 // Only invalidate simple identifiers, not field access or function calls
                 if arg_expr.params.is_empty() {
-                    context.scope_stack.remove_symbol(var_name);
+                    context.scope_stack.consume_symbol(var_name, &f_name, arg_expr);
                 }
             }
         }
@@ -2087,7 +2102,15 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Result<V
                 }
             }
         } else {
-            errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", field_base_var)));
+            // Issue #185: Check if symbol was consumed by ownership transfer
+            if let Some(consumed) = context.scope_stack.lookup_consumed_symbol(field_base_var) {
+                errors.push(e.error(&context.path, "type", &format!(
+                    "Variable '{}' was consumed by ownership transfer to '{}'.", field_base_var, consumed.consumed_by)));
+                errors.push(consumed.expr.error(&context.path, "type", &format!(
+                    "Ownership of '{}' was transferred here.", field_base_var)));
+            } else {
+                errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", field_base_var)));
+            }
         }
     } else {
         errors.push(e.error(&context.path, "type", &format!("Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
@@ -2633,6 +2656,17 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                                 new_combined_name, value_type_to_str(&found_value_type), ufcs_func_name)))
                         }
                     }
+                }
+            }
+            // Issue #185: Check if base variable was consumed by ownership transfer
+            if combined_name.contains('.') {
+                let base_var = combined_name.split('.').next().unwrap();
+                if let Some(consumed) = context.scope_stack.lookup_consumed_symbol(base_var) {
+                    return Err(format!("{}\n{}",
+                        func_expr.error(&context.path, "type", &format!(
+                            "Variable '{}' was consumed by ownership transfer to '{}'.", base_var, consumed.consumed_by)),
+                        consumed.expr.error(&context.path, "type", &format!(
+                            "Ownership of '{}' was transferred here.", base_var))));
                 }
             }
             // Check if this is actually a field being called as a function

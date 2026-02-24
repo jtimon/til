@@ -4761,6 +4761,42 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #185: Require ~own~ keyword at call sites, improve consumed-variable errors
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPACT: Usability, readability, better error messages
+:STATUS: Fixed
+:FIXED: 2026-02-24
+:RELATED: Issue #117 (ASAP destruction), Issue #115 (owned struct fields)
+:END:
+
+*Part 1: Require ~own~ at call sites (2026-02-24)*
+
+- Added ~OwnArg~ variant to ~NodeType~ enum (ast.rs, ast.til)
+- Parser: ~parse_args~ recognizes ~own expr~ in call arguments, wraps in ~OwnArg~ node
+- Typer (~check_fcall~): unwraps ~OwnArg~ before type-checking the inner expression,
+  then validates: error if ~own~ param missing ~own~ at call site, error if ~own~ used
+  on non-own param
+- Typer (~check_body_returns_throws~): handles ~OwnArg~ at top level and unwraps
+  ~OwnArg~ in FCall/constructor arg loops so throw tracking sees through the wrapper
+- Typer (~check_types_with_context~, ~is_expr_calling_procs~): added ~OwnArg~ cases
+- Desugarer: unwraps ~OwnArg~ to inner expression (node doesn't survive past desugarer)
+- Guards in ufcs, precomp, interpreter, ccodegen: panic/error if ~OwnArg~ reaches them
+- Updated ~1900 call sites across the entire codebase (core, std, self, test, examples)
+
+*Part 2: Better error for consumed variables (2026-02-24)*
+
+- Added ~ConsumedSymbolInfo~ struct to init.rs/init.til with ~consumed_by~ and ~expr~
+- Added ~consumed_symbols~ HashMap on ScopeStack to track consumed variables
+- Added ~consume_symbol()~ and ~lookup_consumed_symbol()~ methods
+- Typer: replaced ~remove_symbol~ with ~consume_symbol~ in ~check_fcall~ own handling
+- Typer: added consumed checks in Identifier handler, field assignment handler, and
+  UFCS resolution (~get_func_def_for_fcall_with_expr~)
+- Two errors emitted per consumed use: one at the use site, one at the consumption site
+- Added early-return in ~check_fcall~ to prevent duplicate errors from ~get_value_type~
+- Test: src/test/bug185.til (UFCS and non-UFCS consumed variable detection)
+- All 92 tests pass in all 4 modes
+
 ** Issue #188: Defer statement
 :PROPERTIES:
 :DISCOVERED: 2026-02-23

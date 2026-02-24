@@ -297,7 +297,15 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
                 symbol_found = false  // Bug #68 fix: is_some() = false when throws
             }
             if not(func_found.or(symbol_found)) {
-                errors.push(own e.error(context.path, "type", format("Undefined symbol '", name, "'")))
+                // Issue #185: Check if symbol was consumed by ownership transfer
+                consumed := context.scope_stack.lookup_consumed_symbol(name)?
+                errors.push(own e.error(context.path, "type", format(
+                    "Variable '", name, "' was consumed by ownership transfer to '", consumed.consumed_by, "'.")))
+                errors.push(own consumed.expr.error(context.path, "type", format(
+                    "Ownership of '", name, "' was transferred here.")))
+                catch (err: KeyNotFoundError) {
+                    errors.push(own e.error(context.path, "type", format("Undefined symbol '", name, "'")))
+                }
             } else if context.scope_stack.is_closure_capture(name) {
                 // Bug #50: Closures not supported yet
                 errors.push(own e.todo_error(context.path, "type", format(
@@ -862,7 +870,14 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
 
         // Function call arguments are being used (passed to the function)
         // This must happen BEFORE get_value_type so undefined symbol errors are detected
+        errors_before := errors.len()
         errors.extend(check_types_with_context(context, arg_expr, ExprContext.ValueUsed)?)
+
+        // Issue #185: If check_types_with_context already reported errors (e.g. consumed variable),
+        // skip get_value_type to avoid redundant "Undefined symbol" errors.
+        if errors.len().gt(errors_before) {
+            return errors
+        }
 
         // Bug #61: Get provided type early to check if we should skip optional args
         mut found_type := ValueType.TCustom("")
@@ -1227,13 +1242,13 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
         }
 
         // Bug #49: Handle ownership transfer for 'own' parameters
-        // Remove the symbol from scope so subsequent uses get "undefined symbol" error
+        // Issue #185: Track consumed variable for better error messages
         if arg.is_own {
             switch arg_expr.node_type {
             case NodeType.Identifier(var_name):
                 // Only invalidate simple identifiers, not field access or function calls
                 if arg_expr.params.len().eq(0) {
-                    _ := context.scope_stack.remove_symbol(var_name)?
+                    context.scope_stack.consume_symbol(var_name, f_name, arg_expr)?
                 }
             case:
                 // Not an identifier
@@ -2606,7 +2621,15 @@ check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Ve
                     pi.inc()
                 }
             } else {
-                errors.push(own e.error(context.path, "type", format("Undefined symbol '", field_base_var, "'")))
+                // Issue #185: Check if symbol was consumed by ownership transfer
+                consumed := context.scope_stack.lookup_consumed_symbol(field_base_var)?
+                errors.push(own e.error(context.path, "type", format(
+                    "Variable '", field_base_var, "' was consumed by ownership transfer to '", consumed.consumed_by, "'.")))
+                errors.push(own consumed.expr.error(context.path, "type", format(
+                    "Ownership of '", field_base_var, "' was transferred here.")))
+                catch (err: KeyNotFoundError) {
+                    errors.push(own e.error(context.path, "type", format("Undefined symbol '", field_base_var, "'")))
+                }
             }
         } else {
             errors.push(own e.error(context.path, "type", format("Suggestion: try changing '", var_name, " =' for '", var_name, " :='\nExplanation: Cannot assign to undefined symbol '", var_name, "'.")))
@@ -3373,6 +3396,21 @@ get_func_def_for_fcall_with_expr : proc(context: Context, mut fcall_expr: Expr) 
                 }
             case:
                 // Non-Identifier case, skip
+            }
+        }
+        // Issue #185: Check if base variable was consumed by ownership transfer
+        if combined_name.contains(".") {
+            mut consumed_parts := combined_name.split(".")?
+            consumed_base_var := cast(Str, consumed_parts.get(0)?)
+            consumed := context.scope_stack.lookup_consumed_symbol(consumed_base_var)?
+            throw format(
+                func_expr.error(context.path, "type", format(
+                    "Variable '", consumed_base_var, "' was consumed by ownership transfer to '", consumed.consumed_by, "'.")),
+                "\n",
+                consumed.expr.error(context.path, "type", format(
+                    "Ownership of '", consumed_base_var, "' was transferred here.")))
+            catch (err: KeyNotFoundError) {
+                // Not consumed, fall through to generic error
             }
         }
         // Check if this is actually a field being called as a function

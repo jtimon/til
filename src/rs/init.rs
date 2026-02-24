@@ -32,6 +32,13 @@ pub struct RemovedSymbol {
     pub info: SymbolInfo,
 }
 
+/// Issue #185: Track consumed variables for better error messages.
+#[derive(Clone)]
+pub struct ConsumedSymbolInfo {
+    pub consumed_by: String,
+    pub expr: Expr,  // location of the consumption (for error formatting)
+}
+
 #[derive(Clone)]
 pub struct SymbolInfo {
     pub value_type: ValueType,
@@ -103,6 +110,8 @@ pub struct ScopeStack {
     pub removed_log: Vec<RemovedSymbol>,
     /// Issue #117: Nesting depth for removal tracking (0 = not tracking).
     pub removal_tracking_depth: usize,
+    /// Issue #185: Track consumed variables for better error messages.
+    pub consumed_symbols: HashMap<String, ConsumedSymbolInfo>,
 }
 
 #[allow(dead_code)]
@@ -114,6 +123,7 @@ impl ScopeStack {
             used_symbols: HashSet::new(),
             removed_log: Vec::new(),
             removal_tracking_depth: 0,
+            consumed_symbols: HashMap::new(),
         }
     }
 
@@ -345,6 +355,22 @@ impl ScopeStack {
         } else {
             None
         }
+    }
+
+    /// Issue #185: Remove symbol from scope and record what consumed it.
+    pub fn consume_symbol(&mut self, name: &str, consumed_by: &str, expr: &Expr) {
+        let removed = self.remove_symbol(name);
+        if removed.is_some() {
+            self.consumed_symbols.insert(name.to_string(), ConsumedSymbolInfo {
+                consumed_by: consumed_by.to_string(),
+                expr: expr.clone(),
+            });
+        }
+    }
+
+    /// Issue #185: Look up whether a symbol was consumed by ownership transfer.
+    pub fn lookup_consumed_symbol(&self, name: &str) -> Option<&ConsumedSymbolInfo> {
+        self.consumed_symbols.get(name)
     }
 
     pub fn remove_var(&mut self, name: &str) -> Option<usize> {
