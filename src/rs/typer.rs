@@ -128,6 +128,15 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &EnumDef) -> Result<Vec
     return Ok(errors);
 }
 
+// Issue #179: Check if an expression is a cast() call
+fn is_cast_call(e: &Expr) -> bool {
+    if let NodeType::FCall(_) = &e.node_type {
+        get_func_name_in_call(e) == "cast"
+    } else {
+        false
+    }
+}
+
 // Public entry point: assumes Body-level context (return values discarded at statement level)
 // Note: Prefer type_check() which also resolves INFER_TYPE in the AST.
 fn check_types(context: &mut Context, e: &Expr) -> Result<Vec<String>, String> {
@@ -280,7 +289,13 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         NodeType::Return | NodeType::Throw => {
             // Return/throw values are used
             for return_val in &e.params {
-                errors.extend(check_types_with_context(context, &return_val, ExprContext::ValueUsed)?);
+                // Issue #179: Reject cast() in return/throw position
+                if is_cast_call(return_val) {
+                    errors.push(return_val.error(&context.path, "type",
+                        "cast(Type, expr) cannot be used in return/throw. Extract to a variable: 'x := cast(...)' then use 'x'."));
+                } else {
+                    errors.extend(check_types_with_context(context, &return_val, ExprContext::ValueUsed)?);
+                }
             }
         },
         NodeType::Catch => {
@@ -665,6 +680,13 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
                 return Ok(errors);
             }
         };
+
+        // Issue #179: Reject cast() as function argument
+        if is_cast_call(arg_expr) {
+            errors.push(arg_expr.error(&context.path, "type",
+                "cast(Type, expr) cannot be used as a function argument. Extract to a variable: 'x := cast(...)' then pass 'x'."));
+            continue;
+        }
 
         // Function call arguments are being used (passed to the function)
         // This must happen BEFORE get_value_type so undefined symbol errors are detected
@@ -2027,7 +2049,15 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Result<V
 
     // The RHS of an assignment is being used (assigned to the variable)
     match e.params.get(0) {
-        Some(inner_e) => errors.extend(check_types_with_context(context, inner_e, ExprContext::ValueUsed)?),
+        Some(inner_e) => {
+            // Issue #179: Reject cast() in assignment position
+            if is_cast_call(inner_e) {
+                errors.push(inner_e.error(&context.path, "type",
+                    "cast(Type, expr) can only be used in declarations (:=), not assignments (=). Use a new declaration instead."));
+            } else {
+                errors.extend(check_types_with_context(context, inner_e, ExprContext::ValueUsed)?);
+            }
+        },
         None => errors.push(e.error(&context.path, "type", "assignment missing value")),
     }
     return Ok(errors);

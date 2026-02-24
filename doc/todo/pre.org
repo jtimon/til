@@ -595,7 +595,7 @@ Files:
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
 :IMPACT: Better error messages now, more flexible cast usage later
-:STATUS: Open
+:STATUS: Phase 1 done, Phase 2 open
 :RELATED:
 :END:
 
@@ -617,16 +617,15 @@ x := cast(I64, v.get(0)?).add(1)
 // Same errors as above
 #+END_SRC
 
-*** Phase 1: Reject invalid usage in typer
+*** Phase 1: Reject invalid usage in typer -- DONE (2026-02-24)
 
-The typer should detect and reject ~cast()~ when used in unsupported positions:
-1. As a function argument
-2. As the receiver of a UFCS method call
-3. Any position other than the RHS of a ~:=~ declaration
+The typer now detects and rejects ~cast()~ in unsupported positions:
+1. As a function argument: ~func(cast(I64, x))~
+2. In return/throw: ~return cast(I64, x)~
+3. In assignment: ~x = cast(I64, y)~
 
-Currently these fail silently in the interpreter ("Core function 'cast' not
-implemented") or at gcc level ("implicit declaration of function 'til_cast'").
-A clear typer error is much better.
+Added ~is_cast_call()~ helper (Rust + TIL) and checks in ~check_fcall~,
+~check_assignment~, and Return/Throw handlers.
 
 Workaround: extract to declaration:
 #+BEGIN_SRC til

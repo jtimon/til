@@ -57,7 +57,7 @@
 | #185 | Require own at call sites, better consumed errors        | Open            |
 | #184 | Integer-based enum comparison                            | Open            |
 | #183 | Manual delete calls as temporary memory management       | In progress     |
-| #179 | Typer should reject cast() in non-declaration pos        | Open            |
+| #179 | Typer should reject cast() in non-declaration pos        | Phase 1 done    |
 | #175 | Unify C calling convention -- all return via _ret        | Open            |
 | #170 | Scope-exit deletion for local variables                  | Blocked by #159 |
 | #168 | ccodegen returns create copies interpreter doesn't       | Partial         |

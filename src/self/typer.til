@@ -140,6 +140,20 @@ check_enum_def : proc(context: Context, e: Expr, enum_def: EnumDef) returns Vec 
     return errors
 }
 
+// Issue #179: Check if an expression is a cast() call
+is_cast_call : func(e: Expr) returns Bool = {
+    mut result := false
+    switch e.node_type {
+    case NodeType.FCall(_):
+        f_name := get_func_name_in_call(e)?
+        result = f_name.eq("cast")
+    case:
+    }
+    catch (err: Str) {
+    }
+    return result
+}
+
 // Internal entry point: assumes Body-level context (return values discarded at statement level)
 // Note: Prefer type_check() which also resolves INFER_TYPE in the AST.
 check_types : proc(mut context: Context, e: Expr) returns Vec throws Str = {
@@ -300,12 +314,22 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
     case NodeType.Return:
         // Return values are used
         for return_val: Expr in e.params {
-            errors.extend(check_types_with_context(context, return_val, ExprContext.ValueUsed)?)
+            // Issue #179: Reject cast() in return position
+            if is_cast_call(return_val) {
+                errors.push(return_val.error(context.path, "type", "cast(Type, expr) cannot be used in return/throw. Extract to a variable: 'x := cast(...)' then use 'x'."))
+            } else {
+                errors.extend(check_types_with_context(context, return_val, ExprContext.ValueUsed)?)
+            }
         }
     case NodeType.Throw:
         // Throw values are used
         for throw_val: Expr in e.params {
-            errors.extend(check_types_with_context(context, throw_val, ExprContext.ValueUsed)?)
+            // Issue #179: Reject cast() in throw position
+            if is_cast_call(throw_val) {
+                errors.push(throw_val.error(context.path, "type", "cast(Type, expr) cannot be used in return/throw. Extract to a variable: 'x := cast(...)' then use 'x'."))
+            } else {
+                errors.extend(check_types_with_context(context, throw_val, ExprContext.ValueUsed)?)
+            }
         }
     case NodeType.Catch:
         errors.extend(check_catch_statement(context, e)?)
@@ -812,6 +836,12 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
         efcall_arg_idx := cast(Expr, e_clone.params.get(fcall_arg_idx.add(1))?)
         arg_expr = efcall_arg_idx
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
+        // Issue #179: Reject cast() as function argument
+        if is_cast_call(arg_expr) {
+            errors.push(arg_expr.error(context.path, "type", "cast(Type, expr) cannot be used as a function argument. Extract to a variable: 'x := cast(...)' then pass 'x'."))
+            continue
+        }
 
         // Function call arguments are being used (passed to the function)
         // This must happen BEFORE get_value_type so undefined symbol errors are detected
@@ -2528,7 +2558,12 @@ check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Ve
 
     // The RHS of an assignment is being used (assigned to the variable)
     mut inner_e := cast(Expr, e.params.get(0)?)
-    errors.extend(check_types_with_context(context, inner_e, ExprContext.ValueUsed)?)
+    // Issue #179: Reject cast() in assignment position
+    if is_cast_call(inner_e) {
+        errors.push(inner_e.error(context.path, "type", "cast(Type, expr) can only be used in declarations (:=), not assignments (=). Use a new declaration instead."))
+    } else {
+        errors.extend(check_types_with_context(context, inner_e, ExprContext.ValueUsed)?)
+    }
     catch (err: Str) {
         errors.push(err)
     }
