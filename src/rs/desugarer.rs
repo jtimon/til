@@ -1114,6 +1114,15 @@ fn desugar_defer_in_scope(stmts: &[Expr], parent_defers: &[Expr], func_name: &st
                             let new_inner = desugar_defer_in_scope(&p.params, &child_parent_defers, func_name, ret_counter, ret_type);
                             Expr::new_clone(p.node_type.clone(), p, new_inner)
                         },
+                        NodeType::If => {
+                            // Recurse into else-if chains
+                            let new_inner = desugar_defer_in_scope(&[p.clone()], &child_parent_defers, func_name, ret_counter, ret_type);
+                            if new_inner.len() == 1 {
+                                new_inner.into_iter().next().unwrap()
+                            } else {
+                                Expr::new_clone(NodeType::Body, p, new_inner)
+                            }
+                        },
                         _ => p.clone(), // Condition -- don't touch
                     }
                 }).collect();

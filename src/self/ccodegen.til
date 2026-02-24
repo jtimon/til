@@ -3485,6 +3485,7 @@ emit_precomputed_nested_vec_static : proc(mut output: Str, mut ctx: CodegenConte
 
     // First pass: recursively emit static arrays for each inner element
     mut inner_data_names := Vec.new(Str)
+    defer inner_data_names.delete()
 
     for idx in 0..elem_count {
         elem_bytes := cast(Vec, contents.element_bytes.get(idx)?)
@@ -3756,6 +3757,7 @@ is_enum_with_payloads : func(expr: Expr) returns Bool = {
 emit_enum_with_payloads : proc(enum_name: Str, enum_def: EnumDef, mut output: Str) throws Str = {
     // Sort variants by name for deterministic output
     mut variants := Vec.new(EnumVariant)
+    defer variants.delete()
     for v: EnumVariant in enum_def.variants {
         variants.push(v.clone())
     }
@@ -3867,8 +3869,6 @@ emit_enum_with_payloads : proc(enum_name: Str, enum_def: EnumDef, mut output: St
         output.push_str("    return result;\n")
         output.push_str("}\n\n")
     }
-    // #183: Delete cloned variants vec
-    variants.delete()
 
 }
 
@@ -4377,8 +4377,11 @@ emit_hoisted_locals : proc(stmts: Vec, mut output: Str, mut ctx: CodegenContext)
         return
     }
     mut local_vars := Vec.new(Str)
+    defer local_vars.delete()
     mut local_types := Vec.new(Str)
+    defer local_types.delete()
     mut seen := Set.new(Str)
+    defer seen.delete()
     collect_struct_locals_inner(stmts, local_vars, local_types, seen)
     for i in 0..local_vars.len() {
         var_name := cast(Str, local_vars.get(i)?)
@@ -4399,10 +4402,6 @@ emit_hoisted_locals : proc(stmts: Vec, mut output: Str, mut ctx: CodegenContext)
         output.push_str(" = {};\n")
         _ := ctx.declared_vars.insert(c_var_name)
     }
-    // #183: Delete temporary collections
-    local_vars.delete()
-    local_types.delete()
-    seen.delete()
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -5087,6 +5086,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
 
     // Pre-scan for function-level catches (at the end of the block)
     mut func_level_catches := prescan_func_level_catches(stmts)
+    defer func_level_catches.delete()
 
     // Hoist declarations from catch blocks to function level
     // (TIL has function-level scoping, not block-level scoping)
@@ -5151,6 +5151,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
     // Bug #39 fix: Give each catch block its own unique label using the global counter
     // Store catch info with statement index so we can match calls to their NEXT catch
     mut all_catch_info := Vec.new(CatchLabelInfoEntry)
+    defer all_catch_info.delete()
     mut scan_idx := 0
     for scan_stmt: Expr in stmts {
         switch scan_stmt.node_type {
@@ -5406,6 +5407,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                     // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
                     // Build map with only catches AFTER current position
                     mut next_catches := Map.new(Str, CatchLabelInfo)
+                    defer next_catches.delete()
                     for catch_entry: CatchLabelInfoEntry in all_catch_info {
                         if catch_entry.stmt_index.gt(i).and(not(next_catches.contains_key(catch_entry.type_name))) {
                             // First catch of this type after current position
@@ -5427,8 +5429,6 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                         local_cli.temp_var = catch_info.temp_var.clone()
                         ctx.local_catch_labels.set(type_name.clone(), local_cli)
                     }
-                    // #183: Delete temporary map
-                    next_catches.delete()
                     emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)?
                     i.inc()
                     continue
@@ -5477,9 +5477,6 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
     for catch_entry: CatchLabelInfoEntry in all_catch_info {
         ctx.local_catch_labels.remove(catch_entry.type_name)
     }
-    // #183: Delete temporary collections
-    all_catch_info.delete()
-    func_level_catches.delete()
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -7223,6 +7220,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
 
         // Build map of named arg values from struct literal
         mut named_values := Map.new(Str, Expr)
+        defer named_values.delete()
         if not(expr.params.is_empty()) {
             named_first_param := cast(Expr, expr.params.get(0)?)
             dont_delete(named_first_param)
@@ -7275,6 +7273,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
             // C doesn't allow statements inside struct initializers, so we must hoist first
             // Use emit_arg_string which handles nested hoisting (function call arguments)
             mut hoisted_values := Map.new(Str, Str)
+            defer hoisted_values.delete()
             for member: Declaration in struct_def.members {
                 if not(member.is_mut) {
                     continue
@@ -7367,9 +7366,6 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 }
             }
             output.push_str("};\n")
-            // #183: Delete temporary maps
-            named_values.delete()
-            hoisted_values.delete()
         }
 
         catch (err: KeyNotFoundError) {
@@ -8307,6 +8303,7 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     body := cast(Expr, expr.params.get(1)?)
     dont_delete(body)
     mut body_decls := collect_declarations_in_body(body, context)?
+    defer body_decls.delete()
     for decl: CollectedDeclaration in body_decls {
         type_prefix := value_type_to_c_prefix(decl.value_type)
         c_var_name := til_var_name(decl.name, type_prefix)
@@ -8331,8 +8328,6 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             context.scope_stack.declare_symbol(decl.name.clone(), sym_info)?
         }
     }
-    // #183: Delete temporary collection
-    body_decls.delete()
 
     // Bug #143: Use emit_arg_string to process condition (handles hoisting for by-ref/throwing)
     // Emit hoisting to a separate buffer first to detect if needed
@@ -8464,6 +8459,7 @@ collect_declarations_in_body : proc(body: Expr, mut context: Context) returns Ve
     mut decls := Vec.new(CollectedDeclaration)
     // Track collected declarations for lookups during type inference
     mut collected := Map.new(Str, ValueType)
+    defer collected.delete()
 
     switch body.node_type {
     case NodeType.Body:
@@ -8473,8 +8469,6 @@ collect_declarations_in_body : proc(body: Expr, mut context: Context) returns Ve
     case:
         collect_declarations_recursive(body, decls, collected, context)?
     }
-    // #183: Delete temporary map
-    collected.delete()
 
     return decls
 }
@@ -8598,6 +8592,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
 
             // Build map of named arg values
             mut named_values := Map.new(Str, Expr)
+            defer named_values.delete()
             mut na_idx := 1
             while na_idx.lt(expr.params.len()) {
                 na_arg := cast(Expr, expr.params.get(na_idx)?)
@@ -8646,8 +8641,6 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 }
                 output.push_str("}")
             }
-            // #183: Delete temporary map
-            named_values.delete()
             return
         catch (err: KeyNotFoundError) {
             // REM: not a struct, continue below

@@ -1740,7 +1740,27 @@ desugar_defer_in_scope : proc(stmts: Vec, parent_defers: Vec, func_name: Str, mu
                     if_new_inner := desugar_defer_in_scope(p.params, if_child_parent_defers, func_name, ret_counter, ret_type)?
                     if_new_params.push(Expr.new_clone(p.node_type, p, if_new_inner))
                 } else {
-                    if_new_params.push(p.clone()) // Condition -- don't touch
+                    // Check for else-if chains (If inside If)
+                    mut if_is_nested_if := false
+                    switch p.node_type {
+                    case NodeType.If:
+                        if_is_nested_if = true
+                    case:
+                    }
+                    if if_is_nested_if {
+                        // Recurse into else-if chains
+                        mut if_wrapper := Vec.new(Expr)
+                        if_wrapper.push(p.clone())
+                        if_nested_result := desugar_defer_in_scope(if_wrapper, if_child_parent_defers, func_name, ret_counter, ret_type)?
+                        if if_nested_result.len().eq(1) {
+                            if_nested_first := cast(Expr, if_nested_result.get(0)?)
+                            if_new_params.push(if_nested_first)
+                        } else {
+                            if_new_params.push(Expr.new_clone(NodeType.Body, p, if_nested_result))
+                        }
+                    } else {
+                        if_new_params.push(p.clone()) // Condition -- don't touch
+                    }
                 }
             }
             result.push(Expr.new_clone(stmt.node_type, stmt, if_new_params))
