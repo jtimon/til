@@ -547,14 +547,14 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
         ext_o_dir := concat("gen/", LANG_NAME)
         _ := fs_mkdir_p(ext_o_dir)
         mut ext_cmd_args := Vec.new(Str)
-        ext_cmd_args.push("-c")
-        ext_cmd_args.push("src/ext.c")
+        ext_cmd_args.push(own "-c")
+        ext_cmd_args.push(own "src/ext.c")
         extra_args_ext := toolchain_extra_args(target, lang, compiler)
         for extra_arg: Str in extra_args_ext {
-            ext_cmd_args.push(extra_arg.clone())
+            ext_cmd_args.push(own extra_arg.clone())
         }
-        ext_cmd_args.push("-o")
-        ext_cmd_args.push(gen_ext_o.clone())
+        ext_cmd_args.push(own "-o")
+        ext_cmd_args.push(own gen_ext_o.clone())
         mut ext_full_cmd := compiler
         for arg: Str in ext_cmd_args {
             ext_full_cmd = ext_full_cmd.concat(" ").concat(arg)
