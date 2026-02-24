@@ -413,6 +413,7 @@ get_type_arg_name : func(expr: Expr, context: Context) returns Str throws KeyNot
 // Returns None for struct/enum constructors
 get_fcall_func_def : proc(context: Context, fcall_expr: Expr) returns FuncDef throws KeyNotFoundError = {
     mut expr_clone := fcall_expr.clone()
+    defer expr_clone.delete()
     result := get_func_def_for_fcall_with_expr(context, expr_clone)?
 
     catch (err: Str) { throw KeyNotFoundError(msg=err) }
@@ -3896,6 +3897,7 @@ emit_enum_declaration : proc(expr: Expr, mut output: Str) throws Str = {
 
                 // Sort variants by name for deterministic output
                 mut variants := Vec.new(Str)
+                defer variants.delete()
                 for v: EnumVariant in enum_def.variants {
                     variants.push(own v.name)
                 }
@@ -4099,6 +4101,9 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: Fu
     }
 
     // Set current function context
+    // #183: Delete old values before overwriting with clones
+    ctx.current_throw_types.delete()
+    ctx.current_return_types.delete()
     ctx.current_throw_types = func_def.sig.throw_types.clone()
     ctx.current_return_types = func_def.sig.return_types.clone()
     // Track mut params for pointer dereference (-> vs .)
@@ -4784,6 +4789,9 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 }
 
                 // Set current function context for return/throw generation
+                // #183: Delete old values before overwriting with clones
+                ctx.current_throw_types.delete()
+                ctx.current_return_types.delete()
                 ctx.current_throw_types = func_def.sig.throw_types.clone()
                 ctx.current_return_types = func_def.sig.return_types.clone()
                 // Track ref params for pointer dereference (-> vs .)
@@ -5075,6 +5083,8 @@ emit_body : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenConte
     // own throwing calls, causing missing status checks for outer throwing calls.
     saved_catch_labels := ctx.local_catch_labels.clone()
     emit_stmts(expr.params, output, indent, ctx, context)?
+    // #183: Delete modified catch_labels before restoring saved
+    ctx.local_catch_labels.delete()
     ctx.local_catch_labels = saved_catch_labels
     dont_delete(saved_catch_labels)
 
@@ -5281,8 +5291,11 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                             catch_body_expr := cast(Expr, stmt.params.get(2)?)
                             dont_delete(catch_body_expr)
                             emit_expr(catch_body_expr, output, indent.add(1), ctx, context)?
+                            // #183: Delete modified values before restoring saved
+                            ctx.current_ref_params.delete()
                             ctx.current_ref_params = saved_ref_params
                             dont_delete(saved_ref_params)
+                            ctx.local_catch_labels.delete()
                             ctx.local_catch_labels = saved_catch_labels
                             dont_delete(saved_catch_labels)
 
@@ -5380,6 +5393,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
 
                 // Collect subsequent catch blocks
                 mut catch_blocks := Vec.new(Expr)
+                defer catch_blocks.delete()
                 mut j := i.add(1)
                 while j.lt(stmts.len()) {
                     next_stmt := cast(Expr, stmts.get(j)?)
@@ -5535,6 +5549,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
     // Bug #143: Use emit_arg_string for each arg
     // For variadic args (i >= regular_count), use by_ref=false
     mut arg_strings := Vec.new(Str)
+    defer arg_strings.delete()
     if fcall.params.len().gt(1) {
         mut i := 0
         mut arg_idx := 1
@@ -5560,6 +5575,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
 
     // Construct variadic array using pre-computed arg_strings
     mut variadic_arg_strings := Vec.new(Str)
+    defer variadic_arg_strings.delete()
     mut vi := regular_count
     while vi.lt(arg_strings.len()) {
         vas := cast(Str, arg_strings.get(vi)?)
@@ -5782,6 +5798,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
 
     // Bug #143: Use emit_arg_string for each arg
     mut arg_strings := Vec.new(Str)
+    defer arg_strings.delete()
     if fcall.params.len().gt(1) {
         mut i := 0
         mut arg_idx := 1
@@ -5893,6 +5910,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
     vi_info := detect_variadic_fcall(fcall, ctx)?
     vi_regular_count = vi_info.regular_count
     mut variadic_arg_strings := Vec.new(Str)
+    defer variadic_arg_strings.delete()
     mut vi_j := vi_regular_count
     while vi_j.lt(arg_strings.len()) {
         vi_as := cast(Str, arg_strings.get(vi_j)?)
@@ -6201,6 +6219,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
 
     // Bug #143: Use emit_arg_string for each arg
     mut arg_strings := Vec.new(Str)
+    defer arg_strings.delete()
     if fcall.params.len().gt(1) {
         mut i := 0
         mut arg_idx := 1
@@ -6310,6 +6329,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
     has_variadic = true
     prop_vi_regular_count = prop_vi2.regular_count
     mut variadic_arg_strings := Vec.new(Str)
+    defer variadic_arg_strings.delete()
     mut va_j := prop_vi_regular_count
     while va_j.lt(arg_strings.len()) {
         va_s := cast(Str, arg_strings.get(va_j)?)
@@ -6521,6 +6541,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
 
     // Bug #143: Use emit_arg_string for each arg
     mut arg_strings := Vec.new(Str)
+    defer arg_strings.delete()
     if fcall.params.len().gt(1) {
         mut i := 0
         mut arg_idx := 1
@@ -6630,6 +6651,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
     has_variadic = true
     goto_vi_regular_count = goto_vi2.regular_count
     mut variadic_arg_strings := Vec.new(Str)
+    defer variadic_arg_strings.delete()
     mut va_j := goto_vi_regular_count
     while va_j.lt(arg_strings.len()) {
         va_s := cast(Str, arg_strings.get(va_j)?)
@@ -7817,6 +7839,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     // Bug #143: Use emit_arg_string for regular args, pass empty map to hoist_variadic_args
                     // (hoist_variadic_args already uses emit_arg_string internally)
                     mut variadic_args := Vec.new(Expr)
+                    defer variadic_args.delete()
                     mut va_idx := add(1, variadic_fcall_info.regular_count)
                     while va_idx.lt(return_expr.params.len()) {
                         va_arg := cast(Expr, return_expr.params.get(va_idx)?)
@@ -7824,11 +7847,13 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                         variadic_args.push(own va_arg)
                         va_idx.inc()
                     }
-                    empty_hoisted := Map.new(I64, Str)
+                    mut empty_hoisted := Map.new(I64, Str)
+                    defer empty_hoisted.delete()
                     arr_var := hoist_variadic_args(variadic_fcall_info.elem_type, variadic_args, empty_hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?
 
                     // Bug #143: Get regular arg strings using emit_arg_string
                     mut regular_args := Vec.new(Expr)
+                    defer regular_args.delete()
                     mut ra_idx := 1
                     while ra_idx.lt(add(1, variadic_fcall_info.regular_count)).and(ra_idx.lt(return_expr.params.len())) {
                         ra_arg := cast(Expr, return_expr.params.get(ra_idx)?)
@@ -7839,6 +7864,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     var_fd := get_fcall_func_def(context, return_expr)?
                     catch (err: KeyNotFoundError) { }
                     mut regular_arg_strings := Vec.new(Str)
+                    defer regular_arg_strings.delete()
                     mut i := 0
                     while i.lt(regular_args.len()) {
                         arg := cast(Expr, regular_args.get(i)?)
@@ -8254,6 +8280,8 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
     // Save/restore current_ref_params to scope pointer semantics from cast
     saved_ref_params := ctx.current_ref_params.clone()
     emit_body(then_body, output, indent.add(1), ctx, context)?
+    // #183: Delete modified ref_params before restoring saved
+    ctx.current_ref_params.delete()
     ctx.current_ref_params = saved_ref_params
     dont_delete(saved_ref_params)
 
@@ -8272,6 +8300,8 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
             output.push_str(" else {\n")
             saved_ref_params2 := ctx.current_ref_params.clone()
             emit_if(emit_else_body, output, indent.add(1), ctx, context)?
+            // #183: Delete modified ref_params before restoring saved
+            ctx.current_ref_params.delete()
             ctx.current_ref_params = saved_ref_params2
             dont_delete(saved_ref_params2)
             output.push_str(indent_str)
@@ -8280,6 +8310,8 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
             output.push_str(" else {\n")
             saved_ref_params3 := ctx.current_ref_params.clone()
             emit_body(emit_else_body, output, indent.add(1), ctx, context)?
+            // #183: Delete modified ref_params before restoring saved
+            ctx.current_ref_params.delete()
             ctx.current_ref_params = saved_ref_params3
             dont_delete(saved_ref_params3)
             output.push_str(indent_str)
@@ -8395,6 +8427,8 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     // Save/restore current_ref_params to scope pointer semantics from cast
     saved_ref_params := ctx.current_ref_params.clone()
     emit_body(body, output, indent.add(1), ctx, context)?
+    // #183: Delete modified ref_params before restoring saved
+    ctx.current_ref_params.delete()
     ctx.current_ref_params = saved_ref_params
     dont_delete(saved_ref_params)
 
@@ -8667,9 +8701,11 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
 
     // Bug #143: Process ALL args upfront using single-pass emit_arg_string
     mut arg_strings := Vec.new(Str)
+    defer arg_strings.delete()
     if is_stmt_level.and(expr.params.len().gt(1)) {
         // Get param info for by-ref handling
         mut param_info := Vec.new(ParamTypeInfo)
+        defer param_info.delete()
         fd := get_fcall_func_def(context, expr)?
         for fd_arg: Declaration in fd.sig.args {
             mut pi := ParamTypeInfo()
@@ -9133,6 +9169,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         regular_count := variadic_info.regular_count
         // Bug #143: Use pre-computed arg_strings
         mut variadic_arg_strings := Vec.new(Str)
+        defer variadic_arg_strings.delete()
         mut vi := regular_count
         while vi.lt(arg_strings.len()) {
             varg_str := cast(Str, arg_strings.get(vi)?)
@@ -9224,6 +9261,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         } else {
             // Expression-level variadic calls - emit regular args with by-ref handling
             mut var_param_info := Vec.new(ParamTypeInfo)
+            defer var_param_info.delete()
             var_fd := get_fcall_func_def(context, expr)?
             for fd_arg: Declaration in var_fd.sig.args {
                 mut var_pi := ParamTypeInfo()
@@ -9309,6 +9347,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         } else {
             // Expression-level call: emit args with by-ref handling
             mut nv_param_info := Vec.new(ParamTypeInfo)
+            defer nv_param_info.delete()
             nv_fd := get_fcall_func_def(context, expr)?
             for fd_arg: Declaration in nv_fd.sig.args {
                 mut nv_pi := ParamTypeInfo()
@@ -9335,6 +9374,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             // Bug #143: Process all args through emit_arg_string to handle hoisting
             mut nexpr_arg_hoist := ""
             mut nexpr_arg_strings := Vec.new(Str)
+            defer nexpr_arg_strings.delete()
             mut nexpr_arg_i := 0
             mut nexpr_expr_i := 1
             while nexpr_expr_i.lt(expr.params.len()) {
