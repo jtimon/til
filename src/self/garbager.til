@@ -51,6 +51,12 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
         new_body = insert_clone_after_get(new_body, local_types, context)?
 
+        // TODO Issue #191: Re-enable delete-before-reassignment when Bug #159 is fixed.
+        // Currently disabled because locals may hold aliased/borrowed values from
+        // lookup_func/lookup_symbol/lookup_struct (shallow copies that share heap
+        // pointers with the scope stack). Deleting them corrupts shared state.
+        // See Issue #191 in doc/todo/pre.org for details.
+
         new_func_def := FuncDef(
             sig=FuncSig(
                 function_type=func_def.sig.function_type,
@@ -181,31 +187,30 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         return Expr.new_explicit(e.node_type, fcall_new_params, e.line, e.col)
 
     // Issue #159 Step 6: Transform assignments with struct type where RHS is an identifier
-    case NodeType.Assignment(var_name):
+    // Issue #191: Use get_value_type to infer RHS type (works for bare ids AND field access)
+    case NodeType.Assignment(_assign_var_name):
         // First, recursively transform children
         mut assign_new_params := Vec.new(Expr)
         for param: Expr in e.params {
             assign_new_params.push(own garbager_recursive(context, param)?)
         }
 
-        // Check if RHS is a bare identifier (no field access children)
-        // Field access expressions (x.y.z) are skipped - they read from memory directly
+        // Clone identifier-based RHS (including field access like token.token_str)
         if assign_new_params.len().gt(0) {
             assign_first_param := cast(Expr, assign_new_params.get(0)?)
             catch (err: IndexOutOfBoundsError) {
                 throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
             }
             switch assign_first_param.node_type {
-            case NodeType.Identifier(rhs_name):
-                assign_first_param_len := assign_first_param.params.len()
-                if assign_first_param_len.eq(0) {
-                // Look up identifier's symbol type
-                assign_sym := context.scope_stack.lookup_symbol(rhs_name)?
-                catch (err: KeyNotFoundError) {
-                    // Symbol not found - no transformation needed
+            case NodeType.Identifier(_):
+                // Use get_value_type to infer RHS type (works for bare ids AND field access)
+                mut assign_rhs_type := ValueType.TCustom("")
+                assign_rhs_type = get_value_type(context, assign_first_param)?
+                catch (err: Str) {
+                    // get_value_type failed - no transformation needed
                     return Expr.new_explicit(e.node_type, assign_new_params, e.line, e.col)
                 }
-                switch assign_sym.value_type {
+                switch assign_rhs_type {
                 case ValueType.TCustom(type_name):
                     // Build clone call: Type.clone(rhs_expr)
                     assign_rhs_expr := assign_first_param.clone()
@@ -225,7 +230,6 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
                 case:
                     // Not a TCustom type
                 }
-                } // end if bare identifier
             case:
                 // Not an identifier
             }
@@ -290,6 +294,19 @@ build_clone_assignment_expr : func(type_name: Str, var_name: Str, line: I64, col
     mut assign := Expr(node_type=NodeType.Assignment(var_name), line=line, col=col)
     assign.params.push(own clone_call)
     return assign
+}
+
+/// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier(var) )
+/// Issue #191: Used to free old value before reassignment.
+build_delete_call_expr : func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr = {
+    delete_ident := Expr(node_type=NodeType.Identifier("delete"), line=line, col=col)
+    mut type_delete_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
+    type_delete_access.params.push(own delete_ident)
+    var_expr := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
+    mut delete_call := Expr(node_type=NodeType.FCall(FCallInfo()), line=line, col=col)
+    delete_call.params.push(own type_delete_access)
+    delete_call.params.push(own var_expr)
+    return delete_call
 }
 
 /// Check if stmt is a container get/pop call with a shallow-copy out-param.
@@ -421,6 +438,61 @@ process_stmt_for_clone_after_get : proc(e: Expr, local_types: Map, context: Cont
         }
         return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
     }
+}
+
+/// Issue #191: Check if an expression tree contains a reference to a specific variable.
+/// Used to avoid delete-before-reassignment when the RHS references the variable
+/// being reassigned (would cause use-after-free).
+expr_references_var : func(e: Expr, var_name: Str) returns Bool = {
+    switch e.node_type {
+    case NodeType.Identifier(name):
+        if name.eq(var_name) {
+            return true
+        }
+    case:
+    }
+    for param: Expr in e.params {
+        if expr_references_var(param, var_name) {
+            return true
+        }
+    }
+    return false
+}
+
+/// Issue #191: Insert Type.delete(var) before reassignment of struct-typed locals.
+/// Only processes top-level statements, no recursion into sub-bodies.
+/// Skips variables in cast_vars (initialized from cast, hold borrowed values).
+/// Skips when the RHS references the variable being reassigned (use-after-free).
+insert_delete_before_reassignment : func(stmts: Vec, local_types: Map, cast_vars: Set) returns Vec = {
+    mut result := Vec.new(Expr)
+    for stmt: Expr in stmts {
+        // Only check top-level assignments, no recursion into sub-bodies for now
+        switch stmt.node_type {
+        case NodeType.Assignment(var_name):
+            if not(cast_vars.contains(var_name)) {
+                type_name := cast(Str, local_types.get(var_name)?)
+                // Skip if the RHS references the variable being reassigned
+                mut rhs_references_var := false
+                if stmt.params.len().gt(0) {
+                    rhs_expr := cast(Expr, stmt.params.get(0)?)
+                    dont_delete(rhs_expr)
+                    rhs_references_var = expr_references_var(rhs_expr, var_name)
+                }
+                if not(rhs_references_var) {
+                    result.push(own build_delete_call_expr(type_name, var_name, stmt.line, stmt.col))
+                }
+                catch (err: KeyNotFoundError) {
+                    // Not a tracked local, no delete needed
+                }
+                catch (err: IndexOutOfBoundsError) {
+                    panic(loc(), "insert_delete_before_reassignment: unexpected IndexOutOfBoundsError")
+                }
+            }
+        case:
+        }
+        result.push(own stmt)
+    }
+    return result
 }
 
 /// Extract function name from FCall's first param (the name expression).

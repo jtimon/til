@@ -3,8 +3,13 @@
 // Issue #159: Insert clone() calls for deep copy semantics on struct assignments.
 
 use std::collections::HashMap;
-use crate::rs::init::Context;
+// TODO Issue #191: Re-enable when delete-before-reassignment is re-enabled
+#[allow(unused_imports)]
+use std::collections::HashSet;
+use crate::rs::init::{Context, get_value_type};
 use crate::rs::parser::{Expr, NodeType, ValueType, FuncDef, FCallInfo, StructDef, EnumDef, NamespaceDef, Declaration};
+// TODO Issue #191: Re-enable when delete-before-reassignment is re-enabled
+// use crate::rs::typer::is_cast_call;
 
 /// Result of resolving a function call, including UFCS detection.
 struct ResolvedFCall {
@@ -48,6 +53,27 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
             // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
             let new_body = insert_clone_after_get(&new_body, &local_types, context)?;
+
+            // TODO Issue #191: Re-enable delete-before-reassignment when Bug #159 is fixed.
+            // Currently disabled because locals may hold aliased/borrowed values from
+            // lookup_func/lookup_symbol/lookup_struct (shallow copies that share heap
+            // pointers with the scope stack). Deleting them corrupts shared state.
+            // See Issue #191 in doc/todo/pre.org for details.
+            //
+            // let mut declared_types: HashMap<String, String> = HashMap::new();
+            // let mut cast_vars: HashSet<String> = HashSet::new();
+            // for stmt in &new_body {
+            //     if let NodeType::Declaration(decl) = &stmt.node_type {
+            //         if let ValueType::TCustom(type_name) = &decl.value_type {
+            //             if !stmt.params.is_empty() && is_cast_call(&stmt.params[0]) {
+            //                 cast_vars.insert(decl.name.clone());
+            //             } else {
+            //                 declared_types.insert(decl.name.clone(), type_name.clone());
+            //             }
+            //         }
+            //     }
+            // }
+            // let new_body = insert_delete_before_reassignment(&new_body, &declared_types, &cast_vars);
 
             let new_func_def = FuncDef {
                 sig: func_def.sig.clone(),
@@ -148,6 +174,7 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             Ok(Expr::new_explicit(e.node_type.clone(), fcall_new_params, e.line, e.col))
         }
         // Issue #159 Step 6: Transform assignments with struct type where RHS is an identifier
+        // Issue #191: Use get_value_type to infer RHS type (works for bare ids AND field access)
         NodeType::Assignment(_var_name) => {
             // First, recursively transform children
             let mut assign_new_params = Vec::new();
@@ -155,27 +182,21 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 assign_new_params.push(garbager_recursive(context, param)?);
             }
 
-            // Check if RHS is a bare identifier (no field access children)
-            // Field access expressions (x.y.z) are skipped - they read from memory directly
+            // Clone identifier-based RHS (including field access like token.token_str)
             if !assign_new_params.is_empty() {
-                if let NodeType::Identifier(rhs_name) = &assign_new_params[0].node_type {
-                    if assign_new_params[0].params.is_empty() {
-                        // Look up identifier's symbol type
-                        if let Some(sym) = context.scope_stack.lookup_symbol(rhs_name) {
-                            if let ValueType::TCustom(type_name) = &sym.value_type {
-                                // Build clone call: Type.clone(rhs_expr)
-                                let assign_rhs_expr = assign_new_params[0].clone();
-                                let assign_clone_call = build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col);
-                                let mut assign_transformed_params = vec![assign_clone_call];
-                                assign_transformed_params.extend(assign_new_params.into_iter().skip(1));
-                                return Ok(Expr::new_explicit(
-                                    e.node_type.clone(),
-                                    assign_transformed_params,
-                                    e.line,
-                                    e.col,
-                                ));
-                            }
-                        }
+                if let NodeType::Identifier(_) = &assign_new_params[0].node_type {
+                    // Use get_value_type to infer RHS type (works for bare ids AND field access)
+                    if let Ok(ValueType::TCustom(type_name)) = get_value_type(context, &assign_new_params[0]) {
+                        let assign_rhs_expr = assign_new_params[0].clone();
+                        let assign_clone_call = build_clone_call_expr(&type_name, assign_rhs_expr, e.line, e.col);
+                        let mut assign_transformed_params = vec![assign_clone_call];
+                        assign_transformed_params.extend(assign_new_params.into_iter().skip(1));
+                        return Ok(Expr::new_explicit(
+                            e.node_type.clone(),
+                            assign_transformed_params,
+                            e.line,
+                            e.col,
+                        ));
                     }
                 }
             }
@@ -244,6 +265,23 @@ fn build_clone_assignment_expr(type_name: &str, var_name: &str, line: usize, col
     Expr::new_explicit(
         NodeType::Assignment(var_name.to_string()), vec![clone_call], line, col)
 }
+
+/// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier(var) )
+/// Issue #191: Used to free old value before reassignment.
+// TODO Issue #191: Re-enable when Bug #159 is fixed
+#[allow(dead_code)]
+fn build_delete_call_expr(type_name: &str, var_name: &str, line: usize, col: usize) -> Expr {
+    let delete_ident = Expr::new_explicit(
+        NodeType::Identifier("delete".to_string()), vec![], line, col);
+    let type_delete_access = Expr::new_explicit(
+        NodeType::Identifier(type_name.to_string()), vec![delete_ident], line, col);
+    let var_expr = Expr::new_explicit(
+        NodeType::Identifier(var_name.to_string()), vec![], line, col);
+    Expr::new_explicit(
+        NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),
+        vec![type_delete_access, var_expr], line, col)
+}
+
 
 /// Check if stmt is a container get/pop call with a shallow-copy out-param.
 /// Returns (var_name, type_name) if the out-param is a local with deletable type.
@@ -340,6 +378,56 @@ fn process_stmt_for_clone_after_get(e: &Expr, local_types: &HashMap<String, Stri
         }
     }
 }
+
+/// Issue #191: Check if an expression tree contains a reference to a specific variable.
+/// Used to avoid delete-before-reassignment when the RHS references the variable
+/// being reassigned (would cause use-after-free).
+// TODO Issue #191: Re-enable when Bug #159 is fixed
+#[allow(dead_code)]
+fn expr_references_var(e: &Expr, var_name: &str) -> bool {
+    if let NodeType::Identifier(name) = &e.node_type {
+        if name == var_name {
+            return true;
+        }
+    }
+    for param in &e.params {
+        if expr_references_var(param, var_name) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Issue #191: Insert Type.delete(var) before reassignment of struct-typed locals.
+/// Only processes top-level statements, no recursion into sub-bodies.
+/// Skips variables in cast_vars (initialized from cast, hold borrowed values).
+/// Skips when the RHS references the variable being reassigned (use-after-free).
+// TODO Issue #191: Re-enable when Bug #159 is fixed
+#[allow(dead_code)]
+fn insert_delete_before_reassignment(stmts: &[Expr], local_types: &HashMap<String, String>, cast_vars: &HashSet<String>) -> Vec<Expr> {
+    let mut result = Vec::new();
+    for stmt in stmts {
+        // Only check top-level assignments, no recursion into sub-bodies for now
+        if let NodeType::Assignment(var_name) = &stmt.node_type {
+            if !cast_vars.contains(var_name) {
+                if let Some(type_name) = local_types.get(var_name) {
+                    // Skip if the RHS references the variable being reassigned
+                    let rhs_references_var = if !stmt.params.is_empty() {
+                        expr_references_var(&stmt.params[0], var_name)
+                    } else {
+                        false
+                    };
+                    if !rhs_references_var {
+                        result.push(build_delete_call_expr(type_name, var_name, stmt.line, stmt.col));
+                    }
+                }
+            }
+        }
+        result.push(stmt.clone());
+    }
+    result
+}
+
 
 /// Extract function name from FCall's first param (the name expression).
 /// Returns "foo" for foo(x) or "Type.method" for Type.method(x).

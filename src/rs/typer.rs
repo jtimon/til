@@ -129,7 +129,7 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &EnumDef) -> Result<Vec
 }
 
 // Issue #179: Check if an expression is a cast() call
-fn is_cast_call(e: &Expr) -> bool {
+pub fn is_cast_call(e: &Expr) -> bool {
     if let NodeType::FCall(_) = &e.node_type {
         get_func_name_in_call(e) == "cast"
     } else {

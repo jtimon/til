@@ -19,7 +19,7 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 :PROPERTIES:
 :DISCOVERED: 2026-02-24
 :IMPACT: Memory leaks on every reassignment of a variable holding heap data
-:STATUS: Open
+:STATUS: Step 1 done (assignment handler fixed). Steps 2-6 disabled (blocked by #159)
 :RELATED: Issue #117 (ASAP destruction), Issue #159 (shallow copies), Issue #183 (manual delete calls)
 :END:
 
@@ -35,24 +35,99 @@ name = "world".clone()         // ptr A leaks -- nothing frees it
 // ... function end: garbager deletes name (frees ptr B)
 #+end_src
 
-This is pervasive in ccodegen.til and other files. Manual ~defer x.delete()~
-cannot fix this because:
-1. If the variable is reassigned to a borrowed value (from ~cast(Str, map.get())~),
-   the defer would delete the map's data, not the original owned value
-2. The defer only deletes whatever the variable holds at scope exit, not the
-   intermediate owned values that were overwritten
+*** Ownership rules for mut locals
+
+A ~mut~ local variable is ALWAYS owned at declaration, because the garbager
+already inserts ~.clone()~ for ~mut~ declarations with identifier RHS
+(garbager.rs line 139). The only exception is ~cast()~-initialized variables:
+
+#+begin_src til
+mut x := cast(Str, map.get(key)?)   // borrowed -- alias into map storage
+#+end_src
+
+Const locals are never reassigned, so they are not relevant here.
+Function arguments are by-ref and must never be deleted.
+
+*** Assignment handler inconsistency (found during implementation)
+
+The garbager's declaration handler clones ALL identifier-based RHS for mut
+declarations, including field access (~mut x := token.token_str~ gets cloned).
+But the assignment handler (garbager.rs ~Assignment~ case) only clones BARE
+identifiers (~x = y~), skipping field access (~x = token.token_str~) due to a
+~params.is_empty()~ check. This means after a field-access assignment, the mut
+variable holds a borrowed value, making the next delete-before-reassignment
+unsafe.
+
+Fix: remove the ~params.is_empty()~ check and use ~get_value_type(context, rhs)~
+to infer the RHS type. The old code used ~lookup_symbol(rhs_name)~ which only
+works for bare identifiers (and happens to work for globals/literals). The
+declaration handler gets the type from ~decl.value_type~ on the node, but
+Assignment nodes don't carry a type. ~get_value_type~ resolves the type of any
+expression including field access chains, so it works for both cases.
+
+Note: ~lookup_symbol(assign_var_name)~ (looking up the LHS) was tried but fails
+because local variables are not in the scope stack at garbager time.
+
+*** Delete-before-reassignment safety
+
+Safe to delete before reassignment when the RHS does NOT reference the variable
+being deleted. Example: ~name = make_pair("foo")~ -- safe, RHS is independent.
+Unsafe when RHS references the same variable: ~result = Expr.clone(result)~ --
+the clone reads from ~result~ which was just deleted.
+
+Fix: ~expr_references_var(rhs, var_name)~ checks if the RHS expression tree
+contains any reference to the variable. If so, skip the delete (the value leaks
+but doesn't corrupt).
 
 *** Approach
 
-In ~garbager.rs~ / ~garbager.til~, when processing an ~Assignment~ node:
-1. Check if the target variable has a custom type (Str, Vec, Map, Set, struct)
-2. If so, insert a ~Type.delete(var)~ call before the assignment
-3. Skip if the old value is borrowed (from cast/get -- needs alias tracking)
-4. Skip if the variable might not be initialized yet (conditional paths)
+In ~garbager.rs~ / ~garbager.til~:
+1. Fix assignment handler: remove ~params.is_empty()~, use ~get_value_type~
+2. Build ~declared_types~ map from body declarations only (not function args)
+3. Exclude cast-initialized variables (~cast_vars~ set)
+4. Insert ~Type.delete(var)~ before each top-level ~Assignment~ of a tracked var
+5. Skip delete when RHS references the variable (~expr_references_var~ check)
+6. No recursion into sub-bodies (variables inside if/while may be uninitialized)
 
-The safe subset: variables that were initialized with an owning expression
-(constructor, clone, concat, split, etc.) and are being reassigned with
-another owning expression. This avoids the alias problem.
+*** Implementation status
+
+Step 1 done (assignment handler fix):
+- Assignment handler: uses ~get_value_type(context, rhs_expr)~ to infer type
+  (no more ~params.is_empty()~ check, no more ~lookup_symbol~)
+- This makes the assignment handler consistent with the declaration handler:
+  both clone identifier-based RHS including field access (e.g., ~x = token.token_str~)
+
+Steps 2-6 implemented but DISABLED (blocked by Bug #159):
+- ~build_delete_call_expr~ helper builds ~Type.delete(var)~ AST
+- ~expr_references_var~ prevents use-after-free on self-referencing RHS
+- ~insert_delete_before_reassignment~ inserts deletes for top-level assignments
+- ~declared_types~ / ~cast_vars~ built from FuncDef body declarations
+- ~is_cast_call~ made public in typer.rs for cast detection
+- Code remains in garbager.rs/garbager.til but is commented out with TODO
+
+*** Delete-before-reassignment blocked by Bug #159 (shallow copies)
+
+The delete-before-reassignment feature corrupts internal compiler state because
+~declared_types~ tracks ALL TCustom locals, but many hold aliased/borrowed values
+from scope lookup functions (~lookup_func~, ~lookup_symbol~, ~lookup_struct~).
+These return shallow copies (memcpy) that share heap pointers with the scope stack.
+Deleting them frees data still referenced by the scope stack.
+
+The ~cast_vars~ exclusion only catches ~cast()~ at declaration time. The common
+pattern of declaring an empty variable then assigning from a lookup is not caught:
+
+#+begin_src til
+mut func_def := FuncDef()
+// garbager inserts: FuncDef.delete(func_def)  -- CORRUPTS scope stack!
+func_def = context.scope_stack.lookup_func(name)?  // shallow copy alias
+#+end_src
+
+This caused the self-hosted TIL compiler to report incorrect "unused variable"
+errors (typer's ~used_symbols~ tracking corrupted by freed heap data).
+
+To re-enable: solve Bug #159 first. Either make lookup functions return deep
+copies, or track which variables hold aliases vs owned data at a finer
+granularity than just "was it initialized with cast()".
 
 *** Interaction with Issue #183
 
