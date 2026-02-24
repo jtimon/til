@@ -1,0 +1,16 @@
+mode test
+
+consume_it := proc(own x: I64) {
+    println(x.to_str())
+}
+
+main := proc() {
+    // Error 1: missing 'own' at call site
+    mut val := 42
+    consume_it(val)
+
+    // Error 2: using consumed variable after ownership transfer
+    mut val2 := 99
+    consume_it(own val2)
+    println(val2.to_str())
+}
