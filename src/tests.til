@@ -1438,6 +1438,7 @@ main : proc(args: ..Str) = {
     all_common.push(TestEntry(path="src/test/clone.til"))
     all_common.push(TestEntry(path="src/test/comparisons.til"))
     all_common.push(TestEntry(path="src/test/constfold.til"))
+    all_common.push(TestEntry(path="src/test/defer.til"))
     all_common.push(TestEntry(path="src/test/editor_mode_test.til"))
     all_common.push(TestEntry(path="src/test/enums.til"))
     all_common.push(TestEntry(path="src/test/errors.til"))

@@ -36,6 +36,7 @@ pub enum TokenType {
     Return, Throw,
     Catch,
     Break, Continue,
+    Defer,
 
     // Special in this language:
     Mode,
@@ -280,6 +281,7 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         "catch" => TokenType::Catch,
         "break" => TokenType::Break,
         "continue" => TokenType::Continue,
+        "defer" => TokenType::Defer,
 
         // Reserved forbidden/illegal words (intentionally unsupported reserved words)
         // TODO intentionally unsupport more reserved words

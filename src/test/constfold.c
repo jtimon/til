@@ -253,21 +253,22 @@ typedef enum {
     til_NodeType_Continue = 4,
     til_NodeType_Declaration = 5,
     til_NodeType_DefaultCase = 6,
-    til_NodeType_EnumDef = 7,
-    til_NodeType_FCall = 8,
-    til_NodeType_ForIn = 9,
-    til_NodeType_FuncDef = 10,
-    til_NodeType_Identifier = 11,
-    til_NodeType_If = 12,
-    til_NodeType_LLiteral = 13,
-    til_NodeType_NamedArg = 14,
-    til_NodeType_Pattern = 15,
-    til_NodeType_Range = 16,
-    til_NodeType_Return = 17,
-    til_NodeType_StructDef = 18,
-    til_NodeType_Switch = 19,
-    til_NodeType_Throw = 20,
-    til_NodeType_While = 21,
+    til_NodeType_Defer = 7,
+    til_NodeType_EnumDef = 8,
+    til_NodeType_FCall = 9,
+    til_NodeType_ForIn = 10,
+    til_NodeType_FuncDef = 11,
+    til_NodeType_Identifier = 12,
+    til_NodeType_If = 13,
+    til_NodeType_LLiteral = 14,
+    til_NodeType_NamedArg = 15,
+    til_NodeType_Pattern = 16,
+    til_NodeType_Range = 17,
+    til_NodeType_Return = 18,
+    til_NodeType_StructDef = 19,
+    til_NodeType_Switch = 20,
+    til_NodeType_Throw = 21,
+    til_NodeType_While = 22,
 } til_NodeType_Tag;
 
 typedef union {
@@ -323,6 +324,11 @@ static inline til_NodeType til_NodeType_make_Declaration(til_Declaration value) 
 
 static inline til_NodeType til_NodeType_make_DefaultCase(void) {
     til_NodeType result = { .tag = til_NodeType_DefaultCase };
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_Defer(void) {
+    til_NodeType result = { .tag = til_NodeType_Defer };
     return result;
 }
 
@@ -670,6 +676,7 @@ static inline til_Str til_NodeType_to_str(const til_NodeType* e) {
         case til_NodeType_Continue: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Continue", 1, 0, 0, 0}), 17, 0});
         case til_NodeType_Declaration: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Declaration", 1, 0, 0, 0}), 20, 0});
         case til_NodeType_DefaultCase: return ((til_Str){((til_Ptr){(til_I64)"NodeType.DefaultCase", 1, 0, 0, 0}), 20, 0});
+        case til_NodeType_Defer: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Defer", 1, 0, 0, 0}), 14, 0});
         case til_NodeType_EnumDef: return ((til_Str){((til_Ptr){(til_I64)"NodeType.EnumDef", 1, 0, 0, 0}), 16, 0});
         case til_NodeType_FCall: return ((til_Str){((til_Ptr){(til_I64)"NodeType.FCall", 1, 0, 0, 0}), 14, 0});
         case til_NodeType_ForIn: return ((til_Str){((til_Ptr){(til_I64)"NodeType.ForIn", 1, 0, 0, 0}), 14, 0});

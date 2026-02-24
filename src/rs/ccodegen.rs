@@ -4138,6 +4138,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Pattern(_) => Err(expr.lang_error(&context.path, "ccodegen", "Pattern should have been desugared with Switch")),
         NodeType::NamedArg(_) => Err(expr.error(&context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")),
         NodeType::ForIn(_) => Err(expr.lang_error(&context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")),
+        NodeType::Defer => Err(expr.lang_error(&context.path, "ccodegen", "Defer should have been desugared by desugarer phase")),
     }
 }
 

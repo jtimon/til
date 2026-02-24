@@ -1026,6 +1026,214 @@ fn desugar_bang_in_body(context: &Context, stmts: Vec<Expr>) -> Result<Vec<Expr>
     Ok(result)
 }
 
+// ============================================================================
+// Issue #188: Defer desugaring
+// Collects defer statements from a function body, replaces them with bool flag
+// activations, and inserts deferred code (in LIFO order) before every return/throw
+// and at the end of the body.
+// ============================================================================
+
+struct DeferInfo {
+    flag_name: String,
+    deferred_expr: Expr,
+}
+
+/// Walk body recursively, collect all Defer nodes in source order.
+fn collect_defers(stmts: &[Expr], defers: &mut Vec<DeferInfo>, counter: &mut usize) {
+    for stmt in stmts {
+        match &stmt.node_type {
+            NodeType::Defer => {
+                if let Some(deferred_expr) = stmt.params.get(0) {
+                    let flag_name = format!("_defer_{}", *counter);
+                    defers.push(DeferInfo {
+                        flag_name,
+                        deferred_expr: deferred_expr.clone(),
+                    });
+                    *counter += 1;
+                }
+            },
+            NodeType::If | NodeType::While | NodeType::Body => {
+                for p in &stmt.params {
+                    collect_defers(&p.params, defers, counter);
+                }
+            },
+            NodeType::FuncDef(_) => {
+                // Don't descend into nested function definitions
+            },
+            _ => {
+                // Recurse into params for other node types (e.g. Declaration with If body)
+                collect_defers(&stmt.params, defers, counter);
+            },
+        }
+    }
+}
+
+/// Walk body, replace each Defer node with `_defer_N = true`.
+fn replace_defers_with_flags(stmts: &[Expr], counter: &mut usize) -> Vec<Expr> {
+    let mut result = Vec::new();
+    for stmt in stmts {
+        match &stmt.node_type {
+            NodeType::Defer => {
+                let flag_name = format!("_defer_{}", *counter);
+                *counter += 1;
+                result.push(make_assign(&flag_name, make_id("true", stmt.line, stmt.col), stmt.line, stmt.col));
+            },
+            NodeType::If => {
+                let new_params: Vec<Expr> = stmt.params.iter().map(|p| {
+                    let new_inner = replace_defers_with_flags(&p.params, counter);
+                    Expr::new_clone(p.node_type.clone(), p, new_inner)
+                }).collect();
+                result.push(Expr::new_clone(stmt.node_type.clone(), stmt, new_params));
+            },
+            NodeType::While => {
+                let new_params: Vec<Expr> = stmt.params.iter().map(|p| {
+                    let new_inner = replace_defers_with_flags(&p.params, counter);
+                    Expr::new_clone(p.node_type.clone(), p, new_inner)
+                }).collect();
+                result.push(Expr::new_clone(stmt.node_type.clone(), stmt, new_params));
+            },
+            NodeType::Body => {
+                let new_inner = replace_defers_with_flags(&stmt.params, counter);
+                result.push(Expr::new_clone(stmt.node_type.clone(), stmt, new_inner));
+            },
+            NodeType::FuncDef(_) => {
+                // Don't descend into nested function definitions
+                result.push(stmt.clone());
+            },
+            _ => {
+                // Recurse into params for other node types
+                let new_params: Vec<Expr> = stmt.params.iter().map(|p| {
+                    let new_inner = replace_defers_with_flags(&p.params, counter);
+                    Expr::new_clone(p.node_type.clone(), p, new_inner)
+                }).collect();
+                result.push(Expr::new_clone(stmt.node_type.clone(), stmt, new_params));
+            },
+        }
+    }
+    result
+}
+
+/// Build the cleanup block: if-guarded deferred calls in reverse (LIFO) order.
+fn build_defer_cleanup(defers: &[DeferInfo], line: usize, col: usize) -> Vec<Expr> {
+    let mut cleanup = Vec::new();
+    for d in defers.iter().rev() {
+        let cond = make_id(&d.flag_name, line, col);
+        let body = make_body(vec![d.deferred_expr.clone()], line, col);
+        cleanup.push(make_if(cond, body, None, line, col));
+    }
+    cleanup
+}
+
+/// Walk body recursively, insert cleanup block before every Return/Throw.
+fn insert_cleanup_before_exits(stmts: &[Expr], defers: &[DeferInfo], ret_counter: &mut usize) -> Vec<Expr> {
+    let mut result = Vec::new();
+    for stmt in stmts {
+        match &stmt.node_type {
+            NodeType::Return => {
+                let line = stmt.line;
+                let col = stmt.col;
+                // Insert cleanup before the return statement
+                result.extend(build_defer_cleanup(defers, line, col));
+                result.push(stmt.clone());
+            },
+            NodeType::Throw => {
+                let line = stmt.line;
+                let col = stmt.col;
+                // Insert cleanup before the throw statement
+                result.extend(build_defer_cleanup(defers, line, col));
+                result.push(stmt.clone());
+            },
+            NodeType::If => {
+                // Recurse into if/else bodies
+                let new_params: Vec<Expr> = stmt.params.iter().map(|p| {
+                    match &p.node_type {
+                        NodeType::Body => {
+                            let new_inner = insert_cleanup_before_exits(&p.params, defers, ret_counter);
+                            Expr::new_clone(p.node_type.clone(), p, new_inner)
+                        },
+                        _ => {
+                            // Condition expression -- don't touch
+                            p.clone()
+                        }
+                    }
+                }).collect();
+                result.push(Expr::new_clone(stmt.node_type.clone(), stmt, new_params));
+            },
+            NodeType::While => {
+                // Recurse into while body (params[1] is body)
+                let new_params: Vec<Expr> = stmt.params.iter().enumerate().map(|(i, p)| {
+                    if i == 0 {
+                        // Condition -- don't touch
+                        p.clone()
+                    } else {
+                        match &p.node_type {
+                            NodeType::Body => {
+                                let new_inner = insert_cleanup_before_exits(&p.params, defers, ret_counter);
+                                Expr::new_clone(p.node_type.clone(), p, new_inner)
+                            },
+                            _ => p.clone(),
+                        }
+                    }
+                }).collect();
+                result.push(Expr::new_clone(stmt.node_type.clone(), stmt, new_params));
+            },
+            NodeType::Body => {
+                let new_inner = insert_cleanup_before_exits(&stmt.params, defers, ret_counter);
+                result.push(Expr::new_clone(stmt.node_type.clone(), stmt, new_inner));
+            },
+            NodeType::FuncDef(_) => {
+                // Don't descend into nested function definitions
+                result.push(stmt.clone());
+            },
+            _ => {
+                // Recurse into params for other node types
+                let new_params: Vec<Expr> = stmt.params.iter().map(|p| {
+                    let new_inner = insert_cleanup_before_exits(&p.params, defers, ret_counter);
+                    Expr::new_clone(p.node_type.clone(), p, new_inner)
+                }).collect();
+                result.push(Expr::new_clone(stmt.node_type.clone(), stmt, new_params));
+            },
+        }
+    }
+    result
+}
+
+/// Issue #188: Desugar defer statements in a function body.
+fn desugar_defer_in_body(body: Vec<Expr>) -> Vec<Expr> {
+    // Step 1: Collect all defers
+    let mut defers: Vec<DeferInfo> = Vec::new();
+    let mut defer_counter: usize = 0;
+    collect_defers(&body, &mut defers, &mut defer_counter);
+
+    if defers.is_empty() {
+        return body;
+    }
+
+    // Step 2: Replace defer nodes with flag activations
+    let mut replace_counter: usize = 0;
+    let mut new_body = replace_defers_with_flags(&body, &mut replace_counter);
+
+    // Step 3: Insert cleanup before all return/throw nodes
+    let mut ret_counter: usize = 0;
+    new_body = insert_cleanup_before_exits(&new_body, &defers, &mut ret_counter);
+
+    // Step 4: Append cleanup at end of body (for fall-through)
+    let line = if let Some(last) = body.last() { last.line } else { 0 };
+    let col = if let Some(last) = body.last() { last.col } else { 0 };
+    new_body.extend(build_defer_cleanup(&defers, line, col));
+
+    // Step 5: Prepend flag declarations at body start
+    let mut final_body = Vec::new();
+    for d in &defers {
+        let decl_line = if let Some(first) = body.first() { first.line } else { 0 };
+        let decl_col = if let Some(first) = body.first() { first.col } else { 0 };
+        final_body.push(make_decl(&d.flag_name, ValueType::TCustom("Bool".to_string()), true, make_id("false", decl_line, decl_col), decl_line, decl_col));
+    }
+    final_body.extend(new_body);
+
+    final_body
+}
+
 /// Desugarer phase entry point: Recursively desugar ForIn loops and Switch statements.
 pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     match &e.node_type {
@@ -1065,6 +1273,8 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             // Issue #180: Desugar bang calls in function body
             let new_body = desugar_bang_in_body(context, new_body)?;
+            // Issue #188: Desugar defer statements
+            let new_body = desugar_defer_in_body(new_body);
 
             let _ = context.scope_stack.pop();
             context.precomp_forin_counter = saved_counter;

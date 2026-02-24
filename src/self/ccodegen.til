@@ -5047,6 +5047,8 @@ emit_expr : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenConte
         throw expr.error(context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")
     case NodeType.ForIn(fi):
         throw expr.lang_error(context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")
+    case NodeType.Defer:
+        throw expr.lang_error(context.path, "ccodegen", "Defer should have been desugared by desugarer phase")
     case:
     }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }

@@ -4761,6 +4761,32 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #188: Defer statement
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:IMPLEMENTED: 2026-02-24
+:IMPACT: Resource management, cleanup guarantees, memory management -- step 2 of memory pipeline
+:STATUS: Implemented
+:RELATED: Issue #183 (manual deletes, step 1), Bug #170 (scope-exit, step 3), Issue #117 (ASAP, step 4)
+:END:
+
+*** Summary
+Added ~defer~ statement that schedules code to run before function exit (return,
+throw, or fall-through). Pure AST desugaring in the desugarer phase -- no
+interpreter, ccodegen, or runtime changes needed.
+
+Semantics: function-level, LIFO order. Defers inside conditional blocks only run
+if that block was entered (implemented via bool flags). Deferred code runs before
+the return/throw expression is evaluated, so ~defer delete(x); return x~ deletes
+x before returning.
+
+Implementation: each ~defer <expr>~ becomes a bool flag (~_defer_N~) set to true
+at the defer site. Before every return/throw and at end of body, if-guarded
+cleanup blocks run in reverse order. Lexer, parser, AST, desugarer changes in
+both Rust and TIL. Typer handles Defer as valid (runs before desugarer in pipeline).
+
+Test: src/test/defer.til (all 4 modes).
+
 ** Issue #89: Constant folding inside function bodies
 :PROPERTIES:
 :DISCOVERED: 2026-01-07

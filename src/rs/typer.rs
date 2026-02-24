@@ -292,6 +292,13 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             // Break and Continue are simple statements with no parameters to type-check
             // Scope validation (must be inside a loop) could be added here later
         },
+        NodeType::Defer => {
+            // Issue #188: Defer - type-check the deferred expression (params[0])
+            // Defer is desugared later in the desugarer phase
+            for p in &e.params {
+                errors.extend(check_types_with_context(context, p, expr_context)?);
+            }
+        },
         NodeType::NamedArg(_) => {
             // Named args - type check the value expression
             for p in &e.params {
@@ -2694,7 +2701,16 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> Result<bool, String> {
                 }
             }
             Ok(false)
-        }
+        },
+        NodeType::Defer => {
+            // Issue #188: Defer - check if deferred expression calls procs
+            for p in &e.params {
+                if is_expr_calling_procs(context, p)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        },
     }
 }
 

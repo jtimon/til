@@ -553,6 +553,10 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::DefaultCase => {
             return Err(e.lang_error(&context.path, "eval", "DefaultCase should only appear inside Switch"))
         },
+        // Issue #188: Defer should have been desugared
+        NodeType::Defer => {
+            return Err(e.lang_error(&context.path, "eval", "Defer should have been desugared by desugarer phase"))
+        },
     }
 }
 

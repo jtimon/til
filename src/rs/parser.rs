@@ -1232,6 +1232,14 @@ fn parse_continue_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     Ok(Expr::new_parse(NodeType::Continue, lexer.get_token(initial_current)?.clone(), vec![]))
 }
 
+// Issue #188: defer <statement>
+fn parse_defer_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_current = lexer.current;
+    lexer.advance(1)?; // consume 'defer'
+    let deferred_expr = parse_statement(lexer)?;
+    Ok(Expr::new_parse(NodeType::Defer, lexer.get_token(initial_current)?.clone(), vec![deferred_expr]))
+}
+
 fn parse_throw_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let initial_current = lexer.current;
     lexer.advance(1)?;
@@ -1851,6 +1859,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::Throw => return parse_throw_statement(lexer),
         TokenType::Break => return parse_break_statement(lexer),
         TokenType::Continue => return parse_continue_statement(lexer),
+        TokenType::Defer => return parse_defer_statement(lexer),
         TokenType::If => return if_statement(lexer),
         TokenType::While => return while_statement(lexer),
         TokenType::For => return parse_for_statement(lexer),

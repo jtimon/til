@@ -326,6 +326,12 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
         for p: Expr in e.params {
             errors.extend(check_types_with_context(context, p, ExprContext.ValueUsed)?)
         }
+    case NodeType.Defer:
+        // Issue #188: Defer - type-check the deferred expression (params[0])
+        // Defer is desugared later in the desugarer phase
+        for p: Expr in e.params {
+            errors.extend(check_types_with_context(context, p, expr_context)?)
+        }
     case NodeType.ForIn(_var_type):
         errors.extend(check_forin_statement(context, e)?)
     case:
@@ -3472,6 +3478,14 @@ is_expr_calling_procs : func(context: Context, e: Expr) returns Bool throws Str 
         return false
     case NodeType.Continue:
         // Break and Continue have no params, so they don't call procs
+        return false
+    case NodeType.Defer:
+        // Issue #188: Defer - check if deferred expression calls procs
+        for p: Expr in e.params {
+            if is_expr_calling_procs(context, p)? {
+                return true
+            }
+        }
         return false
     case:
         // Unknown node type - assume it might call procs to be safe

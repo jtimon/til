@@ -1432,6 +1432,17 @@ parse_continue_statement : func(mut lexer: Lexer) returns Expr throws Str = {
     return expr_new_parse(NodeType.Continue, initial_token, params)
 }
 
+// Issue #188: defer <statement>
+parse_defer_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+    initial_current := lexer.current
+    lexer.advance(1)? // consume 'defer'
+    deferred_expr := parse_statement(lexer)?
+    initial_token := lexer.get_token(initial_current)?.clone()
+    mut params := Vec.new(Expr)
+    params.push(deferred_expr)
+    return expr_new_parse(NodeType.Defer, initial_token, params)
+}
+
 parse_throw_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
     initial_current := lexer.current
     lexer.advance(1)?
@@ -2201,6 +2212,8 @@ parse_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoun
         return parse_break_statement(lexer)?
     case TokenType.Continue:
         return parse_continue_statement(lexer)?
+    case TokenType.Defer:
+        return parse_defer_statement(lexer)?
     case TokenType.If:
         return if_statement(lexer)?
     case TokenType.While:

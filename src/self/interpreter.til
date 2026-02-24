@@ -454,6 +454,9 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
         }
         // FuncSig type definition - handled during registration
         return EvalResult.new("")
+    // Issue #188: Defer should have been desugared
+    case NodeType.Defer:
+        throw e.lang_error(context.path, "eval", "Defer should have been desugared by desugarer phase")
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }

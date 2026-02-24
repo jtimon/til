@@ -13,11 +13,10 @@
 | #99  | Eliminate all C compiler warnings and enable -Werror        | Open             |
 | #94  | gcc warnings cause bug47.til compilation failure            | Blocked by #99   |
 
-* features.org (11 issues)
+* features.org (10 issues)
 
 | #    | Issue                                            | Status      |
 |------+--------------------------------------------------+-------------|
-| #188 | Defer statement                                  | Open        |
 | #182 | Closures -- explicit capture lists               | Open        |
 | #181 | First-class bodies -- store, pass, return blocks | Open        |
 | #180 | Bang operator ! for panic-on-throw (unwrap)      | In progress |

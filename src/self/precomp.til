@@ -1104,6 +1104,9 @@ precomp_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             new_params.push(precomp_expr(context, p)?)
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
+    // Issue #188: Defer should have been desugared in desugarer phase
+    case NodeType.Defer:
+        panic(loc(), "Defer should have been desugared in desugarer phase")
     // ForIn should have been desugared in desugarer phase
     case NodeType.ForIn(_):
         panic(loc(), "ForIn should have been desugared in desugarer phase")

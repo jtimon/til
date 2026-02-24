@@ -1,0 +1,112 @@
+mode test
+
+// ============================================================
+// defer - basic: defer runs before return
+// ============================================================
+
+test_basic_defer := func() returns I64 = {
+    mut x := 0
+    defer x = 99
+    return x
+}
+assert_eq(loc(), 99, test_basic_defer())
+
+// ============================================================
+// defer - LIFO order: last defer runs first, first defer runs last
+// Both write to same variable, so last-to-execute wins
+// LIFO: defer_1 runs first (x=20), then defer_0 runs last (x=10)
+// ============================================================
+
+test_lifo := func() returns I64 = {
+    mut x := 0
+    defer x = 10
+    defer x = 20
+    return x
+}
+// LIFO: defer x=20 runs first, then defer x=10 runs last -> x=10
+assert_eq(loc(), 10, test_lifo())
+
+// ============================================================
+// defer - LIFO order with three defers
+// ============================================================
+
+test_lifo_three := func() returns I64 = {
+    mut x := 0
+    defer x = 1
+    defer x = 2
+    defer x = 3
+    return x
+}
+// LIFO: x=3, x=2, x=1 -> last write is x=1
+assert_eq(loc(), 1, test_lifo_three())
+
+// ============================================================
+// defer - conditional: defer inside if (branch taken)
+// ============================================================
+
+test_cond_true := func() returns I64 = {
+    mut x := 10
+    if true {
+        defer x = 20
+    }
+    return x
+}
+assert_eq(loc(), 20, test_cond_true())
+
+// ============================================================
+// defer - conditional: defer inside if (branch NOT taken)
+// ============================================================
+
+test_cond_false := func() returns I64 = {
+    mut x := 10
+    if false {
+        defer x = 20
+    }
+    return x
+}
+assert_eq(loc(), 10, test_cond_false())
+
+// ============================================================
+// defer - early return: only active defers run
+// ============================================================
+
+test_early_return := func(n: I64) returns I64 = {
+    mut x := 0
+    defer x = 100
+    if n.eq(0) {
+        return x
+    }
+    defer x = 200
+    return x
+}
+// n=0: only first defer active -> x=100
+assert_eq(loc(), 100, test_early_return(0))
+// n=5: both defers active, LIFO: x=200 then x=100 -> x=100
+assert_eq(loc(), 100, test_early_return(5))
+
+// ============================================================
+// defer - with throw: defer runs before throw propagates
+// ============================================================
+
+test_throw_inner := proc() throws Str = {
+    mut x := 0
+    defer x = 99
+    throw "error"
+}
+test_throw := proc() = {
+    test_throw_inner()?
+    catch (err: Str) {}
+}
+test_throw()
+
+// ============================================================
+// defer - fall-through (no explicit return)
+// ============================================================
+
+test_fallthrough := proc() = {
+    mut x := 0
+    defer x = 42
+}
+test_fallthrough()
+
+println("All defer tests passed")

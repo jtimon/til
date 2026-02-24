@@ -323,6 +323,7 @@ NodeType := enum {
     Catch,
     Break,
     Continue,
+    Defer,
     If,
     While,
     Switch,

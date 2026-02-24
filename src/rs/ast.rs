@@ -182,6 +182,7 @@ pub enum NodeType {
     Catch,
     Break,
     Continue,
+    Defer,
     If,
     While,
     Switch,

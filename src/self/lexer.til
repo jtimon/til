@@ -41,6 +41,7 @@ TokenType := enum {
     Return, Throw,
     Catch,
     Break, Continue,
+    Defer,
 
     // Special in this language:
     Mode,
@@ -214,6 +215,7 @@ token_type_to_str : func(tt: TokenType) returns Str = {
     case TokenType.Catch: return "catch"
     case TokenType.Break: return "break"
     case TokenType.Continue: return "continue"
+    case TokenType.Defer: return "defer"
     case TokenType.Struct: return "struct"
     case TokenType.Enum: return "enum"
     case TokenType.Namespace: return "namespace"
@@ -337,6 +339,7 @@ scan_reserved_words : func(identifier: Str) returns TokenType = {
     case "catch": return TokenType.Catch
     case "break": return TokenType.Break
     case "continue": return TokenType.Continue
+    case "defer": return TokenType.Defer
 
         // Reserved forbidden/illegal words (intentionally unsupported reserved words)
         // TODO intentionally unsupport more reserved words
