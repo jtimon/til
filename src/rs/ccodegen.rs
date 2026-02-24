@@ -8241,9 +8241,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Bug #60: emit_expr will dereference Type params via (*til_name)
                 // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                 output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64)", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
-                emit_expr(expr.get(1)?, output, 0, ctx, context)?;
+                emit_expr(expr.params.get(1).unwrap(), output, 0, ctx, context)?;
                 output.push_str(", 1, 0, 0, 0}), til_raw_strlen(");
-                emit_expr(expr.get(1)?, output, 0, ctx, context)?;
+                emit_expr(expr.params.get(1).unwrap(), output, 0, ctx, context)?;
                 output.push_str("), 0})");
             }
             output.push_str(")");
