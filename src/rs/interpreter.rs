@@ -557,6 +557,10 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::Defer => {
             return Err(e.lang_error(&context.path, "eval", "Defer should have been desugared by desugarer phase"))
         },
+        // Issue #185: OwnArg should have been desugared
+        NodeType::OwnArg => {
+            return Err(e.lang_error(&context.path, "eval", "OwnArg should have been desugared by desugarer phase"))
+        },
     }
 }
 

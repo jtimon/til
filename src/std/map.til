@@ -133,8 +133,8 @@ namespace:
         }
 
         // Insert at sorted position
-        self.keys.insert_at(search.index, key)?
-        self.values.insert_at(search.index, value)?
+        self.keys.insert_at(search.index, own key)?
+        self.values.insert_at(search.index, own value)?
         self._size = self._size.add(1)
 
         catch (err: IndexOutOfBoundsError) {
@@ -156,8 +156,8 @@ namespace:
             value_ptr.copy_from_dynamic(value, self.values.ptr.elem_size)
         } else {
             // Key not found - insert at sorted position
-            self.keys.insert_at(search.index, key)?
-            self.values.insert_at(search.index, value)?
+            self.keys.insert_at(search.index, own key)?
+            self.values.insert_at(search.index, own value)?
             self._size = self._size.add(1)
         }
 

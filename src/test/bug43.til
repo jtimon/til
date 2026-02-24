@@ -16,13 +16,13 @@ test_map_get_in_struct : proc() = {
     mut frame := Frame()
     assert_eq(loc(), 0, frame.funcs._size) // Should be 0 initially
     assert_eq(loc(), 0, frame.funcs.keys._len) // Should be 0 initially
-    frame.funcs.insert("test", 42)?
+    frame.funcs.insert(own "test", own 42)?
     assert_eq(loc(), 1, frame.funcs._size) // Should be 1 after insert
     assert_eq(loc(), 1, frame.funcs.keys._len) // Should be 1 after insert
 
     // Try direct Map (not in struct) to isolate the issue
     mut direct_map := Map.new(Str, I64)
-    direct_map.insert("direct_test", 99)?
+    direct_map.insert(own "direct_test", own 99)?
     direct_val := cast(I64, direct_map.get("direct_test")?)
     assert_eq(loc(), 99, direct_val)  // Does direct Map work?
     direct_map.delete()

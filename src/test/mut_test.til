@@ -34,7 +34,7 @@ test_mut_array : proc() = {
     assert_eq(loc(), 0, arr.len())
     assert_eq(loc(), Vec.INIT_CAP, arr.cap)
 
-    arr.push(10)
+    arr.push(own 10)
 
     assert_eq(loc(), 1, arr.len())
 

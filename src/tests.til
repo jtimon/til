@@ -62,24 +62,24 @@ RunningTest := struct {
 add_music_tests : proc(mut tests: Vec) = {
     MUSIC_PATH := "src/examples/music.til"
     // 3 tests with default language (pt)
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="jonio do"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="dorico re"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="frigio mi"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="jonio do"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="dorico re"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="frigio mi"))
     // 3 tests with -lang=pt
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt lidio fax"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt mixolidio sol"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt eolio lab"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt lidio fax"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt mixolidio sol"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt eolio lab"))
     // 3 tests with -lang=en
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=en locrian six"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=en aeolian la"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=en ionian solx"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-lang=en locrian six"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-lang=en aeolian la"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-lang=en ionian solx"))
     // 3 tests with -lang=es
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es jonico mib"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es locrio rex"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es eolico sib"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-lang=es jonico mib"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-lang=es locrio rex"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-lang=es eolico sib"))
     // 2 tests with -notation=american (input uses American notation: C, D, E, F, G, A, B)
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-notation=american ionian C"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-notation=american phrygian G"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-notation=american ionian C"))
+    tests.push(own TestEntry(path=MUSIC_PATH, cmd_args="-notation=american phrygian G"))
 }
 
 // Parse wall-clock time from /usr/bin/time -v output
@@ -549,7 +549,7 @@ run_parallel : proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_t
             entry := cast(TestEntry, tests.get(pending_idx)?)
             phase := cast(TestPhase, phases.get(0)?)
             rt := spawn_test(entry, phase, next_id)?
-            running.push(rt)
+            running.push(own rt)
             pending_idx.inc()
             next_id.inc()
         } else {
@@ -579,24 +579,24 @@ run_parallel : proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_t
                 passed := parse_test_result(current.actual_file, status, build_ms, build_maxrss_kb, time_ms, maxrss_kb, error_output, mem_report_line)?
 
                 // Record build time, build maxrss, run time, maxrss, and mem report for this phase
-                current.phase_build_times.push(build_ms.clone())
-                current.phase_build_maxrss.push(build_maxrss_kb.clone())
-                current.phase_times.push(time_ms.clone())
-                current.phase_maxrss.push(maxrss_kb.clone())
-                current.phase_mem_reports.push(mem_report_line)
+                current.phase_build_times.push(own build_ms.clone())
+                current.phase_build_maxrss.push(own build_maxrss_kb.clone())
+                current.phase_times.push(own time_ms.clone())
+                current.phase_maxrss.push(own maxrss_kb.clone())
+                current.phase_mem_reports.push(own mem_report_line)
 
                 // Accumulate to phase total (time: sum, build: sum, maxrss: keep max)
                 old_build := cast(I64, phase_build_totals.get(current.current_phase)?)
-                phase_build_totals.set(current.current_phase, old_build.add(build_ms))?
+                phase_build_totals.set(current.current_phase, own old_build.add(build_ms))?
                 old_build_maxrss := cast(I64, phase_build_maxrss_maxes.get(current.current_phase)?)
                 if build_maxrss_kb.gt(old_build_maxrss) {
-                    phase_build_maxrss_maxes.set(current.current_phase, build_maxrss_kb)?
+                    phase_build_maxrss_maxes.set(current.current_phase, own build_maxrss_kb)?
                 }
                 old_total := cast(I64, phase_totals.get(current.current_phase)?)
-                phase_totals.set(current.current_phase, old_total.add(time_ms))?
+                phase_totals.set(current.current_phase, own old_total.add(time_ms))?
                 old_maxrss := cast(I64, phase_maxrss_maxes.get(current.current_phase)?)
                 if maxrss_kb.gt(old_maxrss) {
-                    phase_maxrss_maxes.set(current.current_phase, maxrss_kb)?
+                    phase_maxrss_maxes.set(current.current_phase, own maxrss_kb)?
                 }
 
                 if not(passed) {
@@ -610,7 +610,7 @@ run_parallel : proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_t
                     last_idx := running.len().sub(1)
                     if i.lt(last_idx) {
                         last := cast(RunningTest, running.get(last_idx)?)
-                        running.set(i, last)?
+                        running.set(i, own last)?
                     }
                     mut popped := RunningTest()
                     running.pop(popped)?
@@ -620,7 +620,7 @@ run_parallel : proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_t
                         fail_next_entry := cast(TestEntry, tests.get(pending_idx)?)
                         fail_first_phase := cast(TestPhase, phases.get(0)?)
                         fail_rt := spawn_test(fail_next_entry, fail_first_phase, next_id)?
-                        running.push(fail_rt)
+                        running.push(own fail_rt)
                         pending_idx.inc()
                         next_id.inc()
                     }
@@ -649,7 +649,7 @@ run_parallel : proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_t
                         current.pid = new_pid
                         current.actual_file = new_result
                         current.current_phase = next_phase_idx
-                        running.set(i, current)?
+                        running.set(i, own current)?
                         i.inc()
                     } else {
                         // All phases complete - print result
@@ -745,13 +745,13 @@ run_parallel : proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_t
                             // Build annotation
                             mut parts := Vec.new(Str)
                             if rstil_faster.len().gt(0) {
-                                parts.push(format("rstil: faster ", rstil_faster))
+                                parts.push(own format("rstil: faster ", rstil_faster))
                             }
                             if interp_faster.len().gt(0) {
-                                parts.push(format("interpreted: faster ", interp_faster))
+                                parts.push(own format("interpreted: faster ", interp_faster))
                             }
                             if compiled_faster.len().gt(0) {
-                                parts.push(format("compiled: faster ", compiled_faster))
+                                parts.push(own format("compiled: faster ", compiled_faster))
                             }
                             if parts.len().gt(0) {
                                 faster = " ("
@@ -797,7 +797,7 @@ run_parallel : proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_t
                         success_last_idx := running.len().sub(1)
                         if i.lt(success_last_idx) {
                             success_last := cast(RunningTest, running.get(success_last_idx)?)
-                            running.set(i, success_last)?
+                            running.set(i, own success_last)?
                         }
                         mut success_popped := RunningTest()
                         running.pop(success_popped)?
@@ -807,7 +807,7 @@ run_parallel : proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_build_t
                             next_entry := cast(TestEntry, tests.get(pending_idx)?)
                             next_first_phase := cast(TestPhase, phases.get(0)?)
                             next_rt := spawn_test(next_entry, next_first_phase, next_id)?
-                            running.push(next_rt)
+                            running.push(own next_rt)
                             pending_idx.inc()
                             next_id.inc()
                         }
@@ -840,149 +840,149 @@ run_all_tests : proc(rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, til_
 
     // rs_interpreted
     mut rs_interp_build_totals := Vec.new(I64)
-    rs_interp_build_totals.push(0)
+    rs_interp_build_totals.push(own 0)
     mut rs_interp_build_maxrss := Vec.new(I64)
-    rs_interp_build_maxrss.push(0)
+    rs_interp_build_maxrss.push(own 0)
     mut rs_interp_totals := Vec.new(I64)
-    rs_interp_totals.push(0)
+    rs_interp_totals.push(own 0)
     mut rs_interp_maxrss := Vec.new(I64)
-    rs_interp_maxrss.push(0)
+    rs_interp_maxrss.push(own 0)
     if rs_interpreted.len().gt(0) {
         println("\n=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===\n")
         mut rs_interp_phases := Vec.new(TestPhase)
-        rs_interp_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
+        rs_interp_phases.push(own TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
         errors_found = errors_found.add(run_parallel(rs_interpreted, rs_interp_phases, parallelism, rs_interp_build_totals, rs_interp_build_maxrss, rs_interp_totals, rs_interp_maxrss, benchmark_content, "rs_interpreted"))
     }
 
     // rs_compiled
     mut rs_compile_build_totals := Vec.new(I64)
-    rs_compile_build_totals.push(0)
+    rs_compile_build_totals.push(own 0)
     mut rs_compile_build_maxrss := Vec.new(I64)
-    rs_compile_build_maxrss.push(0)
+    rs_compile_build_maxrss.push(own 0)
     mut rs_compile_totals := Vec.new(I64)
-    rs_compile_totals.push(0)
+    rs_compile_totals.push(own 0)
     mut rs_compile_maxrss := Vec.new(I64)
-    rs_compile_maxrss.push(0)
+    rs_compile_maxrss.push(own 0)
     if rs_compiled.len().gt(0) {
         println("\n=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===\n")
         mut rs_compile_phases := Vec.new(TestPhase)
-        rs_compile_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_compiled", label="compiled"))
+        rs_compile_phases.push(own TestPhase(test_mode="rs_compiled", out_mode="rs_compiled", label="compiled"))
         errors_found = errors_found.add(run_parallel(rs_compiled, rs_compile_phases, parallelism, rs_compile_build_totals, rs_compile_build_maxrss, rs_compile_totals, rs_compile_maxrss, benchmark_content, "rs_compiled"))
     }
 
     // rs_common (both modes per test)
     mut rs_common_build_totals := Vec.new(I64)
-    rs_common_build_totals.push(0)
-    rs_common_build_totals.push(0)
+    rs_common_build_totals.push(own 0)
+    rs_common_build_totals.push(own 0)
     mut rs_common_build_maxrss := Vec.new(I64)
-    rs_common_build_maxrss.push(0)
-    rs_common_build_maxrss.push(0)
+    rs_common_build_maxrss.push(own 0)
+    rs_common_build_maxrss.push(own 0)
     mut rs_common_totals := Vec.new(I64)
-    rs_common_totals.push(0)
-    rs_common_totals.push(0)
+    rs_common_totals.push(own 0)
+    rs_common_totals.push(own 0)
     mut rs_common_maxrss := Vec.new(I64)
-    rs_common_maxrss.push(0)
-    rs_common_maxrss.push(0)
+    rs_common_maxrss.push(own 0)
+    rs_common_maxrss.push(own 0)
     if rs_common.len().gt(0) {
         println("\n=== rs_common (", rs_common.len().to_str(), " tests) ===\n")
         mut rs_common_phases := Vec.new(TestPhase)
-        rs_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
-        rs_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
+        rs_common_phases.push(own TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
+        rs_common_phases.push(own TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
         errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_build_totals, rs_common_build_maxrss, rs_common_totals, rs_common_maxrss, benchmark_content, "rs_common"))
     }
 
     // til_interpreted
     mut til_interp_build_totals := Vec.new(I64)
-    til_interp_build_totals.push(0)
+    til_interp_build_totals.push(own 0)
     mut til_interp_build_maxrss := Vec.new(I64)
-    til_interp_build_maxrss.push(0)
+    til_interp_build_maxrss.push(own 0)
     mut til_interp_totals := Vec.new(I64)
-    til_interp_totals.push(0)
+    til_interp_totals.push(own 0)
     mut til_interp_maxrss := Vec.new(I64)
-    til_interp_maxrss.push(0)
+    til_interp_maxrss.push(own 0)
     if til_interpreted.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
         mut til_interp_phases := Vec.new(TestPhase)
-        til_interp_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
+        til_interp_phases.push(own TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
         errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_build_totals, til_interp_build_maxrss, til_interp_totals, til_interp_maxrss, benchmark_content, "til_interpreted"))
     }
 
     // til_compiled
     mut til_compile_build_totals := Vec.new(I64)
-    til_compile_build_totals.push(0)
+    til_compile_build_totals.push(own 0)
     mut til_compile_build_maxrss := Vec.new(I64)
-    til_compile_build_maxrss.push(0)
+    til_compile_build_maxrss.push(own 0)
     mut til_compile_totals := Vec.new(I64)
-    til_compile_totals.push(0)
+    til_compile_totals.push(own 0)
     mut til_compile_maxrss := Vec.new(I64)
-    til_compile_maxrss.push(0)
+    til_compile_maxrss.push(own 0)
     if til_compiled.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_compiled (", til_compiled.len().to_str(), " tests) ===\n")
         mut til_compile_phases := Vec.new(TestPhase)
-        til_compile_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_compiled", label="til compiled"))
+        til_compile_phases.push(own TestPhase(test_mode="til_compiled", out_mode="til_compiled", label="til compiled"))
         errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_build_totals, til_compile_build_maxrss, til_compile_totals, til_compile_maxrss, benchmark_content, "til_compiled"))
     }
 
     // til_common (both modes per test)
     mut til_common_build_totals := Vec.new(I64)
-    til_common_build_totals.push(0)
-    til_common_build_totals.push(0)
+    til_common_build_totals.push(own 0)
+    til_common_build_totals.push(own 0)
     mut til_common_build_maxrss := Vec.new(I64)
-    til_common_build_maxrss.push(0)
-    til_common_build_maxrss.push(0)
+    til_common_build_maxrss.push(own 0)
+    til_common_build_maxrss.push(own 0)
     mut til_common_totals := Vec.new(I64)
-    til_common_totals.push(0)
-    til_common_totals.push(0)
+    til_common_totals.push(own 0)
+    til_common_totals.push(own 0)
     mut til_common_maxrss := Vec.new(I64)
-    til_common_maxrss.push(0)
-    til_common_maxrss.push(0)
+    til_common_maxrss.push(own 0)
+    til_common_maxrss.push(own 0)
     if til_common.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_common (", til_common.len().to_str(), " tests) ===\n")
         mut til_common_phases := Vec.new(TestPhase)
-        til_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
-        til_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_interpreted", label="til compiled"))
+        til_common_phases.push(own TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
+        til_common_phases.push(own TestPhase(test_mode="til_compiled", out_mode="til_interpreted", label="til compiled"))
         errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_build_totals, til_common_build_maxrss, til_common_totals, til_common_maxrss, benchmark_content, "til_common"))
     }
 
     // all_common (4 modes: rs_interpreted, rs_compiled, til_interpreted, til_compiled)
     // When --rust-only: run as rs_common (2 phases) instead of all 4
     mut all_common_build_totals := Vec.new(I64)
-    all_common_build_totals.push(0)
-    all_common_build_totals.push(0)
+    all_common_build_totals.push(own 0)
+    all_common_build_totals.push(own 0)
     mut all_common_build_maxrss := Vec.new(I64)
-    all_common_build_maxrss.push(0)
-    all_common_build_maxrss.push(0)
+    all_common_build_maxrss.push(own 0)
+    all_common_build_maxrss.push(own 0)
     mut all_common_totals := Vec.new(I64)
-    all_common_totals.push(0)
-    all_common_totals.push(0)
+    all_common_totals.push(own 0)
+    all_common_totals.push(own 0)
     mut all_common_maxrss := Vec.new(I64)
-    all_common_maxrss.push(0)
-    all_common_maxrss.push(0)
+    all_common_maxrss.push(own 0)
+    all_common_maxrss.push(own 0)
     if not(g_rust_only) {
-        all_common_build_totals.push(0)
-        all_common_build_totals.push(0)
-        all_common_build_maxrss.push(0)
-        all_common_build_maxrss.push(0)
-        all_common_totals.push(0)
-        all_common_totals.push(0)
-        all_common_maxrss.push(0)
-        all_common_maxrss.push(0)
+        all_common_build_totals.push(own 0)
+        all_common_build_totals.push(own 0)
+        all_common_build_maxrss.push(own 0)
+        all_common_build_maxrss.push(own 0)
+        all_common_totals.push(own 0)
+        all_common_totals.push(own 0)
+        all_common_maxrss.push(own 0)
+        all_common_maxrss.push(own 0)
     }
     if all_common.len().gt(0) {
         if g_rust_only {
             // Run as rs_common (2 phases)
             println("\n=== all_common [rust-only] (", all_common.len().to_str(), " tests) ===\n")
             mut rs_only_phases := Vec.new(TestPhase)
-            rs_only_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
-            rs_only_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
+            rs_only_phases.push(own TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
+            rs_only_phases.push(own TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
             errors_found = errors_found.add(run_parallel(all_common, rs_only_phases, parallelism, all_common_build_totals, all_common_build_maxrss, all_common_totals, all_common_maxrss, benchmark_content, "all_common"))
         } else {
             println("\n=== all_common (", all_common.len().to_str(), " tests) ===\n")
             mut all_common_phases := Vec.new(TestPhase)
-            all_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="rs interpreted"))
-            all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="rs compiled"))
-            all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="rs_interpreted", label="til interpreted"))
-            all_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="rs_interpreted", label="til compiled"))
+            all_common_phases.push(own TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="rs interpreted"))
+            all_common_phases.push(own TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="rs compiled"))
+            all_common_phases.push(own TestPhase(test_mode="til_interpreted", out_mode="rs_interpreted", label="til interpreted"))
+            all_common_phases.push(own TestPhase(test_mode="til_compiled", out_mode="rs_interpreted", label="til compiled"))
             errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_build_totals, all_common_build_maxrss, all_common_totals, all_common_maxrss, benchmark_content, "all_common"))
         }
     }
@@ -1354,7 +1354,7 @@ main : proc(args: ..Str) = {
             // Issue #131: --cc=COMPILER override
             g_cc = arg.get_substr(5, arg.len())?
         } else {
-            remaining_args.push(arg)
+            remaining_args.push(own arg)
         }
     }
 
@@ -1382,12 +1382,12 @@ main : proc(args: ..Str) = {
     // rs_common: tests that pass with rstil but NOT yet with til (interpreted or compiled)
     // (tests that pass all 4 modes are in all_common)
     mut rs_common := Vec.new(TestEntry)
-    rs_common.push(TestEntry(path="src/test/introspections.til")) // TODO: Actually use Introspection from func that is called from const initialization
-    rs_common.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: rstil fails at precomp (correct), til fails at runtime (wrong catch ordering in precomp.til)
-    rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: til both modes timeout (>120s), rstil interpreted ~9.5s
+    rs_common.push(own TestEntry(path="src/test/introspections.til")) // TODO: Actually use Introspection from func that is called from const initialization
+    rs_common.push(own TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: rstil fails at precomp (correct), til fails at runtime (wrong catch ordering in precomp.til)
+    rs_common.push(own TestEntry(path="src/test/bug47.til"))  // TODO: til both modes timeout (>120s), rstil interpreted ~9.5s
     // TODO: test_parser.til disabled to save benchmark time (~40s rstil interpreted). Works, just slow.
     // rs_common.push(TestEntry(path="src/test/test_parser.til"))
-    rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
+    rs_common.push(own TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
 
     // til_interpreted: tests that pass with til interpret but NOT yet with til_compiled
     // (tests that pass all 4 modes are in all_common)
@@ -1401,85 +1401,85 @@ main : proc(args: ..Str) = {
     mut til_common := Vec.new(TestEntry)
     // all_common: tests run with ALL 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
     mut all_common := Vec.new(TestEntry)
-    all_common.push(TestEntry(path="src/test/bug173.til", expected_status=1)) // Bug #173: both typers now reject shadowing
-    all_common.push(TestEntry(path="src/test/arenas.til"))
-    all_common.push(TestEntry(path="src/test/args.til"))
-    all_common.push(TestEntry(path="src/test/arrays.til"))
-    all_common.push(TestEntry(path="src/test/bug43.til"))
-    all_common.push(TestEntry(path="src/test/bug52.til"))
-    all_common.push(TestEntry(path="src/test/bug55.til"))
-    all_common.push(TestEntry(path="src/test/bug56.til"))
-    all_common.push(TestEntry(path="src/test/bug57.til"))
-    all_common.push(TestEntry(path="src/test/bug139.til", expected_status=1))
-    all_common.push(TestEntry(path="src/test/bug157.til"))
-    all_common.push(TestEntry(path="src/test/bug159.til"))
-    all_common.push(TestEntry(path="src/test/bug162.til"))
-    all_common.push(TestEntry(path="src/test/c_mem.til"))
-    all_common.push(TestEntry(path="src/test/cross_file_forward.til"))
-    all_common.push(TestEntry(path="src/test/deterministic.til"))
-    all_common.push(TestEntry(path="src/examples/empty.til"))
-    all_common.push(TestEntry(path="src/examples/hello_cli.til"))
-    all_common.push(TestEntry(path="src/examples/hello_lib.til"))
-    all_common.push(TestEntry(path="src/examples/hello_liba.til"))
-    all_common.push(TestEntry(path="src/examples/hello_pure.til"))
-    all_common.push(TestEntry(path="src/examples/hello_pura.til"))
-    all_common.push(TestEntry(path="src/examples/hello_script.til"))
-    all_common.push(TestEntry(path="src/examples/hello_test.til"))
-    all_common.push(TestEntry(path="src/examples/lolalalo.til"))
-    all_common.push(TestEntry(path="src/test/arithmetics.til"))
-    all_common.push(TestEntry(path="src/test/boolean.til"))
-    all_common.push(TestEntry(path="src/test/branchless.til"))
-    all_common.push(TestEntry(path="src/test/bug41.til"))
-    all_common.push(TestEntry(path="src/test/bug46.til"))
-    all_common.push(TestEntry(path="src/test/bug48.til", expected_status=1))
-    all_common.push(TestEntry(path="src/test/bug49.til", expected_status=1))
-    all_common.push(TestEntry(path="src/test/bug50.til", expected_status=1))
-    all_common.push(TestEntry(path="src/test/circular_test.til"))
-    all_common.push(TestEntry(path="src/test/clone.til"))
-    all_common.push(TestEntry(path="src/test/comparisons.til"))
-    all_common.push(TestEntry(path="src/test/constfold.til"))
-    all_common.push(TestEntry(path="src/test/defer.til"))
-    all_common.push(TestEntry(path="src/test/editor_mode_test.til"))
-    all_common.push(TestEntry(path="src/test/enums.til"))
-    all_common.push(TestEntry(path="src/test/errors.til"))
-    all_common.push(TestEntry(path="src/test/eval.til"))
-    all_common.push(TestEntry(path="src/test/exit.til", expected_status=69))
-    all_common.push(TestEntry(path="src/test/fibonacci.til"))
-    all_common.push(TestEntry(path="src/test/flow.til"))
-    all_common.push(TestEntry(path="src/test/forward_declarations.til"))
-    all_common.push(TestEntry(path="src/test/function_pointers.til"))
-    all_common.push(TestEntry(path="src/test/func_purity.til"))
-    all_common.push(TestEntry(path="src/test/intro.til"))
-    all_common.push(TestEntry(path="src/test/lists.til"))
-    all_common.push(TestEntry(path="src/test/literals.til"))
-    all_common.push(TestEntry(path="src/test/loops.til"))
-    all_common.push(TestEntry(path="src/test/macros.til"))
-    all_common.push(TestEntry(path="src/test/maps.til"))
-    all_common.push(TestEntry(path="src/test/memcmp_str.til"))
-    all_common.push(TestEntry(path="src/test/modes.til"))
-    all_common.push(TestEntry(path="src/test/mut_test.til"))
-    all_common.push(TestEntry(path="src/test/namespaces.til"))
-    all_common.push(TestEntry(path="src/test/optional_args.til"))
-    all_common.push(TestEntry(path="src/test/ownership.til"))  // TODO #185: change to expected_status=1 once own keyword required at call sites
-    all_common.push(TestEntry(path="src/test/panic.til", expected_status=1))
-    all_common.push(TestEntry(path="src/test/parallel_cmd.til"))
-    all_common.push(TestEntry(path="src/test/pointers.til"))
+    all_common.push(own TestEntry(path="src/test/bug173.til", expected_status=1)) // Bug #173: both typers now reject shadowing
+    all_common.push(own TestEntry(path="src/test/arenas.til"))
+    all_common.push(own TestEntry(path="src/test/args.til"))
+    all_common.push(own TestEntry(path="src/test/arrays.til"))
+    all_common.push(own TestEntry(path="src/test/bug43.til"))
+    all_common.push(own TestEntry(path="src/test/bug52.til"))
+    all_common.push(own TestEntry(path="src/test/bug55.til"))
+    all_common.push(own TestEntry(path="src/test/bug56.til"))
+    all_common.push(own TestEntry(path="src/test/bug57.til"))
+    all_common.push(own TestEntry(path="src/test/bug139.til", expected_status=1))
+    all_common.push(own TestEntry(path="src/test/bug157.til"))
+    all_common.push(own TestEntry(path="src/test/bug159.til"))
+    all_common.push(own TestEntry(path="src/test/bug162.til"))
+    all_common.push(own TestEntry(path="src/test/c_mem.til"))
+    all_common.push(own TestEntry(path="src/test/cross_file_forward.til"))
+    all_common.push(own TestEntry(path="src/test/deterministic.til"))
+    all_common.push(own TestEntry(path="src/examples/empty.til"))
+    all_common.push(own TestEntry(path="src/examples/hello_cli.til"))
+    all_common.push(own TestEntry(path="src/examples/hello_lib.til"))
+    all_common.push(own TestEntry(path="src/examples/hello_liba.til"))
+    all_common.push(own TestEntry(path="src/examples/hello_pure.til"))
+    all_common.push(own TestEntry(path="src/examples/hello_pura.til"))
+    all_common.push(own TestEntry(path="src/examples/hello_script.til"))
+    all_common.push(own TestEntry(path="src/examples/hello_test.til"))
+    all_common.push(own TestEntry(path="src/examples/lolalalo.til"))
+    all_common.push(own TestEntry(path="src/test/arithmetics.til"))
+    all_common.push(own TestEntry(path="src/test/boolean.til"))
+    all_common.push(own TestEntry(path="src/test/branchless.til"))
+    all_common.push(own TestEntry(path="src/test/bug41.til"))
+    all_common.push(own TestEntry(path="src/test/bug46.til"))
+    all_common.push(own TestEntry(path="src/test/bug48.til", expected_status=1))
+    all_common.push(own TestEntry(path="src/test/bug49.til", expected_status=1))
+    all_common.push(own TestEntry(path="src/test/bug50.til", expected_status=1))
+    all_common.push(own TestEntry(path="src/test/circular_test.til"))
+    all_common.push(own TestEntry(path="src/test/clone.til"))
+    all_common.push(own TestEntry(path="src/test/comparisons.til"))
+    all_common.push(own TestEntry(path="src/test/constfold.til"))
+    all_common.push(own TestEntry(path="src/test/defer.til"))
+    all_common.push(own TestEntry(path="src/test/editor_mode_test.til"))
+    all_common.push(own TestEntry(path="src/test/enums.til"))
+    all_common.push(own TestEntry(path="src/test/errors.til"))
+    all_common.push(own TestEntry(path="src/test/eval.til"))
+    all_common.push(own TestEntry(path="src/test/exit.til", expected_status=69))
+    all_common.push(own TestEntry(path="src/test/fibonacci.til"))
+    all_common.push(own TestEntry(path="src/test/flow.til"))
+    all_common.push(own TestEntry(path="src/test/forward_declarations.til"))
+    all_common.push(own TestEntry(path="src/test/function_pointers.til"))
+    all_common.push(own TestEntry(path="src/test/func_purity.til"))
+    all_common.push(own TestEntry(path="src/test/intro.til"))
+    all_common.push(own TestEntry(path="src/test/lists.til"))
+    all_common.push(own TestEntry(path="src/test/literals.til"))
+    all_common.push(own TestEntry(path="src/test/loops.til"))
+    all_common.push(own TestEntry(path="src/test/macros.til"))
+    all_common.push(own TestEntry(path="src/test/maps.til"))
+    all_common.push(own TestEntry(path="src/test/memcmp_str.til"))
+    all_common.push(own TestEntry(path="src/test/modes.til"))
+    all_common.push(own TestEntry(path="src/test/mut_test.til"))
+    all_common.push(own TestEntry(path="src/test/namespaces.til"))
+    all_common.push(own TestEntry(path="src/test/optional_args.til"))
+    all_common.push(own TestEntry(path="src/test/ownership.til"))  // TODO #185: change to expected_status=1 once own keyword required at call sites
+    all_common.push(own TestEntry(path="src/test/panic.til", expected_status=1))
+    all_common.push(own TestEntry(path="src/test/parallel_cmd.til"))
+    all_common.push(own TestEntry(path="src/test/pointers.til"))
 
-    all_common.push(TestEntry(path="src/test/return_value_usage.til"))
-    all_common.push(TestEntry(path="src/test/scope_isolation.til"))
-    all_common.push(TestEntry(path="src/test/sets.til"))
-    all_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // Issue #69: fixed, output now matches across all 4 modes
-    all_common.push(TestEntry(path="src/test/strings.til"))
-    all_common.push(TestEntry(path="src/test/structs.til"))
-    all_common.push(TestEntry(path="src/test/syscalls.til"))
-    all_common.push(TestEntry(path="src/test/test_lexer.til"))
+    all_common.push(own TestEntry(path="src/test/return_value_usage.til"))
+    all_common.push(own TestEntry(path="src/test/scope_isolation.til"))
+    all_common.push(own TestEntry(path="src/test/sets.til"))
+    all_common.push(own TestEntry(path="src/test/sugar.til", expected_status=1))  // Issue #69: fixed, output now matches across all 4 modes
+    all_common.push(own TestEntry(path="src/test/strings.til"))
+    all_common.push(own TestEntry(path="src/test/structs.til"))
+    all_common.push(own TestEntry(path="src/test/syscalls.til"))
+    all_common.push(own TestEntry(path="src/test/test_lexer.til"))
     // all_common.push(TestEntry(path="src/test/test_parser.til")) // TODO too slow (~23s), moved to rs_common + til_compiled
-    all_common.push(TestEntry(path="src/test/u8.til"))
-    all_common.push(TestEntry(path="src/test/underscore.til"))
-    all_common.push(TestEntry(path="src/test/ufcs.til"))
-    all_common.push(TestEntry(path="src/test/undefined.til", expected_status=1))
-    all_common.push(TestEntry(path="src/test/variadic.til"))
-    all_common.push(TestEntry(path="src/test/vecs.til"))
+    all_common.push(own TestEntry(path="src/test/u8.til"))
+    all_common.push(own TestEntry(path="src/test/underscore.til"))
+    all_common.push(own TestEntry(path="src/test/ufcs.til"))
+    all_common.push(own TestEntry(path="src/test/undefined.til", expected_status=1))
+    all_common.push(own TestEntry(path="src/test/variadic.til"))
+    all_common.push(own TestEntry(path="src/test/vecs.til"))
     add_music_tests(all_common)
 
     // Parse remaining args (after -j was extracted)
@@ -1534,7 +1534,7 @@ main : proc(args: ..Str) = {
             mut files := Vec.new(Str)
             for regen_idx in 1..remaining_args.len() {
                 path := cast(Str, remaining_args.get(regen_idx)?)
-                files.push(path)
+                files.push(own path)
             }
             regen(files, rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common)
         case:

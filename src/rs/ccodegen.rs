@@ -4139,6 +4139,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::NamedArg(_) => Err(expr.error(&context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")),
         NodeType::ForIn(_) => Err(expr.lang_error(&context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")),
         NodeType::Defer => Err(expr.lang_error(&context.path, "ccodegen", "Defer should have been desugared by desugarer phase")),
+        NodeType::OwnArg => Err(expr.lang_error(&context.path, "ccodegen", "OwnArg should have been desugared by desugarer phase")),
     }
 }
 

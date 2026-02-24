@@ -123,8 +123,8 @@ test_fallthrough()
 test_defer_delete := func() returns I64 = {
     mut v := Vec.new(I64)
     defer v.delete()
-    v.push(42)
-    v.push(100)
+    v.push(own 42)
+    v.push(own 100)
     return v.len()
 }
 assert_eq(loc(), 2, test_defer_delete())

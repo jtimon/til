@@ -161,11 +161,11 @@ supported_langs_for_target : func(target: Target) returns Vec = {
     mut result := Vec.new(Lang)
     switch target {
     case Target.TempleosX86:
-        result.push(Lang.HolyC)
-        result.push(Lang.TIL)
+        result.push(own Lang.HolyC)
+        result.push(own Lang.TIL)
     case:
-        result.push(Lang.C)
-        result.push(Lang.TIL)  // TIL is always supported (for debugging)
+        result.push(own Lang.C)
+        result.push(own Lang.TIL)  // TIL is always supported (for debugging)
     }
     return result
 }
@@ -188,7 +188,7 @@ validate_lang_for_target : func(lang: Lang, target: Target) throws Str = {
     supported := supported_langs_for_target(target)
     mut supported_strs := Vec.new(Str)
     for l: Lang in supported {
-        supported_strs.push(lang_to_str(l))
+        supported_strs.push(own lang_to_str(l))
     }
 
     throw format(
@@ -276,22 +276,22 @@ toolchain_extra_args : proc(target: Target, _lang: Lang, compiler: Str) returns 
     switch target {
     // macOS and wasm always use clang target flags
     case Target.MacosArm64:
-        result.push("-target")
-        result.push("arm64-apple-macos11")
+        result.push(own "-target")
+        result.push(own "arm64-apple-macos11")
         push_common_flags(result)
         push_clang_flags(result)
         return result
     case Target.MacosX64:
-        result.push("-target")
-        result.push("x86_64-apple-macos10.12")
+        result.push(own "-target")
+        result.push(own "x86_64-apple-macos10.12")
         push_common_flags(result)
         push_clang_flags(result)
         return result
     case Target.Wasm32:
-        result.push("--target=wasm32")
-        result.push("-nostdlib")
-        result.push("-Wl,--no-entry")
-        result.push("-Wl,--export-all")
+        result.push(own "--target=wasm32")
+        result.push(own "-nostdlib")
+        result.push(own "-Wl,--no-entry")
+        result.push(own "-Wl,--export-all")
         push_common_flags(result)
         push_clang_flags(result)
         return result
@@ -311,23 +311,23 @@ toolchain_extra_args : proc(target: Target, _lang: Lang, compiler: Str) returns 
 
 // Helper: push common warning flags (work on both gcc and clang)
 push_common_flags : proc(mut result: Vec) = {
-    result.push("-Wall")
-    result.push("-Wextra")
-    result.push("-Werror")
+    result.push(own "-Wall")
+    result.push(own "-Wextra")
+    result.push(own "-Werror")
     // Suppressions for unfixed warnings (Bug #99):
-    result.push("-Wno-unused-variable")           // 1514 occurrences
-    result.push("-Wno-unused-but-set-variable")   // 386 occurrences
-    result.push("-Wno-unused-label")              // 153 occurrences
-    result.push("-Wno-unused-value")              // Issue #110: switch desugaring generates expression-only statements
+    result.push(own "-Wno-unused-variable")           // 1514 occurrences
+    result.push(own "-Wno-unused-but-set-variable")   // 386 occurrences
+    result.push(own "-Wno-unused-label")              // 153 occurrences
+    result.push(own "-Wno-unused-value")              // Issue #110: switch desugaring generates expression-only statements
 }
 
 // Helper: push clang-specific flags
 push_clang_flags : proc(mut result: Vec) = {
-    result.push("-Wno-sometimes-uninitialized")   // clang-specific warning about exception control flow
-    result.push("-Wno-self-assign")               // til_result = til_result patterns in generated code
+    result.push(own "-Wno-sometimes-uninitialized")   // clang-specific warning about exception control flow
+    result.push(own "-Wno-self-assign")               // til_result = til_result patterns in generated code
     // REMOVED: -Wno-c23-extensions - fixed by always emitting parameter names
-    result.push("-Wno-uninitialized")             // variable used before initialization in some paths
-    result.push("-Wno-unused-function")           // enum to_str functions generated but not always used
+    result.push(own "-Wno-uninitialized")             // variable used before initialization in some paths
+    result.push(own "-Wno-unused-function")           // enum to_str functions generated but not always used
 }
 
 // Helper: push GCC-specific flags

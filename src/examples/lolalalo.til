@@ -31,8 +31,8 @@ test_lolalalo : proc() = {
     make_poem_iterative : func(s1: Str, s2: Str) returns Str = {
         mut poem := ""
         mut silabes := Array.new(Str, 2)
-        silabes.set(0, s1)?
-        silabes.set(1, s2)?
+        silabes.set(0, own s1)?
+        silabes.set(1, own s2)?
 
         verse : func(i0: I64, i1: I64, i2: I64, i3: I64, silabes: Array) returns Str = {
             s0 := cast(Str, silabes.get(i0)?)

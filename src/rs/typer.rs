@@ -323,6 +323,12 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         NodeType::ForIn(_var_type) => {
             errors.extend(check_forin_statement(context, &e)?);
         },
+        // Issue #185: OwnArg -- type check the inner expression
+        NodeType::OwnArg => {
+            if let Some(inner) = e.params.get(0) {
+                errors.extend(check_types_with_context(context, inner, expr_context)?);
+            }
+        },
     }
 
     return Ok(errors)
@@ -688,6 +694,14 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
             continue;
         }
 
+        // Issue #185: Unwrap OwnArg for type checking, remember if it was present
+        let has_own_arg = matches!(&arg_expr.node_type, NodeType::OwnArg);
+        let arg_expr = if has_own_arg {
+            arg_expr.params.get(0).unwrap()
+        } else {
+            arg_expr
+        };
+
         // Function call arguments are being used (passed to the function)
         // This must happen BEFORE get_value_type so undefined symbol errors are detected
         errors.extend(check_types_with_context(context, &arg_expr, ExprContext::ValueUsed)?);
@@ -748,6 +762,20 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
             _ => arg.value_type.clone(),
         };
         // Note: check_types_with_context called earlier in loop (before found_type calculation)
+
+        // Issue #185: Validate own at call sites
+        if arg.is_own && !has_own_arg {
+            errors.push(arg_expr.error(&context.path, "type", &format!(
+                "Parameter '{}' of '{}' requires ownership transfer. Use 'own' at the call site.",
+                arg.name, f_name
+            )));
+        }
+        if has_own_arg && !arg.is_own {
+            errors.push(arg_expr.error(&context.path, "type", &format!(
+                "'own' used on argument for non-own parameter '{}' of '{}'.",
+                arg.name, f_name
+            )));
+        }
 
         // Check mut parameter requirements (Bug #48, Bug #63)
         // Only mut parameters require mutable variables.
@@ -1373,6 +1401,12 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                         }
 
                         for arg in p.params.iter().skip(1) {
+                            // Issue #185: Unwrap OwnArg to look at inner expression
+                            let arg = if let NodeType::OwnArg = &arg.node_type {
+                                arg.params.get(0).unwrap_or(arg)
+                            } else {
+                                arg
+                            };
                             // Handle direct function calls as arguments
                             if let NodeType::FCall(_) = arg.node_type {
                                 match get_func_def_for_fcall(&context, arg) {
@@ -1430,6 +1464,12 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                         // These are valid and don't throw errors themselves, but their arguments
                         // may contain throwing function calls (Bug #36 fix)
                         for ctor_arg in p.params.iter().skip(1) {
+                            // Issue #185: Unwrap OwnArg to look at inner expression
+                            let ctor_arg = if let NodeType::OwnArg = &ctor_arg.node_type {
+                                ctor_arg.params.get(0).unwrap_or(ctor_arg)
+                            } else {
+                                ctor_arg
+                            };
                             // Handle direct function calls as arguments
                             if let NodeType::FCall(_) = ctor_arg.node_type {
                                 match get_func_def_for_fcall(&context, ctor_arg) {
@@ -1750,6 +1790,13 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &Fun
                 }
             }
 
+
+            // Issue #185: OwnArg wraps an expression - recurse into the inner expression
+            NodeType::OwnArg => {
+                if let Some(inner) = p.params.get(0) {
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(inner), thrown_types, return_found)?);
+                }
+            }
 
             _ => {},
             }
@@ -2740,6 +2787,14 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> Result<bool, String> {
                 }
             }
             Ok(false)
+        },
+        // Issue #185: OwnArg - check inner expression
+        NodeType::OwnArg => {
+            if let Some(inner) = e.params.get(0) {
+                is_expr_calling_procs(context, inner)
+            } else {
+                Ok(false)
+            }
         },
     }
 }

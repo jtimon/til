@@ -14,7 +14,7 @@ test_continue_in_for : proc() = {
         if i.eq(5) {
             continue  // Fixed: increments i before jumping to condition
         }
-        result.push(i.clone())
+        result.push(own i.clone())
     }
 
     // Verify we got 9 elements (0-9 minus 5)
@@ -45,7 +45,7 @@ test_continue_in_reverse_for : proc() = {
         if i.eq(5) {
             continue
         }
-        result.push(i.clone())
+        result.push(own i.clone())
     }
 
     // Verify we got 9 elements (9-0 minus 5)

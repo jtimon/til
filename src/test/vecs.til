@@ -7,15 +7,15 @@ test_vec_u8 : proc() = {
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
-    dyn.push(U8.from_i64(42)?)
-    dyn.push(U8.from_i64(255)?)
+    dyn.push(own U8.from_i64(42)?)
+    dyn.push(own U8.from_i64(255)?)
     assert_eq(loc(), 2, dyn.len())
     val0 := cast(U8, dyn.get(0)?)
     test(loc(), val0.eq(U8.from_i64(42)?), "Value at index 0")
     val1 := cast(U8, dyn.get(1)?)
     test(loc(), val1.eq(U8.from_i64(255)?), "Value at index 1")
 
-    dyn.set(0, U8.from_i64(99)?)?
+    dyn.set(0, own U8.from_i64(99)?)?
     val := cast(U8, dyn.get(0)?)
     test(loc(), val.eq(U8.from_i64(99)?), "Set and get index 0")
 
@@ -43,15 +43,15 @@ test_vec_str : proc() = {
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
-    dyn.push("foo")
-    dyn.push("bar")
+    dyn.push(own "foo")
+    dyn.push(own "bar")
     assert_eq(loc(), 2, dyn.len())
     val0 := cast(Str, dyn.get(0)?)
     test(loc(), val0.eq("foo"), "Value at index 0")
     val1 := cast(Str, dyn.get(1)?)
     test(loc(), val1.eq("bar"), "Value at index 1")
 
-    dyn.set(0, "baz")?
+    dyn.set(0, own "baz")?
     val := cast(Str, dyn.get(0)?)
     test(loc(), val.eq("baz"), "Set and get index 0")
 
@@ -83,15 +83,15 @@ test_vec_bool : proc() = {
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
-    dyn.push(true)
-    dyn.push(false)
+    dyn.push(own true)
+    dyn.push(own false)
     assert_eq(loc(), 2, dyn.len())
     val0 := cast(Bool, dyn.get(0)?)
     test(loc(), val0.eq(true), "Value at index 0")
     val1 := cast(Bool, dyn.get(1)?)
     test(loc(), val1.eq(false), "Value at index 1")
 
-    dyn.set(0, false)?
+    dyn.set(0, own false)?
     val := cast(Bool, dyn.get(0)?)
     test(loc(), val.eq(false), "Set and get index 0")
 
@@ -114,15 +114,15 @@ test_vec_i64 : proc() = {
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
-    dyn.push(42)
-    dyn.push(84)
+    dyn.push(own 42)
+    dyn.push(own 84)
     assert_eq(loc(), 2, dyn.len())
     val0 := cast(I64, dyn.get(0)?)
     test(loc(), val0.eq(42), "Value at index 0")
     val1 := cast(I64, dyn.get(1)?)
     test(loc(), val1.eq(84), "Value at index 1")
 
-    dyn.set(0, 123)?
+    dyn.set(0, own 123)?
     val := cast(I64, dyn.get(0)?)
     test(loc(), val.eq(123), "Set and get index 0")
 
@@ -150,9 +150,9 @@ test_vec_vec2 : proc() = {
     assert_eq(loc(), 0, dyn.len())
 
     v1 := Vec2(x=10, y=20)
-    dyn.push(v1)
+    dyn.push(own v1)
     v2 := Vec2(x=30, y=40)
-    dyn.push(v2)
+    dyn.push(own v2)
 
     assert_eq(loc(), 2, dyn.len())
 
@@ -161,7 +161,7 @@ test_vec_vec2 : proc() = {
     test(loc(), v0.y.eq(20), "v0.y should be 20")
 
     v3 := Vec2(x=50, y=60)
-    dyn.set(0, v3)?
+    dyn.set(0, own v3)?
 
     v_after_set := cast(Vec2, dyn.get(0)?)
     test(loc(), v_after_set.x.eq(50), "v_after_set.x should be 50")
@@ -191,7 +191,7 @@ test_vec_growth : proc() = {
     // Push elements beyond initial capacity to trigger reallocation
     mut i := 0
     while lt(i, add(Vec.INIT_CAP, 5)) {
-        dyn.push(mul(i, 10))
+        dyn.push(own mul(i, 10))
         i = add(i, 1)
     }
 
@@ -220,8 +220,8 @@ test_vec_growth()
 test_vec_get_out_of_bounds : proc() = {
     mut arr := Vec.new(I64)
 
-    arr.push(42)
-    arr.push(84)
+    arr.push(own 42)
+    arr.push(own 84)
 
     // Try to get index that's out of bounds
     _val := cast(I64, arr.get(10)?)
@@ -240,10 +240,10 @@ test_vec_get_out_of_bounds()
 test_vec_set_out_of_bounds : proc() = {
     mut arr := Vec.new(I64)
 
-    arr.push(42)
+    arr.push(own 42)
 
     // Try to set index that's out of bounds
-    arr.set(10, 999)?
+    arr.set(10, own 999)?
     panic(loc(), "Expected IndexOutOfBoundsError for set with invalid index")
 
     catch (err: IndexOutOfBoundsError) {
@@ -259,9 +259,9 @@ test_vec_pop : proc() = {
     mut stack := Vec.new(I64)
 
     // Push some values
-    stack.push(10)
-    stack.push(20)
-    stack.push(30)
+    stack.push(own 10)
+    stack.push(own 20)
+    stack.push(own 30)
 
     assert_eq(loc(), 3, stack.len())
 
@@ -295,13 +295,13 @@ test_vec_pop()
 
 test_vec_extend : proc() = {
     mut dest := Vec.new(I64)
-    dest.push(1)
-    dest.push(2)
+    dest.push(own 1)
+    dest.push(own 2)
 
     mut src := Vec.new(I64)
-    src.push(3)
-    src.push(4)
-    src.push(5)
+    src.push(own 3)
+    src.push(own 4)
+    src.push(own 5)
 
     assert_eq(loc(), 2, dest.len())
     assert_eq(loc(), 3, src.len())
@@ -337,8 +337,8 @@ test_vec_extend()
 
 test_vec_extend_empty : proc() = {
     mut dest := Vec.new(Str)
-    dest.push("a")
-    dest.push("b")
+    dest.push(own "a")
+    dest.push(own "b")
 
     mut empty := Vec.new(Str)
 
@@ -365,10 +365,10 @@ test_vec_extend_empty()
 
 test_vec_remove : proc() = {
     mut vec := Vec.new(I64)
-    vec.push(10)
-    vec.push(20)
-    vec.push(30)
-    vec.push(40)
+    vec.push(own 10)
+    vec.push(own 20)
+    vec.push(own 30)
+    vec.push(own 40)
 
     assert_eq(loc(), 4, vec.len())
 
@@ -413,7 +413,7 @@ test_vec_remove()
 
 test_vec_remove_out_of_bounds : proc() = {
     mut vec := Vec.new(I64)
-    vec.push(42)
+    vec.push(own 42)
 
     // Try to remove index that's out of bounds
     vec.remove(5)?
@@ -431,9 +431,9 @@ test_vec_remove_out_of_bounds()
 test_vec_contains : proc() = {
     // Test with I64
     mut nums := Vec.new(I64)
-    nums.push(10)
-    nums.push(20)
-    nums.push(30)
+    nums.push(own 10)
+    nums.push(own 20)
+    nums.push(own 30)
 
     test(loc(), nums.contains(10), "contains should find 10")
     test(loc(), nums.contains(20), "contains should find 20")
@@ -445,9 +445,9 @@ test_vec_contains : proc() = {
 
     // Test with Str
     mut strs := Vec.new(Str)
-    strs.push("foo")
-    strs.push("bar")
-    strs.push("baz")
+    strs.push(own "foo")
+    strs.push(own "bar")
+    strs.push(own "baz")
 
     test(loc(), strs.contains("foo"), "contains should find foo")
     test(loc(), strs.contains("bar"), "contains should find bar")
@@ -482,11 +482,11 @@ test_vec_enum_direct_push : proc() = {
 
     // Push via variable (always worked)
     c := SimpleColor.Red
-    colors.push(c)
+    colors.push(own c)
 
     // Push directly (Bug #37 claimed this failed)
-    colors.push(SimpleColor.Green)
-    colors.push(SimpleColor.Blue)
+    colors.push(own SimpleColor.Green)
+    colors.push(own SimpleColor.Blue)
 
     assert_eq(loc(), 3, colors.len())
 
@@ -524,12 +524,12 @@ test_vec_enum_payload : proc() = {
     mut items := Vec.new(PayloadEnum)
 
     p1 := PayloadEnum.Number(42)
-    items.push(p1)
+    items.push(own p1)
 
     p2 := PayloadEnum.Number(100)
-    items.push(p2)
+    items.push(own p2)
 
-    items.push(PayloadEnum.None)
+    items.push(own PayloadEnum.None)
 
     assert_eq(loc(), 3, items.len())
 
@@ -578,7 +578,7 @@ test_vec_with_capacity : proc() = {
     // Push elements without triggering reallocation
     mut i := 0
     while i.lt(10) {
-        vec.push(i.clone())
+        vec.push(own i.clone())
         i = i.add(1)
     }
 
@@ -592,7 +592,7 @@ test_vec_with_capacity : proc() = {
     assert_eq(loc(), 9, val_1)
 
     // Push one more to trigger growth
-    vec.push(100)
+    vec.push(own 100)
     assert_eq(loc(), 11, vec.len())
     test(loc(), vec.cap.gt(10), "cap should have grown")
 
@@ -604,7 +604,7 @@ test_vec_with_capacity : proc() = {
     assert_eq(loc(), 0, empty.cap)
     test(loc(), empty.ptr.is_null(), "Empty vec ptr is null")
 
-    empty.push("hello")
+    empty.push(own "hello")
     assert_eq(loc(), 1, empty.len())
     test(loc(), empty.cap.gteq(1), "cap should be at least 1")
 
@@ -620,10 +620,10 @@ test_vec_with_capacity()
 
 test_sort_str_vec : proc() = {
     mut variants := Vec.new(Str)
-    variants.push("zebra")
-    variants.push("apple")
-    variants.push("banana")
-    variants.push("cherry")
+    variants.push(own "zebra")
+    variants.push(own "apple")
+    variants.push(own "banana")
+    variants.push(own "cherry")
 
     sort_str_vec(variants)
 
@@ -651,14 +651,14 @@ test_sort_str_vec()
 test_vec_insert_at : proc() = {
     // Test insert_at with I64
     mut vec := Vec.new(I64)
-    vec.push(10)
-    vec.push(30)
-    vec.push(40)
+    vec.push(own 10)
+    vec.push(own 30)
+    vec.push(own 40)
 
     assert_eq(loc(), 3, vec.len())
 
     // Insert at middle (index 1)
-    vec.insert_at(1, 20)?
+    vec.insert_at(1, own 20)?
 
     assert_eq(loc(), 4, vec.len())
 
@@ -672,7 +672,7 @@ test_vec_insert_at : proc() = {
     assert_eq(loc(), 40, val_3) // Shifted right
 
     // Insert at beginning (index 0)
-    vec.insert_at(0, 5)?
+    vec.insert_at(0, own 5)?
 
     assert_eq(loc(), 5, vec.len())
     val_4 := cast(I64, vec.get(0)?)
@@ -681,7 +681,7 @@ test_vec_insert_at : proc() = {
     assert_eq(loc(), 10, val_5)
 
     // Insert at end (index = len)
-    vec.insert_at(5, 50)?
+    vec.insert_at(5, own 50)?
 
     assert_eq(loc(), 6, vec.len())
     val_6 := cast(I64, vec.get(5)?)
@@ -691,10 +691,10 @@ test_vec_insert_at : proc() = {
 
     // Test insert_at with Str
     mut strs := Vec.new(Str)
-    strs.push("a")
-    strs.push("c")
+    strs.push(own "a")
+    strs.push(own "c")
 
-    strs.insert_at(1, "b")?
+    strs.insert_at(1, own "b")?
 
     assert_eq(loc(), 3, strs.len())
 
@@ -709,7 +709,7 @@ test_vec_insert_at : proc() = {
 
     // Test insert_at on empty vec
     mut empty := Vec.new(I64)
-    empty.insert_at(0, 42)?
+    empty.insert_at(0, own 42)?
     assert_eq(loc(), 1, empty.len())
     val_7 := cast(I64, empty.get(0)?)
     assert_eq(loc(), 42, val_7)
@@ -730,17 +730,17 @@ test_vec_insert_at()
 test_vec_insert_at_growth_preserves_ptr_metadata : proc() = {
     mut vec := Vec.new(I64)
     // Vec starts with cap=0, so the very first insert_at triggers growth
-    vec.insert_at(0, 10)?
+    vec.insert_at(0, own 10)?
     assert_eq(loc(), 1, vec.len())
     test(loc(), vec.ptr.elem_size.gt(0), "ptr.elem_size should be set after insert_at growth")
     assert_eq(loc(), size_of(I64), vec.ptr.elem_size)
 
     // Fill to capacity to trigger another growth via insert_at
     while vec.len().lt(vec.cap) {
-        vec.push(0)
+        vec.push(own 0)
     }
     old_cap := vec.cap
-    vec.insert_at(0, 99)?
+    vec.insert_at(0, own 99)?
     test(loc(), vec.cap.gt(old_cap), "cap should have grown")
     assert_eq(loc(), size_of(I64), vec.ptr.elem_size)
 
@@ -762,10 +762,10 @@ test_vec_insert_at_growth_preserves_ptr_metadata()
 
 test_vec_insert_at_out_of_bounds : proc() = {
     mut vec := Vec.new(I64)
-    vec.push(42)
+    vec.push(own 42)
 
     // Try to insert at index > len (should throw)
-    vec.insert_at(5, 999)?
+    vec.insert_at(5, own 999)?
     panic(loc(), "Expected IndexOutOfBoundsError for insert_at with invalid index")
 
     catch (err: IndexOutOfBoundsError) {
@@ -779,11 +779,11 @@ test_vec_insert_at_out_of_bounds()
 
 test_vec_split_off : proc() = {
     mut vec := Vec.new(I64)
-    vec.push(10)
-    vec.push(20)
-    vec.push(30)
-    vec.push(40)
-    vec.push(50)
+    vec.push(own 10)
+    vec.push(own 20)
+    vec.push(own 30)
+    vec.push(own 40)
+    vec.push(own 50)
 
     // Split at index 3
     mut tail := vec.split_off(3)?
@@ -827,9 +827,9 @@ test_vec_split_off()
 
 test_vec_get : proc() = {
     mut v := Vec.new(I64)
-    v.push(10)
-    v.push(20)
-    v.push(30)
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
 
     // Read via get
     ref0 := v.get(0)?

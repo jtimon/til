@@ -9,44 +9,44 @@ mode cli
 
 create_chromatic : func() returns Vec = {
     mut v := Vec.new(Str)
-    v.push("do")
-    v.push("do#")
-    v.push("re")
-    v.push("re#")
-    v.push("mi")
-    v.push("fa")
-    v.push("fa#")
-    v.push("sol")
-    v.push("sol#")
-    v.push("la")
-    v.push("la#")
-    v.push("si")
+    v.push(own "do")
+    v.push(own "do#")
+    v.push(own "re")
+    v.push(own "re#")
+    v.push(own "mi")
+    v.push(own "fa")
+    v.push(own "fa#")
+    v.push(own "sol")
+    v.push(own "sol#")
+    v.push(own "la")
+    v.push(own "la#")
+    v.push(own "si")
     return v
 }
 
 // Solfege notation: do, re, mi, fa, sol, la, si
 create_notes_solfege : func() returns Vec = {
     mut v := Vec.new(Str)
-    v.push("do")
-    v.push("re")
-    v.push("mi")
-    v.push("fa")
-    v.push("sol")
-    v.push("la")
-    v.push("si")
+    v.push(own "do")
+    v.push(own "re")
+    v.push(own "mi")
+    v.push(own "fa")
+    v.push(own "sol")
+    v.push(own "la")
+    v.push(own "si")
     return v
 }
 
 // American notation: C, D, E, F, G, A, B
 create_notes_american : func() returns Vec = {
     mut v := Vec.new(Str)
-    v.push("C")
-    v.push("D")
-    v.push("E")
-    v.push("F")
-    v.push("G")
-    v.push("A")
-    v.push("B")
+    v.push(own "C")
+    v.push(own "D")
+    v.push(own "E")
+    v.push(own "F")
+    v.push(own "G")
+    v.push(own "A")
+    v.push(own "B")
     return v
 }
 
@@ -61,13 +61,13 @@ get_notes_for_notation : proc(notation: Str) returns Vec = {
 // Base notes for American input parsing (lowercase)
 create_base_notes_american : func() returns Vec = {
     mut v := Vec.new(Str)
-    v.push("c")
-    v.push("d")
-    v.push("e")
-    v.push("f")
-    v.push("g")
-    v.push("a")
-    v.push("b")
+    v.push(own "c")
+    v.push(own "d")
+    v.push(own "e")
+    v.push(own "f")
+    v.push(own "g")
+    v.push(own "a")
+    v.push(own "b")
     return v
 }
 
@@ -84,80 +84,80 @@ create_mode_intervals : func() returns Vec = {
 
     // Lydian - brightest (major, raised 4th degree)
     mut lydian := Vec.new(I64)
-    lydian.push(2)
-    lydian.push(2)
-    lydian.push(2)
-    lydian.push(1)
-    lydian.push(2)
-    lydian.push(2)
-    lydian.push(1)
-    all.push(lydian)
+    lydian.push(own 2)
+    lydian.push(own 2)
+    lydian.push(own 2)
+    lydian.push(own 1)
+    lydian.push(own 2)
+    lydian.push(own 2)
+    lydian.push(own 1)
+    all.push(own lydian)
 
     // Ionian - major scale (reference)
     mut ionian := Vec.new(I64)
-    ionian.push(2)
-    ionian.push(2)
-    ionian.push(1)
-    ionian.push(2)
-    ionian.push(2)
-    ionian.push(2)
-    ionian.push(1)
-    all.push(ionian)
+    ionian.push(own 2)
+    ionian.push(own 2)
+    ionian.push(own 1)
+    ionian.push(own 2)
+    ionian.push(own 2)
+    ionian.push(own 2)
+    ionian.push(own 1)
+    all.push(own ionian)
 
     // Mixolydian - major with flat 7th degree
     mut mixolydian := Vec.new(I64)
-    mixolydian.push(2)
-    mixolydian.push(2)
-    mixolydian.push(1)
-    mixolydian.push(2)
-    mixolydian.push(2)
-    mixolydian.push(1)
-    mixolydian.push(2)
-    all.push(mixolydian)
+    mixolydian.push(own 2)
+    mixolydian.push(own 2)
+    mixolydian.push(own 1)
+    mixolydian.push(own 2)
+    mixolydian.push(own 2)
+    mixolydian.push(own 1)
+    mixolydian.push(own 2)
+    all.push(own mixolydian)
 
     // Dorian - minor with natural 6th degree
     mut dorian := Vec.new(I64)
-    dorian.push(2)
-    dorian.push(1)
-    dorian.push(2)
-    dorian.push(2)
-    dorian.push(2)
-    dorian.push(1)
-    dorian.push(2)
-    all.push(dorian)
+    dorian.push(own 2)
+    dorian.push(own 1)
+    dorian.push(own 2)
+    dorian.push(own 2)
+    dorian.push(own 2)
+    dorian.push(own 1)
+    dorian.push(own 2)
+    all.push(own dorian)
 
     // Aeolian - natural minor scale (reference)
     mut aeolian := Vec.new(I64)
-    aeolian.push(2)
-    aeolian.push(1)
-    aeolian.push(2)
-    aeolian.push(2)
-    aeolian.push(1)
-    aeolian.push(2)
-    aeolian.push(2)
-    all.push(aeolian)
+    aeolian.push(own 2)
+    aeolian.push(own 1)
+    aeolian.push(own 2)
+    aeolian.push(own 2)
+    aeolian.push(own 1)
+    aeolian.push(own 2)
+    aeolian.push(own 2)
+    all.push(own aeolian)
 
     // Phrygian - minor with flat 2nd degree
     mut phrygian := Vec.new(I64)
-    phrygian.push(1)
-    phrygian.push(2)
-    phrygian.push(2)
-    phrygian.push(2)
-    phrygian.push(1)
-    phrygian.push(2)
-    phrygian.push(2)
-    all.push(phrygian)
+    phrygian.push(own 1)
+    phrygian.push(own 2)
+    phrygian.push(own 2)
+    phrygian.push(own 2)
+    phrygian.push(own 1)
+    phrygian.push(own 2)
+    phrygian.push(own 2)
+    all.push(own phrygian)
 
     // Locrian - darkest (minor, flat 2nd and 5th degrees)
     mut locrian := Vec.new(I64)
-    locrian.push(1)
-    locrian.push(2)
-    locrian.push(2)
-    locrian.push(1)
-    locrian.push(2)
-    locrian.push(2)
-    locrian.push(2)
-    all.push(locrian)
+    locrian.push(own 1)
+    locrian.push(own 2)
+    locrian.push(own 2)
+    locrian.push(own 1)
+    locrian.push(own 2)
+    locrian.push(own 2)
+    locrian.push(own 2)
+    all.push(own locrian)
 
     return all
 }
@@ -478,8 +478,8 @@ print_triads : proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) =
 
     mut k := 0
     while k.lt(7) {
-        scale_chromatic.push(chromatic_pos.clone())
-        scale_diatonic.push(diatonic_pos.clone())
+        scale_chromatic.push(own chromatic_pos.clone())
+        scale_diatonic.push(own diatonic_pos.clone())
         step := cast(I64, steps.get(k)?)
         chromatic_pos = chromatic_pos.add(step).mod(12)
         diatonic_pos = diatonic_pos.add(1).mod(7)
@@ -532,13 +532,13 @@ print_triads : proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) =
 
         // Add to appropriate list
         if triad_type.eq("mayor") {
-            mayor_triads.push(triad_str)
+            mayor_triads.push(own triad_str)
         } else if triad_type.eq("menor") {
-            menor_triads.push(triad_str)
+            menor_triads.push(own triad_str)
         } else if triad_type.eq("aumentado") {
-            aumentado_triads.push(triad_str)
+            aumentado_triads.push(own triad_str)
         } else if triad_type.eq("disminuido") {
-            disminuido_triads.push(triad_str)
+            disminuido_triads.push(own triad_str)
         }
 
         degree = degree.add(1)
@@ -655,11 +655,11 @@ print_pentagram : proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec
     while k.lt(8) {
         // Get note name with accidentals
         note := format_note_with(diatonic_pos, chromatic_pos, notes)
-        note_names.push(note)
+        note_names.push(own note)
 
         // Calculate staff position
         staff_pos := get_staff_position(diatonic_pos, octave)
-        note_positions.push(staff_pos)
+        note_positions.push(own staff_pos)
 
         // Move to next note
         if k.lt(7) {

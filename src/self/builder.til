@@ -84,7 +84,7 @@ collect_imports : proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut cont
                                 case Literal.Str(import_path):
                                     file_path := import_path_to_file_path(import_path)
                                     if not(imported.contains(file_path)) {
-                                        _ := imported.insert(file_path.clone())
+                                        _ := imported.insert(own file_path.clone())
                                         // Bug #128: Use already-resolved AST from typer phase if available
                                         mut dep_resolved := Expr()
                                         if context.imported_asts.contains_key(file_path) {
@@ -92,7 +92,7 @@ collect_imports : proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut cont
                                             dep_resolved = dr
                                         } else {
                                             dep_result := parse_file(file_path)?
-                                            context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
+                                            context.imported_asts.set(own file_path.clone(), own dep_result.ast.clone())
                                             dep_resolved = dep_result.ast
                                         }
                                         catch (err: KeyNotFoundError) {
@@ -109,9 +109,9 @@ collect_imports : proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut cont
                                         dep_ufcs := ufcs_expr(context, dep_garbaged)?
                                         dep_ast := precomp_expr(context, dep_ufcs)?
                                         // Update with precompiled version
-                                        context.imported_asts.set(file_path.clone(), dep_ast.clone())
+                                        context.imported_asts.set(own file_path.clone(), own dep_ast.clone())
                                         context.path = saved_path
-                                        all_asts.push(dep_ast)
+                                        all_asts.push(own dep_ast)
                                     }
                                 case:
                                     // REM: not a string literal
@@ -146,7 +146,7 @@ merge_asts : proc(main_ast: Expr, dep_asts: Vec) returns Expr = {
             for child: Expr in dep.params {
                 // Skip import statements
                 if not(is_import_call(child)) {
-                    all_params.push(child.clone())
+                    all_params.push(own child.clone())
                 }
             }
         case:
@@ -159,7 +159,7 @@ merge_asts : proc(main_ast: Expr, dep_asts: Vec) returns Expr = {
     case NodeType.Body:
         for child: Expr in main_ast.params {
             if not(is_import_call(child)) {
-                all_params.push(child.clone())
+                all_params.push(own child.clone())
             }
         }
     case:
@@ -217,7 +217,7 @@ collect_import_paths : proc(ast: Expr, mut collected: Set) = {
                                 case Literal.Str(import_path)?:
                                     file_path := import_path_to_file_path(import_path)
                                     if not(collected.contains(file_path)) {
-                                        _ := collected.insert(file_path.clone())
+                                        _ := collected.insert(own file_path.clone())
                                         // Recursively collect imports from this dependency
                                         dep_result := parse_file(file_path)?
                                         collect_import_paths(dep_result.ast, collected)
@@ -257,7 +257,7 @@ collect_all_deps : proc(path: Str) returns Vec throws Str = {
     mut deps := Set.new(Str)
 
     // Add main file
-    _ := deps.insert(path.clone())
+    _ := deps.insert(own path.clone())
 
     // Parse main file to get its mode and imports
     main_result := parse_file(path)?
@@ -265,7 +265,7 @@ collect_all_deps : proc(path: Str) returns Vec throws Str = {
     // Add core.til and its imports (unless main file IS core.til)?
     core_path := "src/core/core.til"
     if not(path.eq(core_path)) {
-        _ := deps.insert(core_path.clone())
+        _ := deps.insert(own core_path.clone())
         core_result := parse_file(core_path)?
         collect_import_paths(core_result.ast, deps)
     }
@@ -274,7 +274,7 @@ collect_all_deps : proc(path: Str) returns Vec throws Str = {
     for import_str: Str in main_result.mode_def.imports {
         file_path := import_path_to_file_path(import_str)
         if not(deps.contains(file_path)) {
-            _ := deps.insert(file_path.clone())
+            _ := deps.insert(own file_path.clone())
             mode_result := parse_file(file_path)?
             collect_import_paths(mode_result.ast, deps)
             catch (err: Str) {
@@ -289,7 +289,7 @@ collect_all_deps : proc(path: Str) returns Vec throws Str = {
     // Convert Set to Vec
     mut result := Vec.new(Str)
     for dep: Str in deps {
-        result.push(dep.clone())
+        result.push(own dep.clone())
     }
 
     return result
@@ -343,8 +343,8 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
             }
             throw concat("Compiler errors: ", errors.len().to_str()).concat(" type errors in core.til")
         }
-        _ := context.imports_init_done.insert(core_path.clone())
-        _ := context.imports_typer_done.insert(core_path)
+        _ := context.imports_init_done.insert(own core_path.clone())
+        _ := context.imports_typer_done.insert(own core_path)
     }
 
     // Now set the mode to the main file's mode (like interpreter does at interpreter.rs:2610-2611)
@@ -365,8 +365,8 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
         mut import_fcall_expr := Expr()
         import_fcall_expr.node_type = NodeType.FCall(FCallInfo())
         import_fcall_expr.params = Vec.new(Expr)
-        import_fcall_expr.params.push(import_func_name_expr)
-        import_fcall_expr.params.push(import_path_expr)
+        import_fcall_expr.params.push(own import_func_name_expr)
+        import_fcall_expr.params.push(own import_path_expr)
         import_fcall_expr.line = 0
         import_fcall_expr.col = 0
 
@@ -386,14 +386,14 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
 
     // Mark main file as "done" to prevent re-processing via circular imports
     // (like interpreter does at interpreter.rs:2598-2601)
-    _ := context.imports_init_done.insert(path.clone())
-    _ := context.imports_typer_done.insert(path.clone())
+    _ := context.imports_init_done.insert(own path.clone())
+    _ := context.imports_typer_done.insert(own path.clone())
 
     // Run init + typer on the main file (this handles its imports internally)
     errors.clear()
     mut tmp_errors := init_context(context, main_result.ast)?
     for err: Str in tmp_errors {
-        errors.push(err.clone())
+        errors.push(own err.clone())
     }
     if not(errors.is_empty()) {
         for err: Str in errors {
@@ -404,13 +404,13 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
 
     tmp_errors = basic_mode_checks(context, main_result.ast)?
     for err: Str in tmp_errors {
-        errors.push(err.clone())
+        errors.push(own err.clone())
     }
     // Issue #105: Expand struct-returning macros before type checking
     main_result.ast = expand_struct_macros(context, main_result.ast)?
     tmp_errors = check_types(context, main_result.ast)?
     for err: Str in tmp_errors {
-        errors.push(err.clone())
+        errors.push(own err.clone())
     }
     if not(errors.is_empty()) {
         for err: Str in errors {
@@ -423,15 +423,15 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
     // Now that type checking passed, collect all imported files for code generation
     // Each file is precompiled with its own path before merging
     mut imported := Set.new(Str)
-    _ := imported.insert(path.clone())
+    _ := imported.insert(own path.clone())
     // Store main file AST so circular imports can find it during precomp
-    context.imported_asts.set(path.clone(), main_result.ast.clone())
+    context.imported_asts.set(own path.clone(), own main_result.ast.clone())
     mut dep_asts := Vec.new(Expr)
 
     // Collect core.til and its imports
     if not(path.eq(core_path)) {
         codegen_core_result := parse_file(core_path)?
-        _ := imported.insert(core_path.clone())
+        _ := imported.insert(own core_path.clone())
         collect_imports(codegen_core_result.ast, imported, dep_asts, context)?
         // Resolve types + Desugar + UFCS + Precomp core.til with its own path
         core_saved_path := context.path.clone()
@@ -442,14 +442,14 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
         core_ufcs_ast := ufcs_expr(context, core_garbaged)?
         core_precomp_ast := precomp_expr(context, core_ufcs_ast)?
         context.path = core_saved_path
-        dep_asts.push(core_precomp_ast)
+        dep_asts.push(own core_precomp_ast)
     }
 
     // Collect mode imports
     for import_str: Str in context.mode_def.imports.clone() {
         file_path := import_path_to_file_path(import_str)
         if not(imported.contains(file_path)) {
-            _ := imported.insert(file_path.clone())
+            _ := imported.insert(own file_path.clone())
             mode_result := parse_file(file_path)?
             collect_imports(mode_result.ast, imported, dep_asts, context)?
             // Resolve types + Desugar + UFCS + Precomp mode file with its own path
@@ -461,7 +461,7 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
             mode_ufcs_ast := ufcs_expr(context, mode_garbaged)?
             mode_precomp_ast := precomp_expr(context, mode_ufcs_ast)?
             context.path = mode_saved_path
-            dep_asts.push(mode_precomp_ast)
+            dep_asts.push(own mode_precomp_ast)
         }
     }
 
@@ -535,15 +535,15 @@ build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Boo
 
     // Build command with extra args for target
     mut cmd_args := Vec.new(Str)
-    cmd_args.push("-I")
-    cmd_args.push("src")
+    cmd_args.push(own "-I")
+    cmd_args.push(own "src")
     extra_args := toolchain_extra_args(target, lang, compiler)
     for extra_arg: Str in extra_args {
-        cmd_args.push(extra_arg.clone())
+        cmd_args.push(own extra_arg.clone())
     }
-    cmd_args.push(source_output_path.clone())
-    cmd_args.push("-o")
-    cmd_args.push(exe_path_str.clone())
+    cmd_args.push(own source_output_path.clone())
+    cmd_args.push(own "-o")
+    cmd_args.push(own exe_path_str.clone())
 
     // Build full command string with stderr redirected to stdout (like Rust's cmd.output())?
     mut full_cmd := compiler

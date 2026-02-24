@@ -401,7 +401,7 @@ This would make memory/performance work targeted instead of blind.
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
 :IMPACT: Usability, readability, better error messages
-:STATUS: Open
+:STATUS: Part 1 done
 :RELATED: Issue #117 (ASAP destruction), Issue #115 (owned struct fields)
 :END:
 
@@ -432,6 +432,21 @@ println(expr.name)      // ERROR: better message (see Part 2)
 
 Without ~own~ at the call site, the type checker should error:
 "Parameter 'value' of 'Vec.push' requires ownership transfer. Use 'own expr'."
+
+*Part 1 implementation (2026-02-24):*
+
+- Added ~OwnArg~ variant to ~NodeType~ enum (ast.rs, ast.til)
+- Parser: ~parse_args~ recognizes ~own expr~ in call arguments, wraps in ~OwnArg~ node
+- Typer (~check_fcall~): unwraps ~OwnArg~ before type-checking the inner expression,
+  then validates: error if ~own~ param missing ~own~ at call site, error if ~own~ used
+  on non-own param
+- Typer (~check_body_returns_throws~): handles ~OwnArg~ at top level and unwraps
+  ~OwnArg~ in FCall/constructor arg loops so throw tracking sees through the wrapper
+- Typer (~check_types_with_context~, ~is_expr_calling_procs~): added ~OwnArg~ cases
+- Desugarer: unwraps ~OwnArg~ to inner expression (node doesn't survive past desugarer)
+- Guards in ufcs, precomp, interpreter, ccodegen: panic/error if ~OwnArg~ reaches them
+- Updated ~1900 call sites across the entire codebase (core, std, self, test, examples)
+- All 95 tests pass
 
 *Part 2: Better error for consumed variables*
 

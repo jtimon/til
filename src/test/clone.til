@@ -18,9 +18,9 @@ test_str_clone()
 // Test Array.clone()
 test_array_clone : proc() = {
     mut original := Array.new(I64, 3)
-    original.set(0, 10)?
-    original.set(1, 20)?
-    original.set(2, 30)?
+    original.set(0, own 10)?
+    original.set(1, own 20)?
+    original.set(2, own 30)?
 
     mut cloned := original.clone()
 
@@ -35,7 +35,7 @@ test_array_clone : proc() = {
     assert_eq(loc(), 30, val2)
 
     // Modify clone, original should be unchanged
-    cloned.set(0, 999)?
+    cloned.set(0, own 999)?
 
     orig_val := cast(I64, original.get(0)?)
     assert_eq(loc(), 10, orig_val)
@@ -50,9 +50,9 @@ test_array_clone()
 // Test Vec.clone()
 test_vec_clone : proc() = {
     mut original := Vec.new(I64)
-    original.push(10)
-    original.push(20)
-    original.push(30)
+    original.push(own 10)
+    original.push(own 20)
+    original.push(own 30)
 
     mut cloned := original.clone()
 
@@ -62,7 +62,7 @@ test_vec_clone : proc() = {
     assert_eq(loc(), 10, val0)
 
     // Modify clone
-    cloned.push(40)
+    cloned.push(own 40)
     assert_eq(loc(), 4, cloned.len())
     assert_eq(loc(), 3, original.len())
 
@@ -76,9 +76,9 @@ test_vec_clone()
 // Test List.clone()
 test_list_clone : proc() = {
     mut original := List.new()
-    original.push(I64, 42)?
-    original.push(Str, "hello")?
-    original.push(Bool, true)?
+    original.push(I64, own 42)?
+    original.push(Str, own "hello")?
+    original.push(Bool, own true)?
 
     mut cloned := original.clone()?
 
@@ -96,7 +96,7 @@ test_list_clone : proc() = {
     }
 
     // Modify clone
-    cloned.push(I64, 99)?
+    cloned.push(I64, own 99)?
     assert_eq(loc(), 4, cloned.len())
     assert_eq(loc(), 3, original.len())
 
@@ -110,9 +110,9 @@ test_list_clone()
 // Test Map.clone()
 test_map_clone : proc() = {
     mut original := Map.new(Str, I64)
-    original.insert("one", 1)?
-    original.insert("two", 2)?
-    original.insert("three", 3)?
+    original.insert(own "one", own 1)?
+    original.insert(own "two", own 2)?
+    original.insert(own "three", own 3)?
 
     mut cloned := original.clone()
 
@@ -123,7 +123,7 @@ test_map_clone : proc() = {
     assert_eq(loc(), 2, two_val)
 
     // Modify clone
-    cloned.set("one", 999)
+    cloned.set(own "one", own 999)
 
     orig_val := cast(I64, original.get("one")?)
     assert_eq(loc(), 1, orig_val)

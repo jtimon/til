@@ -367,7 +367,7 @@ scan_reserved_words : func(identifier: Str) returns TokenType = {
 
 scan_push_token : proc(mut tokens: Vec, token_type: TokenType, token_str: Str, line: I64, col: I64) = {
     t := Token(token_type=token_type, token_str=token_str, line=line, col=col)
-    tokens.push(t)
+    tokens.push(own t)
 }
 
 scan_tokens : proc(source: Str) returns Vec throws Str = {

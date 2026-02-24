@@ -64,11 +64,11 @@ needs_rebuild : proc(target: Str, deps: Vec) returns Bool = {
 build_rstil : proc() = {
     // Check if rstil needs rebuilding (Rust files - not tracked by til build)
     mut deps := Vec.new(Str)
-    deps.push("src/rstil.rs")
+    deps.push(own "src/rstil.rs")
     rs_files := glob_files("src/rs/*.rs")?
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     catch (err: IOError) { panic(loc(), err.msg) }
-    for f: Str in rs_files { deps.push(f) }
+    for f: Str in rs_files { deps.push(own f) }
 
     if needs_rebuild("bin/rstil", deps).not() {
         return
@@ -88,7 +88,7 @@ build_rstil_til : proc() = {
     // If bin/rstil changed, we must force rebuild even if .til files are unchanged.
     // Bug #141: rstil outputs to bin/rs/ and gen/rs/c/
     mut deps := Vec.new(Str)
-    deps.push("bin/rstil")
+    deps.push(own "bin/rstil")
     mut status := 0
     status = run_stream_cmd("mkdir -p bin/rs")
     cc_flag := get_cc_flag()
@@ -236,12 +236,12 @@ run_diff : proc(file_path: Str) = {
 
 go_build_yourself : proc(args: Vec) = {
     mut deps := Vec.new(Str)
-    deps.push("make.til")
-    deps.push("bin/rstil")
+    deps.push(own "make.til")
+    deps.push(own "bin/rstil")
     std_files := glob_files("src/std/*.til")?
-    for f: Str in std_files { deps.push(f) }
+    for f: Str in std_files { deps.push(own f) }
     core_files := glob_files("src/core/*.til")?
-    for f: Str in core_files { deps.push(f) }
+    for f: Str in core_files { deps.push(own f) }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     catch (err: IOError) { panic(loc(), err.msg) }
@@ -277,7 +277,7 @@ go_build_yourself : proc(args: Vec) = {
 main : proc(args: ..Str) = {
     // Self-rebuild check (before any arg parsing)
     mut args_vec := Vec.new(Str)
-    for arg: Str in args { args_vec.push(arg) }
+    for arg: Str in args { args_vec.push(own arg) }
     go_build_yourself(args_vec)
 
     if args.len().eq(0) {
@@ -292,7 +292,7 @@ main : proc(args: ..Str) = {
         if arg.starts_with("--cc=") {
             g_cc = arg.get_substr(5, arg.len())?
         } else {
-            remaining_args.push(arg)
+            remaining_args.push(own arg)
         }
     }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }

@@ -28,15 +28,15 @@ byte_to_str : func(byte: U8) returns Str = {
 // General whitelist for all modes
 make_allowed_commands : proc() returns Array = {
     mut arr := Array.new(Str, 9)
-    arr.set(0, "ls")?
-    arr.set(1, "mkdir")?
-    arr.set(2, "find")?
-    arr.set(3, "gcc")?
-    arr.set(4, "./bin/rstil")?
-    arr.set(5, "diff")?
-    arr.set(6, "bash")?
-    arr.set(7, "rm")?
-    arr.set(8, "cp")?
+    arr.set(0, own "ls")?
+    arr.set(1, own "mkdir")?
+    arr.set(2, own "find")?
+    arr.set(3, own "gcc")?
+    arr.set(4, own "./bin/rstil")?
+    arr.set(5, own "diff")?
+    arr.set(6, own "bash")?
+    arr.set(7, own "rm")?
+    arr.set(8, own "cp")?
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return arr
 }
@@ -45,8 +45,8 @@ ALLOWED_COMMANDS := make_allowed_commands()
 // More restrictive whitelist for safe_script mode
 make_safe_commands : proc() returns Array = {
     mut arr := Array.new(Str, 2)
-    arr.set(0, "ls")?
-    arr.set(1, "mkdir")?
+    arr.set(0, own "ls")?
+    arr.set(1, own "mkdir")?
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return arr
 }

@@ -224,7 +224,7 @@ glob_files : proc(pattern: Str) returns Vec throws IndexOutOfBoundsError, IOErro
     mut result := Vec.new(Str)
     for f: Str in list_dir(dir)? {
         if f.ends_with(suffix) {
-            result.push(format(dir, "/", f))
+            result.push(own format(dir, "/", f))
         }
     }
     return result

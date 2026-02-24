@@ -20,8 +20,8 @@ make_id : func(name: Str, line: I64, col: I64) returns Expr = {
 /// Create a function call: name(args...)
 make_call : func(name: Str, args: Vec, line: I64, col: I64) returns Expr = {
     mut params := Vec.new(Expr)
-    params.push(make_id(name, line, col))
-    for arg: Expr in args { params.push(arg) }
+    params.push(own make_id(name, line, col))
+    for arg: Expr in args { params.push(own arg) }
     return Expr.new_explicit(NodeType.FCall(FCallInfo()), params, line, col)
 }
 
@@ -43,12 +43,12 @@ make_body : func(stmts: Vec, line: I64, col: I64) returns Expr = {
 /// Create an if expression (with optional else via else_body_ptr)
 make_if : func(cond: Expr, then_body: Expr, else_body_ptr: Ptr, line: I64, col: I64) returns Expr = {
     mut params := Vec.new(Expr)
-    params.push(cond)
-    params.push(then_body)
+    params.push(own cond)
+    params.push(own then_body)
     if not(else_body_ptr.is_null()) {
         mut else_body := Expr()
         else_body_ptr.dereference(Expr, else_body)
-        params.push(else_body)
+        params.push(own else_body)
     }
     return Expr.new_explicit(NodeType.If, params, line, col)
 }
@@ -57,21 +57,21 @@ make_if : func(cond: Expr, then_body: Expr, else_body_ptr: Ptr, line: I64, col: 
 make_decl : func(name: Str, value_type: ValueType, is_mut: Bool, init: Expr, line: I64, col: I64) returns Expr = {
     decl := Declaration(name=name, value_type=value_type, is_mut=is_mut, is_copy=false, is_own=false)
     mut params := Vec.new(Expr)
-    params.push(init)
+    params.push(own init)
     return Expr.new_explicit(NodeType.Declaration(decl), params, line, col)
 }
 
 /// Create an assignment statement
 make_assign : func(name: Str, value: Expr, line: I64, col: I64) returns Expr = {
     mut params := Vec.new(Expr)
-    params.push(value)
+    params.push(own value)
     return Expr.new_explicit(NodeType.Assignment(name), params, line, col)
 }
 
 /// Create an identifier with nested field access: name.field1.field2...
 make_field_access : func(name: Str, fields: Vec, line: I64, col: I64) returns Expr = {
     mut field_params := Vec.new(Expr)
-    for field: Str in fields { field_params.push(make_id(field, line, col)) }
+    for field: Str in fields { field_params.push(own make_id(field, line, col)) }
     return Expr.new_explicit(NodeType.Identifier(name), field_params, line, col)
 }
 
@@ -91,19 +91,19 @@ make_temp_name : func(prefix: Str, func_name: Str, id: I64) returns Str = {
 /// Build: eq(var_name, enum_to_str(case_pattern))
 build_enum_eq_condition : func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr = {
     mut args := Vec.new(Expr)
-    args.push(case_pattern.clone())
+    args.push(own case_pattern.clone())
     case_val_str := make_call("enum_to_str", args, line, col)
     mut eq_args := Vec.new(Expr)
-    eq_args.push(make_id(var_name, line, col))
-    eq_args.push(case_val_str)
+    eq_args.push(own make_id(var_name, line, col))
+    eq_args.push(own case_val_str)
     return make_call("eq", eq_args, line, col)
 }
 
 /// Build: eq(var_name, case_pattern)
 build_eq_condition : func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr = {
     mut args := Vec.new(Expr)
-    args.push(make_id(var_name, line, col))
-    args.push(case_pattern.clone())
+    args.push(own make_id(var_name, line, col))
+    args.push(own case_pattern.clone())
     return make_call("eq", args, line, col)
 }
 
@@ -233,9 +233,9 @@ rename_identifier_in_expr : func(e: Expr, old_name: Str, new_name: Str) returns 
                     case:
                     }
                     if is_id {
-                        new_params.push(p.clone())
+                        new_params.push(own p.clone())
                     } else {
-                        new_params.push(rename_identifier_in_expr(p, old_name, new_name)?)
+                        new_params.push(own rename_identifier_in_expr(p, old_name, new_name)?)
                     }
                 }
                 return Expr.new_clone(e.node_type, e, new_params)
@@ -246,7 +246,7 @@ rename_identifier_in_expr : func(e: Expr, old_name: Str, new_name: Str) returns 
             // Assignment to the variable - rename it
             mut assign_new_params := Vec.new(Expr)
             for p: Expr in e.params {
-                assign_new_params.push(rename_identifier_in_expr(p, old_name, new_name)?)
+                assign_new_params.push(own rename_identifier_in_expr(p, old_name, new_name)?)
             }
             return Expr.new_clone(
                 NodeType.Assignment(new_name),
@@ -275,12 +275,12 @@ rename_identifier_in_expr : func(e: Expr, old_name: Str, new_name: Str) returns 
                 first := cast(Expr, e.params.get(0)?)
                 dont_delete(first)
                 // The initializer is evaluated before the declaration, so rename in it
-                decl_new_params.push(rename_identifier_in_expr(first, old_name, new_name)?)
+                decl_new_params.push(own rename_identifier_in_expr(first, old_name, new_name)?)
                 // Any remaining params (shouldn't exist for Declaration) - don't rename
                 for i in 1..e.params.len() {
                     p := cast(Expr, e.params.get(i)?)
                     dont_delete(p)
-                    decl_new_params.push(p.clone())
+                    decl_new_params.push(own p.clone())
                 }
                 return Expr.new_clone(e.node_type, e, decl_new_params)
             }
@@ -295,7 +295,7 @@ rename_identifier_in_expr : func(e: Expr, old_name: Str, new_name: Str) returns 
     } else {
         mut default_new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            default_new_params.push(rename_identifier_in_expr(p, old_name, new_name)?)
+            default_new_params.push(own rename_identifier_in_expr(p, old_name, new_name)?)
         }
         return Expr.new_clone(e.node_type, e, default_new_params)
     }
@@ -492,8 +492,8 @@ infer_switch_type_from_cases : func(e: Expr) returns Ptr = {
 /// Build: eq(var_name, "literal_str")
 build_str_eq_call : func(var_name: Str, literal_str: Str, line: I64, col: I64) returns Expr = {
     mut args := Vec.new(Expr)
-    args.push(make_id(var_name, line, col))
-    args.push(make_str(literal_str, line, col))
+    args.push(own make_id(var_name, line, col))
+    args.push(own make_str(literal_str, line, col))
     return make_call("eq", args, line, col)
 }
 
@@ -583,14 +583,14 @@ build_case_condition : proc(
                 default_value=Ptr()
             )
             mut binding_decl_params := Vec.new(Expr)
-            binding_decl_params.push(default_val)
+            binding_decl_params.push(own default_val)
             binding_decl_expr := Expr.new_explicit(
                 NodeType.Declaration(binding_decl),
                 binding_decl_params,
                 line,
                 col
             )
-            body_prefix.push(binding_decl_expr)
+            body_prefix.push(own binding_decl_expr)
 
             // Build: enum_get_payload(_switch_expr, PayloadType, _payload_binding_N)
             // The type argument is passed as a Type identifier
@@ -601,11 +601,11 @@ build_case_condition : proc(
             case:
             }
             mut get_payload_args := Vec.new(Expr)
-            get_payload_args.push(make_id(switch_expr_var_name, line, col))
-            get_payload_args.push(make_id(payload_type_name, line, col))
-            get_payload_args.push(make_id(unique_name, line, col))
+            get_payload_args.push(own make_id(switch_expr_var_name, line, col))
+            get_payload_args.push(own make_id(payload_type_name, line, col))
+            get_payload_args.push(own make_id(unique_name, line, col))
             get_payload_call := make_call("enum_get_payload", get_payload_args, line, col)
-            body_prefix.push(get_payload_call)
+            body_prefix.push(own get_payload_call)
 
             // Return rename pair so caller can rename references in the case body
             rename_old_name = original_name
@@ -624,20 +624,20 @@ build_case_condition : proc(
 
         // Build: gteq(_switch_val, low)
         mut gteq_args := Vec.new(Expr)
-        gteq_args.push(make_id(switch_var_name, line, col))
-        gteq_args.push(low)
+        gteq_args.push(own make_id(switch_var_name, line, col))
+        gteq_args.push(own low)
         gteq_call := make_call("gteq", gteq_args, line, col)
 
         // Build: lteq(_switch_val, high)
         mut lteq_args := Vec.new(Expr)
-        lteq_args.push(make_id(switch_var_name, line, col))
-        lteq_args.push(high)
+        lteq_args.push(own make_id(switch_var_name, line, col))
+        lteq_args.push(own high)
         lteq_call := make_call("lteq", lteq_args, line, col)
 
         // Build: and(gteq_call, lteq_call)
         mut and_args := Vec.new(Expr)
-        and_args.push(gteq_call)
-        and_args.push(lteq_call)
+        and_args.push(own gteq_call)
+        and_args.push(own lteq_call)
         condition = make_call("and", and_args, line, col)
         return
 
@@ -738,22 +738,22 @@ build_case_condition : proc(
                             default_value=Ptr()
                         )
                         mut nested_binding_decl_params := Vec.new(Expr)
-                        nested_binding_decl_params.push(nested_default_val)
+                        nested_binding_decl_params.push(own nested_default_val)
                         nested_binding_decl_expr := Expr.new_explicit(
                             NodeType.Declaration(nested_binding_decl),
                             nested_binding_decl_params,
                             line,
                             col
                         )
-                        body_prefix.push(nested_binding_decl_expr)
+                        body_prefix.push(own nested_binding_decl_expr)
 
                         // Build: enum_get_payload(_switch_expr, Type, _inner_payload_N)
                         mut extract_args := Vec.new(Expr)
-                        extract_args.push(make_id(switch_expr_var_name, line, col))
-                        extract_args.push(make_id(inner_type_name, line, col))
-                        extract_args.push(make_id(inner_var_name, line, col))
+                        extract_args.push(own make_id(switch_expr_var_name, line, col))
+                        extract_args.push(own make_id(inner_type_name, line, col))
+                        extract_args.push(own make_id(inner_var_name, line, col))
                         extract_call := make_call("enum_get_payload", extract_args, line, col)
-                        body_prefix.push(extract_call)
+                        body_prefix.push(own extract_call)
 
                         // 3. Build inner_condition: enum_to_str(_inner_var).eq("InnerType.InnerVariant")
                         mut inner_actual_type := ""
@@ -766,12 +766,12 @@ build_case_condition : proc(
 
                         // Build: eq(enum_to_str(_inner_var), "InnerType.InnerVariant")
                         mut inner_enum_to_str_args := Vec.new(Expr)
-                        inner_enum_to_str_args.push(make_id(inner_var_name, line, col))
+                        inner_enum_to_str_args.push(own make_id(inner_var_name, line, col))
                         inner_enum_to_str := make_call("enum_to_str", inner_enum_to_str_args, line, col)
 
                         mut inner_eq_args := Vec.new(Expr)
-                        inner_eq_args.push(inner_enum_to_str)
-                        inner_eq_args.push(make_str(inner_variant_str, line, col))
+                        inner_eq_args.push(own inner_enum_to_str)
+                        inner_eq_args.push(own make_str(inner_variant_str, line, col))
                         inner_condition = make_call("eq", inner_eq_args, line, col)
                         has_inner_condition = true
 
@@ -925,15 +925,15 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
     // First declaration: capture the switch expression
     // Bug #157 fix in ccodegen handles field access on throwing calls properly now
-    decl_exprs.push(make_decl(switch_expr_var_name, switch_expr_var_type, false, desugared_switch_expr.clone(), line, col))
+    decl_exprs.push(own make_decl(switch_expr_var_name, switch_expr_var_type, false, desugared_switch_expr.clone(), line, col))
 
     // For enum switches, add second declaration: _switch_variant := enum_to_str(_switch_expr)
     if is_enum_switch {
         mut enum_to_str_args := Vec.new(Expr)
-        enum_to_str_args.push(make_id(switch_expr_var_name, line, col))
+        enum_to_str_args.push(own make_id(switch_expr_var_name, line, col))
         enum_to_str_call := make_call("enum_to_str", enum_to_str_args, line, col)
 
-        decl_exprs.push(make_decl(switch_var_name, str_to_value_type("Str"), false, enum_to_str_call, line, col))
+        decl_exprs.push(own make_decl(switch_var_name, str_to_value_type("Str"), false, enum_to_str_call, line, col))
     }
 
     // Build the if/else chain from cases
@@ -1007,8 +1007,8 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             default_body = desugared_body
             has_default = true
         } else {
-            cases.push(case_pattern)
-            cases.push(desugared_body)
+            cases.push(own case_pattern)
+            cases.push(own desugared_body)
         }
         i = i.add(2)
     }
@@ -1062,7 +1062,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         mf_sid_str.delete()
 
         // Declare match flag: mut _switch_matched := false
-        stmts.push(make_decl(match_flag_name, ValueType.TCustom("Bool"), true, make_id("false", line, col), line, col))
+        stmts.push(own make_decl(match_flag_name, ValueType.TCustom("Bool"), true, make_id("false", line, col), line, col))
 
         mut nested_case_index := 0
         while nested_case_index.lt(total_cases) {
@@ -1103,7 +1103,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
             // Build: not(_switch_matched)
             mut not_args := Vec.new(Expr)
-            not_args.push(make_id(match_flag_name, line, col))
+            not_args.push(own make_id(match_flag_name, line, col))
             not_matched := make_call("not", not_args, line, col)
 
             // Build: _switch_matched = true
@@ -1114,14 +1114,14 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
                 // Build inner if: if inner_condition { _matched = true; body }
                 mut inner_body_params := Vec.new(Expr)
-                inner_body_params.push(set_matched.clone())
+                inner_body_params.push(own set_matched.clone())
                 switch nested_renamed_case_body.node_type {
                 case NodeType.Body:
                     for bp: Expr in nested_renamed_case_body.params {
-                        inner_body_params.push(bp.clone())
+                        inner_body_params.push(own bp.clone())
                     }
                 case:
-                    inner_body_params.push(nested_renamed_case_body)
+                    inner_body_params.push(own nested_renamed_case_body)
                 }
                 inner_body := make_body(inner_body_params, line, col)
                 inner_if := make_if(nested_inner_condition, inner_body, Ptr(), line, col)
@@ -1129,55 +1129,55 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 // Build outer body: body_prefix + inner_if
                 mut outer_body_params := Vec.new(Expr)
                 for pp: Expr in nested_body_prefix {
-                    outer_body_params.push(pp)
+                    outer_body_params.push(own pp)
                 }
-                outer_body_params.push(inner_if)
+                outer_body_params.push(own inner_if)
                 outer_body := make_body(outer_body_params, line, col)
 
                 // Build: and(not(_matched), outer_condition)
                 mut nested_guarded_args := Vec.new(Expr)
-                nested_guarded_args.push(not_matched)
-                nested_guarded_args.push(nested_condition)
+                nested_guarded_args.push(own not_matched)
+                nested_guarded_args.push(own nested_condition)
                 nested_guarded_condition := make_call("and", nested_guarded_args, line, col)
 
                 outer_if := make_if(nested_guarded_condition, outer_body, Ptr(), line, col)
-                stmts.push(outer_if)
+                stmts.push(own outer_if)
             } else {
                 // Simple pattern: if !matched && condition { matched = true; body }
                 mut nested_full_body_params := Vec.new(Expr)
-                nested_full_body_params.push(set_matched)
+                nested_full_body_params.push(own set_matched)
                 if nested_body_prefix.len().eq(0) {
                     switch nested_renamed_case_body.node_type {
                     case NodeType.Body:
                         for bp: Expr in nested_renamed_case_body.params {
-                            nested_full_body_params.push(bp.clone())
+                            nested_full_body_params.push(own bp.clone())
                         }
                     case:
-                        nested_full_body_params.push(nested_renamed_case_body)
+                        nested_full_body_params.push(own nested_renamed_case_body)
                     }
                 } else {
                     for pp: Expr in nested_body_prefix {
-                        nested_full_body_params.push(pp)
+                        nested_full_body_params.push(own pp)
                     }
                     switch nested_renamed_case_body.node_type {
                     case NodeType.Body:
                         for bp: Expr in nested_renamed_case_body.params {
-                            nested_full_body_params.push(bp.clone())
+                            nested_full_body_params.push(own bp.clone())
                         }
                     case:
-                        nested_full_body_params.push(nested_renamed_case_body)
+                        nested_full_body_params.push(own nested_renamed_case_body)
                     }
                 }
                 full_body := make_body(nested_full_body_params, line, col)
 
                 // Build: and(not(_matched), condition)
                 mut simple_guarded_args := Vec.new(Expr)
-                simple_guarded_args.push(not_matched)
-                simple_guarded_args.push(nested_condition)
+                simple_guarded_args.push(own not_matched)
+                simple_guarded_args.push(own nested_condition)
                 simple_guarded_condition := make_call("and", simple_guarded_args, line, col)
 
                 case_if := make_if(simple_guarded_condition, full_body, Ptr(), line, col)
-                stmts.push(case_if)
+                stmts.push(own case_if)
             }
 
             nested_case_index.inc()
@@ -1185,19 +1185,19 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
         // Default case: if !matched { default_body }
         mut not_final_args := Vec.new(Expr)
-        not_final_args.push(make_id(match_flag_name, line, col))
+        not_final_args.push(own make_id(match_flag_name, line, col))
         not_matched_final := make_call("not", not_final_args, line, col)
 
         default_if := make_if(not_matched_final, default_expr, Ptr(), line, col)
-        stmts.push(default_if)
+        stmts.push(own default_if)
 
         // Combine: declarations + match flag + guarded ifs + guarded default
         mut body_params := Vec.new(Expr)
         for de: Expr in decl_exprs {
-            body_params.push(de)
+            body_params.push(own de)
         }
         for se: Expr in stmts {
-            body_params.push(se)
+            body_params.push(own se)
         }
 
         return make_body(body_params, line, col)
@@ -1251,15 +1251,15 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         if rev_body_prefix.len().gt(0) {
             mut rev_full_body_params := Vec.new(Expr)
             for pp: Expr in rev_body_prefix {
-                rev_full_body_params.push(pp)
+                rev_full_body_params.push(own pp)
             }
             switch rev_renamed_case_body.node_type {
             case NodeType.Body:
                 for bp: Expr in rev_renamed_case_body.params {
-                    rev_full_body_params.push(bp.clone())
+                    rev_full_body_params.push(own bp.clone())
                 }
             case:
-                rev_full_body_params.push(rev_renamed_case_body)
+                rev_full_body_params.push(own rev_renamed_case_body)
             }
             full_case_body = make_body(rev_full_body_params, line, col)
         }
@@ -1273,9 +1273,9 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     // Wrap in outer body with declarations and if/else chain
     mut rev_body_params := Vec.new(Expr)
     for de: Expr in decl_exprs {
-        rev_body_params.push(de)
+        rev_body_params.push(own de)
     }
-    rev_body_params.push(result_expr)
+    rev_body_params.push(own result_expr)
 
     catch (err: IndexOutOfBoundsError) {
         throw format("desugar_switch: IndexOutOfBoundsError: ", err.msg)
@@ -1321,7 +1321,7 @@ build_default_value : func(context: Context, vt: ValueType, line: I64, col: I64)
                     panic(loc(), "variants.get(0): len > 0 checked: ", err.msg)
                 }
                 mut variant_id_params := Vec.new(Expr)
-                variant_id_params.push(make_id(first_variant, line, col))
+                variant_id_params.push(own make_id(first_variant, line, col))
                 enum_id := Expr.new_explicit(NodeType.Identifier(type_name), variant_id_params, line, col)
                 if not(NULL.eq(payload_type_ptr.data)) {
                     // Variant has a payload - need FCall with default value (recursive)
@@ -1329,8 +1329,8 @@ build_default_value : func(context: Context, vt: ValueType, line: I64, col: I64)
                     memcpy(to_ptr(payload_vt), payload_type_ptr.data, size_of(ValueType))
                     default_arg := build_default_value(context, payload_vt, line, col)
                     mut enum_call_args := Vec.new(Expr)
-                    enum_call_args.push(enum_id)
-                    enum_call_args.push(default_arg)
+                    enum_call_args.push(own enum_id)
+                    enum_call_args.push(own default_arg)
                     return Expr.new_explicit(NodeType.FCall(FCallInfo()), enum_call_args, line, col)
                 } else {
                     // Variant has no payload - just the identifier chain
@@ -1339,13 +1339,13 @@ build_default_value : func(context: Context, vt: ValueType, line: I64, col: I64)
             } else {
                 // Empty enum - fall back to struct-like constructor (shouldn't happen)
                 mut empty_args := Vec.new(Expr)
-                empty_args.push(make_id(type_name, line, col))
+                empty_args.push(own make_id(type_name, line, col))
                 return Expr.new_explicit(NodeType.FCall(FCallInfo()), empty_args, line, col)
             }
         } else {
             // Not an enum - use struct-like constructor: TYPE()
             mut struct_args := Vec.new(Expr)
-            struct_args.push(make_id(type_name, line, col))
+            struct_args.push(own make_id(type_name, line, col))
             return Expr.new_explicit(NodeType.FCall(FCallInfo()), struct_args, line, col)
         }
     case:
@@ -1412,13 +1412,13 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
 
     // Build len(collection) - already desugared form
     mut len_args := Vec.new(Expr)
-    len_args.push(collection_expr.clone())
+    len_args.push(own collection_expr.clone())
     len_call_expr := make_call("len", len_args, e.line, e.col)
 
     // Build lt(_for_i, len_result) - already desugared form
     mut cond_args := Vec.new(Expr)
-    cond_args.push(make_id(index_var_name, e.line, e.col))
-    cond_args.push(len_call_expr)
+    cond_args.push(own make_id(index_var_name, e.line, e.col))
+    cond_args.push(own len_call_expr)
     cond_expr := make_call("lt", cond_args, e.line, e.col)
 
     // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
@@ -1429,7 +1429,7 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
 
     // Build _err_forin_N.msg (identifier with field access)
     mut msg_fields := Vec.new(Str)
-    msg_fields.push("msg")
+    msg_fields.push(own "msg")
     err_msg_expr := make_field_access(catch_err_var, msg_fields, e.line, e.col)
 
     // Build loc() call
@@ -1437,27 +1437,27 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
 
     // Build panic(loc(), _err_forin_N.msg)
     mut panic_args := Vec.new(Expr)
-    panic_args.push(loc_call)
-    panic_args.push(err_msg_expr)
+    panic_args.push(own loc_call)
+    panic_args.push(own err_msg_expr)
     panic_call := make_call("panic", panic_args, e.line, e.col)
 
     // Build catch body
     mut catch_body_stmts := Vec.new(Expr)
-    catch_body_stmts.push(panic_call)
+    catch_body_stmts.push(own panic_call)
     catch_body := make_body(catch_body_stmts, e.line, e.col)
 
     // Catch structure: [name_expr, type_expr, body_expr]
     mut catch_params := Vec.new(Expr)
-    catch_params.push(make_id(catch_err_var, e.line, e.col))
-    catch_params.push(make_id("IndexOutOfBoundsError", e.line, e.col))
-    catch_params.push(catch_body)
+    catch_params.push(own make_id(catch_err_var, e.line, e.col))
+    catch_params.push(own make_id("IndexOutOfBoundsError", e.line, e.col))
+    catch_params.push(own catch_body)
     catch_expr := Expr.new_explicit(NodeType.Catch, catch_params, e.line, e.col)
 
     // Build: _for_i = add(_for_i, 1)
     // Already desugared form - no UFCS resolution needed
     mut add_args := Vec.new(Expr)
-    add_args.push(make_id(index_var_name, e.line, e.col))
-    add_args.push(make_num("1", e.line, e.col))
+    add_args.push(own make_id(index_var_name, e.line, e.col))
+    add_args.push(own make_num("1", e.line, e.col))
     add_call := make_call("add", add_args, e.line, e.col)
 
     inc_stmt := make_assign(index_var_name, add_call, e.line, e.col)
@@ -1466,22 +1466,22 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
     // Build: _ref_forin_N := get(collection, _for_i)
     ref_var_name := make_temp_name("_ref_forin", context.current_precomp_func, forin_id)
     mut get_args := Vec.new(Expr)
-    get_args.push(collection_expr.clone())
-    get_args.push(make_id(index_var_name, e.line, e.col))
+    get_args.push(own collection_expr.clone())
+    get_args.push(own make_id(index_var_name, e.line, e.col))
     get_call := make_call("get", get_args, e.line, e.col)
     ref_decl := make_decl(ref_var_name, ValueType.TCustom("Ptr"), false, get_call, e.line, e.col)
 
     // Build: item := cast(Type, _ref_forin_N)
     mut cast_args := Vec.new(Expr)
-    cast_args.push(make_id(var_type_name, e.line, e.col))
-    cast_args.push(make_id(ref_var_name, e.line, e.col))
+    cast_args.push(own make_id(var_type_name, e.line, e.col))
+    cast_args.push(own make_id(ref_var_name, e.line, e.col))
     cast_call := make_call("cast", cast_args, e.line, e.col)
     cast_decl := make_decl(var_name, ValueType.TCustom(var_type_name), false, cast_call, e.line, e.col)
 
     mut while_body_params := Vec.new(Expr)
-    while_body_params.push(ref_decl)
-    while_body_params.push(catch_expr)
-    while_body_params.push(cast_decl)
+    while_body_params.push(own ref_decl)
+    while_body_params.push(own catch_expr)
+    while_body_params.push(own cast_decl)
 
     // Bug #57 fix: Transform continue statements to include increment before continue
     transformed_body := transform_continue_with_step(body_expr, inc_stmt)
@@ -1489,24 +1489,24 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
     switch transformed_body.node_type {
     case NodeType.Body:
         for p: Expr in transformed_body.params {
-            while_body_params.push(p.clone())
+            while_body_params.push(own p.clone())
         }
     case:
-        while_body_params.push(transformed_body)
+        while_body_params.push(own transformed_body)
     }
-    while_body_params.push(inc_stmt.clone())
+    while_body_params.push(own inc_stmt.clone())
     while_body := make_body(while_body_params, e.line, e.col)
 
     // Build while: while _for_i.lt(collection.len()) { ... }
     mut while_params := Vec.new(Expr)
-    while_params.push(cond_expr)
-    while_params.push(while_body)
+    while_params.push(own cond_expr)
+    while_params.push(own while_body)
     while_expr := Expr.new_explicit(NodeType.While, while_params, e.line, e.col)
 
     // Build outer body: index_decl, while
     mut outer_body_params := Vec.new(Expr)
-    outer_body_params.push(index_decl_expr)
-    outer_body_params.push(while_expr)
+    outer_body_params.push(own index_decl_expr)
+    outer_body_params.push(own while_expr)
 
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -1518,17 +1518,17 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
 // catch (err_var: error_type) { panic(loc(), err_var.msg) }
 build_bang_catch : func(err_var: Str, error_type: Str, line: I64, col: I64) returns Expr = {
     mut panic_args := Vec.new(Expr)
-    panic_args.push(make_call("loc", Vec.new(Expr), line, col))
+    panic_args.push(own make_call("loc", Vec.new(Expr), line, col))
     mut msg_fields := Vec.new(Str)
-    msg_fields.push("msg")
-    panic_args.push(make_field_access(err_var, msg_fields, line, col))
+    msg_fields.push(own "msg")
+    panic_args.push(own make_field_access(err_var, msg_fields, line, col))
     panic_call := make_call("panic", panic_args, line, col)
     mut catch_params := Vec.new(Expr)
-    catch_params.push(make_id(err_var, line, col))
-    catch_params.push(make_id(error_type, line, col))
+    catch_params.push(own make_id(err_var, line, col))
+    catch_params.push(own make_id(error_type, line, col))
     mut panic_body_stmts := Vec.new(Expr)
-    panic_body_stmts.push(panic_call)
-    catch_params.push(make_body(panic_body_stmts, line, col))
+    panic_body_stmts.push(own panic_call)
+    catch_params.push(own make_body(panic_body_stmts, line, col))
     return Expr.new_explicit(NodeType.Catch, catch_params, line, col)
 }
 
@@ -1582,11 +1582,11 @@ clear_bang_flag : func(e: Expr) returns Expr = {
         return e.clone()
     case NodeType.Declaration(_decl):
         mut decl_new_params := Vec.new(Expr)
-        for p: Expr in e.params { decl_new_params.push(clear_bang_flag(p)) }
+        for p: Expr in e.params { decl_new_params.push(own clear_bang_flag(p)) }
         return Expr.new_clone(e.node_type, e, decl_new_params)
     case NodeType.Assignment(_name):
         mut assign_new_params := Vec.new(Expr)
-        for p: Expr in e.params { assign_new_params.push(clear_bang_flag(p)) }
+        for p: Expr in e.params { assign_new_params.push(own clear_bang_flag(p)) }
         return Expr.new_clone(e.node_type, e, assign_new_params)
     case:
         return e.clone()
@@ -1609,7 +1609,7 @@ desugar_bang_in_body : proc(context: Context, stmts: Vec) returns Vec throws Str
                 col := stmt.col
                 // Replace ! with ? (clear is_bang flag)
                 cleared_stmt := clear_bang_flag(stmt)
-                result.push(cleared_stmt)
+                result.push(own cleared_stmt)
                 // Generate catch blocks for each thrown type
                 mut ti := 0
                 while ti.lt(throw_types.len()) {
@@ -1617,17 +1617,17 @@ desugar_bang_in_body : proc(context: Context, stmts: Vec) returns Vec throws Str
                     switch throw_type {
                     case ValueType.TCustom(type_name):
                         err_var := format("_bang_err_", to_str(ti))
-                        result.push(build_bang_catch(err_var, type_name, line, col))
+                        result.push(own build_bang_catch(err_var, type_name, line, col))
                     case:
                     }
                     ti.inc()
                 }
             } else {
                 // Function not found in scope -- leave as-is, typer will catch the error
-                result.push(stmt)
+                result.push(own stmt)
             }
         } else {
-            result.push(stmt)
+            result.push(own stmt)
         }
         stmt_i.inc()
     }
@@ -1674,60 +1674,60 @@ desugar_defer_in_scope : proc(stmts: Vec, parent_defers: Vec, func_name: Str, mu
             // Collect deferred expression, don't emit the defer node
             if stmt.params.len().gt(0) {
                 deferred_expr := cast(Expr, stmt.params.get(0)?)
-                scope_defers.push(deferred_expr.clone())
+                scope_defers.push(own deferred_expr.clone())
             }
         case NodeType.Return:
             ret_line := stmt.line
             ret_col := stmt.col
             // Build all active defers: parent + scope, reversed for LIFO
             mut ret_all_defers := Vec.new(Expr)
-            for pd: Expr in parent_defers { ret_all_defers.push(pd.clone()) }
-            for sd: Expr in scope_defers { ret_all_defers.push(sd.clone()) }
+            for pd: Expr in parent_defers { ret_all_defers.push(own pd.clone()) }
+            for sd: Expr in scope_defers { ret_all_defers.push(own sd.clone()) }
 
             if stmt.params.len().gt(0) {
                 // Has return value -- hoist to temp var
                 temp_name := make_temp_name("_defer_ret", func_name, ret_counter)
                 ret_counter.inc()
                 return_value := cast(Expr, stmt.params.get(0)?)
-                result.push(make_decl(temp_name, ret_type.clone(), false, return_value.clone(), ret_line, ret_col))
+                result.push(own make_decl(temp_name, ret_type.clone(), false, return_value.clone(), ret_line, ret_col))
                 // Insert all defers in LIFO order
                 mut ret_di := ret_all_defers.len().sub(1)
                 while ret_di.gteq(0) {
                     ret_d := cast(Expr, ret_all_defers.get(ret_di)?)
-                    result.push(ret_d.clone())
+                    result.push(own ret_d.clone())
                     ret_di = ret_di.sub(1)
                 }
                 // Return the temp
                 mut ret_params := Vec.new(Expr)
-                ret_params.push(make_id(temp_name, ret_line, ret_col))
-                result.push(Expr.new_explicit(NodeType.Return, ret_params, ret_line, ret_col))
+                ret_params.push(own make_id(temp_name, ret_line, ret_col))
+                result.push(own Expr.new_explicit(NodeType.Return, ret_params, ret_line, ret_col))
             } else {
                 // No return value -- just insert defers
                 mut noret_di := ret_all_defers.len().sub(1)
                 while noret_di.gteq(0) {
                     noret_d := cast(Expr, ret_all_defers.get(noret_di)?)
-                    result.push(noret_d.clone())
+                    result.push(own noret_d.clone())
                     noret_di = noret_di.sub(1)
                 }
-                result.push(stmt.clone())
+                result.push(own stmt.clone())
             }
         case NodeType.Throw:
             // Insert all defers before throw
             mut throw_all_defers := Vec.new(Expr)
-            for pd: Expr in parent_defers { throw_all_defers.push(pd.clone()) }
-            for sd: Expr in scope_defers { throw_all_defers.push(sd.clone()) }
+            for pd: Expr in parent_defers { throw_all_defers.push(own pd.clone()) }
+            for sd: Expr in scope_defers { throw_all_defers.push(own sd.clone()) }
             mut throw_di := throw_all_defers.len().sub(1)
             while throw_di.gteq(0) {
                 throw_d := cast(Expr, throw_all_defers.get(throw_di)?)
-                result.push(throw_d.clone())
+                result.push(own throw_d.clone())
                 throw_di = throw_di.sub(1)
             }
-            result.push(stmt.clone())
+            result.push(own stmt.clone())
         case NodeType.If:
             // Recurse into if/else bodies, passing current defers as parent context
             mut if_child_parent_defers := Vec.new(Expr)
-            for pd: Expr in parent_defers { if_child_parent_defers.push(pd.clone()) }
-            for sd: Expr in scope_defers { if_child_parent_defers.push(sd.clone()) }
+            for pd: Expr in parent_defers { if_child_parent_defers.push(own pd.clone()) }
+            for sd: Expr in scope_defers { if_child_parent_defers.push(own sd.clone()) }
             mut if_new_params := Vec.new(Expr)
             for p: Expr in stmt.params {
                 mut if_is_body := false
@@ -1738,7 +1738,7 @@ desugar_defer_in_scope : proc(stmts: Vec, parent_defers: Vec, func_name: Str, mu
                 }
                 if if_is_body {
                     if_new_inner := desugar_defer_in_scope(p.params, if_child_parent_defers, func_name, ret_counter, ret_type)?
-                    if_new_params.push(Expr.new_clone(p.node_type, p, if_new_inner))
+                    if_new_params.push(own Expr.new_clone(p.node_type, p, if_new_inner))
                 } else {
                     // Check for else-if chains (If inside If)
                     mut if_is_nested_if := false
@@ -1750,30 +1750,30 @@ desugar_defer_in_scope : proc(stmts: Vec, parent_defers: Vec, func_name: Str, mu
                     if if_is_nested_if {
                         // Recurse into else-if chains
                         mut if_wrapper := Vec.new(Expr)
-                        if_wrapper.push(p.clone())
+                        if_wrapper.push(own p.clone())
                         if_nested_result := desugar_defer_in_scope(if_wrapper, if_child_parent_defers, func_name, ret_counter, ret_type)?
                         if if_nested_result.len().eq(1) {
                             if_nested_first := cast(Expr, if_nested_result.get(0)?)
-                            if_new_params.push(if_nested_first)
+                            if_new_params.push(own if_nested_first)
                         } else {
-                            if_new_params.push(Expr.new_clone(NodeType.Body, p, if_nested_result))
+                            if_new_params.push(own Expr.new_clone(NodeType.Body, p, if_nested_result))
                         }
                     } else {
-                        if_new_params.push(p.clone()) // Condition -- don't touch
+                        if_new_params.push(own p.clone()) // Condition -- don't touch
                     }
                 }
             }
-            result.push(Expr.new_clone(stmt.node_type, stmt, if_new_params))
+            result.push(own Expr.new_clone(stmt.node_type, stmt, if_new_params))
         case NodeType.While:
             // Recurse into while body
             mut while_child_parent_defers := Vec.new(Expr)
-            for pd: Expr in parent_defers { while_child_parent_defers.push(pd.clone()) }
-            for sd: Expr in scope_defers { while_child_parent_defers.push(sd.clone()) }
+            for pd: Expr in parent_defers { while_child_parent_defers.push(own pd.clone()) }
+            for sd: Expr in scope_defers { while_child_parent_defers.push(own sd.clone()) }
             mut while_new_params := Vec.new(Expr)
             mut wi := 0
             for p: Expr in stmt.params {
                 if wi.eq(0) {
-                    while_new_params.push(p.clone()) // Condition -- don't touch
+                    while_new_params.push(own p.clone()) // Condition -- don't touch
                 } else {
                     mut while_is_body := false
                     switch p.node_type {
@@ -1783,26 +1783,26 @@ desugar_defer_in_scope : proc(stmts: Vec, parent_defers: Vec, func_name: Str, mu
                     }
                     if while_is_body {
                         while_new_inner := desugar_defer_in_scope(p.params, while_child_parent_defers, func_name, ret_counter, ret_type)?
-                        while_new_params.push(Expr.new_clone(p.node_type, p, while_new_inner))
+                        while_new_params.push(own Expr.new_clone(p.node_type, p, while_new_inner))
                     } else {
-                        while_new_params.push(p.clone())
+                        while_new_params.push(own p.clone())
                     }
                 }
                 wi.inc()
             }
-            result.push(Expr.new_clone(stmt.node_type, stmt, while_new_params))
+            result.push(own Expr.new_clone(stmt.node_type, stmt, while_new_params))
         case NodeType.Body:
             // Recurse into Body nodes (e.g., from switch desugaring)
             mut body_child_parent_defers := Vec.new(Expr)
-            for pd: Expr in parent_defers { body_child_parent_defers.push(pd.clone()) }
-            for sd: Expr in scope_defers { body_child_parent_defers.push(sd.clone()) }
+            for pd: Expr in parent_defers { body_child_parent_defers.push(own pd.clone()) }
+            for sd: Expr in scope_defers { body_child_parent_defers.push(own sd.clone()) }
             body_new_inner := desugar_defer_in_scope(stmt.params, body_child_parent_defers, func_name, ret_counter, ret_type)?
-            result.push(Expr.new_clone(stmt.node_type, stmt, body_new_inner))
+            result.push(own Expr.new_clone(stmt.node_type, stmt, body_new_inner))
         case NodeType.FuncDef(_func_def):
             // Don't descend into nested function definitions
-            result.push(stmt.clone())
+            result.push(own stmt.clone())
         case:
-            result.push(stmt.clone())
+            result.push(own stmt.clone())
         }
         si.inc()
     }
@@ -1811,7 +1811,7 @@ desugar_defer_in_scope : proc(stmts: Vec, parent_defers: Vec, func_name: Str, mu
     mut end_di := scope_defers.len().sub(1)
     while end_di.gteq(0) {
         end_d := cast(Expr, scope_defers.get(end_di)?)
-        result.push(end_d.clone())
+        result.push(own end_d.clone())
         end_di = end_di.sub(1)
     }
 
@@ -1862,7 +1862,7 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
         mut new_body := Vec.new(Expr)
         for stmt: Expr in func_def.body {
-            new_body.push(desugar_expr(context, stmt)?)
+            new_body.push(own desugar_expr(context, stmt)?)
         }
         // Issue #180: Desugar bang calls in function body
         new_body = desugar_bang_in_body(context, new_body)?
@@ -1898,7 +1898,7 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         while struct_i.lt(struct_def.default_values.keys.len()) {
             name := cast(Str, struct_def.default_values.keys.get(struct_i)?)
             value_expr := cast(Expr, struct_def.default_values.get(name)?)
-            new_default_values.set(name, desugar_expr(context, value_expr)?)
+            new_default_values.set(own name, own desugar_expr(context, value_expr)?)
             struct_i.inc()
         }
         // Process ns default_values
@@ -1907,7 +1907,7 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         while ns_i.lt(struct_def.ns.default_values.keys.len()) {
             ns_name := cast(Str, struct_def.ns.default_values.keys.get(ns_i)?)
             ns_value_expr := cast(Expr, struct_def.ns.default_values.get(ns_name)?)
-            ns_new_default_values.set(ns_name, desugar_expr(context, ns_value_expr)?)
+            ns_new_default_values.set(own ns_name, own desugar_expr(context, ns_value_expr)?)
             ns_i.inc()
         }
         new_ns := NamespaceDef(
@@ -1926,7 +1926,7 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         while enum_ns_i.lt(enum_def.ns.default_values.keys.len()) {
             enum_ns_name := cast(Str, enum_def.ns.default_values.keys.get(enum_ns_i)?)
             enum_ns_value_expr := cast(Expr, enum_def.ns.default_values.get(enum_ns_name)?)
-            enum_ns_new_default_values.set(enum_ns_name, desugar_expr(context, enum_ns_value_expr)?)
+            enum_ns_new_default_values.set(own enum_ns_name, own desugar_expr(context, enum_ns_value_expr)?)
             enum_ns_i.inc()
         }
         enum_new_ns := NamespaceDef(
@@ -1963,7 +1963,7 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         mut new_params := Vec.new(Expr)
         if e.params.len().gt(0) {
             for p: Expr in e.params {
-                new_params.push(desugar_expr(context, p)?)
+                new_params.push(own desugar_expr(context, p)?)
             }
         }
 
@@ -1992,11 +1992,16 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         } else {
             mut new_stmts := Vec.new(Expr)
             for p: Expr in e.params {
-                new_stmts.push(desugar_expr(context, p)?)
+                new_stmts.push(own desugar_expr(context, p)?)
             }
             new_stmts = desugar_bang_in_body(context, new_stmts)?
             return Expr.new_clone(e.node_type, e, new_stmts)
         }
+    // Issue #185: Unwrap OwnArg -- pass through to inner expression
+    case NodeType.OwnArg:
+        own_inner := cast(Expr, e.params.get(0)?)
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        return desugar_expr(context, own_inner)?
     // For all other nodes, recurse into params
     case:
         if e.params.len().eq(0) {
@@ -2004,15 +2009,12 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         } else {
             mut default_new_params := Vec.new(Expr)
             for p: Expr in e.params {
-                default_new_params.push(desugar_expr(context, p)?)
+                default_new_params.push(own desugar_expr(context, p)?)
             }
             return Expr.new_clone(e.node_type, e, default_new_params)
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("desugar_expr: IndexOutOfBoundsError: ", err.msg)
-    }
     catch (err: KeyNotFoundError) {
         throw format("desugar_expr: KeyNotFoundError: ", err.msg)
     }

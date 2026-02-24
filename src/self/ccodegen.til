@@ -21,8 +21,8 @@ sort_enum_variants : proc(mut v: Vec) = {
             curr := cast(EnumVariant, v.get(i)?)
             if gt(prev.name.cmp(curr.name), 0) {
                 tmp := EnumVariant.clone(prev)
-                v.set(i.sub(1), curr)?
-                v.set(i, tmp)?
+                v.set(i.sub(1), own curr)?
+                v.set(i, own tmp)?
                 new_n = i
             }
             catch (err: IndexOutOfBoundsError) {
@@ -174,7 +174,7 @@ collect_return_exprs : proc(stmts: Vec, mut out: Vec) = {
     for expr: Expr in stmts {
         switch expr.node_type {
         case NodeType.Return:
-            out.push(expr.clone())
+            out.push(own expr.clone())
         case NodeType.FuncDef(_):
             // Skip nested function bodies - their returns belong to them
         case:
@@ -338,11 +338,11 @@ get_func_name_string : func(first_param: Expr) returns Str throws KeyNotFoundErr
         } else {
             mut parts := Vec.new(Str)
             defer parts.delete()
-            parts.push(name)
+            parts.push(own name)
             for p: Expr in first_param.params {
                 switch p.node_type {
                 case NodeType.Identifier(part_name):
-                    parts.push(part_name)
+                    parts.push(own part_name)
                 case:
                 }
             }
@@ -367,11 +367,11 @@ get_til_func_name_string : func(first_param: Expr) returns Str throws KeyNotFoun
             // Build dotted name from nested identifiers
             mut parts := Vec.new(Str)
             defer parts.delete()
-            parts.push(name)
+            parts.push(own name)
             for p: Expr in first_param.params {
                 switch p.node_type {
                 case NodeType.Identifier(part_name):
-                    parts.push(part_name)
+                    parts.push(own part_name)
                 case:
                 }
             }
@@ -475,7 +475,7 @@ get_struct_dependencies : func(expr: Expr) returns Vec = {
                 for member: Declaration in struct_def.members {
                     if member.is_mut {
                         dep := get_field_type_dependency(member.value_type)?
-                        deps.push(dep)
+                        deps.push(own dep)
                         catch (err: KeyNotFoundError) {
                             // REM: Not a custom type dependency, skip
                         }
@@ -531,7 +531,7 @@ get_enum_dependencies : func(expr: Expr) returns Vec = {
                         case ValueType.TCustom(type_name):
                             // Skip primitives (but NOT Str or Bool - they're structs)
                             if not(type_name.eq("I64")).and(not(type_name.eq("U8"))).and(not(type_name.eq("Dynamic"))).and(not(type_name.eq("Type"))) {
-                                deps.push(type_name.clone())
+                                deps.push(own type_name.clone())
                             }
                         case:
                         }
@@ -601,7 +601,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
     while idx.lt(types.len()) {
         expr := cast(Expr, types.get(idx)?)
         name := get_type_name(expr)?
-        name_to_idx.set(name, idx.clone())
+        name_to_idx.set(own name, own idx.clone())
         catch (err: KeyNotFoundError) {
             // REM: Not a type declaration, skip
         }
@@ -613,7 +613,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
     defer deps.delete()
     mut i := 0
     while i.lt(types.len()) {
-        deps.push(Vec.new(I64))
+        deps.push(own Vec.new(I64))
         i.inc()
     }
     idx = 0
@@ -625,7 +625,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
             dep_idx := cast(I64, name_to_idx.get(dep_name)?)
             if not(dep_idx.eq(idx)) {
                 mut dep_vec := cast(Vec, deps.get(idx)?)
-                dep_vec.push(dep_idx)
+                dep_vec.push(own dep_idx)
             }
             catch (err: KeyNotFoundError) {
                 // Expected: not all dep names are in the type list
@@ -640,7 +640,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
     defer reverse_deps.delete()
     i = 0
     while i.lt(types.len()) {
-        reverse_deps.push(Vec.new(I64))
+        reverse_deps.push(own Vec.new(I64))
         i.inc()
     }
     idx = 0
@@ -648,7 +648,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
         dep_list := cast(Vec, deps.get(idx)?)
         for dep: I64 in dep_list {
             mut rev_dep_vec := cast(Vec, reverse_deps.get(dep)?)
-            rev_dep_vec.push(idx)
+            rev_dep_vec.push(own idx)
         }
         idx.inc()
     }
@@ -658,13 +658,13 @@ topological_sort_types : func(types: Vec) returns Vec = {
     defer in_degree.delete()
     i = 0
     while i.lt(types.len()) {
-        in_degree.push(0)
+        in_degree.push(own 0)
         i.inc()
     }
     for dep_list: Vec in reverse_deps {
         for dep: I64 in dep_list {
             degree := cast(I64, in_degree.get(dep)?)
-            in_degree.set(dep, I64.add(degree, 1))?
+            in_degree.set(dep, own I64.add(degree, 1))?
         }
     }
 
@@ -674,7 +674,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
     while idx.lt(in_degree.len()) {
         queue_degree := cast(I64, in_degree.get(idx)?)
         if queue_degree.eq(0) {
-            queue.push(idx)
+            queue.push(own idx)
         }
         idx.inc()
     }
@@ -683,14 +683,14 @@ topological_sort_types : func(types: Vec) returns Vec = {
     while not(queue.is_empty()) {
         mut pop_idx := 0
         queue.pop(pop_idx)?
-        result.push(pop_idx.clone())
+        result.push(own pop_idx.clone())
         rev_dep_list := cast(Vec, reverse_deps.get(pop_idx)?)
         for next: I64 in rev_dep_list {
             next_degree := cast(I64, in_degree.get(next)?)
             mut new_degree := I64.sub(next_degree, 1)
-            in_degree.set(next, new_degree.clone())?
+            in_degree.set(next, own new_degree.clone())?
             if new_degree.eq(0) {
-                queue.push(next)
+                queue.push(own next)
             }
         }
     }
@@ -707,7 +707,7 @@ topological_sort_types : func(types: Vec) returns Vec = {
                 }
             }
             if not(found) {
-                result.push(idx)
+                result.push(own idx)
             }
             idx.inc()
         }
@@ -751,7 +751,7 @@ hoist_variadic_args : proc(elem_type: Str, variadic_args: Vec, already_hoisted: 
         hoisted_idx := add(regular_count, i)
         temp := cast(Str, already_hoisted.get(hoisted_idx)?)
         // Already hoisted, use that temp
-        arg_temps.push(temp)
+        arg_temps.push(own temp)
         catch (err: KeyNotFoundError) {
             // Need to hoist into a temp
             // Bug #143: Use emit_arg_string to properly handle nested FCalls that need by-ref
@@ -764,7 +764,7 @@ hoist_variadic_args : proc(elem_type: Str, variadic_args: Vec, already_hoisted: 
             output.push_str(" = ")
             output.push_str(arg_str)
             output.push_str(";\n")
-            arg_temps.push(temp_var)
+            arg_temps.push(own temp_var)
         }
         i.inc()
     }
@@ -1289,7 +1289,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
                 }
             }
             nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
-            nested_arg_strings.push(nested_str)
+            nested_arg_strings.push(own nested_str)
             i.inc()
             arg_idx.inc()
         }
@@ -1343,7 +1343,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
         mut vi := variadic_info.regular_count
         while vi.lt(nested_arg_strings.len()) {
             vas := cast(Str, nested_arg_strings.get(vi)?)
-            variadic_arg_strings.push(vas)
+            variadic_arg_strings.push(own vas)
             vi.inc()
         }
         variadic_arr_var = emit_variadic_array_with_strings(variadic_info.elem_type, variadic_arg_strings, hoist_output, indent, ctx)
@@ -1603,7 +1603,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
                 }
             }
             nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
-            nested_arg_strings.push(nested_str)
+            nested_arg_strings.push(own nested_str)
             i.inc()
             arg_idx.inc()
         }
@@ -1632,7 +1632,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
     mut vai := vi.regular_count
     while vai.lt(nested_arg_strings.len()) {
         vas := cast(Str, nested_arg_strings.get(vai)?)
-        variadic_arg_strings.push(vas)
+        variadic_arg_strings.push(own vas)
         vai.inc()
     }
     variadic_arr_var := emit_variadic_array_with_strings(vi.elem_type, variadic_arg_strings, hoist_output, indent, ctx)
@@ -1743,7 +1743,7 @@ emit_variadic_array_with_strings : proc(elem_type: Str, arg_strings: Vec, mut ou
         output.push_str(" = ")
         output.push_str(arg_str)
         output.push_str(";\n")
-        arg_temps.push(temp_var)
+        arg_temps.push(own temp_var)
         asi.inc()
     }
 
@@ -1859,7 +1859,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
                 }
                 // Process the value with emit_arg_string
                 value_str := emit_arg_string(value_expr, field_type, false, hoist_output, indent, ctx, context)?
-                field_values.set(field_name, value_str)
+                field_values.set(own field_name, own value_str)
             }
         case:
         }
@@ -2102,7 +2102,7 @@ emit_fcall_arg_string : proc(arg: Expr, mut hoist_output: Str, indent: I64, mut 
                 }
             }
             nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
-            nested_arg_strings.push(nested_str)
+            nested_arg_strings.push(own nested_str)
             i.inc()
             arg_idx.inc()
         }
@@ -2435,7 +2435,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
         defer type_decls.delete()
         for child: Expr in ast.params {
             if is_struct_declaration(child).or(is_enum_declaration(child).and(is_enum_with_payloads(child))) {
-                type_decls.push(child)
+                type_decls.push(own child)
             }
         }
         mut sorted_indices := topological_sort_types(type_decls)
@@ -2704,7 +2704,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
                     // Bug #97: Use type-mangled name
                     // Note: decl.value_type should be resolved by typer (not INFER_TYPE)
                     type_prefix := value_type_to_c_prefix(decl.value_type)
-                    _ := ctx.declared_vars.insert(til_var_name(decl.name, type_prefix))
+                    _ := ctx.declared_vars.insert(own til_var_name(decl.name, type_prefix))
                 case:
                 }
             }
@@ -2730,7 +2730,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
             case:
             }
             if not(skip).and(not(is_func_declaration(child))).and(not(is_struct_declaration(child))).and(not(is_enum_declaration(child))).and(not(is_constant_declaration(child))) {
-                main_stmts.push(child)
+                main_stmts.push(own child)
             }
         }
 
@@ -3044,7 +3044,7 @@ emit_global_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenCont
             output.push_str(";\n")
 
             // Track that this variable has been declared globally
-            _ := ctx.declared_vars.insert(var_name)
+            _ := ctx.declared_vars.insert(own var_name)
         }
     case:
     }
@@ -3069,7 +3069,7 @@ collect_func_info : proc(expr: Expr, mut ctx: CodegenContext) = {
                         mut info := VariadicParamInfo()
                         info.elem_type = elem_type.clone()
                         info.regular_count = idx
-                        ctx.func_variadic_args.set(decl.name.clone(), info)
+                        ctx.func_variadic_args.set(own decl.name.clone(), own info)
                         break // Only one variadic arg per function
                     case:
                     }
@@ -3096,13 +3096,13 @@ collect_nested_func_info : proc(expr: Expr, mut ctx: CodegenContext, context: Co
                 if not(parent_func_name.eq("")) {
                     // This is a nested function - record it for hoisting
                     mangled_name := parent_func_name.concat("_").concat(decl.name)
-                    ctx.nested_func_names.set(decl.name.clone(), mangled_name.clone())
+                    ctx.nested_func_names.set(own decl.name.clone(), own mangled_name.clone())
 
                     // Generate prototype using emit_func_signature (handles throwing functions properly)
                     mut proto := ""
                     emit_func_signature(til_name(mangled_name), func_def, context, proto)?
                     proto.push_str(";\n")
-                    ctx.hoisted_prototypes.push(proto)
+                    ctx.hoisted_prototypes.push(own proto)
 
                     // Recursively check for nested functions within this nested function
                     new_parent := mangled_name.clone()
@@ -3247,7 +3247,7 @@ emit_struct_constants : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 output.push_str(struct_name)
                 output.push_str(");\n")
                 // Track this type for til_size_of function generation
-                ctx.known_types.push(decl.name.clone())
+                ctx.known_types.push(own decl.name.clone())
                 return
             case:
             }
@@ -3278,7 +3278,7 @@ emit_enum_size_of_constant : proc(expr: Expr, mut output: Str, mut ctx: CodegenC
                 output.push_str(enum_name)
                 output.push_str(");\n")
                 // Track this type for til_size_of function generation
-                ctx.known_types.push(decl.name.clone())
+                ctx.known_types.push(own decl.name.clone())
             case:
             }
         }
@@ -3386,7 +3386,7 @@ emit_precomputed_vec_static : proc(mut output: Str, mut ctx: CodegenContext, con
 
     output.push_str("};\n")
 
-    _ := ctx.declared_vars.insert(c_var_name)
+    _ := ctx.declared_vars.insert(own c_var_name)
 }
 
 // Recursive helper to emit static arrays for Vec contents
@@ -3468,7 +3468,7 @@ emit_precomputed_vec_recursive : proc(mut output: Str, mut ctx: CodegenContext, 
     }
 
     // Store info for later use when emitting assignments in main()
-    ctx.precomputed_static_arrays.set(var_name.clone(), PrecomputedStaticInfo(
+    ctx.precomputed_static_arrays.set(own var_name.clone(), own PrecomputedStaticInfo(
         data_array_name=data_array_name
     ))
 
@@ -3516,9 +3516,9 @@ emit_precomputed_nested_vec_static : proc(mut output: Str, mut ctx: CodegenConte
                     byte_ptr := g_heap.get(elem_offset.add(j), 1)
                     mut byte_val : U8 = 0
                     Ptr(data=byte_ptr).dereference(U8, byte_val)
-                    bytes.push(byte_val)
+                    bytes.push(own byte_val)
                 }
-                inner_element_bytes.push(bytes)
+                inner_element_bytes.push(own bytes)
             }
 
             inner_contents := VecContents(
@@ -3532,7 +3532,7 @@ emit_precomputed_nested_vec_static : proc(mut output: Str, mut ctx: CodegenConte
         }
         // TODO: Handle List and other nested types
 
-        inner_data_names.push(format("_precomp_", inner_var_name, "_data"))
+        inner_data_names.push(own format("_precomp_", inner_var_name, "_data"))
     }
 
     // Second pass: emit the outer array of structs with patched pointers
@@ -3759,7 +3759,7 @@ emit_enum_with_payloads : proc(enum_name: Str, enum_def: EnumDef, mut output: St
     mut variants := Vec.new(EnumVariant)
     defer variants.delete()
     for v: EnumVariant in enum_def.variants {
-        variants.push(v.clone())
+        variants.push(own v.clone())
     }
     sort_enum_variants(variants)
 
@@ -3897,7 +3897,7 @@ emit_enum_declaration : proc(expr: Expr, mut output: Str) throws Str = {
                 // Sort variants by name for deterministic output
                 mut variants := Vec.new(Str)
                 for v: EnumVariant in enum_def.variants {
-                    variants.push(v.name)
+                    variants.push(own v.name)
                 }
                 sort_str_vec(variants)
 
@@ -3955,7 +3955,7 @@ emit_enum_to_str_function : proc(enum_name: Str, enum_def: EnumDef, mut output: 
     mut variants := Vec.new(Str)
     defer variants.delete()
     for v: EnumVariant in enum_def.variants {
-        variants.push(v.name)
+        variants.push(own v.name)
     }
     sort_str_vec(variants)
 
@@ -4108,12 +4108,12 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: Fu
     for func_def_arg: Declaration in func_def.sig.args {
         // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
         if not(func_def_arg.is_copy) {
-            _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
+            _ := ctx.current_ref_params.insert(own func_def_arg.name.clone())
         }
         switch func_def_arg.value_type {
         case ValueType.TMulti(elem_type):
             // elem_type is the type name string like "Bool"
-            ctx.current_variadic_params.set(func_def_arg.name.clone(), til_name(elem_type))
+            ctx.current_variadic_params.set(own func_def_arg.name.clone(), own til_name(elem_type))
         case:
         }
     }
@@ -4129,9 +4129,9 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: Fu
         info.is_copy = func_def_arg.is_copy
         info.is_own = func_def_arg.is_own
         info.is_comptime_const = false
-        function_frame.symbols.set(func_def_arg.name.clone(), info)
+        function_frame.symbols.set(own func_def_arg.name.clone(), own info)
     }
-    context.scope_stack.frames.push(function_frame)
+    context.scope_stack.frames.push(own function_frame)
 
     // Clear declared_vars for new function scope
     ctx.declared_vars.clear()
@@ -4161,7 +4161,7 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: Fu
     // Bug #168: Pre-scan for return variable placement optimization
     ctx.ret_var_alias = find_ret_var_for_placement(func_def)
     if not(ctx.ret_var_alias.is_empty()) {
-        _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
+        _ := ctx.current_ref_params.insert(own ctx.ret_var_alias.clone())
     }
 
     // Issue #117: Hoist struct locals for catch-safe deletion
@@ -4340,9 +4340,9 @@ collect_struct_locals_inner : proc(stmts: Vec, mut local_vars: Vec, mut local_ty
                         catch (err: IndexOutOfBoundsError) { }
                     }
                     if not(is_cast).and(not(seen.contains(decl.name))) {
-                        _ := seen.insert(decl.name.clone())
-                        local_vars.push(decl.name.clone())
-                        local_types.push(type_name.clone())
+                        _ := seen.insert(own decl.name.clone())
+                        local_vars.push(own decl.name.clone())
+                        local_types.push(own type_name.clone())
                     }
                 case:
                 }
@@ -4400,7 +4400,7 @@ emit_hoisted_locals : proc(stmts: Vec, mut output: Str, mut ctx: CodegenContext)
         output.push_str(" ")
         output.push_str(c_var_name.clone())
         output.push_str(" = {};\n")
-        _ := ctx.declared_vars.insert(c_var_name)
+        _ := ctx.declared_vars.insert(own c_var_name)
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -4801,13 +4801,13 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                         case:
                         }
                         if not(is_fptr) {
-                            _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
+                            _ := ctx.current_ref_params.insert(own func_def_arg.name.clone())
                         }
                     }
                     switch func_def_arg.value_type {
                     case ValueType.TMulti(elem_type):
                         // elem_type is the type name string like "Bool"
-                        ctx.current_variadic_params.set(func_def_arg.name.clone(), til_name(elem_type))
+                        ctx.current_variadic_params.set(own func_def_arg.name.clone(), own til_name(elem_type))
                     case:
                     }
                 }
@@ -4830,9 +4830,9 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                     info.is_copy = func_def_arg.is_copy
                     info.is_own = func_def_arg.is_own
                     info.is_comptime_const = false
-                    function_frame.symbols.set(func_def_arg.name.clone(), info)
+                    function_frame.symbols.set(own func_def_arg.name.clone(), own info)
                 }
-                context.scope_stack.frames.push(function_frame)
+                context.scope_stack.frames.push(own function_frame)
 
                 // Clear declared_vars for new function scope
                 ctx.declared_vars.clear()
@@ -4862,7 +4862,7 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 // Bug #168: Pre-scan for return variable placement optimization
                 ctx.ret_var_alias = find_ret_var_for_placement(func_def)
                 if not(ctx.ret_var_alias.is_empty()) {
-                    _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
+                    _ := ctx.current_ref_params.insert(own ctx.ret_var_alias.clone())
                 }
 
                 // Issue #117: Hoist struct locals for catch-safe deletion
@@ -5062,6 +5062,8 @@ emit_expr : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenConte
         throw expr.lang_error(context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")
     case NodeType.Defer:
         throw expr.lang_error(context.path, "ccodegen", "Defer should have been desugared by desugarer phase")
+    case NodeType.OwnArg:
+        throw expr.lang_error(context.path, "ccodegen", "OwnArg should have been desugared by desugarer phase")
     case:
     }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -5133,7 +5135,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                         output.push_str(" ")
                         output.push_str(c_var_name)
                         output.push_str(";\n")
-                        _ := ctx.declared_vars.insert(c_var_name)
+                        _ := ctx.declared_vars.insert(own c_var_name)
                         // Also register in scope_stack so get_value_type can find it
                         mut sym_info := SymbolInfo()
                         sym_info.value_type = decl.value_type
@@ -5167,7 +5169,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                     entry.type_name = scan_err_type_name.clone()
                     entry.label = concat("_catch_", scan_err_type_name).concat("_").concat(catch_suffix)
                     entry.temp_var = concat("_thrown_", scan_err_type_name).concat("_").concat(catch_suffix)
-                    all_catch_info.push(entry)
+                    all_catch_info.push(own entry)
                 case:
                 }
             }
@@ -5192,11 +5194,11 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
     defer registered_types.delete()
     for catch_entry: CatchLabelInfoEntry in all_catch_info {
         if not(registered_types.contains(catch_entry.type_name)) {
-            _ := registered_types.insert(catch_entry.type_name.clone())
+            _ := registered_types.insert(own catch_entry.type_name.clone())
             mut cli := CatchLabelInfo()
             cli.label = catch_entry.label.clone()
             cli.temp_var = catch_entry.temp_var.clone()
-            ctx.local_catch_labels.set(catch_entry.type_name.clone(), cli)
+            ctx.local_catch_labels.set(own catch_entry.type_name.clone(), own cli)
         }
     }
 
@@ -5235,7 +5237,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                     if catch_entry_found {
                         // Only emit if we haven't already emitted this label
                         if not(emitted_catch_labels.contains(catch_entry_label)) {
-                            _ := emitted_catch_labels.insert(catch_entry_label.clone())
+                            _ := emitted_catch_labels.insert(own catch_entry_label.clone())
 
                             output.push_str(indent_str)
                             output.push_str("if (0) { ")
@@ -5302,7 +5304,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                                     mut next_info := CatchLabelInfo()
                                     next_info.label = next_entry.label.clone()
                                     next_info.temp_var = next_entry.temp_var.clone()
-                                    ctx.local_catch_labels.set(stmt_err_type_name.clone(), next_info)
+                                    ctx.local_catch_labels.set(own stmt_err_type_name.clone(), own next_info)
                                     break
                                 }
                             }
@@ -5383,7 +5385,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                     next_stmt := cast(Expr, stmts.get(j)?)
                     switch next_stmt.node_type {
                     case NodeType.Catch:
-                        catch_blocks.push(next_stmt)
+                        catch_blocks.push(own next_stmt)
                         j.inc()
                     case:
                         break
@@ -5414,7 +5416,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                             mut next_cli := CatchLabelInfo()
                             next_cli.label = catch_entry.label.clone()
                             next_cli.temp_var = catch_entry.temp_var.clone()
-                            next_catches.set(catch_entry.type_name.clone(), next_cli)
+                            next_catches.set(own catch_entry.type_name.clone(), own next_cli)
                         }
                     }
                     // Replace local_catch_labels with only the next catches
@@ -5427,7 +5429,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                         mut local_cli := CatchLabelInfo()
                         local_cli.label = catch_info.label.clone()
                         local_cli.temp_var = catch_info.temp_var.clone()
-                        ctx.local_catch_labels.set(type_name.clone(), local_cli)
+                        ctx.local_catch_labels.set(own type_name.clone(), own local_cli)
                     }
                     emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)?
                     i.inc()
@@ -5506,7 +5508,7 @@ prescan_func_level_catches : func(stmts: Vec) returns Vec = {
     for stmt: Expr in stmts {
         switch stmt.node_type {
         case NodeType.Catch:
-            catches.push(stmt)
+            catches.push(own stmt)
         case:
         }
     }
@@ -5550,7 +5552,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
                 }
             }
             arg_str := emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?
-            arg_strings.push(arg_str)
+            arg_strings.push(own arg_str)
             i.inc()
             arg_idx.inc()
         }
@@ -5561,7 +5563,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
     mut vi := regular_count
     while vi.lt(arg_strings.len()) {
         vas := cast(Str, arg_strings.get(vi)?)
-        variadic_arg_strings.push(vas)
+        variadic_arg_strings.push(own vas)
         vi.inc()
     }
     variadic_arr_var := emit_variadic_array_with_strings(elem_type, variadic_arg_strings, output, indent, ctx)
@@ -5652,7 +5654,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
             output.push_str(variadic_arr_var)
             output.push_str(");\n")
 
-            _ := ctx.declared_vars.insert(variadic_c_var_name)
+            _ := ctx.declared_vars.insert(own variadic_c_var_name)
         }
     } else if not(assign_name.eq("")) {
         // Assignment
@@ -5797,7 +5799,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
                 }
             }
             arg_str := emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?
-            arg_strings.push(arg_str)
+            arg_strings.push(own arg_str)
             i.inc()
             arg_idx.inc()
         }
@@ -5847,7 +5849,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
             output.push_str(throw_c_var_name.clone())
             output.push_str(";\n")
         }
-        _ := ctx.declared_vars.insert(throw_c_var_name)
+        _ := ctx.declared_vars.insert(own throw_c_var_name)
     }
 
     // Bug #168: Try to write directly to destination instead of intermediate _ret_N
@@ -5894,7 +5896,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
     mut vi_j := vi_regular_count
     while vi_j.lt(arg_strings.len()) {
         vi_as := cast(Str, arg_strings.get(vi_j)?)
-        variadic_arg_strings.push(vi_as)
+        variadic_arg_strings.push(own vi_as)
         vi_j.inc()
     }
     variadic_arr_var = emit_variadic_array_with_strings(vi_info.elem_type, variadic_arg_strings, output, indent, ctx)
@@ -6216,7 +6218,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
                 }
             }
             arg_str := emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?
-            arg_strings.push(arg_str)
+            arg_strings.push(own arg_str)
             i.inc()
             arg_idx.inc()
         }
@@ -6263,7 +6265,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
             output.push_str(throwing_decl_c_var.clone())
             output.push_str(";\n")
         }
-        _ := ctx.declared_vars.insert(throwing_decl_c_var)
+        _ := ctx.declared_vars.insert(own throwing_decl_c_var)
     }
 
     // Bug #168: Try to write directly to destination instead of intermediate _ret_N
@@ -6311,7 +6313,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
     mut va_j := prop_vi_regular_count
     while va_j.lt(arg_strings.len()) {
         va_s := cast(Str, arg_strings.get(va_j)?)
-        variadic_arg_strings.push(va_s)
+        variadic_arg_strings.push(own va_s)
         va_j.inc()
     }
     variadic_arr_var = emit_variadic_array_with_strings(prop_vi2.elem_type, variadic_arg_strings, output, indent, ctx)
@@ -6536,7 +6538,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
                 }
             }
             arg_str := emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?
-            arg_strings.push(arg_str)
+            arg_strings.push(own arg_str)
             i.inc()
             arg_idx.inc()
         }
@@ -6583,7 +6585,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
             output.push_str(throwing_decl_c_var.clone())
             output.push_str(";\n")
         }
-        _ := ctx.declared_vars.insert(throwing_decl_c_var)
+        _ := ctx.declared_vars.insert(own throwing_decl_c_var)
     }
 
     // Bug #168: Try to write directly to destination instead of intermediate _ret_N
@@ -6631,7 +6633,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
     mut va_j := goto_vi_regular_count
     while va_j.lt(arg_strings.len()) {
         va_s := cast(Str, arg_strings.get(va_j)?)
-        variadic_arg_strings.push(va_s)
+        variadic_arg_strings.push(own va_s)
         va_j.inc()
     }
     variadic_arr_var = emit_variadic_array_with_strings(goto_vi2.elem_type, variadic_arg_strings, output, indent, ctx)
@@ -6845,7 +6847,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 mangled_name.push_str(decl.name)
 
                 // Register the name mapping so function calls can find it
-                ctx.nested_func_names.set(decl.name.clone(), mangled_name.clone())
+                ctx.nested_func_names.set(own decl.name.clone(), own mangled_name.clone())
 
                 // Register function definition so get_value_type can resolve return types
                 context.scope_stack.declare_func(decl.name.clone(), func_def.clone())?
@@ -6854,7 +6856,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 mut proto_output := ""
                 emit_func_signature(til_name(mangled_name), func_def, context, proto_output)?
                 proto_output.push_str(";\n")
-                ctx.hoisted_prototypes.push(proto_output)
+                ctx.hoisted_prototypes.push(own proto_output)
 
                 // Generate the hoisted function definition
                 mut func_output := ""
@@ -6877,11 +6879,11 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 // Bug #60: Track ref and variadic params - all non-copy args are by pointer
                 for func_def_arg: Declaration in func_def.sig.args {
                     if not(func_def_arg.is_copy) {
-                        _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
+                        _ := ctx.current_ref_params.insert(own func_def_arg.name.clone())
                     }
                     switch func_def_arg.value_type {
                     case ValueType.TMulti(elem_type):
-                        ctx.current_variadic_params.set(func_def_arg.name.clone(), til_name(elem_type))
+                        ctx.current_variadic_params.set(own func_def_arg.name.clone(), own til_name(elem_type))
                     case:
                         // REM: not variadic
                     }
@@ -6904,9 +6906,9 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                     nested_symbol_info.is_copy = func_def_arg.is_copy
                     nested_symbol_info.is_own = func_def_arg.is_own
                     nested_symbol_info.is_comptime_const = false
-                    function_frame.symbols.set(func_def_arg.name.clone(), nested_symbol_info)
+                    function_frame.symbols.set(own func_def_arg.name.clone(), own nested_symbol_info)
                 }
-                context.scope_stack.frames.push(function_frame)
+                context.scope_stack.frames.push(own function_frame)
 
                 // Emit the function
                 emit_func_signature(til_name(mangled_name), func_def, context, func_output)?
@@ -6926,7 +6928,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 // Bug #168: Pre-scan for return variable placement optimization
                 ctx.ret_var_alias = find_ret_var_for_placement(func_def)
                 if not(ctx.ret_var_alias.is_empty()) {
-                    _ := ctx.current_ref_params.insert(ctx.ret_var_alias.clone())
+                    _ := ctx.current_ref_params.insert(own ctx.ret_var_alias.clone())
                 }
 
                 // Issue #117: Hoist struct locals for catch-safe deletion
@@ -6968,7 +6970,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 ctx.mangling_counter = prev_mangling_counter
                 ctx.ret_var_alias = prev_ret_var_alias
 
-                ctx.hoisted_functions.push(func_output)
+                ctx.hoisted_functions.push(own func_output)
 
                 // Don't emit anything at the declaration site - the function is hoisted
                 return
@@ -7028,7 +7030,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 output.push_str("* ")
                 output.push_str(cast_c_var_name)
                 output.push_str(";\n")
-                _ := ctx.current_ref_params.insert(decl.name.clone())
+                _ := ctx.current_ref_params.insert(own decl.name.clone())
                 // Bug #177: Cast variables can't be ret_var_alias targets
                 if not(ctx.ret_var_alias.is_empty()) {
                     if decl.name.eq(ctx.ret_var_alias) {
@@ -7205,7 +7207,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
     mut is_ret_alias := false
     if not(ctx.ret_var_alias.is_empty()) {
         if name.eq(ctx.ret_var_alias).and(not(already_declared)) {
-            _ := ctx.declared_vars.insert(orig_c_var_name)
+            _ := ctx.declared_vars.insert(own orig_c_var_name)
             already_declared = true
             is_ret_alias = true
         }
@@ -7233,7 +7235,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                     if not(named_arg.params.is_empty()) {
                         named_value_expr := cast(Expr, named_arg.params.get(0)?)
                         dont_delete(named_value_expr)
-                        named_values.set(field_name.clone(), named_value_expr.clone())
+                        named_values.set(own field_name.clone(), own named_value_expr.clone())
                     }
                 case:
                     // REM: not a named arg
@@ -7252,7 +7254,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(c_var_name.clone())
+                _ := ctx.declared_vars.insert(own c_var_name.clone())
             }
             output.push_str(c_var_name.clone())
             emit_struct_literal_assign(output, struct_type, already_declared, "{}")
@@ -7263,7 +7265,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(c_var_name.clone())
+                _ := ctx.declared_vars.insert(own c_var_name.clone())
             }
             output.push_str(c_var_name.clone())
             emit_struct_literal_assign(output, struct_type, already_declared, "{0}")
@@ -7317,7 +7319,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                         output.push_str(" = ")
                         output.push_str(call_str)
                         output.push_str(";\n")
-                        hoisted_values.insert(member.name.clone(), temp_var)?
+                        hoisted_values.insert(own member.name.clone(), own temp_var)?
                         catch (err: DuplicatedKeyError) {
                             // Should not happen - each member name is unique
                         }
@@ -7330,7 +7332,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(c_var_name.clone())
+                _ := ctx.declared_vars.insert(own c_var_name.clone())
             }
             output.push_str(c_var_name.clone())
             emit_struct_literal_start(output, struct_type, already_declared)
@@ -7375,7 +7377,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 // Issue #117: No const for struct locals - garbager inserts Type.delete() calls
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(c_var_name.clone())
+                _ := ctx.declared_vars.insert(own c_var_name.clone())
             }
             output.push_str(c_var_name.clone())
             emit_struct_literal_assign(output, struct_type, already_declared, "{0}")
@@ -7387,7 +7389,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
             // Issue #117: No const for enum locals - garbager inserts Type.delete() calls
             output.push_str(til_name(enum_type))
             output.push_str(" ")
-            _ := ctx.declared_vars.insert(c_var_name.clone())
+            _ := ctx.declared_vars.insert(own c_var_name.clone())
         }
         output.push_str(c_var_name.clone())
         output.push_str(" = ")
@@ -7414,7 +7416,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 }
                 output.push_str(c_type)
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(c_var_name.clone())
+                _ := ctx.declared_vars.insert(own c_var_name.clone())
             }
             output.push_str(c_var_name.clone())
             if not(expr.params.is_empty()) {
@@ -7458,7 +7460,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 }
                 output.push_str(const_c_type)
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(c_var_name.clone())
+                _ := ctx.declared_vars.insert(own c_var_name.clone())
             }
             output.push_str(c_var_name.clone())
             if not(expr.params.is_empty()) {
@@ -7819,7 +7821,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     while va_idx.lt(return_expr.params.len()) {
                         va_arg := cast(Expr, return_expr.params.get(va_idx)?)
                         dont_delete(va_arg)
-                        variadic_args.push(va_arg)
+                        variadic_args.push(own va_arg)
                         va_idx.inc()
                     }
                     empty_hoisted := Map.new(I64, Str)
@@ -7831,7 +7833,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     while ra_idx.lt(add(1, variadic_fcall_info.regular_count)).and(ra_idx.lt(return_expr.params.len())) {
                         ra_arg := cast(Expr, return_expr.params.get(ra_idx)?)
                         dont_delete(ra_arg)
-                        regular_args.push(ra_arg)
+                        regular_args.push(own ra_arg)
                         ra_idx.inc()
                     }
                     var_fd := get_fcall_func_def(context, return_expr)?
@@ -7859,7 +7861,7 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                             }
                         }
                         arg_str := emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?
-                        regular_arg_strings.push(arg_str)
+                        regular_arg_strings.push(own arg_str)
                         i.inc()
                     }
 
@@ -8182,7 +8184,7 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
             output.push_str(" ")
             output.push_str(c_var_name.clone())
             output.push_str(";\n")
-            _ := ctx.declared_vars.insert(c_var_name)
+            _ := ctx.declared_vars.insert(own c_var_name)
             // Also register in scope_stack so get_value_type can find it
             mut sym_info := SymbolInfo()
             sym_info.value_type = decl.value_type
@@ -8210,7 +8212,7 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
                 output.push_str(" ")
                 output.push_str(else_c_var_name.clone())
                 output.push_str(";\n")
-                _ := ctx.declared_vars.insert(else_c_var_name)
+                _ := ctx.declared_vars.insert(own else_c_var_name)
                 // Also register in scope_stack so get_value_type can find it
                 mut else_sym_info := SymbolInfo()
                 else_sym_info.value_type = else_decl.value_type
@@ -8317,7 +8319,7 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             output.push_str(" ")
             output.push_str(c_var_name.clone())
             output.push_str(";\n")
-            _ := ctx.declared_vars.insert(c_var_name)
+            _ := ctx.declared_vars.insert(own c_var_name)
             // Also register in scope_stack so get_value_type can find it
             mut sym_info := SymbolInfo()
             sym_info.value_type = decl.value_type
@@ -8486,7 +8488,7 @@ collect_declarations_recursive : proc(expr: Expr, mut decls: Vec, mut collected:
         }
         value_type := decl.value_type
         // Track this declaration for future lookups (both in collected and scope_stack)
-        collected.set(decl.name.clone(), value_type.clone())
+        collected.set(own decl.name.clone(), own value_type.clone())
         // Also add to scope_stack so get_value_type can find it for subsequent declarations
         mut symbol_info := SymbolInfo()
         symbol_info.value_type = value_type
@@ -8498,7 +8500,7 @@ collect_declarations_recursive : proc(expr: Expr, mut decls: Vec, mut collected:
         mut collected_decl := CollectedDeclaration()
         collected_decl.name = decl.name.clone()
         collected_decl.value_type = value_type
-        decls.push(collected_decl)
+        decls.push(own collected_decl)
     case NodeType.Body:
         for stmt: Expr in expr.params {
             collect_declarations_recursive(stmt, decls, collected, context)?
@@ -8602,7 +8604,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                     if not(na_arg.params.is_empty()) {
                         na_value_expr := cast(Expr, na_arg.params.get(0)?)
                         dont_delete(na_value_expr)
-                        named_values.set(field_name.clone(), na_value_expr.clone())
+                        named_values.set(own field_name.clone(), own na_value_expr.clone())
                     }
                 case:
                     // REM: not a named arg
@@ -8685,7 +8687,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             } else {
                 pi.by_ref = param_needs_by_ref(fd_arg)
             }
-            param_info.push(pi)
+            param_info.push(own pi)
         }
         catch (err: KeyNotFoundError) {
             // Handle builtins that don't have function definitions
@@ -8695,7 +8697,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 builtin_pi.value_type = ValueType.TCustom("Dynamic")
                 builtin_pi.has_value_type = true
                 builtin_pi.by_ref = false
-                param_info.push(builtin_pi)
+                param_info.push(own builtin_pi)
             }
         }
         mut prep_i := 0
@@ -8718,7 +8720,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 }
             }
             prep_arg_str := emit_arg_string(prep_arg, prep_param_type, prep_by_ref, output, indent, ctx, context)?
-            arg_strings.push(prep_arg_str)
+            arg_strings.push(own prep_arg_str)
             prep_i.inc()
             prep_arg_idx.inc()
         }
@@ -9134,7 +9136,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         mut vi := regular_count
         while vi.lt(arg_strings.len()) {
             varg_str := cast(Str, arg_strings.get(vi)?)
-            variadic_arg_strings.push(varg_str)
+            variadic_arg_strings.push(own varg_str)
             vi.inc()
         }
         variadic_arr_var = emit_variadic_array_with_strings(elem_type, variadic_arg_strings, output, indent, ctx)
@@ -9239,7 +9241,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 } else {
                     var_pi.by_ref = param_needs_by_ref(fd_arg)
                 }
-                var_param_info.push(var_pi)
+                var_param_info.push(own var_pi)
             }
             catch (err: KeyNotFoundError) {
                 // REM: function not found
@@ -9324,7 +9326,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 } else {
                     nv_pi.by_ref = param_needs_by_ref(fd_arg)
                 }
-                nv_param_info.push(nv_pi)
+                nv_param_info.push(own nv_pi)
             }
             catch (err: KeyNotFoundError) {
                 // REM: function not found
@@ -9345,7 +9347,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                     nexpr_type_arg_name = ""
                 }
                 if not(nexpr_type_arg_name.is_empty()) {
-                    nexpr_arg_strings.push(format("\"", nexpr_type_arg_name, "\""))
+                    nexpr_arg_strings.push(own format("\"", nexpr_type_arg_name, "\""))
                 } else {
                     mut nexpr_param_type := Ptr()
                     mut nexpr_by_ref := false
@@ -9355,7 +9357,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                         nexpr_by_ref = nexpr_loop_pi.by_ref
                     }
                     nexpr_arg_str := emit_arg_string(nexpr_arg, nexpr_param_type, nexpr_by_ref, nexpr_arg_hoist, indent, ctx, context)?
-                    nexpr_arg_strings.push(nexpr_arg_str)
+                    nexpr_arg_strings.push(own nexpr_arg_str)
                 }
                 nexpr_arg_i.inc()
                 nexpr_expr_i.inc()

@@ -27,7 +27,7 @@ namespace:
     add : proc(ptr: I64, size: I64) = {
         if not(g_enabled) { return }
         mut entry := HeapEntry(ptr=ptr, size=size)
-        g_entries.push(entry)
+        g_entries.push(own entry)
     }
 
     remove : proc(ptr: I64) = {
@@ -37,7 +37,7 @@ namespace:
             entry := cast(HeapEntry, g_entries.get(i)?)
             if entry.ptr.eq(ptr) {
                 mut freed := HeapEntry(ptr=0, size=entry.size)
-                g_entries.set(i, freed)?
+                g_entries.set(i, own freed)?
                 return
             }
         }

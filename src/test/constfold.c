@@ -262,13 +262,14 @@ typedef enum {
     til_NodeType_If = 13,
     til_NodeType_LLiteral = 14,
     til_NodeType_NamedArg = 15,
-    til_NodeType_Pattern = 16,
-    til_NodeType_Range = 17,
-    til_NodeType_Return = 18,
-    til_NodeType_StructDef = 19,
-    til_NodeType_Switch = 20,
-    til_NodeType_Throw = 21,
-    til_NodeType_While = 22,
+    til_NodeType_OwnArg = 16,
+    til_NodeType_Pattern = 17,
+    til_NodeType_Range = 18,
+    til_NodeType_Return = 19,
+    til_NodeType_StructDef = 20,
+    til_NodeType_Switch = 21,
+    til_NodeType_Throw = 22,
+    til_NodeType_While = 23,
 } til_NodeType_Tag;
 
 typedef union {
@@ -376,6 +377,11 @@ static inline til_NodeType til_NodeType_make_LLiteral(til_Literal value) {
 static inline til_NodeType til_NodeType_make_NamedArg(til_Str value) {
     til_NodeType result = { .tag = til_NodeType_NamedArg };
     result.payload.NamedArg = value;
+    return result;
+}
+
+static inline til_NodeType til_NodeType_make_OwnArg(void) {
+    til_NodeType result = { .tag = til_NodeType_OwnArg };
     return result;
 }
 
@@ -685,6 +691,7 @@ static inline til_Str til_NodeType_to_str(const til_NodeType* e) {
         case til_NodeType_If: return ((til_Str){((til_Ptr){(til_I64)"NodeType.If", 1, 0, 0, 0}), 11, 0});
         case til_NodeType_LLiteral: return ((til_Str){((til_Ptr){(til_I64)"NodeType.LLiteral", 1, 0, 0, 0}), 17, 0});
         case til_NodeType_NamedArg: return ((til_Str){((til_Ptr){(til_I64)"NodeType.NamedArg", 1, 0, 0, 0}), 17, 0});
+        case til_NodeType_OwnArg: return ((til_Str){((til_Ptr){(til_I64)"NodeType.OwnArg", 1, 0, 0, 0}), 15, 0});
         case til_NodeType_Pattern: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Pattern", 1, 0, 0, 0}), 16, 0});
         case til_NodeType_Range: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Range", 1, 0, 0, 0}), 14, 0});
         case til_NodeType_Return: return ((til_Str){((til_Ptr){(til_I64)"NodeType.Return", 1, 0, 0, 0}), 15, 0});

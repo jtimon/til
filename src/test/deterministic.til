@@ -39,9 +39,9 @@ namespace:
 test_forin_declaration : proc() = {
     mut sum := 0
     mut items := Vec.new(I64)
-    items.push(1)
-    items.push(2)
-    items.push(3)
+    items.push(own 1)
+    items.push(own 2)
+    items.push(own 3)
 
     for item: I64 in items {
         sum = sum.add(item)
@@ -55,12 +55,12 @@ test_forin_declaration : proc() = {
 test_forin_nested : proc() = {
     mut sum := 0
     mut outer := Vec.new(I64)
-    outer.push(1)
-    outer.push(2)
+    outer.push(own 1)
+    outer.push(own 2)
 
     mut inner := Vec.new(I64)
-    inner.push(10)
-    inner.push(20)
+    inner.push(own 10)
+    inner.push(own 20)
 
     for o: I64 in outer {
         for i: I64 in inner {
@@ -76,9 +76,9 @@ test_forin_nested : proc() = {
 // Test for-in in struct methods - tests precomp_struct_def fix
 test_forin_struct_method : proc() = {
     mut items := Vec.new(I64)
-    items.push(1)
-    items.push(2)
-    items.push(3)
+    items.push(own 1)
+    items.push(own 2)
+    items.push(own 3)
 
     result := TestHelper.sum_items(items)
     assert_eq(loc(), 6, result)
@@ -88,12 +88,12 @@ test_forin_struct_method : proc() = {
 // Test nested for-in in struct methods
 test_forin_struct_nested : proc() = {
     mut list_a := Vec.new(I64)
-    list_a.push(1)
-    list_a.push(2)
+    list_a.push(own 1)
+    list_a.push(own 2)
 
     mut list_b := Vec.new(I64)
-    list_b.push(10)
-    list_b.push(20)
+    list_b.push(own 10)
+    list_b.push(own 20)
 
     result := TestHelper.cross_sum(list_a, list_b)
     // (1*10 + 1*20) + (2*10 + 2*20) = 30 + 60 = 90
@@ -112,7 +112,7 @@ test_forin_counter_reset : proc() = {
 
     mut sum := 0
     mut nums := Vec.new(I64)
-    nums.push(5)
+    nums.push(own 5)
 
     for n: I64 in nums {
         sum = sum.add(n)

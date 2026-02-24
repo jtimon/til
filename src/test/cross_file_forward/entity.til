@@ -18,7 +18,7 @@ namespace:
     }
 
     add_component : proc(mut self: Entity, comp: Component) = {
-        self.components.push(comp)
+        self.components.push(own comp)
     }
 
     get_component : proc(self: Entity, index: I64) returns Component throws IndexOutOfBoundsError = {

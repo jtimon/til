@@ -41,8 +41,8 @@ test_pointers()
 
 test_cast : proc() = {
     mut vec := Vec.new(I64)
-    vec.push(42)
-    vec.push(99)
+    vec.push(own 42)
+    vec.push(own 99)
 
     // Get a reference to element 0, cast to typed pointer alias
     item := cast(I64, vec.get(0)?)

@@ -40,7 +40,7 @@ struct_def_of : proc(type_name: Str) returns StructDef = {
         }
         // TType and TFunction: skip for now
 
-        def.members.push(decl)
+        def.members.push(own decl)
     }
     return def
 }
@@ -65,7 +65,7 @@ enum_def_of : proc(type_name: Str) returns EnumDef = {
             mut vt := ValueType.TCustom(payload_str)
             memcpy(variant.payload_type.data, to_ptr(vt), size_of(ValueType))
         }
-        def.variants.push(variant)
+        def.variants.push(own variant)
     }
     catch (err: BadAlloc) { panic(loc(), "enum_def_of: malloc failed") }
     return def

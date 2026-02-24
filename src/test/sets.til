@@ -15,18 +15,18 @@ test_set_insert : proc() = {
     mut s := Set.new(Str)
 
     // First insert should succeed
-    mut result1 := s.insert("hello")
+    mut result1 := s.insert(own "hello")
     assert(loc(), result1)
     assert_eq(loc(), 1, s.len())
     assert(loc(), s.contains("hello"))
 
     // Second insert of same element should fail
-    mut result2 := s.insert("hello")
+    mut result2 := s.insert(own "hello")
     assert(loc(), not(result2))
     assert_eq(loc(), 1, s.len())
 
     // Insert different element should succeed
-    mut result3 := s.insert("world")
+    mut result3 := s.insert(own "world")
     assert(loc(), result3)
     assert_eq(loc(), 2, s.len())
     assert(loc(), s.contains("world"))
@@ -36,9 +36,9 @@ test_set_insert()
 
 test_set_contains : proc() = {
     mut s := Set.new(Str)
-    _ := s.insert("apple")
-    _ := s.insert("banana")
-    _ := s.insert("cherry")
+    _ := s.insert(own "apple")
+    _ := s.insert(own "banana")
+    _ := s.insert(own "cherry")
 
     assert(loc(), s.contains("apple"))
     assert(loc(), s.contains("banana"))
@@ -51,9 +51,9 @@ test_set_contains()
 
 test_set_remove : proc() = {
     mut s := Set.new(Str)
-    _ := s.insert("one")
-    _ := s.insert("two")
-    _ := s.insert("three")
+    _ := s.insert(own "one")
+    _ := s.insert(own "two")
+    _ := s.insert(own "three")
     assert_eq(loc(), 3, s.len())
 
     // Remove middle element
@@ -84,9 +84,9 @@ test_set_remove()
 test_set_i64 : proc() = {
     mut s := Set.new(I64)
 
-    _ := s.insert(42)
-    _ := s.insert(100)
-    _ := s.insert(0)
+    _ := s.insert(own 42)
+    _ := s.insert(own 100)
+    _ := s.insert(own 0)
 
     assert_eq(loc(), 3, s.len())
     assert(loc(), s.contains(42))
@@ -95,7 +95,7 @@ test_set_i64 : proc() = {
     assert(loc(), not(s.contains(999)))
 
     // Duplicate insert
-    mut dup := s.insert(42)
+    mut dup := s.insert(own 42)
     assert(loc(), not(dup))
     assert_eq(loc(), 3, s.len())
 
@@ -109,8 +109,8 @@ test_set_i64()
 
 test_set_clone : proc() = {
     mut s := Set.new(Str)
-    _ := s.insert("a")
-    _ := s.insert("b")
+    _ := s.insert(own "a")
+    _ := s.insert(own "b")
 
     mut cloned := s.clone()
     assert_eq(loc(), 2, cloned.len())
@@ -128,8 +128,8 @@ test_set_clone()
 
 test_set_delete : proc() = {
     mut s := Set.new(Str)
-    _ := s.insert("x")
-    _ := s.insert("y")
+    _ := s.insert(own "x")
+    _ := s.insert(own "y")
     assert_eq(loc(), 2, s.len())
 
     s.delete()
@@ -140,9 +140,9 @@ test_set_delete()
 
 test_set_get : proc() = {
     mut s := Set.new(Str)
-    _ := s.insert("alpha")
-    _ := s.insert("beta")
-    _ := s.insert("gamma")
+    _ := s.insert(own "alpha")
+    _ := s.insert(own "beta")
+    _ := s.insert(own "gamma")
 
     // Get elements by index (order is insertion order)
     elem0 := cast(Str, s.get(0)?)

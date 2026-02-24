@@ -26,7 +26,7 @@ consume_i64 : proc(own n: I64) returns I64 = {
 // Test 1: own should accept const variables (not just mut)
 test_own_const : proc() = {
     original := OwnTestStruct(x=1, y=2)
-    result := consume_struct(original)
+    result := consume_struct(own original)
     assert_eq(loc(), 3, result)
     println("PASS: own accepts const struct")
 }
@@ -36,7 +36,7 @@ test_own_if_else : proc() = {
     mut x := 42
     mut result := 0
     if true {
-        result = consume_i64(x)
+        result = consume_i64(own x)
     } else {
         // x should still be valid here - it was NOT consumed in this branch
         result = x
@@ -50,9 +50,9 @@ test_own_both_branches : proc() = {
     mut x := 10
     mut result := 0
     if true {
-        result = consume_i64(x)
+        result = consume_i64(own x)
     } else {
-        result = consume_i64(x)
+        result = consume_i64(own x)
     }
     // x is consumed in BOTH branches, so it should be invalid here
     // (we don't test this case - just that the code above compiles)
@@ -66,7 +66,7 @@ test_own_after_if : proc() = {
     if true {
         // don't consume x here
     }
-    result := consume_i64(x)  // x should still be valid
+    result := consume_i64(own x)  // x should still be valid
     assert_eq(loc(), 10, result)
     println("PASS: own after if works")
 }
@@ -75,7 +75,7 @@ test_own_after_if : proc() = {
 test_own_vec_push : proc() = {
     mut v := Vec.new(I64)
     x := 42
-    v.push(x)  // push takes Dynamic, but once it takes own, const should work
+    v.push(own x)  // push takes Dynamic, but once it takes own, const should work
     result := cast(I64, v.get(0)?)
     assert_eq(loc(), 42, result)
     println("PASS: own vec push works")
@@ -99,8 +99,8 @@ test_ufcs_before_own_consumption : proc() = {
         // skip
     }
 
-    m1.set(name.clone(), 42)
-    m2.set(name, 99)
+    m1.set(own name.clone(), own 42)
+    m2.set(own name, own 99)
 
     val1 := cast(I64, m1.get("hello")?)
     assert_eq(loc(), 42, val1)
@@ -122,8 +122,8 @@ test_inline_clone_to_own : proc() = {
     name := "world"
 
     // This should work: clone inline as argument to own param
-    m1.set(name.clone(), 100)
-    m2.set(name, 200)
+    m1.set(own name.clone(), own 100)
+    m2.set(own name, own 200)
 
     val1 := cast(I64, m1.get("world")?)
     assert_eq(loc(), 100, val1)

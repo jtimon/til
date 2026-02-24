@@ -12,8 +12,8 @@ Vec2 := struct {
 // Test Map<I64, I64>
 test_map_i64_to_i64 : proc() = {
     mut ages := Map.new(I64, I64)
-    ages.insert(100, 30)?
-    ages.insert(200, 25)?
+    ages.insert(own 100, own 30)?
+    ages.insert(own 200, own 25)?
 
     age0 := cast(I64, ages.get(100)?)
     test(loc(), age0.eq(30), "ID 100 should map to 30")
@@ -39,11 +39,11 @@ test_map_i64_to_i64 : proc() = {
 test_map_str_to_vec2 : proc() = {
     mut positions := Map.new(Str, Vec2)
     mut player_pos := Vec2(x=10, y=20)
-    positions.insert("player", player_pos)?
+    positions.insert(own "player", own player_pos)?
     mut enemy_pos := Vec2(x=30, y=40)
-    positions.insert("enemy", enemy_pos)?
+    positions.insert(own "enemy", own enemy_pos)?
     mut item_pos := Vec2(x=50, y=60)
-    positions.insert("item", item_pos)?
+    positions.insert(own "item", own item_pos)?
 
     player := cast(Vec2, positions.get("player")?)
     test(loc(), player.x.eq(10), "player.x should be 10")
@@ -73,16 +73,16 @@ test_map_str_to_vec_str : proc() = {
     mut lists := Map.new(Str, Vec)
 
     mut fruits := Vec.new(Str)
-    fruits.push("apple")
-    fruits.push("banana")
-    fruits.push("orange")
-    lists.insert("fruits", fruits)?
+    fruits.push(own "apple")
+    fruits.push(own "banana")
+    fruits.push(own "orange")
+    lists.insert(own "fruits", own fruits)?
 
     mut colors := Vec.new(Str)
-    colors.push("red")
-    colors.push("green")
-    colors.push("blue")
-    lists.insert("colors", colors)?
+    colors.push(own "red")
+    colors.push(own "green")
+    colors.push(own "blue")
+    lists.insert(own "colors", own colors)?
 
     fruits_vec := cast(Vec, lists.get("fruits")?)
     test(loc(), fruits_vec.len().eq(3), "fruits vec should have 3 elements")
@@ -116,9 +116,9 @@ test_map_str_to_vec_str : proc() = {
 // Test Map<U8, Bool>
 test_map_u8_to_bool : proc() = {
     mut flags := Map.new(U8, Bool)
-    flags.insert(U8.from_i64(10)?, true)?
-    flags.insert(U8.from_i64(20)?, false)?
-    flags.insert(U8.from_i64(30)?, true)?
+    flags.insert(own U8.from_i64(10)?, own true)?
+    flags.insert(own U8.from_i64(20)?, own false)?
+    flags.insert(own U8.from_i64(30)?, own true)?
 
     flag0 := cast(Bool, flags.get(U8.from_i64(10)?)?)
     test(loc(), flag0.eq(true), "key 10 should be true")
@@ -148,8 +148,8 @@ test_map_u8_to_bool : proc() = {
 // Test insert() - should throw on duplicate keys
 test_map_insert_duplicate : proc() = {
     mut ages := Map.new(Str, I64)
-    ages.insert("Alice", 30)?
-    ages.insert("Alice", 35)?
+    ages.insert(own "Alice", own 30)?
+    ages.insert(own "Alice", own 35)?
     panic(loc(), "Expected DuplicatedKeyError when inserting duplicate key")
     catch (err: DuplicatedKeyError) {}
     ages.delete()
@@ -158,8 +158,8 @@ test_map_insert_duplicate : proc() = {
 // Test set() - should overwrite existing keys
 test_map_set : proc() = {
     mut ages := Map.new(Str, I64)
-    ages.set("Alice", 30)
-    ages.set("Alice", 35)
+    ages.set(own "Alice", own 30)
+    ages.set(own "Alice", own 35)
     test(loc(), ages.len().eq(1), "Size should still be 1 after set update")
 
     age := cast(I64, ages.get("Alice")?)
@@ -176,7 +176,7 @@ test_map_set : proc() = {
 // Test get() with non-existent key
 test_map_get_missing : proc() = {
     mut ages := Map.new(Str, I64)
-    ages.insert("Alice", 30)?
+    ages.insert(own "Alice", own 30)?
 
     _age := cast(I64, ages.get("Charlie")?)
     panic(loc(), "Expected KeyNotFoundError for non-existent key")
@@ -192,8 +192,8 @@ test_map_get_missing : proc() = {
 // Test contains_key()
 test_map_contains_key : proc() = {
     mut ages := Map.new(Str, I64)
-    ages.insert("Alice", 30)?
-    ages.insert("Bob", 25)?
+    ages.insert(own "Alice", own 30)?
+    ages.insert(own "Bob", own 25)?
 
     test(loc(), ages.contains_key("Alice"), "Should contain Alice")
     test(loc(), ages.contains_key("Bob"), "Should contain Bob")
@@ -211,9 +211,9 @@ test_map_contains_key : proc() = {
 // Note: Map is sorted by key, so positions are in sorted order (blue < green < red)
 test_map_position : proc() = {
     mut colors := Map.new(Str, I64)
-    colors.insert("red", 1)?
-    colors.insert("green", 2)?
-    colors.insert("blue", 3)?
+    colors.insert(own "red", own 1)?
+    colors.insert(own "green", own 2)?
+    colors.insert(own "blue", own 3)?
 
     // Sorted order: blue=0, green=1, red=2
     test(loc(), colors.position("blue").eq(0), "blue should be at position 0")
@@ -249,7 +249,7 @@ test_map_growth : proc() = {
     // Array.INIT_DYN_CAP is 16, so insert 20 elements to trigger reallocation
     mut i := 0
     while lt(i, 20) {
-        ages.insert(i.clone(), mul(i, 100))?
+        ages.insert(own i.clone(), own mul(i, 100))?
         i = add(i, 1)
     }
 
@@ -285,9 +285,9 @@ test_map_growth : proc() = {
 test_map_delete : proc() = {
     mut m := Map.new(Str, I64)
 
-    m.insert("a", 1)?
-    m.insert("b", 2)?
-    m.insert("c", 3)?
+    m.insert(own "a", own 1)?
+    m.insert(own "b", own 2)?
+    m.insert(own "c", own 3)?
     test(loc(), m.len().eq(3), "Map should have 3 entries")
 
     m.delete()
@@ -306,19 +306,19 @@ test_map_len_tracking : proc() = {
 
     test(loc(), m.len().eq(0), "Empty map should have len 0")
 
-    m.insert("a", 1)?
+    m.insert(own "a", own 1)?
     test(loc(), m.len().eq(1), "Map should have len 1 after first insert")
 
-    m.insert("b", 2)?
-    m.insert("c", 3)?
+    m.insert(own "b", own 2)?
+    m.insert(own "c", own 3)?
     test(loc(), m.len().eq(3), "Map should have len 3 after three inserts")
 
     // set() with existing key should not change len
-    m.set("a", 100)
+    m.set(own "a", own 100)
     test(loc(), m.len().eq(3), "Map len should stay 3 after set() on existing key")
 
     // set() with new key should increase len
-    m.set("d", 4)
+    m.set(own "d", own 4)
     test(loc(), m.len().eq(4), "Map len should be 4 after set() with new key")
 
     m.delete()
@@ -333,15 +333,15 @@ test_map_len_tracking : proc() = {
 test_map_multiple_overwrites : proc() = {
     mut m := Map.new(Str, I64)
 
-    m.set("key", 1)
+    m.set(own "key", own 1)
     val1 := cast(I64, m.get("key")?)
     test(loc(), val1.eq(1), "First set should store 1")
 
-    m.set("key", 2)
+    m.set(own "key", own 2)
     val2 := cast(I64, m.get("key")?)
     test(loc(), val2.eq(2), "Second set should overwrite to 2")
 
-    m.set("key", 3)
+    m.set(own "key", own 3)
     val3 := cast(I64, m.get("key")?)
     test(loc(), val3.eq(3), "Third set should overwrite to 3")
 
@@ -362,7 +362,7 @@ test_map_order_after_growth : proc() = {
     // Insert 20 keys to trigger reallocation
     mut i := 0
     while lt(i, 20) {
-        m.insert(i.clone(), format("val", I64.to_str(i)))?
+        m.insert(own i.clone(), own format("val", I64.to_str(i)))?
         i = add(i, 1)
     }
 
@@ -384,9 +384,9 @@ test_map_order_after_growth : proc() = {
 // Test direct .keys field access
 test_map_keys_field : proc() = {
     mut m := Map.new(Str, I64)
-    m.insert("alice", 30)?
-    m.insert("bob", 25)?
-    m.insert("charlie", 35)?
+    m.insert(own "alice", own 30)?
+    m.insert(own "bob", own 25)?
+    m.insert(own "charlie", own 35)?
 
     mut keys := m.keys
     test(loc(), keys.len().eq(3), "m.keys should have 3 keys")
@@ -414,9 +414,9 @@ test_map_keys_field : proc() = {
 // Test Map.remove
 test_map_remove : proc() = {
     mut m := Map.new(Str, I64)
-    m.insert("alice", 30)?
-    m.insert("bob", 25)?
-    m.insert("charlie", 35)?
+    m.insert(own "alice", own 30)?
+    m.insert(own "bob", own 25)?
+    m.insert(own "charlie", own 35)?
 
     test(loc(), m.len().eq(3), "Map should have 3 entries before remove")
     test(loc(), m.contains_key("bob"), "Map should contain bob before remove")
@@ -466,9 +466,9 @@ test_map_remove : proc() = {
 // Test HashMap<Str, I64>
 test_hashmap_str_to_i64 : proc() = {
     mut ages := HashMap.new(Str, I64)
-    ages.insert("Alice", 30)?
-    ages.insert("Bob", 25)?
-    ages.insert("Charlie", 35)?
+    ages.insert(own "Alice", own 30)?
+    ages.insert(own "Bob", own 25)?
+    ages.insert(own "Charlie", own 35)?
 
     alice_age := cast(I64, ages.get("Alice")?)
     test(loc(), alice_age.eq(30), "HashMap: Alice should be 30")
@@ -496,8 +496,8 @@ test_hashmap_str_to_i64 : proc() = {
 // Test HashMap<I64, I64>
 test_hashmap_i64_to_i64 : proc() = {
     mut ages := HashMap.new(I64, I64)
-    ages.insert(100, 30)?
-    ages.insert(200, 25)?
+    ages.insert(own 100, own 30)?
+    ages.insert(own 200, own 25)?
 
     age0 := cast(I64, ages.get(100)?)
     test(loc(), age0.eq(30), "HashMap: ID 100 should map to 30")
@@ -522,9 +522,9 @@ test_hashmap_i64_to_i64 : proc() = {
 test_hashmap_str_to_vec2 : proc() = {
     mut positions := HashMap.new(Str, Vec2)
     mut player_pos := Vec2(x=10, y=20)
-    positions.insert("player", player_pos)?
+    positions.insert(own "player", own player_pos)?
     mut enemy_pos := Vec2(x=30, y=40)
-    positions.insert("enemy", enemy_pos)?
+    positions.insert(own "enemy", own enemy_pos)?
 
     player := cast(Vec2, positions.get("player")?)
     test(loc(), player.x.eq(10), "HashMap: player.x should be 10")
@@ -550,8 +550,8 @@ test_hashmap_str_to_vec2 : proc() = {
 // Test HashMap insert() - should throw on duplicate keys
 test_hashmap_insert_duplicate : proc() = {
     mut ages := HashMap.new(Str, I64)
-    ages.insert("Alice", 30)?
-    ages.insert("Alice", 35)?
+    ages.insert(own "Alice", own 30)?
+    ages.insert(own "Alice", own 35)?
     panic(loc(), "Expected DuplicatedKeyError when inserting duplicate key")
     catch (err: DuplicatedKeyError) {}
     ages.delete()
@@ -560,8 +560,8 @@ test_hashmap_insert_duplicate : proc() = {
 // Test HashMap set() - should overwrite existing keys
 test_hashmap_set : proc() = {
     mut ages := HashMap.new(Str, I64)
-    ages.set("Alice", 30)
-    ages.set("Alice", 35)
+    ages.set(own "Alice", own 30)
+    ages.set(own "Alice", own 35)
     test(loc(), ages.len().eq(1), "HashMap: Size should still be 1 after set update")
 
     age := cast(I64, ages.get("Alice")?)
@@ -579,7 +579,7 @@ test_hashmap_set : proc() = {
 // Test HashMap get() with non-existent key
 test_hashmap_get_missing : proc() = {
     mut ages := HashMap.new(Str, I64)
-    ages.insert("Alice", 30)?
+    ages.insert(own "Alice", own 30)?
 
     _age := cast(I64, ages.get("Charlie")?)
     panic(loc(), "Expected KeyNotFoundError for non-existent key")
@@ -596,8 +596,8 @@ test_hashmap_get_missing : proc() = {
 // Test HashMap contains_key()
 test_hashmap_contains_key : proc() = {
     mut ages := HashMap.new(Str, I64)
-    ages.insert("Alice", 30)?
-    ages.insert("Bob", 25)?
+    ages.insert(own "Alice", own 30)?
+    ages.insert(own "Bob", own 25)?
 
     test(loc(), ages.contains_key("Alice"), "HashMap: Should contain Alice")
     test(loc(), ages.contains_key("Bob"), "HashMap: Should contain Bob")
@@ -630,7 +630,7 @@ test_hashmap_growth : proc() = {
     // Insert 20 elements to trigger at least one resize
     mut i := 0
     while i.lt(20) {
-        ages.insert(i.clone(), i.mul(100))?
+        ages.insert(own i.clone(), own i.mul(100))?
         i = i.add(1)
     }
 
@@ -667,9 +667,9 @@ test_hashmap_growth : proc() = {
 test_hashmap_clear : proc() = {
     mut m := HashMap.new(Str, I64)
 
-    m.insert("a", 1)?
-    m.insert("b", 2)?
-    m.insert("c", 3)?
+    m.insert(own "a", own 1)?
+    m.insert(own "b", own 2)?
+    m.insert(own "c", own 3)?
     test(loc(), m.len().eq(3), "HashMap should have 3 entries")
 
     m.clear()
@@ -678,7 +678,7 @@ test_hashmap_clear : proc() = {
     test(loc(), not(m.contains_key("a")), "HashMap should not contain 'a' after clear")
 
     // Should be able to insert again after clear
-    m.insert("d", 4)?
+    m.insert(own "d", own 4)?
     test(loc(), m.len().eq(1), "HashMap should have 1 entry after re-insert")
 
     m.delete()
@@ -696,19 +696,19 @@ test_hashmap_len_tracking : proc() = {
 
     test(loc(), m.len().eq(0), "Empty HashMap should have len 0")
 
-    m.insert("a", 1)?
+    m.insert(own "a", own 1)?
     test(loc(), m.len().eq(1), "HashMap should have len 1 after first insert")
 
-    m.insert("b", 2)?
-    m.insert("c", 3)?
+    m.insert(own "b", own 2)?
+    m.insert(own "c", own 3)?
     test(loc(), m.len().eq(3), "HashMap should have len 3 after three inserts")
 
     // set() with existing key should not change len
-    m.set("a", 100)
+    m.set(own "a", own 100)
     test(loc(), m.len().eq(3), "HashMap len should stay 3 after set() on existing key")
 
     // set() with new key should increase len
-    m.set("d", 4)
+    m.set(own "d", own 4)
     test(loc(), m.len().eq(4), "HashMap len should be 4 after set() with new key")
 
     m.delete()
@@ -724,15 +724,15 @@ test_hashmap_len_tracking : proc() = {
 test_hashmap_multiple_overwrites : proc() = {
     mut m := HashMap.new(Str, I64)
 
-    m.set("key", 1)
+    m.set(own "key", own 1)
     val1 := cast(I64, m.get("key")?)
     test(loc(), val1.eq(1), "HashMap: First set should store 1")
 
-    m.set("key", 2)
+    m.set(own "key", own 2)
     val2 := cast(I64, m.get("key")?)
     test(loc(), val2.eq(2), "HashMap: Second set should overwrite to 2")
 
-    m.set("key", 3)
+    m.set(own "key", own 3)
     val3 := cast(I64, m.get("key")?)
     test(loc(), val3.eq(3), "HashMap: Third set should overwrite to 3")
 
@@ -755,7 +755,7 @@ test_hashmap_many_strings : proc() = {
     mut i := 0
     while i.lt(50) {
         key := format("key_", I64.to_str(i))
-        m.insert(key, i.clone())?
+        m.insert(own key, own i.clone())?
         i = i.add(1)
     }
 
@@ -790,9 +790,9 @@ test_hashmap_many_strings : proc() = {
 // Test HashMap.remove
 test_hashmap_remove : proc() = {
     mut m := HashMap.new(Str, I64)
-    m.insert("alice", 30)?
-    m.insert("bob", 25)?
-    m.insert("charlie", 35)?
+    m.insert(own "alice", own 30)?
+    m.insert(own "bob", own 25)?
+    m.insert(own "charlie", own 35)?
 
     test(loc(), m.len().eq(3), "HashMap should have 3 entries before remove")
     test(loc(), m.contains_key("bob"), "HashMap should contain bob before remove")
@@ -876,8 +876,8 @@ test_hashmap_remove()
 
 test_map_get : proc() = {
     mut m := Map.new(Str, I64)
-    m.set("a", 10)
-    m.set("b", 20)
+    m.set(own "a", own 10)
+    m.set(own "b", own 20)
 
     ref_a := m.get("a")?
     mut val := 0
@@ -897,8 +897,8 @@ test_map_get : proc() = {
 
 test_hashmap_get : proc() = {
     mut m := HashMap.new(Str, I64)
-    m.set("x", 42)
-    m.set("y", 99)
+    m.set(own "x", own 42)
+    m.set(own "y", own 99)
 
     ref_x := m.get("x")?
     mut val := 0

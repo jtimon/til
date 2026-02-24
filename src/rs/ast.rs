@@ -183,6 +183,7 @@ pub enum NodeType {
     Break,
     Continue,
     Defer,
+    OwnArg, // Issue #185: own expr wrapper for call-site ownership transfer
     If,
     While,
     Switch,

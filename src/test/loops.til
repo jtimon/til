@@ -35,9 +35,9 @@ test_for_reverse_range_loop()
 
 test_for_in_vec_i64 : proc() = {
     mut v := Vec.new(I64)
-    v.push(10)
-    v.push(20)
-    v.push(30)
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
     mut total := 0
     for x: I64 in v {
         total = total.add(x)
@@ -50,9 +50,9 @@ test_for_in_vec_i64()
 
 test_for_in_vec_str : proc() = {
     mut words := Vec.new(Str)
-    words.push("hello")
-    words.push(" ")
-    words.push("world")
+    words.push(own "hello")
+    words.push(own " ")
+    words.push(own "world")
     mut sentence := ""
     for w: Str in words {
         sentence = sentence.concat(w)
@@ -65,9 +65,9 @@ test_for_in_vec_str()
 
 test_for_in_array_i64 : proc() = {
     mut arr := Array.new(I64, 3)
-    arr.set(0, 100)?
-    arr.set(1, 200)?
-    arr.set(2, 300)?
+    arr.set(0, own 100)?
+    arr.set(1, own 200)?
+    arr.set(2, own 300)?
     mut arr_total := 0
     for n: I64 in arr {
         arr_total = arr_total.add(n)
@@ -103,9 +103,9 @@ test_forin_simple_enum : proc() = {
     c_red := SimpleColor.Red
     c_green := SimpleColor.Green
     c_blue := SimpleColor.Blue
-    colors.push(c_red)
-    colors.push(c_green)
-    colors.push(c_blue)
+    colors.push(own c_red)
+    colors.push(own c_green)
+    colors.push(own c_blue)
 
     mut count := 0
     for color: SimpleColor in colors {
@@ -135,11 +135,11 @@ PayloadColor := enum {
 
 test_forin_payload_enum : proc() = {
     mut colors := Vec.new(PayloadColor)
-    colors.push(PayloadColor.Unknown)
+    colors.push(own PayloadColor.Unknown)
     g := PayloadColor.Green(true)
-    colors.push(g)
+    colors.push(own g)
     n := PayloadColor.Number(42)
-    colors.push(n)
+    colors.push(own n)
 
     mut count := 0
     for color: PayloadColor in colors {

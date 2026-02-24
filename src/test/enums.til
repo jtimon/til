@@ -1060,7 +1060,7 @@ test_bug28_ufcs_push_in_binding : proc() = {
     switch val {
     case Color.Number(n):
         mut v := Vec.new(I64)
-        v.push(n)  // UFCS with arg - was failing in check_body_returns_throws
+        v.push(own n)  // UFCS with arg - was failing in check_body_returns_throws
         result = v.len()
     case:
         result = 0
@@ -1077,7 +1077,7 @@ test_bug28_ufcs_len_in_binding : proc() = {
     switch val {
     case Color.Number(n):
         mut v := Vec.new(I64)
-        Vec.push(v, 99)  // fully qualified push (works)
+        Vec.push(v, own 99)  // fully qualified push (works)
         result = v.len()  // UFCS len - was failing in check_body_returns_throws
     case:
         result = 0
@@ -1094,7 +1094,7 @@ test_ufcs_in_value_case : proc() = {
     switch val {
     case Color.Unknown:
         mut v := Vec.new(I64)
-        v.push(42)  // UFCS in value-matching case
+        v.push(own 42)  // UFCS in value-matching case
         result = v.len()
     case:
         result = 0
@@ -1112,7 +1112,7 @@ test_ufcs_in_default_case : proc() = {
         result = 999
     case:
         mut v := Vec.new(I64)
-        v.push(99)  // UFCS in default case body
+        v.push(own 99)  // UFCS in default case body
         result = v.len()
     }
     assert_eq(loc(), 1, result)

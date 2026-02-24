@@ -72,15 +72,15 @@ generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64
             if not(is_primitive_type(member.value_type)) {
                 // Build: self.field_name.delete()
                 mut delete_access_params := Vec.new(Expr)
-                delete_access_params.push(Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
-                delete_access_params.push(Expr.new_explicit(NodeType.Identifier("delete"), Vec.new(Expr), line, col))
+                delete_access_params.push(own Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
+                delete_access_params.push(own Expr.new_explicit(NodeType.Identifier("delete"), Vec.new(Expr), line, col))
                 delete_access := Expr.new_explicit(NodeType.Identifier("self"), delete_access_params, line, col)
 
                 mut delete_call_params := Vec.new(Expr)
-                delete_call_params.push(delete_access)
+                delete_call_params.push(own delete_access)
                 delete_call := Expr.new_explicit(NodeType.FCall(FCallInfo()), delete_call_params, line, col)
 
-                body_stmts.push(delete_call)
+                body_stmts.push(own delete_call)
             }
         }
 
@@ -88,9 +88,9 @@ generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64
     }
 
     mut args := Vec.new(Declaration)
-    args.push(self_decl)
+    args.push(own self_decl)
     mut arg_names := Vec.new(Str)
-    arg_names.push(self_param_name)
+    arg_names.push(own self_param_name)
     func_def := FuncDef(
         sig=FuncSig(
             function_type=FunctionType.FTFunc,
@@ -153,49 +153,49 @@ generate_clone_method : func(struct_name: Str, struct_def: StructDef, line: I64,
             if is_primitive_type(member.value_type) {
                 // Build: self.field_name
                 mut access_params := Vec.new(Expr)
-                access_params.push(Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
+                access_params.push(own Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
                 field_value = Expr.new_explicit(NodeType.Identifier("self"), access_params, line, col)
             } else {
                 // Build: self.field_name.clone()
                 mut clone_access_params := Vec.new(Expr)
-                clone_access_params.push(Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
-                clone_access_params.push(Expr.new_explicit(NodeType.Identifier("clone"), Vec.new(Expr), line, col))
+                clone_access_params.push(own Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
+                clone_access_params.push(own Expr.new_explicit(NodeType.Identifier("clone"), Vec.new(Expr), line, col))
                 clone_access := Expr.new_explicit(NodeType.Identifier("self"), clone_access_params, line, col)
 
                 mut clone_call_params := Vec.new(Expr)
-                clone_call_params.push(clone_access)
+                clone_call_params.push(own clone_access)
                 field_value = Expr.new_explicit(NodeType.FCall(FCallInfo()), clone_call_params, line, col)
             }
 
             mut named_arg_params := Vec.new(Expr)
-            named_arg_params.push(field_value)
+            named_arg_params.push(own field_value)
             named_arg := Expr.new_explicit(NodeType.NamedArg(member.name), named_arg_params, line, col)
-            named_args.push(named_arg)
+            named_args.push(own named_arg)
         }
     }
 
     struct_name_id := Expr.new_explicit(NodeType.Identifier(struct_name), Vec.new(Expr), line, col)
 
     mut struct_literal_params := Vec.new(Expr)
-    struct_literal_params.push(struct_name_id)
+    struct_literal_params.push(own struct_name_id)
     for na: Expr in named_args {
-        struct_literal_params.push(na)
+        struct_literal_params.push(own na)
     }
 
     struct_literal := Expr.new_explicit(NodeType.FCall(FCallInfo()), struct_literal_params, line, col)
 
     mut return_params := Vec.new(Expr)
-    return_params.push(struct_literal)
+    return_params.push(own struct_literal)
     return_stmt := Expr.new_explicit(NodeType.Return, return_params, line, col)
 
     mut args := Vec.new(Declaration)
-    args.push(self_decl)
+    args.push(own self_decl)
     mut return_types := Vec.new(ValueType)
-    return_types.push(ValueType.TCustom(struct_name))
+    return_types.push(own ValueType.TCustom(struct_name))
     mut body := Vec.new(Expr)
-    body.push(return_stmt)
+    body.push(own return_stmt)
     mut arg_names := Vec.new(Str)
-    arg_names.push(self_param_name)
+    arg_names.push(own self_param_name)
     func_def := FuncDef(
         sig=FuncSig(
             function_type=FunctionType.FTFunc,
@@ -233,9 +233,9 @@ generate_enum_delete_method : func(enum_name: Str, line: I64, col: I64) returns 
     )
 
     mut args := Vec.new(Declaration)
-    args.push(self_decl)
+    args.push(own self_decl)
     mut arg_names := Vec.new(Str)
-    arg_names.push("_self")
+    arg_names.push(own "_self")
     func_def := FuncDef(
         sig=FuncSig(
             function_type=FunctionType.FTFunc,
@@ -263,17 +263,17 @@ generate_enum_clone_method : func(enum_name: Str, line: I64, col: I64) returns E
     )
 
     mut return_params := Vec.new(Expr)
-    return_params.push(Expr.new_explicit(NodeType.Identifier("self"), Vec.new(Expr), line, col))
+    return_params.push(own Expr.new_explicit(NodeType.Identifier("self"), Vec.new(Expr), line, col))
     return_stmt := Expr.new_explicit(NodeType.Return, return_params, line, col)
 
     mut args := Vec.new(Declaration)
-    args.push(self_decl)
+    args.push(own self_decl)
     mut return_types := Vec.new(ValueType)
-    return_types.push(ValueType.TCustom(enum_name))
+    return_types.push(own ValueType.TCustom(enum_name))
     mut body := Vec.new(Expr)
-    body.push(return_stmt)
+    body.push(own return_stmt)
     mut arg_names := Vec.new(Str)
-    arg_names.push("self")
+    arg_names.push(own "self")
     func_def := FuncDef(
         sig=FuncSig(
             function_type=FunctionType.FTFunc,
@@ -309,8 +309,8 @@ generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: 
                 default_value=Ptr()
             )
             delete_expr := generate_enum_delete_method(enum_name, line, col)
-            members.push(delete_decl)
-            default_values.set("delete", delete_expr)
+            members.push(own delete_decl)
+            default_values.set(own "delete", own delete_expr)
         }
 
         if needs_clone {
@@ -323,8 +323,8 @@ generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: 
                 default_value=Ptr()
             )
             clone_expr := generate_enum_clone_method(enum_name, line, col)
-            members.push(clone_decl)
-            default_values.set("clone", clone_expr)
+            members.push(own clone_decl)
+            default_values.set(own "clone", own clone_expr)
         }
 
         return NamespaceDef(
@@ -351,11 +351,11 @@ collect_namespace_methods : func(ast: Expr) returns Set = {
                     switch value_expr.node_type {
                     case NodeType.StructDef(struct_def):
                         for member: Declaration in struct_def.ns.members {
-                            _ := methods.insert(format(decl.name, ".", member.name))
+                            _ := methods.insert(own format(decl.name, ".", member.name))
                         }
                     case NodeType.EnumDef(enum_def):
                         for member: Declaration in enum_def.ns.members {
-                            _ := methods.insert(format(decl.name, ".", member.name))
+                            _ := methods.insert(own format(decl.name, ".", member.name))
                         }
                     case:
                     }
@@ -448,7 +448,7 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
                             info.col = child.col
                             info.needs_delete = needs_delete
                             info.needs_clone = needs_clone
-                            structs.push(info)
+                            structs.push(own info)
                         }
                     case:
                     }
@@ -509,14 +509,14 @@ generate_namespace_block : func(struct_name: Str, struct_def: StructDef, needs_d
 
     if needs_delete {
         delete_result := generate_delete_method(struct_name, struct_def, 0, 0)
-        members.push(delete_result.decl)
-        default_values.set("delete", delete_result.expr)
+        members.push(own delete_result.decl)
+        default_values.set(own "delete", own delete_result.expr)
     }
 
     if needs_clone {
         clone_result := generate_clone_method(struct_name, struct_def, 0, 0)
-        members.push(clone_result.decl)
-        default_values.set("clone", clone_result.expr)
+        members.push(own clone_result.decl)
+        default_values.set(own "clone", own clone_result.expr)
     }
 
     return NamespaceDef(
@@ -531,7 +531,7 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
     case NodeType.FuncDef(func_def):
         mut new_body := Vec.new(Expr)
         for stmt: Expr in func_def.body {
-            new_body.push(preinit_expr_inner(stmt)?)
+            new_body.push(own preinit_expr_inner(stmt)?)
         }
         new_func_def := FuncDef(
             sig=FuncSig(
@@ -551,14 +551,14 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
         mut new_default_values := Map.new(Str, Expr)
         for sd_name: Str in struct_def.default_values.keys {
             sd_value_expr := cast(Expr, struct_def.default_values.get(sd_name)?)
-            new_default_values.set(sd_name.clone(), preinit_expr_inner(sd_value_expr)?)
+            new_default_values.set(own sd_name.clone(), own preinit_expr_inner(sd_value_expr)?)
         }
         catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
         // Process ns default_values
         mut ns_new_default_values := Map.new(Str, Expr)
         for ns_k: Str in struct_def.ns.default_values.keys {
             ns_v := cast(Expr, struct_def.ns.default_values.get(ns_k)?)
-            ns_new_default_values.set(ns_k.clone(), preinit_expr_inner(ns_v)?)
+            ns_new_default_values.set(own ns_k.clone(), own preinit_expr_inner(ns_v)?)
         }
         catch (err2: KeyNotFoundError) { panic(loc(), err2.msg) }
         new_ns := NamespaceDef(
@@ -587,11 +587,11 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
                     mut new_methods := enum_def.methods.clone()
 
                     if not(has_delete) {
-                        new_methods.set("delete", generate_enum_delete_method(decl.name, e.line, e.col))
+                        new_methods.set(own "delete", own generate_enum_delete_method(decl.name, e.line, e.col))
                     }
 
                     if not(has_clone) {
-                        new_methods.set("clone", generate_enum_clone_method(decl.name, e.line, e.col))
+                        new_methods.set(own "clone", own generate_enum_clone_method(decl.name, e.line, e.col))
                     }
 
                     mut new_enum_def := EnumDef()
@@ -606,7 +606,7 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
                     )
 
                     mut enum_new_params := Vec.new(Expr)
-                    enum_new_params.push(new_enum_expr)
+                    enum_new_params.push(own new_enum_expr)
                     return Expr.new_clone(NodeType.Declaration(decl), e, enum_new_params)
                 }
             case:
@@ -616,7 +616,7 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
         // Default: recurse into params
         mut decl_new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            decl_new_params.push(preinit_expr_inner(p)?)
+            decl_new_params.push(own preinit_expr_inner(p)?)
         }
         return Expr.new_clone(e.node_type, e, decl_new_params)
 
@@ -626,7 +626,7 @@ preinit_expr_inner : func(e: Expr) returns Expr throws Str = {
         } else {
             mut default_new_params := Vec.new(Expr)
             for op: Expr in e.params {
-                default_new_params.push(preinit_expr_inner(op)?)
+                default_new_params.push(own preinit_expr_inner(op)?)
             }
             return Expr.new_clone(e.node_type, e, default_new_params)
         }
@@ -684,13 +684,13 @@ preinit_expr : func(e: Expr) returns Expr throws Str = {
                                     }
                                 }
                                 if not(already_exists) {
-                                    merged_ns.members.push(auto_m.clone())
+                                    merged_ns.members.push(own auto_m.clone())
                                 }
                             }
                             for auto_k: Str in auto_ns.default_values.keys {
                                 if not(merged_ns.default_values.contains_key(auto_k)) {
                                     auto_v := cast(Expr, auto_ns.default_values.get(auto_k)?)
-                                    merged_ns.default_values.set(auto_k.clone(), auto_v.clone())
+                                    merged_ns.default_values.set(own auto_k.clone(), own auto_v.clone())
                                 }
                             }
                             catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
@@ -701,7 +701,7 @@ preinit_expr : func(e: Expr) returns Expr throws Str = {
                             )
                             new_value_expr := Expr.new_clone(NodeType.StructDef(new_struct_def), p_value_expr, p_value_expr.params.clone())
                             mut new_decl_params := Vec.new(Expr)
-                            new_decl_params.push(new_value_expr)
+                            new_decl_params.push(own new_value_expr)
                             processed = Expr.new_clone(processed.node_type.clone(), processed, new_decl_params)
                         }
                     case:
@@ -710,7 +710,7 @@ preinit_expr : func(e: Expr) returns Expr throws Str = {
             case:
             }
 
-            new_params.push(processed)
+            new_params.push(own processed)
         }
 
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }

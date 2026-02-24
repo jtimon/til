@@ -45,7 +45,7 @@ namespace:
 
         // Initialize all buckets to -1 (empty)
         for _ in 0..HASHMAP_INIT_BUCKETS {
-            m.buckets.push(sub(0, 1))
+            m.buckets.push(own sub(0, 1))
         }
 
         return m
@@ -136,13 +136,13 @@ namespace:
         // Clear and reinitialize buckets
         self.buckets.clear()
         for _ in 0..self._num_buckets {
-            self.buckets.push(sub(0, 1))
+            self.buckets.push(own sub(0, 1))
         }
 
         // Clear nexts (will be rebuilt)
         mut i := 0
         while i.lt(self._size) {
-            self.nexts.set(i, sub(0, 1))?
+            self.nexts.set(i, own sub(0, 1))?
             i = i.add(1)
         }
 
@@ -156,8 +156,8 @@ namespace:
             head := cast(I64, self.buckets.get(bucket_idx)?)
 
             // Insert at head of chain
-            self.nexts.set(i, head)?
-            self.buckets.set(bucket_idx, i.clone())?
+            self.nexts.set(i, own head)?
+            self.buckets.set(bucket_idx, own i.clone())?
 
             i = i.add(1)
         }
@@ -189,17 +189,17 @@ namespace:
         bucket_idx := self.hash_key(to_ptr(key))
 
         // Add key and value to dense arrays
-        self.keys.push(key)
-        self.values.push(value)
+        self.keys.push(own key)
+        self.values.push(own value)
         new_idx := self._size
 
         // Add to bucket chain (use pre-computed bucket_idx)
         head := cast(I64, self.buckets.get(bucket_idx)?)
 
         // New entry points to old head
-        self.nexts.push(head)
+        self.nexts.push(own head)
         // Bucket now points to new entry
-        self.buckets.set(bucket_idx, new_idx)?
+        self.buckets.set(bucket_idx, own new_idx)?
 
         self._size = self._size.add(1)
 
@@ -231,17 +231,17 @@ namespace:
             bucket_idx := self.hash_key(to_ptr(key))
 
             // Add key and value to dense arrays
-            self.keys.push(key)
-            self.values.push(value)
+            self.keys.push(own key)
+            self.values.push(own value)
             new_idx := self._size
 
             // Add to bucket chain (use pre-computed bucket_idx)
             head := cast(I64, self.buckets.get(bucket_idx)?)
 
             // New entry points to old head
-            self.nexts.push(head)
+            self.nexts.push(own head)
             // Bucket now points to new entry
-            self.buckets.set(bucket_idx, new_idx)?
+            self.buckets.set(bucket_idx, own new_idx)?
 
             self._size = self._size.add(1)
         }
@@ -286,7 +286,7 @@ namespace:
         // Reset all buckets to -1
         mut i := 0
         while i.lt(self._num_buckets) {
-            self.buckets.set(i, sub(0, 1))?
+            self.buckets.set(i, own sub(0, 1))?
             i = i.add(1)
         }
 
@@ -339,7 +339,7 @@ namespace:
         // Reset all buckets to -1
         mut bi := 0
         while bi.lt(self._num_buckets) {
-            self.buckets.set(bi, sub(0, 1))?
+            self.buckets.set(bi, own sub(0, 1))?
             bi = bi.add(1)
         }
 
@@ -351,8 +351,8 @@ namespace:
 
             head := cast(I64, self.buckets.get(bucket_idx)?)
 
-            self.nexts.set(i, head)?
-            self.buckets.set(bucket_idx, i.clone())?
+            self.nexts.set(i, own head)?
+            self.buckets.set(bucket_idx, own i.clone())?
 
             i = i.add(1)
         }

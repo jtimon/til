@@ -23,7 +23,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             if is_dont_delete_call(stmt) {
                 // dont_delete() call, strip from AST
             } else {
-                new_body.push(garbager_recursive(context, stmt)?)
+                new_body.push(own garbager_recursive(context, stmt)?)
             }
         }
 
@@ -32,7 +32,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         for arg_def: Declaration in func_def.sig.args {
             switch arg_def.value_type {
             case ValueType.TCustom(type_name):
-                local_types.set(arg_def.name, type_name)
+                local_types.set(own arg_def.name, own type_name)
             case:
             }
         }
@@ -41,7 +41,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             case NodeType.Declaration(decl):
                 switch decl.value_type {
                 case ValueType.TCustom(type_name):
-                    local_types.set(decl.name, type_name)
+                    local_types.set(own decl.name, own type_name)
                 case:
                 }
             case:
@@ -65,7 +65,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         // Also recurse into params (e.g., default argument values)
         mut new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            new_params.push(garbager_recursive(context, param)?)
+            new_params.push(own garbager_recursive(context, param)?)
         }
         return Expr.new_explicit(NodeType.FuncDef(new_func_def), new_params, e.line, e.col)
 
@@ -77,7 +77,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
             }
-            new_default_values.set(name.clone(), garbager_recursive(context, value_expr)?)
+            new_default_values.set(own name.clone(), own garbager_recursive(context, value_expr)?)
         }
         // Recurse into ns default values
         mut ns_new_default_values := Map.new(Str, Expr)
@@ -86,7 +86,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
             }
-            ns_new_default_values.set(ns_name.clone(), garbager_recursive(context, ns_value_expr)?)
+            ns_new_default_values.set(own ns_name.clone(), own garbager_recursive(context, ns_value_expr)?)
         }
         new_ns := NamespaceDef(
             members=struct_def.ns.members.clone(),
@@ -99,7 +99,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         )
         mut struct_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            struct_new_params.push(garbager_recursive(context, param)?)
+            struct_new_params.push(own garbager_recursive(context, param)?)
         }
         return Expr.new_explicit(NodeType.StructDef(new_struct_def), struct_new_params, e.line, e.col)
 
@@ -110,7 +110,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "garbager", format("KeyNotFoundError: ", err.msg))
             }
-            enum_ns_new_default_values.set(enum_ns_name.clone(), garbager_recursive(context, enum_ns_value_expr)?)
+            enum_ns_new_default_values.set(own enum_ns_name.clone(), own garbager_recursive(context, enum_ns_value_expr)?)
         }
         enum_new_ns := NamespaceDef(
             members=enum_def.ns.members.clone(),
@@ -128,7 +128,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         // First, recursively transform children
         mut decl_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            decl_new_params.push(garbager_recursive(context, param)?)
+            decl_new_params.push(own garbager_recursive(context, param)?)
         }
 
         // Check if this is a mut declaration with struct type and identifier RHS
@@ -146,14 +146,14 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
                     decl_rhs_expr := first_param.clone()
                     decl_clone_call := build_clone_call_expr(type_name, decl_rhs_expr, e.line, e.col)
                     mut decl_transformed_params := Vec.new(Expr)
-                    decl_transformed_params.push(decl_clone_call)
+                    decl_transformed_params.push(own decl_clone_call)
                     mut decl_i := 1
                     while decl_i.lt(decl_new_params.len()) {
                         decl_param := cast(Expr, decl_new_params.get(decl_i)?)
                         catch (err: IndexOutOfBoundsError) {
                             throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
                         }
-                        decl_transformed_params.push(decl_param)
+                        decl_transformed_params.push(own decl_param)
                         decl_i = decl_i.add(1)
                     }
                     return Expr.new_explicit(e.node_type, decl_transformed_params, e.line, e.col)
@@ -172,7 +172,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         // First, recursively transform children
         mut fcall_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            fcall_new_params.push(garbager_recursive(context, param)?)
+            fcall_new_params.push(own garbager_recursive(context, param)?)
         }
         // Transform copy params: wrap struct identifier args in Type.clone()
         transform_fcall_copy_params(context, e, fcall_new_params)
@@ -185,7 +185,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         // First, recursively transform children
         mut assign_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            assign_new_params.push(garbager_recursive(context, param)?)
+            assign_new_params.push(own garbager_recursive(context, param)?)
         }
 
         // Check if RHS is a bare identifier (no field access children)
@@ -211,14 +211,14 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
                     assign_rhs_expr := assign_first_param.clone()
                     assign_clone_call := build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col)
                     mut assign_transformed_params := Vec.new(Expr)
-                    assign_transformed_params.push(assign_clone_call)
+                    assign_transformed_params.push(own assign_clone_call)
                     mut assign_i := 1
                     while assign_i.lt(assign_new_params.len()) {
                         assign_param := cast(Expr, assign_new_params.get(assign_i)?)
                         catch (err: IndexOutOfBoundsError) {
                             throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
                         }
-                        assign_transformed_params.push(assign_param)
+                        assign_transformed_params.push(own assign_param)
                         assign_i = assign_i.add(1)
                     }
                     return Expr.new_explicit(e.node_type, assign_transformed_params, e.line, e.col)
@@ -240,7 +240,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
             if is_dont_delete_call(param) {
                 // strip dont_delete from nested bodies
             } else {
-                body_new_params.push(garbager_recursive(context, param)?)
+                body_new_params.push(own garbager_recursive(context, param)?)
             }
         }
         return Expr.new_explicit(e.node_type, body_new_params, e.line, e.col)
@@ -259,7 +259,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
     case:
         mut default_new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            default_new_params.push(garbager_recursive(context, param)?)
+            default_new_params.push(own garbager_recursive(context, param)?)
         }
         return Expr.new_explicit(e.node_type, default_new_params, e.line, e.col)
     }
@@ -273,12 +273,12 @@ build_clone_call_expr : func(type_name: Str, src_expr: Expr, line: I64, col: I64
     // Type.clone access: Identifier("Type") with child Identifier("clone")
     clone_ident := Expr(node_type=NodeType.Identifier("clone"), line=line, col=col)
     mut type_clone_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
-    type_clone_access.params.push(clone_ident)
+    type_clone_access.params.push(own clone_ident)
 
     // FCall node with the source expression as argument
     mut clone_call := Expr(node_type=NodeType.FCall(FCallInfo()), line=line, col=col)
-    clone_call.params.push(type_clone_access)
-    clone_call.params.push(src_expr)
+    clone_call.params.push(own type_clone_access)
+    clone_call.params.push(own src_expr)
     return clone_call
 }
 
@@ -288,7 +288,7 @@ build_clone_assignment_expr : func(type_name: Str, var_name: Str, line: I64, col
     var_expr := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
     clone_call := build_clone_call_expr(type_name, var_expr, line, col)
     mut assign := Expr(node_type=NodeType.Assignment(var_name), line=line, col=col)
-    assign.params.push(clone_call)
+    assign.params.push(own clone_call)
     return assign
 }
 
@@ -397,9 +397,9 @@ insert_clone_after_get : proc(stmts: Vec, local_types: Map, context: Context) re
         needs_clone := detect_shallow_copy_outparam(processed, local_types, context, det_var, det_type)
         det_line := processed.line
         det_col := processed.col
-        result.push(processed)
+        result.push(own processed)
         if needs_clone {
-            result.push(build_clone_assignment_expr(det_type, det_var, det_line, det_col))
+            result.push(own build_clone_assignment_expr(det_type, det_var, det_line, det_col))
         }
     }
     return result
@@ -417,7 +417,7 @@ process_stmt_for_clone_after_get : proc(e: Expr, local_types: Map, context: Cont
         // Recurse into params (covers if/while/for/switch which store bodies as params)
         mut new_params := Vec.new(Expr)
         for param: Expr in e.params {
-            new_params.push(process_stmt_for_clone_after_get(param, local_types, context)?)
+            new_params.push(own process_stmt_for_clone_after_get(param, local_types, context)?)
         }
         return Expr.new_explicit(e.node_type, new_params, e.line, e.col)
     }
@@ -523,7 +523,7 @@ transform_fcall_copy_params : proc(context: Context, e: Expr, mut new_params: Ve
                 case ValueType.TCustom(type_name):
                     arg_expr := param_expr.clone()
                     clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
-                    new_params.set(param_idx, clone_call)?
+                    new_params.set(param_idx, own clone_call)?
                     catch (err: IndexOutOfBoundsError) { }
                 case:
                 }
@@ -568,7 +568,7 @@ get_fcall_identifier_chain : proc(e: Expr, mut chain: Vec) = {
 collect_identifier_chain : proc(e: Expr, mut chain: Vec) = {
     switch e.node_type {
     case NodeType.Identifier(name):
-        chain.push(name)
+        chain.push(own name)
         for child: Expr in e.params {
             collect_identifier_chain(child, chain)
         }
@@ -721,9 +721,9 @@ transform_struct_literal_fields : proc(context: Context, e: Expr, mut new_params
                         if is_identifier_expr(value_expr) {
                             arg_expr := value_expr.clone()
                             clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
-                            param.params.set(0, clone_call)?
+                            param.params.set(0, own clone_call)?
                             catch (err: IndexOutOfBoundsError) { }
-                            new_params.set(param_idx, param)?
+                            new_params.set(param_idx, own param)?
                             catch (err: IndexOutOfBoundsError) { }
                         }
                     }

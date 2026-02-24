@@ -54,7 +54,7 @@ namespace:
         }
 
         // Element not found, add it
-        self.elements.push(elem)
+        self.elements.push(own elem)
         self._size = self._size.add(1)
         return true
     }

@@ -89,8 +89,8 @@ namespace:
         result_ptr := alloc_ptr
         loop_size := alloc_size
         self.total_heap_bytes = self.total_heap_bytes.add(alloc_size)
-        self._heap_bases.push(alloc_ptr)
-        self._heap_sizes.push(alloc_size)
+        self._heap_bases.push(own alloc_ptr)
+        self._heap_sizes.push(own alloc_size)
         // Zero-initialize (reserve zeroes memory, so we must too for compatibility)
         mut zero : U8 = 0
         for i in 0..loop_size {
@@ -108,8 +108,8 @@ namespace:
         for i in 0..self._heap_bases.len() {
             base := cast(I64, self._heap_bases.get(i)?)
             if base.eq(ptr) {
-                self._heap_bases.set(i, 0)?  // mark as freed
-                self._heap_sizes.set(i, 0)?
+                self._heap_bases.set(i, own 0)?  // mark as freed
+                self._heap_sizes.set(i, own 0)?
                 free(ptr)
                 return
             }
@@ -249,7 +249,7 @@ namespace:
 
     insert_i64_into_frame : proc(ctx: Context, mut frame: ScopeFrame, id: Str, i64_str: Str, e: Expr) throws Str = {
         offset := EvalHeap.insert_i64_core(ctx, id, i64_str, e)?
-        frame.heap_index.set(id, offset)
+        frame.heap_index.set(own id, own offset)
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
@@ -287,7 +287,7 @@ namespace:
 
     insert_u8_into_frame : proc(ctx: Context, mut frame: ScopeFrame, id: Str, u8_str: Str, e: Expr) throws Str = {
         offset := EvalHeap.insert_u8_core(ctx, id, u8_str, e)?
-        frame.heap_index.set(id, offset)
+        frame.heap_index.set(own id, own offset)
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
@@ -325,7 +325,7 @@ namespace:
                     throw e.lang_error(ctx.path, "context", "insert_struct: Unsupported value type in struct")
                 }
 
-                field_offsets.set(decl.name, total_size)
+                field_offsets.set(own decl.name, own total_size)
                 total_size = add(total_size, field_size)
             }
         }
@@ -338,7 +338,7 @@ namespace:
         mut base_mapping := EvalHeapMapping()
         base_mapping.name = id
         base_mapping.offset = offset
-        result.heap_mappings.push(base_mapping)
+        result.heap_mappings.push(own base_mapping)
 
         // Temporarily register base var so get_field_offset works during field initialization
         ctx.scope_stack.insert_var(id, offset)?
@@ -412,7 +412,7 @@ namespace:
                                 mut sym_entry := SymbolEntry()
                                 sym_entry.name = nested_combined_name
                                 sym_entry.info = nested_symbol
-                                result.symbols.push(sym_entry)
+                                result.symbols.push(own sym_entry)
 
                                 // Special case: Str field initialization
                                 if type_name.eq("Str") {
@@ -421,7 +421,7 @@ namespace:
                                     mut str_mapping := EvalHeapMapping()
                                     str_mapping.name = nested_combined_name
                                     str_mapping.offset = str_field_offset
-                                    result.heap_mappings.push(str_mapping)
+                                    result.heap_mappings.push(own str_mapping)
                                     EvalHeap.insert_string(ctx, nested_combined_name, default_value, e)?
                                 } else {
                                     // Use existing offset for nested struct (inline allocation)
@@ -429,7 +429,7 @@ namespace:
                                     mut nested_mapping := EvalHeapMapping()
                                     nested_mapping.name = nested_combined_name
                                     nested_mapping.offset = nested_field_offset
-                                    result.heap_mappings.push(nested_mapping)
+                                    result.heap_mappings.push(own nested_mapping)
                                     // Extract nested defaults (field.subfield -> subfield)
                                     prefix := format(decl.name, ".")
                                     mut nested_defaults := Map.new(Str, Str)
@@ -441,7 +441,7 @@ namespace:
                                             catch (err: KeyNotFoundError) {
                                                 panic(loc(), "insert_struct_core: key not found in defaults")
                                             }
-                                            nested_defaults.set(rest, dv)
+                                            nested_defaults.set(own rest, own dv)
                                         }
                                     }
                                     nested_result := EvalHeap.insert_struct_core(ctx, nested_combined_name, type_name, nested_field_offset, nested_defaults, e)?
@@ -467,7 +467,7 @@ namespace:
                 mut field_sym := SymbolEntry()
                 field_sym.name = combined_name
                 field_sym.info = SymbolInfo(value_type=decl.value_type, is_mut=is_mut)
-                result.symbols.push(field_sym)
+                result.symbols.push(own field_sym)
             }
         }
 
@@ -513,7 +513,7 @@ namespace:
                 case:
                     throw e.lang_error(ctx.path, "generate_struct_mappings", "Unsupported value type")
                 }
-                field_offsets.set(decl.name, current_offset)
+                field_offsets.set(own decl.name, own current_offset)
                 current_offset = add(current_offset, field_size)
             }
         }
@@ -522,7 +522,7 @@ namespace:
         mut base_mapping := EvalHeapMapping()
         base_mapping.name = id
         base_mapping.offset = base_offset
-        result.heap_mappings.push(base_mapping)
+        result.heap_mappings.push(own base_mapping)
 
         // Generate symbols for each field (Bug #160: no longer generate field heap mappings)
         for decl: Declaration in struct_def.members {
@@ -542,7 +542,7 @@ namespace:
                 mut field_sym := SymbolEntry()
                 field_sym.name = combined_name
                 field_sym.info = SymbolInfo(value_type=decl.value_type, is_mut=is_mut)
-                result.symbols.push(field_sym)
+                result.symbols.push(own field_sym)
 
                 // Handle nested structs recursively
                 switch decl.value_type {
@@ -615,7 +615,7 @@ namespace:
         free(tmp_buf)
 
         // Temporarily push frame for generate_struct_mappings
-        ctx.scope_stack.frames.push(frame.clone())
+        ctx.scope_stack.frames.push(own frame.clone())
 
         result := EvalHeap.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?
 
@@ -625,10 +625,10 @@ namespace:
         frame = popped_frame
 
         for m: EvalHeapMapping in result.heap_mappings {
-            frame.heap_index.set(m.name, m.offset)
+            frame.heap_index.set(own m.name, own m.offset)
         }
         for s: SymbolEntry in result.symbols {
-            frame.symbols.set(s.name, s.info)
+            frame.symbols.set(own s.name, own s.info)
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -865,7 +865,7 @@ namespace:
                     while pi.lt(payload_size) {
                         mut byte_val : U8 = 0
                         memcpy(to_ptr(byte_val), g_heap.get(add(payload_offset, pi), 1), 1)
-                        payload_bytes.push(byte_val)
+                        payload_bytes.push(own byte_val)
                         pi = add(pi, 1)
                     }
                     // Bug #72 fix: Heap-allocate Vec and ValueType structs so they survive function return
@@ -1042,7 +1042,7 @@ namespace:
                     while pi.lt(payload_size) {
                         mut byte_val : U8 = 0
                         memcpy(to_ptr(byte_val), g_heap.get(add(payload_offset, pi), 1), 1)
-                        payload_bytes.push(byte_val)
+                        payload_bytes.push(own byte_val)
                         pi = add(pi, 1)
                     }
                     // Bug #72 fix: Heap-allocate Vec and ValueType structs so they survive function return
@@ -1183,7 +1183,7 @@ namespace:
 
     insert_enum_into_frame : proc(mut ctx: Context, mut frame: ScopeFrame, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str = {
         // Temporarily push frame so symbol lookups work in core function
-        ctx.scope_stack.frames.push(frame.clone())
+        ctx.scope_stack.frames.push(own frame.clone())
 
         result := EvalHeap.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?
 
@@ -1192,7 +1192,7 @@ namespace:
 
         // Now apply result to the frame
         if result.has_mapping {
-            frame.heap_index.set(result.mapping_name, result.mapping_offset)
+            frame.heap_index.set(own result.mapping_name, own result.mapping_offset)
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -1235,7 +1235,7 @@ namespace:
                 // For Str elements, create temp Str and copy bytes to array slot
                 temp_id := format(name, "_", I64.to_str(i))
                 temp_symbol := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
-                frame.symbols.set(temp_id.clone(), temp_symbol)
+                frame.symbols.set(own temp_id.clone(), own temp_symbol)
 
                 EvalHeap.insert_string_into_frame(ctx, frame, temp_id, val, e)?
 
@@ -1328,7 +1328,7 @@ namespace:
         // First param is the type identifier
         type_id := Expr.new_explicit(NodeType.Identifier(type_name), Vec.new(Expr), 0, 0)
         mut params := Vec.new(Expr)
-        params.push(type_id)
+        params.push(own type_id)
 
         // For each mutable field, read value and create NamedArg
         for member: Declaration in struct_def.members {
@@ -1339,9 +1339,9 @@ namespace:
             field_value := EvalHeap.field_to_literal(ctx, field_id, member.value_type, e)?
 
             mut named_arg_params := Vec.new(Expr)
-            named_arg_params.push(field_value)
+            named_arg_params.push(own field_value)
             named_arg := Expr.new_explicit(NodeType.NamedArg(member.name), named_arg_params, 0, 0)
-            params.push(named_arg)
+            params.push(own named_arg)
         }
 
         result := Expr.new_explicit(NodeType.FCall(FCallInfo()), params, 0, 0)
@@ -1437,9 +1437,9 @@ namespace:
                 byte_ptr := g_heap.get(elem_offset.add(j), 1)
                 mut byte_val : U8 = 0
                 Ptr(data=byte_ptr).dereference(U8, byte_val)
-                bytes.push(byte_val)
+                bytes.push(own byte_val)
             }
-            element_bytes.push(bytes)
+            element_bytes.push(own bytes)
         }
 
         return VecContents(element_type_name=type_name_str, type_size=type_size, element_bytes=element_bytes)

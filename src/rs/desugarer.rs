@@ -1333,6 +1333,11 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 Ok(Expr::new_clone(e.node_type.clone(), e, new_stmts))
             }
         },
+        // Issue #185: Unwrap OwnArg -- pass through to inner expression
+        NodeType::OwnArg => {
+            let inner = desugar_expr(context, e.params.get(0).unwrap())?;
+            Ok(inner)
+        },
         // For all other nodes, recurse into params
         _ => {
             if e.params.is_empty() {

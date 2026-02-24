@@ -221,7 +221,7 @@ test_non_mut_isolation()
 // === Test arrays with mut arguments ===
 
 push_value : proc(mut arr: Vec, value: I64) = {
-    arr.push(value)
+    arr.push(own value)
 }
 
 test_mut_array : proc() = {
@@ -456,7 +456,7 @@ consume_i64 : proc(own n: I64) returns I64 = {
 
 test_own_primitive : proc() = {
     mut x := 42
-    result := consume_i64(x)
+    result := consume_i64(own x)
     assert_eq(loc(), 84, result)
     // x should still exist in this context (own parameters don't remove from caller yet)
     // This will be implemented later when we add use-after-move checking
@@ -470,7 +470,7 @@ consume_vec : proc(own v: Vec2) returns I64 = {
 
 test_own_struct : proc() = {
     mut point := Vec2(x=10, y=20)
-    result := consume_vec(point)
+    result := consume_vec(own point)
     assert_eq(loc(), 30, result)
 }
 test_own_struct()
@@ -484,7 +484,7 @@ modify_own_struct : proc(own v: Vec2) returns Vec2 = {
 
 test_own_can_modify : proc() = {
     mut original := Vec2(x=1, y=2)
-    modified := modify_own_struct(original)
+    modified := modify_own_struct(own original)
     assert_eq(loc(), 100, modified.x)
     assert_eq(loc(), 200, modified.y)
 }
@@ -497,14 +497,14 @@ consume_string : proc(own s: Str) returns Str = {
 
 test_own_string : proc() = {
     mut text := "hello"
-    result := consume_string(text)
+    result := consume_string(own text)
     assert_eq_str(loc(), "hello consumed", result)
 }
 test_own_string()
 
 // Test 5: own with expression (not a variable) - should allocate fresh
 test_own_expression : proc() = {
-    result := consume_vec(Vec2(x=5, y=15))
+    result := consume_vec(own Vec2(x=5, y=15))
     assert_eq(loc(), 20, result)  // 5+15=20
 }
 test_own_expression()
@@ -521,7 +521,7 @@ test_own_nested_struct : proc() = {
     line.end.x = 3
     line.end.y = 4
 
-    result := consume_line(line)
+    result := consume_line(own line)
     assert_eq(loc(), 10, result)  // 1+2+3+4 = 10
 }
 test_own_nested_struct()
@@ -534,7 +534,7 @@ sum_owned : proc(own a: I64, own b: I64) returns I64 = {
 test_multiple_own : proc() = {
     mut x := 10
     mut y := 20
-    result := sum_owned(x, y)
+    result := sum_owned(own x, own y)
     assert_eq(loc(), 30, result)
 }
 test_multiple_own()
@@ -550,7 +550,7 @@ test_mixed_own : proc() = {
     mut b := 10
     mut c := 100
 
-    result := mixed_params(a, b, c)
+    result := mixed_params(a, b, own c)
     assert_eq(loc(), 121, result)  // 1 + 20 + 100 = 121
     assert_eq(loc(), 20, b)  // b was modified through mut
 }

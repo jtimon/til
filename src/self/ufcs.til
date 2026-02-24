@@ -72,7 +72,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
 
     mut result := Vec.new(Expr)
     e0 := cast(Expr, e.params.get(0)?)
-    result.push(e0) // Keep function identifier
+    result.push(own e0) // Keep function identifier
 
     // Bug #61: Handle variadic functions with optional args before the variadic
     // Need to insert defaults for skipped optional args, then include all provided args
@@ -107,13 +107,13 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
             if matches {
                 // Use provided arg
                 ecall_arg_idx := cast(Expr, e.params.get(call_arg_idx.add(1))?)
-                result.push(ecall_arg_idx)
+                result.push(own ecall_arg_idx)
                 call_arg_idx.inc()
             } else if not(NULL.eq(opt_def_arg.default_value.data)) {
                 // Use default - dereference the Ptr to Expr
                 mut opt_default_expr := Expr()
                 memcpy(to_ptr(opt_default_expr), opt_def_arg.default_value.data, size_of(Expr))
-                result.push(opt_default_expr.clone())
+                result.push(own opt_default_expr.clone())
             } else {
                 throw e.error(context.path, "ufcs", format("Missing argument for non-optional parameter '", opt_def_arg.name, "'"))
             }
@@ -123,7 +123,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
         // Add remaining provided args (for variadic)
         while call_arg_idx.lt(call_args_len) {
             remaining_arg := cast(Expr, e.params.get(call_arg_idx.add(1))?)
-            result.push(remaining_arg)
+            result.push(own remaining_arg)
             call_arg_idx.inc()
         }
 
@@ -164,8 +164,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
     mut final_args_set := Vec.new(Bool)
     i = 0
     while i.lt(func_def.sig.args.len()) {
-        final_args.push(Expr())
-        final_args_set.push(false)
+        final_args.push(own Expr())
+        final_args_set.push(own false)
         i.inc()
     }
 
@@ -176,8 +176,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
             throw e.error(context.path, "ufcs", format("Too many positional arguments: expected at most ", func_def.sig.args.len().to_str()))
         }
         ei := cast(Expr, e.params.get(i.add(1))?)
-        final_args.set(i, ei)?
-        final_args_set.set(i, true)?
+        final_args.set(i, own ei)?
+        final_args_set.set(i, own true)?
         i.inc()
     }
 
@@ -210,8 +210,8 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
                 throw named_arg.error(context.path, "ufcs", format("Named argument '", arg_name, "' has no value"))
             }
             named_value := cast(Expr, named_arg.params.get(0)?)
-            final_args.set(param_idx, named_value)?
-            final_args_set.set(param_idx, true)?
+            final_args.set(param_idx, own named_value)?
+            final_args_set.set(param_idx, own true)?
         case:
         }
         i.inc()
@@ -223,14 +223,14 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
         is_set := cast(Bool, final_args_set.get(i)?)
         if is_set {
             final_arg := cast(Expr, final_args.get(i)?)
-            result.push(final_arg)
+            result.push(own final_arg)
         } else {
             // Check if this parameter has a default value
             final_arg_decl := cast(Declaration, func_def.sig.args.get(i)?)
             if not(NULL.eq(final_arg_decl.default_value.data)) {
                 mut final_default_expr := Expr()
                 memcpy(to_ptr(final_default_expr), final_arg_decl.default_value.data, size_of(Expr))
-                result.push(final_default_expr.clone())
+                result.push(own final_default_expr.clone())
             } else {
                 throw e.error(context.path, "ufcs", format("Missing argument for parameter '", final_arg_decl.name, "'"))
             }
@@ -306,12 +306,15 @@ ufcs_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     case NodeType.NamedArg(name):
         mut new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            new_params.push(ufcs_expr(context, p)?)
+            new_params.push(own ufcs_expr(context, p)?)
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
     // Issue #188: Defer should have been desugared in desugarer phase
     case NodeType.Defer:
         panic(loc(), "Defer should have been desugared in desugarer phase")
+    // Issue #185: OwnArg should have been desugared in desugarer phase
+    case NodeType.OwnArg:
+        panic(loc(), "OwnArg should have been desugared in desugarer phase")
     // ForIn should have been desugared in desugarer phase
     case NodeType.ForIn(_):
         panic(loc(), "ForIn should have been desugared in desugarer phase")
@@ -324,7 +327,7 @@ ufcs_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 ufcs_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
-        new_params.push(ufcs_expr(context, p)?)
+        new_params.push(own ufcs_expr(context, p)?)
     }
     return Expr.new_clone(e.node_type, e, new_params)
 }
@@ -333,7 +336,7 @@ ufcs_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 ufcs_params : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
-        new_params.push(ufcs_expr(context, p)?)
+        new_params.push(own ufcs_expr(context, p)?)
     }
     return Expr.new_clone(e.node_type, e, new_params)
 }
@@ -345,14 +348,14 @@ ufcs_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) ret
     while i.lt(struct_def.default_values.keys.len()) {
         name := cast(Str, struct_def.default_values.keys.get(i)?)
         value_expr := cast(Expr, struct_def.default_values.get(name)?)
-        new_default_values.set(name, ufcs_expr(context, value_expr)?)
+        new_default_values.set(own name, own ufcs_expr(context, value_expr)?)
         i.inc()
     }
     // Process ns default_values
     mut ns_new_default_values := Map.new(Str, Expr)
     for ns_name: Str in struct_def.ns.default_values.keys {
         ns_value_expr := cast(Expr, struct_def.ns.default_values.get(ns_name)?)
-        ns_new_default_values.set(ns_name, ufcs_expr(context, ns_value_expr)?)
+        ns_new_default_values.set(own ns_name, own ufcs_expr(context, ns_value_expr)?)
     }
     mut new_ns := NamespaceDef()
     new_ns.members = struct_def.ns.members.clone()
@@ -385,7 +388,7 @@ ufcs_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns E
     // Transform the function body
     mut new_body := Vec.new(Expr)
     for stmt: Expr in func_def.body {
-        new_body.push(ufcs_expr(context, stmt)?)
+        new_body.push(own ufcs_expr(context, stmt)?)
     }
 
     // Pop the function scope frame
@@ -482,7 +485,7 @@ ufcs_declaration : proc(mut context: Context, e: Expr, decl: Declaration) return
     mut new_params := Vec.new(Expr)
     if e.params.len().gt(0) {
         for p: Expr in e.params {
-            new_params.push(ufcs_expr(context, p)?)
+            new_params.push(own ufcs_expr(context, p)?)
         }
     }
 
@@ -554,9 +557,9 @@ ufcs_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
     // Return the transformed catch with original var_name, type, and new body
     mut new_params := Vec.new(Expr)
-    new_params.push(name_expr)
-    new_params.push(type_expr)
-    new_params.push(new_body)
+    new_params.push(own name_expr)
+    new_params.push(own type_expr)
+    new_params.push(own new_body)
 
     catch (err: IndexOutOfBoundsError) {
         throw format("ufcs_catch: ", err.msg)
@@ -570,7 +573,7 @@ ufcs_enum_def : proc(mut context: Context, e: Expr, enum_def: EnumDef) returns E
     mut ns_new_default_values := Map.new(Str, Expr)
     for ns_name: Str in enum_def.ns.default_values.keys {
         ns_value_expr := cast(Expr, enum_def.ns.default_values.get(ns_name)?)
-        ns_new_default_values.set(ns_name, ufcs_expr(context, ns_value_expr)?)
+        ns_new_default_values.set(own ns_name, own ufcs_expr(context, ns_value_expr)?)
     }
     mut new_ns := NamespaceDef()
     new_ns.members = enum_def.ns.members.clone()
@@ -594,7 +597,7 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     // Transform all arguments first
     mut transformed_params := Vec.new(Expr)
     for p: Expr in e.params {
-        transformed_params.push(ufcs_expr(context, p)?)
+        transformed_params.push(own ufcs_expr(context, p)?)
     }
     mut new_e := Expr.new_clone(e.node_type, e, transformed_params)
 
@@ -653,13 +656,13 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                         // Transform: func(target, args...) -> Type.func(target, args...)
                         mut new_id_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
                         mut new_args := Vec.new(Expr)
-                        new_args.push(new_id_e)
+                        new_args.push(own new_id_e)
                         // Add remaining args from outer new_e (the transformed FCall)
                         mut j := 1
                         while j.lt(new_e.params.len()) {
                             arg := cast(Expr, new_e.params.get(j)?)
                             dont_delete(arg)
-                            new_args.push(arg)
+                            new_args.push(own arg)
                             j.inc()
                         }
                         return Expr.new_clone(NodeType.FCall(get_fcall_info(func_expr)), func_expr, new_args)
@@ -730,14 +733,14 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                         if context.scope_stack.has_func(assoc_method_name) {
                             mut assoc_new_id_e := Expr.new_clone(NodeType.Identifier(assoc_method_name), func_expr, Vec.new(Expr))
                             mut assoc_new_args := Vec.new(Expr)
-                            assoc_new_args.push(assoc_new_id_e)
-                            assoc_new_args.push(receiver_expr)
+                            assoc_new_args.push(own assoc_new_id_e)
+                            assoc_new_args.push(own receiver_expr)
                             // Add remaining args from outer new_e
                             mut assoc_j := 1
                             while assoc_j.lt(new_e.params.len()) {
                                 assoc_arg := cast(Expr, new_e.params.get(assoc_j)?)
                                 dont_delete(assoc_arg)
-                                assoc_new_args.push(assoc_arg)
+                                assoc_new_args.push(own assoc_arg)
                                 assoc_j.inc()
                             }
                             return Expr.new_clone(NodeType.FCall(get_fcall_info(func_expr)), func_expr, assoc_new_args)
@@ -750,14 +753,14 @@ ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 if context.scope_stack.has_func(ufcs_func_name) {
                     mut standalone_new_id_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
                     mut standalone_new_args := Vec.new(Expr)
-                    standalone_new_args.push(standalone_new_id_e)
-                    standalone_new_args.push(receiver_expr)
+                    standalone_new_args.push(own standalone_new_id_e)
+                    standalone_new_args.push(own receiver_expr)
                     // Add remaining args from outer new_e
                     mut standalone_j := 1
                     while standalone_j.lt(new_e.params.len()) {
                         standalone_arg := cast(Expr, new_e.params.get(standalone_j)?)
                         dont_delete(standalone_arg)
-                        standalone_new_args.push(standalone_arg)
+                        standalone_new_args.push(own standalone_arg)
                         standalone_j.inc()
                     }
                     return Expr.new_clone(NodeType.FCall(get_fcall_info(func_expr)), func_expr, standalone_new_args)

@@ -125,7 +125,7 @@ namespace:
         frame.enums = Map.new(Str, EnumDef)
         frame.structs = Map.new(Str, StructDef)
         frame.scope_type = scope_type
-        self.frames.push(frame)
+        self.frames.push(own frame)
     }
 
     pop : proc(mut self: ScopeStack) returns ScopeFrame throws Str, IndexOutOfBoundsError = {
@@ -246,8 +246,8 @@ namespace:
             throw format("Variable '", name, "' already declared in this scope")
         }
 
-        current_frame.heap_index.set(name.clone(), offset)
-        current_frame.symbols.set(name, symbol)
+        current_frame.heap_index.set(own name.clone(), own offset)
+        current_frame.symbols.set(own name, own symbol)
 
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -258,7 +258,7 @@ namespace:
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
-            current_frame.symbols.set(name, symbol)
+            current_frame.symbols.set(own name, own symbol)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -272,7 +272,7 @@ namespace:
             if current_frame.symbols.contains_key(name) {
                 if self.removal_tracking_depth.gt(0) {
                     info := cast(SymbolInfo, current_frame.symbols.get(name)?)
-                    self.removed_log.push(RemovedSymbol(name=name.clone(), info=info))
+                    self.removed_log.push(own RemovedSymbol(name=name.clone(), info=info))
                     catch (err: KeyNotFoundError) {
                         throw err.msg
                     }
@@ -315,7 +315,7 @@ namespace:
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
-            current_frame.heap_index.set(name, offset)
+            current_frame.heap_index.set(own name, own offset)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -347,7 +347,7 @@ namespace:
             // This matches Rust's HashMap.insert behavior which overwrites.
             // Needed because init phase stores original func_def, then eval phase
             // stores precomp'd func_def with desugared for-in loops.
-            current_frame.funcs.set(name, func_def)
+            current_frame.funcs.set(own name, own func_def)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -360,7 +360,7 @@ namespace:
     update_func : proc(mut self: ScopeStack, name: Str, func_def: FuncDef) throws Str = {
         for frame: ScopeFrame in self.frames {
             if frame.funcs.contains_key(name) {
-                frame.funcs.set(name, func_def)
+                frame.funcs.set(own name, own func_def)
                 return
             }
         }
@@ -389,7 +389,7 @@ namespace:
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
-            current_frame.enums.set(name, enum_def)
+            current_frame.enums.set(own name, own enum_def)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -522,7 +522,7 @@ namespace:
             frame := cast(ScopeFrame, self.frames.get(i)?)
 
             for struct_def: StructDef in frame.structs.values {
-                result.push(struct_def)
+                result.push(own struct_def)
             }
         }
 
@@ -536,7 +536,7 @@ namespace:
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
-            current_frame.structs.set(name, struct_def)
+            current_frame.structs.set(own name, own struct_def)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -547,7 +547,7 @@ namespace:
     declare_struct_global : proc(mut self: ScopeStack, name: Str, struct_def: StructDef) throws Str = {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
-            global_frame.structs.set(name, struct_def)
+            global_frame.structs.set(own name, own struct_def)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -558,7 +558,7 @@ namespace:
     declare_func_global : proc(mut self: ScopeStack, name: Str, func_def: FuncDef) throws Str = {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
-            global_frame.funcs.set(name, func_def)
+            global_frame.funcs.set(own name, own func_def)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -569,7 +569,7 @@ namespace:
     declare_enum_global : proc(mut self: ScopeStack, name: Str, enum_def: EnumDef) throws Str = {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
-            global_frame.enums.set(name, enum_def)
+            global_frame.enums.set(own name, own enum_def)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -582,7 +582,7 @@ namespace:
         for frame: ScopeFrame in self.frames {
             for key: Str in frame.symbols.keys {
                 if key.starts_with(prefix) {
-                    keys.push(key.clone())
+                    keys.push(own key.clone())
                 }
             }
         }
@@ -593,7 +593,7 @@ namespace:
         mut names := Vec.new(Str)
         for frame: ScopeFrame in self.frames {
             for key: Str in frame.structs.keys {
-                names.push(key.clone())
+                names.push(own key.clone())
             }
         }
         return names
@@ -684,13 +684,13 @@ namespace:
             }
         }
         if not(already_exists) {
-            self.function_locals.push(local)
+            self.function_locals.push(own local)
         }
     }
 
     // Bug #101: Mark a symbol as used in the current function.
     mark_symbol_used : proc(mut self: ScopeStack, name: Str) = {
-        _ := self.used_symbols.insert(name)
+        _ := self.used_symbols.insert(own name)
     }
 
     /// Issue #117: Begin tracking symbol removals (supports nesting via depth counter).
@@ -728,7 +728,7 @@ namespace:
             mut frame := cast(ScopeFrame, self.frames.get(last_idx)?)
             for entry: RemovedSymbol in removed {
                 if not(frame.symbols.contains_key(entry.name)) {
-                    frame.symbols.set(entry.name.clone(), entry.info.clone())
+                    frame.symbols.set(own entry.name.clone(), own entry.info.clone())
                 }
             }
         }
@@ -754,7 +754,7 @@ namespace:
                         }
                     }
                     if not(already_added) {
-                        unused.push(local.name.clone())
+                        unused.push(own local.name.clone())
                     }
                 }
             }
@@ -1577,7 +1577,7 @@ init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: 
     }
 
     # Mark as done immediately - before processing - to handle circular imports
-    _ := context.imports_init_done.insert(path.clone())
+    _ := context.imports_init_done.insert(own path.clone())
 
     # Read and parse the imported file
     mut source := readfile(path)?
@@ -1624,8 +1624,8 @@ init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: 
         import_func_name_expr := Expr(node_type=NodeType.Identifier("import"), line=0, col=0)
         import_path_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(import_str)), line=0, col=0)
         mut import_fcall_expr := Expr(node_type=NodeType.FCall(FCallInfo()), line=0, col=0)
-        import_fcall_expr.params.push(import_func_name_expr)
-        import_fcall_expr.params.push(import_path_expr)
+        import_fcall_expr.params.push(own import_func_name_expr)
+        import_fcall_expr.params.push(own import_path_expr)
 
         init_import_declarations(context, import_fcall_expr, import_str)?
         catch (err: Str) {
@@ -1666,8 +1666,8 @@ init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: 
     }
 
     # Store AST and mode for typer and eval phases
-    context.imported_asts.set(path.clone(), imported_ast)
-    context.imported_modes.set(path.clone(), context.mode_def.clone())
+    context.imported_asts.set(own path.clone(), own imported_ast)
+    context.imported_modes.set(own path.clone(), own context.mode_def.clone())
 
     # Restore context state
     context.mode_def = previous_mode
@@ -1692,7 +1692,7 @@ collect_anon_funcs : proc(mut context: Context, e: Expr) throws Str = {
             key := format("(", line_str, ",", col_str, ")")
             line_str.delete()
             col_str.delete()
-            context.anon_func_map.set(key, temp_name.clone())
+            context.anon_func_map.set(own key, own temp_name.clone())
             context.scope_stack.declare_func(temp_name.clone(), func_def.clone())?
             context.scope_stack.declare_symbol(temp_name, SymbolInfo(
                 value_type=ValueType.TFunction(func_def.sig.function_type),
@@ -1735,27 +1735,27 @@ init_namespace_into_struct : proc(mut context: Context, type_name: Str, ns_def: 
             }
             if found_existing {
                 if existing_is_mut {
-                    errors.push(e.error(context.path, "init", format(
+                    errors.push(own e.error(context.path, "init", format(
                         "namespace for '", type_name, "': cannot override storage field '", member_decl.name, "'")))
                 } else {
                     mut new_members := Vec.new(Declaration)
                     for m: Declaration in merged_struct.members {
                         if not(m.name.eq(member_decl.name)) {
-                            new_members.push(m.clone())
+                            new_members.push(own m.clone())
                         }
                     }
                     merged_struct.members.delete()
                     merged_struct.members = new_members
-                    merged_struct.members.push(member_decl.clone())
+                    merged_struct.members.push(own member_decl.clone())
                 }
             } else {
-                merged_struct.members.push(member_decl.clone())
+                merged_struct.members.push(own member_decl.clone())
             }
         }
     }
     for dv_name: Str in ns_def.default_values.keys {
         dv_expr := cast(Expr, ns_def.default_values.get(dv_name)?)
-        merged_struct.default_values.set(dv_name.clone(), dv_expr.clone())
+        merged_struct.default_values.set(own dv_name.clone(), own dv_expr.clone())
     }
     catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
     context.scope_stack.declare_struct(type_name.clone(), merged_struct.clone())?
@@ -1795,7 +1795,7 @@ init_namespace_into_enum : proc(mut context: Context, type_name: Str, ns_def: Na
     mut existing_enum := EnumDef()
     existing_enum = context.scope_stack.lookup_enum(type_name)?
     catch (err: KeyNotFoundError) {
-        errors.push(e.error(context.path, "init", format(
+        errors.push(own e.error(context.path, "init", format(
             "namespace for '", type_name, "': enum type not found")))
         return
     }
@@ -1810,7 +1810,7 @@ init_namespace_into_enum : proc(mut context: Context, type_name: Str, ns_def: Na
         }
         if not(is_mut_member) {
             edv_expr := cast(Expr, ns_def.default_values.get(edv_name)?)
-            merged_enum.methods.set(edv_name.clone(), edv_expr.clone())
+            merged_enum.methods.set(own edv_name.clone(), own edv_expr.clone())
         }
     }
     catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
@@ -1858,7 +1858,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
         for se: Expr in e.params {
             mut sub_errors := init_context(context, se)?
             for sub_err: Str in sub_errors {
-                errors.push(sub_err)
+                errors.push(own sub_err)
             }
         }
 
@@ -1868,7 +1868,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
             # Extract import path (must be literal string)
             mut import_path_expr := cast(Expr, e.params.get(1)?)
             catch (err: IndexOutOfBoundsError) {
-                errors.push(e.lang_error(context.path, "import", format(context.path, ":", err.msg)))
+                errors.push(own e.lang_error(context.path, "import", format(context.path, ":", err.msg)))
                 return errors
             }
 
@@ -1881,18 +1881,18 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                 case Literal.Str(import_path_):
                     import_path = import_path_
                 case:
-                    errors.push(import_path_expr.lang_error(context.path, "import", format("Expected literal 'Str' for import, found literal '", enum_to_str(literal_type), "'")))
+                    errors.push(own import_path_expr.lang_error(context.path, "import", format("Expected literal 'Str' for import, found literal '", enum_to_str(literal_type), "'")))
                     return errors
                 }
             case:
-                errors.push(import_path_expr.lang_error(context.path, "import", format("Expected literal Str for import, found '", enum_to_str(import_node_type), "'")))
+                errors.push(own import_path_expr.lang_error(context.path, "import", format("Expected literal Str for import, found '", enum_to_str(import_node_type), "'")))
                 return errors
             }
 
             # Process import declarations (no eval)
             init_import_declarations(context, e, import_path)?
             catch (err: Str) {
-                errors.push(err)
+                errors.push(own err)
                 return errors
             }
         }
@@ -1912,21 +1912,21 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
         }
         // Bug #35: Skip "already declared" check for "_" - it's special for discarding return values
         if not(decl.name.eq("_")).and(found_as_func.or(found_as_symbol)) {
-            errors.push(e.error(context.path, "init", format("'", decl.name, "' already declared.")))
+            errors.push(own e.error(context.path, "init", format("'", decl.name, "' already declared.")))
         }
         if not(e.params.len().eq(1)) {
-            errors.push(e.lang_error(context.path, "init", format("in init_context, while declaring ", decl.name, ", declarations must take exactly one value.")))
+            errors.push(own e.lang_error(context.path, "init", format("in init_context, while declaring ", decl.name, ", declarations must take exactly one value.")))
             return errors
         }
         mut inner_e := cast(Expr, e.params.get(0)?)
         catch (err: Str) {
-            errors.push(err)
+            errors.push(own err)
             return errors
         }
 
         mut value_type := get_value_type(context, inner_e)?
         catch (err: Str) {
-            errors.push(err)
+            errors.push(own err)
             return errors
         }
 
@@ -2020,7 +2020,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                 mut decl_vt_str := enum_to_str(decl.value_type)
                 mut value_vt_str := enum_to_str(value_type)
                 if not(value_vt_str.eq(decl_vt_str)) {
-                    errors.push(e.error(context.path, "init", format("'", decl.name, "' declared of type '", value_type_to_str(decl.value_type), "' but initialized to type '", value_type_to_str(value_type), "'.")))
+                    errors.push(own e.error(context.path, "init", format("'", decl.name, "' declared of type '", value_type_to_str(decl.value_type), "' but initialized to type '", value_type_to_str(value_type), "'.")))
                 }
             }
         }
@@ -2039,7 +2039,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                                 sig_arg := cast(Declaration, init_sig_func_def.sig.args.get(resolve_i)?)
                                 mut reg_arg := cast(Declaration, registered_func_def.sig.args.get(resolve_i)?)
                                 reg_arg.value_type = sig_arg.value_type
-                                registered_func_def.sig.args.set(resolve_i, reg_arg)?
+                                registered_func_def.sig.args.set(resolve_i, own reg_arg)?
                             }
                         }
                         registered_func_def.sig.return_types = init_sig_func_def.sig.return_types.clone()
@@ -2059,7 +2059,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     if init_is_sig_ref {
                         context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
-                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
                     }
                 }
@@ -2072,7 +2072,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     if init_is_sig_ref {
                         context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
-                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
                     }
                 }
@@ -2087,7 +2087,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                                 proc_sig_arg := cast(Declaration, init_sig_func_def.sig.args.get(proc_resolve_i)?)
                                 mut proc_reg_arg := cast(Declaration, registered_proc_def.sig.args.get(proc_resolve_i)?)
                                 proc_reg_arg.value_type = proc_sig_arg.value_type
-                                registered_proc_def.sig.args.set(proc_resolve_i, proc_reg_arg)?
+                                registered_proc_def.sig.args.set(proc_resolve_i, own proc_reg_arg)?
                             }
                         }
                         registered_proc_def.sig.return_types = init_sig_func_def.sig.return_types.clone()
@@ -2104,7 +2104,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     if init_is_sig_ref {
                         context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
-                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
                     }
                 }
@@ -2117,7 +2117,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     if init_is_sig_ref {
                         context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
-                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
                     }
                 }
@@ -2130,7 +2130,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     if init_is_sig_ref {
                         context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
-                        errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                        errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
                     }
                 }
@@ -2140,7 +2140,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
             switch inner_e.node_type {
             case NodeType.EnumDef(enum_def):
                 if not(inner_e.params.len().eq(0)) {
-                    errors.push(e.lang_error(context.path, "init", format("while declaring ", decl.name, ": enum declarations don't have any parameters in the tree.")))
+                    errors.push(own e.lang_error(context.path, "init", format("while declaring ", decl.name, ": enum declarations don't have any parameters in the tree.")))
                     return errors
                 }
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
@@ -2173,7 +2173,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                 // Issue #106: First-class enum - deferred to precomp after macro expansion
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
             case:
-                errors.push(e.lang_error(context.path, "init", "enums should have definitions."))
+                errors.push(own e.lang_error(context.path, "init", "enums should have definitions."))
                 return errors
             }
 
@@ -2181,7 +2181,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
             switch inner_e.node_type {
             case NodeType.StructDef(struct_def):
                 if not(inner_e.params.len().eq(0)) {
-                    errors.push(e.lang_error(context.path, "init", format("while declaring ", decl.name, ", struct declarations must have exactly 0 params.")))
+                    errors.push(own e.lang_error(context.path, "init", format("while declaring ", decl.name, ", struct declarations must have exactly 0 params.")))
                     return errors
                 }
                 # Register the struct itself
@@ -2219,7 +2219,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                 # Struct registration deferred to precomp after macro expansion
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
             case:
-                errors.push(e.lang_error(context.path, "init", "struct declarations should have definitions."))
+                errors.push(own e.lang_error(context.path, "init", "struct declarations should have definitions."))
                 return errors
             }
 
@@ -2230,7 +2230,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=true))?
                 context.scope_stack.declare_func(decl.name, func_def.clone())?
             case:
-                errors.push(e.lang_error(context.path, "init", "function signature types should have func definitions."))
+                errors.push(own e.lang_error(context.path, "init", "function signature types should have func definitions."))
                 return errors
             }
 
@@ -2246,9 +2246,9 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
     case:
         if not(context.mode_def.allows_base_anything) {
             if context.mode_def.allows_base_calls {
-                errors.push(e.error(context.path, "mode", format("mode '", context.mode_def.name, "' allows only declarations and calls in the root context, found '", enum_to_str(e.node_type), "'.")))
+                errors.push(own e.error(context.path, "mode", format("mode '", context.mode_def.name, "' allows only declarations and calls in the root context, found '", enum_to_str(e.node_type), "'.")))
             } else {
-                errors.push(e.error(context.path, "mode", format("mode '", context.mode_def.name, "' allows only declarations in the root context, found '", enum_to_str(e.node_type), "'.")))
+                errors.push(own e.error(context.path, "mode", format("mode '", context.mode_def.name, "' allows only declarations in the root context, found '", enum_to_str(e.node_type), "'.")))
             }
         }
     }
@@ -2349,7 +2349,7 @@ namespace:
         }
         mut names := Vec.new(Str)
         for name_v: EnumVariant in selfi.variants {
-            names.push(name_v.name)
+            names.push(own name_v.name)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -2362,7 +2362,7 @@ namespace:
         if position.lt(0).or(position.gteq(selfi.variants.len())) {
             mut err_names := Vec.new(Str)
             for err_v: EnumVariant in selfi.variants {
-                err_names.push(err_v.name)
+                err_names.push(own err_v.name)
             }
             throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant in '", err_names.to_str(), "'."))
         }

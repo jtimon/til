@@ -26,7 +26,7 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
     case NodeType.Declaration(decl):
         type_name := extract_type_name(decl.value_type)
         if type_name.len().gt(0) {
-            _ := used_types.insert(type_name)
+            _ := used_types.insert(own type_name)
         }
     case NodeType.FCall(_):
         // Constructor calls - check if the function name is a known struct
@@ -36,7 +36,7 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
             if name.len().gt(0).and(name.find(".").lt(0)) {
                 // Check if this is a struct constructor
                 if context.scope_stack.has_struct(name) {
-                    _ := used_types.insert(name)
+                    _ := used_types.insert(own name)
                 }
             }
         }
@@ -47,7 +47,7 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
             found_enum := context.scope_stack.has_enum(name)
 
             if ident_found_struct.or(found_enum) {
-                _ := used_types.insert(name.clone())
+                _ := used_types.insert(own name.clone())
             }
         }
     case:
@@ -66,21 +66,21 @@ collect_used_types_from_func : proc(context: Context, func_def: FuncDef, mut use
     for arg: Declaration in func_def.sig.args {
         type_name := extract_type_name(arg.value_type)
         if type_name.len().gt(0) {
-            _ := used_types.insert(type_name)
+            _ := used_types.insert(own type_name)
         }
     }
     // Collect from return types
     for ret_type: ValueType in func_def.sig.return_types {
         ret_type_name := extract_type_name(ret_type)
         if ret_type_name.len().gt(0) {
-            _ := used_types.insert(ret_type_name)
+            _ := used_types.insert(own ret_type_name)
         }
     }
     // Collect from throw types
     for throw_type: ValueType in func_def.sig.throw_types {
         throw_type_name := extract_type_name(throw_type)
         if throw_type_name.len().gt(0) {
-            _ := used_types.insert(throw_type_name)
+            _ := used_types.insert(own throw_type_name)
         }
     }
     // Collect from body
@@ -105,18 +105,18 @@ rebuild_namespace_without_unreachable_methods : proc(ns_def: NamespaceDef, type_
         case NodeType.FuncDef(func_def):
             // Method - check if reachable or external
             if func_def.is_ext().or(reachable.contains(full_name)) {
-                new_members.push(member_decl.clone())
-                new_default_values.set(member_decl.name.clone(), default_expr.clone())
+                new_members.push(own member_decl.clone())
+                new_default_values.set(own member_decl.name.clone(), own default_expr.clone())
             }
         case:
             // Not a FuncDef - keep it (regular constant)
-            new_members.push(member_decl.clone())
-            new_default_values.set(member_decl.name.clone(), default_expr.clone())
+            new_members.push(own member_decl.clone())
+            new_default_values.set(own member_decl.name.clone(), own default_expr.clone())
         }
 
         catch (err: KeyNotFoundError) {
             // No default value - keep the member
-            new_members.push(member_decl.clone())
+            new_members.push(own member_decl.clone())
         }
     }
 
@@ -141,18 +141,18 @@ rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def:
         case NodeType.FuncDef(func_def):
             // Method - check if reachable or external
             if func_def.is_ext().or(reachable.contains(full_name)) {
-                new_members.push(member_decl.clone())
-                new_default_values.set(member_decl.name.clone(), default_expr.clone())
+                new_members.push(own member_decl.clone())
+                new_default_values.set(own member_decl.name.clone(), own default_expr.clone())
             }
         case:
             // Not a FuncDef - keep it (regular field with default value)
-            new_members.push(member_decl.clone())
-            new_default_values.set(member_decl.name.clone(), default_expr.clone())
+            new_members.push(own member_decl.clone())
+            new_default_values.set(own member_decl.name.clone(), own default_expr.clone())
         }
 
         catch (err: KeyNotFoundError) {
             // No default value - keep the member
-            new_members.push(member_decl.clone())
+            new_members.push(own member_decl.clone())
         }
     }
 
@@ -166,7 +166,7 @@ rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def:
     new_struct_expr := Expr(node_type=NodeType.StructDef(new_struct_def), params=Vec.new(Expr), line=0, col=0)
 
     mut result_params := Vec.new(Expr)
-    result_params.push(new_struct_expr)
+    result_params.push(own new_struct_expr)
 
     return Expr(node_type=NodeType.Declaration(decl.clone()), params=result_params, line=0, col=0)
 }
@@ -196,14 +196,14 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
                                 dont_delete(fptr_arg_expr)
                                 fptr_arg_name := get_combined_name_from_identifier(fptr_arg_expr)?
                                 if fptr_arg_name.len().gt(0) {
-                                    _ := refs.insert(fptr_arg_name)
+                                    _ := refs.insert(own fptr_arg_name)
                                 } else {
                                     // Issue #91: Anonymous inline function - look up temp name
                                     switch fptr_arg_expr.node_type {
                                     case NodeType.FuncDef(_):
                                         anon_key := format("(", I64.to_str(fptr_arg_expr.line), ",", I64.to_str(fptr_arg_expr.col), ")")
                                         anon_temp_name := cast(Str, context.anon_func_map.get(anon_key)?)
-                                        _ := refs.insert(anon_temp_name)
+                                        _ := refs.insert(own anon_temp_name)
                                         catch (err: KeyNotFoundError) { }
                                     case:
                                     }
@@ -237,7 +237,7 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
             dont_delete(ret_expr)
             ret_name := get_combined_name_from_identifier(ret_expr)?
             if ret_name.len().gt(0).and(context.scope_stack.has_func(ret_name)) {
-                _ := refs.insert(ret_name)
+                _ := refs.insert(own ret_name)
             }
         }
     // Issue #91: `op := get_op(0)` - declaration with FuncSig type where
@@ -273,7 +273,7 @@ collect_called_functions : proc(e: Expr, mut called: Set) throws Str = {
             e0 := cast(Expr, e.params.get(0)?)
             full_name := get_combined_name_from_identifier(e0)?
             if full_name.len().gt(0) {
-                _ := called.insert(full_name)
+                _ := called.insert(own full_name)
             }
         }
         // Recurse into arguments
@@ -314,11 +314,11 @@ get_combined_name_from_identifier : proc(e: Expr) returns Str throws Str = {
         } else {
             // Has nested params like a.b.c
             mut parts := Vec.new(Str)
-            parts.push(name.clone())
+            parts.push(own name.clone())
             for param: Expr in e.params {
                 nested := get_combined_name_from_identifier(param)?
                 if nested.len().gt(0) {
-                    parts.push(nested)
+                    parts.push(own nested)
                 }
             }
             // Join with "."
@@ -344,8 +344,8 @@ get_combined_name_from_identifier : proc(e: Expr) returns Str throws Str = {
 /// Helper to add a function to both reachable and worklist at the same time
 mark_reachable : proc(func_name: Str, mut reachable: Set, mut worklist: Vec) = {
     if not(reachable.contains(func_name)) {
-        _ := reachable.insert(func_name.clone())
-        worklist.push(func_name.clone())
+        _ := reachable.insert(own func_name.clone())
+        worklist.push(own func_name.clone())
     }
 
 }
@@ -425,12 +425,12 @@ register_declarations : proc(mut context: Context, e: Expr) throws Str = {
 /// Types required by ext.c - these must be kept since ext.c is always included
 get_ext_c_types : proc() returns Vec = {
     mut types := Vec.new(Str)
-    types.push("Bool")
-    types.push("Str")
-    types.push("I64")
-    types.push("U8")
-    types.push("BadAlloc")
-    types.push("Array")
+    types.push(own "Bool")
+    types.push(own "Str")
+    types.push(own "I64")
+    types.push(own "U8")
+    types.push(own "BadAlloc")
+    types.push(own "Array")
     return types
 }
 
@@ -516,7 +516,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
 
             if found_struct {
                 // Bug #150: Struct constructor is called, so the struct type is used
-                _ := used_types.insert(func_name.clone())
+                _ := used_types.insert(own func_name.clone())
                 // Struct constructor - collect calls from field initializers only
                 // (skip FuncDef values which are methods - their bodies should only be walked if the method itself is reachable)
                 mut struct_called := Set.new(Str)
@@ -610,16 +610,16 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                     if is_unresolved_ufcs {
                         // Try to find the method on built-in types first
                         mut builtin_types := Vec.new(Str)
-                        builtin_types.push("Str")
-                        builtin_types.push("I64")
-                        builtin_types.push("Bool")
-                        builtin_types.push("U8")
-                        builtin_types.push("F64")
-                        builtin_types.push("Array")
-                        builtin_types.push("Vec")
-                        builtin_types.push("List")
-                        builtin_types.push("Map")
-                        builtin_types.push("Set")
+                        builtin_types.push(own "Str")
+                        builtin_types.push(own "I64")
+                        builtin_types.push(own "Bool")
+                        builtin_types.push(own "U8")
+                        builtin_types.push(own "F64")
+                        builtin_types.push(own "Array")
+                        builtin_types.push(own "Vec")
+                        builtin_types.push(own "List")
+                        builtin_types.push(own "Map")
+                        builtin_types.push(own "Set")
 
                         mut found_method := false
                         for builtin: Str in builtin_types {
@@ -661,7 +661,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
     // Always add ext.c required types since ext.c is always included in generated C
     ext_c_types := get_ext_c_types()
     for ext_type: Str in ext_c_types {
-        _ := used_types.insert(ext_type.clone())
+        _ := used_types.insert(own ext_type.clone())
     }
 
     // HeapState functions called by ext.c (til_malloc/til_free/til_exit) - not visible in TIL source
@@ -670,8 +670,8 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
     mark_reachable("HeapState.add", reachable, worklist)
     mark_reachable("HeapState.remove", reachable, worklist)
     mark_reachable("HeapState.report", reachable, worklist)
-    _ := used_types.insert("HeapState")
-    _ := used_types.insert("HeapEntry")
+    _ := used_types.insert(own "HeapState")
+    _ := used_types.insert(own "HeapEntry")
 
     // Add struct types when their methods are reachable (e.g., Foo.bar reachable -> Foo is used)
     for func_name: Str in reachable {
@@ -680,7 +680,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
             struct_name := func_name.get_substr(0, method_dot_pos)?
             // Only add if this is actually a struct (not an enum)
             if context.scope_stack.has_struct(struct_name) {
-                _ := used_types.insert(struct_name)
+                _ := used_types.insert(own struct_name)
             }
         }
     }
@@ -690,7 +690,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
     // (the call is generated by the codegen, not present in the source)
     mut used_types_snapshot := Vec.new(Str)
     for type_name: Str in used_types {
-        used_types_snapshot.push(type_name.clone())
+        used_types_snapshot.push(own type_name.clone())
     }
     for eq_type_name: Str in used_types_snapshot {
         // Skip primitive types for eq method check (they don't need implicit eq for switch)
@@ -787,7 +787,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
     // Now compute transitive closure of used types (struct field types, enum payload types)
     mut type_worklist := Vec.new(Str)
     for type_name: Str in used_types {
-        type_worklist.push(type_name.clone())
+        type_worklist.push(own type_name.clone())
     }
     while type_worklist.len().gt(0) {
         mut type_name := ""
@@ -803,8 +803,8 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                 field_type := extract_type_name(member.value_type)
                 if field_type.len().gt(0) {
                     if not(used_types.contains(field_type)) {
-                        _ := used_types.insert(field_type.clone())
-                        type_worklist.push(field_type)
+                        _ := used_types.insert(own field_type.clone())
+                        type_worklist.push(own field_type)
                     }
                 }
             }
@@ -824,8 +824,8 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                     payload_type_name := extract_type_name(vt)
                     if payload_type_name.len().gt(0) {
                         if not(used_types.contains(payload_type_name)) {
-                            _ := used_types.insert(payload_type_name.clone())
-                            type_worklist.push(payload_type_name)
+                            _ := used_types.insert(own payload_type_name.clone())
+                            type_worklist.push(own payload_type_name)
                         }
                     }
                 }
@@ -860,7 +860,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
         if context.mode_def.needs_main_proc {
             // CLI mode: root is main plus global variable initializers
-            _ := roots.insert("main")
+            _ := roots.insert(own "main")
             // Global variable initializers are also executed in main(), so their calls are roots
             for stmt: Expr in e.params {
                 switch stmt.node_type {
@@ -938,13 +938,13 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             mut extended_roots := roots.clone()
             // Add Array methods
             mut array_methods := Vec.new(Str)
-            array_methods.push("Array.new")
-            array_methods.push("Array.set")
-            array_methods.push("Array.get")
-            array_methods.push("Array.delete")
-            array_methods.push("Array.len")
+            array_methods.push(own "Array.new")
+            array_methods.push(own "Array.set")
+            array_methods.push(own "Array.get")
+            array_methods.push(own "Array.delete")
+            array_methods.push(own "Array.len")
             for method: Str in array_methods {
-                _ := extended_roots.insert(method.clone())
+                _ := extended_roots.insert(own method.clone())
             }
             // Recompute
             mut new_cr_result := compute_reachable(context, extended_roots, e)?
@@ -974,7 +974,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                                 step2b_payload_name := extract_type_name(step2b_vt)
                                 if step2b_payload_name.len().gt(0) {
                                     if not(used_types.contains(step2b_payload_name)) {
-                                        enum_payload_types.push(step2b_payload_name)
+                                        enum_payload_types.push(own step2b_payload_name)
                                     }
                                 }
                             }
@@ -992,7 +992,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             if used_types.contains(step2b_type_name) {
                 continue
             }
-            _ := used_types.insert(step2b_type_name.clone())
+            _ := used_types.insert(own step2b_type_name.clone())
             // Check struct field types
             mut step2b_found_struct := false
             step2b_struct_def := context.scope_stack.lookup_struct(step2b_type_name)?
@@ -1003,7 +1003,7 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                     step2b_field_type := extract_type_name(step2b_member.value_type)
                     if step2b_field_type.len().gt(0) {
                         if not(used_types.contains(step2b_field_type)) {
-                            enum_payload_types.push(step2b_field_type)
+                            enum_payload_types.push(own step2b_field_type)
                         }
                     }
                 }
@@ -1041,25 +1041,25 @@ scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                         }
                         // Function declaration - keep if reachable, external, or FuncSig
                         if func_def.is_ext().or(is_func_sig).or(reachable.contains(decl.name)) {
-                            new_params.push(stmt.clone())
+                            new_params.push(own stmt.clone())
                         }
                     case NodeType.StructDef(struct_def):
                         // Struct - only keep if type is used, rebuild without unreachable methods
                         if used_types.contains(decl.name) {
                             new_struct := rebuild_struct_without_unreachable_methods(decl, struct_def, reachable)
-                            new_params.push(new_struct)
+                            new_params.push(own new_struct)
                         }
                     case:
                         // Non-function, non-struct declaration - always keep
-                        new_params.push(stmt.clone())
+                        new_params.push(own stmt.clone())
                     }
                 } else {
                     // Declaration without initializer - always keep
-                    new_params.push(stmt.clone())
+                    new_params.push(own stmt.clone())
                 }
             case:
                 // Non-declaration - always keep
-                new_params.push(stmt.clone())
+                new_params.push(own stmt.clone())
             }
         }
 

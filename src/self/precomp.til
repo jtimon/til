@@ -24,7 +24,7 @@ build_type_param_subs : func(func_def: FuncDef, fcall: Expr) returns Map throws 
                     actual_arg := cast(Expr, fcall.params.get(i.add(1))?)
                     switch actual_arg.node_type {
                     case NodeType.Identifier(actual_type_name):
-                        subs.set(arg.name, actual_type_name)
+                        subs.set(own arg.name, own actual_type_name)
                     case:
                     }
                 }
@@ -52,14 +52,14 @@ substitute_type_params_in_expr : func(e: Expr, subs: Map) returns Expr = {
         }
         mut new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            new_params.push(substitute_type_params_in_expr(p, subs))
+            new_params.push(own substitute_type_params_in_expr(p, subs))
         }
         return Expr.new_clone(NodeType.Identifier(new_name), e, new_params)
     case NodeType.FuncDef(func_def):
         new_func_def := substitute_type_params_in_funcdef(func_def, subs)
         mut funcdef_new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            funcdef_new_params.push(substitute_type_params_in_expr(p, subs))
+            funcdef_new_params.push(own substitute_type_params_in_expr(p, subs))
         }
         return Expr.new_clone(NodeType.FuncDef(new_func_def), e, funcdef_new_params)
     // Issue #106: Substitute type params in enum variant payload types
@@ -67,7 +67,7 @@ substitute_type_params_in_expr : func(e: Expr, subs: Map) returns Expr = {
         new_enum := substitute_type_params_in_enum(enum_def, subs)
         mut enumdef_new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            enumdef_new_params.push(substitute_type_params_in_expr(p, subs))
+            enumdef_new_params.push(own substitute_type_params_in_expr(p, subs))
         }
         return Expr.new_clone(NodeType.EnumDef(new_enum), e, enumdef_new_params)
     // Issue #106: Substitute type params in switch-case pattern variant names
@@ -98,7 +98,7 @@ substitute_type_params_in_expr : func(e: Expr, subs: Map) returns Expr = {
     case:
         mut default_new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            default_new_params.push(substitute_type_params_in_expr(p, subs))
+            default_new_params.push(own substitute_type_params_in_expr(p, subs))
         }
         return Expr.new_clone(e.node_type, e, default_new_params)
     }
@@ -112,7 +112,7 @@ substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns F
         switch arg.value_type {
         case ValueType.TCustom(type_name):
             concrete := cast(Str, subs.get(type_name)?)
-            new_args.push(Declaration(name=arg.name, value_type=ValueType.TCustom(concrete), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+            new_args.push(own Declaration(name=arg.name, value_type=ValueType.TCustom(concrete), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
             substituted = true
             catch (_err: KeyNotFoundError) {
                 // Expected: not all types need substitution
@@ -120,7 +120,7 @@ substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns F
         case:
         }
         if not(substituted) {
-            new_args.push(arg)
+            new_args.push(own arg)
         }
     }
     mut new_returns := Vec.new(ValueType)
@@ -129,7 +129,7 @@ substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns F
         switch rt {
         case ValueType.TCustom(type_name):
             rt_concrete := cast(Str, subs.get(type_name)?)
-            new_returns.push(ValueType.TCustom(rt_concrete))
+            new_returns.push(own ValueType.TCustom(rt_concrete))
             rt_substituted = true
             catch (_err: KeyNotFoundError) {
                 // Expected: not all types need substitution
@@ -137,7 +137,7 @@ substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns F
         case:
         }
         if not(rt_substituted) {
-            new_returns.push(rt)
+            new_returns.push(own rt)
         }
     }
     mut new_throws := Vec.new(ValueType)
@@ -146,7 +146,7 @@ substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns F
         switch tt {
         case ValueType.TCustom(type_name):
             tt_concrete := cast(Str, subs.get(type_name)?)
-            new_throws.push(ValueType.TCustom(tt_concrete))
+            new_throws.push(own ValueType.TCustom(tt_concrete))
             tt_substituted = true
             catch (_err: KeyNotFoundError) {
                 // Expected: not all types need substitution
@@ -154,12 +154,12 @@ substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns F
         case:
         }
         if not(tt_substituted) {
-            new_throws.push(tt)
+            new_throws.push(own tt)
         }
     }
     mut new_body := Vec.new(Expr)
     for stmt: Expr in func_def.body {
-        new_body.push(substitute_type_params_in_expr(stmt, subs))
+        new_body.push(own substitute_type_params_in_expr(stmt, subs))
     }
     mut new_func_def := FuncDef()
     new_func_def.sig = FuncSig(
@@ -182,7 +182,7 @@ substitute_type_params_in_struct : func(struct_def: StructDef, subs: Map) return
         switch member.value_type {
         case ValueType.TCustom(type_name):
             concrete_type := cast(Str, subs.get(type_name)?)
-            new_members.push(Declaration(name=member.name, value_type=ValueType.TCustom(concrete_type), is_mut=member.is_mut, is_copy=member.is_copy, is_own=member.is_own))
+            new_members.push(own Declaration(name=member.name, value_type=ValueType.TCustom(concrete_type), is_mut=member.is_mut, is_copy=member.is_copy, is_own=member.is_own))
             substituted = true
             catch (_err: KeyNotFoundError) {
                 // Expected: not all types need substitution
@@ -190,7 +190,7 @@ substitute_type_params_in_struct : func(struct_def: StructDef, subs: Map) return
         case:
         }
         if not(substituted) {
-            new_members.push(member)
+            new_members.push(own member)
         }
     }
 
@@ -200,7 +200,7 @@ substitute_type_params_in_struct : func(struct_def: StructDef, subs: Map) return
         catch (err: KeyNotFoundError) {
             panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
         }
-        new_defaults.set(name, substitute_type_params_in_expr(expr, subs))
+        new_defaults.set(own name, own substitute_type_params_in_expr(expr, subs))
     }
 
     return StructDef(members=new_members, default_values=new_defaults)
@@ -224,15 +224,15 @@ substitute_type_params_in_enum : func(enum_def: EnumDef, subs: Map) returns Enum
                 new_variant.payload_type.data = malloc(size_of(ValueType))?
                 catch (err: BadAlloc) { panic(loc(), "substitute_type_params_in_enum: malloc failed") }
                 memcpy(new_variant.payload_type.data, to_ptr(new_payload), size_of(ValueType))
-                new_variants.push(new_variant)
+                new_variants.push(own new_variant)
                 catch (_err: KeyNotFoundError) {
-                    new_variants.push(v.clone())
+                    new_variants.push(own v.clone())
                 }
             case:
-                new_variants.push(v.clone())
+                new_variants.push(own v.clone())
             }
         } else {
-            new_variants.push(v.clone())
+            new_variants.push(own v.clone())
         }
     }
     return EnumDef(variants=new_variants, methods=enum_def.methods.clone())
@@ -393,26 +393,26 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                             esm_struct_decl.is_copy = false
                             esm_struct_decl.is_own = false
                             mut esm_decl_params := Vec.new(Expr)
-                            esm_decl_params.push(Expr.new_clone(NodeType.StructDef(esm_final_struct_def), esm_first_param, Vec.new(Expr)))
+                            esm_decl_params.push(own Expr.new_clone(NodeType.StructDef(esm_final_struct_def), esm_first_param, Vec.new(Expr)))
                             esm_struct_decl_expr := Expr.new_clone(NodeType.Declaration(esm_struct_decl), esm_first_param, esm_decl_params)
-                            new_params.push(esm_struct_decl_expr)
+                            new_params.push(own esm_struct_decl_expr)
                             // Replace StructDef with Identifier in the FCall
                             esm_id_expr := Expr.new_clone(NodeType.Identifier(esm_temp_name.clone()), esm_first_param, Vec.new(Expr))
                             mut esm_fcall_params := Vec.new(Expr)
-                            esm_fcall_params.push(esm_id_expr)
+                            esm_fcall_params.push(own esm_id_expr)
                             mut esm_skip := true
                             for esm_ip: Expr in inner_e.params {
                                 if esm_skip {
                                     esm_skip = false
                                 } else {
-                                    esm_fcall_params.push(esm_ip.clone())
+                                    esm_fcall_params.push(own esm_ip.clone())
                                 }
                             }
                             esm_new_fcall := Expr.new_clone(inner_e.node_type, inner_e, esm_fcall_params)
                             mut esm_new_p_params := Vec.new(Expr)
-                            esm_new_p_params.push(esm_new_fcall)
+                            esm_new_p_params.push(own esm_new_fcall)
                             esm_new_p := Expr.new_clone(p.node_type, p, esm_new_p_params)
-                            new_params.push(esm_new_p)
+                            new_params.push(own esm_new_p)
                             modified = true
                             handled = true
                         case:
@@ -469,7 +469,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                                     mut resolved_type := get_value_type(context, default_value)?
                                                     catch (_err: Str) {}
                                                     resolved_member := Declaration(name=member_decl.name, value_type=resolved_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own)
-                                                    resolved_members.push(resolved_member)
+                                                    resolved_members.push(own resolved_member)
                                                     resolved = true
                                                     catch (_err: KeyNotFoundError) {
                                                         // Expected: not all members have defaults
@@ -478,7 +478,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                             case:
                                             }
                                             if not(resolved) {
-                                                resolved_members.push(member_decl)
+                                                resolved_members.push(own member_decl)
                                             }
                                         }
                                         // Issue #105: Precompute struct default values (e.g. NULL -> 0)
@@ -492,9 +492,9 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                                 panic(loc(), format("KeyNotFoundError iterating keys: ", err.msg))
                                             }
                                             mut precomputed := precomp_expr(context, def_val)?
-                                            precomputed_defaults.set(cur_def_key, precomputed)
+                                            precomputed_defaults.set(own cur_def_key, own precomputed)
                                             catch (_err: Str) {
-                                                precomputed_defaults.set(cur_def_key, def_val)
+                                                precomputed_defaults.set(own cur_def_key, own def_val)
                                             }
                                         }
                                         // Build combined ns: auto-generated + user-defined from macro namespace
@@ -509,16 +509,16 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         // Generate auto delete/clone methods
                                         mut auto_struct := StructDef(members=resolved_members.clone(), default_values=precomputed_defaults.clone())
                                         dummy := Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), 0, 0)
-                                        if ns_has_delete { auto_struct.default_values.set("delete", dummy.clone()) }
-                                        if ns_has_clone { auto_struct.default_values.set("clone", dummy) }
+                                        if ns_has_delete { auto_struct.default_values.set(own "delete", own dummy.clone()) }
+                                        if ns_has_clone { auto_struct.default_values.set(own "clone", own dummy) }
                                         auto_ns := generate_struct_methods(decl.name, auto_struct, p.line, p.col)
                                         if auto_ns.members.len().gt(0) {
                                             for auto_m: Declaration in auto_ns.members {
-                                                combined_ns.members.push(auto_m.clone())
+                                                combined_ns.members.push(own auto_m.clone())
                                             }
                                             for auto_k: Str in auto_ns.default_values.keys {
                                                 auto_v := cast(Expr, auto_ns.default_values.get(auto_k)?)
-                                                combined_ns.default_values.set(auto_k.clone(), auto_v.clone())
+                                                combined_ns.default_values.set(own auto_k.clone(), own auto_v.clone())
                                             }
                                             catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
                                         }
@@ -526,24 +526,24 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         if macro_ns.members.len().gt(0) {
                                             mut ns_subs := type_subs.clone()
                                             if not(macro_internal_name.eq("")) {
-                                                ns_subs.set(macro_internal_name, decl.name)
+                                                ns_subs.set(own macro_internal_name, own decl.name)
                                             }
                                             for user_member: Declaration in macro_ns.members {
                                                 // User methods override auto-generated ones
                                                 mut new_combined_members := Vec.new(Declaration)
                                                 for cm: Declaration in combined_ns.members {
                                                     if not(cm.name.eq(user_member.name)) {
-                                                        new_combined_members.push(cm.clone())
+                                                        new_combined_members.push(own cm.clone())
                                                     }
                                                 }
                                                 combined_ns.members.delete()
                                                 combined_ns.members = new_combined_members
-                                                combined_ns.members.push(user_member.clone())
+                                                combined_ns.members.push(own user_member.clone())
                                             }
                                             for user_ns_name: Str in macro_ns.default_values.keys {
                                                 user_ns_val := cast(Expr, macro_ns.default_values.get(user_ns_name)?)
                                                 substituted_val := substitute_type_params_in_expr(user_ns_val, ns_subs)
-                                                combined_ns.default_values.set(user_ns_name.clone(), substituted_val)
+                                                combined_ns.default_values.set(own user_ns_name.clone(), own substituted_val)
                                             }
                                             catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
                                         }
@@ -581,9 +581,9 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         }
                                         // Replace the FCall with the StructDef in the AST
                                         mut expanded_params := Vec.new(Expr)
-                                        expanded_params.push(resolved_expanded)
+                                        expanded_params.push(own resolved_expanded)
                                         new_p := Expr.new_clone(p.node_type, p, expanded_params)
-                                        new_params.push(new_p)
+                                        new_params.push(own new_p)
                                         modified = true
                                         handled = true
                                     case:
@@ -619,11 +619,11 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         auto_enum_ns := generate_enum_methods(decl.name, enum_ns_has_delete, enum_ns_has_clone, p.line, p.col)
                                         if auto_enum_ns.members.len().gt(0) {
                                             for auto_em: Declaration in auto_enum_ns.members {
-                                                enum_combined_ns.members.push(auto_em.clone())
+                                                enum_combined_ns.members.push(own auto_em.clone())
                                             }
                                             for auto_ek: Str in auto_enum_ns.default_values.keys {
                                                 auto_ev := cast(Expr, auto_enum_ns.default_values.get(auto_ek)?)
-                                                enum_combined_ns.default_values.set(auto_ek.clone(), auto_ev.clone())
+                                                enum_combined_ns.default_values.set(own auto_ek.clone(), own auto_ev.clone())
                                             }
                                             catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
                                         }
@@ -631,23 +631,23 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         if macro_ns.members.len().gt(0) {
                                             mut enum_ns_subs := type_subs.clone()
                                             if not(macro_internal_name.eq("")) {
-                                                enum_ns_subs.set(macro_internal_name, decl.name)
+                                                enum_ns_subs.set(own macro_internal_name, own decl.name)
                                             }
                                             for enum_user_member: Declaration in macro_ns.members {
                                                 mut enum_new_combined := Vec.new(Declaration)
                                                 for ecm: Declaration in enum_combined_ns.members {
                                                     if not(ecm.name.eq(enum_user_member.name)) {
-                                                        enum_new_combined.push(ecm.clone())
+                                                        enum_new_combined.push(own ecm.clone())
                                                     }
                                                 }
                                                 enum_combined_ns.members.delete()
                                                 enum_combined_ns.members = enum_new_combined
-                                                enum_combined_ns.members.push(enum_user_member.clone())
+                                                enum_combined_ns.members.push(own enum_user_member.clone())
                                             }
                                             for enum_user_name: Str in macro_ns.default_values.keys {
                                                 enum_user_val := cast(Expr, macro_ns.default_values.get(enum_user_name)?)
                                                 enum_sub_val := substitute_type_params_in_expr(enum_user_val, enum_ns_subs)
-                                                enum_combined_ns.default_values.set(enum_user_name.clone(), enum_sub_val)
+                                                enum_combined_ns.default_values.set(own enum_user_name.clone(), own enum_sub_val)
                                             }
                                             catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
                                         }
@@ -665,9 +665,9 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         }
                                         // Replace the FCall with the EnumDef in the AST
                                         mut enum_expanded_params := Vec.new(Expr)
-                                        enum_expanded_params.push(enum_resolved_expanded)
+                                        enum_expanded_params.push(own enum_resolved_expanded)
                                         enum_new_p := Expr.new_clone(p.node_type, p, enum_expanded_params)
-                                        new_params.push(enum_new_p)
+                                        new_params.push(own enum_new_p)
                                         modified = true
                                         handled = true
                                     case:
@@ -690,7 +690,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
             expanded_p := expand_anon_struct_fcalls_recursive(context, p, pending_decls, was_expanded)?
             if pending_decls.len().gt(0) {
                 for pd: Expr in pending_decls {
-                    new_params.push(pd.clone())
+                    new_params.push(own pd.clone())
                 }
                 modified = true
             }
@@ -705,15 +705,15 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
             expanded_enum_p := expand_anon_enum_fcalls_recursive(context, struct_result, pending_enum_decls, enum_was_expanded)?
             if pending_enum_decls.len().gt(0) {
                 for ped: Expr in pending_enum_decls {
-                    new_params.push(ped.clone())
+                    new_params.push(own ped.clone())
                 }
                 modified = true
             }
             if enum_was_expanded {
-                new_params.push(expanded_enum_p)
+                new_params.push(own expanded_enum_p)
                 modified = true
             } else {
-                new_params.push(struct_result)
+                new_params.push(own struct_result)
             }
         }
     }
@@ -781,19 +781,19 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
                 ear_decl.is_copy = false
                 ear_decl.is_own = false
                 mut ear_dp := Vec.new(Expr)
-                ear_dp.push(Expr.new_clone(NodeType.StructDef(ear_final_sd), ear_first, Vec.new(Expr)))
+                ear_dp.push(own Expr.new_clone(NodeType.StructDef(ear_final_sd), ear_first, Vec.new(Expr)))
                 ear_decl_expr := Expr.new_clone(NodeType.Declaration(ear_decl), ear_first, ear_dp)
-                pending_decls.push(ear_decl_expr)
+                pending_decls.push(own ear_decl_expr)
                 // Replace StructDef with Identifier in the FCall
                 ear_id := Expr.new_clone(NodeType.Identifier(ear_temp.clone()), ear_first, Vec.new(Expr))
                 mut ear_fp := Vec.new(Expr)
-                ear_fp.push(ear_id)
+                ear_fp.push(own ear_id)
                 mut ear_skip := true
                 for ear_p: Expr in e.params {
                     if ear_skip {
                         ear_skip = false
                     } else {
-                        ear_fp.push(ear_p.clone())
+                        ear_fp.push(own ear_p.clone())
                     }
                 }
                 was_expanded = true
@@ -848,7 +848,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
                 }
                 context.scope_stack.declare_struct(ear_decl.name.clone(), ear_decl_final_sd.clone())?
                 // Add struct definition to pending top-level decls for codegen
-                pending_decls.push(e.clone())
+                pending_decls.push(own e.clone())
                 // Return original expression (stays in body; codegen skips TType declarations)
                 was_expanded = true
                 return e.clone()
@@ -865,10 +865,10 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
         mut ear_cp_changed := false
         ear_cp_result := expand_anon_struct_fcalls_recursive(context, ear_cp, pending_decls, ear_cp_changed)?
         if ear_cp_changed {
-            ear_new_params.push(ear_cp_result)
+            ear_new_params.push(own ear_cp_result)
             ear_any_changed = true
         } else {
-            ear_new_params.push(ear_cp.clone())
+            ear_new_params.push(own ear_cp.clone())
         }
     }
 
@@ -881,10 +881,10 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
             mut ear_bs_changed := false
             ear_bs_result := expand_anon_struct_fcalls_recursive(context, ear_bs, pending_decls, ear_bs_changed)?
             if ear_bs_changed {
-                ear_new_body.push(ear_bs_result)
+                ear_new_body.push(own ear_bs_result)
                 ear_body_changed = true
             } else {
-                ear_new_body.push(ear_bs.clone())
+                ear_new_body.push(own ear_bs.clone())
             }
         }
         if ear_body_changed {
@@ -938,9 +938,9 @@ expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pend
         eaer_decl.is_copy = false
         eaer_decl.is_own = false
         mut eaer_dp := Vec.new(Expr)
-        eaer_dp.push(Expr.new_clone(NodeType.EnumDef(eaer_updated_enum_def), e, Vec.new(Expr)))
+        eaer_dp.push(own Expr.new_clone(NodeType.EnumDef(eaer_updated_enum_def), e, Vec.new(Expr)))
         eaer_decl_expr := Expr.new_clone(NodeType.Declaration(eaer_decl), e, eaer_dp)
-        pending_decls.push(eaer_decl_expr)
+        pending_decls.push(own eaer_decl_expr)
         // Replace EnumDef with Identifier
         eaer_id := Expr.new_clone(NodeType.Identifier(eaer_temp), e, Vec.new(Expr))
         was_expanded = true
@@ -975,10 +975,10 @@ expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pend
         mut eaer_cp_changed := false
         eaer_cp_result := expand_anon_enum_fcalls_recursive(context, eaer_cp, pending_decls, eaer_cp_changed)?
         if eaer_cp_changed {
-            eaer_new_params.push(eaer_cp_result)
+            eaer_new_params.push(own eaer_cp_result)
             eaer_any_changed = true
         } else {
-            eaer_new_params.push(eaer_cp.clone())
+            eaer_new_params.push(own eaer_cp.clone())
         }
     }
 
@@ -991,10 +991,10 @@ expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pend
             mut eaer_bs_changed := false
             eaer_bs_result := expand_anon_enum_fcalls_recursive(context, eaer_bs, pending_decls, eaer_bs_changed)?
             if eaer_bs_changed {
-                eaer_new_body.push(eaer_bs_result)
+                eaer_new_body.push(own eaer_bs_result)
                 eaer_body_changed = true
             } else {
-                eaer_new_body.push(eaer_bs.clone())
+                eaer_new_body.push(own eaer_bs.clone())
             }
         }
         if eaer_body_changed {
@@ -1101,12 +1101,15 @@ precomp_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     case NodeType.NamedArg(name):
         mut new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            new_params.push(precomp_expr(context, p)?)
+            new_params.push(own precomp_expr(context, p)?)
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
     // Issue #188: Defer should have been desugared in desugarer phase
     case NodeType.Defer:
         panic(loc(), "Defer should have been desugared in desugarer phase")
+    // Issue #185: OwnArg should have been desugared in desugarer phase
+    case NodeType.OwnArg:
+        panic(loc(), "OwnArg should have been desugared in desugarer phase")
     // ForIn should have been desugared in desugarer phase
     case NodeType.ForIn(_):
         panic(loc(), "ForIn should have been desugared in desugarer phase")
@@ -1358,18 +1361,18 @@ precomp_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         if context.anon_struct_decls.len().gt(saved_decl_count) {
             // Drain new decls from end of list
             for pending_decl: Expr in context.anon_struct_decls {
-                new_params.push(pending_decl.clone())
+                new_params.push(own pending_decl.clone())
             }
             context.anon_struct_decls = Vec.new(Expr)
         }
         // Issue #106: inject pending anonymous enum declarations before the statement that uses them
         if context.anon_enum_decls.len().gt(saved_enum_decl_count) {
             for pending_enum_decl: Expr in context.anon_enum_decls {
-                new_params.push(pending_enum_decl.clone())
+                new_params.push(own pending_enum_decl.clone())
             }
             context.anon_enum_decls = Vec.new(Expr)
         }
-        new_params.push(result)
+        new_params.push(own result)
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
@@ -1379,7 +1382,7 @@ precomp_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 precomp_params : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
-        new_params.push(precomp_expr(context, p)?)
+        new_params.push(own precomp_expr(context, p)?)
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
@@ -1407,7 +1410,7 @@ precomp_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) 
             context.precomp_forin_counter = 0
         }
 
-        new_default_values.set(name, precomp_expr(context, value_expr)?)
+        new_default_values.set(own name, own precomp_expr(context, value_expr)?)
 
         // Bug #40 fix: Restore previous function context
         if is_func {
@@ -1438,7 +1441,7 @@ precomp_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) 
         }
 
         ns_transformed := precomp_expr(context, ns_value_expr)?
-        ns_new_default_values.set(ns_name, ns_transformed)
+        ns_new_default_values.set(own ns_name, own ns_transformed)
 
         if ns_is_func {
             context.current_precomp_func = ns_saved_func
@@ -1479,7 +1482,7 @@ precomp_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) return
     // Transform the function body
     mut new_body := Vec.new(Expr)
     for stmt: Expr in func_def.body {
-        new_body.push(precomp_expr(context, stmt)?)
+        new_body.push(own precomp_expr(context, stmt)?)
     }
 
     // Pop the function scope frame
@@ -1709,7 +1712,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
             for precomp_sig_arg: Declaration in sig_func_def.sig.args {
                 mut precomp_resolved_arg := cast(Declaration, precomp_resolved_fd.sig.args.get(precomp_arg_idx)?)
                 precomp_resolved_arg.value_type = precomp_sig_arg.value_type
-                precomp_resolved_fd.sig.args.set(precomp_arg_idx, precomp_resolved_arg)?
+                precomp_resolved_fd.sig.args.set(precomp_arg_idx, own precomp_resolved_arg)?
                 precomp_arg_idx = add(precomp_arg_idx, 1)
             }
             precomp_resolved_fd.sig.return_types = sig_func_def.sig.return_types
@@ -1724,10 +1727,10 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
     // First transform the value expression (if any)
     mut new_params := Vec.new(Expr)
     if has_resolved_inner {
-        new_params.push(precomp_expr(context, resolved_inner_e)?)
+        new_params.push(own precomp_expr(context, resolved_inner_e)?)
     } else if e.params.len().gt(0) {
         for p: Expr in e.params {
-            new_params.push(precomp_expr(context, p)?)
+            new_params.push(own precomp_expr(context, p)?)
         }
     }
 
@@ -1888,7 +1891,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
                     // Bug #133 fix: Track precomputed heap values for static array serialization
                     needs_heap := EvalHeap.type_needs_heap_serialization(context, custom_type_name)
                     if needs_heap {
-                        context.precomputed_heap_values.push(PrecomputedHeapValue(
+                        context.precomputed_heap_values.push(own PrecomputedHeapValue(
                             var_name=decl.name.clone(),
                             instance_name=decl.name.clone(),
                             type_name=custom_type_name.clone()
@@ -1957,9 +1960,9 @@ precomp_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
     // Return the transformed catch with original var_name, type, and new body
     mut new_params := Vec.new(Expr)
-    new_params.push(name_expr)
-    new_params.push(type_expr)
-    new_params.push(new_body)
+    new_params.push(own name_expr)
+    new_params.push(own type_expr)
+    new_params.push(own new_body)
 
     catch (err: IndexOutOfBoundsError) {
         throw format("precomp_catch: ", err.msg)
@@ -2032,19 +2035,19 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         pf_struct_decl.is_copy = false
         pf_struct_decl.is_own = false
         mut pf_decl_params := Vec.new(Expr)
-        pf_decl_params.push(Expr.new_clone(NodeType.StructDef(pf_final_sd), func_expr, Vec.new(Expr)))
+        pf_decl_params.push(own Expr.new_clone(NodeType.StructDef(pf_final_sd), func_expr, Vec.new(Expr)))
         pf_struct_decl_expr := Expr.new_clone(NodeType.Declaration(pf_struct_decl), func_expr, pf_decl_params)
-        context.anon_struct_decls.push(pf_struct_decl_expr)
+        context.anon_struct_decls.push(own pf_struct_decl_expr)
         // Replace StructDef with Identifier and continue as normal struct constructor
         pf_id_expr := Expr.new_clone(NodeType.Identifier(pf_temp_name.clone()), func_expr, Vec.new(Expr))
         mut pf_new_params := Vec.new(Expr)
-        pf_new_params.push(pf_id_expr)
+        pf_new_params.push(own pf_id_expr)
         mut pf_skip := true
         for pf_p: Expr in e.params {
             if pf_skip {
                 pf_skip = false
             } else {
-                pf_new_params.push(precomp_expr(context, pf_p)?)
+                pf_new_params.push(own precomp_expr(context, pf_p)?)
             }
         }
         return Expr.new_clone(e.node_type, e, pf_new_params)
@@ -2072,7 +2075,7 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             // Transform arguments for struct constructor
             mut struct_params := Vec.new(Expr)
             for p: Expr in e.params {
-                struct_params.push(precomp_expr(context, p)?)
+                struct_params.push(own precomp_expr(context, p)?)
             }
             return Expr.new_clone(e.node_type, e, struct_params)
         }
@@ -2083,7 +2086,7 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         // Transform arguments for enum constructor
         mut enum_params := Vec.new(Expr)
         for p: Expr in e.params {
-            enum_params.push(precomp_expr(context, p)?)
+            enum_params.push(own precomp_expr(context, p)?)
         }
         return Expr.new_clone(e.node_type, e, enum_params)
     }
@@ -2091,7 +2094,7 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     // 5. Transform all arguments
     mut all_transformed_params := Vec.new(Expr)
     for p: Expr in e.params {
-        all_transformed_params.push(precomp_expr(context, p)?)
+        all_transformed_params.push(own precomp_expr(context, p)?)
     }
     mut new_e := Expr.new_clone(e.node_type, e, all_transformed_params)
 

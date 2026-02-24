@@ -29,7 +29,7 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
     switch mode_name {
     case "lib":
         mut lib_allowed := Vec.new(Str)
-        lib_allowed.push("panic")
+        lib_allowed.push(own "panic")
         return ModeDef(
             name                   = mode_name,
             allows_procs           = true,
@@ -40,9 +40,9 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
             allowed_procs_in_funcs = lib_allowed)
     case "liba":
         mut liba_allowed := Vec.new(Str)
-        liba_allowed.push("panic")
-        liba_allowed.push("print")
-        liba_allowed.push("println")
+        liba_allowed.push(own "panic")
+        liba_allowed.push(own "print")
+        liba_allowed.push(own "println")
         return ModeDef(
             name                   = mode_name,
             allows_procs           = true,
@@ -53,7 +53,7 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
             allowed_procs_in_funcs = liba_allowed)
     case "pure":
         mut pure_allowed := Vec.new(Str)
-        pure_allowed.push("panic")
+        pure_allowed.push(own "panic")
         return ModeDef(
             name                   = mode_name,
             allows_procs           = false,
@@ -64,9 +64,9 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
             allowed_procs_in_funcs = pure_allowed)
     case "pura":
         mut pura_allowed := Vec.new(Str)
-        pura_allowed.push("panic")
-        pura_allowed.push("print")
-        pura_allowed.push("println")
+        pura_allowed.push(own "panic")
+        pura_allowed.push(own "print")
+        pura_allowed.push(own "println")
         return ModeDef(
             name                   = mode_name,
             allows_procs           = false,
@@ -77,7 +77,7 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
             allowed_procs_in_funcs = pura_allowed)
     case "script":
         mut script_allowed := Vec.new(Str)
-        script_allowed.push("panic")
+        script_allowed.push(own "panic")
         return ModeDef(
             name                   = mode_name,
             allows_procs           = true,
@@ -88,9 +88,9 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
             allowed_procs_in_funcs = script_allowed)
     case "safe_script":
         mut safe_script_imports := Vec.new(Str)
-        safe_script_imports.push("modes.safe_script")
+        safe_script_imports.push(own "modes.safe_script")
         mut safe_script_allowed := Vec.new(Str)
-        safe_script_allowed.push("panic")
+        safe_script_allowed.push(own "panic")
         return ModeDef(
             name                   = mode_name,
             allows_procs           = true,
@@ -102,7 +102,7 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
             allowed_procs_in_funcs = safe_script_allowed)
     case "cli":
         mut cli_allowed := Vec.new(Str)
-        cli_allowed.push("panic")
+        cli_allowed.push(own "panic")
         return ModeDef(
             name                   = mode_name,
             allows_procs           = true,
@@ -113,9 +113,9 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
             allowed_procs_in_funcs = cli_allowed)
     case "test":
         mut test_imports := Vec.new(Str)
-        test_imports.push("modes.test")
+        test_imports.push(own "modes.test")
         mut test_allowed := Vec.new(Str)
-        test_allowed.push("panic")
+        test_allowed.push(own "panic")
         return ModeDef(
             name                   = mode_name,
             allows_procs           = true,
@@ -127,7 +127,7 @@ mode_from_name : func(mode_name: Str, path: Str, t: Token) returns ModeDef throw
             allowed_procs_in_funcs = test_allowed)
     case "make":
         mut make_allowed := Vec.new(Str)
-        make_allowed.push("panic")
+        make_allowed.push(own "panic")
         return ModeDef(
             name                   = mode_name,
             allows_procs           = true,

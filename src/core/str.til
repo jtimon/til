@@ -455,7 +455,7 @@ namespace:
         mut parts := Vec.new(Str)
 
         if delimiter.len().eq(0) {
-            parts.push(self.clone())
+            parts.push(own self.clone())
             return parts
         }
 
@@ -478,10 +478,10 @@ namespace:
                 # Found delimiter - extract part from start to pos
                 if pos.gt(start) {
                     part := self.get_substr(start, pos)?
-                    parts.push(part)
+                    parts.push(own part)
                 } else {
                     # Empty part
-                    parts.push("")
+                    parts.push(own "")
                 }
                 start = pos.add(delimiter.len())
                 pos = start
@@ -493,10 +493,10 @@ namespace:
         # Add remaining part after last delimiter
         if start.lt(self.len()) {
             remaining_part := self.get_substr(start, self.len())?
-            parts.push(remaining_part)
+            parts.push(own remaining_part)
         } else {
             if start.eq(self.len()) {
-                parts.push("")
+                parts.push(own "")
             }
         }
 

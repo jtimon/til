@@ -88,8 +88,8 @@ namespace:
         dest.copy_from_dynamic(value, type_size)
 
         // Record metadata
-        self.type_names.push(type_name)
-        self.type_sizes.push(type_size)
+        self.type_names.push(own type_name)
+        self.type_sizes.push(own type_size)
         self._len = add(self._len, 1)
     }
 
@@ -135,7 +135,7 @@ namespace:
 
             // Update type name if different
             if not(Str.eq(new_type, old_type)) {
-                self.type_names.set(index, new_type)?
+                self.type_names.set(index, own new_type)?
             }
             return
         }
@@ -177,8 +177,8 @@ namespace:
         write_dest.copy_from_dynamic(value, new_size)
 
         // Update metadata
-        self.type_names.set(index, new_type)?
-        self.type_sizes.set(index, new_size)?
+        self.type_names.set(index, own new_type)?
+        self.type_sizes.set(index, own new_size)?
     }
 
     /** Pop last element from list. */

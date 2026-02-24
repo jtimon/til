@@ -404,8 +404,8 @@ sort_str_vec : proc(mut v: Vec) = {
             if gt(prev.cmp(curr), 0) {
                 // Clone prev before swap since both alias vec storage
                 prev_clone := prev.clone()
-                v.set(i.sub(1), curr)?
-                v.set(i, prev_clone)?
+                v.set(i.sub(1), own curr)?
+                v.set(i, own prev_clone)?
                 new_n = i
             }
             catch (err: IndexOutOfBoundsError) {

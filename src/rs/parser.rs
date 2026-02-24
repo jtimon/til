@@ -115,6 +115,24 @@ fn parse_args(lexer: &mut Lexer) -> Result<Expr, String> {
                     return Err(list_t.error(&lexer.path, "Unexpected ','."));
                 }
             },
+            // Issue #185: own expr in function call arguments
+            TokenType::Own => {
+                if expect_comma {
+                    return Err(list_t.error(&lexer.path, &format!("Expected ')' or ',', found '{:?}'.", list_t.token_type)));
+                }
+                let own_t = list_t.clone();
+                lexer.advance(1)?; // consume 'own'
+                let inner = parse_primary(lexer)?;
+                let own_expr = Expr::new_explicit(
+                    NodeType::OwnArg,
+                    vec![inner],
+                    own_t.line,
+                    own_t.col,
+                );
+                params.push(own_expr);
+                expect_comma = true;
+                list_t = lexer.peek();
+            },
             _ => {
                 if expect_comma {
                     return Err(list_t.error(&lexer.path, &format!("Expected ')' or ',', found '{:?}'.", list_t.token_type)));

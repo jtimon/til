@@ -5,9 +5,9 @@ import("core.vec")
 test_array_static_u8 : proc() = {
     mut stat := Array.new(U8, 3)
     assert_eq(loc(), 3, stat.len())       // Static array len equals cap
-    stat.set(0, U8.from_i64(10)?)?
-    stat.set(1, U8.from_i64(20)?)?
-    stat.set(2, U8.from_i64(30)?)?
+    stat.set(0, own U8.from_i64(10)?)?
+    stat.set(1, own U8.from_i64(20)?)?
+    stat.set(2, own U8.from_i64(30)?)?
     val := cast(U8, stat.get(2)?)
     test(loc(), U8.from_i64(30)?.eq(val), "Get after set at index 2")
 
@@ -34,9 +34,9 @@ test_array_static_str : proc() = {
     mut stat := Array.new(Str, 3)
     assert_eq(loc(), 3, stat.len())
 
-    stat.set(0, "hello")?
-    stat.set(1, "world")?
-    stat.set(2, "!")?
+    stat.set(0, own "hello")?
+    stat.set(1, own "world")?
+    stat.set(2, own "!")?
     val := cast(Str, stat.get(2)?)
     test(loc(), val.eq("!"), "Get after set at index 2")
 
@@ -53,9 +53,9 @@ test_array_static_str()
 
 test_array_contains : proc() = {
     mut arr := Array.new(Str, 3)
-    arr.set(0, "apple")?
-    arr.set(1, "banana")?
-    arr.set(2, "cherry")?
+    arr.set(0, own "apple")?
+    arr.set(1, own "banana")?
+    arr.set(2, own "cherry")?
 
     test(loc(), arr.contains("apple"), "contains finds first element")
     test(loc(), arr.contains("banana"), "contains finds middle element")
@@ -77,9 +77,9 @@ test_array_static_bool : proc() = {
     mut stat := Array.new(Bool, 3)
     assert_eq(loc(), 3, stat.len())
 
-    stat.set(0, true)?
-    stat.set(1, false)?
-    stat.set(2, true)?
+    stat.set(0, own true)?
+    stat.set(1, own false)?
+    stat.set(2, own true)?
     val := cast(Bool, stat.get(2)?)
     test(loc(), val.eq(true), "Get after set at index 2")
 
@@ -98,9 +98,9 @@ test_array_static_i64 : proc() = {
     mut stat := Array.new(I64, 3)
     assert_eq(loc(), 3, stat.len())
 
-    stat.set(0, 100)?
-    stat.set(1, 200)?
-    stat.set(2, 300)?
+    stat.set(0, own 100)?
+    stat.set(1, own 200)?
+    stat.set(2, own 300)?
     val := cast(I64, stat.get(2)?)
     test(loc(), val.eq(300), "Get after set at index 2")
 
@@ -127,9 +127,9 @@ test_array_static_vec2 : proc() = {
     v1 := Vec2(x=1, y=2)
     v2 := Vec2(x=3, y=4)
     v3 := Vec2(x=5, y=6)
-    stat.set(0, v1)?
-    stat.set(1, v2)?
-    stat.set(2, v3)?
+    stat.set(0, own v1)?
+    stat.set(1, own v2)?
+    stat.set(2, own v3)?
 
     v := cast(Vec2, stat.get(2)?)
     assert_eq(loc(), 5, v.x)

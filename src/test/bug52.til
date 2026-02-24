@@ -31,9 +31,9 @@ test_vec_iteration : proc() = {
     mut child2 := Bug52Expr(node_type=Bug52NodeType.Identifier("hello"), line=2)
     mut child3 := Bug52Expr(node_type=Bug52NodeType.FCall, line=3)
 
-    parent.params.push(child1)
-    parent.params.push(child2)
-    parent.params.push(child3)
+    parent.params.push(own child1)
+    parent.params.push(own child2)
+    parent.params.push(own child3)
 
     // Set global before loop
     GLOBAL_COUNT = add(GLOBAL_COUNT, 1)

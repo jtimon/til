@@ -27,7 +27,7 @@ i64_to_le_bytes : func(val: I64) returns Vec = {
     for i in 0..8 {
         mut byte_val : U8 = 0
         memcpy(to_ptr(byte_val), add(to_ptr(val), i), 1)
-        bytes.push(byte_val)
+        bytes.push(own byte_val)
     }
     return bytes
 }
@@ -36,7 +36,7 @@ i64_to_le_bytes : func(val: I64) returns Vec = {
 heap_memory_slice : func(heap: EvalHeap, offset: I64, size: I64) returns Vec = {
     mut bytes := Vec.new(U8)
     for _ in 0..size {
-        bytes.push(0)
+        bytes.push(own 0)
     }
     memcpy(bytes.ptr.data, heap.get(offset, size), size)
     return bytes
@@ -139,16 +139,16 @@ read_struct_primitive_fields : proc(ctx: Context, instance_id: Str, struct_type:
                     } else {
                         // Read actual I64 value from evaluated instance
                         val := EvalHeap.get_i64(ctx, field_id, e)?
-                        values.set(key, val.to_str())
+                        values.set(own key, own val.to_str())
                     }
                 } else if type_name.eq("U8") {
                     // Read actual U8 value from evaluated instance
                     u8_val := EvalHeap.get_u8(ctx, field_id, e)?
-                    values.set(key, u8_val.to_str())
+                    values.set(own key, own u8_val.to_str())
                 } else if type_name.eq("Str") {
                     // Bug #43 fix: Read actual string VALUE, not pointer
                     str_val := string_from_context(ctx, field_id, e)?
-                    values.set(key, str_val)
+                    values.set(own key, own str_val)
                 } else if ctx.scope_stack.has_struct(type_name) {
                     // For nested structs (Vec, etc.), recursively read primitive fields
                     mut nested_key := ""
@@ -161,7 +161,7 @@ read_struct_primitive_fields : proc(ctx: Context, instance_id: Str, struct_type:
                     // Copy nested values to values map
                     for k: Str in nested_values.keys {
                         v := cast(Str, nested_values.get(k)?)
-                        values.set(k, v)
+                        values.set(own k, own v)
                     }
                 }
             }
@@ -221,7 +221,7 @@ eval_struct_defaults : proc(mut ctx: Context, struct_type: Str, e: Expr) returns
                     }
                     throw e.lang_error(ctx.path, "eval_struct_defaults", format("thrown '", thrown_str, "' while evaluating default for field '", decl.name, "'"))
                 }
-                defaults.set(decl.name, res.value)
+                defaults.set(own decl.name, own res.value)
 
                 // Handle nested structs recursively (get their defaults)
                 if is_custom {
@@ -233,7 +233,7 @@ eval_struct_defaults : proc(mut ctx: Context, struct_type: Str, e: Expr) returns
                             // Iterate nested map and insert with prefix
                             for k: Str in nested.keys {
                                 v := cast(Str, nested.get(k)?)
-                                defaults.set(format(decl.name, ".", k), v)
+                                defaults.set(own format(decl.name, ".", k), own v)
                             }
 
                             // Bug #43 fix: Then, override with actual primitive values from evaluated instance
@@ -242,7 +242,7 @@ eval_struct_defaults : proc(mut ctx: Context, struct_type: Str, e: Expr) returns
                             mut primitive_values := read_struct_primitive_fields(ctx, instance_id, type_name, decl.name, e)?
                             for prim_k: Str in primitive_values.keys {
                                 prim_v := cast(Str, primitive_values.get(prim_k)?)
-                                defaults.set(prim_k, prim_v)
+                                defaults.set(own prim_k, own prim_v)
                             }
                         }
                     }
@@ -286,7 +286,7 @@ create_default_instance : proc(mut ctx: Context, struct_type: Str, e: Expr) retu
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Cache the template offset
-    g_heap.default_instances.set(struct_type, template_offset.clone())
+    g_heap.default_instances.set(own struct_type, own template_offset.clone())
 
     return template_offset
 }
@@ -328,13 +328,13 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
                 // Replace StructDef with Identifier in a new FCall
                 anon_id_expr := Expr.new_clone(NodeType.Identifier(anon_temp_name.clone()), anon_first_param, Vec.new(Expr))
                 mut anon_new_params := Vec.new(Expr)
-                anon_new_params.push(anon_id_expr)
+                anon_new_params.push(own anon_id_expr)
                 mut anon_skip := true
                 for anon_p: Expr in e.params {
                     if anon_skip {
                         anon_skip = false
                     } else {
-                        anon_new_params.push(anon_p.clone())
+                        anon_new_params.push(own anon_p.clone())
                     }
                 }
                 anon_new_fcall := Expr.new_clone(e.node_type, e, anon_new_params)
@@ -457,6 +457,9 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
     // Issue #188: Defer should have been desugared
     case NodeType.Defer:
         throw e.lang_error(context.path, "eval", "Defer should have been desugared by desugarer phase")
+    // Issue #185: OwnArg should have been desugared
+    case NodeType.OwnArg:
+        throw e.lang_error(context.path, "eval", "OwnArg should have been desugared by desugarer phase")
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }
@@ -842,7 +845,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                 mut enum_payload_vec := Vec.new(U8)
                                 memcpy(to_ptr(enum_payload_vec), enum_val.payload.data, size_of(Vec))
                                 for pb: U8 in enum_payload_vec {
-                                    enum_bytes.push(pb)
+                                    enum_bytes.push(own pb)
                                 }
                             }
 
@@ -1071,7 +1074,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             if str_expr_heap_offset.gt(0) {
                 str_decl_last_idx := context.scope_stack.frames.len().sub(1)
                 mut str_decl_last_frame := cast(ScopeFrame, context.scope_stack.frames.get(str_decl_last_idx)?)
-                str_decl_last_frame.heap_index.set(declaration.name, str_expr_heap_offset)
+                str_decl_last_frame.heap_index.set(own declaration.name, own str_expr_heap_offset)
                 return EvalResult.new("")
             }
             EvalHeap.insert_primitive(context, declaration.name, value_type, str_expr_result_str, e)?
@@ -1152,7 +1155,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 }
                 struct_last_idx := context.scope_stack.frames.len().sub(1)
                 mut struct_last_frame := cast(ScopeFrame, context.scope_stack.frames.get(struct_last_idx)?)
-                struct_last_frame.heap_index.set(declaration.name, struct_offset)
+                struct_last_frame.heap_index.set(own declaration.name, own struct_offset)
             } else {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(custom_symbol.value_type), "'. Only 'enum' and 'struct' custom types allowed."))
             }
@@ -1962,7 +1965,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                             if found_offset {
                                 lf_idx := context.scope_stack.frames.len().sub(1)
                                 mut lf := cast(ScopeFrame, context.scope_stack.frames.get(lf_idx)?)
-                                lf.heap_index.set(var_name.clone(), offset)
+                                lf.heap_index.set(own var_name.clone(), own offset)
 
                                 // Copy ALL field mappings (including nested) from thrown instance to catch variable
                                 // This handles both mutable and immutable fields, and nested struct fields
@@ -1973,7 +1976,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                                 mut keys_to_copy := Vec.new(Str)
                                 for akey: Str in lf2.heap_index.keys {
                                     if akey.starts_with(source_prefix) {
-                                        keys_to_copy.push(akey.clone())
+                                        keys_to_copy.push(own akey.clone())
                                     }
                                 }
                                 for src_key: Str in keys_to_copy {
@@ -1988,7 +1991,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                                         dest_key := src_key.replacen(source_prefix, dest_prefix, 1)
                                         lf3_idx := context.scope_stack.frames.len().sub(1)
                                         mut lf3 := cast(ScopeFrame, context.scope_stack.frames.get(lf3_idx)?)
-                                        lf3.heap_index.set(dest_key, src_offset)
+                                        lf3.heap_index.set(own dest_key, own src_offset)
                                     }
                                 }
 
@@ -2032,7 +2035,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                                         if base_found {
                                             lf4_idx := context.scope_stack.frames.len().sub(1)
                                             mut lf4 := cast(ScopeFrame, context.scope_stack.frames.get(lf4_idx)?)
-                                            lf4.heap_index.set(var_name, base_offset)
+                                            lf4.heap_index.set(own var_name, own base_offset)
                                         }
 
                                         // Copy symbol mappings for all fields
@@ -2150,7 +2153,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
     for arg: Declaration in func_def.sig.args {
         if not(params_consumed) {
             // Use set() to allow overwriting - Rust's HashMap.insert overwrites
-            function_frame.symbols.set(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+            function_frame.symbols.set(own arg.name, own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
 
             switch arg.value_type {
             case ValueType.TMulti(multi_value_type):
@@ -2163,12 +2166,12 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                     if arg_result.is_throw {
                         return arg_result
                     }
-                    values.push(arg_result.value)
+                    values.push(own arg_result.value)
                 }
 
                 array_type_name := "Array"
                 // Use set() to overwrite the TMulti entry with TCustom("Array")
-                function_frame.symbols.set(arg.name, SymbolInfo(value_type=ValueType.TCustom(array_type_name), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+                function_frame.symbols.set(own arg.name, own SymbolInfo(value_type=ValueType.TCustom(array_type_name), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
                 EvalHeap.insert_array_into_frame(context, function_frame, arg.name, multi_value_type, values, e)?
                 params_consumed = true
 
@@ -2193,7 +2196,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                     case NodeType.Identifier(arg_func_id):
                         combined_arg_name := get_combined_name(context.path, current_arg)?
                         arg_func_def := context.scope_stack.lookup_func(combined_arg_name)?
-                        function_frame.funcs.set(arg.name, arg_func_def)
+                        function_frame.funcs.set(own arg.name, own arg_func_def)
                         param_index = param_index.add(1)
                         continue
                         catch (err: KeyNotFoundError) {
@@ -2203,7 +2206,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                         // Issue #91: Anonymous inline function - evaluate to get temp name
                         anon_result := eval_expr(context, current_arg)?
                         anon_fd := context.scope_stack.lookup_func(anon_result.value)?
-                        function_frame.funcs.set(arg.name, anon_fd)
+                        function_frame.funcs.set(own arg.name, own anon_fd)
                         param_index = param_index.add(1)
                         continue
                         catch (err: KeyNotFoundError) {
@@ -2229,7 +2232,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                             switch sym.value_type {
                             case ValueType.TType(tdef):
                                 // This is a type identifier - store the type name as a string
-                                function_frame.symbols.set(arg.name, SymbolInfo(value_type=ValueType.TCustom("Str")))
+                                function_frame.symbols.set(own arg.name, own SymbolInfo(value_type=ValueType.TCustom("Str")))
                                 EvalHeap.insert_string_into_frame(context, function_frame, arg.name, id_name, e)?
                                 param_index.inc()
                                 continue  // Skip eval_expr for this parameter
@@ -2323,7 +2326,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                             mut_entry.arg_name = arg.name
                             mut_entry.source_name = full_id
                             mut_entry.value_type = ValueType.TCustom(resolved_type_name)
-                            mut_args.push(mut_entry)
+                            mut_args.push(own mut_entry)
                         case:
                             throw e.lang_error(context.path, "eval", "mut arguments must be passed as identifiers or field access")
                         }
@@ -2337,7 +2340,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                             // Transfer heap offset from caller to function frame
                             mut offset := 0
                             offset = context.scope_stack.lookup_var(source_var)?
-                            function_frame.heap_index.set(arg.name, offset)
+                            function_frame.heap_index.set(own arg.name, own offset)
 
                             // Transfer symbol info for fields
                             own_prefix := format(source_var, ".")
@@ -2346,7 +2349,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                 mut field_sym := SymbolInfo()
                                 field_sym = context.scope_stack.lookup_symbol(transfer_key)?
                                 own_new_key := transfer_key.replace(source_var, arg.name)
-                                function_frame.symbols.set(own_new_key, field_sym.clone())
+                                function_frame.symbols.set(own own_new_key, own field_sym.clone())
                                 catch (err_sym: KeyNotFoundError) { }
                             }
 
@@ -2385,8 +2388,8 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                 share_offset = context.scope_stack.lookup_var(source_var)?
                                 // Create symbol info for parameter using the resolved type
                                 param_symbol := SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
-                                function_frame.symbols.set(arg.name.clone(), param_symbol)
-                                function_frame.heap_index.set(arg.name.clone(), share_offset)
+                                function_frame.symbols.set(own arg.name.clone(), own param_symbol)
+                                function_frame.heap_index.set(own arg.name.clone(), own share_offset)
 
                                 // Copy symbol entries for fields from ALL frames to callee
                                 ref_prefix := format(source_var, ".")
@@ -2397,16 +2400,16 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                         if ref_skey.starts_with(ref_prefix) {
                                             ref_svalue := cast(SymbolInfo, ref_caller_frame.symbols.get(ref_skey)?)
                                             ref_new_skey := ref_skey.replacen(ref_prefix, ref_replacement_prefix, 1)
-                                            ref_field_symbols_to_copy.push(SymbolEntry(name=ref_new_skey, info=ref_svalue.clone()))
+                                            ref_field_symbols_to_copy.push(own SymbolEntry(name=ref_new_skey, info=ref_svalue.clone()))
                                         }
                                     }
                                 }
                                 for ref_entry: SymbolEntry in ref_field_symbols_to_copy {
-                                    function_frame.symbols.set(ref_entry.name, ref_entry.info)
+                                    function_frame.symbols.set(own ref_entry.name, own ref_entry.info)
                                 }
 
                                 // Track that this parameter was passed by reference
-                                pass_by_ref_params.push(arg.name.clone())
+                                pass_by_ref_params.push(own arg.name.clone())
 
                                 param_index.inc()
                                 continue  // Skip allocation logic - we're sharing the offset
@@ -2426,7 +2429,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                             EvalHeap.insert_u8_into_frame(context, function_frame, arg.name, arg_result_str, e)?
                         case "Str":
                             if arg_result_heap_offset.gt(0) {
-                                function_frame.heap_index.set(arg.name, arg_result_heap_offset)
+                                function_frame.heap_index.set(own arg.name, own arg_result_heap_offset)
                             } else {
                                 EvalHeap.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
                             }
@@ -2524,10 +2527,10 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                         }
 
                                         // Create symbol for parameter
-                                        function_frame.symbols.set(arg.name.clone(), SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+                                        function_frame.symbols.set(own arg.name.clone(), own SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
 
                                         // Share the offset (pass-by-reference)
-                                        function_frame.heap_index.set(arg.name.clone(), src_offset)
+                                        function_frame.heap_index.set(own arg.name.clone(), own src_offset)
 
                                         // Copy symbol entries for fields
                                         pbr_prefix := format(id_, ".")
@@ -2538,7 +2541,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                                 if pbr_skey.starts_with(pbr_prefix) {
                                                     pbr_svalue := cast(SymbolInfo, pbr_caller_frame.symbols.get(pbr_skey)?)
                                                     pbr_new_skey := pbr_skey.replacen(pbr_prefix, pbr_replacement_prefix, 1)
-                                                    pbr_field_symbols_to_copy.push(SymbolEntry(name=pbr_new_skey, info=pbr_svalue.clone()))
+                                                    pbr_field_symbols_to_copy.push(own SymbolEntry(name=pbr_new_skey, info=pbr_svalue.clone()))
                                                     catch (err: KeyNotFoundError) {
                                                         panic(loc(), "symbols.get: key from .keys iteration: ", err.msg)
                                                     }
@@ -2546,11 +2549,11 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                             }
                                         }
                                         for pbr_entry: SymbolEntry in pbr_field_symbols_to_copy {
-                                            function_frame.symbols.set(pbr_entry.name, pbr_entry.info)
+                                            function_frame.symbols.set(own pbr_entry.name, own pbr_entry.info)
                                         }
 
                                         // Track that this was passed by reference
-                                        pass_by_ref_params.push(arg.name.clone())
+                                        pass_by_ref_params.push(own arg.name.clone())
                                     }
                                     if not(should_share_offset).and(arg.is_copy) {
                                         // Issue #159: garbager inserts Type.clone() for struct identifier copy params.
@@ -2570,7 +2573,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                                 throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context heap_index"))
                                             }
                                         }
-                                        function_frame.heap_index.set(arg.name.clone(), copy_src_offset)
+                                        function_frame.heap_index.set(own arg.name.clone(), own copy_src_offset)
                                     }
                                     if not(should_share_offset).and(not(arg.is_copy)) {
                                         // Own/Type identifier parameters: ownership transfer via offset binding.
@@ -2589,7 +2592,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                                 throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context heap_index"))
                                             }
                                         }
-                                        function_frame.heap_index.set(arg.name.clone(), own_src_offset)
+                                        function_frame.heap_index.set(own arg.name.clone(), own own_src_offset)
                                     }
                                 } else {
                                     if arg.is_copy {
@@ -2599,7 +2602,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                         catch (err: KeyNotFoundError) {
                                             throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
                                         }
-                                        function_frame.heap_index.set(arg.name.clone(), expr_copy_src_offset)
+                                        function_frame.heap_index.set(own arg.name.clone(), own expr_copy_src_offset)
                                     } else {
                                         // Own/Type expression parameters: bind the expression result offset.
                                         // The expression is already evaluated and allocated in the heap.
@@ -2607,7 +2610,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                         catch (err: KeyNotFoundError) {
                                             throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
                                         }
-                                        function_frame.heap_index.set(arg.name.clone(), expr_src_offset)
+                                        function_frame.heap_index.set(own arg.name.clone(), own expr_src_offset)
 
                                         // For own parameters, remove the source from caller's context (ownership transferred)
                                         if arg.is_own {
@@ -2632,7 +2635,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
     }
 
     // Push the populated frame and set function path
-    context.scope_stack.frames.push(function_frame)
+    context.scope_stack.frames.push(own function_frame)
     context.path = func_def.source_path.clone()
 
     result := eval_body(context, func_def.body)?
@@ -2672,7 +2675,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                         thrown_frame_count := context.scope_stack.frames.len()
                         if thrown_frame_count.gteq(2) {
                             mut thrown_caller_frame := cast(ScopeFrame, context.scope_stack.frames.get(thrown_frame_count.sub(2))?)
-                            thrown_caller_frame.heap_index.set(result.value.clone(), base_offset)
+                            thrown_caller_frame.heap_index.set(own result.value.clone(), own base_offset)
                         }
                     }
 
@@ -2691,7 +2694,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                         if throw_src_symbol_found {
                             if throw_frame_count.gt(1) {
                                 mut throw_sym_caller_frame := cast(ScopeFrame, context.scope_stack.frames.get(throw_frame_count.sub(2))?)
-                                throw_sym_caller_frame.symbols.set(throw_sym_key, throw_src_symbol.clone())
+                                throw_sym_caller_frame.symbols.set(own throw_sym_key, own throw_src_symbol.clone())
                             }
                         }
                     }
@@ -2812,13 +2815,13 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
             switch mut_arg_type_name {
             case "I64":
                 mut_arg_i64_val := EvalHeap.get_i64(context, m.arg_name, e)?
-                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.I64(mut_arg_i64_val)))
+                collected_mut_args.push(own CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.I64(mut_arg_i64_val)))
             case "U8":
                 mut_arg_u8_val : U8 = EvalHeap.get_u8(context, m.arg_name, e)?
-                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.U8(mut_arg_u8_val)))
+                collected_mut_args.push(own CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.U8(mut_arg_u8_val)))
             case "Str":
                 mut_arg_val := string_from_context(context, m.arg_name, e)?
-                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Str(mut_arg_val)))
+                collected_mut_args.push(own CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Str(mut_arg_val)))
             case:
                 // Custom type (enum or struct)
                 mut mut_arg_symbol_info := SymbolInfo()
@@ -2846,7 +2849,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                 }
                 if mut_arg_is_enum_def {
                     mut_arg_enum_val := EvalHeap.get_enum(context, m.arg_name, e)?
-                    collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Enum(mut_arg_enum_val)))
+                    collected_mut_args.push(own CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Enum(mut_arg_enum_val)))
                 } else if mut_arg_is_struct_def {
                     mut mut_arg_offset := 0
                     mut mut_arg_offset_found := false
@@ -2854,7 +2857,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                     mut_arg_offset_found = true
                     catch (err: KeyNotFoundError) { }
                     if mut_arg_offset_found {
-                        collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Struct(MutArgStructData(offset=mut_arg_offset, type_name=mut_arg_type_name.clone(), was_passed_by_ref=was_passed_by_ref))))
+                        collected_mut_args.push(own CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Struct(MutArgStructData(offset=mut_arg_offset, type_name=mut_arg_type_name.clone(), was_passed_by_ref=was_passed_by_ref))))
                     } else {
                         context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                         context.path = saved_path
@@ -2904,7 +2907,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
         case MutArgValue.Struct(struct_data):
             lf12_idx := context.scope_stack.frames.len().sub(1)
             mut lf12 := cast(ScopeFrame, context.scope_stack.frames.get(lf12_idx)?)
-            lf12.heap_index.set(c.source_name.clone(), struct_data.offset)
+            lf12.heap_index.set(own c.source_name.clone(), own struct_data.offset)
             // Bug #160: map_instance_fields removed - type checker handles symbol registration
         }
     }
@@ -2964,7 +2967,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                         // Share the base offset in caller's frame
                         lf13_idx := context.scope_stack.frames.len().sub(1)
                         mut lf13 := cast(ScopeFrame, context.scope_stack.frames.get(lf13_idx)?)
-                        lf13.heap_index.set(return_instance.clone(), copy_ret_offset)
+                        lf13.heap_index.set(own return_instance.clone(), own copy_ret_offset)
 
                         return EvalResult.new_return(return_instance) // CLEANUP SITE 4: Return struct instance
                     } else if copy_ret_is_enum_def {
@@ -3169,10 +3172,10 @@ eval_core_func_proc_call : proc(name: Str, mut context: Context, e: Expr, is_pro
 /// Follows rstil.rs main_interpret implementation
 main_interpret : proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str, source: Str, main_args: Vec) returns EvalResult throws Str = {
     // Mark main file as "done" to prevent re-processing via circular imports
-    _ := context.imports_init_done.insert(path.clone())
-    _ := context.imports_typer_done.insert(path.clone())
-    _ := context.imports_precomp_done.insert(path.clone())
-    _ := context.imports_eval_done.insert(path.clone())
+    _ := context.imports_init_done.insert(own path.clone())
+    _ := context.imports_typer_done.insert(own path.clone())
+    _ := context.imports_precomp_done.insert(own path.clone())
+    _ := context.imports_eval_done.insert(own path.clone())
 
     // Lex source
     mut lexer := lexer_from_source(path, source)?
@@ -3196,8 +3199,8 @@ main_interpret : proc(skip_init_and_typecheck: Bool, mut context: Context, path:
         import_func_name_expr := Expr(node_type=NodeType.Identifier("import"), line=0, col=0)
         import_path_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(import_str)), line=0, col=0)
         mut import_fcall_expr := Expr(node_type=NodeType.FCall(FCallInfo()), line=0, col=0)
-        import_fcall_expr.params.push(import_func_name_expr)
-        import_fcall_expr.params.push(import_path_expr)
+        import_fcall_expr.params.push(own import_func_name_expr)
+        import_fcall_expr.params.push(own import_path_expr)
 
         // Mode imports need full processing: init, typer, eval
         init_import_declarations(context, import_fcall_expr, import_str)?
@@ -3251,22 +3254,22 @@ main_interpret : proc(skip_init_and_typecheck: Bool, mut context: Context, path:
             throw format(path, ":", err)
         }
         for mode_err: Str in mode_errors {
-            errors.push(mode_err)
+            errors.push(own mode_err)
         }
 
         // For modes that require a main proc, add an implicit call to main
         if context.mode_def.needs_main_proc {
             main_ident_expr := Expr(node_type=NodeType.Identifier("main"), line=0, col=0)
             mut main_call_expr := Expr(node_type=NodeType.FCall(FCallInfo()), line=0, col=0)
-            main_call_expr.params.push(main_ident_expr)
+            main_call_expr.params.push(own main_ident_expr)
 
             // Add string args
             for arg_str: Str in main_args {
                 arg_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(arg_str)), line=0, col=0)
-                main_call_expr.params.push(arg_expr)
+                main_call_expr.params.push(own arg_expr)
             }
 
-            e.params.push(main_call_expr)
+            e.params.push(own main_call_expr)
         }
 
         // Issue #105: Expand struct-returning macros before type checking
@@ -3278,7 +3281,7 @@ main_interpret : proc(skip_init_and_typecheck: Bool, mut context: Context, path:
             throw format(path, ":", err)
         }
         for type_err: Str in type_result.errors {
-            errors.push(type_err)
+            errors.push(own type_err)
         }
 
         // TODO: check_body_returns_throws for root body - needs FuncDef and ThrownType
@@ -3384,7 +3387,7 @@ proc_eval_file : proc(mut context: Context, e: Expr) returns EvalResult throws S
         ei := cast(Expr, e.params.get(i)?)
         arg_result := eval_expr(context, ei)?
         if arg_result.is_throw { return arg_result }
-        main_args.push(arg_result.value)
+        main_args.push(own arg_result.value)
     }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -3414,7 +3417,7 @@ proc_import : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     }
 
     // Mark as done immediately - before processing - to handle circular imports
-    _ := context.imports_eval_done.insert(path.clone())
+    _ := context.imports_eval_done.insert(own path.clone())
 
     // Get stored AST from init phase
     if not(context.imported_asts.contains_key(path)) {
@@ -3431,7 +3434,7 @@ proc_import : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
 
     // Run desugar + garbager + ufcs + precomp on the imported AST if not already done
     if not(context.imports_precomp_done.contains(path)) {
-        _ := context.imports_precomp_done.insert(path.clone())
+        _ := context.imports_precomp_done.insert(own path.clone())
         ast = desugar_expr(context, ast)?
         ast = garbager_expr(context, ast)?
         ast = ufcs_expr(context, ast)?

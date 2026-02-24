@@ -54,7 +54,7 @@
 |------+----------------------------------------------------------+-----------------|
 | #187 | Integrated profiling for self-hosted compiler            | Open            |
 | #161 | Namespace constants, static mutables, immutables         | Open            |
-| #185 | Require own at call sites, better consumed errors        | Open            |
+| #185 | Require own at call sites, better consumed errors        | Part 1 done     |
 | #184 | Integer-based enum comparison                            | Open            |
 | #183 | Manual delete calls as temporary memory management       | In progress     |
 | #179 | Typer should reject cast() in non-declaration pos        | Phase 1 done    |

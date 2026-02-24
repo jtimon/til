@@ -145,6 +145,22 @@ parse_args : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsErr
             } else {
                 throw list_t.error(lexer.path, "Unexpected ','.")
             }
+        // Issue #185: own expr in function call arguments
+        case TokenType.Own:
+            if expect_comma {
+                throw list_t.error(lexer.path, format("Expected ')' or ',', found '", token_type_to_str(list_t.token_type), "'."))
+            }
+            own_t := list_t.clone()
+            lexer.advance(1)? // consume 'own'
+            inner := parse_primary(lexer)?
+            mut own_params := Vec.new(Expr)
+            own_params.push(own inner)
+            own_expr := Expr.new_explicit(
+                NodeType.OwnArg,
+                own_params, own_t.line, own_t.col)
+            params.push(own own_expr)
+            expect_comma = true
+            list_t = lexer.peek()?
         case:
             if expect_comma {
                 throw list_t.error(lexer.path, format("Expected ')' or ',', found '", token_type_to_str(list_t.token_type), "'."))
@@ -168,17 +184,17 @@ parse_args : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsErr
                     lexer.advance(1)? // consume '='
                     value := parse_primary(lexer)?
                     mut named_arg_params := Vec.new(Expr)
-                    named_arg_params.push(value)
+                    named_arg_params.push(own value)
                     // TODO Bug #56: inline clone should work here
                     named_arg := Expr.new_explicit(
                         node_type_clone(NodeType.NamedArg(arg_name)),
                         named_arg_params, prim.line, prim.col)
-                    params.push(named_arg)
+                    params.push(own named_arg)
                 case:
                     throw next_t.error(lexer.path, "Named argument requires a simple identifier before '='")
                 }
             } else {
-                params.push(prim)
+                params.push(own prim)
             }
             list_t = lexer.peek()?
         }
@@ -198,7 +214,7 @@ parse_assignment : func(mut lexer: Lexer, t: Token, name: Str) returns Expr thro
     _ := lexer.expect(TokenType.Equal)?
     mut params := Vec.new(Expr)
     value := parse_primary(lexer)?
-    params.push(value)
+    params.push(own value)
     result := expr_new_parse(NodeType.Assignment(name), t.clone(), params)
     return result
 }
@@ -329,7 +345,7 @@ parse_func_proc_args : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOf
                     mut type_only_decl := Declaration()
                     type_only_decl.name = ""
                     type_only_decl.value_type = str_to_value_type(t.token_str)
-                    args.push(type_only_decl)
+                    args.push(own type_only_decl)
                     lexer.advance(1)?
                     t = lexer.peek()?
                     expect_comma = true
@@ -364,7 +380,7 @@ parse_func_proc_args : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOf
                 case:
                     // No default value
                 }
-                args.push(decl)
+                args.push(own decl)
                 expect_comma = true
                 is_mut = false
                 is_copy = false
@@ -459,7 +475,7 @@ func_proc_returns : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
             if expect_comma {
                 throw t.error(lexer.path, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
-            return_types.push(str_to_value_type(t.token_str))
+            return_types.push(own str_to_value_type(t.token_str))
             expect_comma = true
             lexer.advance(1)?
             t = lexer.peek()?
@@ -468,7 +484,7 @@ func_proc_returns : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
             if expect_comma {
                 throw t.error(lexer.path, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
-            return_types.push(str_to_value_type("struct"))
+            return_types.push(own str_to_value_type("struct"))
             expect_comma = true
             lexer.advance(1)?
             t = lexer.peek()?
@@ -477,7 +493,7 @@ func_proc_returns : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
             if expect_comma {
                 throw t.error(lexer.path, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
-            return_types.push(str_to_value_type("enum"))
+            return_types.push(own str_to_value_type("enum"))
             expect_comma = true
             lexer.advance(1)?
             t = lexer.peek()?
@@ -531,7 +547,7 @@ func_proc_throws : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoun
             if expect_comma {
                 throw t.error(lexer.path, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
-            return_types.push(str_to_value_type(t.token_str))
+            return_types.push(own str_to_value_type(t.token_str))
             expect_comma = true
             lexer.advance(1)?
             t = lexer.peek()?
@@ -571,7 +587,7 @@ parse_binding_tuple : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfB
             if expect_comma {
                 throw t.error(lexer.path, format("Expected ',' before '", t.token_str, "' in binding tuple."))
             }
-            names.push(t.token_str)
+            names.push(own t.token_str)
             lexer.advance(1)?
             expect_comma = true
         case:
@@ -635,7 +651,7 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
                 new_decl.is_mut = arg.is_mut
                 new_decl.is_copy = arg.is_copy
                 new_decl.is_own = arg.is_own
-                new_args.push(new_decl)
+                new_args.push(own new_decl)
                 bind_i = bind_i.add(1)
             }
             args = new_args
@@ -692,7 +708,7 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
     // Issue #91: Split args into sig (types+modifiers) and arg_names
     mut arg_names := Vec.new(Str)
     for arg: Declaration in args {
-        arg_names.push(arg.name.clone())
+        arg_names.push(own arg.name.clone())
     }
     mut func_def := FuncDef()
     func_def.sig = FuncSig(
@@ -720,11 +736,11 @@ build_namespace_from_stmts : func(namespace_stmts: Vec) returns NamespaceDef = {
         stmt_nt := stmt.node_type
         switch stmt_nt {
         case NodeType.Declaration(ns_decl):
-            ns_members.push(ns_decl.clone())
+            ns_members.push(own ns_decl.clone())
             if stmt.params.len().eq(1) {
                 ns_val := cast(Expr, stmt.params.get(0)?)
                 dont_delete(ns_val)
-                ns_default_values.set(ns_decl.name.clone(), ns_val.clone())
+                ns_default_values.set(own ns_decl.name.clone(), own ns_val.clone())
             }
         case NodeType.Assignment(name):
             if stmt.params.len().eq(1) {
@@ -736,8 +752,8 @@ build_namespace_from_stmts : func(namespace_stmts: Vec) returns NamespaceDef = {
                 ns_assign_decl.is_mut = false
                 ns_assign_decl.is_copy = false
                 ns_assign_decl.is_own = false
-                ns_members.push(ns_assign_decl.clone())
-                ns_default_values.set(name.clone(), ns_assign_val.clone())
+                ns_members.push(own ns_assign_decl.clone())
+                ns_default_values.set(own name.clone(), own ns_assign_val.clone())
             }
         case:
             // skip
@@ -799,7 +815,7 @@ enum_definition : func(mut lexer: Lexer) returns Expr throws Str = {
             if in_namespace {
                 // Collect raw statement Exprs for namespace block
                 stmt := parse_statement(lexer)?
-                namespace_stmts.push(stmt)
+                namespace_stmts.push(own stmt)
             } else {
                 switch itt {
                 case TokenType.Identifier:
@@ -823,7 +839,7 @@ enum_definition : func(mut lexer: Lexer) returns Expr throws Str = {
                             mut variant := EnumVariant()
                             variant.name = enum_val_name
                             variant.payload_type = payload_ptr
-                            variants.push(variant)
+                            variants.push(own variant)
                             lexer.advance(3)? // past name, :, type
                         case:
                             throw next2_t.error(lexer.path, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
@@ -831,12 +847,12 @@ enum_definition : func(mut lexer: Lexer) returns Expr throws Str = {
                     case TokenType.Comma:
                         mut comma_variant := EnumVariant()
                         comma_variant.name = enum_val_name
-                        variants.push(comma_variant)  // None = NULL pointer (default)
+                        variants.push(own comma_variant)  // None = NULL pointer (default)
                         lexer.advance(2)? // past name and comma
                     case TokenType.RightBrace:
                         mut brace_variant := EnumVariant()
                         brace_variant.name = enum_val_name
-                        variants.push(brace_variant)  // None = NULL pointer (default)
+                        variants.push(own brace_variant)  // None = NULL pointer (default)
                         lexer.advance(2)? // past name and }
                         end_found = true
                     case:
@@ -914,16 +930,16 @@ parse_struct_definition : func(mut lexer: Lexer) returns Expr throws Str = {
             dont_delete(stmt)
             if in_namespace {
                 // Collect raw statement Exprs for namespace block
-                namespace_stmts.push(stmt.clone())
+                namespace_stmts.push(own stmt.clone())
             } else {
                 stmt_nt := stmt.node_type
                 switch stmt_nt {
                 case NodeType.Declaration(decl):
-                    members.push(decl.clone())
+                    members.push(own decl.clone())
                     if stmt.params.len().eq(1) {
                         val := cast(Expr, stmt.params.get(0)?)
                         dont_delete(val)
-                        default_values.set(decl.name.clone(), val.clone())
+                        default_values.set(own decl.name.clone(), own val.clone())
                     } else {
                         // TODO allow not setting default values in struct members
                         throw t.error(lexer.path, "all declarations inside struct definitions must have a value for now")
@@ -939,8 +955,8 @@ parse_struct_definition : func(mut lexer: Lexer) returns Expr throws Str = {
                         assign_decl.is_mut = false
                         assign_decl.is_copy = false
                         assign_decl.is_own = false
-                        members.push(assign_decl.clone())
-                        default_values.set(name.clone(), assign_val.clone())
+                        members.push(own assign_decl.clone())
+                        default_values.set(own name.clone(), own assign_val.clone())
                     } else {
                         throw t.error(lexer.path, format("struct assignment '", name, "' must have exactly one value"))
                     }
@@ -1000,7 +1016,7 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                 ident_expr := expr_new_parse(
                     node_type_clone(NodeType.Identifier(current_identifier)),
                     t.clone(), Vec.new(Expr))
-                params.push(ident_expr)
+                params.push(own ident_expr)
                 next_t = lexer.next()?
             case:
                 throw next2_t.error(lexer.path, format("expected identifier after '", current_identifier, ".', found '", token_type_to_str(next2_t.token_type), "'."))
@@ -1020,9 +1036,9 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
     case TokenType.LeftParen:
         arg_list := parse_args(lexer)?
         mut fcall_params := Vec.new(Expr)
-        fcall_params.push(e)
+        fcall_params.push(own e)
         for arg: Expr in arg_list.params {
-            fcall_params.push(arg)
+            fcall_params.push(own arg)
         }
         initial_token2 := lexer.get_token(initial_current)?.clone()
         // Issue #132: Check for ? after function call (indicates call to throwing function)
@@ -1073,10 +1089,10 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                         // This represents: method_name(result, args...)
                         method_id := expr_new_parse(NodeType.Identifier(method_name), method_t.clone(), Vec.new(Expr))
                         mut new_params := Vec.new(Expr)
-                        new_params.push(method_id)
-                        new_params.push(result.clone())  // Previous call result becomes first argument
+                        new_params.push(own method_id)
+                        new_params.push(own result.clone())  // Previous call result becomes first argument
                         for method_arg: Expr in method_args.params {
-                            new_params.push(method_arg)
+                            new_params.push(own method_arg)
                         }
 
                         // Issue #132: Check for ? after chained method call
@@ -1100,9 +1116,9 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                         // Bug #32 fix: Field access on expression result (no parentheses)
                         // Collect all field names in the chain until we hit something else
                         mut field_params := Vec.new(Expr)
-                        field_params.push(result.clone())  // First param is the FCall/expression result
+                        field_params.push(own result.clone())  // First param is the FCall/expression result
                         // TODO Bug #56: inline clone should work here
-                        field_params.push(expr_new_parse(
+                        field_params.push(own expr_new_parse(
                             node_type_clone(NodeType.Identifier(method_name)),
                             method_t.clone(), Vec.new(Expr)))
 
@@ -1135,10 +1151,10 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
 
                                         method_id2 := expr_new_parse(NodeType.Identifier(next_field_name), next_field_t.clone(), Vec.new(Expr))
                                         mut new_params2 := Vec.new(Expr)
-                                        new_params2.push(method_id2)
-                                        new_params2.push(field_access)
+                                        new_params2.push(own method_id2)
+                                        new_params2.push(own field_access)
                                         for method_arg2: Expr in method_args2.params {
-                                            new_params2.push(method_arg2)
+                                            new_params2.push(own method_arg2)
                                         }
 
                                         // Issue #132: Check for ? after field method call
@@ -1161,7 +1177,7 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
                                         continue_field_loop = false
                                     case:
                                         // Another field access
-                                        field_params.push(expr_new_parse(NodeType.Identifier(next_field_name), next_field_t.clone(), Vec.new(Expr)))
+                                        field_params.push(own expr_new_parse(NodeType.Identifier(next_field_name), next_field_t.clone(), Vec.new(Expr)))
                                     }
                                 case:
                                     throw next_field_t.error(lexer.path, format("Expected identifier after '.', found '", token_type_to_str(next_field_t.token_type), "'"))
@@ -1241,7 +1257,7 @@ parse_colon_func_def : func(mut lexer: Lexer, t: Token, identifier: Str, func_ty
     decl.name = identifier
     decl.value_type = str_to_value_type(INFER_TYPE)
     mut children := Vec.new(Expr)
-    children.push(func_expr)
+    children.push(own func_expr)
     return expr_new_parse(NodeType.Declaration(decl), t.clone(), children)
 }
 
@@ -1362,9 +1378,9 @@ parse_primary : func(mut lexer: Lexer) returns Expr throws Str = {
         if is_left_paren {
             arg_list := parse_args(lexer)?
             mut fcall_params := Vec.new(Expr)
-            fcall_params.push(result.clone())
+            fcall_params.push(own result.clone())
             for arg: Expr in arg_list.params {
-                fcall_params.push(arg.clone())
+                fcall_params.push(own arg.clone())
             }
             result = expr_new_parse(NodeType.FCall(FCallInfo()), t.clone(), fcall_params)
         }
@@ -1390,7 +1406,7 @@ return_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 
     // Try to parse first primary expression
     prim := parse_primary(lexer)?
-    params.push(prim)
+    params.push(own prim)
     catch (err: Str) {
         // No primary expression found, that's okay for return statements
     }
@@ -1403,7 +1419,7 @@ return_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
         case TokenType.Comma:
             lexer.advance(1)?
             prim2 := parse_primary(lexer)?
-            params.push(prim2)
+            params.push(own prim2)
             t = lexer.peek()?
         case:
             continue_loop = false
@@ -1439,7 +1455,7 @@ parse_defer_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
     deferred_expr := parse_statement(lexer)?
     initial_token := lexer.get_token(initial_current)?.clone()
     mut params := Vec.new(Expr)
-    params.push(deferred_expr)
+    params.push(own deferred_expr)
     return expr_new_parse(NodeType.Defer, initial_token, params)
 }
 
@@ -1450,7 +1466,7 @@ parse_throw_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
 
     // Parse first primary expression (required for throw)
     prim := parse_primary(lexer)?
-    params.push(prim)
+    params.push(own prim)
 
     mut t := lexer.peek()?
     mut continue_loop := true
@@ -1460,7 +1476,7 @@ parse_throw_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
         case TokenType.Comma:
             lexer.advance(1)?
             prim2 := parse_primary(lexer)?
-            params.push(prim2)
+            params.push(own prim2)
             t = lexer.peek()?
         case:
             continue_loop = false
@@ -1502,9 +1518,9 @@ parse_catch_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
     body_expr := parse_body(lexer, TokenType.RightBrace)?
 
     mut params := Vec.new(Expr)
-    params.push(name_expr)
-    params.push(type_expr)
-    params.push(body_expr)
+    params.push(own name_expr)
+    params.push(own type_expr)
+    params.push(own body_expr)
 
     initial_token := lexer.get_token(initial_current)?.clone()
 
@@ -1518,7 +1534,7 @@ if_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsE
     mut params := Vec.new(Expr)
 
     prim := parse_primary(lexer)?
-    params.push(prim)
+    params.push(own prim)
 
     t := lexer.peek()?
     tt := t.token_type
@@ -1530,7 +1546,7 @@ if_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsE
     }
 
     body := parse_body(lexer, TokenType.RightBrace)?
-    params.push(body)
+    params.push(own body)
 
     t2 := lexer.peek()?
     t2tt := t2.token_type
@@ -1542,11 +1558,11 @@ if_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsE
         switch ntt {
         case TokenType.If:
             nested_if := if_statement(lexer)?
-            params.push(nested_if)
+            params.push(own nested_if)
         case TokenType.LeftBrace:
             lexer.advance(1)?
             else_body := parse_body(lexer, TokenType.RightBrace)?
-            params.push(else_body)
+            params.push(own else_body)
         case:
             throw t2.error(lexer.path, format("Expected '{{' or 'if' after 'else', found '", token_type_to_str(next.token_type), "'."))
         }
@@ -1566,7 +1582,7 @@ while_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoun
     mut params := Vec.new(Expr)
 
     prim := parse_primary(lexer)?
-    params.push(prim)
+    params.push(own prim)
 
     t := lexer.peek()?
     tt := t.token_type
@@ -1578,7 +1594,7 @@ while_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoun
     }
 
     body := parse_body(lexer, TokenType.RightBrace)?
-    params.push(body)
+    params.push(own body)
 
     initial_token := lexer.get_token(initial_current)?.clone()
 
@@ -1594,8 +1610,8 @@ transform_continue_with_step : func(expr: Expr, step_expr: Expr) returns Expr = 
     case NodeType.Continue:
         // Replace continue with { step_expr; continue }
         mut body_params := Vec.new(Expr)
-        body_params.push(step_expr.clone())
-        body_params.push(expr.clone())
+        body_params.push(own step_expr.clone())
+        body_params.push(own expr.clone())
         return Expr.new_explicit(NodeType.Body, body_params, expr.line, expr.col)
     case NodeType.While:
         // Don't recurse into nested loops - their continues are for their own loop
@@ -1607,7 +1623,7 @@ transform_continue_with_step : func(expr: Expr, step_expr: Expr) returns Expr = 
         // Recurse into other nodes
         mut new_params := Vec.new(Expr)
         for p: Expr in expr.params {
-            new_params.push(transform_continue_with_step(p, step_expr))
+            new_params.push(own transform_continue_with_step(p, step_expr))
         }
         return Expr(node_type=expr.node_type, params=new_params, line=expr.line, col=expr.col)
     }
@@ -1649,37 +1665,37 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
     decl.value_type = str_to_value_type(var_type)
     decl.is_mut = true
     mut decl_params := Vec.new(Expr)
-    decl_params.push(start_expr.clone())
+    decl_params.push(own start_expr.clone())
     decl_expr := expr_new_parse(NodeType.Declaration(decl), initial_token.clone(), decl_params)
 
     // Helper to create forward while loop
     make_fwd_while : func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr = {
         mut lt_params := Vec.new(Expr)
         lt_ident := expr_new_parse(NodeType.Identifier("lt"), tok.clone(), Vec.new(Expr))
-        lt_params.push(lt_ident)
+        lt_params.push(own lt_ident)
         cond_var := expr_new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), lt_params)
         mut cond_params := Vec.new(Expr)
-        cond_params.push(cond_var)
-        cond_params.push(end.clone())
+        cond_params.push(own cond_var)
+        cond_params.push(own end.clone())
         cond := Expr.new_explicit(NodeType.FCall(FCallInfo()),cond_params, tok.line, tok.col)
 
         mut inc_method_params := Vec.new(Expr)
         inc_method := expr_new_parse(NodeType.Identifier("inc"), tok.clone(), Vec.new(Expr))
-        inc_method_params.push(inc_method)
+        inc_method_params.push(own inc_method)
         inc_var := expr_new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), inc_method_params)
         mut inc_params := Vec.new(Expr)
-        inc_params.push(inc_var)
+        inc_params.push(own inc_var)
         inc := Expr.new_explicit(NodeType.FCall(FCallInfo()),inc_params, tok.line, tok.col)
 
         // Bug #57 fix: Transform continue statements to include increment before continue
         transformed_body := transform_continue_with_step(body, inc)
         mut body_params := transformed_body.params_clone()
-        body_params.push(inc.clone())
+        body_params.push(own inc.clone())
         while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
 
         mut while_params := Vec.new(Expr)
-        while_params.push(cond)
-        while_params.push(while_body)
+        while_params.push(own cond)
+        while_params.push(own while_body)
 
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
@@ -1688,30 +1704,30 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
     make_rev_while : func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr = {
         mut gt_params := Vec.new(Expr)
         gt_ident := expr_new_parse(NodeType.Identifier("gt"), tok.clone(), Vec.new(Expr))
-        gt_params.push(gt_ident)
+        gt_params.push(own gt_ident)
         cond_var := expr_new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), gt_params)
         mut cond_params := Vec.new(Expr)
-        cond_params.push(cond_var)
-        cond_params.push(end.clone())
+        cond_params.push(own cond_var)
+        cond_params.push(own end.clone())
         cond := Expr.new_explicit(NodeType.FCall(FCallInfo()),cond_params, tok.line, tok.col)
 
         mut dec_method_params := Vec.new(Expr)
         dec_method := expr_new_parse(NodeType.Identifier("dec"), tok.clone(), Vec.new(Expr))
-        dec_method_params.push(dec_method)
+        dec_method_params.push(own dec_method)
         dec_var := expr_new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), dec_method_params)
         mut dec_params := Vec.new(Expr)
-        dec_params.push(dec_var)
+        dec_params.push(own dec_var)
         dec := Expr.new_explicit(NodeType.FCall(FCallInfo()),dec_params, tok.line, tok.col)
 
         // Bug #57 fix: Transform continue statements to include decrement before continue
         transformed_body := transform_continue_with_step(body, dec)
         mut body_params := transformed_body.params_clone()
-        body_params.push(dec.clone())
+        body_params.push(own dec.clone())
         while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
 
         mut while_params := Vec.new(Expr)
-        while_params.push(cond)
-        while_params.push(while_body)
+        while_params.push(own cond)
+        while_params.push(own while_body)
 
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
@@ -1731,30 +1747,30 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
 
             mut dir_cond_params := Vec.new(Expr)
             dir_lt_ident := expr_new_parse(NodeType.Identifier("lt"), initial_token.clone(), Vec.new(Expr))
-            dir_cond_params.push(dir_lt_ident)
-            dir_cond_params.push(start_expr.clone())
-            dir_cond_params.push(end_expr.clone())
+            dir_cond_params.push(own dir_lt_ident)
+            dir_cond_params.push(own start_expr.clone())
+            dir_cond_params.push(own end_expr.clone())
             dir_cond_expr := Expr.new_explicit(NodeType.FCall(FCallInfo()),dir_cond_params, initial_token.line, initial_token.col)
 
             mut fwd_body_params := Vec.new(Expr)
-            fwd_body_params.push(fwd_while)
+            fwd_body_params.push(own fwd_while)
             fwd_body := Expr.new_explicit(NodeType.Body, fwd_body_params, initial_token.line, initial_token.col)
 
             mut rev_body_params := Vec.new(Expr)
-            rev_body_params.push(rev_while)
+            rev_body_params.push(own rev_while)
             rev_body := Expr.new_explicit(NodeType.Body, rev_body_params, initial_token.line, initial_token.col)
 
             mut if_params := Vec.new(Expr)
-            if_params.push(dir_cond_expr)
-            if_params.push(fwd_body)
-            if_params.push(rev_body)
+            if_params.push(own dir_cond_expr)
+            if_params.push(own fwd_body)
+            if_params.push(own rev_body)
             loop_expr = Expr.new_explicit(NodeType.If, if_params, initial_token.line, initial_token.col)
         }
     }
 
     mut final_params := Vec.new(Expr)
-    final_params.push(decl_expr)
-    final_params.push(loop_expr)
+    final_params.push(own decl_expr)
+    final_params.push(own loop_expr)
 
     return Expr.new_explicit(NodeType.Body, final_params, initial_token.line, initial_token.col)
 }
@@ -1821,9 +1837,9 @@ parse_for_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOf
         var_ident := expr_new_parse(NodeType.Identifier(loop_var_name), initial_token.clone(), Vec.new(Expr))
 
         mut forin_params := Vec.new(Expr)
-        forin_params.push(var_ident)
-        forin_params.push(first_expr)
-        forin_params.push(forin_body_expr)
+        forin_params.push(own var_ident)
+        forin_params.push(own first_expr)
+        forin_params.push(own forin_body_expr)
 
 
         return Expr.new_explicit(NodeType.ForIn(var_type_name), forin_params, initial_token.line, initial_token.col)
@@ -1906,8 +1922,8 @@ parse_case_expr : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoun
         lexer.advance(1)?
         right := parse_primary(lexer)?
         mut params := Vec.new(Expr)
-        params.push(left)
-        params.push(right)
+        params.push(own left)
+        params.push(own right)
         return expr_new_parse(NodeType.Range, t, params)
     case:
         // Not a range, continue to check for pattern match
@@ -1967,7 +1983,7 @@ parse_switch_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     mut params := Vec.new(Expr)
 
     prim := parse_primary(lexer)?
-    params.push(prim)
+    params.push(own prim)
 
     peek_t := lexer.peek()?
     ptt := peek_t.token_type
@@ -2000,10 +2016,10 @@ parse_switch_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOu
         case TokenType.Colon:
             seen_default = true
             default_case_expr := expr_new_parse(NodeType.DefaultCase, t.clone(), Vec.new(Expr))
-            params.push(default_case_expr)
+            params.push(own default_case_expr)
         case:
             prim2 := parse_case_expr(lexer)?
-            params.push(prim2)
+            params.push(own prim2)
         }
 
         next_t = lexer.peek()?
@@ -2024,17 +2040,17 @@ parse_switch_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOu
             switch ntt4 {
             case TokenType.RightBrace:
                 brace_body_expr := expr_new_parse(NodeType.Body, t.clone(), body_params)
-                params.push(brace_body_expr)
+                params.push(own brace_body_expr)
                 end_found = true
                 lexer.advance(1)?
                 inner_loop_done = true  // TODO: Replace with 'break' when implemented (Rust line 1238)
             case TokenType.Case:
                 case_body_expr := expr_new_parse(NodeType.Body, t.clone(), body_params)
-                params.push(case_body_expr)
+                params.push(own case_body_expr)
                 inner_loop_done = true  // TODO: Replace with 'break' when implemented (Rust line 1242)
             case:
                 stmt := parse_statement(lexer)?
-                body_params.push(stmt)
+                body_params.push(own stmt)
                 next_t = lexer.peek()?
             }
         }
@@ -2115,7 +2131,7 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit
                     arg.is_mut = false
                     arg.is_copy = false
                     arg.is_own = false
-                    args.push(arg)
+                    args.push(own arg)
                 }
                 // Issue #91: Binding tuple form - arg names come from binding
                 mut func_def := FuncDef()
@@ -2137,7 +2153,7 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit
                 binding_decl.is_own = false
                 binding_initial_token := lexer.get_token(initial_current)?.clone()
                 mut func_params := Vec.new(Expr)
-                func_params.push(func_expr)
+                func_params.push(own func_expr)
                 return expr_new_parse(NodeType.Declaration(binding_decl), binding_initial_token, func_params)
             }
         case:
@@ -2146,7 +2162,7 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit
 
     mut params := Vec.new(Expr)
     value := parse_primary(lexer)?
-    params.push(value)
+    params.push(own value)
 
     mut decl := Declaration()
     decl.name = decl_name
@@ -2265,7 +2281,7 @@ parse_body : func(mut lexer: Lexer, end_token: TokenType) returns Expr throws St
             continue_loop = false
         } else {
             stmt := parse_statement(lexer)?
-            params.push(stmt)
+            params.push(own stmt)
         }
     }
 

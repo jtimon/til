@@ -245,6 +245,10 @@ pub fn ufcs_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Defer => {
             panic!("Defer should have been desugared in desugarer phase");
         },
+        // Issue #185: OwnArg should have been desugared in desugarer phase
+        NodeType::OwnArg => {
+            panic!("OwnArg should have been desugared in desugarer phase");
+        },
     }
 }
 

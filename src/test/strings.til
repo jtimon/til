@@ -152,11 +152,11 @@ test_strings : proc() = {
     // join tests
     mut parts := Vec.new(Str)
     assert_eq_str(loc(), "", join(parts, ", "))  // empty vec
-    parts.push("hello")
+    parts.push(own "hello")
     assert_eq_str(loc(), "hello", join(parts, ", "))  // single element
-    parts.push("world")
+    parts.push(own "world")
     assert_eq_str(loc(), "hello, world", join(parts, ", "))  // two elements
-    parts.push("test")
+    parts.push(own "test")
     assert_eq_str(loc(), "hello, world, test", join(parts, ", "))  // three elements
     assert_eq_str(loc(), "hello world test", join(parts, " "))  // different separator
     assert_eq_str(loc(), "helloworldtest", join(parts, ""))  // empty separator

@@ -8,7 +8,7 @@ consume : proc(own n: I64) = {
 
 test_use_after_own : proc() = {
     mut x := 42
-    consume(x) // TODO #185: Should error: own keyword missing for owned arg
+    consume(own x) // TODO #185: Should error: own keyword missing for owned arg
     // println("x after:", I64.to_str(x))  // TODO #185: Should error: x consumed by consume()
 }
 test_use_after_own()

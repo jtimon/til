@@ -14,7 +14,7 @@ test_clone_in_struct_literal_pushed_to_vec : proc() = {
     mut items := Vec.new(Item)
     original := "hello"
     // This triggers Bug #55 - clone inside struct literal passed to push
-    items.push(Item(name=original.clone(), count=42))
+    items.push(own Item(name=original.clone(), count=42))
 
     item := cast(Item, items.get(0)?)
     assert_eq_str(loc(), "hello", item.name)
