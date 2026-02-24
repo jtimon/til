@@ -1,7 +1,7 @@
 mode test
 
 // ============================================================
-// defer - basic: defer runs before return
+// defer - basic: return value is hoisted before defer runs
 // ============================================================
 
 test_basic_defer := func() returns I64 = {
@@ -9,12 +9,12 @@ test_basic_defer := func() returns I64 = {
     defer x = 99
     return x
 }
-assert_eq(loc(), 99, test_basic_defer())
+// x hoisted to temp (0), then defer sets x=99, then temp (0) returned
+assert_eq(loc(), 0, test_basic_defer())
 
 // ============================================================
 // defer - LIFO order: last defer runs first, first defer runs last
-// Both write to same variable, so last-to-execute wins
-// LIFO: defer_1 runs first (x=20), then defer_0 runs last (x=10)
+// Return value hoisted before any defer runs
 // ============================================================
 
 test_lifo := func() returns I64 = {
@@ -23,25 +23,12 @@ test_lifo := func() returns I64 = {
     defer x = 20
     return x
 }
-// LIFO: defer x=20 runs first, then defer x=10 runs last -> x=10
-assert_eq(loc(), 10, test_lifo())
-
-// ============================================================
-// defer - LIFO order with three defers
-// ============================================================
-
-test_lifo_three := func() returns I64 = {
-    mut x := 0
-    defer x = 1
-    defer x = 2
-    defer x = 3
-    return x
-}
-// LIFO: x=3, x=2, x=1 -> last write is x=1
-assert_eq(loc(), 1, test_lifo_three())
+// x hoisted (0), then LIFO: x=20 first, x=10 second, return 0
+assert_eq(loc(), 0, test_lifo())
 
 // ============================================================
 // defer - conditional: defer inside if (branch taken)
+// Block-scoped: defer runs at end of if-body
 // ============================================================
 
 test_cond_true := func() returns I64 = {
@@ -51,6 +38,7 @@ test_cond_true := func() returns I64 = {
     }
     return x
 }
+// if-body ends, defer runs x=20, then return hoists x (20), returns 20
 assert_eq(loc(), 20, test_cond_true())
 
 // ============================================================
@@ -64,6 +52,7 @@ test_cond_false := func() returns I64 = {
     }
     return x
 }
+// if-body never entered, defer never runs, returns 10
 assert_eq(loc(), 10, test_cond_false())
 
 // ============================================================
@@ -79,10 +68,28 @@ test_early_return := func(n: I64) returns I64 = {
     defer x = 200
     return x
 }
-// n=0: only first defer active -> x=100
-assert_eq(loc(), 100, test_early_return(0))
-// n=5: both defers active, LIFO: x=200 then x=100 -> x=100
-assert_eq(loc(), 100, test_early_return(5))
+// n=0: x hoisted (0), first defer runs (x=100), return 0
+assert_eq(loc(), 0, test_early_return(0))
+// n=5: x hoisted (0), both defers LIFO: x=200 then x=100, return 0
+assert_eq(loc(), 0, test_early_return(5))
+
+// ============================================================
+// defer - inside switch case
+// ============================================================
+
+test_defer_in_switch := func(n: I64) returns I64 = {
+    mut result := 0
+    switch n {
+    case 1:
+        defer result = 42
+    case:
+        result = 0
+    }
+    return result
+}
+// n=1: switch-case body ends, defer runs result=42, then return hoists 42
+assert_eq(loc(), 42, test_defer_in_switch(1))
+assert_eq(loc(), 0, test_defer_in_switch(2))
 
 // ============================================================
 // defer - with throw: defer runs before throw propagates
@@ -108,5 +115,18 @@ test_fallthrough := proc() = {
     defer x = 42
 }
 test_fallthrough()
+
+// ============================================================
+// defer - Vec.delete() (the primary use case)
+// ============================================================
+
+test_defer_delete := func() returns I64 = {
+    mut v := Vec.new(I64)
+    defer v.delete()
+    v.push(42)
+    v.push(100)
+    return v.len()
+}
+assert_eq(loc(), 2, test_defer_delete())
 
 println("All defer tests passed")

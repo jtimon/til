@@ -4775,15 +4775,18 @@ Added ~defer~ statement that schedules code to run before function exit (return,
 throw, or fall-through). Pure AST desugaring in the desugarer phase -- no
 interpreter, ccodegen, or runtime changes needed.
 
-Semantics: function-level, LIFO order. Defers inside conditional blocks only run
-if that block was entered (implemented via bool flags). Deferred code runs before
-the return/throw expression is evaluated, so ~defer delete(x); return x~ deletes
-x before returning.
+Semantics: block-scoped (like Zig/Odin), LIFO order. Defers run at end of the
+scope they're declared in. Returns hoist the return value to a temp var, run all
+defers (inner scope first, LIFO within each scope), then return the temp. No
+boolean flags, no if-guards.
 
-Implementation: each ~defer <expr>~ becomes a bool flag (~_defer_N~) set to true
-at the defer site. Before every return/throw and at end of body, if-guarded
-cleanup blocks run in reverse order. Lexer, parser, AST, desugarer changes in
-both Rust and TIL. Typer handles Defer as valid (runs before desugarer in pipeline).
+Implementation: ~desugar_defer_in_body~ called from FuncDef handler in
+~desugar_expr~. Recursively processes statement lists via
+~desugar_defer_in_scope~, handling If, While, Body (from switch desugaring),
+Return, Throw, and Defer nodes. Return value hoisting uses the function's actual
+return type (not INFER_TYPE, since desugarer runs after typer). Lexer, parser,
+AST, desugarer changes in both Rust and TIL. Later phases have error guards for
+any surviving Defer nodes.
 
 Test: src/test/defer.til (all 4 modes).
 

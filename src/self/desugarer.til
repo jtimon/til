@@ -120,10 +120,7 @@ VariantInfo := struct {
 // and at the end of the body.
 // ============================================================================
 
-DeferInfo := struct {
-    mut flag_name: Str = ""
-    mut deferred_expr: Expr = Expr()
-}
+// DeferInfo struct removed -- no longer needed with block-scoped defer
 
 /// Parse variant name from Pattern's variant_name field (e.g., "Color.Green" -> ("Color", "Green"))
 parse_pattern_variant_name : func(variant_name: Str) returns VariantInfo = {
@@ -1640,134 +1637,97 @@ desugar_bang_in_body : proc(context: Context, stmts: Vec) returns Vec throws Str
     catch (err: KeyNotFoundError) { throw format("desugar_bang_in_body: ", err.msg) }
 }
 
-/// Walk body recursively, collect all Defer nodes in source order.
-collect_defers : proc(stmts: Vec, mut defers: Vec, mut counter: I64) throws Str = {
+/// Check if a list of statements contains any Defer nodes (at any depth, excluding nested FuncDefs).
+has_defers : func(stmts: Vec) returns Bool throws Str = {
     mut si := 0
     while si.lt(stmts.len()) {
         stmt := cast(Expr, stmts.get(si)?)
         switch stmt.node_type {
         case NodeType.Defer:
+            return true
+        case NodeType.FuncDef(_func_def):
+        case:
+            if has_defers(stmt.params)? {
+                return true
+            }
+        }
+        si.inc()
+    }
+    return false
+
+    catch (err: IndexOutOfBoundsError) { throw format("has_defers: ", err.msg) }
+}
+
+/// Desugar defer statements in a scope (block).
+/// parent_defers contains deferred expressions from enclosing scopes (for return/throw).
+/// ret_counter is used to generate unique temp var names for hoisted return values.
+/// Returns the desugared list of statements.
+desugar_defer_in_scope : proc(stmts: Vec, parent_defers: Vec, func_name: Str, mut ret_counter: I64, ret_type: ValueType) returns Vec throws Str = {
+    mut result := Vec.new(Expr)
+    mut scope_defers := Vec.new(Expr)
+
+    mut si := 0
+    while si.lt(stmts.len()) {
+        stmt := cast(Expr, stmts.get(si)?)
+        switch stmt.node_type {
+        case NodeType.Defer:
+            // Collect deferred expression, don't emit the defer node
             if stmt.params.len().gt(0) {
                 deferred_expr := cast(Expr, stmt.params.get(0)?)
-                flag_name := format("_defer_", to_str(counter))
-                defers.push(DeferInfo(
-                    flag_name=flag_name,
-                    deferred_expr=deferred_expr.clone()
-                ))
-                counter.inc()
+                scope_defers.push(deferred_expr.clone())
             }
-        case NodeType.If:
-            for p: Expr in stmt.params {
-                collect_defers(p.params, defers, counter)?
-            }
-        case NodeType.While:
-            for p: Expr in stmt.params {
-                collect_defers(p.params, defers, counter)?
-            }
-        case NodeType.Body:
-            for p: Expr in stmt.params {
-                collect_defers(p.params, defers, counter)?
-            }
-        case NodeType.FuncDef(_func_def):
-            // Don't descend into nested function definitions
-        case:
-            // Recurse into params for other node types (e.g. Declaration with If body)
-            collect_defers(stmt.params, defers, counter)?
-        }
-        si.inc()
-    }
-
-    catch (err: IndexOutOfBoundsError) { throw format("collect_defers: ", err.msg) }
-}
-
-/// Walk body, replace each Defer node with `_defer_N = true`.
-replace_defers_with_flags : proc(stmts: Vec, mut counter: I64) returns Vec throws Str = {
-    mut result := Vec.new(Expr)
-    mut si := 0
-    while si.lt(stmts.len()) {
-        stmt := cast(Expr, stmts.get(si)?)
-        switch stmt.node_type {
-        case NodeType.Defer:
-            flag_name := format("_defer_", to_str(counter))
-            counter.inc()
-            result.push(make_assign(flag_name, make_id("true", stmt.line, stmt.col), stmt.line, stmt.col))
-        case NodeType.If:
-            mut if_new_params := Vec.new(Expr)
-            for p: Expr in stmt.params {
-                if_new_inner := replace_defers_with_flags(p.params, counter)?
-                if_new_params.push(Expr.new_clone(p.node_type, p, if_new_inner))
-            }
-            result.push(Expr.new_clone(stmt.node_type, stmt, if_new_params))
-        case NodeType.While:
-            mut while_new_params := Vec.new(Expr)
-            for p: Expr in stmt.params {
-                while_new_inner := replace_defers_with_flags(p.params, counter)?
-                while_new_params.push(Expr.new_clone(p.node_type, p, while_new_inner))
-            }
-            result.push(Expr.new_clone(stmt.node_type, stmt, while_new_params))
-        case NodeType.Body:
-            body_new_inner := replace_defers_with_flags(stmt.params, counter)?
-            result.push(Expr.new_clone(stmt.node_type, stmt, body_new_inner))
-        case NodeType.FuncDef(_func_def):
-            // Don't descend into nested function definitions
-            result.push(stmt.clone())
-        case:
-            // Recurse into params for other node types
-            mut default_new_params := Vec.new(Expr)
-            for p: Expr in stmt.params {
-                default_new_inner := replace_defers_with_flags(p.params, counter)?
-                default_new_params.push(Expr.new_clone(p.node_type, p, default_new_inner))
-            }
-            result.push(Expr.new_clone(stmt.node_type, stmt, default_new_params))
-        }
-        si.inc()
-    }
-    return result
-
-    catch (err: IndexOutOfBoundsError) { throw format("replace_defers_with_flags: ", err.msg) }
-}
-
-/// Build the cleanup block: if-guarded deferred calls in reverse (LIFO) order.
-build_defer_cleanup : func(defers: Vec, line: I64, col: I64) returns Vec throws Str = {
-    mut cleanup := Vec.new(Expr)
-    mut i := defers.len().sub(1)
-    while i.gteq(0) {
-        d := cast(DeferInfo, defers.get(i)?)
-        cond := make_id(d.flag_name, line, col)
-        mut body_stmts := Vec.new(Expr)
-        body_stmts.push(d.deferred_expr.clone())
-        cleanup_body := make_body(body_stmts, line, col)
-        cleanup.push(make_if(cond, cleanup_body, Ptr(), line, col))
-        i = i.sub(1)
-    }
-    return cleanup
-
-    catch (err: IndexOutOfBoundsError) { throw format("build_defer_cleanup: ", err.msg) }
-}
-
-/// Walk body recursively, insert cleanup block before every Return/Throw.
-insert_cleanup_before_exits : proc(stmts: Vec, defers: Vec, mut ret_counter: I64) returns Vec throws Str = {
-    mut result := Vec.new(Expr)
-    mut si := 0
-    while si.lt(stmts.len()) {
-        stmt := cast(Expr, stmts.get(si)?)
-        switch stmt.node_type {
         case NodeType.Return:
             ret_line := stmt.line
             ret_col := stmt.col
-            // Insert cleanup before the return statement
-            ret_cleanup := build_defer_cleanup(defers, ret_line, ret_col)?
-            for c: Expr in ret_cleanup { result.push(c) }
-            result.push(stmt.clone())
+            // Build all active defers: parent + scope, reversed for LIFO
+            mut ret_all_defers := Vec.new(Expr)
+            for pd: Expr in parent_defers { ret_all_defers.push(pd.clone()) }
+            for sd: Expr in scope_defers { ret_all_defers.push(sd.clone()) }
+
+            if stmt.params.len().gt(0) {
+                // Has return value -- hoist to temp var
+                temp_name := make_temp_name("_defer_ret", func_name, ret_counter)
+                ret_counter.inc()
+                return_value := cast(Expr, stmt.params.get(0)?)
+                result.push(make_decl(temp_name, ret_type.clone(), false, return_value.clone(), ret_line, ret_col))
+                // Insert all defers in LIFO order
+                mut ret_di := ret_all_defers.len().sub(1)
+                while ret_di.gteq(0) {
+                    ret_d := cast(Expr, ret_all_defers.get(ret_di)?)
+                    result.push(ret_d.clone())
+                    ret_di = ret_di.sub(1)
+                }
+                // Return the temp
+                mut ret_params := Vec.new(Expr)
+                ret_params.push(make_id(temp_name, ret_line, ret_col))
+                result.push(Expr.new_explicit(NodeType.Return, ret_params, ret_line, ret_col))
+            } else {
+                // No return value -- just insert defers
+                mut noret_di := ret_all_defers.len().sub(1)
+                while noret_di.gteq(0) {
+                    noret_d := cast(Expr, ret_all_defers.get(noret_di)?)
+                    result.push(noret_d.clone())
+                    noret_di = noret_di.sub(1)
+                }
+                result.push(stmt.clone())
+            }
         case NodeType.Throw:
-            throw_line := stmt.line
-            throw_col := stmt.col
-            // Insert cleanup before the throw statement
-            throw_cleanup := build_defer_cleanup(defers, throw_line, throw_col)?
-            for c: Expr in throw_cleanup { result.push(c) }
+            // Insert all defers before throw
+            mut throw_all_defers := Vec.new(Expr)
+            for pd: Expr in parent_defers { throw_all_defers.push(pd.clone()) }
+            for sd: Expr in scope_defers { throw_all_defers.push(sd.clone()) }
+            mut throw_di := throw_all_defers.len().sub(1)
+            while throw_di.gteq(0) {
+                throw_d := cast(Expr, throw_all_defers.get(throw_di)?)
+                result.push(throw_d.clone())
+                throw_di = throw_di.sub(1)
+            }
             result.push(stmt.clone())
         case NodeType.If:
-            // Recurse into if/else bodies
+            // Recurse into if/else bodies, passing current defers as parent context
+            mut if_child_parent_defers := Vec.new(Expr)
+            for pd: Expr in parent_defers { if_child_parent_defers.push(pd.clone()) }
+            for sd: Expr in scope_defers { if_child_parent_defers.push(sd.clone()) }
             mut if_new_params := Vec.new(Expr)
             for p: Expr in stmt.params {
                 mut if_is_body := false
@@ -1777,22 +1737,23 @@ insert_cleanup_before_exits : proc(stmts: Vec, defers: Vec, mut ret_counter: I64
                 case:
                 }
                 if if_is_body {
-                    if_new_inner := insert_cleanup_before_exits(p.params, defers, ret_counter)?
+                    if_new_inner := desugar_defer_in_scope(p.params, if_child_parent_defers, func_name, ret_counter, ret_type)?
                     if_new_params.push(Expr.new_clone(p.node_type, p, if_new_inner))
                 } else {
-                    // Condition expression -- don't touch
-                    if_new_params.push(p.clone())
+                    if_new_params.push(p.clone()) // Condition -- don't touch
                 }
             }
             result.push(Expr.new_clone(stmt.node_type, stmt, if_new_params))
         case NodeType.While:
-            // Recurse into while body (params[1] is body)
+            // Recurse into while body
+            mut while_child_parent_defers := Vec.new(Expr)
+            for pd: Expr in parent_defers { while_child_parent_defers.push(pd.clone()) }
+            for sd: Expr in scope_defers { while_child_parent_defers.push(sd.clone()) }
             mut while_new_params := Vec.new(Expr)
             mut wi := 0
             for p: Expr in stmt.params {
                 if wi.eq(0) {
-                    // Condition -- don't touch
-                    while_new_params.push(p.clone())
+                    while_new_params.push(p.clone()) // Condition -- don't touch
                 } else {
                     mut while_is_body := false
                     switch p.node_type {
@@ -1801,7 +1762,7 @@ insert_cleanup_before_exits : proc(stmts: Vec, defers: Vec, mut ret_counter: I64
                     case:
                     }
                     if while_is_body {
-                        while_new_inner := insert_cleanup_before_exits(p.params, defers, ret_counter)?
+                        while_new_inner := desugar_defer_in_scope(p.params, while_child_parent_defers, func_name, ret_counter, ret_type)?
                         while_new_params.push(Expr.new_clone(p.node_type, p, while_new_inner))
                     } else {
                         while_new_params.push(p.clone())
@@ -1811,77 +1772,41 @@ insert_cleanup_before_exits : proc(stmts: Vec, defers: Vec, mut ret_counter: I64
             }
             result.push(Expr.new_clone(stmt.node_type, stmt, while_new_params))
         case NodeType.Body:
-            body_new_inner := insert_cleanup_before_exits(stmt.params, defers, ret_counter)?
+            // Recurse into Body nodes (e.g., from switch desugaring)
+            mut body_child_parent_defers := Vec.new(Expr)
+            for pd: Expr in parent_defers { body_child_parent_defers.push(pd.clone()) }
+            for sd: Expr in scope_defers { body_child_parent_defers.push(sd.clone()) }
+            body_new_inner := desugar_defer_in_scope(stmt.params, body_child_parent_defers, func_name, ret_counter, ret_type)?
             result.push(Expr.new_clone(stmt.node_type, stmt, body_new_inner))
         case NodeType.FuncDef(_func_def):
             // Don't descend into nested function definitions
             result.push(stmt.clone())
         case:
-            // Recurse into params for other node types
-            mut default_new_params := Vec.new(Expr)
-            for p: Expr in stmt.params {
-                default_new_inner := insert_cleanup_before_exits(p.params, defers, ret_counter)?
-                default_new_params.push(Expr.new_clone(p.node_type, p, default_new_inner))
-            }
-            result.push(Expr.new_clone(stmt.node_type, stmt, default_new_params))
+            result.push(stmt.clone())
         }
         si.inc()
     }
+
+    // End of scope: insert this scope's defers in LIFO order
+    mut end_di := scope_defers.len().sub(1)
+    while end_di.gteq(0) {
+        end_d := cast(Expr, scope_defers.get(end_di)?)
+        result.push(end_d.clone())
+        end_di = end_di.sub(1)
+    }
+
     return result
 
-    catch (err: IndexOutOfBoundsError) { throw format("insert_cleanup_before_exits: ", err.msg) }
+    catch (err: IndexOutOfBoundsError) { throw format("desugar_defer_in_scope: ", err.msg) }
 }
 
 /// Issue #188: Desugar defer statements in a function body.
-desugar_defer_in_body : proc(body: Vec) returns Vec throws Str = {
-    // Step 1: Collect all defers
-    mut defers := Vec.new(DeferInfo)
-    mut defer_counter := 0
-    collect_defers(body, defers, defer_counter)?
-
-    if defers.len().eq(0) {
+desugar_defer_in_body : proc(body: Vec, func_name: Str, mut ret_counter: I64, ret_type: ValueType) returns Vec throws Str = {
+    if not(has_defers(body)?) {
         return body
     }
-
-    // Step 2: Replace defer nodes with flag activations
-    mut replace_counter := 0
-    mut new_body := replace_defers_with_flags(body, replace_counter)?
-
-    // Step 3: Insert cleanup before all return/throw nodes
-    mut ret_counter := 0
-    new_body = insert_cleanup_before_exits(new_body, defers, ret_counter)?
-
-    // Step 4: Append cleanup at end of body (for fall-through)
-    mut last_line := 0
-    mut last_col := 0
-    if body.len().gt(0) {
-        last_stmt := cast(Expr, body.get(body.len().sub(1))?)
-        last_line = last_stmt.line
-        last_col = last_stmt.col
-    }
-    cleanup := build_defer_cleanup(defers, last_line, last_col)?
-    for c: Expr in cleanup { new_body.push(c) }
-
-    // Step 5: Prepend flag declarations at body start
-    mut first_line := 0
-    mut first_col := 0
-    if body.len().gt(0) {
-        first_stmt := cast(Expr, body.get(0)?)
-        first_line = first_stmt.line
-        first_col = first_stmt.col
-    }
-    mut final_body := Vec.new(Expr)
-    mut di := 0
-    while di.lt(defers.len()) {
-        d := cast(DeferInfo, defers.get(di)?)
-        final_body.push(make_decl(d.flag_name, ValueType.TCustom("Bool"), true, make_id("false", first_line, first_col), first_line, first_col))
-        di.inc()
-    }
-    for s: Expr in new_body { final_body.push(s) }
-
-    return final_body
-
-    catch (err: IndexOutOfBoundsError) { throw format("desugar_defer_in_body: ", err.msg) }
+    mut parent_defers := Vec.new(Expr)
+    return desugar_defer_in_scope(body, parent_defers, func_name, ret_counter, ret_type)?
 }
 
 /// Desugarer phase entry point: Recursively desugar ForIn loops and Switch statements.
@@ -1921,8 +1846,16 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         }
         // Issue #180: Desugar bang calls in function body
         new_body = desugar_bang_in_body(context, new_body)?
-        // Issue #188: Desugar defer statements
-        new_body = desugar_defer_in_body(new_body)?
+        // Issue #188: Desugar defer statements -- get first return type (or Void)
+        mut defer_ret_type := ValueType.TCustom("Void")
+        mut defer_got_ret_type := false
+        for defer_rt: ValueType in func_def.sig.return_types {
+            if not(defer_got_ret_type) {
+                defer_ret_type = defer_rt.clone()
+                defer_got_ret_type = true
+            }
+        }
+        new_body = desugar_defer_in_body(new_body, context.current_precomp_func, context.precomp_forin_counter, defer_ret_type)?
 
         context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         context.precomp_forin_counter = saved_counter

@@ -228,6 +228,7 @@ find_ret_var_for_placement : proc(func_def: FuncDef) returns Str = {
 
     // Collect all return expressions
     mut ret_exprs := Vec.new(Expr)
+    defer ret_exprs.delete()
     collect_return_exprs(func_def.body, ret_exprs)
 
     if ret_exprs.is_empty() {
@@ -336,6 +337,7 @@ get_func_name_string : func(first_param: Expr) returns Str throws KeyNotFoundErr
             return name.replace(".", "_")
         } else {
             mut parts := Vec.new(Str)
+            defer parts.delete()
             parts.push(name)
             for p: Expr in first_param.params {
                 switch p.node_type {
@@ -364,6 +366,7 @@ get_til_func_name_string : func(first_param: Expr) returns Str throws KeyNotFoun
         } else {
             // Build dotted name from nested identifiers
             mut parts := Vec.new(Str)
+            defer parts.delete()
             parts.push(name)
             for p: Expr in first_param.params {
                 switch p.node_type {
@@ -2422,12 +2425,14 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         mut type_decls := Vec.new(Expr)
+        defer type_decls.delete()
         for child: Expr in ast.params {
             if is_struct_declaration(child).or(is_enum_declaration(child).and(is_enum_with_payloads(child))) {
                 type_decls.push(child)
             }
         }
-        sorted_indices := topological_sort_types(type_decls)
+        mut sorted_indices := topological_sort_types(type_decls)
+        defer sorted_indices.delete()
         for idx: I64 in sorted_indices {
             child := cast(Expr, type_decls.get(idx)?)
             if is_struct_declaration(child) {
@@ -2706,6 +2711,7 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     switch ast.node_type {
     case NodeType.Body:
         mut main_stmts := Vec.new(Expr)
+        defer main_stmts.delete()
         for child: Expr in ast.params {
             // Skip true/false declarations - they're now #defines
             mut skip := false
@@ -3940,6 +3946,7 @@ emit_enum_declaration : proc(expr: Expr, mut output: Str) throws Str = {
 emit_enum_to_str_function : proc(enum_name: Str, enum_def: EnumDef, mut output: Str) = {
     has_payloads := enum_has_payloads(enum_def)
     mut variants := Vec.new(Str)
+    defer variants.delete()
     for v: EnumVariant in enum_def.variants {
         variants.push(v.name)
     }
@@ -5174,6 +5181,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
     // For backward compatibility, also populate local_catch_labels with first catch of each type
     // This is used by throw statements and nested blocks
     mut registered_types := Set.new(Str)
+    defer registered_types.delete()
     for catch_entry: CatchLabelInfoEntry in all_catch_info {
         if not(registered_types.contains(catch_entry.type_name)) {
             _ := registered_types.insert(catch_entry.type_name.clone())
@@ -5187,6 +5195,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
     // Track which catch labels have been emitted to avoid duplicates
     // (when multiple catches of same type exist, only emit the label once)
     mut emitted_catch_labels := Set.new(Str)
+    defer emitted_catch_labels.delete()
 
     // Process all statements
     while i.lt(stmts.len()) {
@@ -9141,7 +9150,8 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     // Check if this is an enum variant constructor (Type.Variant or Type_Variant)
     mut is_enum_constructor := false
     if func_name.contains("_") {
-        parts := func_name.split("_")?
+        mut parts := func_name.split("_")?
+        defer parts.delete()
         if parts.len().gteq(2) {
             type_name_part := cast(Str, parts.get(0)?)
             variant_name_part := cast(Str, parts.get(1)?)
@@ -9179,7 +9189,8 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     } else {
         output.push_str(TIL_PREFIX)
         if is_enum_constructor {
-            ctor_parts := func_name.split("_")?
+            mut ctor_parts := func_name.split("_")?
+            defer ctor_parts.delete()
             ctor_type_name_part := cast(Str, ctor_parts.get(0)?)
             ctor_variant_name_part := cast(Str, ctor_parts.get(1)?)
             output.push_str(ctor_type_name_part)
