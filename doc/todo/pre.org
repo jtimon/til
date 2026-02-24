@@ -2204,8 +2204,8 @@ garbager.til need prefixed names (e.g., ~garbager_collect_decls~).
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, prevents ASAP deletion, root cause of memory leaks
-:STATUS: Open -- interpreter copy_fields removed; ccodegen shallow copies remain; deep Vec.clone/delete blocked on Issue #91 (function pointers); Map.get eliminated, cast replaces create_alias
-:RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak), Bug #170 (scope-exit deletion blocked by this), Issue #91 (function pointers needed for deep clone/delete)
+:STATUS: Open -- Phase 1 done, Phase 2 unblocked (Issue #91 has func ptrs), Phase 5 partially done (#191), Phases 3/4/6 not started
+:RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak), Bug #170 (scope-exit deletion blocked by this), Issue #91 (function pointers needed for deep clone/delete), Issue #191 (delete-before-reassignment blocked by this)
 :END:
 
 *** Description
@@ -2326,6 +2326,30 @@ function calls. Root cause: functions like =Expr.new_explicit= take params by-re
 was consumed. The variable becomes a deletion candidate, gets deleted at function
 end, and corrupts the returned Expr that shares the same data buffer.
 
+*** Issue #191 finding: scope lookup shallow copies (2026-02-24)
+
+Issue #191 implemented delete-before-reassignment but had to disable it because
+locals holding values from =lookup_func=, =lookup_symbol=, =lookup_struct= are
+shallow copies (memcpy) that share heap pointers with the scope stack. Deleting
+them corrupts the scope stack, causing the typer to report incorrect "unused
+variable" errors.
+
+In Rust, these functions return =&references= (zero-copy, no ownership). In TIL,
+there are no references, so the returned struct is a value copy via memcpy. The
+=cast_vars= exclusion in the garbager only catches =cast()= at declaration time,
+not the common pattern of declaring empty then assigning from a lookup:
+
+#+begin_src til
+mut func_def := FuncDef()
+// garbager inserts: FuncDef.delete(func_def)  -- CORRUPTS scope stack!
+func_def = context.scope_stack.lookup_func(name)?
+#+end_src
+
+This is a specific instance of the general shallow copy problem. Possible fixes:
+1. Make lookup functions return deep clones (expensive but safe)
+2. Track which locals hold aliases at a finer granularity (complex)
+3. Wait for Phase 6 (full ownership tracking) to solve it holistically
+
 *** Issue #105 Step 4a regression (2026-02-22)
 
 Commit 96361e5d (Move NamespaceDef into StructDef/EnumDef as =ns= field)
@@ -2358,9 +2382,12 @@ but many sources of shallow copies remain:
 3. *Vec.delete*: frees only the buffer, not element heap data.
 4. *Consuming functions*: =Expr.new_explicit=, =build_clone_call_expr= etc. take
    struct params by-ref instead of =own=. The garbager can't detect ownership transfer.
-5. *Collection .get()*: copy_to_dynamic memcpy creates aliases. Partially mitigated
-   by clone-after-get (Step 9). Map.get eliminated (2026-02-20). Vec/Array/Set .get()
-   remain -- should use get + cast (zero-copy pointer into collection storage).
+5. *Collection .get()*: All copying .get() removed (Phase 1 done). Remaining:
+   Vec.pop/List.pop use copy_to_dynamic (mitigated by clone-after-get, Step 9).
+6. *Scope lookup functions*: =lookup_symbol=, =lookup_func=, =lookup_struct= return
+   value types in TIL (Rust returns =&references=). The returned struct is a shallow
+   memcpy that shares heap pointers with the scope stack. Deleting such a local
+   corrupts the scope stack. This blocks Issue #191 delete-before-reassignment.
 
 *** Remediation plan
 
@@ -2377,10 +2404,13 @@ element, clone it, decrement length, return Ptr to the clone. But cloning a
 type-erased Dynamic element requires calling =Type.clone()= from =self.type_name=
 at runtime -- blocked by Phase 2 (Issue #91, function pointers).
 
-**** Phase 2: Function pointer builtins (Issue #91, minimal scope)
+**** Phase 2: Function pointer builtins (Issue #91, minimal scope) -- UNBLOCKED
 Deep Vec.clone/delete requires calling Type.clone()/Type.delete() on type-erased
-Dynamic elements. TIL has no function pointer support (Issue #91). Minimal fix:
-4 new builtins that work with raw I64 function pointer values:
+Dynamic elements. Issue #91 now has function pointer support (FunctionSig type +
+function pointers done as of 2026-02-21). The original plan used raw I64 hacks;
+with real function pointers available, the implementation can be cleaner.
+
+Minimal fix: 4 new builtins (or use function pointer values directly):
 - =delete_fn_of(T: Type) returns I64= -- returns address of =til_T_delete=
 - =clone_fn_of(T: Type) returns I64= -- returns address of =til_T_clone=
 - =call_delete_fn(fn_ptr: I64, elem: Ptr)= -- casts I64 to fn ptr and calls it
@@ -2402,9 +2432,10 @@ Part of Issue #117 (ASAP destruction). When a local variable is returned
 now owns the data via =*_ret=. The garbager already has =dont_delete_vars= --
 returned locals should be added to that set.
 
-**** Phase 5: Garbager clone gaps
-- Clone ALL Identifier-init declarations (not just mut)
-- Clone field-access assignments (remove params.is_empty check)
+**** Phase 5: Garbager clone gaps -- PARTIALLY DONE
+- Clone ALL Identifier-init declarations (not just mut) -- NOT DONE (is_mut check remains)
+- Clone field-access assignments (remove params.is_empty check) -- DONE (Issue #191,
+  assignment handler now uses =get_value_type= instead of =lookup_symbol=)
 
 **** Phase 6: Enable step 3b (local deletion)
 With Phases 2-5 complete, local deletion is safe:
