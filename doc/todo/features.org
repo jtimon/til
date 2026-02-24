@@ -378,7 +378,7 @@ first-class values, not about block syntax.
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
 :IMPACT: Ergonomics -- cleaner translation of Rust .unwrap(), less boilerplate catch blocks
-:STATUS: In Progress
+:STATUS: Done
 :RELATED: rs2til.org (? operator semantics)
 :END:
 
@@ -389,8 +389,8 @@ first-class values, not about block syntax.
 - [X] Parser step 2: changed ~FCall(bool)~ to ~FCall(FCallInfo)~ with ~does_throw~ and ~is_bang~ fields
 - [X] Typer: skip throw tracking for ~is_bang~ calls (FCall, Declaration, Assignment)
 - [X] Desugarer: generate ~catch (err: Type) { panic(loc(), err.msg) }~ for each thrown type
-- [ ] Test: ~src/test/panic_bang.til~ with ~expected_status=1~
-- [ ] Docs: update ~rs2til.org~ with ~!~ / ~.unwrap()~ mapping
+- [X] Test: ~src/test/panic_bang.til~ with ~expected_status=1~
+- [X] Docs: update ~rs2til.org~ with ~!~ / ~.unwrap()~ mapping
 
 Works for direct function calls (e.g. ~might_fail(x)!~). Method calls
 (e.g. ~arr.get(i, val)!~) not yet supported -- desugarer runs before UFCS

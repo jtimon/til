@@ -25,9 +25,11 @@ TIL and Rust have different idioms, but the translation is mechanical. This guid
 |------|-----|-------|
 | ~panic!()~ | ~panic()~ | Avoid both - nothing to translate |
 | ~Result/Option~ + ~?~ | ~throw/catch~ | This is the translation |
+| ~.unwrap()~ | ~!~ | Panic on throw (Issue #180) |
 | ~match~ on Option/Result | ~switch~ | Explicit case handling |
 
-~unwrap()~ is hidden ~panic!()~ - avoid it, use ~?~ or ~match~ instead.
+~.unwrap()~ maps to the ~!~ operator (Issue #180). Use ~!~ instead of ~?~ when
+you want a panic on error, just like Rust's ~.unwrap()~.
 
 * Lexer Patterns (lexer.rs -> lexer.til)
 
@@ -624,6 +626,38 @@ reserve := proc(mut self: Arena, size: I64) returns I64 throws Str {
 }
 // Call sites: arena.reserve(size)?  -- ? is mandatory
 #+end_src
+
+** The ! operator in TIL (Issue #180)
+
+The ~!~ operator is the TIL equivalent of Rust's ~.unwrap()~. It marks a call
+that may throw, but instead of propagating the error, it panics.
+
+#+begin_src rust
+// Rust
+let result = might_fail(x).unwrap();  // panics if Err
+#+end_src
+
+#+begin_src til
+// TIL equivalent
+result := might_fail(x)!  // panics if might_fail throws
+#+end_src
+
+The desugarer transforms ~func()!~ into ~func()?~ followed by a catch block
+that calls ~panic()~ for each thrown error type:
+
+#+begin_src til
+// Before desugaring:
+result := might_fail(x)!
+
+// After desugaring:
+result := might_fail(x)?
+catch (_bang_err_0: SomeError) { panic(loc(), _bang_err_0.msg) }
+#+end_src
+
+Key points:
+- ~!~ can only be used on calls to throwing functions (typer error otherwise)
+- Works for direct function calls; method calls (UFCS) are not yet supported
+- Multiple throw types generate multiple catch blocks, all panicking
 
 ** Nested if-let detection patterns
 
@@ -1476,3 +1510,4 @@ The translation is mechanical:
 24. The ~?~ operator: KEEP all ~?~ from Rust - TIL requires ~?~ on calls to throwing functions (Issue #132)
 25. Memory operations use ~Ptr~ type: ~Ptr.new_by_size(n)~ for allocation, ~ptr.delete()~ for deallocation, ~ptr.offset(n)~ for pointer arithmetic, ~ptr.is_null()~ for NULL checks
 26. Copying with ~Ptr~: ~dest.copy_from(src_ptr, size)~, ~dest.copy_from_dynamic(value, size)~, ~src.copy_to_dynamic(dest, size)~
+27. ~.unwrap()~ -> ~!~ operator: ~foo().unwrap()~ -> ~foo()!~ (panics on throw, Issue #180)

@@ -1464,6 +1464,7 @@ main := proc(args: ..Str) {
     all_common.push(own TestEntry(path="src/test/optional_args.til"))
     all_common.push(own TestEntry(path="src/test/ownership.til"))  // TODO #185: change to expected_status=1 once own keyword required at call sites
     all_common.push(own TestEntry(path="src/test/panic.til", expected_status=1))
+    all_common.push(own TestEntry(path="src/test/panic_bang.til", expected_status=1))
     all_common.push(own TestEntry(path="src/test/parallel_cmd.til"))
     all_common.push(own TestEntry(path="src/test/pointers.til"))
 

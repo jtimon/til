@@ -1,0 +1,22 @@
+mode test
+
+// Test that the bang operator (!) panics when a function throws.
+// This is the TIL equivalent of Rust's .unwrap().
+//
+// Expected behavior: might_fail throws MyError, the desugared catch block
+// from ! calls panic(), and the process exits with status 1.
+
+MyError := struct {
+    mut msg: Str = "something went wrong"
+}
+
+might_fail := func(x: I64) returns I64 throws MyError {
+    if x.eq(0) {
+        throw MyError(msg="cannot handle zero")
+    }
+    return x
+}
+
+// This should panic because might_fail(0) throws MyError,
+// and ! desugars to catch { panic(loc(), err.msg) }
+result := might_fail(0)!
