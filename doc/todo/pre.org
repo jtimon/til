@@ -15,6 +15,51 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #191: Garbager should delete old value on reassignment of owned variables
+:PROPERTIES:
+:DISCOVERED: 2026-02-24
+:IMPACT: Memory leaks on every reassignment of a variable holding heap data
+:STATUS: Open
+:RELATED: Issue #117 (ASAP destruction), Issue #159 (shallow copies), Issue #183 (manual delete calls)
+:END:
+
+*** Overview
+
+When a ~mut~ variable holding owned heap data (Str, Vec, Map, Set, or custom
+struct) is reassigned, the old value leaks. The garbager should insert a
+~.delete()~ call for the old value before each reassignment.
+
+#+begin_src til
+mut name := "hello".clone()    // name owns heap data (ptr A)
+name = "world".clone()         // ptr A leaks -- nothing frees it
+// ... function end: garbager deletes name (frees ptr B)
+#+end_src
+
+This is pervasive in ccodegen.til and other files. Manual ~defer x.delete()~
+cannot fix this because:
+1. If the variable is reassigned to a borrowed value (from ~cast(Str, map.get())~),
+   the defer would delete the map's data, not the original owned value
+2. The defer only deletes whatever the variable holds at scope exit, not the
+   intermediate owned values that were overwritten
+
+*** Approach
+
+In ~garbager.rs~ / ~garbager.til~, when processing an ~Assignment~ node:
+1. Check if the target variable has a custom type (Str, Vec, Map, Set, struct)
+2. If so, insert a ~Type.delete(var)~ call before the assignment
+3. Skip if the old value is borrowed (from cast/get -- needs alias tracking)
+4. Skip if the variable might not be initialized yet (conditional paths)
+
+The safe subset: variables that were initialized with an owning expression
+(constructor, clone, concat, split, etc.) and are being reassigned with
+another owning expression. This avoids the alias problem.
+
+*** Interaction with Issue #183
+
+Issue #183 adds manual ~defer .delete()~ calls for variables that are never
+reassigned. This issue handles the reassignment case which defer cannot solve.
+Together they cover the two leak patterns for local owned variables.
+
 ** Issue #161: Namespace constants, static mutables, and per-instance immutables
 :PROPERTIES:
 :DISCOVERED: 2026-02-04
