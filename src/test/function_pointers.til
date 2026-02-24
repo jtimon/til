@@ -87,3 +87,9 @@ assert_eq(loc(), 15, op3(3, 5))
 assert_eq(loc(), 8, apply_op(func(a: I64, b: I64) returns I64 { return a.add(b) }, 3, 5))
 assert_eq(loc(), 6, apply_op(func(a: I64, b: I64) returns I64 { return a.sub(b) }, 10, 4))
 assert_eq(loc(), 15, apply_op(func(a: I64, b: I64) returns I64 { return a.mul(b) }, 3, 5))
+
+// TODO Issue #91: Func ptr with throws -- needs ccodegen fix for throwing func ptr calls
+// ThrowingOp := func(I64, I64) returns I64 throws Str {}
+
+// TODO Issue #91: Func ptr passthrough (return param) -- needs interpreter fix
+// passthrough_op : func(op: BinaryIntOp) returns BinaryIntOp = { return op }
