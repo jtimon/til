@@ -143,6 +143,34 @@ impl EvalResult {
 }
 
 // Helper function to extract String value from a Str struct instance
+// Issue #91: Read a Str value from a raw heap address (e.g., for FuncSig variables from cast)
+// This bypasses the field offset system which requires a known struct type.
+// Issue #91: Read a Str value from a raw heap address (e.g., for FuncSig variables from cast)
+// This bypasses the field offset system which requires a known struct type.
+pub fn string_from_addr(context: &Context, addr: usize) -> Result<String, String> {
+    // Str layout: c_string (Ptr at offset 0), _len (I64 after Ptr)
+    // c_string.data is at offset 0 within Ptr (first field)
+    // _len is at offset = size_of(Ptr) within Str (second field after c_string)
+    let ptr_size = context.get_type_size("Ptr")?;
+    // c_string.data at offset 0 (first field of first field)
+    let data_bytes = EvalHeap::g().get(addr, 8);
+    let mut buf = [0u8; 8];
+    buf.copy_from_slice(&data_bytes[..8]);
+    let c_string_ptr = usize::from_ne_bytes(buf);
+
+    // _len at offset ptr_size (second field of Str, after c_string which is a Ptr)
+    let len_bytes = EvalHeap::g().get(addr + ptr_size, 8);
+    buf.copy_from_slice(&len_bytes[..8]);
+    let length = usize::from_ne_bytes(buf);
+
+    if length > 0 && length < 10_000_000 {
+        let bytes = EvalHeap::g().get(c_string_ptr, length);
+        Ok(String::from_utf8_lossy(bytes).to_string())
+    } else {
+        Ok(String::new())
+    }
+}
+
 pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<String, String> {
     // Validate the Str struct exists
     context.get_struct(id, e)?;
@@ -934,12 +962,32 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     // TODO: After precomp, UFCS is already resolved so the mutation in get_func_def_for_fcall_with_expr
     // is a no-op. Could save this clone by adding a simpler lookup function that doesn't need &mut.
     let mut new_fcall_e = e.clone();
-    let func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
+    let mut func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
         Some(func_def_) => func_def_,
         None  => {
             return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Instantiations should be handled already"))
         },
     };
+    // Issue #91: If this is a FuncSig-typed variable (e.g., from cast or struct field),
+    // resolve the actual function by reading the stored function name
+    if func_def.body.is_empty() && !func_def.is_ext() {
+        if let Some(sym) = context.scope_stack.lookup_symbol(&combined_name) {
+            if let ValueType::TCustom(ref type_name) = sym.value_type {
+                if let Some(type_sym) = context.scope_stack.lookup_symbol(type_name) {
+                    if type_sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                        // Read function name from heap (stored as Str)
+                        // Use string_from_addr since variable may be typed as FuncSig, not Str
+                        if let Some(var_addr) = context.scope_stack.lookup_var(&combined_name) {
+                            let actual_func_name = string_from_addr(context, var_addr)?;
+                            if let Some(actual_fd) = context.scope_stack.lookup_func(&actual_func_name) {
+                                func_def = actual_fd.clone();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     if func_def.is_ext() {
         // External/core functions are treated specially
         let is_proc = func_def.is_proc();
@@ -2413,6 +2461,10 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                         } else {
                             EvalHeap::insert_string_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                         }
+                    },
+                    // Issue #91: Function pointers stored as Str (function name)
+                    "func" | "proc" | "ext_func" | "ext_proc" | "macro" => {
+                        EvalHeap::insert_string_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                     },
                     _ => {
                         let custom_symbol = context.scope_stack.lookup_symbol(&resolved_type_name).ok_or_else(|| {

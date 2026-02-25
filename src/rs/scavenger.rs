@@ -245,6 +245,16 @@ fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<S
                 collect_func_ptr_references(e.params.get(2).unwrap(), context, refs)?;
             }
         }
+        // Issue #91: Any identifier that refers to a function is a function reference,
+        // even when passed as Dynamic (e.g., Vec.push(own add2))
+        NodeType::Identifier(name) => {
+            if context.scope_stack.has_func(name) {
+                refs.insert(name.clone());
+            }
+            for param in &e.params {
+                collect_func_ptr_references(param, context, refs)?;
+            }
+        }
         _ => {
             for param in &e.params {
                 collect_func_ptr_references(param, context, refs)?;

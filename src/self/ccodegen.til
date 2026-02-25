@@ -155,6 +155,12 @@ til_var_name_from_context : func(name: Str, context: Context) returns Str = {
         // Fallback to old behavior if not a known variable (could be a type name, etc.)
         return til_name(name)
     }
+    // Issue #91: Functions are C functions (til_funcname), not C variables
+    switch sym.value_type {
+    case ValueType.TFunction(_):
+        return til_name(name)
+    case:
+    }
     type_str := value_type_to_c_prefix(sym.value_type)
     return format(TIL_PREFIX, type_str, "_", name)
 }
@@ -2567,6 +2573,31 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
         for child: Expr in ast.params {
             if is_enum_declaration(child) {
                 emit_enum_size_of_constant(child, output, ctx)
+            }
+        }
+    case:
+    }
+
+    // Pass 4a1: emit size_of constants for FuncSig types (function pointer typedefs)
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_func_sig_declaration(child) {
+                switch child.node_type {
+                case NodeType.Declaration(decl):
+                    output.push_str("const ")
+                    output.push_str(TIL_PREFIX)
+                    output.push_str("I64 ")
+                    output.push_str(TIL_PREFIX)
+                    output.push_str("size_of_")
+                    output.push_str(decl.name)
+                    output.push_str(" = sizeof(")
+                    output.push_str(TIL_PREFIX)
+                    output.push_str(decl.name)
+                    output.push_str(");\n")
+                    ctx.known_types.push(own decl.name)
+                case:
+                }
             }
         }
     case:
@@ -7046,14 +7077,22 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 cast_c_type_name := value_type_to_c_name(cast_var_type)?
                 // Hoist the ptr_expr (may be a throwing call like get)
                 cast_ptr_str := emit_arg_string(cast_ptr_expr, Ptr(), false, output, indent, ctx, context)?
+                // Issue #91: FuncSig types are function pointers, not structs
+                is_cast_func_sig := is_func_sig_type(cast_type_name, context)
                 // Emit inline pointer declaration (C99 block scoping shadows hoisted value-type)
                 cast_c_type := til_type_to_c(cast_var_type)?
                 output.push_str(indent_str)
                 output.push_str(cast_c_type)
-                output.push_str("* ")
+                if not(is_cast_func_sig) {
+                    output.push_str("* ")
+                } else {
+                    output.push_str(" ")
+                }
                 output.push_str(cast_c_var_name)
                 output.push_str(";\n")
-                _ := ctx.current_ref_params.insert(own decl.name.clone())
+                if not(is_cast_func_sig) {
+                    _ := ctx.current_ref_params.insert(own decl.name.clone())
+                }
                 // Bug #177: Cast variables can't be ret_var_alias targets
                 if not(ctx.ret_var_alias.is_empty()) {
                     if decl.name.eq(ctx.ret_var_alias) {
@@ -7061,9 +7100,14 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                     }
                 }
                 // Emit: var = (Type*)ptr.data;
+                // For FuncSig: var = *(Type*)ptr.data; (dereference to get function pointer value)
                 output.push_str(indent_str)
                 output.push_str(cast_c_var_name)
-                output.push_str(" = (")
+                if is_cast_func_sig {
+                    output.push_str(" = *(")
+                } else {
+                    output.push_str(" = (")
+                }
                 output.push_str(cast_c_type_name)
                 output.push_str("*)")
                 output.push_str(cast_ptr_str)

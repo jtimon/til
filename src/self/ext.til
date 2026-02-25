@@ -72,6 +72,31 @@ validate_arg_count : proc(path: Str, e: Expr, func_name: Str, expected: I64, is_
 }
 
 // Read a Str value from context (reads c_string and _len from heap)
+// Issue #91: Read a Str value from a raw heap address (e.g., for FuncSig variables from cast)
+// This bypasses the field offset system which requires a known struct type.
+string_from_addr : proc(context: Context, addr: I64) returns Str throws Str = {
+    // Str layout: c_string (Ptr at offset 0), _len (I64 after Ptr)
+    // c_string.data is at offset 0 within Ptr (first field)
+    // _len is at offset = size_of(Ptr) within Str (second field after c_string)
+    ptr_size := context.get_type_size("Ptr")?
+    // c_string.data at offset 0 (first field of first field)
+    mut c_string_ptr : I64 = 0
+    memcpy(to_ptr(c_string_ptr), g_heap.get(addr, 8), 8)
+
+    // _len at offset ptr_size (second field of Str, after c_string which is a Ptr)
+    mut length : I64 = 0
+    memcpy(to_ptr(length), g_heap.get(addr.add(ptr_size), 8), 8)
+
+    mut result := ""
+    for i in 0..length {
+        mut byte := U8.from_i64(0)?
+        memcpy(to_ptr(byte), g_heap.get(c_string_ptr.add(i), 1), 1)
+        result = format(result, byte_to_str(byte))
+    }
+    catch (err: U8_Overflow) { throw err.msg }
+    return result
+}
+
 string_from_context : proc(context: Context, id: Str, e: Expr) returns Str throws Str = {
     // Read the c_string.data field (I64 pointer to string data in EvalHeap)
     // Note: c_string is a Ptr struct { data: I64, is_borrowed: I64 }, so we read .data

@@ -895,6 +895,33 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
     catch (err: KeyNotFoundError) {
         throw e.lang_error(context.path, "eval", "eval_func_proc_call: Instantiations should be handled already")
     }
+    // Issue #91: If this is a FuncSig-typed variable (e.g., from cast or struct field),
+    // resolve the actual function by reading the stored function name
+    if func_def.body.is_empty().and(not(func_def.is_ext())) {
+        sym := context.scope_stack.lookup_symbol(combined_name)?
+        catch (err: KeyNotFoundError) { }
+        dont_delete(sym)
+        switch sym.value_type {
+        case ValueType.TCustom(type_name):
+            type_sym := context.scope_stack.lookup_symbol(type_name)?
+            catch (err: KeyNotFoundError) { }
+            dont_delete(type_sym)
+            switch type_sym.value_type {
+            case ValueType.TType(TTypeDef.TFuncSig):
+                // Read function name from heap (stored as Str)
+                // Use string_from_addr since variable may be typed as FuncSig, not Str
+                var_addr := context.scope_stack.lookup_var(combined_name)?
+                catch (err: KeyNotFoundError) { }
+                actual_func_name := string_from_addr(context, var_addr)?
+                actual_fd := context.scope_stack.lookup_func(actual_func_name)?
+                catch (err: KeyNotFoundError) { }
+                dont_delete(actual_fd)
+                func_def = actual_fd
+            case:
+            }
+        case:
+        }
+    }
     if func_def.is_ext() {
         // External/core functions are treated specially
         is_proc := func_def.is_proc()
@@ -2492,6 +2519,17 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                             } else {
                                 EvalHeap.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
                             }
+                        // Issue #91: Function pointers stored as Str (function name)
+                        case "func":
+                            EvalHeap.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                        case "proc":
+                            EvalHeap.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                        case "ext_func":
+                            EvalHeap.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                        case "ext_proc":
+                            EvalHeap.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                        case "macro":
+                            EvalHeap.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)?
                         case:
                             // Custom type (enum or struct)
                             mut custom_symbol := SymbolInfo()

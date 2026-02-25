@@ -241,9 +241,13 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 if e.params.len() >= 3 {
                     if let NodeType::Identifier(type_name) = &e.params.get(1).unwrap().node_type {
                         // Validate type exists
+                        // Issue #91: Also accept FuncSig types for cast
                         let type_valid = matches!(type_name.as_str(), "I64" | "U8" | "Bool" | "Str")
                             || context.scope_stack.lookup_struct(type_name).is_some()
-                            || context.scope_stack.lookup_enum(type_name).is_some();
+                            || context.scope_stack.lookup_enum(type_name).is_some()
+                            || context.scope_stack.lookup_symbol(type_name)
+                                .map(|s| s.value_type == ValueType::TType(TTypeDef::TFuncSig))
+                                .unwrap_or(false);
                         if !type_valid {
                             errors.push(e.error(&context.path, "type", &format!("cast: unknown type '{}'", type_name)));
                         }

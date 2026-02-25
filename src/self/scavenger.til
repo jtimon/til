@@ -255,6 +255,15 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
             e2 := cast(Expr, e.params.get(2)?)
             collect_func_ptr_references(e2, context, refs)?
         }
+    // Issue #91: Any identifier that refers to a function is a function reference,
+    // even when passed as Dynamic (e.g., Vec.push(own add2))
+    case NodeType.Identifier(name):
+        if context.scope_stack.has_func(name) {
+            _ := refs.insert(own name)
+        }
+        for param: Expr in e.params {
+            collect_func_ptr_references(param, context, refs)?
+        }
     case:
         for param: Expr in e.params {
             collect_func_ptr_references(param, context, refs)?

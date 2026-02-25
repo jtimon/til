@@ -115,6 +115,10 @@ fn til_var_name_from_context(name: &str, context: &Context) -> String {
         return name.to_string();
     }
     if let Some(sym) = context.scope_stack.lookup_symbol(name) {
+        // Issue #91: Functions are C functions (til_funcname), not C variables
+        if matches!(sym.value_type, ValueType::TFunction(_)) {
+            return til_name(name);
+        }
         let type_str = value_type_to_c_prefix(&sym.value_type);
         return format!("{}{}_{}", TIL_PREFIX, type_str, name);
     }
@@ -2181,6 +2185,27 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         for child in &ast.params {
             if is_enum_declaration(child)? {
                 emit_enum_size_of_constant(child, &mut output, &mut ctx)?;
+            }
+        }
+    }
+
+    // Pass 4a1: emit size_of constants for FuncSig types (function pointer typedefs)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_func_sig_declaration(child)? {
+                if let NodeType::Declaration(decl) = &child.node_type {
+                    output.push_str("const ");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("I64 ");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("size_of_");
+                    output.push_str(&decl.name);
+                    output.push_str(" = sizeof(");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str(&decl.name);
+                    output.push_str(");\n");
+                    ctx.known_types.push(decl.name.clone());
+                }
             }
         }
     }
@@ -5796,24 +5821,38 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 let cast_c_type_name = value_type_to_c_name(&cast_var_type)?;
                 // Hoist the ptr_expr (may be a throwing call like get)
                 let cast_ptr_str = emit_arg_string(cast_ptr_expr, None, false, output, indent, ctx, context)?;
+                // Issue #91: FuncSig types are function pointers, not structs
+                let is_cast_func_sig = is_func_sig_type(&cast_type_name, context);
                 // Emit inline pointer declaration (C99 block scoping shadows hoisted value-type)
                 if let Ok(cast_c_type) = til_type_to_c(&cast_var_type) {
                     output.push_str(&indent_str);
                     output.push_str(&cast_c_type);
-                    output.push_str("* ");
+                    if !is_cast_func_sig {
+                        output.push_str("* ");
+                    } else {
+                        output.push(' ');
+                    }
                     output.push_str(&cast_c_var_name);
                     output.push_str(";\n");
                 }
-                ctx.current_ref_params.insert(decl.name.clone());
+                if !is_cast_func_sig {
+                    ctx.current_ref_params.insert(decl.name.clone());
+                }
                 // Bug #177: Cast variables can't be ret_var_alias targets - the optimization
                 // writes to _ret via resolve_var_name, but cast writes to the real var name
                 if ctx.ret_var_alias.as_deref() == Some(decl.name.as_str()) {
                     ctx.ret_var_alias = None;
                 }
                 // Emit: var = (Type*)ptr.data;
+                // For FuncSig: var = *(Type*)ptr.data; (dereference to get function pointer value)
                 output.push_str(&indent_str);
                 output.push_str(&cast_c_var_name);
-                output.push_str(" = (");
+                output.push_str(" = ");
+                if is_cast_func_sig {
+                    output.push_str("*(");
+                } else {
+                    output.push('(');
+                }
                 output.push_str(&cast_c_type_name);
                 output.push_str("*)");
                 output.push_str(&cast_ptr_str);

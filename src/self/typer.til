@@ -257,6 +257,18 @@ check_types_with_context : proc(mut context: Context, e: Expr, expr_context: Exp
                     if not(cast_type_valid) {
                         cast_type_valid = context.scope_stack.has_struct(cast_type_name).or(context.scope_stack.has_enum(cast_type_name))
                     }
+                    // Issue #91: Also accept FuncSig types for cast
+                    if not(cast_type_valid) {
+                        mut cast_sym := context.scope_stack.lookup_symbol(cast_type_name)?
+                        dont_delete(cast_sym)
+                        switch cast_sym.value_type {
+                        case ValueType.TType(TTypeDef.TFuncSig):
+                            cast_type_valid = true
+                        case:
+                        }
+                        catch (err: KeyNotFoundError) {
+                        }
+                    }
                     if not(cast_type_valid) {
                         errors.push(own e.error(context.path, "type", format("cast: unknown type '", cast_type_name, "'")))
                     }
