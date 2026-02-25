@@ -603,8 +603,8 @@ declaration. UFCS on cast results (~cast(...).method()~) would also work.
 :PROPERTIES:
 :DISCOVERED: 2026-02-19
 :IMPACT: Major ccodegen simplification, fewer special cases, enables future optimizations
-:STATUS: Open - implementation plan ready
-:RELATED: Bug #168 (ret_var_alias optimization), Bug #173 (missing *_ret assignment), doc/first_class.org (function pointer typedefs)
+:STATUS: Open - partial implementation (Steps 1a/1b/1c done, Steps 2-11 not started)
+:RELATED: Bug #168 (ret_var_alias optimization), Bug #173 (missing *_ret assignment), Bug #159 (shallow copies), doc/first_class.org (function pointer typedefs)
 :END:
 
 *** Background
@@ -890,6 +890,54 @@ must be identical.
 - The ~emit_throwing_call~ / ~emit_throwing_call_propagate~ functions serve
   as the template for the unified call pattern. The non-throwing version is
   the same minus the status check and error handling.
+
+*** Work done (incremental approach, bottom-up)
+
+Rather than implementing all 11 steps at once (which failed on branch oom175
+due to OOM), taking an incremental approach: make non-throwing struct-returning
+functions use ~_ret~ first, then unify calling conventions later.
+
+**** Step 1a: Non-throwing struct-returning functions use ~_ret~ (140e868b)
+
+Changed ~fcall_uses_out_ret~ to return true for non-throwing functions that
+return structs with mutable data fields (or enums). These now use destination-
+passing style (~void func(RetType* _ret, ...)~) matching throwing functions.
+Ext functions and primitive-returning functions still use direct return.
+Guarded ~ret_var_alias~ at all three emit sites to only activate when the
+function has a ~_ret~ parameter.
+
+Impact: generated C grew from 103.5K to 134.5K lines (+30%) because each
+~_ret~ call is 2 lines (~Type tmp; func(&tmp, ...);~) instead of 1
+(~Type tmp = func(...);~). Plus ~6359 remaining ~= _tmp_~ copies from
+declarations where the call wrote to a temp but the declaration variable
+still copied from it.
+
+**** Step 1b: Eliminate redundant temp-to-temp copies (c50ee7c4)
+
+When a ~_ret~ FCall result was passed as a by-ref or Dynamic argument,
+~emit_arg_string~ created a second temp and copied from the first. Since the
+~_ret~ temp is already a declared lvalue, we now take ~&~ of it directly.
+Added ~fcall_expr_is_hoisted~ helper in TIL for safe KeyNotFoundError handling.
+
+**** Step 1c: Unify declaration FCall handling with ~emit_ret_call~ (this commit)
+
+Added ~emit_ret_call~ -- a new function that intercepts non-throwing ~_ret~
+FCall declarations in ~emit_stmts~, writing directly to the destination
+variable via ~build_dest_ptr_expr~ instead of going through
+~emit_fcall_arg_string~ -> temp -> ~emit_declaration~ -> copy.
+
+Key finding: *aliasing prevents assignment optimization*. For assignments like
+~cloned.ptr = Vec._alloc_ptr(cloned, cap)~, the dest_ptr (~&cloned.ptr~)
+overlaps with function arguments (~&cloned~). Inside ~_alloc_ptr~,
+~Ptr_new_by_size~ zeroes ~*_ret~ (which IS ~cloned.ptr~), destroying
+~self->ptr.elem_type/elem_size~ before they're read. The temp copy served as
+a buffer preventing this aliasing. So the interception is restricted to
+*declarations only*, where the fresh variable can't alias anything.
+
+Results: 130.9K lines (down from 134.5K), 4477 ~= _tmp_~ copies (down from
+6359). The ~has_ret~ hoisting path in ~emit_fcall_arg_string~ is left in place
+-- still needed for nested FCalls (when an ~_ret~ call appears as an argument
+to another call).
 
 ** Issue #117: ASAP Destruction (auto-delete on last use)
 :PROPERTIES:
@@ -2088,7 +2136,7 @@ garbager.til need prefixed names (e.g., ~garbager_collect_decls~).
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, prevents ASAP deletion, root cause of memory leaks
-:STATUS: Open -- Phase 1 done, Phase 2 unblocked (Issue #91 has func ptrs), Phase 5 partially done (#191), Phases 3/4/6 not started
+:STATUS: Open -- Phase 1 done, Phase 2 unblocked (Issue #91 has func ptrs), Phase 5 partially done (#191), Phases 3/4/6 not started. Issue #175 Steps 1a-1c reduce ccodegen shallow copies for declarations.
 :RELATED: Bug #165 (memory leak blocked by this), Bug #168 (ccodegen return copies), Bug #114 (ScopeFrame leak), Bug #170 (scope-exit deletion blocked by this), Issue #91 (function pointers needed for deep clone/delete), Issue #191 (delete-before-reassignment blocked by this)
 :END:
 
@@ -2121,9 +2169,13 @@ Test: src/test/bug159.til (passes all 4 modes)
 The interpreter fix only addressed =copy_fields=. Shallow copies remain throughout
 the codebase via memcpy in generated C code and core library operations.
 
-**** 1. ccodegen -- Function return values (partially addressed by Bug #168)
+**** 1. ccodegen -- Function return values (partially addressed by Bug #168, Issue #175)
 - =*_ret = value;= -- 696 remaining (was 976, commits 1/1b/2 eliminated 280)
-- Non-throwing by-value returns: 485 =return til_*= statements
+- Non-throwing by-value returns: eliminated by Issue #175 Step 1a (all non-ext
+  struct-returning functions now use =_ret= out-parameter)
+- Issue #175 Step 1c added =emit_ret_call= to write directly to destination for
+  declarations, reducing temp-to-var copies from 6359 to 4477. Assignment
+  optimization blocked by aliasing (see Issue #175 Step 1c key finding).
 - See Bug #168 in pre.org for full details and commit history
 
 **** 2. src/core/ptr.til -- Raw memcpy operations

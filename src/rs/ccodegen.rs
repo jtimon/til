@@ -4691,6 +4691,18 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             }
         }
 
+        // Issue #175: Intercept non-throwing _ret FCalls in declarations/assignments
+        // Uses dest_ptr to write directly to destination, avoiding temp-to-var copy
+        if let Some(fcall) = maybe_fcall {
+            if let Some(fd) = get_fcall_func_def(context, fcall) {
+                if fcall_uses_out_ret(&fd, context) && maybe_decl_name.is_some() {
+                    emit_ret_call(fcall, &fd, maybe_decl_name.as_deref(), None, output, effective_indent, ctx, context)?;
+                    i += 1;
+                    continue;
+                }
+            }
+        }
+
         // Regular statement handling
         emit_expr(stmt, output, effective_indent, ctx, context)?;
         i += 1;
@@ -4905,6 +4917,94 @@ fn emit_variadic_call(
     output.push_str(TIL_PREFIX);
     output.push_str("Array_delete(&");
     output.push_str(&variadic_arr_var);
+    output.push_str(");\n");
+
+    Ok(())
+}
+
+/// Issue #175: Emit a non-throwing _ret function call at statement level
+/// Writes directly to destination via dest_ptr, avoiding intermediate temp copies
+fn emit_ret_call(
+    fcall: &Expr,
+    func_def: &FuncDef,
+    decl_name: Option<&str>,
+    assign_name: Option<&str>,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+
+    // Get function name
+    let mut func_name = get_fcall_func_name(fcall)
+        .ok_or_else(|| fcall.error(&context.path, "ccodegen", "Cannot determine function name (emit_ret_call)"))?;
+
+    // Check if this is a call to a nested (hoisted) function - use mangled name
+    if let Some(mangled_name) = ctx.nested_func_names.get(&func_name) {
+        func_name = mangled_name.clone();
+    }
+
+    // Compute arg strings via emit_arg_string
+    let mut arg_strings = Vec::new();
+    if fcall.params.len() > 1 {
+        for (i, arg) in fcall.params.iter().skip(1).enumerate() {
+            let param_type = func_def.sig.args.get(i).map(|a| &a.value_type);
+            let by_ref = func_def.sig.args.get(i).map(|a| param_needs_by_ref(a)).unwrap_or(false);
+            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            arg_strings.push(arg_str);
+        }
+    }
+
+    // Determine return type
+    let ret_type = func_def.sig.return_types.first()
+        .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
+        .unwrap_or("int".to_string());
+
+    // For declarations: register in scope and declare variable
+    if let Some(var_name) = decl_name {
+        if var_name != "_" {
+            if let Some(first_type) = func_def.sig.return_types.first() {
+                context.scope_stack.declare_symbol(
+                    var_name.to_string(),
+                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
+                );
+            }
+            let c_var_name = til_var_name_from_context(var_name, context);
+            let is_ret_alias = ctx.ret_var_alias.as_ref().map(|a| a == var_name).unwrap_or(false);
+            if !is_ret_alias && !ctx.declared_vars.contains(&c_var_name) {
+                output.push_str(&indent_str);
+                output.push_str(&ret_type);
+                output.push_str(" ");
+                output.push_str(&c_var_name);
+                output.push_str(";\n");
+            }
+            ctx.declared_vars.insert(c_var_name);
+        }
+    }
+
+    // Build destination pointer expression
+    let dest_ptr = build_dest_ptr_expr(decl_name, assign_name, ctx, context);
+
+    // Emit function call: func(dest_ptr, args...)
+    output.push_str(&indent_str);
+    output.push_str(&til_func_name(&func_name));
+    output.push_str("(");
+
+    // First param: _ret destination pointer
+    if let Some(ref dest) = dest_ptr {
+        output.push_str(dest);
+    } else {
+        // Standalone call or underscore - discard result
+        output.push_str(&format!("&(({}){{}})", ret_type));
+    }
+
+    // Remaining args
+    for arg_str in &arg_strings {
+        output.push_str(", ");
+        output.push_str(arg_str);
+    }
+
     output.push_str(");\n");
 
     Ok(())

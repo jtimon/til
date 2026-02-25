@@ -1332,13 +1332,12 @@ void til_test_loc_folded_correctly(void) {
 }
 
 void til_test_struct_fold_simple(void) {
-    til_CfVec2 _tmp_test_struct_fold_simple_0;
-    til_CfVec2_magic(&_tmp_test_struct_fold_simple_0);
-    til_CfVec2 til_CfVec2_v = _tmp_test_struct_fold_simple_0;
-    til_I64 _tmp_test_struct_fold_simple_1 = 42;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:72:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_simple_1, &til_CfVec2_v.x);
-    til_I64 _tmp_test_struct_fold_simple_2 = 99;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:73:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_simple_2, &til_CfVec2_v.y);
+    til_CfVec2 til_CfVec2_v;
+    til_CfVec2_magic(&til_CfVec2_v);
+    til_I64 _tmp_test_struct_fold_simple_0 = 42;
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:72:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_simple_0, &til_CfVec2_v.x);
+    til_I64 _tmp_test_struct_fold_simple_1 = 99;
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:73:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_simple_1, &til_CfVec2_v.y);
 }
 
 void til_test_struct_fold_values(void) {
@@ -1350,17 +1349,16 @@ void til_test_struct_fold_values(void) {
 }
 
 void til_test_struct_fold_nested(void) {
-    til_CfRect _tmp_test_struct_fold_nested_0;
-    til_CfRect_sample(&_tmp_test_struct_fold_nested_0);
-    til_CfRect til_CfRect_r = _tmp_test_struct_fold_nested_0;
-    til_I64 _tmp_test_struct_fold_nested_1 = 5;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:99:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_nested_1, &til_CfRect_r.top_left.x);
-    til_I64 _tmp_test_struct_fold_nested_2 = 10;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:100:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_2, &til_CfRect_r.top_left.y);
-    til_I64 _tmp_test_struct_fold_nested_3 = 100;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:101:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_3, &til_CfRect_r.bottom_right.x);
-    til_I64 _tmp_test_struct_fold_nested_4 = 200;
-    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:102:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_4, &til_CfRect_r.bottom_right.y);
+    til_CfRect til_CfRect_r;
+    til_CfRect_sample(&til_CfRect_r);
+    til_I64 _tmp_test_struct_fold_nested_0 = 5;
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:99:15:", 1, 0, 0, 0}), 29, 0}), &_tmp_test_struct_fold_nested_0, &til_CfRect_r.top_left.x);
+    til_I64 _tmp_test_struct_fold_nested_1 = 10;
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:100:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_1, &til_CfRect_r.top_left.y);
+    til_I64 _tmp_test_struct_fold_nested_2 = 100;
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:101:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_2, &til_CfRect_r.bottom_right.x);
+    til_I64 _tmp_test_struct_fold_nested_3 = 200;
+    til_assert_eq(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:102:15:", 1, 0, 0, 0}), 30, 0}), &_tmp_test_struct_fold_nested_3, &til_CfRect_r.bottom_right.y);
 }
 
 void til_FunctionType_clone(til_FunctionType* _ret, const til_FunctionType* til_FunctionType_self) {
@@ -1472,9 +1470,7 @@ void til_Ptr_new_by_size(til_Ptr* _ret, const til_I64* til_I64_size) {
 void til_Ptr_new(til_Ptr* _ret, til_Type til_Type_T) {
     (void)_ret;
     til_I64 _tmp_til_Ptr_new_0 = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
-    til_Ptr _tmp_til_Ptr_new_1;
-    til_Ptr_new_by_size(&_tmp_til_Ptr_new_1, &_tmp_til_Ptr_new_0);
-    (*_ret) = _tmp_til_Ptr_new_1;
+    til_Ptr_new_by_size(_ret, &_tmp_til_Ptr_new_0);
     _ret->elem_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
     return;
 }
@@ -1483,9 +1479,7 @@ void til_Ptr_new_array(til_Ptr* _ret, til_Type til_Type_T, const til_I64* til_I6
     (void)_ret;
     til_I64 til_I64_elem_sz = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
     til_I64 til_I64_total = til_I64_mul(&til_I64_elem_sz, til_I64_count);
-    til_Ptr _tmp_til_Ptr_new_array_0;
-    til_Ptr_new_by_size(&_tmp_til_Ptr_new_array_0, &til_I64_total);
-    (*_ret) = _tmp_til_Ptr_new_array_0;
+    til_Ptr_new_by_size(_ret, &til_I64_total);
     _ret->elem_size = til_I64_elem_sz;
     return;
 }
@@ -1524,9 +1518,8 @@ void til_Ptr_clone(til_Ptr* _ret, const til_Ptr* til_Ptr_self) {
         *_ret = til_Ptr_borrowed;
         return;
     }
-    til_Ptr _tmp_til_Ptr_clone_3;
-    til_Ptr_new_by_size(&_tmp_til_Ptr_clone_3, &til_Ptr_self->alloc_size);
-    til_Ptr til_Ptr_cloned = _tmp_til_Ptr_clone_3;
+    til_Ptr til_Ptr_cloned;
+    til_Ptr_new_by_size(&til_Ptr_cloned, &til_Ptr_self->alloc_size);
     til_Ptr_cloned.elem_type = til_Ptr_self->elem_type;
     til_Ptr_cloned.elem_size = til_Ptr_self->elem_size;
     til_memcpy(&til_Ptr_cloned.data, &til_Ptr_self->data, &til_Ptr_self->alloc_size);
@@ -1678,9 +1671,8 @@ int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_Array_self, c
         return 1;
     }
     til_I64 _tmp_til_Array_set_8 = til_I64_mul(til_I64_index, &til_Array_self->ptr.elem_size);
-    til_Ptr _tmp_til_Array_set_9;
-    til_Ptr_offset(&_tmp_til_Array_set_9, &til_Array_self->ptr, &_tmp_til_Array_set_8);
-    til_Ptr til_Ptr_dest = _tmp_til_Array_set_9;
+    til_Ptr til_Ptr_dest;
+    til_Ptr_offset(&til_Ptr_dest, &til_Array_self->ptr, &_tmp_til_Array_set_8);
     til_Ptr_copy_from_dynamic(&til_Ptr_dest, (til_Dynamic*)til_Dynamic_value, &til_Array_self->ptr.elem_size);
     return 0;
 }
@@ -2296,9 +2288,7 @@ void til_Vec_new_from_type_info(til_Vec* _ret, const til_Str* til_Str_type_name,
 void til_Vec__alloc_ptr(til_Ptr* _ret, til_Vec* til_Vec_self, const til_I64* til_I64_capacity) {
     (void)_ret;
     til_I64 _tmp_til_Vec__alloc_ptr_0 = til_I64_mul(til_I64_capacity, &til_Vec_self->ptr.elem_size);
-    til_Ptr _tmp_til_Vec__alloc_ptr_1;
-    til_Ptr_new_by_size(&_tmp_til_Vec__alloc_ptr_1, &_tmp_til_Vec__alloc_ptr_0);
-    (*_ret) = _tmp_til_Vec__alloc_ptr_1;
+    til_Ptr_new_by_size(_ret, &_tmp_til_Vec__alloc_ptr_0);
     _ret->elem_type = til_Vec_self->ptr.elem_type;
     _ret->elem_size = til_Vec_self->ptr.elem_size;
     return;
@@ -2367,33 +2357,30 @@ void til_Vec_push(til_Vec* til_Vec_self, til_Dynamic* til_Dynamic_value) {
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:106:23:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.push: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 39, 0}), &_tmp_til_Vec_push_6);
             til_Array_delete(&_tmp_til_Vec_push_6);
         }
-        til_Ptr _tmp_til_Vec_push_10;
-        til_Vec__alloc_ptr(&_tmp_til_Vec_push_10, til_Vec_self, &til_I64_new_cap);
-        til_Ptr_new_ptr = _tmp_til_Vec_push_10;
-        til_I64 _tmp_til_Vec_push_11 = 0;
-        til_Bool _tmp_til_Vec_push_12;
-        til_I64_gt(&_tmp_til_Vec_push_12, &til_Vec_self->_len, &_tmp_til_Vec_push_11);
-        if (_tmp_til_Vec_push_12.data) {
-            til_I64 _tmp_til_Vec_push_13 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
-            til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_push_13);
+        til_Vec__alloc_ptr(&til_Ptr_new_ptr, til_Vec_self, &til_I64_new_cap);
+        til_I64 _tmp_til_Vec_push_10 = 0;
+        til_Bool _tmp_til_Vec_push_11;
+        til_I64_gt(&_tmp_til_Vec_push_11, &til_Vec_self->_len, &_tmp_til_Vec_push_10);
+        if (_tmp_til_Vec_push_11.data) {
+            til_I64 _tmp_til_Vec_push_12 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
+            til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_push_12);
         }
+        til_Bool _tmp_til_Vec_push_13;
+        til_Ptr_is_null(&_tmp_til_Vec_push_13, &til_Vec_self->ptr);
         til_Bool _tmp_til_Vec_push_14;
-        til_Ptr_is_null(&_tmp_til_Vec_push_14, &til_Vec_self->ptr);
-        til_Bool _tmp_til_Vec_push_15;
-        til_not(&_tmp_til_Vec_push_15, &_tmp_til_Vec_push_14);
-        if (_tmp_til_Vec_push_15.data) {
+        til_not(&_tmp_til_Vec_push_14, &_tmp_til_Vec_push_13);
+        if (_tmp_til_Vec_push_14.data) {
             til_Ptr_delete(&til_Vec_self->ptr);
         }
         til_Vec_self->ptr = til_Ptr_new_ptr;
         til_Vec_self->cap = til_I64_new_cap;
     }
-    til_I64 _tmp_til_Vec_push_16 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
-    til_Ptr _tmp_til_Vec_push_17;
-    til_Ptr_offset(&_tmp_til_Vec_push_17, &til_Vec_self->ptr, &_tmp_til_Vec_push_16);
-    til_Ptr til_Ptr_dest = _tmp_til_Vec_push_17;
+    til_I64 _tmp_til_Vec_push_15 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
+    til_Ptr til_Ptr_dest;
+    til_Ptr_offset(&til_Ptr_dest, &til_Vec_self->ptr, &_tmp_til_Vec_push_15);
     til_Ptr_copy_from_dynamic(&til_Ptr_dest, (til_Dynamic*)til_Dynamic_value, &til_Vec_self->ptr.elem_size);
-    til_I64 _tmp_til_Vec_push_18 = 1;
-    til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_push_18);
+    til_I64 _tmp_til_Vec_push_16 = 1;
+    til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_push_16);
 }
 
 int til_Vec_get(til_Ptr* _ret, til_IndexOutOfBoundsError* _err1, const til_Vec* til_Vec_self, const til_I64* til_I64_index) {
@@ -2444,9 +2431,8 @@ int til_Vec_set(til_IndexOutOfBoundsError* _err1, til_Vec* til_Vec_self, const t
         return 1;
     }
     til_I64 _tmp_til_Vec_set_8 = til_I64_mul(til_I64_index, &til_Vec_self->ptr.elem_size);
-    til_Ptr _tmp_til_Vec_set_9;
-    til_Ptr_offset(&_tmp_til_Vec_set_9, &til_Vec_self->ptr, &_tmp_til_Vec_set_8);
-    til_Ptr til_Ptr_dest = _tmp_til_Vec_set_9;
+    til_Ptr til_Ptr_dest;
+    til_Ptr_offset(&til_Ptr_dest, &til_Vec_self->ptr, &_tmp_til_Vec_set_8);
     til_Ptr_copy_from_dynamic(&til_Ptr_dest, (til_Dynamic*)til_Dynamic_value, &til_Vec_self->ptr.elem_size);
     return 0;
 }
@@ -2474,9 +2460,8 @@ int til_Vec_pop(til_IndexOutOfBoundsError* _err1, til_Vec* til_Vec_self, til_Dyn
     til_I64 _tmp_til_Vec_pop_9 = 1;
     til_I64 til_I64_last_index = til_I64_sub(&til_Vec_self->_len, &_tmp_til_Vec_pop_9);
     til_I64 _tmp_til_Vec_pop_10 = til_I64_mul(&til_I64_last_index, &til_Vec_self->ptr.elem_size);
-    til_Ptr _tmp_til_Vec_pop_11;
-    til_Ptr_offset(&_tmp_til_Vec_pop_11, &til_Vec_self->ptr, &_tmp_til_Vec_pop_10);
-    til_Ptr til_Ptr_src = _tmp_til_Vec_pop_11;
+    til_Ptr til_Ptr_src;
+    til_Ptr_offset(&til_Ptr_src, &til_Vec_self->ptr, &_tmp_til_Vec_pop_10);
     til_Ptr_copy_to_dynamic(&til_Ptr_src, (til_Dynamic*)til_Dynamic_dest, &til_Vec_self->ptr.elem_size);
     til_Vec_self->_len = til_I64_last_index;
     return 0;
@@ -2534,62 +2519,56 @@ void til_Vec_extend(til_Vec* til_Vec_self, const til_Vec* til_Vec_other) {
         til_I64_lt(&_tmp_til_Vec_extend_0, &til_I64_i, &til_Vec_other->_len);
         if (!(_tmp_til_Vec_extend_0.data)) break;
         til_I64 _tmp_til_Vec_extend_1 = til_I64_mul(&til_I64_i, &til_Vec_other->ptr.elem_size);
-        til_Ptr _tmp_til_Vec_extend_2;
-        til_Ptr_offset(&_tmp_til_Vec_extend_2, &til_Vec_other->ptr, &_tmp_til_Vec_extend_1);
-        til_Ptr_src = _tmp_til_Vec_extend_2;
-        til_Bool _tmp_til_Vec_extend_3;
-        til_I64_eq(&_tmp_til_Vec_extend_3, &til_Vec_self->_len, &til_Vec_self->cap);
-        if (_tmp_til_Vec_extend_3.data) {
-            til_I64 _tmp_til_Vec_extend_4 = 2;
-            til_I64_new_cap = til_I64_mul(&til_Vec_self->cap, &_tmp_til_Vec_extend_4);
-            til_I64 _tmp_til_Vec_extend_5 = 1;
-            til_Bool _tmp_til_Vec_extend_6;
-            til_I64_lt(&_tmp_til_Vec_extend_6, &til_I64_new_cap, &_tmp_til_Vec_extend_5);
-            if (_tmp_til_Vec_extend_6.data) {
+        til_Ptr_offset(&til_Ptr_src, &til_Vec_other->ptr, &_tmp_til_Vec_extend_1);
+        til_Bool _tmp_til_Vec_extend_2;
+        til_I64_eq(&_tmp_til_Vec_extend_2, &til_Vec_self->_len, &til_Vec_self->cap);
+        if (_tmp_til_Vec_extend_2.data) {
+            til_I64 _tmp_til_Vec_extend_3 = 2;
+            til_I64_new_cap = til_I64_mul(&til_Vec_self->cap, &_tmp_til_Vec_extend_3);
+            til_I64 _tmp_til_Vec_extend_4 = 1;
+            til_Bool _tmp_til_Vec_extend_5;
+            til_I64_lt(&_tmp_til_Vec_extend_5, &til_I64_new_cap, &_tmp_til_Vec_extend_4);
+            if (_tmp_til_Vec_extend_5.data) {
                 til_I64_new_cap = 1;
             }
-            til_I64 _tmp_til_Vec_extend_7 = til_Vec_MAX_CAP;
-            til_Bool _tmp_til_Vec_extend_8;
-            til_I64_gt(&_tmp_til_Vec_extend_8, &til_I64_new_cap, &_tmp_til_Vec_extend_7);
-            if (_tmp_til_Vec_extend_8.data) {
-                til_Array _tmp_til_Vec_extend_9;
-                til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Vec_extend_10;
-                til_Type _tmp_til_Vec_extend_11 = "Str";
-                til_I64 _tmp_til_Vec_extend_12 = 0;
-                til_Array_new(&_tmp_til_Vec_extend_9, _tmp_til_Vec_extend_11, &_tmp_til_Vec_extend_12);
-                int __attribute__((unused)) _arr_status__tmp_til_Vec_extend_10;
-                til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:202:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 41, 0}), &_tmp_til_Vec_extend_9);
-                til_Array_delete(&_tmp_til_Vec_extend_9);
+            til_I64 _tmp_til_Vec_extend_6 = til_Vec_MAX_CAP;
+            til_Bool _tmp_til_Vec_extend_7;
+            til_I64_gt(&_tmp_til_Vec_extend_7, &til_I64_new_cap, &_tmp_til_Vec_extend_6);
+            if (_tmp_til_Vec_extend_7.data) {
+                til_Array _tmp_til_Vec_extend_8;
+                til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Vec_extend_9;
+                til_Type _tmp_til_Vec_extend_10 = "Str";
+                til_I64 _tmp_til_Vec_extend_11 = 0;
+                til_Array_new(&_tmp_til_Vec_extend_8, _tmp_til_Vec_extend_10, &_tmp_til_Vec_extend_11);
+                int __attribute__((unused)) _arr_status__tmp_til_Vec_extend_9;
+                til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:202:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 41, 0}), &_tmp_til_Vec_extend_8);
+                til_Array_delete(&_tmp_til_Vec_extend_8);
             }
-            til_Ptr _tmp_til_Vec_extend_13;
-            til_Vec__alloc_ptr(&_tmp_til_Vec_extend_13, til_Vec_self, &til_I64_new_cap);
-            til_Ptr_new_ptr = _tmp_til_Vec_extend_13;
-            til_I64 _tmp_til_Vec_extend_14 = 0;
+            til_Vec__alloc_ptr(&til_Ptr_new_ptr, til_Vec_self, &til_I64_new_cap);
+            til_I64 _tmp_til_Vec_extend_12 = 0;
+            til_Bool _tmp_til_Vec_extend_13;
+            til_I64_gt(&_tmp_til_Vec_extend_13, &til_Vec_self->_len, &_tmp_til_Vec_extend_12);
+            if (_tmp_til_Vec_extend_13.data) {
+                til_I64 _tmp_til_Vec_extend_14 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
+                til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_extend_14);
+            }
             til_Bool _tmp_til_Vec_extend_15;
-            til_I64_gt(&_tmp_til_Vec_extend_15, &til_Vec_self->_len, &_tmp_til_Vec_extend_14);
-            if (_tmp_til_Vec_extend_15.data) {
-                til_I64 _tmp_til_Vec_extend_16 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
-                til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_extend_16);
-            }
-            til_Bool _tmp_til_Vec_extend_17;
-            til_Ptr_is_null(&_tmp_til_Vec_extend_17, &til_Vec_self->ptr);
-            til_Bool _tmp_til_Vec_extend_18;
-            til_not(&_tmp_til_Vec_extend_18, &_tmp_til_Vec_extend_17);
-            if (_tmp_til_Vec_extend_18.data) {
+            til_Ptr_is_null(&_tmp_til_Vec_extend_15, &til_Vec_self->ptr);
+            til_Bool _tmp_til_Vec_extend_16;
+            til_not(&_tmp_til_Vec_extend_16, &_tmp_til_Vec_extend_15);
+            if (_tmp_til_Vec_extend_16.data) {
                 til_Ptr_delete(&til_Vec_self->ptr);
             }
             til_Vec_self->ptr = til_Ptr_new_ptr;
             til_Vec_self->cap = til_I64_new_cap;
         }
-        til_I64 _tmp_til_Vec_extend_19 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
-        til_Ptr _tmp_til_Vec_extend_20;
-        til_Ptr_offset(&_tmp_til_Vec_extend_20, &til_Vec_self->ptr, &_tmp_til_Vec_extend_19);
-        til_Ptr_dest = _tmp_til_Vec_extend_20;
+        til_I64 _tmp_til_Vec_extend_17 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
+        til_Ptr_offset(&til_Ptr_dest, &til_Vec_self->ptr, &_tmp_til_Vec_extend_17);
         til_Ptr_copy_from(&til_Ptr_dest, &til_Ptr_src, &til_Vec_self->ptr.elem_size);
-        til_I64 _tmp_til_Vec_extend_21 = 1;
-        til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_extend_21);
-        til_I64 _tmp_til_Vec_extend_22 = 1;
-        til_I64_i = til_I64_add(&til_I64_i, &_tmp_til_Vec_extend_22);
+        til_I64 _tmp_til_Vec_extend_18 = 1;
+        til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_extend_18);
+        til_I64 _tmp_til_Vec_extend_19 = 1;
+        til_I64_i = til_I64_add(&til_I64_i, &_tmp_til_Vec_extend_19);
     }
 }
 
@@ -2630,91 +2609,83 @@ void til_Vec_extend_with(til_Vec* til_Vec_self, til_Dynamic* til_Dynamic_value, 
                     til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:234:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend_with: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 46, 0}), &_tmp_til_Vec_extend_with_9);
                     til_Array_delete(&_tmp_til_Vec_extend_with_9);
                 }
-                til_Ptr _tmp_til_Vec_extend_with_13;
-                til_Vec__alloc_ptr(&_tmp_til_Vec_extend_with_13, til_Vec_self, &til_I64_new_cap);
-                til_Ptr_new_ptr = _tmp_til_Vec_extend_with_13;
-                til_I64 _tmp_til_Vec_extend_with_14 = 0;
-                til_Bool _tmp_til_Vec_extend_with_15;
-                til_I64_gt(&_tmp_til_Vec_extend_with_15, &til_Vec_self->_len, &_tmp_til_Vec_extend_with_14);
-                if (_tmp_til_Vec_extend_with_15.data) {
-                    til_I64 _tmp_til_Vec_extend_with_16 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
-                    til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_extend_with_16);
+                til_Vec__alloc_ptr(&til_Ptr_new_ptr, til_Vec_self, &til_I64_new_cap);
+                til_I64 _tmp_til_Vec_extend_with_13 = 0;
+                til_Bool _tmp_til_Vec_extend_with_14;
+                til_I64_gt(&_tmp_til_Vec_extend_with_14, &til_Vec_self->_len, &_tmp_til_Vec_extend_with_13);
+                if (_tmp_til_Vec_extend_with_14.data) {
+                    til_I64 _tmp_til_Vec_extend_with_15 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
+                    til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_extend_with_15);
                 }
+                til_Bool _tmp_til_Vec_extend_with_16;
+                til_Ptr_is_null(&_tmp_til_Vec_extend_with_16, &til_Vec_self->ptr);
                 til_Bool _tmp_til_Vec_extend_with_17;
-                til_Ptr_is_null(&_tmp_til_Vec_extend_with_17, &til_Vec_self->ptr);
-                til_Bool _tmp_til_Vec_extend_with_18;
-                til_not(&_tmp_til_Vec_extend_with_18, &_tmp_til_Vec_extend_with_17);
-                if (_tmp_til_Vec_extend_with_18.data) {
+                til_not(&_tmp_til_Vec_extend_with_17, &_tmp_til_Vec_extend_with_16);
+                if (_tmp_til_Vec_extend_with_17.data) {
                     til_Ptr_delete(&til_Vec_self->ptr);
                 }
                 til_Vec_self->ptr = til_Ptr_new_ptr;
                 til_Vec_self->cap = til_I64_new_cap;
             }
-            til_I64 _tmp_til_Vec_extend_with_19 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
-            til_Ptr _tmp_til_Vec_extend_with_20;
-            til_Ptr_offset(&_tmp_til_Vec_extend_with_20, &til_Vec_self->ptr, &_tmp_til_Vec_extend_with_19);
-            til_Ptr_dest = _tmp_til_Vec_extend_with_20;
+            til_I64 _tmp_til_Vec_extend_with_18 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
+            til_Ptr_offset(&til_Ptr_dest, &til_Vec_self->ptr, &_tmp_til_Vec_extend_with_18);
             til_Ptr_copy_from_dynamic(&til_Ptr_dest, (til_Dynamic*)til_Dynamic_value, &til_Vec_self->ptr.elem_size);
-            til_I64 _tmp_til_Vec_extend_with_21 = 1;
-            til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_extend_with_21);
+            til_I64 _tmp_til_Vec_extend_with_19 = 1;
+            til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_extend_with_19);
             til_I64_inc(&_loop_0);
         }
     } else {
         while (1) {
-            til_Bool _tmp_til_Vec_extend_with_22;
-            til_I64_gt(&_tmp_til_Vec_extend_with_22, &_loop_0, til_I64_count);
-            if (!(_tmp_til_Vec_extend_with_22.data)) break;
-            til_Bool _tmp_til_Vec_extend_with_23;
-            til_I64_eq(&_tmp_til_Vec_extend_with_23, &til_Vec_self->_len, &til_Vec_self->cap);
-            if (_tmp_til_Vec_extend_with_23.data) {
-                til_I64 _tmp_til_Vec_extend_with_24 = 2;
-                til_I64_new_cap = til_I64_mul(&til_Vec_self->cap, &_tmp_til_Vec_extend_with_24);
-                til_I64 _tmp_til_Vec_extend_with_25 = 1;
-                til_Bool _tmp_til_Vec_extend_with_26;
-                til_I64_lt(&_tmp_til_Vec_extend_with_26, &til_I64_new_cap, &_tmp_til_Vec_extend_with_25);
-                if (_tmp_til_Vec_extend_with_26.data) {
+            til_Bool _tmp_til_Vec_extend_with_20;
+            til_I64_gt(&_tmp_til_Vec_extend_with_20, &_loop_0, til_I64_count);
+            if (!(_tmp_til_Vec_extend_with_20.data)) break;
+            til_Bool _tmp_til_Vec_extend_with_21;
+            til_I64_eq(&_tmp_til_Vec_extend_with_21, &til_Vec_self->_len, &til_Vec_self->cap);
+            if (_tmp_til_Vec_extend_with_21.data) {
+                til_I64 _tmp_til_Vec_extend_with_22 = 2;
+                til_I64_new_cap = til_I64_mul(&til_Vec_self->cap, &_tmp_til_Vec_extend_with_22);
+                til_I64 _tmp_til_Vec_extend_with_23 = 1;
+                til_Bool _tmp_til_Vec_extend_with_24;
+                til_I64_lt(&_tmp_til_Vec_extend_with_24, &til_I64_new_cap, &_tmp_til_Vec_extend_with_23);
+                if (_tmp_til_Vec_extend_with_24.data) {
                     til_I64_new_cap = 1;
                 }
-                til_I64 _tmp_til_Vec_extend_with_27 = til_Vec_MAX_CAP;
-                til_Bool _tmp_til_Vec_extend_with_28;
-                til_I64_gt(&_tmp_til_Vec_extend_with_28, &til_I64_new_cap, &_tmp_til_Vec_extend_with_27);
-                if (_tmp_til_Vec_extend_with_28.data) {
-                    til_Array _tmp_til_Vec_extend_with_29;
-                    til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Vec_extend_with_30;
-                    til_Type _tmp_til_Vec_extend_with_31 = "Str";
-                    til_I64 _tmp_til_Vec_extend_with_32 = 0;
-                    til_Array_new(&_tmp_til_Vec_extend_with_29, _tmp_til_Vec_extend_with_31, &_tmp_til_Vec_extend_with_32);
-                    int __attribute__((unused)) _arr_status__tmp_til_Vec_extend_with_30;
-                    til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:234:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend_with: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 46, 0}), &_tmp_til_Vec_extend_with_29);
-                    til_Array_delete(&_tmp_til_Vec_extend_with_29);
+                til_I64 _tmp_til_Vec_extend_with_25 = til_Vec_MAX_CAP;
+                til_Bool _tmp_til_Vec_extend_with_26;
+                til_I64_gt(&_tmp_til_Vec_extend_with_26, &til_I64_new_cap, &_tmp_til_Vec_extend_with_25);
+                if (_tmp_til_Vec_extend_with_26.data) {
+                    til_Array _tmp_til_Vec_extend_with_27;
+                    til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Vec_extend_with_28;
+                    til_Type _tmp_til_Vec_extend_with_29 = "Str";
+                    til_I64 _tmp_til_Vec_extend_with_30 = 0;
+                    til_Array_new(&_tmp_til_Vec_extend_with_27, _tmp_til_Vec_extend_with_29, &_tmp_til_Vec_extend_with_30);
+                    int __attribute__((unused)) _arr_status__tmp_til_Vec_extend_with_28;
+                    til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:234:27:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.extend_with: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 46, 0}), &_tmp_til_Vec_extend_with_27);
+                    til_Array_delete(&_tmp_til_Vec_extend_with_27);
                 }
-                til_Ptr _tmp_til_Vec_extend_with_33;
-                til_Vec__alloc_ptr(&_tmp_til_Vec_extend_with_33, til_Vec_self, &til_I64_new_cap);
-                til_Ptr_new_ptr = _tmp_til_Vec_extend_with_33;
-                til_I64 _tmp_til_Vec_extend_with_34 = 0;
+                til_Vec__alloc_ptr(&til_Ptr_new_ptr, til_Vec_self, &til_I64_new_cap);
+                til_I64 _tmp_til_Vec_extend_with_31 = 0;
+                til_Bool _tmp_til_Vec_extend_with_32;
+                til_I64_gt(&_tmp_til_Vec_extend_with_32, &til_Vec_self->_len, &_tmp_til_Vec_extend_with_31);
+                if (_tmp_til_Vec_extend_with_32.data) {
+                    til_I64 _tmp_til_Vec_extend_with_33 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
+                    til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_extend_with_33);
+                }
+                til_Bool _tmp_til_Vec_extend_with_34;
+                til_Ptr_is_null(&_tmp_til_Vec_extend_with_34, &til_Vec_self->ptr);
                 til_Bool _tmp_til_Vec_extend_with_35;
-                til_I64_gt(&_tmp_til_Vec_extend_with_35, &til_Vec_self->_len, &_tmp_til_Vec_extend_with_34);
+                til_not(&_tmp_til_Vec_extend_with_35, &_tmp_til_Vec_extend_with_34);
                 if (_tmp_til_Vec_extend_with_35.data) {
-                    til_I64 _tmp_til_Vec_extend_with_36 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
-                    til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_extend_with_36);
-                }
-                til_Bool _tmp_til_Vec_extend_with_37;
-                til_Ptr_is_null(&_tmp_til_Vec_extend_with_37, &til_Vec_self->ptr);
-                til_Bool _tmp_til_Vec_extend_with_38;
-                til_not(&_tmp_til_Vec_extend_with_38, &_tmp_til_Vec_extend_with_37);
-                if (_tmp_til_Vec_extend_with_38.data) {
                     til_Ptr_delete(&til_Vec_self->ptr);
                 }
                 til_Vec_self->ptr = til_Ptr_new_ptr;
                 til_Vec_self->cap = til_I64_new_cap;
             }
-            til_I64 _tmp_til_Vec_extend_with_39 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
-            til_Ptr _tmp_til_Vec_extend_with_40;
-            til_Ptr_offset(&_tmp_til_Vec_extend_with_40, &til_Vec_self->ptr, &_tmp_til_Vec_extend_with_39);
-            til_Ptr_dest = _tmp_til_Vec_extend_with_40;
+            til_I64 _tmp_til_Vec_extend_with_36 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
+            til_Ptr_offset(&til_Ptr_dest, &til_Vec_self->ptr, &_tmp_til_Vec_extend_with_36);
             til_Ptr_copy_from_dynamic(&til_Ptr_dest, (til_Dynamic*)til_Dynamic_value, &til_Vec_self->ptr.elem_size);
-            til_I64 _tmp_til_Vec_extend_with_41 = 1;
-            til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_extend_with_41);
+            til_I64 _tmp_til_Vec_extend_with_37 = 1;
+            til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_extend_with_37);
             til_I64_dec(&_loop_0);
         }
     }
@@ -2731,37 +2702,35 @@ void til_Vec_contains(til_Bool* _ret, const til_Vec* til_Vec_self, const til_Dyn
         til_I64_lt(&_tmp_til_Vec_contains_0, &til_I64_i, &til_Vec_self->_len);
         if (!(_tmp_til_Vec_contains_0.data)) break;
         til_I64 _tmp_til_Vec_contains_1 = til_I64_mul(&til_I64_i, &til_Vec_self->ptr.elem_size);
-        til_Ptr _tmp_til_Vec_contains_2;
-        til_Ptr_offset(&_tmp_til_Vec_contains_2, &til_Vec_self->ptr, &_tmp_til_Vec_contains_1);
-        til_Ptr_src = _tmp_til_Vec_contains_2;
-        til_Bool _tmp_til_Vec_contains_3;
-        til_Vec__is_str_type(&_tmp_til_Vec_contains_3, til_Vec_self);
-        if (_tmp_til_Vec_contains_3.data) {
+        til_Ptr_offset(&til_Ptr_src, &til_Vec_self->ptr, &_tmp_til_Vec_contains_1);
+        til_Bool _tmp_til_Vec_contains_2;
+        til_Vec__is_str_type(&_tmp_til_Vec_contains_2, til_Vec_self);
+        if (_tmp_til_Vec_contains_2.data) {
             til_Str_existing = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
             til_Ptr_copy_to_dynamic(&til_Ptr_src, (til_Dynamic*)&til_Str_existing, &til_Vec_self->ptr.elem_size);
             til_Str_val_str = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
-            til_I64 _tmp_til_Vec_contains_4 = (til_I64)&til_Str_val_str;
-            til_I64 _tmp_til_Vec_contains_5 = (til_I64)til_Dynamic_value;
-            til_memcpy(&_tmp_til_Vec_contains_4, &_tmp_til_Vec_contains_5, &til_Vec_self->ptr.elem_size);
-            til_Bool _tmp_til_Vec_contains_6;
-            til_Str_eq(&_tmp_til_Vec_contains_6, &til_Str_val_str, &til_Str_existing);
-            if (_tmp_til_Vec_contains_6.data) {
+            til_I64 _tmp_til_Vec_contains_3 = (til_I64)&til_Str_val_str;
+            til_I64 _tmp_til_Vec_contains_4 = (til_I64)til_Dynamic_value;
+            til_memcpy(&_tmp_til_Vec_contains_3, &_tmp_til_Vec_contains_4, &til_Vec_self->ptr.elem_size);
+            til_Bool _tmp_til_Vec_contains_5;
+            til_Str_eq(&_tmp_til_Vec_contains_5, &til_Str_val_str, &til_Str_existing);
+            if (_tmp_til_Vec_contains_5.data) {
                 *_ret = true;
                 return;
             }
         } else {
-            til_I64 _tmp_til_Vec_contains_7 = (til_I64)til_Dynamic_value;
-            til_I64 _tmp_til_Vec_contains_8 = til_memcmp(&_tmp_til_Vec_contains_7, &til_Ptr_src.data, &til_Vec_self->ptr.elem_size);
-            til_I64 _tmp_til_Vec_contains_9 = 0;
-            til_Bool _tmp_til_Vec_contains_10;
-            til_I64_eq(&_tmp_til_Vec_contains_10, &_tmp_til_Vec_contains_8, &_tmp_til_Vec_contains_9);
-            if (_tmp_til_Vec_contains_10.data) {
+            til_I64 _tmp_til_Vec_contains_6 = (til_I64)til_Dynamic_value;
+            til_I64 _tmp_til_Vec_contains_7 = til_memcmp(&_tmp_til_Vec_contains_6, &til_Ptr_src.data, &til_Vec_self->ptr.elem_size);
+            til_I64 _tmp_til_Vec_contains_8 = 0;
+            til_Bool _tmp_til_Vec_contains_9;
+            til_I64_eq(&_tmp_til_Vec_contains_9, &_tmp_til_Vec_contains_7, &_tmp_til_Vec_contains_8);
+            if (_tmp_til_Vec_contains_9.data) {
                 *_ret = true;
                 return;
             }
         }
-        til_I64 _tmp_til_Vec_contains_11 = 1;
-        til_I64_i = til_I64_add(&til_I64_i, &_tmp_til_Vec_contains_11);
+        til_I64 _tmp_til_Vec_contains_10 = 1;
+        til_I64_i = til_I64_add(&til_I64_i, &_tmp_til_Vec_contains_10);
     }
     *_ret = false;
     return;
@@ -2798,19 +2767,15 @@ int til_Vec_remove(til_IndexOutOfBoundsError* _err1, til_Vec* til_Vec_self, cons
         til_I64 _tmp_til_Vec_remove_11 = 1;
         til_I64 _tmp_til_Vec_remove_12 = til_I64_add(&til_I64_i, &_tmp_til_Vec_remove_11);
         til_I64 _tmp_til_Vec_remove_13 = til_I64_mul(&_tmp_til_Vec_remove_12, &til_Vec_self->ptr.elem_size);
-        til_Ptr _tmp_til_Vec_remove_14;
-        til_Ptr_offset(&_tmp_til_Vec_remove_14, &til_Vec_self->ptr, &_tmp_til_Vec_remove_13);
-        til_Ptr_src = _tmp_til_Vec_remove_14;
-        til_I64 _tmp_til_Vec_remove_15 = til_I64_mul(&til_I64_i, &til_Vec_self->ptr.elem_size);
-        til_Ptr _tmp_til_Vec_remove_16;
-        til_Ptr_offset(&_tmp_til_Vec_remove_16, &til_Vec_self->ptr, &_tmp_til_Vec_remove_15);
-        til_Ptr_dest = _tmp_til_Vec_remove_16;
+        til_Ptr_offset(&til_Ptr_src, &til_Vec_self->ptr, &_tmp_til_Vec_remove_13);
+        til_I64 _tmp_til_Vec_remove_14 = til_I64_mul(&til_I64_i, &til_Vec_self->ptr.elem_size);
+        til_Ptr_offset(&til_Ptr_dest, &til_Vec_self->ptr, &_tmp_til_Vec_remove_14);
         til_Ptr_copy_from(&til_Ptr_dest, &til_Ptr_src, &til_Vec_self->ptr.elem_size);
-        til_I64 _tmp_til_Vec_remove_17 = 1;
-        til_I64_i = til_I64_add(&til_I64_i, &_tmp_til_Vec_remove_17);
+        til_I64 _tmp_til_Vec_remove_15 = 1;
+        til_I64_i = til_I64_add(&til_I64_i, &_tmp_til_Vec_remove_15);
     }
-    til_I64 _tmp_til_Vec_remove_18 = 1;
-    til_Vec_self->_len = til_I64_sub(&til_Vec_self->_len, &_tmp_til_Vec_remove_18);
+    til_I64 _tmp_til_Vec_remove_16 = 1;
+    til_Vec_self->_len = til_I64_sub(&til_Vec_self->_len, &_tmp_til_Vec_remove_16);
     return 0;
 }
 
@@ -2859,21 +2824,19 @@ int til_Vec_insert_at(til_IndexOutOfBoundsError* _err1, til_Vec* til_Vec_self, c
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/vec.til:312:23:", 1, 0, 0, 0}), 24, 0}), &((til_Str){((til_Ptr){(til_I64)"Vec.insert_at: capacity exceeded Vec.MAX_CAP", 1, 0, 0, 0}), 44, 0}), &_tmp_til_Vec_insert_at_14);
             til_Array_delete(&_tmp_til_Vec_insert_at_14);
         }
-        til_Ptr _tmp_til_Vec_insert_at_18;
-        til_Vec__alloc_ptr(&_tmp_til_Vec_insert_at_18, til_Vec_self, &til_I64_new_cap);
-        til_Ptr_new_ptr = _tmp_til_Vec_insert_at_18;
-        til_I64 _tmp_til_Vec_insert_at_19 = 0;
-        til_Bool _tmp_til_Vec_insert_at_20;
-        til_I64_gt(&_tmp_til_Vec_insert_at_20, &til_Vec_self->_len, &_tmp_til_Vec_insert_at_19);
-        if (_tmp_til_Vec_insert_at_20.data) {
-            til_I64 _tmp_til_Vec_insert_at_21 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
-            til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_insert_at_21);
+        til_Vec__alloc_ptr(&til_Ptr_new_ptr, til_Vec_self, &til_I64_new_cap);
+        til_I64 _tmp_til_Vec_insert_at_18 = 0;
+        til_Bool _tmp_til_Vec_insert_at_19;
+        til_I64_gt(&_tmp_til_Vec_insert_at_19, &til_Vec_self->_len, &_tmp_til_Vec_insert_at_18);
+        if (_tmp_til_Vec_insert_at_19.data) {
+            til_I64 _tmp_til_Vec_insert_at_20 = til_I64_mul(&til_Vec_self->_len, &til_Vec_self->ptr.elem_size);
+            til_Ptr_copy_from(&til_Ptr_new_ptr, &til_Vec_self->ptr, &_tmp_til_Vec_insert_at_20);
         }
+        til_Bool _tmp_til_Vec_insert_at_21;
+        til_Ptr_is_null(&_tmp_til_Vec_insert_at_21, &til_Vec_self->ptr);
         til_Bool _tmp_til_Vec_insert_at_22;
-        til_Ptr_is_null(&_tmp_til_Vec_insert_at_22, &til_Vec_self->ptr);
-        til_Bool _tmp_til_Vec_insert_at_23;
-        til_not(&_tmp_til_Vec_insert_at_23, &_tmp_til_Vec_insert_at_22);
-        if (_tmp_til_Vec_insert_at_23.data) {
+        til_not(&_tmp_til_Vec_insert_at_22, &_tmp_til_Vec_insert_at_21);
+        if (_tmp_til_Vec_insert_at_22.data) {
             til_Ptr_delete(&til_Vec_self->ptr);
         }
         til_Vec_self->ptr = til_Ptr_new_ptr;
@@ -2883,30 +2846,25 @@ int til_Vec_insert_at(til_IndexOutOfBoundsError* _err1, til_Vec* til_Vec_self, c
     til_Ptr til_Ptr_shift_src;
     til_Ptr til_Ptr_shift_dest;
     while (1) {
-        til_Bool _tmp_til_Vec_insert_at_24;
-        til_I64_gt(&_tmp_til_Vec_insert_at_24, &til_I64_i, til_I64_index);
-        if (!(_tmp_til_Vec_insert_at_24.data)) break;
-        til_I64 _tmp_til_Vec_insert_at_25 = 1;
-        til_I64 _tmp_til_Vec_insert_at_26 = til_I64_sub(&til_I64_i, &_tmp_til_Vec_insert_at_25);
-        til_I64 _tmp_til_Vec_insert_at_27 = til_I64_mul(&_tmp_til_Vec_insert_at_26, &til_Vec_self->ptr.elem_size);
-        til_Ptr _tmp_til_Vec_insert_at_28;
-        til_Ptr_offset(&_tmp_til_Vec_insert_at_28, &til_Vec_self->ptr, &_tmp_til_Vec_insert_at_27);
-        til_Ptr_shift_src = _tmp_til_Vec_insert_at_28;
-        til_I64 _tmp_til_Vec_insert_at_29 = til_I64_mul(&til_I64_i, &til_Vec_self->ptr.elem_size);
-        til_Ptr _tmp_til_Vec_insert_at_30;
-        til_Ptr_offset(&_tmp_til_Vec_insert_at_30, &til_Vec_self->ptr, &_tmp_til_Vec_insert_at_29);
-        til_Ptr_shift_dest = _tmp_til_Vec_insert_at_30;
+        til_Bool _tmp_til_Vec_insert_at_23;
+        til_I64_gt(&_tmp_til_Vec_insert_at_23, &til_I64_i, til_I64_index);
+        if (!(_tmp_til_Vec_insert_at_23.data)) break;
+        til_I64 _tmp_til_Vec_insert_at_24 = 1;
+        til_I64 _tmp_til_Vec_insert_at_25 = til_I64_sub(&til_I64_i, &_tmp_til_Vec_insert_at_24);
+        til_I64 _tmp_til_Vec_insert_at_26 = til_I64_mul(&_tmp_til_Vec_insert_at_25, &til_Vec_self->ptr.elem_size);
+        til_Ptr_offset(&til_Ptr_shift_src, &til_Vec_self->ptr, &_tmp_til_Vec_insert_at_26);
+        til_I64 _tmp_til_Vec_insert_at_27 = til_I64_mul(&til_I64_i, &til_Vec_self->ptr.elem_size);
+        til_Ptr_offset(&til_Ptr_shift_dest, &til_Vec_self->ptr, &_tmp_til_Vec_insert_at_27);
         til_Ptr_copy_from(&til_Ptr_shift_dest, &til_Ptr_shift_src, &til_Vec_self->ptr.elem_size);
-        til_I64 _tmp_til_Vec_insert_at_31 = 1;
-        til_I64_i = til_I64_sub(&til_I64_i, &_tmp_til_Vec_insert_at_31);
+        til_I64 _tmp_til_Vec_insert_at_28 = 1;
+        til_I64_i = til_I64_sub(&til_I64_i, &_tmp_til_Vec_insert_at_28);
     }
-    til_I64 _tmp_til_Vec_insert_at_32 = til_I64_mul(til_I64_index, &til_Vec_self->ptr.elem_size);
-    til_Ptr _tmp_til_Vec_insert_at_33;
-    til_Ptr_offset(&_tmp_til_Vec_insert_at_33, &til_Vec_self->ptr, &_tmp_til_Vec_insert_at_32);
-    til_Ptr til_Ptr_insert_dest = _tmp_til_Vec_insert_at_33;
+    til_I64 _tmp_til_Vec_insert_at_29 = til_I64_mul(til_I64_index, &til_Vec_self->ptr.elem_size);
+    til_Ptr til_Ptr_insert_dest;
+    til_Ptr_offset(&til_Ptr_insert_dest, &til_Vec_self->ptr, &_tmp_til_Vec_insert_at_29);
     til_Ptr_copy_from_dynamic(&til_Ptr_insert_dest, (til_Dynamic*)til_Dynamic_value, &til_Vec_self->ptr.elem_size);
-    til_I64 _tmp_til_Vec_insert_at_34 = 1;
-    til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_insert_at_34);
+    til_I64 _tmp_til_Vec_insert_at_30 = 1;
+    til_Vec_self->_len = til_I64_add(&til_Vec_self->_len, &_tmp_til_Vec_insert_at_30);
     return 0;
 }
 
@@ -2937,56 +2895,52 @@ void til_Vec_to_str(til_Str* _ret, const til_Vec* til_Vec_self) {
             if (_tmp_til_Vec_to_str_6.data) {
                 til_Str_elem = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
                 til_I64 _tmp_til_Vec_to_str_7 = til_I64_mul(&til_I64_i, &til_Vec_self->ptr.elem_size);
-                til_Ptr _tmp_til_Vec_to_str_8;
-                til_Ptr_offset(&_tmp_til_Vec_to_str_8, &til_Vec_self->ptr, &_tmp_til_Vec_to_str_7);
-                til_Ptr_src = _tmp_til_Vec_to_str_8;
+                til_Ptr_offset(&til_Ptr_src, &til_Vec_self->ptr, &_tmp_til_Vec_to_str_7);
                 til_Ptr_copy_to_dynamic(&til_Ptr_src, (til_Dynamic*)&til_Str_elem, &til_Vec_self->ptr.elem_size);
+                til_Str _tmp_til_Vec_to_str_8;
+                til_concat(&_tmp_til_Vec_to_str_8, &til_Str_result, &((til_Str){((til_Ptr){(til_I64)"\"", 1, 0, 0, 0}), 1, 0}));
                 til_Str _tmp_til_Vec_to_str_9;
-                til_concat(&_tmp_til_Vec_to_str_9, &til_Str_result, &((til_Str){((til_Ptr){(til_I64)"\"", 1, 0, 0, 0}), 1, 0}));
+                til_concat(&_tmp_til_Vec_to_str_9, &_tmp_til_Vec_to_str_8, &til_Str_elem);
                 til_Str _tmp_til_Vec_to_str_10;
-                til_concat(&_tmp_til_Vec_to_str_10, &_tmp_til_Vec_to_str_9, &til_Str_elem);
-                til_Str _tmp_til_Vec_to_str_11;
-                til_concat(&_tmp_til_Vec_to_str_11, &_tmp_til_Vec_to_str_10, &((til_Str){((til_Ptr){(til_I64)"\"", 1, 0, 0, 0}), 1, 0}));
-                til_Str_result = _tmp_til_Vec_to_str_11;
+                til_concat(&_tmp_til_Vec_to_str_10, &_tmp_til_Vec_to_str_9, &((til_Str){((til_Ptr){(til_I64)"\"", 1, 0, 0, 0}), 1, 0}));
+                til_Str_result = _tmp_til_Vec_to_str_10;
             }
             til_I64_inc(&til_I64_i);
         }
     } else {
         while (1) {
-            til_Bool _tmp_til_Vec_to_str_12;
-            til_I64_gt(&_tmp_til_Vec_to_str_12, &til_I64_i, &til_Vec_self->_len);
-            if (!(_tmp_til_Vec_to_str_12.data)) break;
-            til_I64 _tmp_til_Vec_to_str_13 = 0;
-            til_Bool _tmp_til_Vec_to_str_14;
-            til_I64_gt(&_tmp_til_Vec_to_str_14, &til_I64_i, &_tmp_til_Vec_to_str_13);
-            if (_tmp_til_Vec_to_str_14.data) {
-                til_Str _tmp_til_Vec_to_str_15;
-                til_concat(&_tmp_til_Vec_to_str_15, &til_Str_result, &((til_Str){((til_Ptr){(til_I64)", ", 1, 0, 0, 0}), 2, 0}));
-                til_Str_result = _tmp_til_Vec_to_str_15;
+            til_Bool _tmp_til_Vec_to_str_11;
+            til_I64_gt(&_tmp_til_Vec_to_str_11, &til_I64_i, &til_Vec_self->_len);
+            if (!(_tmp_til_Vec_to_str_11.data)) break;
+            til_I64 _tmp_til_Vec_to_str_12 = 0;
+            til_Bool _tmp_til_Vec_to_str_13;
+            til_I64_gt(&_tmp_til_Vec_to_str_13, &til_I64_i, &_tmp_til_Vec_to_str_12);
+            if (_tmp_til_Vec_to_str_13.data) {
+                til_Str _tmp_til_Vec_to_str_14;
+                til_concat(&_tmp_til_Vec_to_str_14, &til_Str_result, &((til_Str){((til_Ptr){(til_I64)", ", 1, 0, 0, 0}), 2, 0}));
+                til_Str_result = _tmp_til_Vec_to_str_14;
             }
-            til_Bool _tmp_til_Vec_to_str_16;
-            til_Vec__is_str_type(&_tmp_til_Vec_to_str_16, til_Vec_self);
-            if (_tmp_til_Vec_to_str_16.data) {
+            til_Bool _tmp_til_Vec_to_str_15;
+            til_Vec__is_str_type(&_tmp_til_Vec_to_str_15, til_Vec_self);
+            if (_tmp_til_Vec_to_str_15.data) {
                 til_Str_elem = ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
-                til_I64 _tmp_til_Vec_to_str_17 = til_I64_mul(&til_I64_i, &til_Vec_self->ptr.elem_size);
-                til_Ptr _tmp_til_Vec_to_str_18;
-                til_Ptr_offset(&_tmp_til_Vec_to_str_18, &til_Vec_self->ptr, &_tmp_til_Vec_to_str_17);
-                til_Ptr_src = _tmp_til_Vec_to_str_18;
+                til_I64 _tmp_til_Vec_to_str_16 = til_I64_mul(&til_I64_i, &til_Vec_self->ptr.elem_size);
+                til_Ptr_offset(&til_Ptr_src, &til_Vec_self->ptr, &_tmp_til_Vec_to_str_16);
                 til_Ptr_copy_to_dynamic(&til_Ptr_src, (til_Dynamic*)&til_Str_elem, &til_Vec_self->ptr.elem_size);
+                til_Str _tmp_til_Vec_to_str_17;
+                til_concat(&_tmp_til_Vec_to_str_17, &til_Str_result, &((til_Str){((til_Ptr){(til_I64)"\"", 1, 0, 0, 0}), 1, 0}));
+                til_Str _tmp_til_Vec_to_str_18;
+                til_concat(&_tmp_til_Vec_to_str_18, &_tmp_til_Vec_to_str_17, &til_Str_elem);
                 til_Str _tmp_til_Vec_to_str_19;
-                til_concat(&_tmp_til_Vec_to_str_19, &til_Str_result, &((til_Str){((til_Ptr){(til_I64)"\"", 1, 0, 0, 0}), 1, 0}));
-                til_Str _tmp_til_Vec_to_str_20;
-                til_concat(&_tmp_til_Vec_to_str_20, &_tmp_til_Vec_to_str_19, &til_Str_elem);
-                til_Str _tmp_til_Vec_to_str_21;
-                til_concat(&_tmp_til_Vec_to_str_21, &_tmp_til_Vec_to_str_20, &((til_Str){((til_Ptr){(til_I64)"\"", 1, 0, 0, 0}), 1, 0}));
-                til_Str_result = _tmp_til_Vec_to_str_21;
+                til_concat(&_tmp_til_Vec_to_str_19, &_tmp_til_Vec_to_str_18, &((til_Str){((til_Ptr){(til_I64)"\"", 1, 0, 0, 0}), 1, 0}));
+                til_Str_result = _tmp_til_Vec_to_str_19;
             }
             til_I64_dec(&til_I64_i);
         }
     }
-    til_Str _tmp_til_Vec_to_str_22;
-    til_concat(&_tmp_til_Vec_to_str_22, &til_Str_result, &((til_Str){((til_Ptr){(til_I64)"]", 1, 0, 0, 0}), 1, 0}));
-    til_Str_result = _tmp_til_Vec_to_str_22;
+    til_Str _tmp_til_Vec_to_str_20;
+    til_concat(&_tmp_til_Vec_to_str_20, &til_Str_result, &((til_Str){((til_Ptr){(til_I64)"]", 1, 0, 0, 0}), 1, 0}));
+    til_Str_result = _tmp_til_Vec_to_str_20;
     *_ret = til_Str_result;
     return;
 }
@@ -3038,11 +2992,9 @@ int til_Vec_split_off(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, til_Vec* 
         til_Vec__alloc_ptr(&_tmp_til_Vec_split_off_11, &til_Vec_result, &til_I64_tail_len);
         til_Vec_result.ptr = _tmp_til_Vec_split_off_11;
         til_I64 _tmp_til_Vec_split_off_12 = til_I64_mul(til_I64_at, &til_Vec_self->ptr.elem_size);
-        til_Ptr _tmp_til_Vec_split_off_13;
-        til_Ptr_offset(&_tmp_til_Vec_split_off_13, &til_Vec_self->ptr, &_tmp_til_Vec_split_off_12);
-        til_Ptr_src = _tmp_til_Vec_split_off_13;
-        til_I64 _tmp_til_Vec_split_off_14 = til_I64_mul(&til_I64_tail_len, &til_Vec_self->ptr.elem_size);
-        til_Ptr_copy_from(&til_Vec_result.ptr, &til_Ptr_src, &_tmp_til_Vec_split_off_14);
+        til_Ptr_offset(&til_Ptr_src, &til_Vec_self->ptr, &_tmp_til_Vec_split_off_12);
+        til_I64 _tmp_til_Vec_split_off_13 = til_I64_mul(&til_I64_tail_len, &til_Vec_self->ptr.elem_size);
+        til_Ptr_copy_from(&til_Vec_result.ptr, &til_Ptr_src, &_tmp_til_Vec_split_off_13);
     }
     til_Vec_self->_len = (*til_I64_at);
     *_ret = til_Vec_result;
@@ -3298,79 +3250,77 @@ void til_Str_to_lowercase(til_Str* _ret, const til_Str* til_Str_self) {
     (void)_ret;
     til_Str til_Str_result = {};
     til_U8_Overflow _thrown_U8_Overflow__tmp_til_Str_to_lowercase_0 = {};
-    til_Str _tmp_til_Str_to_lowercase_1;
-    til_Str_clone(&_tmp_til_Str_to_lowercase_1, til_Str_self);
-    til_Str_result = _tmp_til_Str_to_lowercase_1;
+    til_Str_clone(&til_Str_result, til_Str_self);
     til_I64 til_I64_i = 0;
     til_U8 til_U8_byte;
     til_I64 til_I64_byte_val;
-    til_I64 _tmp_til_Str_to_lowercase_2 = 0;
-    til_Bool _tmp_til_Str_to_lowercase_3;
-    til_I64_lt(&_tmp_til_Str_to_lowercase_3, &_tmp_til_Str_to_lowercase_2, &til_Str_result._len);
-    if (_tmp_til_Str_to_lowercase_3.data) {
+    til_I64 _tmp_til_Str_to_lowercase_1 = 0;
+    til_Bool _tmp_til_Str_to_lowercase_2;
+    til_I64_lt(&_tmp_til_Str_to_lowercase_2, &_tmp_til_Str_to_lowercase_1, &til_Str_result._len);
+    if (_tmp_til_Str_to_lowercase_2.data) {
         while (1) {
-            til_Bool _tmp_til_Str_to_lowercase_4;
-            til_I64_lt(&_tmp_til_Str_to_lowercase_4, &til_I64_i, &til_Str_result._len);
-            if (!(_tmp_til_Str_to_lowercase_4.data)) break;
+            til_Bool _tmp_til_Str_to_lowercase_3;
+            til_I64_lt(&_tmp_til_Str_to_lowercase_3, &til_I64_i, &til_Str_result._len);
+            if (!(_tmp_til_Str_to_lowercase_3.data)) break;
             til_U8_byte = 0;
-            til_I64 _tmp_til_Str_to_lowercase_5 = (til_I64)&til_U8_byte;
-            til_Ptr _tmp_til_Str_to_lowercase_6;
-            til_Ptr_offset(&_tmp_til_Str_to_lowercase_6, &til_Str_result.c_string, &til_I64_i);
-            til_I64 _tmp_til_Str_to_lowercase_7 = 1;
-            til_memcpy(&_tmp_til_Str_to_lowercase_5, &_tmp_til_Str_to_lowercase_6.data, &_tmp_til_Str_to_lowercase_7);
+            til_I64 _tmp_til_Str_to_lowercase_4 = (til_I64)&til_U8_byte;
+            til_Ptr _tmp_til_Str_to_lowercase_5;
+            til_Ptr_offset(&_tmp_til_Str_to_lowercase_5, &til_Str_result.c_string, &til_I64_i);
+            til_I64 _tmp_til_Str_to_lowercase_6 = 1;
+            til_memcpy(&_tmp_til_Str_to_lowercase_4, &_tmp_til_Str_to_lowercase_5.data, &_tmp_til_Str_to_lowercase_6);
             til_I64_byte_val = 0;
             til_I64_byte_val = til_U8_to_i64(&til_U8_byte);
-            til_I64 _tmp_til_Str_to_lowercase_8 = 65;
-            til_Bool _tmp_til_Str_to_lowercase_9;
-            til_I64_gteq(&_tmp_til_Str_to_lowercase_9, &til_I64_byte_val, &_tmp_til_Str_to_lowercase_8);
-            if (_tmp_til_Str_to_lowercase_9.data) {
-                til_I64 _tmp_til_Str_to_lowercase_10 = 90;
-                til_Bool _tmp_til_Str_to_lowercase_11;
-                til_I64_lteq(&_tmp_til_Str_to_lowercase_11, &til_I64_byte_val, &_tmp_til_Str_to_lowercase_10);
-                if (_tmp_til_Str_to_lowercase_11.data) {
-                    til_I64 _tmp_til_Str_to_lowercase_12 = 32;
-                    til_I64_byte_val = til_I64_add(&til_I64_byte_val, &_tmp_til_Str_to_lowercase_12);
-                    til_U8_Overflow _err0__tmp_til_Str_to_lowercase_13 = {};
-                    int __attribute__((unused)) _status__tmp_til_Str_to_lowercase_13 = til_U8_from_i64(&til_U8_byte, &_err0__tmp_til_Str_to_lowercase_13, &til_I64_byte_val);
-                    til_Ptr _tmp_til_Str_to_lowercase_14;
-                    til_Ptr_offset(&_tmp_til_Str_to_lowercase_14, &til_Str_result.c_string, &til_I64_i);
-                    til_I64 _tmp_til_Str_to_lowercase_15 = (til_I64)&til_U8_byte;
-                    til_I64 _tmp_til_Str_to_lowercase_16 = 1;
-                    til_memcpy(&_tmp_til_Str_to_lowercase_14.data, &_tmp_til_Str_to_lowercase_15, &_tmp_til_Str_to_lowercase_16);
+            til_I64 _tmp_til_Str_to_lowercase_7 = 65;
+            til_Bool _tmp_til_Str_to_lowercase_8;
+            til_I64_gteq(&_tmp_til_Str_to_lowercase_8, &til_I64_byte_val, &_tmp_til_Str_to_lowercase_7);
+            if (_tmp_til_Str_to_lowercase_8.data) {
+                til_I64 _tmp_til_Str_to_lowercase_9 = 90;
+                til_Bool _tmp_til_Str_to_lowercase_10;
+                til_I64_lteq(&_tmp_til_Str_to_lowercase_10, &til_I64_byte_val, &_tmp_til_Str_to_lowercase_9);
+                if (_tmp_til_Str_to_lowercase_10.data) {
+                    til_I64 _tmp_til_Str_to_lowercase_11 = 32;
+                    til_I64_byte_val = til_I64_add(&til_I64_byte_val, &_tmp_til_Str_to_lowercase_11);
+                    til_U8_Overflow _err0__tmp_til_Str_to_lowercase_12 = {};
+                    int __attribute__((unused)) _status__tmp_til_Str_to_lowercase_12 = til_U8_from_i64(&til_U8_byte, &_err0__tmp_til_Str_to_lowercase_12, &til_I64_byte_val);
+                    til_Ptr _tmp_til_Str_to_lowercase_13;
+                    til_Ptr_offset(&_tmp_til_Str_to_lowercase_13, &til_Str_result.c_string, &til_I64_i);
+                    til_I64 _tmp_til_Str_to_lowercase_14 = (til_I64)&til_U8_byte;
+                    til_I64 _tmp_til_Str_to_lowercase_15 = 1;
+                    til_memcpy(&_tmp_til_Str_to_lowercase_13.data, &_tmp_til_Str_to_lowercase_14, &_tmp_til_Str_to_lowercase_15);
                 }
             }
             til_I64_inc(&til_I64_i);
         }
     } else {
         while (1) {
-            til_Bool _tmp_til_Str_to_lowercase_17;
-            til_I64_gt(&_tmp_til_Str_to_lowercase_17, &til_I64_i, &til_Str_result._len);
-            if (!(_tmp_til_Str_to_lowercase_17.data)) break;
+            til_Bool _tmp_til_Str_to_lowercase_16;
+            til_I64_gt(&_tmp_til_Str_to_lowercase_16, &til_I64_i, &til_Str_result._len);
+            if (!(_tmp_til_Str_to_lowercase_16.data)) break;
             til_U8_byte = 0;
-            til_I64 _tmp_til_Str_to_lowercase_18 = (til_I64)&til_U8_byte;
-            til_Ptr _tmp_til_Str_to_lowercase_19;
-            til_Ptr_offset(&_tmp_til_Str_to_lowercase_19, &til_Str_result.c_string, &til_I64_i);
-            til_I64 _tmp_til_Str_to_lowercase_20 = 1;
-            til_memcpy(&_tmp_til_Str_to_lowercase_18, &_tmp_til_Str_to_lowercase_19.data, &_tmp_til_Str_to_lowercase_20);
+            til_I64 _tmp_til_Str_to_lowercase_17 = (til_I64)&til_U8_byte;
+            til_Ptr _tmp_til_Str_to_lowercase_18;
+            til_Ptr_offset(&_tmp_til_Str_to_lowercase_18, &til_Str_result.c_string, &til_I64_i);
+            til_I64 _tmp_til_Str_to_lowercase_19 = 1;
+            til_memcpy(&_tmp_til_Str_to_lowercase_17, &_tmp_til_Str_to_lowercase_18.data, &_tmp_til_Str_to_lowercase_19);
             til_I64_byte_val = 0;
             til_I64_byte_val = til_U8_to_i64(&til_U8_byte);
-            til_I64 _tmp_til_Str_to_lowercase_21 = 65;
-            til_Bool _tmp_til_Str_to_lowercase_22;
-            til_I64_gteq(&_tmp_til_Str_to_lowercase_22, &til_I64_byte_val, &_tmp_til_Str_to_lowercase_21);
-            if (_tmp_til_Str_to_lowercase_22.data) {
-                til_I64 _tmp_til_Str_to_lowercase_23 = 90;
-                til_Bool _tmp_til_Str_to_lowercase_24;
-                til_I64_lteq(&_tmp_til_Str_to_lowercase_24, &til_I64_byte_val, &_tmp_til_Str_to_lowercase_23);
-                if (_tmp_til_Str_to_lowercase_24.data) {
-                    til_I64 _tmp_til_Str_to_lowercase_25 = 32;
-                    til_I64_byte_val = til_I64_add(&til_I64_byte_val, &_tmp_til_Str_to_lowercase_25);
-                    til_U8_Overflow _err0__tmp_til_Str_to_lowercase_26 = {};
-                    int __attribute__((unused)) _status__tmp_til_Str_to_lowercase_26 = til_U8_from_i64(&til_U8_byte, &_err0__tmp_til_Str_to_lowercase_26, &til_I64_byte_val);
-                    til_Ptr _tmp_til_Str_to_lowercase_27;
-                    til_Ptr_offset(&_tmp_til_Str_to_lowercase_27, &til_Str_result.c_string, &til_I64_i);
-                    til_I64 _tmp_til_Str_to_lowercase_28 = (til_I64)&til_U8_byte;
-                    til_I64 _tmp_til_Str_to_lowercase_29 = 1;
-                    til_memcpy(&_tmp_til_Str_to_lowercase_27.data, &_tmp_til_Str_to_lowercase_28, &_tmp_til_Str_to_lowercase_29);
+            til_I64 _tmp_til_Str_to_lowercase_20 = 65;
+            til_Bool _tmp_til_Str_to_lowercase_21;
+            til_I64_gteq(&_tmp_til_Str_to_lowercase_21, &til_I64_byte_val, &_tmp_til_Str_to_lowercase_20);
+            if (_tmp_til_Str_to_lowercase_21.data) {
+                til_I64 _tmp_til_Str_to_lowercase_22 = 90;
+                til_Bool _tmp_til_Str_to_lowercase_23;
+                til_I64_lteq(&_tmp_til_Str_to_lowercase_23, &til_I64_byte_val, &_tmp_til_Str_to_lowercase_22);
+                if (_tmp_til_Str_to_lowercase_23.data) {
+                    til_I64 _tmp_til_Str_to_lowercase_24 = 32;
+                    til_I64_byte_val = til_I64_add(&til_I64_byte_val, &_tmp_til_Str_to_lowercase_24);
+                    til_U8_Overflow _err0__tmp_til_Str_to_lowercase_25 = {};
+                    int __attribute__((unused)) _status__tmp_til_Str_to_lowercase_25 = til_U8_from_i64(&til_U8_byte, &_err0__tmp_til_Str_to_lowercase_25, &til_I64_byte_val);
+                    til_Ptr _tmp_til_Str_to_lowercase_26;
+                    til_Ptr_offset(&_tmp_til_Str_to_lowercase_26, &til_Str_result.c_string, &til_I64_i);
+                    til_I64 _tmp_til_Str_to_lowercase_27 = (til_I64)&til_U8_byte;
+                    til_I64 _tmp_til_Str_to_lowercase_28 = 1;
+                    til_memcpy(&_tmp_til_Str_to_lowercase_26.data, &_tmp_til_Str_to_lowercase_27, &_tmp_til_Str_to_lowercase_28);
                 }
             }
             til_I64_dec(&til_I64_i);
@@ -3378,14 +3328,14 @@ void til_Str_to_lowercase(til_Str* _ret, const til_Str* til_Str_self) {
     }
     if (0) { _catch_U8_Overflow__tmp_til_Str_to_lowercase_0:;
         til_U8_Overflow til_U8_Overflow_err = _thrown_U8_Overflow__tmp_til_Str_to_lowercase_0;
-        til_Array _tmp_til_Str_to_lowercase_30;
-        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Str_to_lowercase_31;
-        til_Type _tmp_til_Str_to_lowercase_32 = "Str";
-        til_I64 _tmp_til_Str_to_lowercase_33 = 0;
-        til_Array_new(&_tmp_til_Str_to_lowercase_30, _tmp_til_Str_to_lowercase_32, &_tmp_til_Str_to_lowercase_33);
-        int __attribute__((unused)) _arr_status__tmp_til_Str_to_lowercase_31;
-        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:137:19:", 1, 0, 0, 0}), 24, 0}), &til_U8_Overflow_err.msg, &_tmp_til_Str_to_lowercase_30);
-        til_Array_delete(&_tmp_til_Str_to_lowercase_30);
+        til_Array _tmp_til_Str_to_lowercase_29;
+        til_IndexOutOfBoundsError __attribute__((unused)) _err_idx__tmp_til_Str_to_lowercase_30;
+        til_Type _tmp_til_Str_to_lowercase_31 = "Str";
+        til_I64 _tmp_til_Str_to_lowercase_32 = 0;
+        til_Array_new(&_tmp_til_Str_to_lowercase_29, _tmp_til_Str_to_lowercase_31, &_tmp_til_Str_to_lowercase_32);
+        int __attribute__((unused)) _arr_status__tmp_til_Str_to_lowercase_30;
+        til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:137:19:", 1, 0, 0, 0}), 24, 0}), &til_U8_Overflow_err.msg, &_tmp_til_Str_to_lowercase_29);
+        til_Array_delete(&_tmp_til_Str_to_lowercase_29);
     }
     *_ret = til_Str_result;
     return;
@@ -3429,71 +3379,69 @@ void til_Str_contains(til_Bool* _ret, const til_Str* til_Str_self, const til_Str
             til_Bool _tmp_til_Str_contains_14;
             til_I64_lt(&_tmp_til_Str_contains_14, &til_I64_start_idx, &_tmp_til_Str_contains_13);
             if (!(_tmp_til_Str_contains_14.data)) break;
-            til_Bool _tmp_til_Str_contains_15;
-            til_Bool_clone(&_tmp_til_Str_contains_15, &true);
-            til_Bool_matches = _tmp_til_Str_contains_15;
+            til_Bool_clone(&til_Bool_matches, &true);
             til_I64_needle_idx = 0;
-            til_I64 _tmp_til_Str_contains_16 = 0;
-            til_I64 _tmp_til_Str_contains_17 = til_Str_len(til_Str_needle);
-            til_Bool _tmp_til_Str_contains_18;
-            til_I64_lt(&_tmp_til_Str_contains_18, &_tmp_til_Str_contains_16, &_tmp_til_Str_contains_17);
-            if (_tmp_til_Str_contains_18.data) {
+            til_I64 _tmp_til_Str_contains_15 = 0;
+            til_I64 _tmp_til_Str_contains_16 = til_Str_len(til_Str_needle);
+            til_Bool _tmp_til_Str_contains_17;
+            til_I64_lt(&_tmp_til_Str_contains_17, &_tmp_til_Str_contains_15, &_tmp_til_Str_contains_16);
+            if (_tmp_til_Str_contains_17.data) {
                 while (1) {
-                    til_I64 _tmp_til_Str_contains_19 = til_Str_len(til_Str_needle);
-                    til_Bool _tmp_til_Str_contains_20;
-                    til_I64_lt(&_tmp_til_Str_contains_20, &til_I64_needle_idx, &_tmp_til_Str_contains_19);
-                    if (!(_tmp_til_Str_contains_20.data)) break;
+                    til_I64 _tmp_til_Str_contains_18 = til_Str_len(til_Str_needle);
+                    til_Bool _tmp_til_Str_contains_19;
+                    til_I64_lt(&_tmp_til_Str_contains_19, &til_I64_needle_idx, &_tmp_til_Str_contains_18);
+                    if (!(_tmp_til_Str_contains_19.data)) break;
                     til_U8_self_byte = 0;
                     til_U8_needle_byte = 0;
-                    til_I64 _tmp_til_Str_contains_21 = (til_I64)&til_U8_self_byte;
-                    til_I64 _tmp_til_Str_contains_22 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
-                    til_Ptr _tmp_til_Str_contains_23;
-                    til_Ptr_offset(&_tmp_til_Str_contains_23, &til_Str_self->c_string, &_tmp_til_Str_contains_22);
-                    til_I64 _tmp_til_Str_contains_24 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_21, &_tmp_til_Str_contains_23.data, &_tmp_til_Str_contains_24);
-                    til_I64 _tmp_til_Str_contains_25 = (til_I64)&til_U8_needle_byte;
-                    til_Ptr _tmp_til_Str_contains_26;
-                    til_Ptr_offset(&_tmp_til_Str_contains_26, &til_Str_needle->c_string, &til_I64_needle_idx);
-                    til_I64 _tmp_til_Str_contains_27 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_25, &_tmp_til_Str_contains_26.data, &_tmp_til_Str_contains_27);
+                    til_I64 _tmp_til_Str_contains_20 = (til_I64)&til_U8_self_byte;
+                    til_I64 _tmp_til_Str_contains_21 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
+                    til_Ptr _tmp_til_Str_contains_22;
+                    til_Ptr_offset(&_tmp_til_Str_contains_22, &til_Str_self->c_string, &_tmp_til_Str_contains_21);
+                    til_I64 _tmp_til_Str_contains_23 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_20, &_tmp_til_Str_contains_22.data, &_tmp_til_Str_contains_23);
+                    til_I64 _tmp_til_Str_contains_24 = (til_I64)&til_U8_needle_byte;
+                    til_Ptr _tmp_til_Str_contains_25;
+                    til_Ptr_offset(&_tmp_til_Str_contains_25, &til_Str_needle->c_string, &til_I64_needle_idx);
+                    til_I64 _tmp_til_Str_contains_26 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_24, &_tmp_til_Str_contains_25.data, &_tmp_til_Str_contains_26);
+                    til_Bool _tmp_til_Str_contains_27;
+                    til_U8_eq(&_tmp_til_Str_contains_27, &til_U8_self_byte, &til_U8_needle_byte);
                     til_Bool _tmp_til_Str_contains_28;
-                    til_U8_eq(&_tmp_til_Str_contains_28, &til_U8_self_byte, &til_U8_needle_byte);
-                    til_Bool _tmp_til_Str_contains_29;
-                    til_not(&_tmp_til_Str_contains_29, &_tmp_til_Str_contains_28);
-                    if (_tmp_til_Str_contains_29.data) {
-                        til_Bool _tmp_til_Str_contains_30;
-                        til_Bool_clone(&_tmp_til_Str_contains_30, &false);
-                        til_Bool_matches = _tmp_til_Str_contains_30;
+                    til_not(&_tmp_til_Str_contains_28, &_tmp_til_Str_contains_27);
+                    if (_tmp_til_Str_contains_28.data) {
+                        til_Bool _tmp_til_Str_contains_29;
+                        til_Bool_clone(&_tmp_til_Str_contains_29, &false);
+                        til_Bool_matches = _tmp_til_Str_contains_29;
                     }
                     til_I64_inc(&til_I64_needle_idx);
                 }
             } else {
                 while (1) {
-                    til_I64 _tmp_til_Str_contains_31 = til_Str_len(til_Str_needle);
-                    til_Bool _tmp_til_Str_contains_32;
-                    til_I64_gt(&_tmp_til_Str_contains_32, &til_I64_needle_idx, &_tmp_til_Str_contains_31);
-                    if (!(_tmp_til_Str_contains_32.data)) break;
+                    til_I64 _tmp_til_Str_contains_30 = til_Str_len(til_Str_needle);
+                    til_Bool _tmp_til_Str_contains_31;
+                    til_I64_gt(&_tmp_til_Str_contains_31, &til_I64_needle_idx, &_tmp_til_Str_contains_30);
+                    if (!(_tmp_til_Str_contains_31.data)) break;
                     til_U8_self_byte = 0;
                     til_U8_needle_byte = 0;
-                    til_I64 _tmp_til_Str_contains_33 = (til_I64)&til_U8_self_byte;
-                    til_I64 _tmp_til_Str_contains_34 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
-                    til_Ptr _tmp_til_Str_contains_35;
-                    til_Ptr_offset(&_tmp_til_Str_contains_35, &til_Str_self->c_string, &_tmp_til_Str_contains_34);
-                    til_I64 _tmp_til_Str_contains_36 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_33, &_tmp_til_Str_contains_35.data, &_tmp_til_Str_contains_36);
-                    til_I64 _tmp_til_Str_contains_37 = (til_I64)&til_U8_needle_byte;
-                    til_Ptr _tmp_til_Str_contains_38;
-                    til_Ptr_offset(&_tmp_til_Str_contains_38, &til_Str_needle->c_string, &til_I64_needle_idx);
-                    til_I64 _tmp_til_Str_contains_39 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_37, &_tmp_til_Str_contains_38.data, &_tmp_til_Str_contains_39);
+                    til_I64 _tmp_til_Str_contains_32 = (til_I64)&til_U8_self_byte;
+                    til_I64 _tmp_til_Str_contains_33 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
+                    til_Ptr _tmp_til_Str_contains_34;
+                    til_Ptr_offset(&_tmp_til_Str_contains_34, &til_Str_self->c_string, &_tmp_til_Str_contains_33);
+                    til_I64 _tmp_til_Str_contains_35 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_32, &_tmp_til_Str_contains_34.data, &_tmp_til_Str_contains_35);
+                    til_I64 _tmp_til_Str_contains_36 = (til_I64)&til_U8_needle_byte;
+                    til_Ptr _tmp_til_Str_contains_37;
+                    til_Ptr_offset(&_tmp_til_Str_contains_37, &til_Str_needle->c_string, &til_I64_needle_idx);
+                    til_I64 _tmp_til_Str_contains_38 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_36, &_tmp_til_Str_contains_37.data, &_tmp_til_Str_contains_38);
+                    til_Bool _tmp_til_Str_contains_39;
+                    til_U8_eq(&_tmp_til_Str_contains_39, &til_U8_self_byte, &til_U8_needle_byte);
                     til_Bool _tmp_til_Str_contains_40;
-                    til_U8_eq(&_tmp_til_Str_contains_40, &til_U8_self_byte, &til_U8_needle_byte);
-                    til_Bool _tmp_til_Str_contains_41;
-                    til_not(&_tmp_til_Str_contains_41, &_tmp_til_Str_contains_40);
-                    if (_tmp_til_Str_contains_41.data) {
-                        til_Bool _tmp_til_Str_contains_42;
-                        til_Bool_clone(&_tmp_til_Str_contains_42, &false);
-                        til_Bool_matches = _tmp_til_Str_contains_42;
+                    til_not(&_tmp_til_Str_contains_40, &_tmp_til_Str_contains_39);
+                    if (_tmp_til_Str_contains_40.data) {
+                        til_Bool _tmp_til_Str_contains_41;
+                        til_Bool_clone(&_tmp_til_Str_contains_41, &false);
+                        til_Bool_matches = _tmp_til_Str_contains_41;
                     }
                     til_I64_dec(&til_I64_needle_idx);
                 }
@@ -3506,76 +3454,74 @@ void til_Str_contains(til_Bool* _ret, const til_Str* til_Str_self, const til_Str
         }
     } else {
         while (1) {
-            til_I64 _tmp_til_Str_contains_43 = 1;
-            til_I64 _tmp_til_Str_contains_44 = til_I64_add(&til_I64_max_start, &_tmp_til_Str_contains_43);
-            til_Bool _tmp_til_Str_contains_45;
-            til_I64_gt(&_tmp_til_Str_contains_45, &til_I64_start_idx, &_tmp_til_Str_contains_44);
-            if (!(_tmp_til_Str_contains_45.data)) break;
-            til_Bool _tmp_til_Str_contains_46;
-            til_Bool_clone(&_tmp_til_Str_contains_46, &true);
-            til_Bool_matches = _tmp_til_Str_contains_46;
+            til_I64 _tmp_til_Str_contains_42 = 1;
+            til_I64 _tmp_til_Str_contains_43 = til_I64_add(&til_I64_max_start, &_tmp_til_Str_contains_42);
+            til_Bool _tmp_til_Str_contains_44;
+            til_I64_gt(&_tmp_til_Str_contains_44, &til_I64_start_idx, &_tmp_til_Str_contains_43);
+            if (!(_tmp_til_Str_contains_44.data)) break;
+            til_Bool_clone(&til_Bool_matches, &true);
             til_I64_needle_idx = 0;
-            til_I64 _tmp_til_Str_contains_47 = 0;
-            til_I64 _tmp_til_Str_contains_48 = til_Str_len(til_Str_needle);
-            til_Bool _tmp_til_Str_contains_49;
-            til_I64_lt(&_tmp_til_Str_contains_49, &_tmp_til_Str_contains_47, &_tmp_til_Str_contains_48);
-            if (_tmp_til_Str_contains_49.data) {
+            til_I64 _tmp_til_Str_contains_45 = 0;
+            til_I64 _tmp_til_Str_contains_46 = til_Str_len(til_Str_needle);
+            til_Bool _tmp_til_Str_contains_47;
+            til_I64_lt(&_tmp_til_Str_contains_47, &_tmp_til_Str_contains_45, &_tmp_til_Str_contains_46);
+            if (_tmp_til_Str_contains_47.data) {
                 while (1) {
-                    til_I64 _tmp_til_Str_contains_50 = til_Str_len(til_Str_needle);
-                    til_Bool _tmp_til_Str_contains_51;
-                    til_I64_lt(&_tmp_til_Str_contains_51, &til_I64_needle_idx, &_tmp_til_Str_contains_50);
-                    if (!(_tmp_til_Str_contains_51.data)) break;
+                    til_I64 _tmp_til_Str_contains_48 = til_Str_len(til_Str_needle);
+                    til_Bool _tmp_til_Str_contains_49;
+                    til_I64_lt(&_tmp_til_Str_contains_49, &til_I64_needle_idx, &_tmp_til_Str_contains_48);
+                    if (!(_tmp_til_Str_contains_49.data)) break;
                     til_U8_self_byte = 0;
                     til_U8_needle_byte = 0;
-                    til_I64 _tmp_til_Str_contains_52 = (til_I64)&til_U8_self_byte;
-                    til_I64 _tmp_til_Str_contains_53 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
-                    til_Ptr _tmp_til_Str_contains_54;
-                    til_Ptr_offset(&_tmp_til_Str_contains_54, &til_Str_self->c_string, &_tmp_til_Str_contains_53);
-                    til_I64 _tmp_til_Str_contains_55 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_52, &_tmp_til_Str_contains_54.data, &_tmp_til_Str_contains_55);
-                    til_I64 _tmp_til_Str_contains_56 = (til_I64)&til_U8_needle_byte;
-                    til_Ptr _tmp_til_Str_contains_57;
-                    til_Ptr_offset(&_tmp_til_Str_contains_57, &til_Str_needle->c_string, &til_I64_needle_idx);
-                    til_I64 _tmp_til_Str_contains_58 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_56, &_tmp_til_Str_contains_57.data, &_tmp_til_Str_contains_58);
-                    til_Bool _tmp_til_Str_contains_59;
-                    til_U8_eq(&_tmp_til_Str_contains_59, &til_U8_self_byte, &til_U8_needle_byte);
-                    til_Bool _tmp_til_Str_contains_60;
-                    til_not(&_tmp_til_Str_contains_60, &_tmp_til_Str_contains_59);
-                    if (_tmp_til_Str_contains_60.data) {
-                        til_Bool _tmp_til_Str_contains_61;
-                        til_Bool_clone(&_tmp_til_Str_contains_61, &false);
-                        til_Bool_matches = _tmp_til_Str_contains_61;
+                    til_I64 _tmp_til_Str_contains_50 = (til_I64)&til_U8_self_byte;
+                    til_I64 _tmp_til_Str_contains_51 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
+                    til_Ptr _tmp_til_Str_contains_52;
+                    til_Ptr_offset(&_tmp_til_Str_contains_52, &til_Str_self->c_string, &_tmp_til_Str_contains_51);
+                    til_I64 _tmp_til_Str_contains_53 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_50, &_tmp_til_Str_contains_52.data, &_tmp_til_Str_contains_53);
+                    til_I64 _tmp_til_Str_contains_54 = (til_I64)&til_U8_needle_byte;
+                    til_Ptr _tmp_til_Str_contains_55;
+                    til_Ptr_offset(&_tmp_til_Str_contains_55, &til_Str_needle->c_string, &til_I64_needle_idx);
+                    til_I64 _tmp_til_Str_contains_56 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_54, &_tmp_til_Str_contains_55.data, &_tmp_til_Str_contains_56);
+                    til_Bool _tmp_til_Str_contains_57;
+                    til_U8_eq(&_tmp_til_Str_contains_57, &til_U8_self_byte, &til_U8_needle_byte);
+                    til_Bool _tmp_til_Str_contains_58;
+                    til_not(&_tmp_til_Str_contains_58, &_tmp_til_Str_contains_57);
+                    if (_tmp_til_Str_contains_58.data) {
+                        til_Bool _tmp_til_Str_contains_59;
+                        til_Bool_clone(&_tmp_til_Str_contains_59, &false);
+                        til_Bool_matches = _tmp_til_Str_contains_59;
                     }
                     til_I64_inc(&til_I64_needle_idx);
                 }
             } else {
                 while (1) {
-                    til_I64 _tmp_til_Str_contains_62 = til_Str_len(til_Str_needle);
-                    til_Bool _tmp_til_Str_contains_63;
-                    til_I64_gt(&_tmp_til_Str_contains_63, &til_I64_needle_idx, &_tmp_til_Str_contains_62);
-                    if (!(_tmp_til_Str_contains_63.data)) break;
+                    til_I64 _tmp_til_Str_contains_60 = til_Str_len(til_Str_needle);
+                    til_Bool _tmp_til_Str_contains_61;
+                    til_I64_gt(&_tmp_til_Str_contains_61, &til_I64_needle_idx, &_tmp_til_Str_contains_60);
+                    if (!(_tmp_til_Str_contains_61.data)) break;
                     til_U8_self_byte = 0;
                     til_U8_needle_byte = 0;
-                    til_I64 _tmp_til_Str_contains_64 = (til_I64)&til_U8_self_byte;
-                    til_I64 _tmp_til_Str_contains_65 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
-                    til_Ptr _tmp_til_Str_contains_66;
-                    til_Ptr_offset(&_tmp_til_Str_contains_66, &til_Str_self->c_string, &_tmp_til_Str_contains_65);
-                    til_I64 _tmp_til_Str_contains_67 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_64, &_tmp_til_Str_contains_66.data, &_tmp_til_Str_contains_67);
-                    til_I64 _tmp_til_Str_contains_68 = (til_I64)&til_U8_needle_byte;
-                    til_Ptr _tmp_til_Str_contains_69;
-                    til_Ptr_offset(&_tmp_til_Str_contains_69, &til_Str_needle->c_string, &til_I64_needle_idx);
-                    til_I64 _tmp_til_Str_contains_70 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_68, &_tmp_til_Str_contains_69.data, &_tmp_til_Str_contains_70);
-                    til_Bool _tmp_til_Str_contains_71;
-                    til_U8_eq(&_tmp_til_Str_contains_71, &til_U8_self_byte, &til_U8_needle_byte);
-                    til_Bool _tmp_til_Str_contains_72;
-                    til_not(&_tmp_til_Str_contains_72, &_tmp_til_Str_contains_71);
-                    if (_tmp_til_Str_contains_72.data) {
-                        til_Bool _tmp_til_Str_contains_73;
-                        til_Bool_clone(&_tmp_til_Str_contains_73, &false);
-                        til_Bool_matches = _tmp_til_Str_contains_73;
+                    til_I64 _tmp_til_Str_contains_62 = (til_I64)&til_U8_self_byte;
+                    til_I64 _tmp_til_Str_contains_63 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
+                    til_Ptr _tmp_til_Str_contains_64;
+                    til_Ptr_offset(&_tmp_til_Str_contains_64, &til_Str_self->c_string, &_tmp_til_Str_contains_63);
+                    til_I64 _tmp_til_Str_contains_65 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_62, &_tmp_til_Str_contains_64.data, &_tmp_til_Str_contains_65);
+                    til_I64 _tmp_til_Str_contains_66 = (til_I64)&til_U8_needle_byte;
+                    til_Ptr _tmp_til_Str_contains_67;
+                    til_Ptr_offset(&_tmp_til_Str_contains_67, &til_Str_needle->c_string, &til_I64_needle_idx);
+                    til_I64 _tmp_til_Str_contains_68 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_66, &_tmp_til_Str_contains_67.data, &_tmp_til_Str_contains_68);
+                    til_Bool _tmp_til_Str_contains_69;
+                    til_U8_eq(&_tmp_til_Str_contains_69, &til_U8_self_byte, &til_U8_needle_byte);
+                    til_Bool _tmp_til_Str_contains_70;
+                    til_not(&_tmp_til_Str_contains_70, &_tmp_til_Str_contains_69);
+                    if (_tmp_til_Str_contains_70.data) {
+                        til_Bool _tmp_til_Str_contains_71;
+                        til_Bool_clone(&_tmp_til_Str_contains_71, &false);
+                        til_Bool_matches = _tmp_til_Str_contains_71;
                     }
                     til_I64_dec(&til_I64_needle_idx);
                 }
@@ -3618,41 +3564,39 @@ til_I64 til_Str_find(const til_Str* til_Str_self, const til_Str* til_Str_needle)
         til_Bool _tmp_til_Str_find_8;
         til_I64_lteq(&_tmp_til_Str_find_8, &til_I64_start_idx, &til_I64_max_start);
         if (!(_tmp_til_Str_find_8.data)) break;
-        til_Bool _tmp_til_Str_find_9;
-        til_Bool_clone(&_tmp_til_Str_find_9, &true);
-        til_Bool_matches = _tmp_til_Str_find_9;
+        til_Bool_clone(&til_Bool_matches, &true);
         til_I64_needle_idx = 0;
         while (1) {
-            til_I64 _tmp_til_Str_find_10 = til_Str_len(til_Str_needle);
+            til_I64 _tmp_til_Str_find_9 = til_Str_len(til_Str_needle);
+            til_Bool _tmp_til_Str_find_10;
+            til_I64_lt(&_tmp_til_Str_find_10, &til_I64_needle_idx, &_tmp_til_Str_find_9);
+            if (!(_tmp_til_Str_find_10.data)) break;
             til_Bool _tmp_til_Str_find_11;
-            til_I64_lt(&_tmp_til_Str_find_11, &til_I64_needle_idx, &_tmp_til_Str_find_10);
-            if (!(_tmp_til_Str_find_11.data)) break;
-            til_Bool _tmp_til_Str_find_12;
-            til_not(&_tmp_til_Str_find_12, &til_Bool_matches);
-            if (_tmp_til_Str_find_12.data) {
+            til_not(&_tmp_til_Str_find_11, &til_Bool_matches);
+            if (_tmp_til_Str_find_11.data) {
                 til_I64_needle_idx = til_Str_len(til_Str_needle);
             } else {
                 til_U8_self_byte = 0;
                 til_U8_needle_byte = 0;
-                til_I64 _tmp_til_Str_find_13 = (til_I64)&til_U8_self_byte;
-                til_I64 _tmp_til_Str_find_14 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
-                til_Ptr _tmp_til_Str_find_15;
-                til_Ptr_offset(&_tmp_til_Str_find_15, &til_Str_self->c_string, &_tmp_til_Str_find_14);
-                til_I64 _tmp_til_Str_find_16 = 1;
-                til_memcpy(&_tmp_til_Str_find_13, &_tmp_til_Str_find_15.data, &_tmp_til_Str_find_16);
-                til_I64 _tmp_til_Str_find_17 = (til_I64)&til_U8_needle_byte;
-                til_Ptr _tmp_til_Str_find_18;
-                til_Ptr_offset(&_tmp_til_Str_find_18, &til_Str_needle->c_string, &til_I64_needle_idx);
-                til_I64 _tmp_til_Str_find_19 = 1;
-                til_memcpy(&_tmp_til_Str_find_17, &_tmp_til_Str_find_18.data, &_tmp_til_Str_find_19);
+                til_I64 _tmp_til_Str_find_12 = (til_I64)&til_U8_self_byte;
+                til_I64 _tmp_til_Str_find_13 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
+                til_Ptr _tmp_til_Str_find_14;
+                til_Ptr_offset(&_tmp_til_Str_find_14, &til_Str_self->c_string, &_tmp_til_Str_find_13);
+                til_I64 _tmp_til_Str_find_15 = 1;
+                til_memcpy(&_tmp_til_Str_find_12, &_tmp_til_Str_find_14.data, &_tmp_til_Str_find_15);
+                til_I64 _tmp_til_Str_find_16 = (til_I64)&til_U8_needle_byte;
+                til_Ptr _tmp_til_Str_find_17;
+                til_Ptr_offset(&_tmp_til_Str_find_17, &til_Str_needle->c_string, &til_I64_needle_idx);
+                til_I64 _tmp_til_Str_find_18 = 1;
+                til_memcpy(&_tmp_til_Str_find_16, &_tmp_til_Str_find_17.data, &_tmp_til_Str_find_18);
+                til_Bool _tmp_til_Str_find_19;
+                til_U8_eq(&_tmp_til_Str_find_19, &til_U8_self_byte, &til_U8_needle_byte);
                 til_Bool _tmp_til_Str_find_20;
-                til_U8_eq(&_tmp_til_Str_find_20, &til_U8_self_byte, &til_U8_needle_byte);
-                til_Bool _tmp_til_Str_find_21;
-                til_not(&_tmp_til_Str_find_21, &_tmp_til_Str_find_20);
-                if (_tmp_til_Str_find_21.data) {
-                    til_Bool _tmp_til_Str_find_22;
-                    til_Bool_clone(&_tmp_til_Str_find_22, &false);
-                    til_Bool_matches = _tmp_til_Str_find_22;
+                til_not(&_tmp_til_Str_find_20, &_tmp_til_Str_find_19);
+                if (_tmp_til_Str_find_20.data) {
+                    til_Bool _tmp_til_Str_find_21;
+                    til_Bool_clone(&_tmp_til_Str_find_21, &false);
+                    til_Bool_matches = _tmp_til_Str_find_21;
                 }
                 til_I64_inc(&til_I64_needle_idx);
             }
@@ -3702,71 +3646,69 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
             til_Bool _tmp_til_Str_rfind_14;
             til_I64_lt(&_tmp_til_Str_rfind_14, &til_I64_start_idx, &_tmp_til_Str_rfind_13);
             if (!(_tmp_til_Str_rfind_14.data)) break;
-            til_Bool _tmp_til_Str_rfind_15;
-            til_Bool_clone(&_tmp_til_Str_rfind_15, &true);
-            til_Bool_matches = _tmp_til_Str_rfind_15;
+            til_Bool_clone(&til_Bool_matches, &true);
             til_I64_needle_idx = 0;
-            til_I64 _tmp_til_Str_rfind_16 = 0;
-            til_I64 _tmp_til_Str_rfind_17 = til_Str_len(til_Str_needle);
-            til_Bool _tmp_til_Str_rfind_18;
-            til_I64_lt(&_tmp_til_Str_rfind_18, &_tmp_til_Str_rfind_16, &_tmp_til_Str_rfind_17);
-            if (_tmp_til_Str_rfind_18.data) {
+            til_I64 _tmp_til_Str_rfind_15 = 0;
+            til_I64 _tmp_til_Str_rfind_16 = til_Str_len(til_Str_needle);
+            til_Bool _tmp_til_Str_rfind_17;
+            til_I64_lt(&_tmp_til_Str_rfind_17, &_tmp_til_Str_rfind_15, &_tmp_til_Str_rfind_16);
+            if (_tmp_til_Str_rfind_17.data) {
                 while (1) {
-                    til_I64 _tmp_til_Str_rfind_19 = til_Str_len(til_Str_needle);
-                    til_Bool _tmp_til_Str_rfind_20;
-                    til_I64_lt(&_tmp_til_Str_rfind_20, &til_I64_needle_idx, &_tmp_til_Str_rfind_19);
-                    if (!(_tmp_til_Str_rfind_20.data)) break;
+                    til_I64 _tmp_til_Str_rfind_18 = til_Str_len(til_Str_needle);
+                    til_Bool _tmp_til_Str_rfind_19;
+                    til_I64_lt(&_tmp_til_Str_rfind_19, &til_I64_needle_idx, &_tmp_til_Str_rfind_18);
+                    if (!(_tmp_til_Str_rfind_19.data)) break;
                     til_U8_self_byte = 0;
                     til_U8_needle_byte = 0;
-                    til_I64 _tmp_til_Str_rfind_21 = (til_I64)&til_U8_self_byte;
-                    til_I64 _tmp_til_Str_rfind_22 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
-                    til_Ptr _tmp_til_Str_rfind_23;
-                    til_Ptr_offset(&_tmp_til_Str_rfind_23, &til_Str_self->c_string, &_tmp_til_Str_rfind_22);
-                    til_I64 _tmp_til_Str_rfind_24 = 1;
-                    til_memcpy(&_tmp_til_Str_rfind_21, &_tmp_til_Str_rfind_23.data, &_tmp_til_Str_rfind_24);
-                    til_I64 _tmp_til_Str_rfind_25 = (til_I64)&til_U8_needle_byte;
-                    til_Ptr _tmp_til_Str_rfind_26;
-                    til_Ptr_offset(&_tmp_til_Str_rfind_26, &til_Str_needle->c_string, &til_I64_needle_idx);
-                    til_I64 _tmp_til_Str_rfind_27 = 1;
-                    til_memcpy(&_tmp_til_Str_rfind_25, &_tmp_til_Str_rfind_26.data, &_tmp_til_Str_rfind_27);
+                    til_I64 _tmp_til_Str_rfind_20 = (til_I64)&til_U8_self_byte;
+                    til_I64 _tmp_til_Str_rfind_21 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
+                    til_Ptr _tmp_til_Str_rfind_22;
+                    til_Ptr_offset(&_tmp_til_Str_rfind_22, &til_Str_self->c_string, &_tmp_til_Str_rfind_21);
+                    til_I64 _tmp_til_Str_rfind_23 = 1;
+                    til_memcpy(&_tmp_til_Str_rfind_20, &_tmp_til_Str_rfind_22.data, &_tmp_til_Str_rfind_23);
+                    til_I64 _tmp_til_Str_rfind_24 = (til_I64)&til_U8_needle_byte;
+                    til_Ptr _tmp_til_Str_rfind_25;
+                    til_Ptr_offset(&_tmp_til_Str_rfind_25, &til_Str_needle->c_string, &til_I64_needle_idx);
+                    til_I64 _tmp_til_Str_rfind_26 = 1;
+                    til_memcpy(&_tmp_til_Str_rfind_24, &_tmp_til_Str_rfind_25.data, &_tmp_til_Str_rfind_26);
+                    til_Bool _tmp_til_Str_rfind_27;
+                    til_U8_eq(&_tmp_til_Str_rfind_27, &til_U8_self_byte, &til_U8_needle_byte);
                     til_Bool _tmp_til_Str_rfind_28;
-                    til_U8_eq(&_tmp_til_Str_rfind_28, &til_U8_self_byte, &til_U8_needle_byte);
-                    til_Bool _tmp_til_Str_rfind_29;
-                    til_not(&_tmp_til_Str_rfind_29, &_tmp_til_Str_rfind_28);
-                    if (_tmp_til_Str_rfind_29.data) {
-                        til_Bool _tmp_til_Str_rfind_30;
-                        til_Bool_clone(&_tmp_til_Str_rfind_30, &false);
-                        til_Bool_matches = _tmp_til_Str_rfind_30;
+                    til_not(&_tmp_til_Str_rfind_28, &_tmp_til_Str_rfind_27);
+                    if (_tmp_til_Str_rfind_28.data) {
+                        til_Bool _tmp_til_Str_rfind_29;
+                        til_Bool_clone(&_tmp_til_Str_rfind_29, &false);
+                        til_Bool_matches = _tmp_til_Str_rfind_29;
                     }
                     til_I64_inc(&til_I64_needle_idx);
                 }
             } else {
                 while (1) {
-                    til_I64 _tmp_til_Str_rfind_31 = til_Str_len(til_Str_needle);
-                    til_Bool _tmp_til_Str_rfind_32;
-                    til_I64_gt(&_tmp_til_Str_rfind_32, &til_I64_needle_idx, &_tmp_til_Str_rfind_31);
-                    if (!(_tmp_til_Str_rfind_32.data)) break;
+                    til_I64 _tmp_til_Str_rfind_30 = til_Str_len(til_Str_needle);
+                    til_Bool _tmp_til_Str_rfind_31;
+                    til_I64_gt(&_tmp_til_Str_rfind_31, &til_I64_needle_idx, &_tmp_til_Str_rfind_30);
+                    if (!(_tmp_til_Str_rfind_31.data)) break;
                     til_U8_self_byte = 0;
                     til_U8_needle_byte = 0;
-                    til_I64 _tmp_til_Str_rfind_33 = (til_I64)&til_U8_self_byte;
-                    til_I64 _tmp_til_Str_rfind_34 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
-                    til_Ptr _tmp_til_Str_rfind_35;
-                    til_Ptr_offset(&_tmp_til_Str_rfind_35, &til_Str_self->c_string, &_tmp_til_Str_rfind_34);
-                    til_I64 _tmp_til_Str_rfind_36 = 1;
-                    til_memcpy(&_tmp_til_Str_rfind_33, &_tmp_til_Str_rfind_35.data, &_tmp_til_Str_rfind_36);
-                    til_I64 _tmp_til_Str_rfind_37 = (til_I64)&til_U8_needle_byte;
-                    til_Ptr _tmp_til_Str_rfind_38;
-                    til_Ptr_offset(&_tmp_til_Str_rfind_38, &til_Str_needle->c_string, &til_I64_needle_idx);
-                    til_I64 _tmp_til_Str_rfind_39 = 1;
-                    til_memcpy(&_tmp_til_Str_rfind_37, &_tmp_til_Str_rfind_38.data, &_tmp_til_Str_rfind_39);
+                    til_I64 _tmp_til_Str_rfind_32 = (til_I64)&til_U8_self_byte;
+                    til_I64 _tmp_til_Str_rfind_33 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
+                    til_Ptr _tmp_til_Str_rfind_34;
+                    til_Ptr_offset(&_tmp_til_Str_rfind_34, &til_Str_self->c_string, &_tmp_til_Str_rfind_33);
+                    til_I64 _tmp_til_Str_rfind_35 = 1;
+                    til_memcpy(&_tmp_til_Str_rfind_32, &_tmp_til_Str_rfind_34.data, &_tmp_til_Str_rfind_35);
+                    til_I64 _tmp_til_Str_rfind_36 = (til_I64)&til_U8_needle_byte;
+                    til_Ptr _tmp_til_Str_rfind_37;
+                    til_Ptr_offset(&_tmp_til_Str_rfind_37, &til_Str_needle->c_string, &til_I64_needle_idx);
+                    til_I64 _tmp_til_Str_rfind_38 = 1;
+                    til_memcpy(&_tmp_til_Str_rfind_36, &_tmp_til_Str_rfind_37.data, &_tmp_til_Str_rfind_38);
+                    til_Bool _tmp_til_Str_rfind_39;
+                    til_U8_eq(&_tmp_til_Str_rfind_39, &til_U8_self_byte, &til_U8_needle_byte);
                     til_Bool _tmp_til_Str_rfind_40;
-                    til_U8_eq(&_tmp_til_Str_rfind_40, &til_U8_self_byte, &til_U8_needle_byte);
-                    til_Bool _tmp_til_Str_rfind_41;
-                    til_not(&_tmp_til_Str_rfind_41, &_tmp_til_Str_rfind_40);
-                    if (_tmp_til_Str_rfind_41.data) {
-                        til_Bool _tmp_til_Str_rfind_42;
-                        til_Bool_clone(&_tmp_til_Str_rfind_42, &false);
-                        til_Bool_matches = _tmp_til_Str_rfind_42;
+                    til_not(&_tmp_til_Str_rfind_40, &_tmp_til_Str_rfind_39);
+                    if (_tmp_til_Str_rfind_40.data) {
+                        til_Bool _tmp_til_Str_rfind_41;
+                        til_Bool_clone(&_tmp_til_Str_rfind_41, &false);
+                        til_Bool_matches = _tmp_til_Str_rfind_41;
                     }
                     til_I64_dec(&til_I64_needle_idx);
                 }
@@ -3778,76 +3720,74 @@ til_I64 til_Str_rfind(const til_Str* til_Str_self, const til_Str* til_Str_needle
         }
     } else {
         while (1) {
-            til_I64 _tmp_til_Str_rfind_43 = 1;
-            til_I64 _tmp_til_Str_rfind_44 = til_I64_add(&til_I64_max_start, &_tmp_til_Str_rfind_43);
-            til_Bool _tmp_til_Str_rfind_45;
-            til_I64_gt(&_tmp_til_Str_rfind_45, &til_I64_start_idx, &_tmp_til_Str_rfind_44);
-            if (!(_tmp_til_Str_rfind_45.data)) break;
-            til_Bool _tmp_til_Str_rfind_46;
-            til_Bool_clone(&_tmp_til_Str_rfind_46, &true);
-            til_Bool_matches = _tmp_til_Str_rfind_46;
+            til_I64 _tmp_til_Str_rfind_42 = 1;
+            til_I64 _tmp_til_Str_rfind_43 = til_I64_add(&til_I64_max_start, &_tmp_til_Str_rfind_42);
+            til_Bool _tmp_til_Str_rfind_44;
+            til_I64_gt(&_tmp_til_Str_rfind_44, &til_I64_start_idx, &_tmp_til_Str_rfind_43);
+            if (!(_tmp_til_Str_rfind_44.data)) break;
+            til_Bool_clone(&til_Bool_matches, &true);
             til_I64_needle_idx = 0;
-            til_I64 _tmp_til_Str_rfind_47 = 0;
-            til_I64 _tmp_til_Str_rfind_48 = til_Str_len(til_Str_needle);
-            til_Bool _tmp_til_Str_rfind_49;
-            til_I64_lt(&_tmp_til_Str_rfind_49, &_tmp_til_Str_rfind_47, &_tmp_til_Str_rfind_48);
-            if (_tmp_til_Str_rfind_49.data) {
+            til_I64 _tmp_til_Str_rfind_45 = 0;
+            til_I64 _tmp_til_Str_rfind_46 = til_Str_len(til_Str_needle);
+            til_Bool _tmp_til_Str_rfind_47;
+            til_I64_lt(&_tmp_til_Str_rfind_47, &_tmp_til_Str_rfind_45, &_tmp_til_Str_rfind_46);
+            if (_tmp_til_Str_rfind_47.data) {
                 while (1) {
-                    til_I64 _tmp_til_Str_rfind_50 = til_Str_len(til_Str_needle);
-                    til_Bool _tmp_til_Str_rfind_51;
-                    til_I64_lt(&_tmp_til_Str_rfind_51, &til_I64_needle_idx, &_tmp_til_Str_rfind_50);
-                    if (!(_tmp_til_Str_rfind_51.data)) break;
+                    til_I64 _tmp_til_Str_rfind_48 = til_Str_len(til_Str_needle);
+                    til_Bool _tmp_til_Str_rfind_49;
+                    til_I64_lt(&_tmp_til_Str_rfind_49, &til_I64_needle_idx, &_tmp_til_Str_rfind_48);
+                    if (!(_tmp_til_Str_rfind_49.data)) break;
                     til_U8_self_byte = 0;
                     til_U8_needle_byte = 0;
-                    til_I64 _tmp_til_Str_rfind_52 = (til_I64)&til_U8_self_byte;
-                    til_I64 _tmp_til_Str_rfind_53 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
-                    til_Ptr _tmp_til_Str_rfind_54;
-                    til_Ptr_offset(&_tmp_til_Str_rfind_54, &til_Str_self->c_string, &_tmp_til_Str_rfind_53);
-                    til_I64 _tmp_til_Str_rfind_55 = 1;
-                    til_memcpy(&_tmp_til_Str_rfind_52, &_tmp_til_Str_rfind_54.data, &_tmp_til_Str_rfind_55);
-                    til_I64 _tmp_til_Str_rfind_56 = (til_I64)&til_U8_needle_byte;
-                    til_Ptr _tmp_til_Str_rfind_57;
-                    til_Ptr_offset(&_tmp_til_Str_rfind_57, &til_Str_needle->c_string, &til_I64_needle_idx);
-                    til_I64 _tmp_til_Str_rfind_58 = 1;
-                    til_memcpy(&_tmp_til_Str_rfind_56, &_tmp_til_Str_rfind_57.data, &_tmp_til_Str_rfind_58);
-                    til_Bool _tmp_til_Str_rfind_59;
-                    til_U8_eq(&_tmp_til_Str_rfind_59, &til_U8_self_byte, &til_U8_needle_byte);
-                    til_Bool _tmp_til_Str_rfind_60;
-                    til_not(&_tmp_til_Str_rfind_60, &_tmp_til_Str_rfind_59);
-                    if (_tmp_til_Str_rfind_60.data) {
-                        til_Bool _tmp_til_Str_rfind_61;
-                        til_Bool_clone(&_tmp_til_Str_rfind_61, &false);
-                        til_Bool_matches = _tmp_til_Str_rfind_61;
+                    til_I64 _tmp_til_Str_rfind_50 = (til_I64)&til_U8_self_byte;
+                    til_I64 _tmp_til_Str_rfind_51 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
+                    til_Ptr _tmp_til_Str_rfind_52;
+                    til_Ptr_offset(&_tmp_til_Str_rfind_52, &til_Str_self->c_string, &_tmp_til_Str_rfind_51);
+                    til_I64 _tmp_til_Str_rfind_53 = 1;
+                    til_memcpy(&_tmp_til_Str_rfind_50, &_tmp_til_Str_rfind_52.data, &_tmp_til_Str_rfind_53);
+                    til_I64 _tmp_til_Str_rfind_54 = (til_I64)&til_U8_needle_byte;
+                    til_Ptr _tmp_til_Str_rfind_55;
+                    til_Ptr_offset(&_tmp_til_Str_rfind_55, &til_Str_needle->c_string, &til_I64_needle_idx);
+                    til_I64 _tmp_til_Str_rfind_56 = 1;
+                    til_memcpy(&_tmp_til_Str_rfind_54, &_tmp_til_Str_rfind_55.data, &_tmp_til_Str_rfind_56);
+                    til_Bool _tmp_til_Str_rfind_57;
+                    til_U8_eq(&_tmp_til_Str_rfind_57, &til_U8_self_byte, &til_U8_needle_byte);
+                    til_Bool _tmp_til_Str_rfind_58;
+                    til_not(&_tmp_til_Str_rfind_58, &_tmp_til_Str_rfind_57);
+                    if (_tmp_til_Str_rfind_58.data) {
+                        til_Bool _tmp_til_Str_rfind_59;
+                        til_Bool_clone(&_tmp_til_Str_rfind_59, &false);
+                        til_Bool_matches = _tmp_til_Str_rfind_59;
                     }
                     til_I64_inc(&til_I64_needle_idx);
                 }
             } else {
                 while (1) {
-                    til_I64 _tmp_til_Str_rfind_62 = til_Str_len(til_Str_needle);
-                    til_Bool _tmp_til_Str_rfind_63;
-                    til_I64_gt(&_tmp_til_Str_rfind_63, &til_I64_needle_idx, &_tmp_til_Str_rfind_62);
-                    if (!(_tmp_til_Str_rfind_63.data)) break;
+                    til_I64 _tmp_til_Str_rfind_60 = til_Str_len(til_Str_needle);
+                    til_Bool _tmp_til_Str_rfind_61;
+                    til_I64_gt(&_tmp_til_Str_rfind_61, &til_I64_needle_idx, &_tmp_til_Str_rfind_60);
+                    if (!(_tmp_til_Str_rfind_61.data)) break;
                     til_U8_self_byte = 0;
                     til_U8_needle_byte = 0;
-                    til_I64 _tmp_til_Str_rfind_64 = (til_I64)&til_U8_self_byte;
-                    til_I64 _tmp_til_Str_rfind_65 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
-                    til_Ptr _tmp_til_Str_rfind_66;
-                    til_Ptr_offset(&_tmp_til_Str_rfind_66, &til_Str_self->c_string, &_tmp_til_Str_rfind_65);
-                    til_I64 _tmp_til_Str_rfind_67 = 1;
-                    til_memcpy(&_tmp_til_Str_rfind_64, &_tmp_til_Str_rfind_66.data, &_tmp_til_Str_rfind_67);
-                    til_I64 _tmp_til_Str_rfind_68 = (til_I64)&til_U8_needle_byte;
-                    til_Ptr _tmp_til_Str_rfind_69;
-                    til_Ptr_offset(&_tmp_til_Str_rfind_69, &til_Str_needle->c_string, &til_I64_needle_idx);
-                    til_I64 _tmp_til_Str_rfind_70 = 1;
-                    til_memcpy(&_tmp_til_Str_rfind_68, &_tmp_til_Str_rfind_69.data, &_tmp_til_Str_rfind_70);
-                    til_Bool _tmp_til_Str_rfind_71;
-                    til_U8_eq(&_tmp_til_Str_rfind_71, &til_U8_self_byte, &til_U8_needle_byte);
-                    til_Bool _tmp_til_Str_rfind_72;
-                    til_not(&_tmp_til_Str_rfind_72, &_tmp_til_Str_rfind_71);
-                    if (_tmp_til_Str_rfind_72.data) {
-                        til_Bool _tmp_til_Str_rfind_73;
-                        til_Bool_clone(&_tmp_til_Str_rfind_73, &false);
-                        til_Bool_matches = _tmp_til_Str_rfind_73;
+                    til_I64 _tmp_til_Str_rfind_62 = (til_I64)&til_U8_self_byte;
+                    til_I64 _tmp_til_Str_rfind_63 = til_I64_add(&til_I64_start_idx, &til_I64_needle_idx);
+                    til_Ptr _tmp_til_Str_rfind_64;
+                    til_Ptr_offset(&_tmp_til_Str_rfind_64, &til_Str_self->c_string, &_tmp_til_Str_rfind_63);
+                    til_I64 _tmp_til_Str_rfind_65 = 1;
+                    til_memcpy(&_tmp_til_Str_rfind_62, &_tmp_til_Str_rfind_64.data, &_tmp_til_Str_rfind_65);
+                    til_I64 _tmp_til_Str_rfind_66 = (til_I64)&til_U8_needle_byte;
+                    til_Ptr _tmp_til_Str_rfind_67;
+                    til_Ptr_offset(&_tmp_til_Str_rfind_67, &til_Str_needle->c_string, &til_I64_needle_idx);
+                    til_I64 _tmp_til_Str_rfind_68 = 1;
+                    til_memcpy(&_tmp_til_Str_rfind_66, &_tmp_til_Str_rfind_67.data, &_tmp_til_Str_rfind_68);
+                    til_Bool _tmp_til_Str_rfind_69;
+                    til_U8_eq(&_tmp_til_Str_rfind_69, &til_U8_self_byte, &til_U8_needle_byte);
+                    til_Bool _tmp_til_Str_rfind_70;
+                    til_not(&_tmp_til_Str_rfind_70, &_tmp_til_Str_rfind_69);
+                    if (_tmp_til_Str_rfind_70.data) {
+                        til_Bool _tmp_til_Str_rfind_71;
+                        til_Bool_clone(&_tmp_til_Str_rfind_71, &false);
+                        til_Bool_matches = _tmp_til_Str_rfind_71;
                     }
                     til_I64_dec(&til_I64_needle_idx);
                 }
@@ -3887,107 +3827,105 @@ void til_Str_replace(til_Str* _ret, const til_Str* til_Str_self, const til_Str* 
         til_Bool _tmp_til_Str_replace_7;
         til_I64_lteq(&_tmp_til_Str_replace_7, &til_I64_search_start, &_tmp_til_Str_replace_6);
         if (!(_tmp_til_Str_replace_7.data)) break;
-        til_Bool _tmp_til_Str_replace_8;
-        til_Bool_clone(&_tmp_til_Str_replace_8, &true);
-        til_Bool_matches = _tmp_til_Str_replace_8;
+        til_Bool_clone(&til_Bool_matches, &true);
         til_I64_i = 0;
-        til_I64 _tmp_til_Str_replace_9 = 0;
-        til_I64 _tmp_til_Str_replace_10 = til_Str_len(til_Str_from);
-        til_Bool _tmp_til_Str_replace_11;
-        til_I64_lt(&_tmp_til_Str_replace_11, &_tmp_til_Str_replace_9, &_tmp_til_Str_replace_10);
-        if (_tmp_til_Str_replace_11.data) {
+        til_I64 _tmp_til_Str_replace_8 = 0;
+        til_I64 _tmp_til_Str_replace_9 = til_Str_len(til_Str_from);
+        til_Bool _tmp_til_Str_replace_10;
+        til_I64_lt(&_tmp_til_Str_replace_10, &_tmp_til_Str_replace_8, &_tmp_til_Str_replace_9);
+        if (_tmp_til_Str_replace_10.data) {
             while (1) {
-                til_I64 _tmp_til_Str_replace_12 = til_Str_len(til_Str_from);
-                til_Bool _tmp_til_Str_replace_13;
-                til_I64_lt(&_tmp_til_Str_replace_13, &til_I64_i, &_tmp_til_Str_replace_12);
-                if (!(_tmp_til_Str_replace_13.data)) break;
+                til_I64 _tmp_til_Str_replace_11 = til_Str_len(til_Str_from);
+                til_Bool _tmp_til_Str_replace_12;
+                til_I64_lt(&_tmp_til_Str_replace_12, &til_I64_i, &_tmp_til_Str_replace_11);
+                if (!(_tmp_til_Str_replace_12.data)) break;
                 til_U8_self_byte = 0;
                 til_U8_from_byte = 0;
-                til_I64 _tmp_til_Str_replace_14 = (til_I64)&til_U8_self_byte;
-                til_I64 _tmp_til_Str_replace_15 = til_I64_add(&til_I64_search_start, &til_I64_i);
-                til_Ptr _tmp_til_Str_replace_16;
-                til_Ptr_offset(&_tmp_til_Str_replace_16, &til_Str_self->c_string, &_tmp_til_Str_replace_15);
-                til_I64 _tmp_til_Str_replace_17 = 1;
-                til_memcpy(&_tmp_til_Str_replace_14, &_tmp_til_Str_replace_16.data, &_tmp_til_Str_replace_17);
-                til_I64 _tmp_til_Str_replace_18 = (til_I64)&til_U8_from_byte;
-                til_Ptr _tmp_til_Str_replace_19;
-                til_Ptr_offset(&_tmp_til_Str_replace_19, &til_Str_from->c_string, &til_I64_i);
-                til_I64 _tmp_til_Str_replace_20 = 1;
-                til_memcpy(&_tmp_til_Str_replace_18, &_tmp_til_Str_replace_19.data, &_tmp_til_Str_replace_20);
+                til_I64 _tmp_til_Str_replace_13 = (til_I64)&til_U8_self_byte;
+                til_I64 _tmp_til_Str_replace_14 = til_I64_add(&til_I64_search_start, &til_I64_i);
+                til_Ptr _tmp_til_Str_replace_15;
+                til_Ptr_offset(&_tmp_til_Str_replace_15, &til_Str_self->c_string, &_tmp_til_Str_replace_14);
+                til_I64 _tmp_til_Str_replace_16 = 1;
+                til_memcpy(&_tmp_til_Str_replace_13, &_tmp_til_Str_replace_15.data, &_tmp_til_Str_replace_16);
+                til_I64 _tmp_til_Str_replace_17 = (til_I64)&til_U8_from_byte;
+                til_Ptr _tmp_til_Str_replace_18;
+                til_Ptr_offset(&_tmp_til_Str_replace_18, &til_Str_from->c_string, &til_I64_i);
+                til_I64 _tmp_til_Str_replace_19 = 1;
+                til_memcpy(&_tmp_til_Str_replace_17, &_tmp_til_Str_replace_18.data, &_tmp_til_Str_replace_19);
+                til_Bool _tmp_til_Str_replace_20;
+                til_U8_eq(&_tmp_til_Str_replace_20, &til_U8_self_byte, &til_U8_from_byte);
                 til_Bool _tmp_til_Str_replace_21;
-                til_U8_eq(&_tmp_til_Str_replace_21, &til_U8_self_byte, &til_U8_from_byte);
-                til_Bool _tmp_til_Str_replace_22;
-                til_not(&_tmp_til_Str_replace_22, &_tmp_til_Str_replace_21);
-                if (_tmp_til_Str_replace_22.data) {
-                    til_Bool _tmp_til_Str_replace_23;
-                    til_Bool_clone(&_tmp_til_Str_replace_23, &false);
-                    til_Bool_matches = _tmp_til_Str_replace_23;
+                til_not(&_tmp_til_Str_replace_21, &_tmp_til_Str_replace_20);
+                if (_tmp_til_Str_replace_21.data) {
+                    til_Bool _tmp_til_Str_replace_22;
+                    til_Bool_clone(&_tmp_til_Str_replace_22, &false);
+                    til_Bool_matches = _tmp_til_Str_replace_22;
                 }
                 til_I64_inc(&til_I64_i);
             }
         } else {
             while (1) {
-                til_I64 _tmp_til_Str_replace_24 = til_Str_len(til_Str_from);
-                til_Bool _tmp_til_Str_replace_25;
-                til_I64_gt(&_tmp_til_Str_replace_25, &til_I64_i, &_tmp_til_Str_replace_24);
-                if (!(_tmp_til_Str_replace_25.data)) break;
+                til_I64 _tmp_til_Str_replace_23 = til_Str_len(til_Str_from);
+                til_Bool _tmp_til_Str_replace_24;
+                til_I64_gt(&_tmp_til_Str_replace_24, &til_I64_i, &_tmp_til_Str_replace_23);
+                if (!(_tmp_til_Str_replace_24.data)) break;
                 til_U8_self_byte = 0;
                 til_U8_from_byte = 0;
-                til_I64 _tmp_til_Str_replace_26 = (til_I64)&til_U8_self_byte;
-                til_I64 _tmp_til_Str_replace_27 = til_I64_add(&til_I64_search_start, &til_I64_i);
-                til_Ptr _tmp_til_Str_replace_28;
-                til_Ptr_offset(&_tmp_til_Str_replace_28, &til_Str_self->c_string, &_tmp_til_Str_replace_27);
-                til_I64 _tmp_til_Str_replace_29 = 1;
-                til_memcpy(&_tmp_til_Str_replace_26, &_tmp_til_Str_replace_28.data, &_tmp_til_Str_replace_29);
-                til_I64 _tmp_til_Str_replace_30 = (til_I64)&til_U8_from_byte;
-                til_Ptr _tmp_til_Str_replace_31;
-                til_Ptr_offset(&_tmp_til_Str_replace_31, &til_Str_from->c_string, &til_I64_i);
-                til_I64 _tmp_til_Str_replace_32 = 1;
-                til_memcpy(&_tmp_til_Str_replace_30, &_tmp_til_Str_replace_31.data, &_tmp_til_Str_replace_32);
+                til_I64 _tmp_til_Str_replace_25 = (til_I64)&til_U8_self_byte;
+                til_I64 _tmp_til_Str_replace_26 = til_I64_add(&til_I64_search_start, &til_I64_i);
+                til_Ptr _tmp_til_Str_replace_27;
+                til_Ptr_offset(&_tmp_til_Str_replace_27, &til_Str_self->c_string, &_tmp_til_Str_replace_26);
+                til_I64 _tmp_til_Str_replace_28 = 1;
+                til_memcpy(&_tmp_til_Str_replace_25, &_tmp_til_Str_replace_27.data, &_tmp_til_Str_replace_28);
+                til_I64 _tmp_til_Str_replace_29 = (til_I64)&til_U8_from_byte;
+                til_Ptr _tmp_til_Str_replace_30;
+                til_Ptr_offset(&_tmp_til_Str_replace_30, &til_Str_from->c_string, &til_I64_i);
+                til_I64 _tmp_til_Str_replace_31 = 1;
+                til_memcpy(&_tmp_til_Str_replace_29, &_tmp_til_Str_replace_30.data, &_tmp_til_Str_replace_31);
+                til_Bool _tmp_til_Str_replace_32;
+                til_U8_eq(&_tmp_til_Str_replace_32, &til_U8_self_byte, &til_U8_from_byte);
                 til_Bool _tmp_til_Str_replace_33;
-                til_U8_eq(&_tmp_til_Str_replace_33, &til_U8_self_byte, &til_U8_from_byte);
-                til_Bool _tmp_til_Str_replace_34;
-                til_not(&_tmp_til_Str_replace_34, &_tmp_til_Str_replace_33);
-                if (_tmp_til_Str_replace_34.data) {
-                    til_Bool _tmp_til_Str_replace_35;
-                    til_Bool_clone(&_tmp_til_Str_replace_35, &false);
-                    til_Bool_matches = _tmp_til_Str_replace_35;
+                til_not(&_tmp_til_Str_replace_33, &_tmp_til_Str_replace_32);
+                if (_tmp_til_Str_replace_33.data) {
+                    til_Bool _tmp_til_Str_replace_34;
+                    til_Bool_clone(&_tmp_til_Str_replace_34, &false);
+                    til_Bool_matches = _tmp_til_Str_replace_34;
                 }
                 til_I64_dec(&til_I64_i);
             }
         }
         if (til_Bool_matches.data) {
             til_I64_inc(&til_I64_count);
-            til_I64 _tmp_til_Str_replace_36 = til_Str_len(til_Str_from);
-            til_I64_search_start = til_I64_add(&til_I64_search_start, &_tmp_til_Str_replace_36);
+            til_I64 _tmp_til_Str_replace_35 = til_Str_len(til_Str_from);
+            til_I64_search_start = til_I64_add(&til_I64_search_start, &_tmp_til_Str_replace_35);
         } else {
             til_I64_inc(&til_I64_search_start);
         }
     }
-    til_I64 _tmp_til_Str_replace_37 = 0;
-    til_Bool _tmp_til_Str_replace_38;
-    til_I64_eq(&_tmp_til_Str_replace_38, &til_I64_count, &_tmp_til_Str_replace_37);
-    if (_tmp_til_Str_replace_38.data) {
-        til_Str _tmp_til_Str_replace_39;
-        til_Str_clone(&_tmp_til_Str_replace_39, til_Str_self);
-        *_ret = _tmp_til_Str_replace_39;
+    til_I64 _tmp_til_Str_replace_36 = 0;
+    til_Bool _tmp_til_Str_replace_37;
+    til_I64_eq(&_tmp_til_Str_replace_37, &til_I64_count, &_tmp_til_Str_replace_36);
+    if (_tmp_til_Str_replace_37.data) {
+        til_Str _tmp_til_Str_replace_38;
+        til_Str_clone(&_tmp_til_Str_replace_38, til_Str_self);
+        *_ret = _tmp_til_Str_replace_38;
         return;
     }
-    til_I64 _tmp_til_Str_replace_40 = til_Str_len(til_Str_self);
-    til_I64 _tmp_til_Str_replace_41 = til_Str_len(til_Str_from);
-    til_I64 _tmp_til_Str_replace_42 = til_I64_mul(&til_I64_count, &_tmp_til_Str_replace_41);
-    til_I64 _tmp_til_Str_replace_43 = til_I64_sub(&_tmp_til_Str_replace_40, &_tmp_til_Str_replace_42);
-    til_I64 _tmp_til_Str_replace_44 = til_Str_len(til_Str_to);
-    til_I64 _tmp_til_Str_replace_45 = til_I64_mul(&til_I64_count, &_tmp_til_Str_replace_44);
-    til_I64 til_I64_new_len = til_I64_add(&_tmp_til_Str_replace_43, &_tmp_til_Str_replace_45);
-    til_Ptr _tmp_til_Str_replace_46 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
-    til_Str til_Str_result = {.c_string = _tmp_til_Str_replace_46, ._len = 0, .cap = 0};
+    til_I64 _tmp_til_Str_replace_39 = til_Str_len(til_Str_self);
+    til_I64 _tmp_til_Str_replace_40 = til_Str_len(til_Str_from);
+    til_I64 _tmp_til_Str_replace_41 = til_I64_mul(&til_I64_count, &_tmp_til_Str_replace_40);
+    til_I64 _tmp_til_Str_replace_42 = til_I64_sub(&_tmp_til_Str_replace_39, &_tmp_til_Str_replace_41);
+    til_I64 _tmp_til_Str_replace_43 = til_Str_len(til_Str_to);
+    til_I64 _tmp_til_Str_replace_44 = til_I64_mul(&til_I64_count, &_tmp_til_Str_replace_43);
+    til_I64 til_I64_new_len = til_I64_add(&_tmp_til_Str_replace_42, &_tmp_til_Str_replace_44);
+    til_Ptr _tmp_til_Str_replace_45 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
+    til_Str til_Str_result = {.c_string = _tmp_til_Str_replace_45, ._len = 0, .cap = 0};
     til_Str_result._len = til_I64_new_len;
-    til_I64 _tmp_til_Str_replace_47 = 1;
-    til_Str_result.cap = til_I64_add(&til_I64_new_len, &_tmp_til_Str_replace_47);
-    til_Ptr _tmp_til_Str_replace_48;
-    til_Ptr_new_by_size(&_tmp_til_Str_replace_48, &til_Str_result.cap);
-    til_Str_result.c_string = _tmp_til_Str_replace_48;
+    til_I64 _tmp_til_Str_replace_46 = 1;
+    til_Str_result.cap = til_I64_add(&til_I64_new_len, &_tmp_til_Str_replace_46);
+    til_Ptr _tmp_til_Str_replace_47;
+    til_Ptr_new_by_size(&_tmp_til_Str_replace_47, &til_Str_result.cap);
+    til_Str_result.c_string = _tmp_til_Str_replace_47;
     til_Str_result.c_string.is_borrowed = 0;
     til_I64 til_I64_src_idx = 0;
     til_I64 til_I64_dst_idx = 0;
@@ -3996,115 +3934,113 @@ void til_Str_replace(til_Str* _ret, const til_Str* til_Str_self, const til_Str* 
     til_U8 til_U8_src_byte;
     til_U8 til_U8_pattern_byte;
     while (1) {
-        til_I64 _tmp_til_Str_replace_49 = til_Str_len(til_Str_self);
-        til_Bool _tmp_til_Str_replace_50;
-        til_I64_lt(&_tmp_til_Str_replace_50, &til_I64_src_idx, &_tmp_til_Str_replace_49);
-        if (!(_tmp_til_Str_replace_50.data)) break;
-        til_Bool _tmp_til_Str_replace_51;
-        til_Bool_clone(&_tmp_til_Str_replace_51, &true);
-        til_Bool_found_match = _tmp_til_Str_replace_51;
-        til_I64 _tmp_til_Str_replace_52 = til_Str_len(til_Str_self);
-        til_I64 _tmp_til_Str_replace_53 = til_Str_len(til_Str_from);
-        til_I64 _tmp_til_Str_replace_54 = til_I64_sub(&_tmp_til_Str_replace_52, &_tmp_til_Str_replace_53);
-        til_Bool _tmp_til_Str_replace_55;
-        til_I64_lteq(&_tmp_til_Str_replace_55, &til_I64_src_idx, &_tmp_til_Str_replace_54);
-        if (_tmp_til_Str_replace_55.data) {
+        til_I64 _tmp_til_Str_replace_48 = til_Str_len(til_Str_self);
+        til_Bool _tmp_til_Str_replace_49;
+        til_I64_lt(&_tmp_til_Str_replace_49, &til_I64_src_idx, &_tmp_til_Str_replace_48);
+        if (!(_tmp_til_Str_replace_49.data)) break;
+        til_Bool_clone(&til_Bool_found_match, &true);
+        til_I64 _tmp_til_Str_replace_50 = til_Str_len(til_Str_self);
+        til_I64 _tmp_til_Str_replace_51 = til_Str_len(til_Str_from);
+        til_I64 _tmp_til_Str_replace_52 = til_I64_sub(&_tmp_til_Str_replace_50, &_tmp_til_Str_replace_51);
+        til_Bool _tmp_til_Str_replace_53;
+        til_I64_lteq(&_tmp_til_Str_replace_53, &til_I64_src_idx, &_tmp_til_Str_replace_52);
+        if (_tmp_til_Str_replace_53.data) {
             til_I64_j = 0;
-            til_I64 _tmp_til_Str_replace_56 = 0;
-            til_I64 _tmp_til_Str_replace_57 = til_Str_len(til_Str_from);
-            til_Bool _tmp_til_Str_replace_58;
-            til_I64_lt(&_tmp_til_Str_replace_58, &_tmp_til_Str_replace_56, &_tmp_til_Str_replace_57);
-            if (_tmp_til_Str_replace_58.data) {
+            til_I64 _tmp_til_Str_replace_54 = 0;
+            til_I64 _tmp_til_Str_replace_55 = til_Str_len(til_Str_from);
+            til_Bool _tmp_til_Str_replace_56;
+            til_I64_lt(&_tmp_til_Str_replace_56, &_tmp_til_Str_replace_54, &_tmp_til_Str_replace_55);
+            if (_tmp_til_Str_replace_56.data) {
                 while (1) {
-                    til_I64 _tmp_til_Str_replace_59 = til_Str_len(til_Str_from);
-                    til_Bool _tmp_til_Str_replace_60;
-                    til_I64_lt(&_tmp_til_Str_replace_60, &til_I64_j, &_tmp_til_Str_replace_59);
-                    if (!(_tmp_til_Str_replace_60.data)) break;
+                    til_I64 _tmp_til_Str_replace_57 = til_Str_len(til_Str_from);
+                    til_Bool _tmp_til_Str_replace_58;
+                    til_I64_lt(&_tmp_til_Str_replace_58, &til_I64_j, &_tmp_til_Str_replace_57);
+                    if (!(_tmp_til_Str_replace_58.data)) break;
                     til_U8_src_byte = 0;
                     til_U8_pattern_byte = 0;
-                    til_I64 _tmp_til_Str_replace_61 = (til_I64)&til_U8_src_byte;
-                    til_I64 _tmp_til_Str_replace_62 = til_I64_add(&til_I64_src_idx, &til_I64_j);
-                    til_Ptr _tmp_til_Str_replace_63;
-                    til_Ptr_offset(&_tmp_til_Str_replace_63, &til_Str_self->c_string, &_tmp_til_Str_replace_62);
-                    til_I64 _tmp_til_Str_replace_64 = 1;
-                    til_memcpy(&_tmp_til_Str_replace_61, &_tmp_til_Str_replace_63.data, &_tmp_til_Str_replace_64);
-                    til_I64 _tmp_til_Str_replace_65 = (til_I64)&til_U8_pattern_byte;
-                    til_Ptr _tmp_til_Str_replace_66;
-                    til_Ptr_offset(&_tmp_til_Str_replace_66, &til_Str_from->c_string, &til_I64_j);
-                    til_I64 _tmp_til_Str_replace_67 = 1;
-                    til_memcpy(&_tmp_til_Str_replace_65, &_tmp_til_Str_replace_66.data, &_tmp_til_Str_replace_67);
-                    til_Bool _tmp_til_Str_replace_68;
-                    til_U8_eq(&_tmp_til_Str_replace_68, &til_U8_src_byte, &til_U8_pattern_byte);
-                    til_Bool _tmp_til_Str_replace_69;
-                    til_not(&_tmp_til_Str_replace_69, &_tmp_til_Str_replace_68);
-                    if (_tmp_til_Str_replace_69.data) {
-                        til_Bool _tmp_til_Str_replace_70;
-                        til_Bool_clone(&_tmp_til_Str_replace_70, &false);
-                        til_Bool_found_match = _tmp_til_Str_replace_70;
+                    til_I64 _tmp_til_Str_replace_59 = (til_I64)&til_U8_src_byte;
+                    til_I64 _tmp_til_Str_replace_60 = til_I64_add(&til_I64_src_idx, &til_I64_j);
+                    til_Ptr _tmp_til_Str_replace_61;
+                    til_Ptr_offset(&_tmp_til_Str_replace_61, &til_Str_self->c_string, &_tmp_til_Str_replace_60);
+                    til_I64 _tmp_til_Str_replace_62 = 1;
+                    til_memcpy(&_tmp_til_Str_replace_59, &_tmp_til_Str_replace_61.data, &_tmp_til_Str_replace_62);
+                    til_I64 _tmp_til_Str_replace_63 = (til_I64)&til_U8_pattern_byte;
+                    til_Ptr _tmp_til_Str_replace_64;
+                    til_Ptr_offset(&_tmp_til_Str_replace_64, &til_Str_from->c_string, &til_I64_j);
+                    til_I64 _tmp_til_Str_replace_65 = 1;
+                    til_memcpy(&_tmp_til_Str_replace_63, &_tmp_til_Str_replace_64.data, &_tmp_til_Str_replace_65);
+                    til_Bool _tmp_til_Str_replace_66;
+                    til_U8_eq(&_tmp_til_Str_replace_66, &til_U8_src_byte, &til_U8_pattern_byte);
+                    til_Bool _tmp_til_Str_replace_67;
+                    til_not(&_tmp_til_Str_replace_67, &_tmp_til_Str_replace_66);
+                    if (_tmp_til_Str_replace_67.data) {
+                        til_Bool _tmp_til_Str_replace_68;
+                        til_Bool_clone(&_tmp_til_Str_replace_68, &false);
+                        til_Bool_found_match = _tmp_til_Str_replace_68;
                     }
                     til_I64_inc(&til_I64_j);
                 }
             } else {
                 while (1) {
-                    til_I64 _tmp_til_Str_replace_71 = til_Str_len(til_Str_from);
-                    til_Bool _tmp_til_Str_replace_72;
-                    til_I64_gt(&_tmp_til_Str_replace_72, &til_I64_j, &_tmp_til_Str_replace_71);
-                    if (!(_tmp_til_Str_replace_72.data)) break;
+                    til_I64 _tmp_til_Str_replace_69 = til_Str_len(til_Str_from);
+                    til_Bool _tmp_til_Str_replace_70;
+                    til_I64_gt(&_tmp_til_Str_replace_70, &til_I64_j, &_tmp_til_Str_replace_69);
+                    if (!(_tmp_til_Str_replace_70.data)) break;
                     til_U8_src_byte = 0;
                     til_U8_pattern_byte = 0;
-                    til_I64 _tmp_til_Str_replace_73 = (til_I64)&til_U8_src_byte;
-                    til_I64 _tmp_til_Str_replace_74 = til_I64_add(&til_I64_src_idx, &til_I64_j);
-                    til_Ptr _tmp_til_Str_replace_75;
-                    til_Ptr_offset(&_tmp_til_Str_replace_75, &til_Str_self->c_string, &_tmp_til_Str_replace_74);
-                    til_I64 _tmp_til_Str_replace_76 = 1;
-                    til_memcpy(&_tmp_til_Str_replace_73, &_tmp_til_Str_replace_75.data, &_tmp_til_Str_replace_76);
-                    til_I64 _tmp_til_Str_replace_77 = (til_I64)&til_U8_pattern_byte;
-                    til_Ptr _tmp_til_Str_replace_78;
-                    til_Ptr_offset(&_tmp_til_Str_replace_78, &til_Str_from->c_string, &til_I64_j);
-                    til_I64 _tmp_til_Str_replace_79 = 1;
-                    til_memcpy(&_tmp_til_Str_replace_77, &_tmp_til_Str_replace_78.data, &_tmp_til_Str_replace_79);
-                    til_Bool _tmp_til_Str_replace_80;
-                    til_U8_eq(&_tmp_til_Str_replace_80, &til_U8_src_byte, &til_U8_pattern_byte);
-                    til_Bool _tmp_til_Str_replace_81;
-                    til_not(&_tmp_til_Str_replace_81, &_tmp_til_Str_replace_80);
-                    if (_tmp_til_Str_replace_81.data) {
-                        til_Bool _tmp_til_Str_replace_82;
-                        til_Bool_clone(&_tmp_til_Str_replace_82, &false);
-                        til_Bool_found_match = _tmp_til_Str_replace_82;
+                    til_I64 _tmp_til_Str_replace_71 = (til_I64)&til_U8_src_byte;
+                    til_I64 _tmp_til_Str_replace_72 = til_I64_add(&til_I64_src_idx, &til_I64_j);
+                    til_Ptr _tmp_til_Str_replace_73;
+                    til_Ptr_offset(&_tmp_til_Str_replace_73, &til_Str_self->c_string, &_tmp_til_Str_replace_72);
+                    til_I64 _tmp_til_Str_replace_74 = 1;
+                    til_memcpy(&_tmp_til_Str_replace_71, &_tmp_til_Str_replace_73.data, &_tmp_til_Str_replace_74);
+                    til_I64 _tmp_til_Str_replace_75 = (til_I64)&til_U8_pattern_byte;
+                    til_Ptr _tmp_til_Str_replace_76;
+                    til_Ptr_offset(&_tmp_til_Str_replace_76, &til_Str_from->c_string, &til_I64_j);
+                    til_I64 _tmp_til_Str_replace_77 = 1;
+                    til_memcpy(&_tmp_til_Str_replace_75, &_tmp_til_Str_replace_76.data, &_tmp_til_Str_replace_77);
+                    til_Bool _tmp_til_Str_replace_78;
+                    til_U8_eq(&_tmp_til_Str_replace_78, &til_U8_src_byte, &til_U8_pattern_byte);
+                    til_Bool _tmp_til_Str_replace_79;
+                    til_not(&_tmp_til_Str_replace_79, &_tmp_til_Str_replace_78);
+                    if (_tmp_til_Str_replace_79.data) {
+                        til_Bool _tmp_til_Str_replace_80;
+                        til_Bool_clone(&_tmp_til_Str_replace_80, &false);
+                        til_Bool_found_match = _tmp_til_Str_replace_80;
                     }
                     til_I64_dec(&til_I64_j);
                 }
             }
         } else {
-            til_Bool _tmp_til_Str_replace_83;
-            til_Bool_clone(&_tmp_til_Str_replace_83, &false);
-            til_Bool_found_match = _tmp_til_Str_replace_83;
+            til_Bool _tmp_til_Str_replace_81;
+            til_Bool_clone(&_tmp_til_Str_replace_81, &false);
+            til_Bool_found_match = _tmp_til_Str_replace_81;
         }
         if (til_Bool_found_match.data) {
-            til_Ptr _tmp_til_Str_replace_84;
-            til_Ptr_offset(&_tmp_til_Str_replace_84, &til_Str_result.c_string, &til_I64_dst_idx);
-            til_I64 _tmp_til_Str_replace_85 = til_Str_len(til_Str_to);
-            til_memcpy(&_tmp_til_Str_replace_84.data, &til_Str_to->c_string.data, &_tmp_til_Str_replace_85);
-            til_I64 _tmp_til_Str_replace_86 = til_Str_len(til_Str_to);
-            til_I64_dst_idx = til_I64_add(&til_I64_dst_idx, &_tmp_til_Str_replace_86);
-            til_I64 _tmp_til_Str_replace_87 = til_Str_len(til_Str_from);
-            til_I64_src_idx = til_I64_add(&til_I64_src_idx, &_tmp_til_Str_replace_87);
+            til_Ptr _tmp_til_Str_replace_82;
+            til_Ptr_offset(&_tmp_til_Str_replace_82, &til_Str_result.c_string, &til_I64_dst_idx);
+            til_I64 _tmp_til_Str_replace_83 = til_Str_len(til_Str_to);
+            til_memcpy(&_tmp_til_Str_replace_82.data, &til_Str_to->c_string.data, &_tmp_til_Str_replace_83);
+            til_I64 _tmp_til_Str_replace_84 = til_Str_len(til_Str_to);
+            til_I64_dst_idx = til_I64_add(&til_I64_dst_idx, &_tmp_til_Str_replace_84);
+            til_I64 _tmp_til_Str_replace_85 = til_Str_len(til_Str_from);
+            til_I64_src_idx = til_I64_add(&til_I64_src_idx, &_tmp_til_Str_replace_85);
         } else {
-            til_Ptr _tmp_til_Str_replace_88;
-            til_Ptr_offset(&_tmp_til_Str_replace_88, &til_Str_result.c_string, &til_I64_dst_idx);
-            til_Ptr _tmp_til_Str_replace_89;
-            til_Ptr_offset(&_tmp_til_Str_replace_89, &til_Str_self->c_string, &til_I64_src_idx);
-            til_I64 _tmp_til_Str_replace_90 = 1;
-            til_memcpy(&_tmp_til_Str_replace_88.data, &_tmp_til_Str_replace_89.data, &_tmp_til_Str_replace_90);
+            til_Ptr _tmp_til_Str_replace_86;
+            til_Ptr_offset(&_tmp_til_Str_replace_86, &til_Str_result.c_string, &til_I64_dst_idx);
+            til_Ptr _tmp_til_Str_replace_87;
+            til_Ptr_offset(&_tmp_til_Str_replace_87, &til_Str_self->c_string, &til_I64_src_idx);
+            til_I64 _tmp_til_Str_replace_88 = 1;
+            til_memcpy(&_tmp_til_Str_replace_86.data, &_tmp_til_Str_replace_87.data, &_tmp_til_Str_replace_88);
             til_I64_inc(&til_I64_dst_idx);
             til_I64_inc(&til_I64_src_idx);
         }
     }
     til_U8 til_U8_zero = 0;
-    til_Ptr _tmp_til_Str_replace_91;
-    til_Ptr_offset(&_tmp_til_Str_replace_91, &til_Str_result.c_string, &til_Str_result._len);
-    til_I64 _tmp_til_Str_replace_92 = 1;
-    til_memset(&_tmp_til_Str_replace_91.data, &til_U8_zero, &_tmp_til_Str_replace_92);
+    til_Ptr _tmp_til_Str_replace_89;
+    til_Ptr_offset(&_tmp_til_Str_replace_89, &til_Str_result.c_string, &til_Str_result._len);
+    til_I64 _tmp_til_Str_replace_90 = 1;
+    til_memset(&_tmp_til_Str_replace_89.data, &til_U8_zero, &_tmp_til_Str_replace_90);
     *_ret = til_Str_result;
     return;
 }
@@ -4253,18 +4189,16 @@ void til_Str_inc(til_Str* til_Str_self) {
         til_U8_one = 1;
         til_U8_byte_val = til_U8_add(&til_U8_byte_val, &til_U8_one);
         til_I64 _tmp_til_Str_inc_5 = 2;
-        til_Ptr _tmp_til_Str_inc_6;
-        til_Ptr_new_by_size(&_tmp_til_Str_inc_6, &_tmp_til_Str_inc_5);
-        til_Ptr_new_ptr = _tmp_til_Str_inc_6;
+        til_Ptr_new_by_size(&til_Ptr_new_ptr, &_tmp_til_Str_inc_5);
         til_Ptr_new_ptr.is_borrowed = 0;
-        til_I64 _tmp_til_Str_inc_7 = (til_I64)&til_U8_byte_val;
+        til_I64 _tmp_til_Str_inc_6 = (til_I64)&til_U8_byte_val;
+        til_I64 _tmp_til_Str_inc_7 = 1;
+        til_memcpy(&til_Ptr_new_ptr.data, &_tmp_til_Str_inc_6, &_tmp_til_Str_inc_7);
         til_I64 _tmp_til_Str_inc_8 = 1;
-        til_memcpy(&til_Ptr_new_ptr.data, &_tmp_til_Str_inc_7, &_tmp_til_Str_inc_8);
-        til_I64 _tmp_til_Str_inc_9 = 1;
-        til_Ptr _tmp_til_Str_inc_10;
-        til_Ptr_offset(&_tmp_til_Str_inc_10, &til_Ptr_new_ptr, &_tmp_til_Str_inc_9);
-        til_I64 _tmp_til_Str_inc_11 = 1;
-        til_memset(&_tmp_til_Str_inc_10.data, &til_U8_ZERO_U8, &_tmp_til_Str_inc_11);
+        til_Ptr _tmp_til_Str_inc_9;
+        til_Ptr_offset(&_tmp_til_Str_inc_9, &til_Ptr_new_ptr, &_tmp_til_Str_inc_8);
+        til_I64 _tmp_til_Str_inc_10 = 1;
+        til_memset(&_tmp_til_Str_inc_9.data, &til_U8_ZERO_U8, &_tmp_til_Str_inc_10);
         til_Str_self->c_string = til_Ptr_new_ptr;
         til_Str_self->cap = 2;
     }
@@ -4286,18 +4220,16 @@ void til_Str_dec(til_Str* til_Str_self) {
         til_U8_one = 1;
         til_U8_byte_val = til_U8_sub(&til_U8_byte_val, &til_U8_one);
         til_I64 _tmp_til_Str_dec_5 = 2;
-        til_Ptr _tmp_til_Str_dec_6;
-        til_Ptr_new_by_size(&_tmp_til_Str_dec_6, &_tmp_til_Str_dec_5);
-        til_Ptr_new_ptr = _tmp_til_Str_dec_6;
+        til_Ptr_new_by_size(&til_Ptr_new_ptr, &_tmp_til_Str_dec_5);
         til_Ptr_new_ptr.is_borrowed = 0;
-        til_I64 _tmp_til_Str_dec_7 = (til_I64)&til_U8_byte_val;
+        til_I64 _tmp_til_Str_dec_6 = (til_I64)&til_U8_byte_val;
+        til_I64 _tmp_til_Str_dec_7 = 1;
+        til_memcpy(&til_Ptr_new_ptr.data, &_tmp_til_Str_dec_6, &_tmp_til_Str_dec_7);
         til_I64 _tmp_til_Str_dec_8 = 1;
-        til_memcpy(&til_Ptr_new_ptr.data, &_tmp_til_Str_dec_7, &_tmp_til_Str_dec_8);
-        til_I64 _tmp_til_Str_dec_9 = 1;
-        til_Ptr _tmp_til_Str_dec_10;
-        til_Ptr_offset(&_tmp_til_Str_dec_10, &til_Ptr_new_ptr, &_tmp_til_Str_dec_9);
-        til_I64 _tmp_til_Str_dec_11 = 1;
-        til_memset(&_tmp_til_Str_dec_10.data, &til_U8_ZERO_U8, &_tmp_til_Str_dec_11);
+        til_Ptr _tmp_til_Str_dec_9;
+        til_Ptr_offset(&_tmp_til_Str_dec_9, &til_Ptr_new_ptr, &_tmp_til_Str_dec_8);
+        til_I64 _tmp_til_Str_dec_10 = 1;
+        til_memset(&_tmp_til_Str_dec_9.data, &til_U8_ZERO_U8, &_tmp_til_Str_dec_10);
         til_Str_self->c_string = til_Ptr_new_ptr;
         til_Str_self->cap = 2;
     }
@@ -4351,30 +4283,26 @@ void til_Str_replacen(til_Str* _ret, const til_Str* til_Str_self, const til_Str*
     if (_status__tmp_til_Str_replacen_13 == 1) { _thrown_IndexOutOfBoundsError__tmp_til_Str_replacen_0 = _err0__tmp_til_Str_replacen_13; goto _catch_IndexOutOfBoundsError__tmp_til_Str_replacen_0; }
     til_Str _tmp_til_Str_replacen_17;
     til_concat(&_tmp_til_Str_replacen_17, &til_Str_prefix, til_Str_to);
-    til_Str _tmp_til_Str_replacen_18;
-    til_concat(&_tmp_til_Str_replacen_18, &_tmp_til_Str_replacen_17, &til_Str_suffix);
-    til_Str_result = _tmp_til_Str_replacen_18;
+    til_concat(&til_Str_result, &_tmp_til_Str_replacen_17, &til_Str_suffix);
     til_Str til_Str_rest;
-    til_I64 _tmp_til_Str_replacen_19 = 1;
-    til_Bool _tmp_til_Str_replacen_20;
-    til_I64_gt(&_tmp_til_Str_replacen_20, til_I64_n, &_tmp_til_Str_replacen_19);
-    if (_tmp_til_Str_replacen_20.data) {
-        til_I64 _tmp_til_Str_replacen_21 = 1;
-        til_I64 _tmp_til_Str_replacen_22 = til_I64_sub(til_I64_n, &_tmp_til_Str_replacen_21);
+    til_I64 _tmp_til_Str_replacen_18 = 1;
+    til_Bool _tmp_til_Str_replacen_19;
+    til_I64_gt(&_tmp_til_Str_replacen_19, til_I64_n, &_tmp_til_Str_replacen_18);
+    if (_tmp_til_Str_replacen_19.data) {
+        til_I64 _tmp_til_Str_replacen_20 = 1;
+        til_I64 _tmp_til_Str_replacen_21 = til_I64_sub(til_I64_n, &_tmp_til_Str_replacen_20);
+        til_Str_replacen(&til_Str_rest, &til_Str_suffix, til_Str_from, til_Str_to, &_tmp_til_Str_replacen_21);
+        til_Str _tmp_til_Str_replacen_22;
+        til_concat(&_tmp_til_Str_replacen_22, &til_Str_prefix, til_Str_to);
         til_Str _tmp_til_Str_replacen_23;
-        til_Str_replacen(&_tmp_til_Str_replacen_23, &til_Str_suffix, til_Str_from, til_Str_to, &_tmp_til_Str_replacen_22);
-        til_Str_rest = _tmp_til_Str_replacen_23;
-        til_Str _tmp_til_Str_replacen_24;
-        til_concat(&_tmp_til_Str_replacen_24, &til_Str_prefix, til_Str_to);
-        til_Str _tmp_til_Str_replacen_25;
-        til_concat(&_tmp_til_Str_replacen_25, &_tmp_til_Str_replacen_24, &til_Str_rest);
-        til_Str_result = _tmp_til_Str_replacen_25;
+        til_concat(&_tmp_til_Str_replacen_23, &_tmp_til_Str_replacen_22, &til_Str_rest);
+        til_Str_result = _tmp_til_Str_replacen_23;
     }
     if (0) { _catch_IndexOutOfBoundsError__tmp_til_Str_replacen_0:;
         til_IndexOutOfBoundsError til_IndexOutOfBoundsError_err = _thrown_IndexOutOfBoundsError__tmp_til_Str_replacen_0;
-        til_Str _tmp_til_Str_replacen_26;
-        til_Str_clone(&_tmp_til_Str_replacen_26, til_Str_self);
-        til_Str_result = _tmp_til_Str_replacen_26;
+        til_Str _tmp_til_Str_replacen_24;
+        til_Str_clone(&_tmp_til_Str_replacen_24, til_Str_self);
+        til_Str_result = _tmp_til_Str_replacen_24;
     }
     *_ret = til_Str_result;
     return;
@@ -4382,17 +4310,15 @@ void til_Str_replacen(til_Str* _ret, const til_Str* til_Str_self, const til_Str*
 
 int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str* til_Str_self, const til_Str* til_Str_delimiter) {
     (void)_ret;
-    til_Vec _tmp_til_Str_split_0;
-    til_Vec_new(&_tmp_til_Str_split_0, "Str");
-    (*_ret) = _tmp_til_Str_split_0;
-    til_I64 _tmp_til_Str_split_1 = til_Str_len(til_Str_delimiter);
-    til_I64 _tmp_til_Str_split_2 = 0;
-    til_Bool _tmp_til_Str_split_3;
-    til_I64_eq(&_tmp_til_Str_split_3, &_tmp_til_Str_split_1, &_tmp_til_Str_split_2);
-    if (_tmp_til_Str_split_3.data) {
-        til_Str _tmp_til_Str_split_4;
-        til_Str_clone(&_tmp_til_Str_split_4, til_Str_self);
-        til_Vec_push(_ret, (til_Dynamic*)&_tmp_til_Str_split_4);
+    til_Vec_new(_ret, "Str");
+    til_I64 _tmp_til_Str_split_0 = til_Str_len(til_Str_delimiter);
+    til_I64 _tmp_til_Str_split_1 = 0;
+    til_Bool _tmp_til_Str_split_2;
+    til_I64_eq(&_tmp_til_Str_split_2, &_tmp_til_Str_split_0, &_tmp_til_Str_split_1);
+    if (_tmp_til_Str_split_2.data) {
+        til_Str _tmp_til_Str_split_3;
+        til_Str_clone(&_tmp_til_Str_split_3, til_Str_self);
+        til_Vec_push(_ret, (til_Dynamic*)&_tmp_til_Str_split_3);
         return 0;
     }
     til_I64 til_I64_start = 0;
@@ -4403,114 +4329,112 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
     til_U8 til_U8_delim_byte;
     til_Str til_Str_part;
     while (1) {
-        til_I64 _tmp_til_Str_split_5 = til_Str_len(til_Str_self);
-        til_I64 _tmp_til_Str_split_6 = til_Str_len(til_Str_delimiter);
-        til_I64 _tmp_til_Str_split_7 = til_I64_sub(&_tmp_til_Str_split_5, &_tmp_til_Str_split_6);
-        til_Bool _tmp_til_Str_split_8;
-        til_I64_lteq(&_tmp_til_Str_split_8, &til_I64_pos, &_tmp_til_Str_split_7);
-        if (!(_tmp_til_Str_split_8.data)) break;
-        til_Bool _tmp_til_Str_split_9;
-        til_Bool_clone(&_tmp_til_Str_split_9, &true);
-        til_Bool_matches = _tmp_til_Str_split_9;
+        til_I64 _tmp_til_Str_split_4 = til_Str_len(til_Str_self);
+        til_I64 _tmp_til_Str_split_5 = til_Str_len(til_Str_delimiter);
+        til_I64 _tmp_til_Str_split_6 = til_I64_sub(&_tmp_til_Str_split_4, &_tmp_til_Str_split_5);
+        til_Bool _tmp_til_Str_split_7;
+        til_I64_lteq(&_tmp_til_Str_split_7, &til_I64_pos, &_tmp_til_Str_split_6);
+        if (!(_tmp_til_Str_split_7.data)) break;
+        til_Bool_clone(&til_Bool_matches, &true);
         til_I64_i = 0;
-        til_I64 _tmp_til_Str_split_10 = 0;
-        til_I64 _tmp_til_Str_split_11 = til_Str_len(til_Str_delimiter);
-        til_Bool _tmp_til_Str_split_12;
-        til_I64_lt(&_tmp_til_Str_split_12, &_tmp_til_Str_split_10, &_tmp_til_Str_split_11);
-        if (_tmp_til_Str_split_12.data) {
+        til_I64 _tmp_til_Str_split_8 = 0;
+        til_I64 _tmp_til_Str_split_9 = til_Str_len(til_Str_delimiter);
+        til_Bool _tmp_til_Str_split_10;
+        til_I64_lt(&_tmp_til_Str_split_10, &_tmp_til_Str_split_8, &_tmp_til_Str_split_9);
+        if (_tmp_til_Str_split_10.data) {
             while (1) {
-                til_I64 _tmp_til_Str_split_13 = til_Str_len(til_Str_delimiter);
-                til_Bool _tmp_til_Str_split_14;
-                til_I64_lt(&_tmp_til_Str_split_14, &til_I64_i, &_tmp_til_Str_split_13);
-                if (!(_tmp_til_Str_split_14.data)) break;
+                til_I64 _tmp_til_Str_split_11 = til_Str_len(til_Str_delimiter);
+                til_Bool _tmp_til_Str_split_12;
+                til_I64_lt(&_tmp_til_Str_split_12, &til_I64_i, &_tmp_til_Str_split_11);
+                if (!(_tmp_til_Str_split_12.data)) break;
                 til_U8_self_byte = 0;
                 til_U8_delim_byte = 0;
-                til_I64 _tmp_til_Str_split_15 = (til_I64)&til_U8_self_byte;
-                til_I64 _tmp_til_Str_split_16 = til_I64_add(&til_I64_pos, &til_I64_i);
-                til_Ptr _tmp_til_Str_split_17;
-                til_Ptr_offset(&_tmp_til_Str_split_17, &til_Str_self->c_string, &_tmp_til_Str_split_16);
-                til_I64 _tmp_til_Str_split_18 = 1;
-                til_memcpy(&_tmp_til_Str_split_15, &_tmp_til_Str_split_17.data, &_tmp_til_Str_split_18);
-                til_I64 _tmp_til_Str_split_19 = (til_I64)&til_U8_delim_byte;
-                til_Ptr _tmp_til_Str_split_20;
-                til_Ptr_offset(&_tmp_til_Str_split_20, &til_Str_delimiter->c_string, &til_I64_i);
-                til_I64 _tmp_til_Str_split_21 = 1;
-                til_memcpy(&_tmp_til_Str_split_19, &_tmp_til_Str_split_20.data, &_tmp_til_Str_split_21);
-                til_Bool _tmp_til_Str_split_22;
-                til_U8_eq(&_tmp_til_Str_split_22, &til_U8_self_byte, &til_U8_delim_byte);
-                til_Bool _tmp_til_Str_split_23;
-                til_not(&_tmp_til_Str_split_23, &_tmp_til_Str_split_22);
-                if (_tmp_til_Str_split_23.data) {
-                    til_Bool _tmp_til_Str_split_24;
-                    til_Bool_clone(&_tmp_til_Str_split_24, &false);
-                    til_Bool_matches = _tmp_til_Str_split_24;
+                til_I64 _tmp_til_Str_split_13 = (til_I64)&til_U8_self_byte;
+                til_I64 _tmp_til_Str_split_14 = til_I64_add(&til_I64_pos, &til_I64_i);
+                til_Ptr _tmp_til_Str_split_15;
+                til_Ptr_offset(&_tmp_til_Str_split_15, &til_Str_self->c_string, &_tmp_til_Str_split_14);
+                til_I64 _tmp_til_Str_split_16 = 1;
+                til_memcpy(&_tmp_til_Str_split_13, &_tmp_til_Str_split_15.data, &_tmp_til_Str_split_16);
+                til_I64 _tmp_til_Str_split_17 = (til_I64)&til_U8_delim_byte;
+                til_Ptr _tmp_til_Str_split_18;
+                til_Ptr_offset(&_tmp_til_Str_split_18, &til_Str_delimiter->c_string, &til_I64_i);
+                til_I64 _tmp_til_Str_split_19 = 1;
+                til_memcpy(&_tmp_til_Str_split_17, &_tmp_til_Str_split_18.data, &_tmp_til_Str_split_19);
+                til_Bool _tmp_til_Str_split_20;
+                til_U8_eq(&_tmp_til_Str_split_20, &til_U8_self_byte, &til_U8_delim_byte);
+                til_Bool _tmp_til_Str_split_21;
+                til_not(&_tmp_til_Str_split_21, &_tmp_til_Str_split_20);
+                if (_tmp_til_Str_split_21.data) {
+                    til_Bool _tmp_til_Str_split_22;
+                    til_Bool_clone(&_tmp_til_Str_split_22, &false);
+                    til_Bool_matches = _tmp_til_Str_split_22;
                 }
                 til_I64_inc(&til_I64_i);
             }
         } else {
             while (1) {
-                til_I64 _tmp_til_Str_split_25 = til_Str_len(til_Str_delimiter);
-                til_Bool _tmp_til_Str_split_26;
-                til_I64_gt(&_tmp_til_Str_split_26, &til_I64_i, &_tmp_til_Str_split_25);
-                if (!(_tmp_til_Str_split_26.data)) break;
+                til_I64 _tmp_til_Str_split_23 = til_Str_len(til_Str_delimiter);
+                til_Bool _tmp_til_Str_split_24;
+                til_I64_gt(&_tmp_til_Str_split_24, &til_I64_i, &_tmp_til_Str_split_23);
+                if (!(_tmp_til_Str_split_24.data)) break;
                 til_U8_self_byte = 0;
                 til_U8_delim_byte = 0;
-                til_I64 _tmp_til_Str_split_27 = (til_I64)&til_U8_self_byte;
-                til_I64 _tmp_til_Str_split_28 = til_I64_add(&til_I64_pos, &til_I64_i);
-                til_Ptr _tmp_til_Str_split_29;
-                til_Ptr_offset(&_tmp_til_Str_split_29, &til_Str_self->c_string, &_tmp_til_Str_split_28);
-                til_I64 _tmp_til_Str_split_30 = 1;
-                til_memcpy(&_tmp_til_Str_split_27, &_tmp_til_Str_split_29.data, &_tmp_til_Str_split_30);
-                til_I64 _tmp_til_Str_split_31 = (til_I64)&til_U8_delim_byte;
-                til_Ptr _tmp_til_Str_split_32;
-                til_Ptr_offset(&_tmp_til_Str_split_32, &til_Str_delimiter->c_string, &til_I64_i);
-                til_I64 _tmp_til_Str_split_33 = 1;
-                til_memcpy(&_tmp_til_Str_split_31, &_tmp_til_Str_split_32.data, &_tmp_til_Str_split_33);
-                til_Bool _tmp_til_Str_split_34;
-                til_U8_eq(&_tmp_til_Str_split_34, &til_U8_self_byte, &til_U8_delim_byte);
-                til_Bool _tmp_til_Str_split_35;
-                til_not(&_tmp_til_Str_split_35, &_tmp_til_Str_split_34);
-                if (_tmp_til_Str_split_35.data) {
-                    til_Bool _tmp_til_Str_split_36;
-                    til_Bool_clone(&_tmp_til_Str_split_36, &false);
-                    til_Bool_matches = _tmp_til_Str_split_36;
+                til_I64 _tmp_til_Str_split_25 = (til_I64)&til_U8_self_byte;
+                til_I64 _tmp_til_Str_split_26 = til_I64_add(&til_I64_pos, &til_I64_i);
+                til_Ptr _tmp_til_Str_split_27;
+                til_Ptr_offset(&_tmp_til_Str_split_27, &til_Str_self->c_string, &_tmp_til_Str_split_26);
+                til_I64 _tmp_til_Str_split_28 = 1;
+                til_memcpy(&_tmp_til_Str_split_25, &_tmp_til_Str_split_27.data, &_tmp_til_Str_split_28);
+                til_I64 _tmp_til_Str_split_29 = (til_I64)&til_U8_delim_byte;
+                til_Ptr _tmp_til_Str_split_30;
+                til_Ptr_offset(&_tmp_til_Str_split_30, &til_Str_delimiter->c_string, &til_I64_i);
+                til_I64 _tmp_til_Str_split_31 = 1;
+                til_memcpy(&_tmp_til_Str_split_29, &_tmp_til_Str_split_30.data, &_tmp_til_Str_split_31);
+                til_Bool _tmp_til_Str_split_32;
+                til_U8_eq(&_tmp_til_Str_split_32, &til_U8_self_byte, &til_U8_delim_byte);
+                til_Bool _tmp_til_Str_split_33;
+                til_not(&_tmp_til_Str_split_33, &_tmp_til_Str_split_32);
+                if (_tmp_til_Str_split_33.data) {
+                    til_Bool _tmp_til_Str_split_34;
+                    til_Bool_clone(&_tmp_til_Str_split_34, &false);
+                    til_Bool_matches = _tmp_til_Str_split_34;
                 }
                 til_I64_dec(&til_I64_i);
             }
         }
         if (til_Bool_matches.data) {
-            til_Bool _tmp_til_Str_split_37;
-            til_I64_gt(&_tmp_til_Str_split_37, &til_I64_pos, &til_I64_start);
-            if (_tmp_til_Str_split_37.data) {
-                til_IndexOutOfBoundsError _err0__tmp_til_Str_split_38 = {};
-                int __attribute__((unused)) _status__tmp_til_Str_split_38 = til_get_substr(&til_Str_part, &_err0__tmp_til_Str_split_38, til_Str_self, &til_I64_start, &til_I64_pos);
-                if (_status__tmp_til_Str_split_38 == 1) { *_err1 = _err0__tmp_til_Str_split_38; return 1; }
+            til_Bool _tmp_til_Str_split_35;
+            til_I64_gt(&_tmp_til_Str_split_35, &til_I64_pos, &til_I64_start);
+            if (_tmp_til_Str_split_35.data) {
+                til_IndexOutOfBoundsError _err0__tmp_til_Str_split_36 = {};
+                int __attribute__((unused)) _status__tmp_til_Str_split_36 = til_get_substr(&til_Str_part, &_err0__tmp_til_Str_split_36, til_Str_self, &til_I64_start, &til_I64_pos);
+                if (_status__tmp_til_Str_split_36 == 1) { *_err1 = _err0__tmp_til_Str_split_36; return 1; }
                 til_Vec_push(_ret, (til_Dynamic*)&til_Str_part);
             } else {
                 til_Vec_push(_ret, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
             }
-            til_I64 _tmp_til_Str_split_39 = til_Str_len(til_Str_delimiter);
-            til_I64_start = til_I64_add(&til_I64_pos, &_tmp_til_Str_split_39);
+            til_I64 _tmp_til_Str_split_37 = til_Str_len(til_Str_delimiter);
+            til_I64_start = til_I64_add(&til_I64_pos, &_tmp_til_Str_split_37);
             til_I64_pos = til_I64_start;
         } else {
             til_I64_inc(&til_I64_pos);
         }
     }
     til_Str til_Str_remaining_part;
-    til_I64 _tmp_til_Str_split_40 = til_Str_len(til_Str_self);
-    til_Bool _tmp_til_Str_split_41;
-    til_I64_lt(&_tmp_til_Str_split_41, &til_I64_start, &_tmp_til_Str_split_40);
-    if (_tmp_til_Str_split_41.data) {
-        til_I64 _tmp_til_Str_split_43 = til_Str_len(til_Str_self);
-        til_IndexOutOfBoundsError _err0__tmp_til_Str_split_42 = {};
-        int __attribute__((unused)) _status__tmp_til_Str_split_42 = til_get_substr(&til_Str_remaining_part, &_err0__tmp_til_Str_split_42, til_Str_self, &til_I64_start, &_tmp_til_Str_split_43);
-        if (_status__tmp_til_Str_split_42 == 1) { *_err1 = _err0__tmp_til_Str_split_42; return 1; }
+    til_I64 _tmp_til_Str_split_38 = til_Str_len(til_Str_self);
+    til_Bool _tmp_til_Str_split_39;
+    til_I64_lt(&_tmp_til_Str_split_39, &til_I64_start, &_tmp_til_Str_split_38);
+    if (_tmp_til_Str_split_39.data) {
+        til_I64 _tmp_til_Str_split_41 = til_Str_len(til_Str_self);
+        til_IndexOutOfBoundsError _err0__tmp_til_Str_split_40 = {};
+        int __attribute__((unused)) _status__tmp_til_Str_split_40 = til_get_substr(&til_Str_remaining_part, &_err0__tmp_til_Str_split_40, til_Str_self, &til_I64_start, &_tmp_til_Str_split_41);
+        if (_status__tmp_til_Str_split_40 == 1) { *_err1 = _err0__tmp_til_Str_split_40; return 1; }
         til_Vec_push(_ret, (til_Dynamic*)&til_Str_remaining_part);
     } else {
-        til_I64 _tmp_til_Str_split_44 = til_Str_len(til_Str_self);
-        til_Bool _tmp_til_Str_split_45;
-        til_I64_eq(&_tmp_til_Str_split_45, &til_I64_start, &_tmp_til_Str_split_44);
-        if (_tmp_til_Str_split_45.data) {
+        til_I64 _tmp_til_Str_split_42 = til_Str_len(til_Str_self);
+        til_Bool _tmp_til_Str_split_43;
+        til_I64_eq(&_tmp_til_Str_split_43, &til_I64_start, &_tmp_til_Str_split_42);
+        if (_tmp_til_Str_split_43.data) {
             til_Vec_push(_ret, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
         }
     }
@@ -5280,9 +5204,7 @@ int main(int argc, char** argv) {
     (void)argc; (void)argv;
     til_Ptr _tmp_0 = (til_Ptr){.data = 0, .is_borrowed = 0, .alloc_size = 0, .elem_type = 0, .elem_size = 0};
     til_Vec_g_entries = (til_Vec){.ptr = _tmp_0, ._len = 0, .cap = 0};
-    til_Bool _tmp_1;
-    til_Bool_clone(&_tmp_1, &false);
-    til_Bool_g_enabled = _tmp_1;
+    til_Bool_clone(&til_Bool_g_enabled, &false);
     til_test_simple_add();
     til_test_nested_arithmetic();
     til_test_deeply_nested();
