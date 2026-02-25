@@ -4854,52 +4854,6 @@ calls with literal args are now constant-folded inside function bodies.
 - preinit.rs/til: auto-generated delete methods use FTFunc instead of FTProc
 - bug41_liba_helper.til: print_debug changed from func to proc (has I/O)
 
-** Issue #105: First-Class Structs
-:PROPERTIES:
-:DISCOVERED: 2026-01-12
-:IMPLEMENTED: 2026-02-22
-:IMPACT: Language feature, anonymous data structures, templates
-:STATUS: Implemented (Step 4b deferred to Issue #178)
-:RELATED: Issue #91 (First-Class Functions), Issue #106 (First-Class Enums)
-:END:
-
-Allow macros to return struct definitions via ~returns struct~. Enables
-template-like patterns where macros generate typed structs at compile time.
-
-- [X] Parser: ~struct~ as return type keyword in func/proc returns
-- [X] Init: defer struct registration for macro FCall RHS to precomp
-- [X] Precomp: ~expand_struct_macros()~ expands macro calls, registers structs
-- [X] Macro namespace support: ~namespace:~ inside macro-returned structs
-- [X] ~src/std/typed_ptr.til~: ~make_typed_ptr(T)~ macro -- real generics
-- [X] ~struct_def_of(type_name)~ runtime introspection via ext functions
-- [X] Anonymous struct expressions: ~struct { ... }(args)~
-- [X] Step 4a: NamespaceDef moved into StructDef.ns and EnumDef.ns fields
-- [X] Step 4c: SStructDef -> StructDef, SEnumDef -> EnumDef, SFuncDef -> FuncDef
-- [X] Step 4d: Explicit metatype annotations (~Point : StructDef = struct { ... }~)
-- [X] All changes ported to both Rust and TIL, all 93 tests pass
-
-** Issue #106: First-Class Enums
-:PROPERTIES:
-:DISCOVERED: 2026-01-12
-:IMPLEMENTED: 2026-02-23
-:IMPACT: Language feature, anonymous data structures, templates
-:STATUS: Implemented
-:RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs)
-:END:
-
-Allow macros to return enum definitions via ~returns enum~. Enables
-template-like patterns where macros generate typed enums at compile time.
-
-- [X] Parser: ~enum~ as return type keyword in func/proc returns
-- [X] Init: defer enum registration for macro FCall RHS to precomp
-- [X] Precomp: ~expand_struct_macros()~ handles enum macros (name substitution, type substitution)
-- [X] Macro namespace support: ~namespace:~ inside macro-returned enums
-- [X] ~src/std/typed_option.til~: ~make_option(T)~ macro -- real generics for enums
-- [X] ~enum_def_of(type_name)~ runtime introspection via ext functions
-- [X] Anonymous enum expressions: ~some_macro(enum { A, B })~
-- [X] Explicit metatype annotations (~Color : EnumDef = enum { ... }~)
-- [X] All changes ported to both Rust and TIL, all 94 tests pass
-
 ** Issue #107: First-Class Namespaces (CANCELLED)
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
@@ -5820,4 +5774,3 @@ on every iteration, plus Map.get within lookups copied the found value.
    converted from =frames.get(i, frame)= to =get_by_ref= + =create_alias= (now =cast=).
 4. *Zero-copy Map lookups* (2026-02-20): Removed =Map.get= entirely. All 6 callers in
    init.til converted to =get_by_ref= + =cast=. Map.get removed from garbager whitelist.
-

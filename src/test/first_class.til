@@ -1,0 +1,366 @@
+mode test
+
+import("core.vec")
+
+// ============================================================
+// First-Class Everything (doc/first_class.org)
+// Issue #105: First-Class Structs
+// Issue #106: First-Class Enums
+// Issue #91: First-Class Functions
+// ============================================================
+
+// ---- Struct type definitions ----
+
+Point := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+
+Color := struct {
+    mut r: I64 = 0
+    mut g: I64 = 0
+    mut b: I64 = 0
+}
+
+// Explicit metatype annotation (Issue #105 Step 4d)
+Size : StructDef = struct {
+    mut w: I64 = 0
+    mut h: I64 = 0
+}
+
+// ---- Enum type definitions ----
+
+Direction := enum { North, South, East, West }
+
+Shape := enum {
+    Circle: I64,
+    Rect: I64,
+}
+
+// Explicit metatype annotation (Issue #105 Step 4d)
+Status : EnumDef = enum { Ok, Error }
+
+// ---- Function type definitions (Issue #91) ----
+
+BinaryIntOp := func(I64, I64) returns I64 {}
+add2 : BinaryIntOp = (a, b) { return a.add(b) }
+subtract : BinaryIntOp = (a, b) { return a.sub(b) }
+multiply : BinaryIntOp = (a, b) { return a.mul(b) }
+
+// Explicit metatype annotation (Issue #91)
+UnaryIntOp : FuncSig = func(I64) returns I64 {}
+double : UnaryIntOp = (x) { return x.mul(2) }
+
+// ============================================================
+// Tests: First-Class Structs (Issue #105)
+// ============================================================
+
+// Struct instantiation
+test_struct_instantiation : proc() = {
+    p := Point(x=10, y=20)
+    assert_eq(loc(), 10, p.x)
+    assert_eq(loc(), 20, p.y)
+
+    // Default values
+    p2 := Point()
+    assert_eq(loc(), 0, p2.x)
+    assert_eq(loc(), 0, p2.y)
+
+    // Explicit metatype struct
+    s := Size(w=100, h=200)
+    assert_eq(loc(), 100, s.w)
+    assert_eq(loc(), 200, s.h)
+}
+test_struct_instantiation()
+
+// TODO: Anonymous struct instantiation (Issue #105)
+// struct { ... }(args) should create a value with an anonymous struct type
+// test_anon_struct_instantiation : proc() = {
+//     p := struct { mut x: I64 = 0, mut y: I64 = 0 }(x=10, y=20)
+//     assert_eq(loc(), 10, p.x)
+//     assert_eq(loc(), 20, p.y)
+// }
+// test_anon_struct_instantiation()
+
+// TODO: struct_def_of introspection (Issue #105)
+// Compiled mode fails: ext_funcs (__struct_field_count etc.) not linked in generated C
+// import("std.meta")
+// test_struct_introspection : proc() = {
+//     def := struct_def_of("Point")
+//     mut mut_count := 0
+//     for i in 0..def.members.len() {
+//         m := cast(Declaration, def.members.get(i)?)
+//         if m.is_mut {
+//             mut_count = mut_count.add(1)
+//         }
+//     }
+//     assert_eq(loc(), 2, mut_count)
+//
+//     catch (err: IndexOutOfBoundsError) {
+//         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+//         exit(1)
+//     }
+// }
+// test_struct_introspection()
+
+// Vec of struct instances
+test_vec_struct_instances : proc() = {
+    mut points := Vec.new(Point)
+    p1 := Point(x=10, y=20)
+    points.push(own p1)
+    p2 := Point(x=30, y=40)
+    points.push(own p2)
+
+    assert_eq(loc(), 2, points.len())
+
+    r0 := cast(Point, points.get(0)?)
+    assert_eq(loc(), 10, r0.x)
+    assert_eq(loc(), 20, r0.y)
+
+    r1 := cast(Point, points.get(1)?)
+    assert_eq(loc(), 30, r1.x)
+    assert_eq(loc(), 40, r1.y)
+
+    points.delete()
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        exit(1)
+    }
+}
+test_vec_struct_instances()
+
+// TODO: Vec of StructDef (type definitions as values)
+// Depends on struct_def_of working in compiled mode
+// test_vec_structdef : proc() = {
+//     mut defs := Vec.new(StructDef)
+//     point_def := struct_def_of("Point")
+//     defs.push(own point_def)
+//     color_def := struct_def_of("Color")
+//     defs.push(own color_def)
+//     assert_eq(loc(), 2, defs.len())
+//     defs.delete()
+// }
+// test_vec_structdef()
+
+// TODO: Anonymous struct as inline argument
+// expand_anon_struct_fcalls_recursive doesn't handle StructDef inside
+// NamedArg wrappers (own/copy)
+// test_vec_structdef_anon : proc() = {
+//     mut defs := Vec.new(StructDef)
+//     defs.push(own struct { mut x: I64 = 0, mut y: I64 = 0 })
+//     assert_eq(loc(), 1, defs.len())
+//     defs.delete()
+// }
+// test_vec_structdef_anon()
+
+// ============================================================
+// Tests: First-Class Enums (Issue #106)
+// ============================================================
+
+// Enum instantiation
+test_enum_instantiation : proc() = {
+    d := Direction.North
+    switch d {
+    case Direction.North: test(loc(), true, "should be North")
+    case: test(loc(), false, "should be North")
+    }
+
+    s := Shape.Circle(5)
+    switch s {
+    case Shape.Circle(r): assert_eq(loc(), 5, r)
+    case: test(loc(), false, "should be Circle")
+    }
+
+    // Explicit metatype enum
+    st := Status.Ok
+    switch st {
+    case Status.Ok: test(loc(), true, "should be Ok")
+    case: test(loc(), false, "should be Ok")
+    }
+}
+test_enum_instantiation()
+
+// TODO: enum_def_of introspection (Issue #106)
+// Compiled mode fails: ext_funcs (__enum_variant_count etc.) not linked in generated C
+// test_enum_introspection : proc() = {
+//     def := enum_def_of("Direction")
+//     assert_eq(loc(), 4, def.variants.len())
+//     v0 := cast(EnumVariant, def.variants.get(0)?)
+//     assert_eq_str(loc(), "North", v0.name)
+//
+//     catch (err: IndexOutOfBoundsError) {
+//         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+//         exit(1)
+//     }
+// }
+// test_enum_introspection()
+
+// Vec of enum instances
+test_vec_enum_instances : proc() = {
+    mut dirs := Vec.new(Direction)
+    dirs.push(own Direction.North)
+    dirs.push(own Direction.South)
+    dirs.push(own Direction.East)
+
+    assert_eq(loc(), 3, dirs.len())
+
+    d0 := cast(Direction, dirs.get(0)?)
+    switch d0 {
+    case Direction.North: test(loc(), true, "dirs[0] should be North")
+    case: test(loc(), false, "dirs[0] should be North")
+    }
+
+    dirs.delete()
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        exit(1)
+    }
+}
+test_vec_enum_instances()
+
+// TODO: Vec of EnumDef (type definitions as values)
+// Depends on enum_def_of working in compiled mode
+// test_vec_enumdef : proc() = {
+//     mut defs := Vec.new(EnumDef)
+//     dir_def := enum_def_of("Direction")
+//     defs.push(own dir_def)
+//     shape_def := enum_def_of("Shape")
+//     defs.push(own shape_def)
+//     assert_eq(loc(), 2, defs.len())
+//     defs.delete()
+// }
+// test_vec_enumdef()
+
+// TODO: Anonymous enum as inline argument to non-macro functions
+// test_vec_enumdef_anon : proc() = {
+//     mut defs := Vec.new(EnumDef)
+//     defs.push(own enum { Red, Green, Blue })
+//     assert_eq(loc(), 1, defs.len())
+//     defs.delete()
+// }
+// test_vec_enumdef_anon()
+
+// ============================================================
+// Tests: First-Class Functions (Issue #91)
+// ============================================================
+
+// Pass functions as arguments
+apply_op : func(op: BinaryIntOp, a: I64, b: I64) returns I64 = {
+    return op(a, b)
+}
+test_func_as_arg : proc() = {
+    assert_eq(loc(), 8, apply_op(add2, 3, 5))
+    assert_eq(loc(), 6, apply_op(subtract, 10, 4))
+    assert_eq(loc(), 15, apply_op(multiply, 3, 5))
+}
+test_func_as_arg()
+
+// Return functions from functions
+get_op : func(which: I64) returns BinaryIntOp = {
+    if which.eq(0) { return add2 }
+    if which.eq(1) { return subtract }
+    return multiply
+}
+test_func_return : proc() = {
+    op0 := get_op(0)
+    assert_eq(loc(), 8, op0(3, 5))
+    op1 := get_op(1)
+    assert_eq(loc(), 6, op1(10, 4))
+    op2 := get_op(2)
+    assert_eq(loc(), 15, op2(3, 5))
+}
+test_func_return()
+
+// Anonymous inline functions (lambdas)
+test_lambda : proc() = {
+    assert_eq(loc(), 8, apply_op(func(a: I64, b: I64) returns I64 { return a.add(b) }, 3, 5))
+    assert_eq(loc(), 15, apply_op(func(a: I64, b: I64) returns I64 { return a.mul(b) }, 3, 5))
+}
+test_lambda()
+
+// Struct fields with function pointers
+Handler := struct {
+    mut on_click: BinaryIntOp = add2
+}
+test_struct_func_field : proc() = {
+    // Default value
+    h := Handler()
+    op := h.on_click
+    assert_eq(loc(), 8, op(3, 5))
+
+    // Construct with specific function
+    h2 := Handler(on_click=subtract)
+    op2 := h2.on_click
+    assert_eq(loc(), 6, op2(10, 4))
+
+    // Reassign
+    mut h3 := Handler()
+    h3.on_click = multiply
+    op3 := h3.on_click
+    assert_eq(loc(), 15, op3(3, 5))
+}
+test_struct_func_field()
+
+// Func ptr passthrough (return parameter)
+passthrough_op : func(op: BinaryIntOp) returns BinaryIntOp = { return op }
+test_func_passthrough : proc() = {
+    result_op := passthrough_op(add2)
+    assert_eq(loc(), 8, result_op(3, 5))
+    result_op2 := passthrough_op(subtract)
+    assert_eq(loc(), 6, result_op2(10, 4))
+}
+test_func_passthrough()
+
+// Throwing function pointers
+ThrowingOp := func(I64, I64) returns I64 throws Str {}
+safe_div : ThrowingOp = (a, b) {
+    if b.eq(0) {
+        throw "divide by zero"
+    }
+    return a.div(b)
+}
+test_throwing_func_ptr : proc() = {
+    result := safe_div(10, 2)?
+    assert_eq(loc(), 5, result)
+
+    catch (err: Str) {
+        println("ERROR:", err)
+        exit(1)
+    }
+}
+test_throwing_func_ptr()
+
+// Vec of function pointers (same FuncSig -- different defs implementing BinaryIntOp)
+test_vec_func_ptrs : proc() = {
+    mut ops := Vec.new(BinaryIntOp)
+    ops.push(own add2)
+    ops.push(own subtract)
+    ops.push(own multiply)
+
+    assert_eq(loc(), 3, ops.len())
+
+    // TODO: retrieve and call function pointers from Vec
+    // op := cast(BinaryIntOp, ops.get(0)?)
+    // assert_eq(loc(), 8, op(3, 5))
+
+    ops.delete()
+}
+test_vec_func_ptrs()
+
+// TODO: Vec of FuncSig (different signatures stored in same Vec)
+// test_vec_funcsig : proc() = {
+//     mut sigs := Vec.new(FuncSig)
+//     // Each element is a different function signature type
+//     sigs.delete()
+// }
+// test_vec_funcsig()
+
+// TODO: Vec of FuncDef (different function definitions stored in same Vec)
+// test_vec_funcdef : proc() = {
+//     mut defs := Vec.new(FuncDef)
+//     // Each element is a different function definition (any signature)
+//     defs.delete()
+// }
+// test_vec_funcdef()

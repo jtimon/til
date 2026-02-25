@@ -17,6 +17,62 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 
 * Open Issues
 
+** Issue #105: First-Class Structs
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Language feature, anonymous data structures, templates
+:STATUS: Partially implemented - macro support done, collections and compiled introspection remaining
+:RELATED: Issue #91 (First-Class Functions), Issue #106 (First-Class Enums), doc/first_class.org
+:END:
+
+Allow structs to be truly first-class values: pass as arguments, store in
+collections, introspect at runtime.
+
+*** Done
+- [X] Parser: ~struct~ as return type keyword in func/proc returns
+- [X] Init: defer struct registration for macro FCall RHS to precomp
+- [X] Precomp: ~expand_struct_macros()~ expands macro calls, registers structs
+- [X] Macro namespace support: ~namespace:~ inside macro-returned structs
+- [X] ~src/std/typed_ptr.til~: ~make_typed_ptr(T)~ macro -- real generics
+- [X] ~struct_def_of(type_name)~ runtime introspection via ext functions (interpreter only)
+- [X] Anonymous struct expressions: ~struct { ... }(args)~ (in macro args)
+- [X] Step 4a: NamespaceDef moved into StructDef.ns and EnumDef.ns fields
+- [X] Step 4c: SStructDef -> StructDef, SEnumDef -> EnumDef, SFuncDef -> FuncDef
+- [X] Step 4d: Explicit metatype annotations (~Point : StructDef = struct { ... }~)
+- [X] Vec of struct instances (~Vec.new(Point)~)
+
+*** What is missing
+- [ ] ~struct_def_of~ ext_funcs not linked in compiled mode (only works interpreted)
+- [ ] Anonymous struct in non-macro function args (~vec.push(own struct { ... })~)
+- [ ] Vec of StructDef (~Vec.new(StructDef)~) -- depends on compiled struct_def_of or direct StructDef construction
+
+** Issue #106: First-Class Enums
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Language feature, anonymous data structures, templates
+:STATUS: Partially implemented - macro support done, collections and compiled introspection remaining
+:RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs), doc/first_class.org
+:END:
+
+Allow enums to be truly first-class values: pass as arguments, store in
+collections, introspect at runtime.
+
+*** Done
+- [X] Parser: ~enum~ as return type keyword in func/proc returns
+- [X] Init: defer enum registration for macro FCall RHS to precomp
+- [X] Precomp: ~expand_struct_macros()~ handles enum macros (name substitution, type substitution)
+- [X] Macro namespace support: ~namespace:~ inside macro-returned enums
+- [X] ~src/std/typed_option.til~: ~make_option(T)~ macro -- real generics for enums
+- [X] ~enum_def_of(type_name)~ runtime introspection via ext functions (interpreter only)
+- [X] Anonymous enum expressions: ~some_macro(enum { A, B })~ (in macro args)
+- [X] Explicit metatype annotations (~Color : EnumDef = enum { ... }~)
+- [X] Vec of enum instances (~Vec.new(Direction)~)
+
+*** What is missing
+- [ ] ~enum_def_of~ ext_funcs not linked in compiled mode (only works interpreted)
+- [ ] Anonymous enum in non-macro function args (~vec.push(own enum { ... })~)
+- [ ] Vec of EnumDef (~Vec.new(EnumDef)~) -- depends on compiled enum_def_of or direct EnumDef construction
+
 ** Issue #153: Enable field and method access on Dynamic parameters
 :PROPERTIES:
 :DISCOVERED: 2025-11-12
@@ -611,7 +667,9 @@ Infrastructure for storing func ptrs in Vec/Map:
 - Ccodegen: FuncSig case/switch handling for function pointer types in assignments and returns
 
 *** What is missing
-- Vec/Map collection tests (infrastructure is in place, tests needed)
+- Retrieve and call function pointers from Vec (~cast(BinaryOp, ops.get(0)?)~ then call)
+- Vec of FuncSig (different signatures stored in same Vec)
+- Vec of FuncDef (different definitions stored in same Vec)
 - Closures (Issue #182 -- explicit capture lists)
 
 *** Key Files

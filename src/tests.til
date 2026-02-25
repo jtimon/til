@@ -1446,6 +1446,7 @@ main : proc(args: ..Str) = {
     all_common.push(own TestEntry(path="src/test/eval.til"))
     all_common.push(own TestEntry(path="src/test/exit.til", expected_status=69))
     all_common.push(own TestEntry(path="src/test/fibonacci.til"))
+    all_common.push(own TestEntry(path="src/test/first_class.til"))
     all_common.push(own TestEntry(path="src/test/flow.til"))
     all_common.push(own TestEntry(path="src/test/forward_declarations.til"))
     all_common.push(own TestEntry(path="src/test/function_pointers.til"))

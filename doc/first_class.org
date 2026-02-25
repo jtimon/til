@@ -273,12 +273,31 @@ double : func(a: I64) returns I64 = { return a.mul(2) }
 #+END_SRC
 
 ** Stored in collections
+
+Collections of functions come in two forms:
+
 #+BEGIN_SRC til
+// Vec of function pointers with the SAME signature:
+// Each element is a different function definition implementing BinaryOp
 ops := Vec.new(BinaryOp)
 ops.push(add)
 ops.push(mul)
 ops.get(0)(3, 5)  // 8
+
+// Vec of function SIGNATURES (each can be different):
+sigs := Vec.new(FuncSig)
+// Each element is a different signature type
+
+// Vec of function DEFINITIONS (each can be different):
+defs := Vec.new(FuncDef)
+// Each element is a different function definition (any signature)
 #+END_SRC
+
+This parallels how structs and enums work:
+- ~Vec.new(Point)~ stores Point instances (same type, different values)
+- ~Vec.new(StructDef)~ stores struct definitions (different types)
+- ~Vec.new(Direction)~ stores Direction instances (same type, different values)
+- ~Vec.new(EnumDef)~ stores enum definitions (different types)
 
 ** Stored in struct fields
 #+BEGIN_SRC til
