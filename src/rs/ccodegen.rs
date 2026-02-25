@@ -6390,7 +6390,19 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             if ret_is_func_sig {
                 if let NodeType::Identifier(ref func_name) = return_expr.node_type {
                     if return_expr.params.is_empty() {
-                        let return_str = til_name(func_name);
+                        // Check if this is a FuncSig-typed parameter/variable (function pointer)
+                        let is_fptr_var = context.scope_stack.lookup_symbol(func_name)
+                            .map(|sym| if let ValueType::TCustom(ref tn) = sym.value_type {
+                                is_func_sig_type(tn, context)
+                            } else {
+                                false
+                            })
+                            .unwrap_or(false);
+                        let return_str = if is_fptr_var {
+                            resolve_var_name(func_name, ctx, context)
+                        } else {
+                            til_name(func_name)
+                        };
                         output.push_str(&indent_str);
                         output.push_str("*_ret = ");
                         output.push_str(&return_str);
@@ -6506,7 +6518,22 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     if return_expr.params.is_empty() {
                         output.push_str(&indent_str);
                         output.push_str("return ");
-                        output.push_str(&til_name(func_name));
+                        // Check if this is a FuncSig-typed parameter/variable (function pointer)
+                        // vs a global function name (which decays to pointer in C)
+                        let is_fptr_var = context.scope_stack.lookup_symbol(func_name)
+                            .map(|sym| if let ValueType::TCustom(ref tn) = sym.value_type {
+                                is_func_sig_type(tn, context)
+                            } else {
+                                false
+                            })
+                            .unwrap_or(false);
+                        if is_fptr_var {
+                            // FuncSig parameter/variable - use type-mangled name
+                            output.push_str(&resolve_var_name(func_name, ctx, context));
+                        } else {
+                            // Global function name - use function name
+                            output.push_str(&til_name(func_name));
+                        }
                         output.push_str(";\n");
                         return Ok(());
                     }

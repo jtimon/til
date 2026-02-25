@@ -1755,6 +1755,34 @@ eval_custom_expr : proc(e: Expr, mut context: Context, name: Str, custom_type_na
         case:
             throw e.lang_error(context.path, "eval", format("Invalid type for '", current_name, "'."))
         }
+    // Issue #91: FuncSig type - return function name
+    case ValueType.TType(TTypeDef.TFuncSig):
+        if e.params.is_empty() {
+            // FuncSig variable - the function name is stored in scope_stack.funcs
+            // (parameters are registered as funcs, not as heap data)
+            mut ece_fd_found := false
+            mut ece_fd := context.scope_stack.lookup_func(name)?
+            dont_delete(ece_fd)
+            ece_fd_found = true
+            catch (err: KeyNotFoundError) {
+            }
+            if ece_fd_found {
+                // Re-register in parent frame so it survives frame pop after return
+                ece_fd_clone := ece_fd.clone()
+                ece_temp_name := format("_fptr_", name)
+                if context.scope_stack.frames.len().gteq(2) {
+                    parent_idx := context.scope_stack.frames.len().sub(2)
+                    mut parent_frame := cast(ScopeFrame, context.scope_stack.frames.get(parent_idx)?)
+                    dont_delete(parent_frame)
+                    parent_frame.funcs.set(own ece_temp_name.clone(), own ece_fd_clone)
+                }
+                return EvalResult.new(ece_temp_name)
+            }
+            // Could also be a struct field read as Str
+            ece_func_name := string_from_context(context, name, e)?
+            return EvalResult.new(ece_func_name)
+        }
+        throw e.lang_error(context.path, "eval", format("FuncSig type '", name, "' does not support field access"))
     case:
         throw e.lang_error(context.path, "eval", format("'", name, "' of type: '", custom_type_name, "': custom types are supposed to be struct or enum, found '", value_type_to_str(custom_symbol.value_type), "'."))
     }

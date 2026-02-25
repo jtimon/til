@@ -476,7 +476,7 @@ run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
 :IMPACT: Language feature, polymorphism, higher-order programming
-:STATUS: In progress - FunctionSig + func ptrs + lambdas + return + struct fields done (2026-02-25), next: collections
+:STATUS: In progress - FunctionSig + func ptrs + lambdas + return + struct fields + passthrough + throws done (2026-02-25), next: collections
 :RELATED: Bug #90 (semicolon/body syntax), Bug #159 (needs func ptrs for deep clone/delete), Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), Issue #182 (Closures -- explicit captures), src/test/function_pointers.til, doc/first_class.org
 :END:
 
@@ -588,6 +588,19 @@ Changes: init (get_type_size/get_field_offset FuncSig->Str), typer (accept TFunc
 preinit (skip FuncSig in delete/clone generation), interpreter (store/read func name as Str at field offsets),
 garbager (skip clone for FuncSig assignments/struct fields), scavenger (collect_local_declarations for local func ptrs),
 ccodegen (typedef ordering, function name emission in struct literals/assignments).
+
+**** Func ptr passthrough (return parameter) (DONE - 2026-02-25)
+#+BEGIN_SRC til
+passthrough_op : func(op: BinaryIntOp) returns BinaryIntOp = { return op }
+#+END_SRC
+Interpreter: eval_custom_expr TFuncSig case re-registers func def in parent frame.
+Ccodegen: return FuncSig distinguishes FuncSig-typed variables from global function names.
+
+**** Throwing function pointers (DONE - 2026-02-25)
+#+BEGIN_SRC til
+ThrowingOp := func(I64, I64) returns I64 throws Str {}
+safe_div : ThrowingOp = (a, b) { ... }
+#+END_SRC
 
 *** What is missing
 - Storing function pointers in collections (Vec/Map of function pointers)

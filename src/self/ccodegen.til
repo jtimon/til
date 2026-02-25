@@ -7872,9 +7872,24 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 case:
                 }
                 if thr_is_func_ident {
+                    // Check if this is a FuncSig-typed parameter/variable (function pointer)
+                    mut thr_is_fptr_var := false
+                    mut thr_sym := context.scope_stack.lookup_symbol(thr_func_ident_name)?
+                    dont_delete(thr_sym)
+                    switch thr_sym.value_type {
+                    case ValueType.TCustom(thr_sym_tn):
+                        thr_is_fptr_var = is_func_sig_type(thr_sym_tn, context)
+                    case:
+                    }
+                    catch (err: KeyNotFoundError) {
+                    }
                     output.push_str(indent_str)
                     output.push_str("*_ret = ")
-                    output.push_str(til_name(thr_func_ident_name))
+                    if thr_is_fptr_var {
+                        output.push_str(resolve_var_name(thr_func_ident_name, ctx, context))
+                    } else {
+                        output.push_str(til_name(thr_func_ident_name))
+                    }
                     output.push_str(";\n")
                     output.push_str(indent_str)
                     output.push_str("return 0;\n")
@@ -8051,7 +8066,22 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 if nv_is_func_ident {
                     output.push_str(indent_str)
                     output.push_str("return ")
-                    output.push_str(til_name(nv_func_ident_name))
+                    // Check if this is a FuncSig-typed parameter/variable (function pointer)
+                    mut nv_is_fptr_var := false
+                    mut nv_sym := context.scope_stack.lookup_symbol(nv_func_ident_name)?
+                    dont_delete(nv_sym)
+                    switch nv_sym.value_type {
+                    case ValueType.TCustom(nv_sym_tn):
+                        nv_is_fptr_var = is_func_sig_type(nv_sym_tn, context)
+                    case:
+                    }
+                    catch (err: KeyNotFoundError) {
+                    }
+                    if nv_is_fptr_var {
+                        output.push_str(resolve_var_name(nv_func_ident_name, ctx, context))
+                    } else {
+                        output.push_str(til_name(nv_func_ident_name))
+                    }
                     output.push_str(";\n")
                     return
                 }

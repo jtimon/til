@@ -112,8 +112,29 @@ test_reassign := proc() = {
 }
 test_reassign()
 
-// TODO Issue #91: Func ptr with throws -- needs ccodegen fix for throwing func ptr calls
-// ThrowingOp := func(I64, I64) returns I64 throws Str {}
+// Issue #91: Func ptr passthrough (return param)
+passthrough_op : func(op: BinaryIntOp) returns BinaryIntOp = { return op }
+result_op := passthrough_op(add2)
+assert_eq(loc(), 8, result_op(3, 5))
+result_op2 := passthrough_op(subtract)
+assert_eq(loc(), 6, result_op2(10, 4))
 
-// TODO Issue #91: Func ptr passthrough (return param) -- needs interpreter fix
-// passthrough_op : func(op: BinaryIntOp) returns BinaryIntOp = { return op }
+// Issue #91: Func ptr with throws
+ThrowingOp := func(I64, I64) returns I64 throws Str {}
+safe_div : ThrowingOp = (a, b) {
+    if b.eq(0) {
+        throw "divide by zero"
+    }
+    return a.div(b)
+}
+
+test_throwing := proc() = {
+    result := safe_div(10, 2)?
+    assert_eq(loc(), 5, result)
+
+    catch (err: Str) {
+        println("ERROR:", err)
+        exit(1)
+    }
+}
+test_throwing()

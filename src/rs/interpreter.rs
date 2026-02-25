@@ -1734,6 +1734,27 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                 _ => Err(e.lang_error(&context.path, "eval", &format!("Invalid type for '{}'.", current_name))),
             }
         },
+        // Issue #91: FuncSig type - return function name
+        ValueType::TType(TTypeDef::TFuncSig) => {
+            if e.params.len() == 0 {
+                // FuncSig variable - the function name is stored in scope_stack.funcs
+                // (parameters are registered as funcs, not as heap data)
+                if let Some(fd) = context.scope_stack.lookup_func(name) {
+                    // Re-register in parent frame so it survives frame pop after return
+                    let fd_clone = fd.clone();
+                    let temp_name = format!("_fptr_{}", name);
+                    if context.scope_stack.frames.len() >= 2 {
+                        let parent_idx = context.scope_stack.frames.len() - 2;
+                        context.scope_stack.frames[parent_idx].funcs.insert(temp_name.clone(), fd_clone);
+                    }
+                    return Ok(EvalResult::new(&temp_name));
+                }
+                // Could also be a struct field read as Str
+                let func_name = string_from_context(context, name, e)?;
+                return Ok(EvalResult::new(&func_name));
+            }
+            return Err(e.lang_error(&context.path, "eval", &format!("FuncSig type '{}' does not support field access", name)));
+        },
         _ => Err(e.lang_error(&context.path, "eval", &format!("'{}' of type: '{}': custom types are supposed to be struct or enum, found '{}'.", name, custom_type_name, value_type_to_str(&custom_symbol.value_type)))),
     }
 }
