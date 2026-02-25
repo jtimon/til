@@ -3,13 +3,12 @@
 // Issue #159: Insert clone() calls for deep copy semantics on struct assignments.
 
 use std::collections::HashMap;
-// TODO Issue #191: Re-enable when delete-before-reassignment is re-enabled
 #[allow(unused_imports)]
 use std::collections::HashSet;
 use crate::rs::init::{Context, get_value_type};
 use crate::rs::parser::{Expr, NodeType, ValueType, TTypeDef, FuncDef, FCallInfo, StructDef, EnumDef, NamespaceDef, Declaration};
-// TODO Issue #191: Re-enable when delete-before-reassignment is re-enabled
-// use crate::rs::typer::is_cast_call;
+#[allow(unused_imports)]
+use crate::rs::typer::is_cast_call;
 
 /// Result of resolving a function call, including UFCS detection.
 struct ResolvedFCall {
@@ -54,12 +53,8 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
             let new_body = insert_clone_after_get(&new_body, &local_types, context)?;
 
-            // TODO Issue #191: Re-enable delete-before-reassignment when Bug #159 is fixed.
-            // Currently disabled because locals may hold aliased/borrowed values from
-            // lookup_func/lookup_symbol/lookup_struct (shallow copies that share heap
-            // pointers with the scope stack). Deleting them corrupts shared state.
-            // See Issue #191 in doc/todo/pre.org for details.
-            //
+            // Issue #191: Delete old value before reassignment of struct-typed locals.
+            // Disabled: depends on Bug #192 (own through by-ref intermediary causes use-after-free).
             // let mut declared_types: HashMap<String, String> = HashMap::new();
             // let mut cast_vars: HashSet<String> = HashSet::new();
             // for stmt in &new_body {
@@ -274,7 +269,6 @@ fn build_clone_assignment_expr(type_name: &str, var_name: &str, line: usize, col
 
 /// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier(var) )
 /// Issue #191: Used to free old value before reassignment.
-// TODO Issue #191: Re-enable when Bug #159 is fixed
 #[allow(dead_code)]
 fn build_delete_call_expr(type_name: &str, var_name: &str, line: usize, col: usize) -> Expr {
     let delete_ident = Expr::new_explicit(
@@ -388,7 +382,6 @@ fn process_stmt_for_clone_after_get(e: &Expr, local_types: &HashMap<String, Stri
 /// Issue #191: Check if an expression tree contains a reference to a specific variable.
 /// Used to avoid delete-before-reassignment when the RHS references the variable
 /// being reassigned (would cause use-after-free).
-// TODO Issue #191: Re-enable when Bug #159 is fixed
 #[allow(dead_code)]
 fn expr_references_var(e: &Expr, var_name: &str) -> bool {
     if let NodeType::Identifier(name) = &e.node_type {
@@ -408,7 +401,6 @@ fn expr_references_var(e: &Expr, var_name: &str) -> bool {
 /// Only processes top-level statements, no recursion into sub-bodies.
 /// Skips variables in cast_vars (initialized from cast, hold borrowed values).
 /// Skips when the RHS references the variable being reassigned (use-after-free).
-// TODO Issue #191: Re-enable when Bug #159 is fixed
 #[allow(dead_code)]
 fn insert_delete_before_reassignment(stmts: &[Expr], local_types: &HashMap<String, String>, cast_vars: &HashSet<String>) -> Vec<Expr> {
     let mut result = Vec::new();
