@@ -24,6 +24,45 @@ global scope instead of routing literals through a proc.
 
 * Fixed Bugs
 
+** Bug #192: Own parameter through by-reference intermediary causes use-after-free -- FIXED 2026-02-25
+:PROPERTIES:
+:DISCOVERED: 2026-02-25
+:FIXED: 2026-02-25
+:IMPACT: Data corruption -- garbager deletes data that was transferred via own through a by-ref wrapper
+:RELATED: #191, #159
+:END:
+
+*** Summary
+When a function takes a parameter by reference (default) and internally passes
+it with ~own~ to ~Vec.push~/~Set.insert~/~Map.set~, the data is shallow-copied
+into the container. The caller still holds the original pointer. If the garbager's
+delete-before-reassignment (#191) frees the caller's variable, the container holds
+a dangling pointer (use-after-free).
+
+*** Fix
+The type checker now rejects ~own var~ when ~var~ is a borrowed (const/mut)
+function parameter. Only ~own~ and ~copy~ params own their data and can transfer
+ownership. Locals are always owned, so ~own local_var~ remains valid.
+
+Implementation:
+1. Added ~borrowed_args: HashSet<String>~ (Rust) / ~borrowed_args: Set~ (TIL)
+   to ~ScopeStack~ struct
+2. Populated in ~check_func_proc_types~ param loop: params that are neither
+   ~own~ nor ~copy~ are added to ~borrowed_args~
+3. Save/clear/restore ~borrowed_args~ at function boundaries (same pattern as
+   ~used_symbols~ and ~function_locals~)
+4. In ~check_fcall_args~: when callee's param has ~is_own~ and the argument is
+   a simple identifier in ~borrowed_args~, emit type error with suggestion to
+   declare the param as ~own~ or ~copy~
+5. Updated 12 ~ScopeStack~ functions in ~init.til~ to take ~own~ params where
+   Rust takes ~String~ (owned). Callers updated with ~.clone()~ where the
+   source is an alias (for-in loop variable, cast result, borrowed param field).
+
+Files modified: init.rs, init.til, typer.rs, typer.til, interpreter.til,
+eval_heap.til, precomp.til, desugarer.til, garbager.til, ccodegen.til,
+scavenger.til, ufcs.til, ext.til, bug192.til, args.til, cross_file_forward/entity.til,
+examples/lolalalo.til
+
 ** Bug #171: make.til doesn't detect when it needs to rebuild itself
 :PROPERTIES:
 :DISCOVERED: 2026-02-11

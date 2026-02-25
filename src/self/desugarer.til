@@ -41,7 +41,7 @@ make_body : func(stmts: Vec, line: I64, col: I64) returns Expr = {
 }
 
 /// Create an if expression (with optional else via else_body_ptr)
-make_if : func(cond: Expr, then_body: Expr, else_body_ptr: Ptr, line: I64, col: I64) returns Expr = {
+make_if : func(own cond: Expr, own then_body: Expr, else_body_ptr: Ptr, line: I64, col: I64) returns Expr = {
     mut params := Vec.new(Expr)
     params.push(own cond)
     params.push(own then_body)
@@ -54,7 +54,7 @@ make_if : func(cond: Expr, then_body: Expr, else_body_ptr: Ptr, line: I64, col: 
 }
 
 /// Create a variable declaration with initializer
-make_decl : func(name: Str, value_type: ValueType, is_mut: Bool, init: Expr, line: I64, col: I64) returns Expr = {
+make_decl : func(name: Str, value_type: ValueType, is_mut: Bool, own init: Expr, line: I64, col: I64) returns Expr = {
     decl := Declaration(name=name, value_type=value_type, is_mut=is_mut, is_copy=false, is_own=false)
     mut params := Vec.new(Expr)
     params.push(own init)
@@ -62,7 +62,7 @@ make_decl : func(name: Str, value_type: ValueType, is_mut: Bool, init: Expr, lin
 }
 
 /// Create an assignment statement
-make_assign : func(name: Str, value: Expr, line: I64, col: I64) returns Expr = {
+make_assign : func(name: Str, own value: Expr, line: I64, col: I64) returns Expr = {
     mut params := Vec.new(Expr)
     params.push(own value)
     return Expr.new_explicit(NodeType.Assignment(name), params, line, col)
@@ -925,7 +925,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
     // First declaration: capture the switch expression
     // Bug #157 fix in ccodegen handles field access on throwing calls properly now
-    decl_exprs.push(own make_decl(switch_expr_var_name, switch_expr_var_type, false, desugared_switch_expr.clone(), line, col))
+    decl_exprs.push(own make_decl(switch_expr_var_name, switch_expr_var_type, false, own desugared_switch_expr.clone(), line, col))
 
     // For enum switches, add second declaration: _switch_variant := enum_to_str(_switch_expr)
     if is_enum_switch {
@@ -933,7 +933,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         enum_to_str_args.push(own make_id(switch_expr_var_name, line, col))
         enum_to_str_call := make_call("enum_to_str", enum_to_str_args, line, col)
 
-        decl_exprs.push(own make_decl(switch_var_name, str_to_value_type("Str"), false, enum_to_str_call, line, col))
+        decl_exprs.push(own make_decl(switch_var_name, str_to_value_type("Str"), false, own enum_to_str_call, line, col))
     }
 
     // Build the if/else chain from cases
@@ -973,8 +973,8 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 payload_type_ptr.copy_to_dynamic(payload_vt, size_of(ValueType))
                 context.scope_stack.push(ScopeType.Block)
                 context.scope_stack.declare_symbol(
-                    pattern_info.binding_var,
-                    SymbolInfo(
+                    own pattern_info.binding_var.clone(),
+                    own SymbolInfo(
                         value_type=payload_vt,
                         is_mut=true,
                         is_copy=false,
@@ -1062,7 +1062,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         mf_sid_str.delete()
 
         // Declare match flag: mut _switch_matched := false
-        stmts.push(own make_decl(match_flag_name, ValueType.TCustom("Bool"), true, make_id("false", line, col), line, col))
+        stmts.push(own make_decl(match_flag_name, ValueType.TCustom("Bool"), true, own make_id("false", line, col), line, col))
 
         mut nested_case_index := 0
         while nested_case_index.lt(total_cases) {
@@ -1107,7 +1107,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             not_matched := make_call("not", not_args, line, col)
 
             // Build: _switch_matched = true
-            set_matched := make_assign(match_flag_name, make_id("true", line, col), line, col)
+            set_matched := make_assign(match_flag_name, own make_id("true", line, col), line, col)
 
             if nested_has_inner_condition {
                 // Nested pattern: if !matched && outer { prefix; if inner { matched = true; body } }
@@ -1124,7 +1124,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                     inner_body_params.push(own nested_renamed_case_body)
                 }
                 inner_body := make_body(inner_body_params, line, col)
-                inner_if := make_if(nested_inner_condition, inner_body, Ptr(), line, col)
+                inner_if := make_if(own nested_inner_condition, own inner_body, Ptr(), line, col)
 
                 // Build outer body: body_prefix + inner_if
                 mut outer_body_params := Vec.new(Expr)
@@ -1140,7 +1140,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 nested_guarded_args.push(own nested_condition)
                 nested_guarded_condition := make_call("and", nested_guarded_args, line, col)
 
-                outer_if := make_if(nested_guarded_condition, outer_body, Ptr(), line, col)
+                outer_if := make_if(own nested_guarded_condition, own outer_body, Ptr(), line, col)
                 stmts.push(own outer_if)
             } else {
                 // Simple pattern: if !matched && condition { matched = true; body }
@@ -1176,7 +1176,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 simple_guarded_args.push(own nested_condition)
                 simple_guarded_condition := make_call("and", simple_guarded_args, line, col)
 
-                case_if := make_if(simple_guarded_condition, full_body, Ptr(), line, col)
+                case_if := make_if(own simple_guarded_condition, own full_body, Ptr(), line, col)
                 stmts.push(own case_if)
             }
 
@@ -1188,7 +1188,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         not_final_args.push(own make_id(match_flag_name, line, col))
         not_matched_final := make_call("not", not_final_args, line, col)
 
-        default_if := make_if(not_matched_final, default_expr, Ptr(), line, col)
+        default_if := make_if(own not_matched_final, own default_expr, Ptr(), line, col)
         stmts.push(own default_if)
 
         // Combine: declarations + match flag + guarded ifs + guarded default
@@ -1267,7 +1267,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         // Build if/else: result_expr as else_body_ptr
         mut else_ptr := Ptr()
         else_ptr.data = to_ptr(result_expr)
-        result_expr = make_if(rev_condition, full_case_body, else_ptr, line, col)
+        result_expr = make_if(own rev_condition, own full_case_body, else_ptr, line, col)
     }
 
     // Wrap in outer body with declarations and if/else chain
@@ -1408,7 +1408,7 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
         index_var_name = format("_for_i_", forin_id_str)
     }
     forin_id_str.delete()
-    index_decl_expr := make_decl(index_var_name, str_to_value_type("I64"), true, make_num("0", e.line, e.col), e.line, e.col)
+    index_decl_expr := make_decl(index_var_name, str_to_value_type("I64"), true, own make_num("0", e.line, e.col), e.line, e.col)
 
     // Build len(collection) - already desugared form
     mut len_args := Vec.new(Expr)
@@ -1460,7 +1460,7 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
     add_args.push(own make_num("1", e.line, e.col))
     add_call := make_call("add", add_args, e.line, e.col)
 
-    inc_stmt := make_assign(index_var_name, add_call, e.line, e.col)
+    inc_stmt := make_assign(index_var_name, own add_call, e.line, e.col)
 
     // Bug #144: All types use get + cast (zero-copy for all types)
     // Build: _ref_forin_N := get(collection, _for_i)
@@ -1469,14 +1469,14 @@ desugar_forin : proc(mut context: Context, e: Expr, var_type_name: Str) returns 
     get_args.push(own collection_expr.clone())
     get_args.push(own make_id(index_var_name, e.line, e.col))
     get_call := make_call("get", get_args, e.line, e.col)
-    ref_decl := make_decl(ref_var_name, ValueType.TCustom("Ptr"), false, get_call, e.line, e.col)
+    ref_decl := make_decl(ref_var_name, ValueType.TCustom("Ptr"), false, own get_call, e.line, e.col)
 
     // Build: item := cast(Type, _ref_forin_N)
     mut cast_args := Vec.new(Expr)
     cast_args.push(own make_id(var_type_name, e.line, e.col))
     cast_args.push(own make_id(ref_var_name, e.line, e.col))
     cast_call := make_call("cast", cast_args, e.line, e.col)
-    cast_decl := make_decl(var_name, ValueType.TCustom(var_type_name), false, cast_call, e.line, e.col)
+    cast_decl := make_decl(var_name, ValueType.TCustom(var_type_name), false, own cast_call, e.line, e.col)
 
     mut while_body_params := Vec.new(Expr)
     while_body_params.push(own ref_decl)
@@ -1689,7 +1689,7 @@ desugar_defer_in_scope : proc(stmts: Vec, parent_defers: Vec, func_name: Str, mu
                 temp_name := make_temp_name("_defer_ret", func_name, ret_counter)
                 ret_counter.inc()
                 return_value := cast(Expr, stmt.params.get(0)?)
-                result.push(own make_decl(temp_name, ret_type.clone(), false, return_value.clone(), ret_line, ret_col))
+                result.push(own make_decl(temp_name, ret_type.clone(), false, own return_value.clone(), ret_line, ret_col))
                 // Insert all defers in LIFO order
                 mut ret_di := ret_all_defers.len().sub(1)
                 while ret_di.gteq(0) {
@@ -1849,8 +1849,8 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         context.scope_stack.push(ScopeType.Function)
         for arg: Declaration in func_def.sig.args {
             context.scope_stack.declare_symbol(
-                arg.name,
-                SymbolInfo(
+                own arg.name.clone(),
+                own SymbolInfo(
                     value_type=arg.value_type,
                     is_mut=arg.is_mut,
                     is_copy=arg.is_copy,
@@ -1969,8 +1969,8 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 
         // Track this declaration in scope_stack for get_value_type lookups
         context.scope_stack.declare_symbol(
-            decl.name,
-            SymbolInfo(
+            own decl.name.clone(),
+            own SymbolInfo(
                 value_type=decl.value_type,
                 is_mut=decl.is_mut,
                 is_copy=decl.is_copy,

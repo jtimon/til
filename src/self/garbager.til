@@ -150,7 +150,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
                 case ValueType.TCustom(type_name):
                     // Build clone call: Type.clone(rhs_expr)
                     decl_rhs_expr := first_param.clone()
-                    decl_clone_call := build_clone_call_expr(type_name, decl_rhs_expr, e.line, e.col)
+                    decl_clone_call := build_clone_call_expr(type_name, own decl_rhs_expr, e.line, e.col)
                     mut decl_transformed_params := Vec.new(Expr)
                     decl_transformed_params.push(own decl_clone_call)
                     mut decl_i := 1
@@ -226,7 +226,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
                     if not(assign_is_func_sig) {
                         // Build clone call: Type.clone(rhs_expr)
                         assign_rhs_expr := assign_first_param.clone()
-                        assign_clone_call := build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col)
+                        assign_clone_call := build_clone_call_expr(type_name, own assign_rhs_expr, e.line, e.col)
                         mut assign_transformed_params := Vec.new(Expr)
                         assign_transformed_params.push(own assign_clone_call)
                         mut assign_i := 1
@@ -286,7 +286,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
 /// Only locals with owned init are safe to delete at function end.
 /// Aliases from shallow copies (memcpy) would cause double-free if deleted.
 /// Build AST for Type.clone(src_expr): FCall( Identifier("Type").Identifier("clone"), src_expr )
-build_clone_call_expr : func(type_name: Str, src_expr: Expr, line: I64, col: I64) returns Expr = {
+build_clone_call_expr : func(type_name: Str, own src_expr: Expr, line: I64, col: I64) returns Expr = {
     // Type.clone access: Identifier("Type") with child Identifier("clone")
     clone_ident := Expr(node_type=NodeType.Identifier("clone"), line=line, col=col)
     mut type_clone_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
@@ -303,7 +303,7 @@ build_clone_call_expr : func(type_name: Str, src_expr: Expr, line: I64, col: I64
 /// Used to break shallow-copy aliasing after container get/pop calls.
 build_clone_assignment_expr : func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr = {
     var_expr := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
-    clone_call := build_clone_call_expr(type_name, var_expr, line, col)
+    clone_call := build_clone_call_expr(type_name, own var_expr, line, col)
     mut assign := Expr(node_type=NodeType.Assignment(var_name), line=line, col=col)
     assign.params.push(own clone_call)
     return assign
@@ -607,7 +607,7 @@ transform_fcall_copy_params : proc(context: Context, e: Expr, mut new_params: Ve
                 switch arg_def.value_type {
                 case ValueType.TCustom(type_name):
                     arg_expr := param_expr.clone()
-                    clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
+                    clone_call := build_clone_call_expr(type_name, own arg_expr, e.line, e.col)
                     new_params.set(param_idx, own clone_call)?
                     catch (err: IndexOutOfBoundsError) { }
                 case:
@@ -817,7 +817,7 @@ transform_struct_literal_fields : proc(context: Context, e: Expr, mut new_params
                         dont_delete(value_expr)
                         if is_identifier_expr(value_expr) {
                             arg_expr := value_expr.clone()
-                            clone_call := build_clone_call_expr(type_name, arg_expr, e.line, e.col)
+                            clone_call := build_clone_call_expr(type_name, own arg_expr, e.line, e.col)
                             param.params.set(0, own clone_call)?
                             catch (err: IndexOutOfBoundsError) { }
                             new_params.set(param_idx, own param)?

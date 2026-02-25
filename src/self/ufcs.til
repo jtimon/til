@@ -382,7 +382,7 @@ ufcs_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns E
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.sig.args {
         sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own, is_comptime_const=false)
-        context.scope_stack.declare_symbol(arg.name, sym)?
+        context.scope_stack.declare_symbol(own arg.name.clone(), own sym)?
     }
 
     // Transform the function body
@@ -461,7 +461,7 @@ ufcs_declaration : proc(mut context: Context, e: Expr, decl: Declaration) return
     switch inner_e.node_type {
     case NodeType.StructDef(struct_def):
         if not(context.scope_stack.has_struct(decl.name)) {
-            context.scope_stack.declare_struct(decl.name, struct_def)?
+            context.scope_stack.declare_struct(own decl.name.clone(), own struct_def)?
         }
     case:
     }
@@ -469,7 +469,7 @@ ufcs_declaration : proc(mut context: Context, e: Expr, decl: Declaration) return
     // For enum definitions, register the enum
     switch inner_e.node_type {
     case NodeType.EnumDef(enum_def):
-        context.scope_stack.declare_enum(decl.name, enum_def)?
+        context.scope_stack.declare_enum(own decl.name.clone(), own enum_def)?
     case:
     }
 
@@ -477,7 +477,7 @@ ufcs_declaration : proc(mut context: Context, e: Expr, decl: Declaration) return
     // This allows recursive nested functions to resolve UFCS on their own return type
     switch inner_e.node_type {
     case NodeType.FuncDef(func_def):
-        context.scope_stack.declare_func(decl.name, func_def)?
+        context.scope_stack.declare_func(own decl.name.clone(), own func_def)?
     case:
     }
 
@@ -491,14 +491,14 @@ ufcs_declaration : proc(mut context: Context, e: Expr, decl: Declaration) return
 
     // Register the declared variable in scope
     sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=false)
-    context.scope_stack.declare_symbol(decl.name, sym)?
+    context.scope_stack.declare_symbol(own decl.name.clone(), own sym)?
 
     // Also register function definitions so UFCS can resolve their return types
     if new_params.len().gt(0) {
         first_param := cast(Expr, new_params.get(0)?)
         switch first_param.node_type {
         case NodeType.FuncDef(func_def):
-            context.scope_stack.declare_func(decl.name, func_def)?
+            context.scope_stack.declare_func(own decl.name.clone(), own func_def)?
         case:
         }
     }
@@ -545,7 +545,7 @@ ufcs_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     sym.is_copy = false
     sym.is_own = false
     sym.is_comptime_const = false
-    context.scope_stack.declare_symbol(var_name, sym)?
+    context.scope_stack.declare_symbol(own var_name.clone(), own sym)?
 
     // Transform the catch body (params[2])
     body_expr := cast(Expr, e.params.get(2)?)

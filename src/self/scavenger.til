@@ -391,7 +391,7 @@ register_declarations_recursive : proc(mut context: Context, e: Expr) throws Str
             switch inner.node_type {
             case NodeType.FuncDef(func_def):
                 // Function declaration
-                context.scope_stack.declare_func(decl.name.clone(), func_def.clone())?
+                context.scope_stack.declare_func(own decl.name.clone(), own func_def.clone())?
                 // Recurse into function body for local declarations
                 for stmt: Expr in func_def.body {
                     register_declarations_recursive(context, stmt)?
@@ -400,7 +400,7 @@ register_declarations_recursive : proc(mut context: Context, e: Expr) throws Str
                 // Struct declaration
                 // Issue #108: Don't overwrite if struct already exists with merged namespace members
                 if not(context.scope_stack.has_struct(decl.name)) {
-                    context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone())?
+                    context.scope_stack.declare_struct(own decl.name.clone(), own struct_def.clone())?
                 }
                 // Struct methods
                 for member_name: Str in struct_def.default_values.keys {
@@ -408,7 +408,7 @@ register_declarations_recursive : proc(mut context: Context, e: Expr) throws Str
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         full_name := format(decl.name, ".", member_name)
-                        context.scope_stack.declare_func(full_name, func_def.clone())?
+                        context.scope_stack.declare_func(own full_name, own func_def.clone())?
                         // Recurse into method body for local declarations
                         for stmt: Expr in func_def.body {
                             register_declarations_recursive(context, stmt)?
@@ -422,7 +422,7 @@ register_declarations_recursive : proc(mut context: Context, e: Expr) throws Str
                     switch ns_default_expr.node_type {
                     case NodeType.FuncDef(ns_func_def):
                         ns_full_name := format(decl.name, ".", ns_member_name)
-                        context.scope_stack.declare_func(ns_full_name, ns_func_def.clone())?
+                        context.scope_stack.declare_func(own ns_full_name, own ns_func_def.clone())?
                         for ns_stmt: Expr in ns_func_def.body {
                             register_declarations_recursive(context, ns_stmt)?
                         }

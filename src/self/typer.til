@@ -699,7 +699,7 @@ check_forin_statement : proc(mut context: Context, e: Expr) returns Vec throws S
 
     // Push scope for loop body, declare loop variable
     context.scope_stack.push(ScopeType.Block)
-    context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(var_type_name), is_mut=true))?
+    context.scope_stack.declare_symbol(own var_name, own SymbolInfo(value_type=ValueType.TCustom(var_type_name), is_mut=true))?
 
     // Type check body
     if e.params.len().gteq(3) {
@@ -1279,6 +1279,15 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
             case NodeType.Identifier(var_name):
                 // Only invalidate simple identifiers, not field access or function calls
                 if arg_expr.params.len().eq(0) {
+                    // Bug #192: Reject own on borrowed (const/mut) function parameters
+                    if context.scope_stack.borrowed_args.contains(var_name) {
+                        errors.push(own arg_expr.error(context.path, "type", format(
+                            "Cannot transfer ownership of borrowed parameter '", var_name,
+                            "'. Parameter '", var_name, "' is passed by reference, not owned.\n",
+                            "Suggestion: declare '", var_name, "' as 'own ", var_name,
+                            "' or 'copy ", var_name, "' in the function signature."
+                        )))
+                    }
                     context.scope_stack.consume_symbol(var_name, f_name, arg_expr)?
                 }
             case:
@@ -1389,10 +1398,13 @@ check_func_proc_types : proc(func_def: FuncDef, mut context: Context, e: Expr) r
     // Bug #101: Save outer function's tracking state for nested function support
     mut saved_function_locals := context.scope_stack.function_locals.clone()
     mut saved_used_symbols := context.scope_stack.used_symbols.clone()
+    mut saved_borrowed_args := context.scope_stack.borrowed_args.clone()
     // Bug #97: Clear function_locals at start of each function
     context.scope_stack.function_locals.clear()
     // Bug #101: Clear used_symbols at start of each function
     context.scope_stack.used_symbols.clear()
+    // Bug #192: Clear borrowed_args at start of each function
+    context.scope_stack.borrowed_args.clear()
     if not(context.mode_def.allows_procs).and(func_def.is_proc()) {
         errors.push(own e.error(context.path, "type", "Procs not allowed in pure modes"))
     }
@@ -1417,7 +1429,7 @@ check_func_proc_types : proc(func_def: FuncDef, mut context: Context, e: Expr) r
             // All array types now use the generic Array
             array_type_name := "Array"
 
-            context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=ValueType.TCustom(array_type_name)))?
+            context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=ValueType.TCustom(array_type_name)))?
         case ValueType.TCustom(custom_type_name):
             mut custom_symbol_found := false
             mut custom_symbol := SymbolInfo()
@@ -1432,24 +1444,28 @@ check_func_proc_types : proc(func_def: FuncDef, mut context: Context, e: Expr) r
             switch custom_symbol.value_type {
             case ValueType.TType(TTypeDef.TStructDef):
                 // Valid: struct type
-                context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
+                context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
                 // Register struct fields for type checking
                 context.register_struct_fields_for_typecheck(arg.name, custom_type_name)?
             case ValueType.TType(TTypeDef.TEnumDef):
                 // Valid: enum type
-                context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
+                context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
             case ValueType.TType(TTypeDef.TFuncSig):
                 // Issue #91: Valid: function signature type as parameter
-                context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
+                context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
             case:
                 // Invalid: not a type, it's a value or something else
                 errors.push(own e.error(context.path, "type", format("Argument '", arg.name, "' has type '", custom_type_name, "' which is not a valid type (expected struct, enum, or function signature)")))
             }
         case:
-            context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
+            context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
         }
         // Bug #101: Register argument in function_locals for unused tracking
         context.scope_stack.register_function_local(arg.name, e.line, e.col)
+        // Bug #192: Track borrowed (const/mut) params for own-transfer validation
+        if not(arg.is_own).and(not(arg.is_copy)) {
+            _ := context.scope_stack.borrowed_args.insert(own arg.name.clone())
+        }
     }
 
     // TODO re-enable test when it is decided what to do with free, memcpy and memset
@@ -1464,6 +1480,7 @@ check_func_proc_types : proc(func_def: FuncDef, mut context: Context, e: Expr) r
         // Bug #101: Restore outer function's tracking state before returning
         context.scope_stack.function_locals = saved_function_locals
         context.scope_stack.used_symbols = saved_used_symbols
+        context.scope_stack.borrowed_args = saved_borrowed_args
         return errors
     }
 
@@ -1480,6 +1497,7 @@ check_func_proc_types : proc(func_def: FuncDef, mut context: Context, e: Expr) r
         if all_unnamed {
             context.scope_stack.function_locals = saved_function_locals
             context.scope_stack.used_symbols = saved_used_symbols
+            context.scope_stack.borrowed_args = saved_borrowed_args
             return errors
         }
     }
@@ -1491,6 +1509,7 @@ check_func_proc_types : proc(func_def: FuncDef, mut context: Context, e: Expr) r
         if has_type_params(func_def) {
             context.scope_stack.function_locals = saved_function_locals
             context.scope_stack.used_symbols = saved_used_symbols
+            context.scope_stack.borrowed_args = saved_borrowed_args
             return errors
         }
     }
@@ -1563,6 +1582,7 @@ check_func_proc_types : proc(func_def: FuncDef, mut context: Context, e: Expr) r
     }
     context.scope_stack.function_locals = saved_function_locals
     context.scope_stack.used_symbols = saved_used_symbols
+    context.scope_stack.borrowed_args = saved_borrowed_args
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -1784,7 +1804,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
 
                     // Create scoped context for catch body with the error variable registered
                     context.scope_stack.push(ScopeType.Block)
-                    context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(caught_type)))?
+                    context.scope_stack.declare_symbol(own var_name.clone(), own SymbolInfo(value_type=ValueType.TCustom(caught_type)))?
 
                     // Register struct fields so err.msg etc. can be accessed during type-checking
                     mut struct_found := false
@@ -1797,7 +1817,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                     if struct_found {
                         for field_decl: Declaration in struct_def_opt.members {
                             combined_name := format(var_name, ".", field_decl.name)
-                            context.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=field_decl.value_type))?
+                            context.scope_stack.declare_symbol(own combined_name, own SymbolInfo(value_type=field_decl.value_type))?
                         }
                     }
 
@@ -2016,7 +2036,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                         }
                     }
                     context.scope_stack.push(ScopeType.Block)
-                    context.scope_stack.declare_symbol(forin_var_name, SymbolInfo(value_type=ValueType.TCustom(var_type_name), is_mut=true))?
+                    context.scope_stack.declare_symbol(own forin_var_name, own SymbolInfo(value_type=ValueType.TCustom(var_type_name), is_mut=true))?
                     errors.extend(check_body_returns_throws(context, e, func_def, forin_body_expr.params, forin_thrown_types, return_found)?)
                     context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                 }
@@ -2101,7 +2121,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
                                 mut payload_type := ValueType.TCustom("")
                                 memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                                 context.scope_stack.push(ScopeType.Block)
-                                context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))?
+                                context.scope_stack.declare_symbol(own pattern_info.binding_var.clone(), own SymbolInfo(value_type=payload_type))?
                                 errors.extend(check_body_returns_throws(context, e, func_def, switch_body_expr.params, switch_thrown_types, return_found)?)
                                 context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                                 handled = true
@@ -2136,7 +2156,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
 
                     if not(already_declared) {
                         mut inferred_type := get_value_type(context, initializer)?
-                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=inferred_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=inferred_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                         catch (err: Str) {
                             // Can't infer type, skip declaration
                         }
@@ -2358,13 +2378,13 @@ check_catch_statement : proc(mut context: Context, e: Expr) returns Vec throws S
 
     // Create scoped context for catch body
     context.scope_stack.push(ScopeType.Block)
-    context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(type_name)))?
+    context.scope_stack.declare_symbol(own var_name.clone(), own SymbolInfo(value_type=ValueType.TCustom(type_name)))?
 
     // Map struct fields so err.msg etc. can be accessed during type-checking
     mut struct_def := context.scope_stack.lookup_struct(type_name)?
     for field_decl: Declaration in struct_def.members {
         combined_name := format(var_name, ".", field_decl.name)
-        context.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=field_decl.value_type))?
+        context.scope_stack.declare_symbol(own combined_name, own SymbolInfo(value_type=field_decl.value_type))?
     }
     catch (err: KeyNotFoundError) {
         // Not a struct, skip field registration
@@ -2478,7 +2498,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
             case ValueType.TType(TTypeDef.TFuncSig):
                 typer_resolved_fd := context.scope_stack.lookup_func(decl.name)?
                 resolved_value_type := ValueType.TFunction(typer_resolved_fd.sig.function_type)
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=resolved_value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=resolved_value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                 // Type-check the function body using the resolved func_def
                 context.scope_stack.push(ScopeType.Function)
                 errors.extend(check_func_proc_types(typer_resolved_fd, context, inner_e)?)
@@ -2496,7 +2516,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
         }
 
         // TODO move to init_context() ? inner contexts are not persisted in init_context
-        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
 
         switch value_type {
         case ValueType.TCustom(custom_type):
@@ -2514,7 +2534,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
                 // TODO move to init_context() ? inner contexts are not persisted in init_context
-                context.scope_stack.declare_func(decl.name, func_def)?
+                context.scope_stack.declare_func(own decl.name.clone(), own func_def)?
             case:
                 errors.push(own e.lang_error(context.path, "type", "functions should have definitions"))
                 return errors
@@ -2523,7 +2543,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
         case ValueType.TFunction(FunctionType.FTProc):
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_func(decl.name, func_def)?
+                context.scope_stack.declare_func(own decl.name.clone(), own func_def)?
             case:
                 errors.push(own e.lang_error(context.path, "type", "functions should have definitions"))
                 return errors
@@ -2532,7 +2552,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
         case ValueType.TFunction(FunctionType.FTMacro):
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_func(decl.name, func_def)?
+                context.scope_stack.declare_func(own decl.name.clone(), own func_def)?
             case:
                 errors.push(own e.lang_error(context.path, "type", "functions should have definitions"))
                 return errors
@@ -2775,7 +2795,7 @@ check_switch_statement : proc(mut context: Context, e: Expr) returns Vec throws 
                     mut payload_type := ValueType.TCustom("")
                     memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                     context.scope_stack.push(ScopeType.Block)
-                    context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))?
+                    context.scope_stack.declare_symbol(own pattern_info.binding_var.clone(), own SymbolInfo(value_type=payload_type))?
                     // Switch case body statements discard return values
                     errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded)?)
                     context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
@@ -3837,7 +3857,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
             switch var_expr.node_type {
             case NodeType.Identifier(var_name):
                 var_type := str_to_value_type(var_type_name)
-                context.scope_stack.declare_symbol(var_name, SymbolInfo(
+                context.scope_stack.declare_symbol(own var_name.clone(), own SymbolInfo(
                     value_type=var_type,
                     is_mut=false,
                     is_copy=false,
@@ -3922,7 +3942,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
                             mut payload_type := ValueType.TCustom("")
                             memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                             context.scope_stack.push(ScopeType.Block)
-                            context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))?
+                            context.scope_stack.declare_symbol(own pattern_info.binding_var.clone(), own SymbolInfo(value_type=payload_type))?
                             new_params.push(own resolve_inferred_types(context, body_expr)?)
                             context.scope_stack.pop()?.delete() // TODO remove this #183 workaround
                         } else {
@@ -4071,7 +4091,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
 
         // Create scoped context for catch body
         context.scope_stack.push(ScopeType.Block)
-        context.scope_stack.declare_symbol(catch_var_name, SymbolInfo(
+        context.scope_stack.declare_symbol(own catch_var_name.clone(), own SymbolInfo(
             value_type=ValueType.TCustom(catch_type_name),
             is_mut=false,
             is_copy=false,
@@ -4083,7 +4103,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
         mut catch_struct_def := context.scope_stack.lookup_struct(catch_type_name)?
         for field_decl: Declaration in catch_struct_def.members {
             combined_name := format(catch_var_name, ".", field_decl.name)
-            context.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=field_decl.value_type))?
+            context.scope_stack.declare_symbol(own combined_name, own SymbolInfo(value_type=field_decl.value_type))?
         }
         catch (err: KeyNotFoundError) {
             // Not a struct, skip field registration
@@ -4256,7 +4276,7 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
     }
 
     if not(already_registered) {
-        context.scope_stack.declare_symbol(new_decl.name, SymbolInfo(
+        context.scope_stack.declare_symbol(own new_decl.name.clone(), own SymbolInfo(
             value_type=new_decl.value_type,
             is_mut=new_decl.is_mut,
             is_copy=new_decl.is_copy,
@@ -4313,7 +4333,7 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
             decl_inner_e := cast(Expr, resolve_decl_params.get(0)?)
             switch decl_inner_e.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_func(new_decl.name, func_def)?
+                context.scope_stack.declare_func(own new_decl.name.clone(), own func_def)?
             case:
             }
         }
@@ -4333,7 +4353,7 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
                 switch resolve_ns_value_expr.node_type {
                 case NodeType.FuncDef(resolve_ns_func_def):
                     resolve_ns_full_name := format(new_decl.name, ".", resolve_ns_name)
-                    context.scope_stack.update_func(resolve_ns_full_name, resolve_ns_func_def.clone())?
+                    context.scope_stack.update_func(own resolve_ns_full_name, own resolve_ns_func_def.clone())?
                     catch (err: Str) {
                         panic(loc(), "resolve_declaration ns update_func failed: ", err)
                     }
@@ -4364,7 +4384,7 @@ resolve_funcdef : proc(mut context: Context, e: Expr, func_def: FuncDef) returns
 
     // Register function parameters in scope
     for arg: Declaration in func_def.sig.args {
-        context.scope_stack.declare_symbol(arg.name, SymbolInfo(
+        context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(
             value_type=arg.value_type,
             is_mut=arg.is_mut,
             is_copy=arg.is_copy,

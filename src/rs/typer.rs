@@ -961,6 +961,15 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
             if let NodeType::Identifier(var_name) = &arg_expr.node_type {
                 // Only invalidate simple identifiers, not field access or function calls
                 if arg_expr.params.is_empty() {
+                    // Bug #192: Reject own on borrowed (const/mut) function parameters
+                    if context.scope_stack.borrowed_args.contains(var_name) {
+                        errors.push(arg_expr.error(&context.path, "type", &format!(
+                            "Cannot transfer ownership of borrowed parameter '{}'. \
+                             Parameter '{}' is passed by reference, not owned.\n\
+                             Suggestion: declare '{}' as 'own {}' or 'copy {}' in the function signature.",
+                            var_name, var_name, var_name, var_name, var_name
+                        )));
+                    }
                     context.scope_stack.consume_symbol(var_name, &f_name, arg_expr);
                 }
             }
@@ -1007,10 +1016,13 @@ fn check_func_proc_types(func_def: &FuncDef, context: &mut Context, e: &Expr) ->
     // Bug #101: Save outer function's tracking state for nested function support
     let saved_function_locals = context.scope_stack.function_locals.clone();
     let mut saved_used_symbols = context.scope_stack.used_symbols.clone();
+    let saved_borrowed_args = context.scope_stack.borrowed_args.clone();
     // Bug #97: Clear function_locals at start of each function
     context.scope_stack.function_locals.clear();
     // Bug #101: Clear used_symbols at start of each function
     context.scope_stack.used_symbols.clear();
+    // Bug #192: Clear borrowed_args at start of each function
+    context.scope_stack.borrowed_args.clear();
     if !context.mode_def.allows_procs && func_def.is_proc() {
         errors.push(e.error(&context.path, "type", "Procs not allowed in pure modes"));
     }
@@ -1078,6 +1090,10 @@ fn check_func_proc_types(func_def: &FuncDef, context: &mut Context, e: &Expr) ->
         }
         // Bug #101: Register argument in function_locals for unused tracking
         context.scope_stack.register_function_local(&arg.name, e.line, e.col);
+        // Bug #192: Track borrowed (const/mut) params for own-transfer validation
+        if !arg.is_own && !arg.is_copy {
+            context.scope_stack.borrowed_args.insert(arg.name.clone());
+        }
     }
 
     // TODO re-enable test when it is decided what to do with free, memcpy and memset
@@ -1092,6 +1108,7 @@ fn check_func_proc_types(func_def: &FuncDef, context: &mut Context, e: &Expr) ->
         // Bug #101: Restore outer function's tracking state before returning
         context.scope_stack.function_locals = saved_function_locals;
         context.scope_stack.used_symbols = saved_used_symbols;
+        context.scope_stack.borrowed_args = saved_borrowed_args;
         return Ok(errors);
     }
 
@@ -1100,6 +1117,7 @@ fn check_func_proc_types(func_def: &FuncDef, context: &mut Context, e: &Expr) ->
     if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty()) {
         context.scope_stack.function_locals = saved_function_locals;
         context.scope_stack.used_symbols = saved_used_symbols;
+        context.scope_stack.borrowed_args = saved_borrowed_args;
         return Ok(errors);
     }
 
@@ -1111,6 +1129,7 @@ fn check_func_proc_types(func_def: &FuncDef, context: &mut Context, e: &Expr) ->
     {
         context.scope_stack.function_locals = saved_function_locals;
         context.scope_stack.used_symbols = saved_used_symbols;
+        context.scope_stack.borrowed_args = saved_borrowed_args;
         return Ok(errors);
     }
 
@@ -1188,6 +1207,7 @@ fn check_func_proc_types(func_def: &FuncDef, context: &mut Context, e: &Expr) ->
     }
     context.scope_stack.function_locals = saved_function_locals;
     context.scope_stack.used_symbols = saved_used_symbols;
+    context.scope_stack.borrowed_args = saved_borrowed_args;
 
     return Ok(errors)
 }

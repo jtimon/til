@@ -5152,7 +5152,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                     info.is_copy = false
                     info.is_own = false
                     info.is_comptime_const = false
-                    context.scope_stack.declare_symbol(err_var_name.clone(), info)?
+                    context.scope_stack.declare_symbol(own err_var_name.clone(), own info)?
                 case:
                 }
             case:
@@ -5185,7 +5185,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                         sym_info.is_copy = false
                         sym_info.is_own = false
                         sym_info.is_comptime_const = false
-                        context.scope_stack.declare_symbol(decl.name.clone(), sym_info)?
+                        context.scope_stack.declare_symbol(own decl.name.clone(), own sym_info)?
                     }
                 }
             }
@@ -5309,7 +5309,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                                 emit_sym_info.is_copy = false
                                 emit_sym_info.is_own = false
                                 emit_sym_info.is_comptime_const = false
-                                context.scope_stack.declare_symbol(emit_err_var_name.clone(), emit_sym_info)?
+                                context.scope_stack.declare_symbol(own emit_err_var_name.clone(), own emit_sym_info)?
                             case:
                             }
 
@@ -5670,7 +5670,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
                 sym_info.is_copy = false
                 sym_info.is_own = false
                 sym_info.is_comptime_const = false
-                context.scope_stack.declare_symbol(decl_name.clone(), sym_info)?
+                context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
             }
             catch (err: KeyNotFoundError) { }
             variadic_c_var_name := til_var_name_from_context(decl_name, context)
@@ -5883,7 +5883,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
             sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
-            context.scope_stack.declare_symbol(decl_name.clone(), sym_info)?
+            context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
@@ -6141,7 +6141,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
                         catch_sym_info.is_copy = false
                         catch_sym_info.is_own = false
                         catch_sym_info.is_comptime_const = false
-                        context.scope_stack.declare_symbol(err_var_name.clone(), catch_sym_info)?
+                        context.scope_stack.declare_symbol(own err_var_name.clone(), own catch_sym_info)?
                     case:
                     }
 
@@ -6301,7 +6301,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
             sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
-            context.scope_stack.declare_symbol(decl_name.clone(), sym_info)?
+            context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
@@ -6623,7 +6623,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
             sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
-            context.scope_stack.declare_symbol(decl_name.clone(), sym_info)?
+            context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
@@ -6904,7 +6904,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 ctx.nested_func_names.set(own decl.name.clone(), own mangled_name.clone())
 
                 // Register function definition so get_value_type can resolve return types
-                context.scope_stack.declare_func(decl.name.clone(), func_def.clone())?
+                context.scope_stack.declare_func(own decl.name.clone(), own func_def.clone())?
 
                 // Generate the hoisted function prototype
                 mut proto_output := ""
@@ -7064,8 +7064,8 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 cast_var_type := ValueType.TCustom(cast_type_name.clone())
                 // Register in scope
                 context.scope_stack.declare_symbol(
-                    decl.name.clone(),
-                    SymbolInfo(
+                    own decl.name.clone(),
+                    own SymbolInfo(
                         value_type=cast_var_type,
                         is_mut=true,
                         is_copy=false,
@@ -7260,7 +7260,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
     decl_symbol_info.is_copy = false
     decl_symbol_info.is_own = false
     decl_symbol_info.is_comptime_const = false
-    context.scope_stack.declare_symbol(name.clone(), decl_symbol_info)?
+    context.scope_stack.declare_symbol(own name.clone(), own decl_symbol_info)?
 
     // Bug #97: Compute type-mangled C variable name
     type_prefix := value_type_to_c_prefix(var_type)
@@ -8364,7 +8364,7 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
             sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
-            context.scope_stack.declare_symbol(decl.name.clone(), sym_info)?
+            context.scope_stack.declare_symbol(own decl.name.clone(), own sym_info)?
         }
     }
     if expr.params.len().gt(2) {
@@ -8392,7 +8392,7 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
                 else_sym_info.is_copy = false
                 else_sym_info.is_own = false
                 else_sym_info.is_comptime_const = false
-                context.scope_stack.declare_symbol(else_decl.name.clone(), else_sym_info)?
+                context.scope_stack.declare_symbol(own else_decl.name.clone(), own else_sym_info)?
             }
         }
     }
@@ -8505,7 +8505,7 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
-            context.scope_stack.declare_symbol(decl.name.clone(), sym_info)?
+            context.scope_stack.declare_symbol(own decl.name.clone(), own sym_info)?
         }
     }
 
@@ -8676,7 +8676,7 @@ collect_declarations_recursive : proc(expr: Expr, mut decls: Vec, mut collected:
         symbol_info.is_copy = false
         symbol_info.is_own = false
         symbol_info.is_comptime_const = false
-        context.scope_stack.declare_symbol(decl.name.clone(), symbol_info)?
+        context.scope_stack.declare_symbol(own decl.name.clone(), own symbol_info)?
         mut collected_decl := CollectedDeclaration()
         collected_decl.name = decl.name.clone()
         collected_decl.value_type = value_type

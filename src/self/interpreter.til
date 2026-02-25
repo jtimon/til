@@ -270,12 +270,12 @@ create_default_instance : proc(mut ctx: Context, struct_type: Str, e: Expr) retu
 
     // Declare temporary symbol for template (needed by insert_struct_core)
     sym_info := SymbolInfo(value_type=ValueType.TCustom(struct_type), is_mut=true, is_copy=false, is_own=false)
-    ctx.scope_stack.declare_symbol(template_id, sym_info)?
+    ctx.scope_stack.declare_symbol(own template_id.clone(), own sym_info)?
 
     // Evaluate defaults and create template
     defaults := eval_struct_defaults(ctx, struct_type, e)?
     // Pass negative value to indicate "allocate new memory" (since offset 0 is reserved/invalid)
-    result := EvalHeap.insert_struct_core(ctx, template_id, struct_type, sub(0, 1), defaults, e)?
+    result := EvalHeap.insert_struct_core(ctx, own template_id, struct_type, sub(0, 1), defaults, e)?
 
     // Get the template's heap offset (first mapping is the base struct)
     if result.heap_mappings.len().eq(0) {
@@ -286,7 +286,7 @@ create_default_instance : proc(mut ctx: Context, struct_type: Str, e: Expr) retu
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Cache the template offset
-    g_heap.default_instances.set(own struct_type, own template_offset.clone())
+    g_heap.default_instances.set(own struct_type.clone(), own template_offset.clone())
 
     return template_offset
 }
@@ -324,7 +324,7 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
                 // Register anonymous struct type
                 anon_temp_name := format("AnonStruct", I64.to_str(context.anon_struct_counter))
                 context.anon_struct_counter.inc()
-                context.scope_stack.declare_struct_global(anon_temp_name, anon_struct_def.clone())?
+                context.scope_stack.declare_struct_global(own anon_temp_name.clone(), own anon_struct_def.clone())?
                 // Replace StructDef with Identifier in a new FCall
                 anon_id_expr := Expr.new_clone(NodeType.Identifier(anon_temp_name.clone()), anon_first_param, Vec.new(Expr))
                 mut anon_new_params := Vec.new(Expr)
@@ -435,21 +435,21 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
         // Register in global frame so it survives function scope pops (e.g. macro returns)
         temp_name := format("AnonStruct", I64.to_str(context.anon_struct_counter))
         context.anon_struct_counter.inc()
-        context.scope_stack.declare_struct_global(temp_name, struct_def.clone())?
+        context.scope_stack.declare_struct_global(own temp_name.clone(), own struct_def.clone())?
         return EvalResult.new(temp_name)
     case NodeType.EnumDef(enum_def):
         // Issue #106: First-class enums - register as anonymous enum and return the name
         // Register in global frame so it survives function scope pops (e.g. macro returns)
         enum_temp_name := format("AnonEnum", I64.to_str(context.anon_enum_counter))
         context.anon_enum_counter.inc()
-        context.scope_stack.declare_enum_global(enum_temp_name, enum_def.clone())?
+        context.scope_stack.declare_enum_global(own enum_temp_name.clone(), own enum_def.clone())?
         return EvalResult.new(enum_temp_name)
     case NodeType.FuncDef(func_def):
         // Issue #91: Anonymous inline function - register with temp name and return it
         if func_def.body.len().gt(0) {
             func_temp_name := format("__anon_func_", I64.to_str(context.anon_func_counter))
             context.anon_func_counter = context.anon_func_counter.add(1)
-            context.scope_stack.declare_func_global(func_temp_name, func_def.clone())?
+            context.scope_stack.declare_func_global(own func_temp_name.clone(), own func_def.clone())?
             return EvalResult.new(func_temp_name)
         }
         // FuncSig type definition - handled during registration
@@ -519,7 +519,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                 temp_name := format(RETURN_INSTANCE_NAME, I64.to_str(temp_id))
 
                 // Declare the temp symbol
-                context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo(value_type=ValueType.TCustom(name.clone()), is_mut=true))?
+                context.scope_stack.declare_symbol(own temp_name.clone(), own SymbolInfo(value_type=ValueType.TCustom(name.clone()), is_mut=true))?
 
                 // Create struct instance with default values
                 insert_struct_instance(context, temp_name.clone(), name, e)?
@@ -564,16 +564,16 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                         switch field_type {
                         case ValueType.TCustom(field_type_name):
                             if field_type_name.eq("I64") {
-                                EvalHeap.insert_i64(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
+                                EvalHeap.insert_i64(context, own field_id.clone(), named_value_result.value.clone(), named_arg)?
                             } else if field_type_name.eq("U8") {
-                                EvalHeap.insert_u8(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
+                                EvalHeap.insert_u8(context, own field_id.clone(), named_value_result.value.clone(), named_arg)?
                             } else if field_type_name.eq("Str") {
                                 if named_value_result.heap_offset.gt(0) {
                                     str_field_dest_offset := context.get_field_offset(field_id)?
                                     str_field_type_size := context.get_type_size("Str")?
                                     g_heap.set(str_field_dest_offset, g_heap.get(named_value_result.heap_offset, str_field_type_size), str_field_type_size)
                                 } else {
-                                    EvalHeap.insert_string(context, field_id.clone(), named_value_result.value.clone(), named_arg)?
+                                    EvalHeap.insert_string(context, own field_id.clone(), named_value_result.value.clone(), named_arg)?
                                 }
                             } else {
                                 // Could be enum or nested struct
@@ -583,7 +583,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                     _ := EvalHeap.insert_enum(context, field_id.clone(), field_type_name.clone(), named_value_result.value.clone(), named_arg)?
                                 case ValueType.TType(TTypeDef.TFuncSig):
                                     // Issue #91: Store function name as Str
-                                    EvalHeap.insert_primitive(context, field_id.clone(),
+                                    EvalHeap.insert_primitive(context, own field_id.clone(),
                                         ValueType.TCustom("Str"),
                                         named_value_result.value.clone(), named_arg)?
                                 case ValueType.TType(TTypeDef.TStructDef):
@@ -614,7 +614,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                 default_temp_name := format(RETURN_INSTANCE_NAME, I64.to_str(default_temp_id))
 
                 // Declare temp symbol
-                context.scope_stack.declare_symbol(default_temp_name.clone(), SymbolInfo(value_type=ValueType.TCustom(name.clone()), is_mut=true))?
+                context.scope_stack.declare_symbol(own default_temp_name.clone(), own SymbolInfo(value_type=ValueType.TCustom(name.clone()), is_mut=true))?
 
                 insert_struct_instance(context, default_temp_name.clone(), name, e)?
                 mut result_val := default_temp_name
@@ -706,9 +706,9 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                     string_value := payload_result.value
 
                                     // Add symbol entry before calling insert_string
-                                    context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))?
+                                    context.scope_stack.declare_symbol(own temp_var_name.clone(), own SymbolInfo(value_type=ValueType.TCustom("Str")))?
 
-                                    EvalHeap.insert_string(context, temp_var_name, string_value, e)?
+                                    EvalHeap.insert_string(context, own temp_var_name.clone(), string_value, e)?
                                     struct_var_name = temp_var_name
                                     struct_var_set = true
                                 } else {
@@ -725,9 +725,9 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                         str_lit_string_value := payload_result.value
 
                                         // Add symbol entry before calling insert_string
-                                        context.scope_stack.declare_symbol(str_lit_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))?
+                                        context.scope_stack.declare_symbol(own str_lit_temp_var_name.clone(), own SymbolInfo(value_type=ValueType.TCustom("Str")))?
 
-                                        EvalHeap.insert_string(context, str_lit_temp_var_name, str_lit_string_value, e)?
+                                        EvalHeap.insert_string(context, own str_lit_temp_var_name.clone(), str_lit_string_value, e)?
                                         struct_var_name = str_lit_temp_var_name
                                         struct_var_set = true
                                     }
@@ -739,9 +739,9 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                         i64_lit_value := payload_result.value
 
                                         // Add symbol entry before calling insert_i64
-                                        context.scope_stack.declare_symbol(i64_lit_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("I64")))?
+                                        context.scope_stack.declare_symbol(own i64_lit_temp_var_name.clone(), own SymbolInfo(value_type=ValueType.TCustom("I64")))?
 
-                                        EvalHeap.insert_i64(context, i64_lit_temp_var_name, i64_lit_value, e)?
+                                        EvalHeap.insert_i64(context, own i64_lit_temp_var_name.clone(), i64_lit_value, e)?
                                         struct_var_name = i64_lit_temp_var_name
                                         struct_var_set = true
                                     }
@@ -755,9 +755,9 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                     str_fcall_temp_var_name := format("__temp_str_", I64.to_str(str_fcall_last_frame.heap_index.len()))
                                     str_fcall_string_value := payload_result.value
 
-                                    context.scope_stack.declare_symbol(str_fcall_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))?
+                                    context.scope_stack.declare_symbol(own str_fcall_temp_var_name.clone(), own SymbolInfo(value_type=ValueType.TCustom("Str")))?
 
-                                    EvalHeap.insert_string(context, str_fcall_temp_var_name, str_fcall_string_value, e)?
+                                    EvalHeap.insert_string(context, own str_fcall_temp_var_name.clone(), str_fcall_string_value, e)?
                                     struct_var_name = str_fcall_temp_var_name
                                     struct_var_set = true
                                 } else {
@@ -804,9 +804,9 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                         return enum_ctor_nested_result
                                     }
 
-                                    context.scope_stack.declare_symbol(enum_ctor_temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))?
+                                    context.scope_stack.declare_symbol(own enum_ctor_temp_var_name.clone(), own SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))?
 
-                                    _ := EvalHeap.insert_enum(context, enum_ctor_temp_var_name, struct_type_name, enum_ctor_nested_result.value, e)?
+                                    _ := EvalHeap.insert_enum(context, enum_ctor_temp_var_name.clone(), struct_type_name, enum_ctor_nested_result.value, e)?
                                     enum_var_name = enum_ctor_temp_var_name
                                     enum_var_set = true
                                 }
@@ -820,9 +820,9 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                     return enum_fcall_nested_result
                                 }
 
-                                context.scope_stack.declare_symbol(enum_fcall_temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))?
+                                context.scope_stack.declare_symbol(own enum_fcall_temp_var_name.clone(), own SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))?
 
-                                _ := EvalHeap.insert_enum(context, enum_fcall_temp_var_name, struct_type_name, enum_fcall_nested_result.value, e)?
+                                _ := EvalHeap.insert_enum(context, enum_fcall_temp_var_name.clone(), struct_type_name, enum_fcall_nested_result.value, e)?
                                 enum_var_name = enum_fcall_temp_var_name
                                 enum_var_set = true
                             case:
@@ -969,8 +969,8 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             memcpy(to_ptr(alias_addr), ptr_addr, 8)
             // Declare variable with type and bind to alias address
             context.scope_stack.declare_symbol(
-                declaration.name.clone(),
-                SymbolInfo(
+                own declaration.name.clone(),
+                own SymbolInfo(
                     value_type=ValueType.TCustom(cast_type_name),
                     is_mut=true,
                     is_copy=false,
@@ -978,7 +978,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                     is_comptime_const=false
                 )
             )?
-            context.scope_stack.insert_var(declaration.name, alias_addr)?
+            context.scope_stack.insert_var(own declaration.name.clone(), alias_addr)?
             return EvalResult.new("")
         }
     case:
@@ -1083,8 +1083,8 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 return i64_result
             }
             i64_expr_result_str := i64_result.value
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
-            EvalHeap.insert_primitive(context, declaration.name, value_type, i64_expr_result_str, e)?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            EvalHeap.insert_primitive(context, own declaration.name.clone(), value_type, i64_expr_result_str, e)?
             return EvalResult.new("")
         } else if s.eq("U8") {
             u8_result := eval_expr(context, inner_e)?
@@ -1092,8 +1092,8 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 return u8_result
             }
             u8_expr_result_str := u8_result.value
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
-            EvalHeap.insert_primitive(context, declaration.name, value_type, u8_expr_result_str, e)?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            EvalHeap.insert_primitive(context, own declaration.name.clone(), value_type, u8_expr_result_str, e)?
             return EvalResult.new("")
         } else if s.eq("Str") {
             str_result := eval_expr(context, inner_e)?
@@ -1102,19 +1102,19 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             }
             str_expr_result_str := str_result.value
             str_expr_heap_offset := str_result.heap_offset
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             if str_expr_heap_offset.gt(0) {
                 str_decl_last_idx := context.scope_stack.frames.len().sub(1)
                 mut str_decl_last_frame := cast(ScopeFrame, context.scope_stack.frames.get(str_decl_last_idx)?)
-                str_decl_last_frame.heap_index.set(own declaration.name, own str_expr_heap_offset)
+                str_decl_last_frame.heap_index.set(own declaration.name.clone(), own str_expr_heap_offset)
                 return EvalResult.new("")
             }
-            EvalHeap.insert_primitive(context, declaration.name, value_type, str_expr_result_str, e)?
+            EvalHeap.insert_primitive(context, own declaration.name.clone(), value_type, str_expr_result_str, e)?
             return EvalResult.new("")
         } else {
             // Custom type (not I64/U8/Str)
             custom_type_name := s
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             mut custom_symbol := SymbolInfo()
             custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)?
             catch (err: KeyNotFoundError) {
@@ -1187,7 +1187,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 }
                 struct_last_idx := context.scope_stack.frames.len().sub(1)
                 mut struct_last_frame := cast(ScopeFrame, context.scope_stack.frames.get(struct_last_idx)?)
-                struct_last_frame.heap_index.set(own declaration.name, own struct_offset)
+                struct_last_frame.heap_index.set(own declaration.name.clone(), own struct_offset)
             } else {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(custom_symbol.value_type), "'. Only 'enum' and 'struct' custom types allowed."))
             }
@@ -1196,10 +1196,10 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
     case ValueType.TType(TTypeDef.TEnumDef):
         switch inner_e.node_type {
         case NodeType.EnumDef(enum_def):
-            context.scope_stack.declare_enum(declaration.name, enum_def.clone())?
+            context.scope_stack.declare_enum(own declaration.name.clone(), own enum_def.clone())?
             // Issue #106: Also register in global frame so enum survives macro function scope pops
-            context.scope_stack.declare_enum_global(declaration.name, enum_def.clone())?
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_enum_global(own declaration.name.clone(), own enum_def.clone())?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             // Issue #161: Process namespace mutable members for enums
             for enum_ns_member_decl: Declaration in enum_def.ns.members {
                 if not(enum_ns_member_decl.is_mut) { continue }
@@ -1218,15 +1218,15 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                             return enum_ns_result
                         }
                         enum_ns_expr_result_str := enum_ns_result.value
-                        EvalHeap.insert_primitive(context, enum_ns_combined_name, enum_ns_member_decl.value_type, enum_ns_expr_result_str, e)?
-                        context.scope_stack.declare_symbol(enum_ns_combined_name, SymbolInfo(value_type=enum_ns_member_decl.value_type, is_mut=enum_ns_member_decl.is_mut, is_copy=enum_ns_member_decl.is_copy, is_own=enum_ns_member_decl.is_own))?
+                        EvalHeap.insert_primitive(context, own enum_ns_combined_name.clone(), enum_ns_member_decl.value_type, enum_ns_expr_result_str, e)?
+                        context.scope_stack.declare_symbol(own enum_ns_combined_name, own SymbolInfo(value_type=enum_ns_member_decl.value_type, is_mut=enum_ns_member_decl.is_mut, is_copy=enum_ns_member_decl.is_copy, is_own=enum_ns_member_decl.is_own))?
                     }
                 }
             }
             // Issue #161: Update scope stack enum's ns with resolved types from AST
             updated_enum := context.scope_stack.lookup_enum(declaration.name)?.clone()
             updated_enum.ns = enum_def.ns.clone()
-            context.scope_stack.declare_enum(declaration.name, updated_enum)?
+            context.scope_stack.declare_enum(own declaration.name.clone(), own updated_enum)?
             return EvalResult.new("")
 
             catch (err: KeyNotFoundError) {
@@ -1239,8 +1239,8 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
         // Issue #91: Function signature type definition
         switch inner_e.node_type {
         case NodeType.FuncDef(func_def):
-            context.scope_stack.declare_func(declaration.name, func_def.clone())?
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own, is_comptime_const=true))?
+            context.scope_stack.declare_func(own declaration.name.clone(), own func_def.clone())?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own, is_comptime_const=true))?
             return EvalResult.new("")
         case:
             throw e.lang_error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type 'FunctionSig', expected func definition."))
@@ -1250,11 +1250,11 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
         case NodeType.StructDef(struct_def):
             // Issue #108: Don't overwrite struct if already declared (may have merged namespace members)
             if not(context.scope_stack.has_struct(declaration.name)) {
-                context.scope_stack.declare_struct(declaration.name, struct_def.clone())?
+                context.scope_stack.declare_struct(own declaration.name.clone(), own struct_def.clone())?
             }
             // Issue #105: Also register in global frame so struct survives macro function scope pops
-            context.scope_stack.declare_struct_global(declaration.name, struct_def.clone())?
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_struct_global(own declaration.name.clone(), own struct_def.clone())?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             // Process struct members with default values
             for member_decl: Declaration in struct_def.members {
                 if not(member_decl.is_mut) {
@@ -1283,11 +1283,11 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                         }
                         member_expr_result_str := member_result.value
                         if member_type_name.eq("I64") {
-                            EvalHeap.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
+                            EvalHeap.insert_primitive(context, own combined_name.clone(), member_value_type, member_expr_result_str, e)?
                         } else if member_type_name.eq("U8") {
-                            EvalHeap.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
+                            EvalHeap.insert_primitive(context, own combined_name.clone(), member_value_type, member_expr_result_str, e)?
                         } else if member_type_name.eq("Str") {
-                            EvalHeap.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)?
+                            EvalHeap.insert_primitive(context, own combined_name.clone(), member_value_type, member_expr_result_str, e)?
                         } else {
                             // Issue #159 Step 7: Replace copy_fields with memcpy
                             // for struct member default values during struct definition.
@@ -1304,7 +1304,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                         throw e.todo_error(context.path, "eval", format("Cannot declare '", declaration.name, ".", member_decl.name, "' of type '", value_type_to_str(member_decl.value_type), "'"))
                     }
 
-                    context.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=member_decl.value_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
+                    context.scope_stack.declare_symbol(own combined_name, own SymbolInfo(value_type=member_decl.value_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
                 }
             }
             // Issue #161: Process namespace mutable members
@@ -1325,15 +1325,15 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                             return struct_ns_result
                         }
                         struct_ns_expr_result_str := struct_ns_result.value
-                        EvalHeap.insert_primitive(context, struct_ns_combined_name, struct_ns_member_decl.value_type, struct_ns_expr_result_str, e)?
-                        context.scope_stack.declare_symbol(struct_ns_combined_name, SymbolInfo(value_type=struct_ns_member_decl.value_type, is_mut=struct_ns_member_decl.is_mut, is_copy=struct_ns_member_decl.is_copy, is_own=struct_ns_member_decl.is_own))?
+                        EvalHeap.insert_primitive(context, own struct_ns_combined_name.clone(), struct_ns_member_decl.value_type, struct_ns_expr_result_str, e)?
+                        context.scope_stack.declare_symbol(own struct_ns_combined_name, own SymbolInfo(value_type=struct_ns_member_decl.value_type, is_mut=struct_ns_member_decl.is_mut, is_copy=struct_ns_member_decl.is_copy, is_own=struct_ns_member_decl.is_own))?
                     }
                 }
             }
             // Issue #161: Update scope stack struct's ns with resolved types from AST
             updated_struct := context.scope_stack.lookup_struct(declaration.name)?.clone()
             updated_struct.ns = struct_def.ns.clone()
-            context.scope_stack.declare_struct(declaration.name, updated_struct)?
+            context.scope_stack.declare_struct(own declaration.name.clone(), own updated_struct)?
             // Eagerly create default instance template for this struct type
             _ := create_default_instance(context, declaration.name, e)?
             return EvalResult.new("")
@@ -1347,8 +1347,8 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
     case ValueType.TFunction(func_type):
         switch inner_e.node_type {
         case NodeType.FuncDef(func_def):
-            context.scope_stack.declare_func(declaration.name, func_def.clone())?
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_func(own declaration.name.clone(), own func_def.clone())?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             return EvalResult.new("")
         case:
             // Issue #91: Function pointer value from expression (e.g., op := get_op(0))
@@ -1360,8 +1360,8 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             func_name := result.value
             fptr_fd := context.scope_stack.lookup_func(func_name)?
             fptr_fd_clone := fptr_fd.clone()
-            context.scope_stack.declare_func(declaration.name, fptr_fd_clone)?
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_func(own declaration.name.clone(), own fptr_fd_clone)?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
             return EvalResult.new("")
             catch (err: KeyNotFoundError) {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "': returned function '", func_name, "' not found."))
@@ -1430,14 +1430,14 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
                 return assign_i64_result
             }
             assign_i64_expr_result_str := assign_i64_result.value
-            EvalHeap.insert_primitive(context, var_name, value_type, assign_i64_expr_result_str, e)?
+            EvalHeap.insert_primitive(context, own var_name.clone(), value_type, assign_i64_expr_result_str, e)?
         } else if s.eq("U8") {
             assign_u8_result := eval_expr(context, inner_e)?
             if assign_u8_result.is_throw {
                 return assign_u8_result
             }
             assign_u8_expr_result_str := assign_u8_result.value
-            EvalHeap.insert_primitive(context, var_name, value_type, assign_u8_expr_result_str, e)?
+            EvalHeap.insert_primitive(context, own var_name.clone(), value_type, assign_u8_expr_result_str, e)?
         } else if s.eq("Str") {
             assign_str_result := eval_expr(context, inner_e)?
             if assign_str_result.is_throw {
@@ -1458,7 +1458,7 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
                 assign_str_type_size := context.get_type_size("Str")?
                 g_heap.set(assign_str_dest_offset, g_heap.get(assign_str_heap_offset, assign_str_type_size), assign_str_type_size)
             } else {
-                EvalHeap.insert_primitive(context, var_name, value_type, assign_str_expr_result_str, e)?
+                EvalHeap.insert_primitive(context, own var_name.clone(), value_type, assign_str_expr_result_str, e)?
             }
         } else {
             // Custom type
@@ -1537,7 +1537,7 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
     case ValueType.TFunction(func_type):
         switch inner_e.node_type {
         case NodeType.FuncDef(func_def):
-            context.scope_stack.declare_func(var_name, func_def.clone())?
+            context.scope_stack.declare_func(own var_name.clone(), own func_def.clone())?
             return EvalResult.new("")
         case NodeType.Identifier(_):
             // Issue #91: Assigning a function name to a FuncSig field
@@ -1548,14 +1548,14 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
             }
             if var_name.contains(".") {
                 // Field path: store function name as Str at field offset
-                EvalHeap.insert_primitive(context, var_name,
+                EvalHeap.insert_primitive(context, own var_name.clone(),
                     ValueType.TCustom("Str"),
                     assign_func_result.value.clone(), e)?
             } else {
                 // Simple var: re-register function
                 assign_fd := context.scope_stack.lookup_func(assign_func_result.value)?
                 assign_fd_clone := assign_fd.clone()
-                context.scope_stack.declare_func(var_name, assign_fd_clone)?
+                context.scope_stack.declare_func(own var_name.clone(), own assign_fd_clone)?
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(context.path, "eval", format("Function '", assign_func_result.value, "' not found for assignment to '", var_name, "'"))
                 }
@@ -2037,7 +2037,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                         thrown_type := throw_result.thrown_type
                         if type_name.eq(thrown_type) {
                             // Bind the error variable to the caught error value
-                            context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(thrown_type)))?
+                            context.scope_stack.declare_symbol(own var_name.clone(), own SymbolInfo(value_type=ValueType.TCustom(thrown_type)))?
 
                             // Map instance fields for the error variable
                             // First try to find the heap index for proper field mapping
@@ -2093,7 +2093,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                                     }
                                     if found_sym {
                                         sym_dest_key := sym_src_key.replacen(source_prefix, dest_prefix, 1)
-                                        context.scope_stack.declare_symbol(sym_dest_key, src_symbol.clone())?
+                                        context.scope_stack.declare_symbol(own sym_dest_key, own src_symbol.clone())?
                                     }
                                 }
                             } else {
@@ -2102,7 +2102,7 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                                 if thrown_type.eq("Str") {
                                     // The thrown value is the actual string content, not a struct instance name
                                     // Create a proper Str struct for the catch variable
-                                    EvalHeap.insert_string(context, var_name, throw_result.value, stmt)?
+                                    EvalHeap.insert_string(context, own var_name.clone(), throw_result.value, stmt)?
                                 } else {
                                     mut struct_def := StructDef()
                                     mut has_struct := false
@@ -2121,13 +2121,13 @@ eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throw
                                         if base_found {
                                             lf4_idx := context.scope_stack.frames.len().sub(1)
                                             mut lf4 := cast(ScopeFrame, context.scope_stack.frames.get(lf4_idx)?)
-                                            lf4.heap_index.set(own var_name, own base_offset)
+                                            lf4.heap_index.set(own var_name.clone(), own base_offset)
                                         }
 
                                         // Copy symbol mappings for all fields
                                         for field_decl: Declaration in struct_def.members {
                                             dst_field := format(var_name, ".", field_decl.name)
-                                            context.scope_stack.declare_symbol(dst_field, SymbolInfo(value_type=field_decl.value_type))?
+                                            context.scope_stack.declare_symbol(own dst_field, own SymbolInfo(value_type=field_decl.value_type))?
                                         }
                                     }
                                 }
@@ -2510,9 +2510,9 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                     {
                         switch resolved_type_name {
                         case "I64":
-                            EvalHeap.insert_i64_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                            EvalHeap.insert_i64_into_frame(context, function_frame, own arg.name.clone(), arg_result_str, e)?
                         case "U8":
-                            EvalHeap.insert_u8_into_frame(context, function_frame, arg.name, arg_result_str, e)?
+                            EvalHeap.insert_u8_into_frame(context, function_frame, own arg.name.clone(), arg_result_str, e)?
                         case "Str":
                             if arg_result_heap_offset.gt(0) {
                                 function_frame.heap_index.set(own arg.name, own arg_result_heap_offset)
@@ -2981,11 +2981,11 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
     for c: CollectedMutArg in collected_mut_args {
         switch c.value {
         case MutArgValue.I64(val):
-            EvalHeap.insert_i64(context, c.source_name, I64.to_str(val), e)?
+            EvalHeap.insert_i64(context, own c.source_name.clone(), I64.to_str(val), e)?
         case MutArgValue.U8(val):
-            EvalHeap.insert_u8(context, c.source_name, U8.to_str(val), e)?
+            EvalHeap.insert_u8(context, own c.source_name.clone(), U8.to_str(val), e)?
         case MutArgValue.Str(val):
-            EvalHeap.insert_string(context, c.source_name, val, e)?
+            EvalHeap.insert_string(context, own c.source_name.clone(), val, e)?
         case MutArgValue.Enum(writeback_enum_val):
             // Bug #38 fix: Set temp_enum_payload so insert_enum preserves the payload
             if not(NULL.eq(writeback_enum_val.payload.data)).and(not(NULL.eq(writeback_enum_val.payload_type.data))) {
@@ -3059,7 +3059,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                         copy_ret_offset := saved_return_offset
 
                         // Insert the temporary return variable into the caller's frame
-                        context.scope_stack.declare_symbol(return_instance.clone(), SymbolInfo(value_type=ValueType.TCustom(copy_ret_custom_type_name.clone()), is_mut=true))?
+                        context.scope_stack.declare_symbol(own return_instance.clone(), own SymbolInfo(value_type=ValueType.TCustom(copy_ret_custom_type_name.clone()), is_mut=true))?
 
                         // Share the base offset in caller's frame
                         lf13_idx := context.scope_stack.frames.len().sub(1)

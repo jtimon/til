@@ -113,6 +113,8 @@ ScopeStack := struct {
     mut removal_tracking_depth: I64 = 0
     /// Issue #185: Track consumed variables for better error messages.
     mut consumed_symbols: Map = Map.new(Str, ConsumedSymbolInfo)
+    // Bug #192: Track borrowed (const/mut) function parameters in current function.
+    mut borrowed_args: Set = Set.new(Str)
 
 namespace:
     new : func() returns ScopeStack = {
@@ -123,6 +125,7 @@ namespace:
         stack.removed_log = Vec.new(RemovedSymbol)
         stack.removal_tracking_depth = 0
         stack.consumed_symbols = Map.new(Str, ConsumedSymbolInfo)
+        stack.borrowed_args = Set.new(Str)
         return stack
     }
 
@@ -241,7 +244,7 @@ namespace:
         return false
     }
 
-    declare_var : proc(mut self: ScopeStack, name: Str, offset: I64, symbol: SymbolInfo) throws Str = {
+    declare_var : proc(mut self: ScopeStack, own name: Str, offset: I64, own symbol: SymbolInfo) throws Str = {
         if self.frames.len().eq(0) {
             throw "No active scope"
         }
@@ -255,7 +258,7 @@ namespace:
             throw format("Variable '", name, "' already declared in this scope")
         }
 
-        current_frame.heap_index.set(own name.clone(), own offset)
+        current_frame.heap_index.set(own name.clone(), own offset.clone())
         current_frame.symbols.set(own name, own symbol)
 
         catch (err: IndexOutOfBoundsError) {
@@ -263,7 +266,7 @@ namespace:
         }
     }
 
-    declare_symbol : proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws Str = {
+    declare_symbol : proc(mut self: ScopeStack, own name: Str, own symbol: SymbolInfo) throws Str = {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -334,11 +337,11 @@ namespace:
     }
 
     // Insert a variable without a corresponding symbol (simpler than declare_var)
-    insert_var : proc(mut self: ScopeStack, name: Str, offset: I64) throws Str = {
+    insert_var : proc(mut self: ScopeStack, own name: Str, offset: I64) throws Str = {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
-            current_frame.heap_index.set(own name, own offset)
+            current_frame.heap_index.set(own name, own offset.clone())
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -362,7 +365,7 @@ namespace:
         throw KeyNotFoundError(msg="lookup_func: Function not found in Context")
     }
 
-    declare_func : proc(mut self: ScopeStack, name: Str, func_def: FuncDef) throws Str = {
+    declare_func : proc(mut self: ScopeStack, own name: Str, own func_def: FuncDef) throws Str = {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -380,7 +383,7 @@ namespace:
     /// Update an existing func_def wherever it was originally declared.
     /// Unlike declare_func (which always inserts at current scope), this finds
     /// where the func was originally declared and updates it there.
-    update_func : proc(mut self: ScopeStack, name: Str, func_def: FuncDef) throws Str = {
+    update_func : proc(mut self: ScopeStack, own name: Str, own func_def: FuncDef) throws Str = {
         for frame: ScopeFrame in self.frames {
             if frame.funcs.contains_key(name) {
                 frame.funcs.set(own name, own func_def)
@@ -388,7 +391,7 @@ namespace:
             }
         }
         // If not found, insert at current scope (fallback)
-        self.declare_func(name, func_def)?
+        self.declare_func(own name, own func_def)?
     }
 
     lookup_enum : func(self: ScopeStack, name: Str) returns EnumDef throws KeyNotFoundError = {
@@ -408,7 +411,7 @@ namespace:
         throw KeyNotFoundError(msg="lookup_enum: Enum not found in ScopeStack")
     }
 
-    declare_enum : proc(mut self: ScopeStack, name: Str, enum_def: EnumDef) throws Str = {
+    declare_enum : proc(mut self: ScopeStack, own name: Str, own enum_def: EnumDef) throws Str = {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -555,7 +558,7 @@ namespace:
         return result
     }
 
-    declare_struct : proc(mut self: ScopeStack, name: Str, struct_def: StructDef) throws Str = {
+    declare_struct : proc(mut self: ScopeStack, own name: Str, own struct_def: StructDef) throws Str = {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -567,7 +570,7 @@ namespace:
     }
 
     // Issue #105: Register struct in global frame (survives function scope pops)
-    declare_struct_global : proc(mut self: ScopeStack, name: Str, struct_def: StructDef) throws Str = {
+    declare_struct_global : proc(mut self: ScopeStack, own name: Str, own struct_def: StructDef) throws Str = {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
             global_frame.structs.set(own name, own struct_def)
@@ -578,7 +581,7 @@ namespace:
     }
 
     // Issue #91: Register function in global frame (survives function scope pops)
-    declare_func_global : proc(mut self: ScopeStack, name: Str, func_def: FuncDef) throws Str = {
+    declare_func_global : proc(mut self: ScopeStack, own name: Str, own func_def: FuncDef) throws Str = {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
             global_frame.funcs.set(own name, own func_def)
@@ -589,7 +592,7 @@ namespace:
     }
 
     // Issue #106: Register enum in global frame (survives function scope pops)
-    declare_enum_global : proc(mut self: ScopeStack, name: Str, enum_def: EnumDef) throws Str = {
+    declare_enum_global : proc(mut self: ScopeStack, own name: Str, own enum_def: EnumDef) throws Str = {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
             global_frame.enums.set(own name, own enum_def)
@@ -713,7 +716,7 @@ namespace:
 
     // Bug #101: Mark a symbol as used in the current function.
     mark_symbol_used : proc(mut self: ScopeStack, name: Str) = {
-        _ := self.used_symbols.insert(own name)
+        _ := self.used_symbols.insert(own name.clone())
     }
 
     /// Issue #117: Begin tracking symbol removals (supports nesting via depth counter).
@@ -1743,8 +1746,8 @@ collect_anon_funcs : proc(mut context: Context, e: Expr) throws Str = {
             line_str.delete()
             col_str.delete()
             context.anon_func_map.set(own key, own temp_name.clone())
-            context.scope_stack.declare_func(temp_name.clone(), func_def.clone())?
-            context.scope_stack.declare_symbol(temp_name, SymbolInfo(
+            context.scope_stack.declare_func(own temp_name.clone(), own func_def.clone())?
+            context.scope_stack.declare_symbol(own temp_name, own SymbolInfo(
                 value_type=ValueType.TFunction(func_def.sig.function_type),
                 is_mut=false, is_copy=false, is_own=false, is_comptime_const=false
             ))?
@@ -1808,7 +1811,7 @@ init_namespace_into_struct : proc(mut context: Context, type_name: Str, ns_def: 
         merged_struct.default_values.set(own dv_name.clone(), own dv_expr.clone())
     }
     catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
-    context.scope_stack.declare_struct(type_name.clone(), merged_struct.clone())?
+    context.scope_stack.declare_struct(own type_name.clone(), own merged_struct.clone())?
 
     // Register associated funcs, constants, and mutables from namespace
     for ns_member_decl: Declaration in ns_def.members {
@@ -1825,7 +1828,7 @@ init_namespace_into_struct : proc(mut context: Context, type_name: Str, ns_def: 
                 ns_member_vtype = ValueType.TCustom(INFER_TYPE)
             }
             ns_full_name := format(type_name, ".", ns_member_decl.name)
-            context.scope_stack.declare_symbol(ns_full_name.clone(), SymbolInfo(
+            context.scope_stack.declare_symbol(own ns_full_name.clone(), own SymbolInfo(
                 value_type=value_type_clone(ns_member_vtype),
                 is_mut=ns_member_decl.is_mut,
                 is_copy=ns_member_decl.is_copy,
@@ -1833,7 +1836,7 @@ init_namespace_into_struct : proc(mut context: Context, type_name: Str, ns_def: 
             ))?
             switch ns_member_expr.node_type {
             case NodeType.FuncDef(ns_func_def):
-                context.scope_stack.declare_func(ns_full_name.clone(), ns_func_def.clone())?
+                context.scope_stack.declare_func(own ns_full_name.clone(), own ns_func_def.clone())?
             case:
             }
         }
@@ -1864,7 +1867,7 @@ init_namespace_into_enum : proc(mut context: Context, type_name: Str, ns_def: Na
         }
     }
     catch (err: KeyNotFoundError) { panic(loc(), err.msg) }
-    context.scope_stack.declare_enum(type_name.clone(), merged_enum)?
+    context.scope_stack.declare_enum(own type_name.clone(), own merged_enum)?
 
     // Register associated funcs, constants, and mutables from namespace
     for ns_member_decl: Declaration in ns_def.members {
@@ -1881,7 +1884,7 @@ init_namespace_into_enum : proc(mut context: Context, type_name: Str, ns_def: Na
                 ns_member_vtype = ValueType.TCustom(INFER_TYPE)
             }
             ns_full_name := format(type_name, ".", ns_member_decl.name)
-            context.scope_stack.declare_symbol(ns_full_name.clone(), SymbolInfo(
+            context.scope_stack.declare_symbol(own ns_full_name.clone(), own SymbolInfo(
                 value_type=value_type_clone(ns_member_vtype),
                 is_mut=ns_member_decl.is_mut,
                 is_copy=ns_member_decl.is_copy,
@@ -1889,7 +1892,7 @@ init_namespace_into_enum : proc(mut context: Context, type_name: Str, ns_def: Na
             ))?
             switch ns_member_expr.node_type {
             case NodeType.FuncDef(ns_func_def):
-                context.scope_stack.declare_func(ns_full_name.clone(), ns_func_def.clone())?
+                context.scope_stack.declare_func(own ns_full_name.clone(), own ns_func_def.clone())?
             case:
             }
         }
@@ -2118,8 +2121,8 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                         registered_func_def.sig.throw_types = init_sig_func_def.sig.throw_types.clone()
                         registered_func_def.sig.function_type = init_sig_func_def.sig.function_type
                     }
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
-                    context.scope_stack.declare_func(decl.name, registered_func_def)?
+                    context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(own decl.name.clone(), own registered_func_def)?
                     // Issue #91: Walk function body for anonymous inline functions
                     for body_stmt: Expr in func_def.body {
                         collect_anon_funcs(context, body_stmt)?
@@ -2129,7 +2132,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     // from a call or variable), declare as symbol only -- the function
                     // def will be resolved at runtime
                     if init_is_sig_ref {
-                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
                         errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
@@ -2138,11 +2141,11 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
             case FunctionType.FTFuncExt:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
-                    context.scope_stack.declare_func(decl.name, func_def.clone())?
+                    context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(own decl.name.clone(), own func_def.clone())?
                 case:
                     if init_is_sig_ref {
-                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
                         errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
@@ -2166,15 +2169,15 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                         registered_proc_def.sig.throw_types = init_sig_func_def.sig.throw_types.clone()
                         registered_proc_def.sig.function_type = init_sig_func_def.sig.function_type
                     }
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
-                    context.scope_stack.declare_func(decl.name, registered_proc_def)?
+                    context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(own decl.name.clone(), own registered_proc_def)?
                     // Issue #91: Walk function body for anonymous inline functions
                     for proc_body_stmt: Expr in func_def.body {
                         collect_anon_funcs(context, proc_body_stmt)?
                     }
                 case:
                     if init_is_sig_ref {
-                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
                         errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
@@ -2183,11 +2186,11 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
             case FunctionType.FTProcExt:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
-                    context.scope_stack.declare_func(decl.name, func_def.clone())?
+                    context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(own decl.name.clone(), own func_def.clone())?
                 case:
                     if init_is_sig_ref {
-                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
                         errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
@@ -2196,11 +2199,11 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
             case FunctionType.FTMacro:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
-                    context.scope_stack.declare_func(decl.name, func_def.clone())?
+                    context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(own decl.name.clone(), own func_def.clone())?
                 case:
                     if init_is_sig_ref {
-                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
                     } else {
                         errors.push(own e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                         return errors
@@ -2215,8 +2218,8 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     errors.push(own e.lang_error(context.path, "init", format("while declaring ", decl.name, ": enum declarations don't have any parameters in the tree.")))
                     return errors
                 }
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
-                context.scope_stack.declare_enum(decl.name, enum_def.clone())?
+                context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                context.scope_stack.declare_enum(own decl.name.clone(), own enum_def.clone())?
 
                 // Register enum methods (e.g., delete, clone)
                 for method_name: Str in enum_def.methods.keys {
@@ -2230,8 +2233,8 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                         catch (err: Str) {
                             // Failed to get type - just use INFER_TYPE default
                         }
-                        context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo(value_type=value_type_clone(method_value_type), is_mut=false, is_copy=false, is_own=false))?
-                        context.scope_stack.declare_func(full_name, func_def.clone())?
+                        context.scope_stack.declare_symbol(own full_name.clone(), own SymbolInfo(value_type=value_type_clone(method_value_type), is_mut=false, is_copy=false, is_own=false))?
+                        context.scope_stack.declare_func(own full_name, own func_def.clone())?
                     case:
                         // Not a function, skip
                     }
@@ -2243,7 +2246,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                 }
             case NodeType.FCall(_):
                 // Issue #106: First-class enum - deferred to precomp after macro expansion
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
             case:
                 errors.push(own e.lang_error(context.path, "init", "enums should have definitions."))
                 return errors
@@ -2257,8 +2260,8 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                     return errors
                 }
                 # Register the struct itself
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
-                context.scope_stack.declare_struct(decl.name, struct_def.clone())?
+                context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                context.scope_stack.declare_struct(own decl.name.clone(), own struct_def.clone())?
                 # Register associated funcs and constants (non-mut members only)
                 for member_decl: Declaration in struct_def.members {
                     if not(member_decl.is_mut) {
@@ -2278,7 +2281,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
                             }
                             mut member_full_name := format(decl.name, ".", member_decl.name)  # Note: using '.' not '::'
                             # Register in symbols (constants only - functions now go in namespace blocks)
-                            ScopeStack.declare_symbol(context.scope_stack, member_full_name.clone(), SymbolInfo(value_type=value_type_clone(member_value_type), is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
+                            ScopeStack.declare_symbol(context.scope_stack, own member_full_name.clone(), own SymbolInfo(value_type=value_type_clone(member_value_type), is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
                         }
                     }
                 }
@@ -2289,7 +2292,7 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
             case NodeType.FCall(_):
                 # Issue #105: First-class struct - macro/function returning a struct definition
                 # Struct registration deferred to precomp after macro expansion
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
             case:
                 errors.push(own e.lang_error(context.path, "init", "struct declarations should have definitions."))
                 return errors
@@ -2299,17 +2302,17 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
             // Issue #91: Function signature type definition
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=true))?
-                context.scope_stack.declare_func(decl.name, func_def.clone())?
+                context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=true))?
+                context.scope_stack.declare_func(own decl.name.clone(), own func_def.clone())?
             case:
                 errors.push(own e.lang_error(context.path, "init", "function signature types should have func definitions."))
                 return errors
             }
 
         case ValueType.TMulti(_):
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+            context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
         case ValueType.TCustom(_):
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+            context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
         case:
             # Unreachable - all ValueType variants are covered above
             # But needed because exhaustiveness check doesn't understand nested patterns like TType(TTypeDef.TEnumDef)
@@ -2854,8 +2857,8 @@ namespace:
         for decl: Declaration in struct_def.members {
             mut combined_name := format(instance_name, ".", decl.name)
             self.scope_stack.declare_symbol(
-                combined_name.clone(),
-                SymbolInfo(value_type=value_type_clone(decl.value_type), is_mut=decl.is_mut)
+                own combined_name.clone(),
+                own SymbolInfo(value_type=value_type_clone(decl.value_type), is_mut=decl.is_mut)
             )?
 
             switch decl.value_type {

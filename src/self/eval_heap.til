@@ -239,15 +239,15 @@ namespace:
         return offset
     }
 
-    insert_i64 : proc(mut ctx: Context, id: Str, i64_str: Str, e: Expr) throws Str = {
+    insert_i64 : proc(mut ctx: Context, own id: Str, i64_str: Str, e: Expr) throws Str = {
         offset := EvalHeap.insert_i64_core(ctx, id, i64_str, e)?
-        ctx.scope_stack.insert_var(id, offset)?
+        ctx.scope_stack.insert_var(own id, offset)?
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
     }
 
-    insert_i64_into_frame : proc(ctx: Context, mut frame: ScopeFrame, id: Str, i64_str: Str, e: Expr) throws Str = {
+    insert_i64_into_frame : proc(ctx: Context, mut frame: ScopeFrame, own id: Str, i64_str: Str, e: Expr) throws Str = {
         offset := EvalHeap.insert_i64_core(ctx, id, i64_str, e)?
         frame.heap_index.set(own id, own offset)
         catch (err: KeyNotFoundError) {
@@ -277,15 +277,15 @@ namespace:
         return offset
     }
 
-    insert_u8 : proc(mut ctx: Context, id: Str, u8_str: Str, e: Expr) throws Str = {
+    insert_u8 : proc(mut ctx: Context, own id: Str, u8_str: Str, e: Expr) throws Str = {
         offset := EvalHeap.insert_u8_core(ctx, id, u8_str, e)?
-        ctx.scope_stack.insert_var(id, offset)?
+        ctx.scope_stack.insert_var(own id.clone(), offset)?
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
     }
 
-    insert_u8_into_frame : proc(ctx: Context, mut frame: ScopeFrame, id: Str, u8_str: Str, e: Expr) throws Str = {
+    insert_u8_into_frame : proc(ctx: Context, mut frame: ScopeFrame, own id: Str, u8_str: Str, e: Expr) throws Str = {
         offset := EvalHeap.insert_u8_core(ctx, id, u8_str, e)?
         frame.heap_index.set(own id, own offset)
         catch (err: KeyNotFoundError) {
@@ -295,7 +295,7 @@ namespace:
 
     // Core logic for insert_struct - does all the work but returns mappings instead of inserting them
     // existing_offset: -1 means None (allocate new), >= 0 means use that offset
-    insert_struct_core : proc(mut ctx: Context, id: Str, custom_type_name: Str, existing_offset: I64, defaults: Map, e: Expr) returns StructInsertResult throws Str = {
+    insert_struct_core : proc(mut ctx: Context, own id: Str, custom_type_name: Str, existing_offset: I64, defaults: Map, e: Expr) returns StructInsertResult throws Str = {
         mut result := StructInsertResult()
 
         // Lookup the struct definition
@@ -341,8 +341,8 @@ namespace:
         result.heap_mappings.push(own base_mapping)
 
         // Temporarily register base var so get_field_offset works during field initialization
-        ctx.scope_stack.insert_var(id, offset)?
-        ctx.scope_stack.declare_symbol(id, SymbolInfo(value_type=ValueType.TCustom(custom_type_name), is_mut=true))?
+        ctx.scope_stack.insert_var(own id.clone(), offset)?
+        ctx.scope_stack.declare_symbol(own id.clone(), own SymbolInfo(value_type=ValueType.TCustom(custom_type_name), is_mut=true))?
 
         // Store each field's default value
         for decl: Declaration in struct_def.members {
@@ -417,7 +417,7 @@ namespace:
                             } else if is_func_sig_field {
                                 fsg_combined_name := format(id, ".", decl.name)
                                 fsg_symbol := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true)
-                                ctx.scope_stack.declare_symbol(fsg_combined_name.clone(), fsg_symbol.clone())?
+                                ctx.scope_stack.declare_symbol(own fsg_combined_name.clone(), own fsg_symbol.clone())?
                                 mut fsg_sym_entry := SymbolEntry()
                                 fsg_sym_entry.name = fsg_combined_name.clone()
                                 fsg_sym_entry.info = fsg_symbol
@@ -427,13 +427,13 @@ namespace:
                                 fsg_mapping.name = fsg_combined_name.clone()
                                 fsg_mapping.offset = fsg_field_offset
                                 result.heap_mappings.push(own fsg_mapping)
-                                EvalHeap.insert_string(ctx, fsg_combined_name.clone(), default_value.clone(), e)?
+                                EvalHeap.insert_string(ctx, own fsg_combined_name.clone(), default_value.clone(), e)?
                             } else if ctx.scope_stack.has_struct(type_name) {
                                 // It's a struct
                                 nested_combined_name := format(id, ".", decl.name)
                                 nested_symbol := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true)
                                 // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
-                                ctx.scope_stack.declare_symbol(nested_combined_name, nested_symbol)?
+                                ctx.scope_stack.declare_symbol(own nested_combined_name.clone(), own nested_symbol.clone())?
                                 mut sym_entry := SymbolEntry()
                                 sym_entry.name = nested_combined_name
                                 sym_entry.info = nested_symbol
@@ -447,7 +447,7 @@ namespace:
                                     str_mapping.name = nested_combined_name
                                     str_mapping.offset = str_field_offset
                                     result.heap_mappings.push(own str_mapping)
-                                    EvalHeap.insert_string(ctx, nested_combined_name, default_value, e)?
+                                    EvalHeap.insert_string(ctx, own nested_combined_name.clone(), default_value, e)?
                                 } else {
                                     // Use existing offset for nested struct (inline allocation)
                                     nested_field_offset := add(offset, field_offset)
@@ -469,7 +469,7 @@ namespace:
                                             nested_defaults.set(own rest, own dv)
                                         }
                                     }
-                                    nested_result := EvalHeap.insert_struct_core(ctx, nested_combined_name, type_name, nested_field_offset, nested_defaults, e)?
+                                    nested_result := EvalHeap.insert_struct_core(ctx, own nested_combined_name, type_name, nested_field_offset, nested_defaults, e)?
                                     catch (err: Str) {
                                         throw e.lang_error(ctx.path, "context", format("insert_struct: Failed to initialize nested struct '", id, ".", decl.name, "'"))
                                     }
@@ -576,7 +576,7 @@ namespace:
                         if not(type_name.eq("I64")) {
                             if ctx.scope_stack.has_struct(type_name) {
                                 // Declare nested symbol first
-                                ctx.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true))?
+                                ctx.scope_stack.declare_symbol(own combined_name, own SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true))?
                                 nested := EvalHeap.generate_struct_mappings(ctx, combined_name, type_name, field_abs_offset, e)?
                                 result.symbols.extend(nested.symbols)
                             }
@@ -611,10 +611,10 @@ namespace:
         // Generate and apply mappings
         result := EvalHeap.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?
         for m: EvalHeapMapping in result.heap_mappings {
-            ctx.scope_stack.insert_var(m.name, m.offset)?
+            ctx.scope_stack.insert_var(own m.name, m.offset)?
         }
         for s: SymbolEntry in result.symbols {
-            ctx.scope_stack.declare_symbol(s.name, s.info)?
+            ctx.scope_stack.declare_symbol(own s.name, own s.info)?
         }
 
         catch (err: BadAlloc) {
@@ -740,7 +740,7 @@ namespace:
                 }
             }
 
-            ctx.scope_stack.insert_var(id, struct_offset)?
+            ctx.scope_stack.insert_var(own id.clone(), struct_offset)?
             throw KeyNotFoundError(msg="already handled")
         }
 
@@ -751,7 +751,7 @@ namespace:
         return result
     }
 
-    insert_string : proc(mut ctx: Context, id: Str, value_str: Str, e: Expr) throws Str = {
+    insert_string : proc(mut ctx: Context, own id: Str, value_str: Str, e: Expr) throws Str = {
         info := EvalHeap.insert_string_core(ctx, id, value_str, e)?
         catch (err: KeyNotFoundError) {
             return
@@ -830,17 +830,17 @@ namespace:
     }
 
     // Helper function to insert primitive types (I64, U8, Str) based on value_type
-    insert_primitive : proc(mut ctx: Context, var_name: Str, value_type: ValueType, value: Str, e: Expr) throws Str = {
+    insert_primitive : proc(mut ctx: Context, own var_name: Str, value_type: ValueType, value: Str, e: Expr) throws Str = {
         switch value_type {
         case ValueType.TCustom(type_name):
             if type_name.eq("I64") {
-                EvalHeap.insert_i64(ctx, var_name, value, e)?
+                EvalHeap.insert_i64(ctx, own var_name.clone(), value, e)?
             } else {
                 if type_name.eq("U8") {
-                    EvalHeap.insert_u8(ctx, var_name, value, e)?
+                    EvalHeap.insert_u8(ctx, own var_name.clone(), value, e)?
                 } else {
                     if type_name.eq("Str") {
-                        EvalHeap.insert_string(ctx, var_name, value, e)?
+                        EvalHeap.insert_string(ctx, own var_name, value, e)?
                     } else {
                         throw e.lang_error(ctx.path, "eval", format("insert_primitive: Unsupported type ", value_type_to_str(value_type)))
                     }
@@ -1200,7 +1200,7 @@ namespace:
     insert_enum : proc(mut ctx: Context, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str = {
         result := EvalHeap.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?
         if result.has_mapping {
-            ctx.scope_stack.insert_var(result.mapping_name, result.mapping_offset)?
+            ctx.scope_stack.insert_var(own result.mapping_name, result.mapping_offset)?
         }
 
         return result.enum_val

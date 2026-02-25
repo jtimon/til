@@ -112,6 +112,8 @@ pub struct ScopeStack {
     pub removal_tracking_depth: usize,
     /// Issue #185: Track consumed variables for better error messages.
     pub consumed_symbols: HashMap<String, ConsumedSymbolInfo>,
+    /// Bug #192: Track borrowed (const/mut) function parameters in current function.
+    pub borrowed_args: HashSet<String>,
 }
 
 #[allow(dead_code)]
@@ -124,6 +126,7 @@ impl ScopeStack {
             removed_log: Vec::new(),
             removal_tracking_depth: 0,
             consumed_symbols: HashMap::new(),
+            borrowed_args: HashSet::new(),
         }
     }
 

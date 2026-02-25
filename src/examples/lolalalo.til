@@ -28,7 +28,7 @@ test_lolalalo : proc() = {
         return poem(0, "", s1, s2)
     }
 
-    make_poem_iterative : func(s1: Str, s2: Str) returns Str = {
+    make_poem_iterative : func(own s1: Str, own s2: Str) returns Str = {
         mut poem := ""
         mut silabes := Array.new(Str, 2)
         silabes.set(0, own s1)?
@@ -69,9 +69,9 @@ test_lolalalo : proc() = {
 
     // Issue #89: pure func calls now folded inside function bodies too
     recursive_lo_la := make_poem_recursive("lo", "la")
-    iterative_lo_la := make_poem_iterative("lo", "la")
+    iterative_lo_la := make_poem_iterative(own "lo", own "la")
     recursive_la_lo := make_poem_recursive("la", "lo")
-    iterative_la_lo := make_poem_iterative("la", "lo")
+    iterative_la_lo := make_poem_iterative(own "la", own "lo")
 
     if Str.eq(recursive_lo_la, iterative_lo_la) {
         println("PASS: recursive and iterative produce same output for lo la")

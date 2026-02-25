@@ -25,8 +25,8 @@ test_cross_file_circular_imports : proc() = {
     mut armor := Component.new_attached("Armor", 50, player)
 
     // Add components to entity
-    player.add_component(health.clone())
-    player.add_component(armor.clone())
+    player.add_component(own health.clone())
+    player.add_component(own armor.clone())
 
     // Verify the circular references work
     test(loc(), player.id.eq(1), "Entity ID should be 1")

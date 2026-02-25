@@ -993,7 +993,7 @@ proc_run_cmd : proc(mut context: Context, e: Expr) returns EvalResult throws Str
     case:
         throw e.error(context.path, "eval", "run_cmd first argument must be an identifier")
     }
-    EvalHeap.insert_primitive(context, var_name, ValueType.TCustom("Str"), output, e)?
+    EvalHeap.insert_primitive(context, own var_name, ValueType.TCustom("Str"), output, e)?
 
     return EvalResult.new(exit_code.to_str())
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
