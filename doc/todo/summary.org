@@ -2,10 +2,11 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-02-23
 
-* bugs.org (6 bugs/issues)
+* bugs.org (7 bugs/issues)
 
 | #    | Issue                                                       | Status           |
 |------+-------------------------------------------------------------+------------------|
+| #192 | Own param through by-ref intermediary causes use-after-free | Open             |
 | #172 | Codegen bug returning for-in loop variable of same type     | Open             |
 | #165 | Compiled TIL binary leaks 200-800x memory vs Rust           | Blocked by #159  |
 | #133 | Precomputed heap values have invalid pointers at runtime    | Partial          |

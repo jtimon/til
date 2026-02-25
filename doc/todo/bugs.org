@@ -9,6 +9,77 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #192: Own parameter through by-reference intermediary causes use-after-free
+:PROPERTIES:
+:DISCOVERED: 2026-02-25
+:IMPACT: Data corruption -- garbager deletes data that was transferred via own through a by-ref wrapper
+:STATUS: Open
+:RELATED: #191, #159
+:END:
+
+*** Problem
+When a function takes a parameter by reference (default) and internally passes
+it with ~own~ to another function (e.g. ~Vec.push~), the data is shallow-copied
+into the container. The caller's variable still holds the same pointer. If the
+caller later reassigns that variable, the garbager inserts a delete-before-
+reassignment that frees the shared data, corrupting the container's element.
+
+The ~own~ transfer happens inside the called function, invisible to the
+garbager which only operates on the caller's function body.
+
+*** Reproduction
+Test file: ~src/test/bug192.til~
+#+begin_src til
+mode test
+
+store_name : proc(mut v: Vec, name: Str) = {
+    v.push(own name)  // own transfers inside, but store_name takes name by-ref
+}
+
+make_str : proc(a: Str, b: Str) returns Str = {
+    mut result := Str.clone(a)
+    result.push_str(b)
+    return result
+}
+
+test_own_reassign : proc() = {
+    mut names := Vec.new(Str)
+    mut f_name := make_str("ab", "c")
+    store_name(names, f_name)      // Vec gets shallow copy
+    f_name = make_str("xy", "z")   // garbager inserts Str.delete(f_name) before this
+    stored := cast(Str, names.get(0)?)
+    assert_eq_str(loc(), "abc", stored)  // FAILS: stored is "xy" (use-after-free)
+    names.delete()
+    f_name.delete()
+    catch (err: IndexOutOfBoundsError) { println("ERROR:", err.msg) exit(1) }
+}
+test_own_reassign()
+#+end_src
+
+*** Root Cause
+The garbager's ~insert_delete_before_reassignment~ sees ~f_name~ as a mut Str
+local being reassigned and inserts ~Str.delete(f_name)~ before the assignment.
+But ~store_name~ passed ~f_name~ by reference, and inside ~store_name~, the
+~own~ on ~Vec.push(own name)~ transferred the data into the Vec via memcpy.
+Both ~f_name~ and the Vec element share the same ~c_string.data~ pointer.
+The delete frees the shared data.
+
+*** Impact on #191
+This is the cause of the til_interpreted test failures when enabling
+delete-before-reassignment (#191). The typer's ~mark_symbol_used(f_name)~
+internally does ~Set.insert(own name)~ where ~name~ is by-ref. After the
+garbager deletes ~f_name~ before reassignment, the Set element becomes
+dangling, causing false "Unused variable" errors.
+
+*** Fix Direction
+Arguments passed to functions that internally use ~own~ need stricter handling.
+Possible approaches:
+- The function signature should require ~own~ at the call site if it transfers
+  ownership internally, so the garbager can track consumption
+- Or the garbager needs interprocedural analysis to detect own-through-ref patterns
+- Or the container operations (push, insert, set) need to clone when receiving
+  by-ref data that will be owned
+
 ** Bug #172: Codegen bug returning for-in loop variable of same type as return type
 :PROPERTIES:
 :DISCOVERED: 2026-02-18

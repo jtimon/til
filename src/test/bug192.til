@@ -1,0 +1,33 @@
+mode test
+
+// Bug #192: Own parameter through by-reference intermediary causes use-after-free
+// When a function takes a param by-ref and internally passes it with own to
+// Vec.push, the data is shallow-copied. If the caller's variable is later
+// reassigned, the garbager's delete-before-reassignment frees shared data.
+
+store_name : proc(mut v: Vec, name: Str) = {
+    v.push(own name)
+}
+
+make_str : proc(a: Str, b: Str) returns Str = {
+    mut result := Str.clone(a)
+    result.push_str(b)
+    return result
+}
+
+test_own_reassign : proc() = {
+    mut names := Vec.new(Str)
+    mut f_name := make_str("ab", "c")
+    store_name(names, f_name)
+    f_name = make_str("xy", "z")
+    stored := cast(Str, names.get(0)?)
+    assert_eq_str(loc(), "abc", stored)
+    names.delete()
+    f_name.delete()
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", err.msg)
+        exit(1)
+    }
+}
+test_own_reassign()
