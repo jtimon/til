@@ -48,11 +48,10 @@
 | #167 | Benchmark HashMap vs Map/OrderedMap | Open    |
 | #112 | HashMap type slower than Map in TIL | Blocked |
 
-* pre.org (17 issues)
+* pre.org (16 issues)
 
 | #    | Issue                                                    | Status          |
 |------+----------------------------------------------------------+-----------------|
-| #191 | Garbager delete old value on reassignment                | Open            |
 | #187 | Integrated profiling for self-hosted compiler            | Open            |
 | #161 | Namespace constants, static mutables, immutables         | Open            |
 | #185 | Require own at call sites, better consumed errors        | Fixed           |

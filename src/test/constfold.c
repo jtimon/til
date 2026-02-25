@@ -1127,6 +1127,7 @@ til_Str til_format(const til_Str* til_Str_prefix, til_Array* til_Array_args) {
     til_Str_result.c_string.is_borrowed = 0;
     til_I64 til_I64_fmt_offset = 0;
     til_memcpy(&til_Str_result.c_string.data, &til_Str_prefix->c_string.data, &til_Str_prefix->_len);
+    til_I64_delete(&til_I64_fmt_offset);
     til_I64_fmt_offset = til_Str_prefix->_len;
     til_I64 _for_i_format_1 = 0;
     til_Ptr _ref_forin_format_1;

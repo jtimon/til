@@ -51,11 +51,33 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         // Step 2.7: Insert clone-after-get for container methods with shallow out-params.
         new_body = insert_clone_after_get(new_body, local_types, context)?
 
-        // TODO Issue #191: Re-enable delete-before-reassignment when Bug #159 is fixed.
-        // Currently disabled because locals may hold aliased/borrowed values from
-        // lookup_func/lookup_symbol/lookup_struct (shallow copies that share heap
-        // pointers with the scope stack). Deleting them corrupts shared state.
-        // See Issue #191 in doc/todo/pre.org for details.
+        // Issue #191: Delete old value before reassignment of struct-typed locals.
+        mut declared_types := Map.new(Str, Str)
+        mut cast_vars := Set.new(Str)
+        for stmt: Expr in new_body {
+            switch stmt.node_type {
+            case NodeType.Declaration(decl):
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    if stmt.params.len().gt(0) {
+                        decl_init := cast(Expr, stmt.params.get(0)?)
+                        if is_cast_call(decl_init) {
+                            _ := cast_vars.insert(own decl.name.clone())
+                        } else {
+                            declared_types.set(own decl.name.clone(), own type_name.clone())
+                        }
+                    } else {
+                        declared_types.set(own decl.name.clone(), own type_name.clone())
+                    }
+                case:
+                }
+            case:
+            }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "Issue #191 declared_types loop: ", err.msg)
+        }
+        new_body = insert_delete_before_reassignment(new_body, declared_types, cast_vars)
 
         new_func_def := FuncDef(
             sig=FuncSig(

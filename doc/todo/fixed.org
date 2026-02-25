@@ -4800,6 +4800,31 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #191: Garbager deletes old value on reassignment of owned variables -- FIXED 2026-02-25
+:PROPERTIES:
+:DISCOVERED: 2026-02-24
+:FIXED: 2026-02-25
+:IMPACT: Memory leaks on every reassignment of a variable holding heap data
+:RELATED: Issue #117 (ASAP destruction), Issue #183 (manual deletes), Bug #170 (scope-exit), Bug #192 (own through by-ref)
+:END:
+
+*** Summary
+When a ~mut~ variable holding owned heap data is reassigned, the old value leaked.
+The garbager now inserts ~Type.delete(var)~ before each reassignment of struct-typed
+locals. Cast-initialized variables are excluded (aliases, not owned). Self-referencing
+RHS (~result = Expr.clone(result)~) skips the delete to avoid use-after-free.
+
+*** Fix history
+1. *Assignment handler fix* (2026-02-24): Removed ~params.is_empty()~ check, uses
+   ~get_value_type(context, rhs)~ to infer type for all RHS expressions including
+   field access chains.
+2. *Delete-before-reassignment* (2026-02-25): Re-enabled after Bug #192 fix.
+   Builds ~declared_types~ map from body declarations, excludes ~cast_vars~,
+   inserts ~Type.delete(var)~ before top-level assignments. ~expr_references_var~
+   prevents use-after-free on self-referencing RHS.
+
+Files modified: garbager.rs, garbager.til
+
 ** Issue #185: Require ~own~ keyword at call sites, improve consumed-variable errors
 :PROPERTIES:
 :DISCOVERED: 2026-02-23

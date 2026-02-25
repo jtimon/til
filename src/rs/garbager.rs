@@ -54,21 +54,20 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             let new_body = insert_clone_after_get(&new_body, &local_types, context)?;
 
             // Issue #191: Delete old value before reassignment of struct-typed locals.
-            // Disabled: depends on Bug #192 (own through by-ref intermediary causes use-after-free).
-            // let mut declared_types: HashMap<String, String> = HashMap::new();
-            // let mut cast_vars: HashSet<String> = HashSet::new();
-            // for stmt in &new_body {
-            //     if let NodeType::Declaration(decl) = &stmt.node_type {
-            //         if let ValueType::TCustom(type_name) = &decl.value_type {
-            //             if !stmt.params.is_empty() && is_cast_call(&stmt.params[0]) {
-            //                 cast_vars.insert(decl.name.clone());
-            //             } else {
-            //                 declared_types.insert(decl.name.clone(), type_name.clone());
-            //             }
-            //         }
-            //     }
-            // }
-            // let new_body = insert_delete_before_reassignment(&new_body, &declared_types, &cast_vars);
+            let mut declared_types: HashMap<String, String> = HashMap::new();
+            let mut cast_vars: HashSet<String> = HashSet::new();
+            for stmt in &new_body {
+                if let NodeType::Declaration(decl) = &stmt.node_type {
+                    if let ValueType::TCustom(type_name) = &decl.value_type {
+                        if !stmt.params.is_empty() && is_cast_call(&stmt.params[0]) {
+                            cast_vars.insert(decl.name.clone());
+                        } else {
+                            declared_types.insert(decl.name.clone(), type_name.clone());
+                        }
+                    }
+                }
+            }
+            let new_body = insert_delete_before_reassignment(&new_body, &declared_types, &cast_vars);
 
             let new_func_def = FuncDef {
                 sig: func_def.sig.clone(),
@@ -269,7 +268,6 @@ fn build_clone_assignment_expr(type_name: &str, var_name: &str, line: usize, col
 
 /// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier(var) )
 /// Issue #191: Used to free old value before reassignment.
-#[allow(dead_code)]
 fn build_delete_call_expr(type_name: &str, var_name: &str, line: usize, col: usize) -> Expr {
     let delete_ident = Expr::new_explicit(
         NodeType::Identifier("delete".to_string()), vec![], line, col);
@@ -382,7 +380,6 @@ fn process_stmt_for_clone_after_get(e: &Expr, local_types: &HashMap<String, Stri
 /// Issue #191: Check if an expression tree contains a reference to a specific variable.
 /// Used to avoid delete-before-reassignment when the RHS references the variable
 /// being reassigned (would cause use-after-free).
-#[allow(dead_code)]
 fn expr_references_var(e: &Expr, var_name: &str) -> bool {
     if let NodeType::Identifier(name) = &e.node_type {
         if name == var_name {
@@ -401,7 +398,6 @@ fn expr_references_var(e: &Expr, var_name: &str) -> bool {
 /// Only processes top-level statements, no recursion into sub-bodies.
 /// Skips variables in cast_vars (initialized from cast, hold borrowed values).
 /// Skips when the RHS references the variable being reassigned (use-after-free).
-#[allow(dead_code)]
 fn insert_delete_before_reassignment(stmts: &[Expr], local_types: &HashMap<String, String>, cast_vars: &HashSet<String>) -> Vec<Expr> {
     let mut result = Vec::new();
     for stmt in stmts {
