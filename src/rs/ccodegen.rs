@@ -1007,6 +1007,18 @@ fn emit_arg_string(
             emit_expr(arg, &mut s, 0, ctx, context)?;
             s
         };
+        // Issue #175: If the FCall used _ret, expr_str is already a hoisted lvalue temp.
+        // No need to create another temp just to take &.
+        let is_hoisted_lvalue = if let NodeType::FCall(_) = &arg.node_type {
+            get_fcall_func_def(context, arg)
+                .map(|fd| fcall_uses_out_ret(&fd, context))
+                .unwrap_or(false)
+        } else {
+            false
+        };
+        if is_hoisted_lvalue {
+            return Ok(format!("({}Dynamic*)&{}", TIL_PREFIX, expr_str));
+        }
         // Hoist to temp var and return pointer
         let c_type = get_c_type_for_expr(arg, context).unwrap_or_else(|_| format!("{}I64", TIL_PREFIX));
         let temp_var = next_mangled(ctx);
@@ -1078,6 +1090,28 @@ fn emit_arg_string(
             emit_expr(arg, &mut s, 0, ctx, context)?;
             s
         };
+        // Issue #175: If the FCall used _ret, expr_str is already a hoisted lvalue temp
+        // (or temp.field for UFCS chains). No need to create another temp just to take &.
+        let is_hoisted_lvalue = match &arg.node_type {
+            NodeType::FCall(_) => {
+                get_fcall_func_def(context, arg)
+                    .map(|fd| fcall_uses_out_ret(&fd, context))
+                    .unwrap_or(false)
+            }
+            NodeType::Identifier(name) if name == "_" && !arg.params.is_empty() => {
+                if let NodeType::FCall(_) = &arg.params[0].node_type {
+                    get_fcall_func_def(context, &arg.params[0])
+                        .map(|fd| fcall_uses_out_ret(&fd, context))
+                        .unwrap_or(false)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        };
+        if is_hoisted_lvalue {
+            return Ok(format!("&{}", expr_str));
+        }
         let c_type = get_c_type_for_expr(arg, context).unwrap_or_else(|_| format!("{}I64", TIL_PREFIX));
         let temp_var = next_mangled(ctx);
         hoist_output.push_str(&_indent_str);
@@ -1927,6 +1961,7 @@ fn emit_fcall_arg_string(
     // Hoist the call to a statement, pass &temp as _ret, return temp name
     if has_ret && !is_func_ptr_call {
         let indent_str = "    ".repeat(indent);
+
         let ret_type = fd_opt.as_ref()
             .and_then(|fd| fd.sig.return_types.first())
             .map(|t| til_type_to_c(t).unwrap_or_else(|_| "int".to_string()))

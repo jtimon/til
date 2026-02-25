@@ -476,6 +476,14 @@ fcall_uses_out_ret : func(func_def: FuncDef, context: Context) returns Bool = {
     catch (err: IndexOutOfBoundsError) { return false }
 }
 
+// Issue #175: Check if a FCall expression was hoisted via _ret (already an lvalue).
+// Returns false if function not found or doesn't use _ret.
+fcall_expr_is_hoisted : proc(fcall_expr: Expr, context: Context) returns Bool = {
+    fd := get_fcall_func_def(context, fcall_expr)?
+    return fcall_uses_out_ret(fd, context)
+    catch (err: KeyNotFoundError) { return false }
+}
+
 get_fcall_func_def : proc(context: Context, fcall_expr: Expr) returns FuncDef throws KeyNotFoundError = {
     mut expr_clone := fcall_expr.clone()
     defer expr_clone.delete()
@@ -1212,6 +1220,18 @@ emit_arg_string_dynamic : proc(arg: Expr, mut hoist_output: Str, indent: I64, in
         emit_expr(arg, dyn_expr_str, 0, ctx, context)?
     }
 
+    // Issue #175: If the FCall used _ret, dyn_expr_str is already a hoisted lvalue temp.
+    // No need to create another temp just to take &.
+    mut dyn_is_hoisted := false
+    switch arg.node_type {
+    case NodeType.FCall(_):
+        dyn_is_hoisted = fcall_expr_is_hoisted(arg, context)
+    case:
+    }
+    if dyn_is_hoisted {
+        return format("(", TIL_PREFIX, "Dynamic*)&", dyn_expr_str)
+    }
+
     dyn_c_type := get_c_type_for_expr(arg, context)?
 
     dyn_temp := next_mangled(ctx)
@@ -1300,6 +1320,28 @@ emit_arg_string_by_ref : proc(arg: Expr, mut hoist_output: Str, indent: I64, ind
         }
     case:
         emit_expr(arg, ref_expr_str, 0, ctx, context)?
+    }
+
+    // Issue #175: If the FCall used _ret, ref_expr_str is already a hoisted lvalue temp
+    // (or temp.field for UFCS chains). No need to create another temp just to take &.
+    mut ref_is_hoisted := false
+    switch arg.node_type {
+    case NodeType.FCall(_):
+        ref_is_hoisted = fcall_expr_is_hoisted(arg, context)
+    case NodeType.Identifier(ref_id_name):
+        if ref_id_name.eq("_").and(not(arg.params.is_empty())) {
+            ref_ufcs_first := cast(Expr, arg.params.get(0)?)
+            dont_delete(ref_ufcs_first)
+            switch ref_ufcs_first.node_type {
+            case NodeType.FCall(_):
+                ref_is_hoisted = fcall_expr_is_hoisted(ref_ufcs_first, context)
+            case:
+            }
+        }
+    case:
+    }
+    if ref_is_hoisted {
+        return format("&", ref_expr_str)
     }
 
     ref_c_type := get_c_type_for_expr(arg, context)?
