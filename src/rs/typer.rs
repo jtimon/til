@@ -632,7 +632,14 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Result<Vec<
                                             let is_u8_i64_coercion = matches!(expected_type, ValueType::TCustom(tn) if tn == "U8")
                                                 && matches!(&actual_type, ValueType::TCustom(ft) if ft == "I64")
                                                 && matches!(&value_expr.node_type, NodeType::LLiteral(Literal::Number(_)));
-                                            if &actual_type != expected_type && !is_u8_i64_coercion {
+                                            // Issue #91: FuncSig field with function value
+                                            let is_func_sig_coercion = matches!(&actual_type, ValueType::TFunction(_))
+                                                && matches!(expected_type, ValueType::TCustom(tn) if {
+                                                    context.scope_stack.lookup_symbol(tn)
+                                                        .map(|s| s.value_type == ValueType::TType(TTypeDef::TFuncSig))
+                                                        .unwrap_or(false)
+                                                });
+                                            if &actual_type != expected_type && !is_u8_i64_coercion && !is_func_sig_coercion {
                                                 errors.push(struct_arg.error(&context.path, "type",
                                                     &format!("Field '{}' expects type '{}' but got '{}'",
                                                         field_name, value_type_to_str(expected_type), value_type_to_str(&actual_type))));
@@ -2373,6 +2380,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &StructDef) -> 
                         match &symbol_info.value_type {
                             ValueType::TType(TTypeDef::TEnumDef) |
                             ValueType::TType(TTypeDef::TStructDef) |
+                            ValueType::TType(TTypeDef::TFuncSig) |  // Issue #91: FuncSig fields
                             ValueType::TCustom(_) => {
                                 // Valid type (TCustom covers built-in types like I64, Str, etc.)
                             },
@@ -2438,6 +2446,12 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &StructDef) -> 
                                 ValueType::TCustom(tn) if tn == INFER_TYPE => {}, // Type inference is OK
                                 // Allow implicit conversion from I64 literals to U8
                                 ValueType::TCustom(tn) if tn == "U8" && found_type == ValueType::TCustom("I64".to_string()) && is_numeric_literal => {},
+                                // Issue #91: FuncSig field with function default value
+                                ValueType::TCustom(tn) if matches!(found_type, ValueType::TFunction(_)) && {
+                                    context.scope_stack.lookup_symbol(tn)
+                                        .map(|s| s.value_type == ValueType::TType(TTypeDef::TFuncSig))
+                                        .unwrap_or(false)
+                                } => {},
                                 _ if expected_type != &found_type => {
                                     errors.push(inner_e.error(&context.path, "type", &format!(
                                         "Struct field '{}' declared as '{}' but default value has type '{}'.",

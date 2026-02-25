@@ -644,6 +644,12 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             ValueType::TType(TTypeDef::TEnumDef) => {
                                                 EvalHeap::insert_enum(context, &field_id, &field_type_name, &named_value_result.value, named_arg)?;
                                             },
+                                            ValueType::TType(TTypeDef::TFuncSig) => {
+                                                // Issue #91: Store function name as Str
+                                                EvalHeap::insert_primitive(context, &field_id,
+                                                    &ValueType::TCustom("Str".to_string()),
+                                                    &named_value_result.value, named_arg)?;
+                                            },
                                             ValueType::TType(TTypeDef::TStructDef) => {
                                                 // Issue #159: deep copy via memcpy.
                                                 // Garbager inserts clone for identifier args; fresh constructors are already new.
@@ -1509,6 +1515,30 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                     context.scope_stack.declare_func(var_name.to_string(), func_def.clone());
                     Ok(EvalResult::new(""))
                 },
+                NodeType::Identifier(_) => {
+                    // Issue #91: Assigning a function name to a FuncSig field
+                    // e.g., h3.on_click = multiply
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result);
+                    }
+                    if var_name.contains('.') {
+                        // Field path: store function name as Str at field offset
+                        EvalHeap::insert_primitive(context, var_name,
+                            &ValueType::TCustom("Str".to_string()),
+                            &result.value, e)?;
+                    } else {
+                        // Simple var: re-register function
+                        if let Some(func_def) = context.scope_stack.lookup_func(&result.value) {
+                            let func_def_clone = func_def.clone();
+                            context.scope_stack.declare_func(var_name.to_string(), func_def_clone);
+                        } else {
+                            return Err(e.lang_error(&context.path, "eval",
+                                &format!("Function '{}' not found for assignment to '{}'", result.value, var_name)));
+                        }
+                    }
+                    Ok(EvalResult::new(""))
+                },
                 _ => Err(e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' to function type '{}'",
                                                        &var_name, value_type_to_str(&value_type)))),
             }
@@ -1690,6 +1720,11 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                                 },
                                 ValueType::TType(TTypeDef::TStructDef) => {
                                     return Ok(EvalResult::new(&current_name))
+                                },
+                                // Issue #91: FuncSig fields store function names as Str
+                                ValueType::TType(TTypeDef::TFuncSig) => {
+                                    let func_name = string_from_context(context, &current_name, inner_e)?;
+                                    return Ok(EvalResult::new(&func_name))
                                 },
                                 _ => Err(inner_e.todo_error(&context.path, "eval", &format!("Cannot access '{}'. Fields of custom type '{}' not implemented", current_name, custom_type_name))),
                             }

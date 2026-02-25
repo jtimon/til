@@ -784,6 +784,33 @@ namespace:
         }
         return unused
     }
+
+    /// Issue #91: Get the set of FuncSig type names (for preinit to skip delete/clone).
+    get_func_sig_types : func(self: ScopeStack) returns Set = {
+        mut result := Set.new(Str)
+        mut fi := 0
+        while fi.lt(self.frames.len()) {
+            gfs_frame := cast(ScopeFrame, self.frames.get(fi)?)
+            dont_delete(gfs_frame)
+            mut sym_keys := gfs_frame.symbols.keys
+            for sym_key: Str in sym_keys {
+                sym_info := cast(SymbolInfo, gfs_frame.symbols.get(sym_key)?)
+                switch sym_info.value_type {
+                case ValueType.TType(TTypeDef.TFuncSig):
+                    _ := result.insert(own sym_key.clone())
+                case:
+                }
+
+                catch (err: KeyNotFoundError) {
+                }
+            }
+            fi = fi.add(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), err.msg)
+        }
+        return result
+    }
 }
 
 get_func_name_in_call : func(e: Expr) returns Str throws Str = {
@@ -2004,6 +2031,28 @@ init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
         case:
         }
 
+        // Issue #91: Also resolve inferred FuncSig types (e.g., op := h.on_click)
+        if not(init_is_sig_ref) {
+            switch value_type {
+            case ValueType.TCustom(inferred_name):
+                inferred_sym := context.scope_stack.lookup_symbol(inferred_name)?
+                switch inferred_sym.value_type {
+                case ValueType.TType(TTypeDef.TFuncSig):
+                    inferred_sfd := context.scope_stack.lookup_func(inferred_name)?
+                    value_type = ValueType.TFunction(inferred_sfd.sig.function_type)
+                    init_sig_func_def = inferred_sfd.clone()
+                    has_init_sig_func_def = true
+                    init_is_sig_ref = true
+                    catch (err: KeyNotFoundError) {
+                    }
+                case:
+                }
+                catch (err: KeyNotFoundError) {
+                }
+            case:
+            }
+        }
+
         // Check if declared type differs from inferred type
         // INFER_TYPE is "auto" - used with TCustom
         mut is_infer_type := false
@@ -2455,6 +2504,22 @@ namespace:
             return 8
         }
 
+        // Issue #91: FuncSig types store function names as Str
+        mut is_func_sig := false
+        mut sym := SymbolInfo()
+        sym = self.scope_stack.lookup_symbol(type_name)?
+        switch sym.value_type {
+        case ValueType.TType(TTypeDef.TFuncSig):
+            is_func_sig = true
+        case:
+        }
+        catch (err: KeyNotFoundError) {
+            // Not in scope
+        }
+        if is_func_sig {
+            return self.get_type_size("Str")?
+        }
+
         // Check if it's an enum
         mut found_enum := false
         mut enum_def := EnumDef()
@@ -2676,7 +2741,22 @@ namespace:
 
                 switch field_decl.value_type {
                 case ValueType.TCustom(t):
-                    current_type = t.clone()
+                    // Issue #91: FuncSig types are stored as Str
+                    mut gfo_is_func_sig := false
+                    mut gfo_sym := SymbolInfo()
+                    gfo_sym = self.scope_stack.lookup_symbol(t)?
+                    switch gfo_sym.value_type {
+                    case ValueType.TType(TTypeDef.TFuncSig):
+                        gfo_is_func_sig = true
+                    case:
+                    }
+                    catch (err: KeyNotFoundError) {
+                    }
+                    if gfo_is_func_sig {
+                        current_type = "Str"
+                    } else {
+                        current_type = t.clone()
+                    }
                 case:
                     // If this is the last part and it's a primitive, that's fine
                     if idx.eq(parts.len().sub(1)) {

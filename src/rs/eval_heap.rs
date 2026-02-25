@@ -348,7 +348,25 @@ impl EvalHeap {
                                 EvalHeap::g().set(offset + field_offset, &i64_val.to_ne_bytes())?;
                             },
                             _ => {
-                                if ctx.scope_stack.has_struct(type_name) {
+                                // Issue #91: FuncSig types store function names as Str
+                                let is_func_sig = ctx.scope_stack.lookup_symbol(type_name)
+                                    .map(|s| s.value_type == ValueType::TType(TTypeDef::TFuncSig))
+                                    .unwrap_or(false);
+                                if is_func_sig {
+                                    let nested_combined_name = format!("{}.{}", id, decl.name);
+                                    let nested_symbol = SymbolInfo {
+                                        value_type: ValueType::TCustom(type_name.clone()),
+                                        is_mut: true,
+                                        is_copy: false,
+                                        is_own: false,
+                                        is_comptime_const: false,
+                                    };
+                                    ctx.scope_stack.declare_symbol(nested_combined_name.clone(), nested_symbol.clone());
+                                    result.symbols.push(SymbolEntry { name: nested_combined_name.clone(), info: nested_symbol });
+                                    let str_field_offset = offset + field_offset;
+                                    result.heap_mappings.push(EvalHeapMapping { name: nested_combined_name.clone(), offset: str_field_offset });
+                                    EvalHeap::insert_string(ctx, &nested_combined_name, &default_value, e)?;
+                                } else if ctx.scope_stack.has_struct(type_name) {
                                     let nested_combined_name = format!("{}.{}", id, decl.name);
                                     let nested_symbol = SymbolInfo {
                                         value_type: ValueType::TCustom(type_name.clone()),

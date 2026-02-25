@@ -779,7 +779,26 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
                                 }
                             case:
                             }
-                            if not(value_type_to_str(actual_type).eq(value_type_to_str(expected_type))).and(not(is_u8_i64_coercion)) {
+                            // Issue #91: FuncSig field with function value
+                            mut is_func_sig_coercion := false
+                            switch actual_type {
+                            case ValueType.TFunction(ft2):
+                                switch expected_type {
+                                case ValueType.TCustom(tn2):
+                                    mut fsc_sym := SymbolInfo()
+                                    fsc_sym = context.scope_stack.lookup_symbol(tn2)?
+                                    switch fsc_sym.value_type {
+                                    case ValueType.TType(TTypeDef.TFuncSig):
+                                        is_func_sig_coercion = true
+                                    case:
+                                    }
+                                    catch (err: KeyNotFoundError) {
+                                    }
+                                case:
+                                }
+                            case:
+                            }
+                            if not(value_type_to_str(actual_type).eq(value_type_to_str(expected_type))).and(not(is_u8_i64_coercion)).and(not(is_func_sig_coercion)) {
                                 mut type_err_msg := format("Field '", field_name, "' expects type '", value_type_to_str(expected_type), "' but got '", value_type_to_str(actual_type), "'")
                                 errors.push(own struct_arg.error(context.path, "type", type_err_msg))
                             }
@@ -2905,6 +2924,8 @@ check_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) re
                                 // Valid type
                             case ValueType.TType(TTypeDef.TStructDef):
                                 // Valid type
+                            case ValueType.TType(TTypeDef.TFuncSig):
+                                // Issue #91: FuncSig fields
                             case ValueType.TCustom(inner_custom):
                                 // Valid type (TCustom covers built-in types like I64, Str, etc.)
                             case:
@@ -3000,12 +3021,33 @@ check_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) re
                                 type_mismatch = true
                             }
                         } else {
-                            // Check if types match
-                            switch found_type {
-                            case ValueType.TCustom(found_tn):
-                                type_mismatch = not(tn.eq(found_tn))
+                            // Issue #91: FuncSig field with function default value
+                            mut is_func_sig_field := false
+                            mut fs_sym := SymbolInfo()
+                            fs_sym = context.scope_stack.lookup_symbol(tn)?
+                            switch fs_sym.value_type {
+                            case ValueType.TType(TTypeDef.TFuncSig):
+                                is_func_sig_field = true
                             case:
-                                type_mismatch = true
+                            }
+                            catch (err: KeyNotFoundError) {
+                            }
+
+                            if is_func_sig_field {
+                                switch found_type {
+                                case ValueType.TFunction(ft):
+                                    type_mismatch = false
+                                case:
+                                    type_mismatch = true
+                                }
+                            } else {
+                                // Check if types match
+                                switch found_type {
+                                case ValueType.TCustom(found_tn):
+                                    type_mismatch = not(tn.eq(found_tn))
+                                case:
+                                    type_mismatch = true
+                                }
                             }
                         }
                     case:

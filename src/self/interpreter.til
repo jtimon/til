@@ -581,6 +581,11 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
                                 switch field_custom_symbol.value_type {
                                 case ValueType.TType(TTypeDef.TEnumDef):
                                     _ := EvalHeap.insert_enum(context, field_id.clone(), field_type_name.clone(), named_value_result.value.clone(), named_arg)?
+                                case ValueType.TType(TTypeDef.TFuncSig):
+                                    // Issue #91: Store function name as Str
+                                    EvalHeap.insert_primitive(context, field_id.clone(),
+                                        ValueType.TCustom("Str"),
+                                        named_value_result.value.clone(), named_arg)?
                                 case ValueType.TType(TTypeDef.TStructDef):
                                     // Issue #159: deep copy via memcpy.
                                     // Garbager inserts clone for identifier args; fresh constructors are already new.
@@ -1507,6 +1512,28 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
         case NodeType.FuncDef(func_def):
             context.scope_stack.declare_func(var_name, func_def.clone())?
             return EvalResult.new("")
+        case NodeType.Identifier(_):
+            // Issue #91: Assigning a function name to a FuncSig field
+            // e.g., h3.on_click = multiply
+            assign_func_result := eval_expr(context, inner_e)?
+            if assign_func_result.is_throw {
+                return assign_func_result
+            }
+            if var_name.contains(".") {
+                // Field path: store function name as Str at field offset
+                EvalHeap.insert_primitive(context, var_name,
+                    ValueType.TCustom("Str"),
+                    assign_func_result.value.clone(), e)?
+            } else {
+                // Simple var: re-register function
+                assign_fd := context.scope_stack.lookup_func(assign_func_result.value)?
+                assign_fd_clone := assign_fd.clone()
+                context.scope_stack.declare_func(var_name, assign_fd_clone)?
+                catch (err: KeyNotFoundError) {
+                    throw e.lang_error(context.path, "eval", format("Function '", assign_func_result.value, "' not found for assignment to '", var_name, "'"))
+                }
+            }
+            return EvalResult.new("")
         case:
             throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' to function type '", value_type_to_str(value_type), "'"))
         }
@@ -1715,6 +1742,10 @@ eval_custom_expr : proc(e: Expr, mut context: Context, name: Str, custom_type_na
                         }
                     }
                     return EvalResult.new(format(curr_type_name_str, ".", field_enum_val.enum_name))
+                case ValueType.TType(TTypeDef.TFuncSig):
+                    // Issue #91: FuncSig fields store function names as Str
+                    func_name := string_from_context(context, current_name, last_inner_e)?
+                    return EvalResult.new(func_name)
                 case ValueType.TType(TTypeDef.TStructDef):
                     return EvalResult.new(current_name)
                 case:

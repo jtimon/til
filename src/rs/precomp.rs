@@ -265,7 +265,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                             }
                             // Generate struct methods (delete/clone) and set ns on struct
                             let mut updated_struct_def = struct_def.clone();
-                            if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, p.line, p.col) {
+                            if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, p.line, p.col, &context.scope_stack.get_func_sig_types()) {
                                 updated_struct_def.ns = auto_ns;
                                 // Register ns methods via init helper
                                 let mut ns_errors_vec = Vec::new();
@@ -362,7 +362,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                     let dummy = Expr::new_explicit(NodeType::LLiteral(Literal::Number("0".to_string())), vec![], 0, 0);
                                     if ns_has_delete { auto_struct.default_values.insert("delete".to_string(), dummy.clone()); }
                                     if ns_has_clone { auto_struct.default_values.insert("clone".to_string(), dummy); }
-                                    if let Some(auto_ns) = generate_struct_methods(&decl.name, &auto_struct, p.line, p.col) {
+                                    if let Some(auto_ns) = generate_struct_methods(&decl.name, &auto_struct, p.line, p.col, &context.scope_stack.get_func_sig_types()) {
                                         combined_ns.members.extend(auto_ns.members);
                                         combined_ns.default_values.extend(auto_ns.default_values);
                                     }
@@ -554,7 +554,7 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                 }
                 // Generate struct methods (delete/clone) and set ns on struct
                 let mut updated_struct_def = struct_def.clone();
-                if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, e.line, e.col) {
+                if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, e.line, e.col, &context.scope_stack.get_func_sig_types()) {
                     updated_struct_def.ns = auto_ns;
                     let mut ns_errors_vec = Vec::new();
                     crate::rs::init::init_namespace_into_struct(context, &temp_name, &updated_struct_def.ns, e, &mut ns_errors_vec);
@@ -614,7 +614,7 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                 }
                 // Generate struct methods (delete/clone) and set ns on struct
                 let mut updated_struct_def = struct_def.clone();
-                if let Some(auto_ns) = generate_struct_methods(&decl.name, struct_def, e.line, e.col) {
+                if let Some(auto_ns) = generate_struct_methods(&decl.name, struct_def, e.line, e.col, &context.scope_stack.get_func_sig_types()) {
                     updated_struct_def.ns = auto_ns;
                     let mut ns_errors_vec = Vec::new();
                     crate::rs::init::init_namespace_into_struct(context, &decl.name, &updated_struct_def.ns, e, &mut ns_errors_vec);
@@ -1543,7 +1543,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
         }
         // Generate struct methods (delete/clone) and set ns on struct
-        if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, e.line, e.col) {
+        if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, e.line, e.col, &context.scope_stack.get_func_sig_types()) {
             // Update the registered struct's ns field
             let mut updated = struct_def.clone();
             updated.ns = auto_ns;

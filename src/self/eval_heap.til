@@ -399,10 +399,35 @@ namespace:
                             mut dest_u8 : U8 = u8_val
                             g_heap.set(add(offset, field_offset), to_ptr(dest_u8), 1)
                         } else {
+                            // Issue #91: FuncSig types store function names as Str
+                            mut is_func_sig_field := false
+                            mut fsg_sym := SymbolInfo()
+                            fsg_sym = ctx.scope_stack.lookup_symbol(type_name)?
+                            switch fsg_sym.value_type {
+                            case ValueType.TType(TTypeDef.TFuncSig):
+                                is_func_sig_field = true
+                            case:
+                            }
+                            catch (err: KeyNotFoundError) {
+                            }
                             if type_name.eq("I64") {
                                 i64_val := I64.from_str(default_value)
                                 // Note: I64.from_str panics on invalid input, doesn't throw
                                 g_heap.set(add(offset, field_offset), to_ptr(i64_val), 8)
+                            } else if is_func_sig_field {
+                                fsg_combined_name := format(id, ".", decl.name)
+                                fsg_symbol := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true)
+                                ctx.scope_stack.declare_symbol(fsg_combined_name.clone(), fsg_symbol.clone())?
+                                mut fsg_sym_entry := SymbolEntry()
+                                fsg_sym_entry.name = fsg_combined_name.clone()
+                                fsg_sym_entry.info = fsg_symbol
+                                result.symbols.push(own fsg_sym_entry)
+                                fsg_field_offset := add(offset, field_offset)
+                                mut fsg_mapping := EvalHeapMapping()
+                                fsg_mapping.name = fsg_combined_name.clone()
+                                fsg_mapping.offset = fsg_field_offset
+                                result.heap_mappings.push(own fsg_mapping)
+                                EvalHeap.insert_string(ctx, fsg_combined_name.clone(), default_value.clone(), e)?
                             } else if ctx.scope_stack.has_struct(type_name) {
                                 // It's a struct
                                 nested_combined_name := format(id, ".", decl.name)

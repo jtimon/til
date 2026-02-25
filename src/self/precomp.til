@@ -372,7 +372,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                 }
                             }
                             // Generate struct methods (delete/clone) and set on ns
-                            esm_auto_ns := generate_struct_methods(esm_temp_name, esm_struct_def.clone(), p.line, p.col)
+                            esm_auto_ns := generate_struct_methods(esm_temp_name, esm_struct_def.clone(), p.line, p.col, context.scope_stack.get_func_sig_types())
                             mut esm_final_struct_def := esm_struct_def.clone()
                             if esm_auto_ns.members.len().gt(0) {
                                 esm_final_struct_def.ns = esm_auto_ns
@@ -511,7 +511,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         dummy := Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), 0, 0)
                                         if ns_has_delete { auto_struct.default_values.set(own "delete", own dummy.clone()) }
                                         if ns_has_clone { auto_struct.default_values.set(own "clone", own dummy) }
-                                        auto_ns := generate_struct_methods(decl.name, auto_struct, p.line, p.col)
+                                        auto_ns := generate_struct_methods(decl.name, auto_struct, p.line, p.col, context.scope_stack.get_func_sig_types())
                                         if auto_ns.members.len().gt(0) {
                                             for auto_m: Declaration in auto_ns.members {
                                                 combined_ns.members.push(own auto_m.clone())
@@ -762,7 +762,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
                     }
                 }
                 // Generate struct methods (delete/clone) and set on ns
-                ear_auto_ns := generate_struct_methods(ear_temp, ear_sd.clone(), e.line, e.col)
+                ear_auto_ns := generate_struct_methods(ear_temp, ear_sd.clone(), e.line, e.col, context.scope_stack.get_func_sig_types())
                 mut ear_final_sd := ear_sd.clone()
                 if ear_auto_ns.members.len().gt(0) {
                     ear_final_sd.ns = ear_auto_ns
@@ -836,7 +836,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
                     }
                 }
                 // Generate struct methods (delete/clone) and set on ns
-                ear_decl_auto_ns := generate_struct_methods(ear_decl.name, ear_decl_sd.clone(), e.line, e.col)
+                ear_decl_auto_ns := generate_struct_methods(ear_decl.name, ear_decl_sd.clone(), e.line, e.col, context.scope_stack.get_func_sig_types())
                 mut ear_decl_final_sd := ear_decl_sd.clone()
                 if ear_decl_auto_ns.members.len().gt(0) {
                     ear_decl_final_sd.ns = ear_decl_auto_ns
@@ -2014,7 +2014,7 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             }
         }
         // Generate struct methods (delete/clone) and set on ns
-        pf_auto_ns := generate_struct_methods(pf_temp_name, pf_struct_def.clone(), e.line, e.col)
+        pf_auto_ns := generate_struct_methods(pf_temp_name, pf_struct_def.clone(), e.line, e.col, context.scope_stack.get_func_sig_types())
         mut pf_final_sd := pf_struct_def.clone()
         if pf_auto_ns.members.len().gt(0) {
             pf_final_sd.ns = pf_auto_ns

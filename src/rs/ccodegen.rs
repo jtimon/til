@@ -2070,7 +2070,17 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         }
     }
 
-    // Pass 1b: emit all structs and enums-with-payloads in topologically sorted order
+    // Pass 1b: Issue #91 - emit typedefs for function signature types
+    // Must come before struct declarations since structs can have FuncSig fields
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_func_sig_declaration(child)? {
+                emit_func_sig_typedef(child, context, &mut output)?;
+            }
+        }
+    }
+
+    // Pass 1c: emit all structs and enums-with-payloads in topologically sorted order
     // Both are "complex types" that can depend on each other
     if let NodeType::Body = &ast.node_type {
         let type_decls: Vec<&Expr> = ast.params.iter()
@@ -2086,15 +2096,6 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
                 emit_struct_declaration(child, &mut output)?;
             } else {
                 emit_enum_declaration(child, &mut output)?;
-            }
-        }
-    }
-
-    // Pass 1c: Issue #91 - emit typedefs for function signature types
-    if let NodeType::Body = &ast.node_type {
-        for child in &ast.params {
-            if is_func_sig_declaration(child)? {
-                emit_func_sig_typedef(child, context, &mut output)?;
             }
         }
     }
@@ -6050,8 +6051,28 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     output.push_str(&member.name);
                     output.push_str(" = ");
                     // Use hoisted temp if available, otherwise emit inline
+                    // Issue #91: FuncSig fields store function pointers - emit as til_funcname
+                    let is_func_sig_field = if let ValueType::TCustom(ref mt) = member.value_type {
+                        is_func_sig_type(mt, context)
+                    } else {
+                        false
+                    };
                     if let Some(hoisted_temp_var) = hoisted_values.get(&member.name) {
                         output.push_str(hoisted_temp_var);
+                    } else if is_func_sig_field {
+                        // Issue #91: Function pointer field - emit function name directly
+                        let field_value_expr = named_values.get(&member.name)
+                            .map(|e| *e)
+                            .or_else(|| struct_def.default_values.get(&member.name));
+                        if let Some(fv_expr) = field_value_expr {
+                            if let NodeType::Identifier(func_name) = &fv_expr.node_type {
+                                output.push_str(&til_name(func_name));
+                            } else {
+                                emit_expr(fv_expr, output, 0, ctx, context)?;
+                            }
+                        } else {
+                            output.push_str("0");
+                        }
                     } else if let Some(nv_expr) = named_values.get(&member.name) {
                         emit_expr(nv_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
@@ -6247,8 +6268,30 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
             }
         }
 
+        // Issue #91: Check if assignment target is a FuncSig field
+        let assign_field_type = if let Some(dot_pos) = name.find('.') {
+            let base = &name[..dot_pos];
+            let field = &name[dot_pos + 1..];
+            if let Some(sym) = context.scope_stack.lookup_symbol(base) {
+                if let ValueType::TCustom(ref struct_type) = sym.value_type {
+                    if let Some(sd) = context.scope_stack.lookup_struct(struct_type) {
+                        sd.members.iter()
+                            .find(|m| m.name == field)
+                            .map(|m| m.value_type.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         // Process RHS with emit_arg_string (handles hoisting)
-        Some(emit_arg_string(rhs_expr, None, false, output, indent, ctx, context)?)
+        Some(emit_arg_string(rhs_expr, assign_field_type.as_ref(), false, output, indent, ctx, context)?)
     } else {
         None
     };

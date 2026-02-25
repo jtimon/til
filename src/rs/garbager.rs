@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[allow(unused_imports)]
 use std::collections::HashSet;
 use crate::rs::init::{Context, get_value_type};
-use crate::rs::parser::{Expr, NodeType, ValueType, FuncDef, FCallInfo, StructDef, EnumDef, NamespaceDef, Declaration};
+use crate::rs::parser::{Expr, NodeType, ValueType, TTypeDef, FuncDef, FCallInfo, StructDef, EnumDef, NamespaceDef, Declaration};
 // TODO Issue #191: Re-enable when delete-before-reassignment is re-enabled
 // use crate::rs::typer::is_cast_call;
 
@@ -187,16 +187,22 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 if let NodeType::Identifier(_) = &assign_new_params[0].node_type {
                     // Use get_value_type to infer RHS type (works for bare ids AND field access)
                     if let Ok(ValueType::TCustom(type_name)) = get_value_type(context, &assign_new_params[0]) {
-                        let assign_rhs_expr = assign_new_params[0].clone();
-                        let assign_clone_call = build_clone_call_expr(&type_name, assign_rhs_expr, e.line, e.col);
-                        let mut assign_transformed_params = vec![assign_clone_call];
-                        assign_transformed_params.extend(assign_new_params.into_iter().skip(1));
-                        return Ok(Expr::new_explicit(
-                            e.node_type.clone(),
-                            assign_transformed_params,
-                            e.line,
-                            e.col,
-                        ));
+                        // Issue #91: Skip clone for FuncSig types (function pointers are just names)
+                        let is_func_sig = context.scope_stack.lookup_symbol(&type_name)
+                            .map(|s| s.value_type == ValueType::TType(TTypeDef::TFuncSig))
+                            .unwrap_or(false);
+                        if !is_func_sig {
+                            let assign_rhs_expr = assign_new_params[0].clone();
+                            let assign_clone_call = build_clone_call_expr(&type_name, assign_rhs_expr, e.line, e.col);
+                            let mut assign_transformed_params = vec![assign_clone_call];
+                            assign_transformed_params.extend(assign_new_params.into_iter().skip(1));
+                            return Ok(Expr::new_explicit(
+                                e.node_type.clone(),
+                                assign_transformed_params,
+                                e.line,
+                                e.col,
+                            ));
+                        }
                     }
                 }
             }
@@ -613,6 +619,13 @@ fn transform_struct_literal_fields(context: &Context, e: &Expr, new_params: &mut
                 None => continue,
             };
             if let ValueType::TCustom(type_name) = &field_decl.value_type {
+                // Issue #91: Skip FuncSig types (function pointers don't need clone)
+                let is_func_sig = context.scope_stack.lookup_symbol(type_name)
+                    .map(|s| s.value_type == ValueType::TType(TTypeDef::TFuncSig))
+                    .unwrap_or(false);
+                if is_func_sig {
+                    continue;
+                }
                 // Check if the NamedArg's value (params[0]) is an identifier
                 if !new_params[param_idx].params.is_empty() && is_identifier_expr(new_params[param_idx].params.get(0).unwrap()) {
                     let arg_expr = new_params[param_idx].params.get(0).unwrap().clone();

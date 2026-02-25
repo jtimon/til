@@ -2428,7 +2428,19 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     case:
     }
 
-    // Pass 1b: emit all structs and enums-with-payloads in topologically sorted order
+    // Pass 1b: Issue #91 - emit typedefs for function signature types
+    // Must come before struct declarations since structs can have FuncSig fields
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_func_sig_declaration(child) {
+                emit_func_sig_typedef(child, context, output)?
+            }
+        }
+    case:
+    }
+
+    // Pass 1c: emit all structs and enums-with-payloads in topologically sorted order
     // Both are "complex types" that can depend on each other
     switch ast.node_type {
     case NodeType.Body:
@@ -2447,17 +2459,6 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
                 emit_struct_declaration(child, output)?
             } else {
                 emit_enum_declaration(child, output)?
-            }
-        }
-    case:
-    }
-
-    // Pass 1c: Issue #91 - emit typedefs for function signature types
-    switch ast.node_type {
-    case NodeType.Body:
-        for child: Expr in ast.params {
-            if is_func_sig_declaration(child) {
-                emit_func_sig_typedef(child, context, output)?
             }
         }
     case:
@@ -7374,9 +7375,42 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 output.push_str(member.name)
                 output.push_str(" = ")
                 // Use hoisted temp if available, otherwise emit inline
+                // Issue #91: FuncSig fields store function pointers - emit as til_funcname
+                mut is_func_sig_field := false
+                switch member.value_type {
+                case ValueType.TCustom(mt):
+                    is_func_sig_field = is_func_sig_type(mt, context)
+                case:
+                }
                 if hoisted_values.contains_key(member.name) {
                     hoisted_temp_var := cast(Str, hoisted_values.get(member.name)?)
                     output.push_str(hoisted_temp_var)
+                } else if is_func_sig_field {
+                    // Issue #91: Function pointer field - emit function name directly
+                    mut fv_found := false
+                    if named_values.contains_key(member.name) {
+                        fv_expr := cast(Expr, named_values.get(member.name)?)
+                        switch fv_expr.node_type {
+                        case NodeType.Identifier(func_name):
+                            output.push_str(til_name(func_name))
+                            fv_found = true
+                        case:
+                            emit_expr(fv_expr, output, 0, ctx, context)?
+                            fv_found = true
+                        }
+                    }
+                    if not(fv_found) {
+                        fv_def_expr := cast(Expr, struct_def.default_values.get(member.name)?)
+                        switch fv_def_expr.node_type {
+                        case NodeType.Identifier(func_name2):
+                            output.push_str(til_name(func_name2))
+                        case:
+                            emit_expr(fv_def_expr, output, 0, ctx, context)?
+                        }
+                        catch (err: KeyNotFoundError) {
+                            output.push_str("0")
+                        }
+                    }
                 } else if named_values.contains_key(member.name) {
                     nv_expr := cast(Expr, named_values.get(member.name)?)
                     emit_expr(nv_expr, output, 0, ctx, context)?
@@ -7657,9 +7691,47 @@ emit_assignment : proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut 
         case:
         }
 
-        // Process RHS with emit_arg_string (handles hoisting)
-        rhs_str = emit_arg_string(rhs_expr, Ptr(), false, output, indent, ctx, context)?
-        has_rhs = true
+        // Issue #91: Check if assignment target is a FuncSig field
+        mut assign_is_func_sig := false
+        dot_pos2 := name.find(".")
+        if dot_pos2.gteq(0) {
+            af_base := name.get_substr(0, dot_pos2)?
+            af_field_name := name.get_substr(dot_pos2.add(1), name.len())?
+            mut af_sym := context.scope_stack.lookup_symbol(af_base)?
+            dont_delete(af_sym)
+            switch af_sym.value_type {
+            case ValueType.TCustom(af_struct_type):
+                mut af_sd := context.scope_stack.lookup_struct(af_struct_type)?
+                dont_delete(af_sd)
+                for af_member: Declaration in af_sd.members {
+                    if af_member.name.eq(af_field_name) {
+                        switch af_member.value_type {
+                        case ValueType.TCustom(af_mt):
+                            assign_is_func_sig = is_func_sig_type(af_mt, context)
+                        case:
+                        }
+                    }
+                }
+            case:
+            }
+            catch (err: KeyNotFoundError) {
+            }
+        }
+        // Issue #91: For FuncSig field assignments, emit function name directly
+        if assign_is_func_sig {
+            switch rhs_expr.node_type {
+            case NodeType.Identifier(assign_func_name):
+                rhs_str = til_name(assign_func_name)
+                has_rhs = true
+            case:
+                rhs_str = emit_arg_string(rhs_expr, Ptr(), false, output, indent, ctx, context)?
+                has_rhs = true
+            }
+        } else {
+            // Process RHS with emit_arg_string (handles hoisting)
+            rhs_str = emit_arg_string(rhs_expr, Ptr(), false, output, indent, ctx, context)?
+            has_rhs = true
+        }
     }
 
     // Regular assignment

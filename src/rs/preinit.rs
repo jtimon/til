@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use crate::rs::ordered_map::OrderedMap;
 
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, StructDef, EnumDef, FuncDef, FuncSig, FCallInfo, NamespaceDef, FunctionType,
+    Expr, NodeType, ValueType, TTypeDef, StructDef, EnumDef, FuncDef, FuncSig, FCallInfo, NamespaceDef, FunctionType,
     Declaration,
 };
 
@@ -18,10 +18,19 @@ struct MethodResult {
 
 /// Check if a value type is a primitive (no delete/clone needed).
 /// Hardcoded for now: I64, U8, Dynamic, Type
-fn is_primitive_type(vt: &ValueType) -> bool {
+/// Issue #91: Also treats FuncSig types as primitive (function pointers don't own resources).
+/// func_sig_types contains names of FuncSig types (e.g., "BinaryIntOp").
+fn is_primitive_type(vt: &ValueType, func_sig_types: &HashSet<String>) -> bool {
     match vt {
         ValueType::TCustom(name) => {
-            matches!(name.as_str(), "I64" | "U8" | "Dynamic" | "Type")
+            if matches!(name.as_str(), "I64" | "U8" | "Dynamic" | "Type") {
+                return true;
+            }
+            // Issue #91: FuncSig types are like primitives (no delete/clone needed)
+            if func_sig_types.contains(name) {
+                return true;
+            }
+            false
         },
         _ => false,
     }
@@ -29,12 +38,12 @@ fn is_primitive_type(vt: &ValueType) -> bool {
 
 /// Generate a delete() method for a struct.
 /// The method calls field.delete() for each mutable field in reverse declaration order.
-fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize, col: usize) -> MethodResult {
+fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize, col: usize, func_sig_types: &HashSet<String>) -> MethodResult {
     // Build: delete := proc(mut self: StructName) { self.field_n.delete(); ... self.field_0.delete(); }
 
     // Check if there will be any delete calls (determines if we use _self or self)
     let has_non_primitive_fields = struct_def.members.iter()
-        .any(|m| m.is_mut && !is_primitive_type(&m.value_type));
+        .any(|m| m.is_mut && !is_primitive_type(&m.value_type, func_sig_types));
     let self_param_name = if has_non_primitive_fields { "self" } else { "_self" };
 
     let self_decl = Declaration {
@@ -56,7 +65,7 @@ fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize
         }
 
         // Skip primitive types that don't have delete methods
-        if is_primitive_type(&member.value_type) {
+        if is_primitive_type(&member.value_type, func_sig_types) {
             continue;
         }
 
@@ -110,7 +119,7 @@ fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize
 
 /// Generate a clone() method for a struct.
 /// The method returns a new instance with each mutable field cloned.
-fn generate_clone_method(struct_name: &str, struct_def: &StructDef, line: usize, col: usize) -> MethodResult {
+fn generate_clone_method(struct_name: &str, struct_def: &StructDef, line: usize, col: usize, func_sig_types: &HashSet<String>) -> MethodResult {
     // Build: clone := func(self: StructName) returns StructName { return StructName(field1 = self.field1.clone(), ...) }
 
     // Use _self when no mut fields (body won't reference self)
@@ -135,7 +144,7 @@ fn generate_clone_method(struct_name: &str, struct_def: &StructDef, line: usize,
 
         // For primitive types, just copy the value directly: self.field_name
         // For other types, call clone: self.field_name.clone()
-        let field_value = if is_primitive_type(&member.value_type) {
+        let field_value = if is_primitive_type(&member.value_type, func_sig_types) {
             // Build: self.field_name
             Expr::new_explicit(
                 NodeType::Identifier("self".to_string()),
@@ -361,7 +370,7 @@ fn collect_structs_needing_methods(
 
 /// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
 /// Returns Some(NamespaceDef) if the struct needs auto-generated methods, None otherwise.
-pub fn generate_struct_methods(struct_name: &str, struct_def: &StructDef, _line: usize, _col: usize) -> Option<NamespaceDef> {
+pub fn generate_struct_methods(struct_name: &str, struct_def: &StructDef, _line: usize, _col: usize, func_sig_types: &HashSet<String>) -> Option<NamespaceDef> {
     // Check if delete/clone are already defined (inline or in ns)
     let has_delete = struct_def.members.iter().any(|m| m.name == "delete")
         || struct_def.default_values.contains_key("delete")
@@ -374,7 +383,7 @@ pub fn generate_struct_methods(struct_name: &str, struct_def: &StructDef, _line:
     let needs_clone = !has_clone;
 
     if needs_delete || needs_clone {
-        Some(generate_namespace_block(struct_name, struct_def, needs_delete, needs_clone))
+        Some(generate_namespace_block(struct_name, struct_def, needs_delete, needs_clone, func_sig_types))
     } else {
         None
     }
@@ -433,18 +442,19 @@ fn generate_namespace_block(
     struct_def: &StructDef,
     needs_delete: bool,
     needs_clone: bool,
+    func_sig_types: &HashSet<String>,
 ) -> NamespaceDef {
     let mut members = Vec::new();
     let mut default_values = HashMap::new();
 
     if needs_delete {
-        let delete_result = generate_delete_method(struct_name, struct_def, 0, 0);
+        let delete_result = generate_delete_method(struct_name, struct_def, 0, 0, func_sig_types);
         members.push(delete_result.decl);
         default_values.insert("delete".to_string(), delete_result.expr);
     }
 
     if needs_clone {
-        let clone_result = generate_clone_method(struct_name, struct_def, 0, 0);
+        let clone_result = generate_clone_method(struct_name, struct_def, 0, 0, func_sig_types);
         members.push(clone_result.decl);
         default_values.insert("clone".to_string(), clone_result.expr);
     }
@@ -562,6 +572,24 @@ pub fn preinit_expr(e: &Expr) -> Result<Expr, String> {
         // Pass 2: Find structs that need auto-generated methods
         let structs_needing_methods = collect_structs_needing_methods(e, &namespace_methods);
 
+        // Issue #91: Collect FuncSig type names (declarations with TType(TFuncSig) annotation
+        // or FuncDef body that's empty {} indicating a signature type)
+        let mut func_sig_types = HashSet::new();
+        for child in &e.params {
+            if let NodeType::Declaration(decl) = &child.node_type {
+                if decl.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                    func_sig_types.insert(decl.name.clone());
+                } else if let Some(value_expr) = child.params.first() {
+                    // Inferred: BinaryIntOp := func(I64, I64) returns I64 {}
+                    if let NodeType::FuncDef(func_def) = &value_expr.node_type {
+                        if func_def.body.is_empty() {
+                            func_sig_types.insert(decl.name.clone());
+                        }
+                    }
+                }
+            }
+        }
+
         // Pass 3: Process all children, setting ns on struct defs that need auto-generated methods
         let mut new_params = Vec::new();
         for child in &e.params {
@@ -572,7 +600,7 @@ pub fn preinit_expr(e: &Expr) -> Result<Expr, String> {
                 if let Some((_, (_, _, _, needs_delete, needs_clone))) = structs_needing_methods.iter().find(|(name, _)| *name == &decl.name) {
                     if let Some(value_expr) = processed.params.first() {
                         if let NodeType::StructDef(struct_def) = &value_expr.node_type {
-                            let auto_ns = generate_namespace_block(&decl.name, struct_def, *needs_delete, *needs_clone);
+                            let auto_ns = generate_namespace_block(&decl.name, struct_def, *needs_delete, *needs_clone, &func_sig_types);
                             // Merge auto-generated ns with any user-defined ns
                             let mut merged_ns = struct_def.ns.clone();
                             for m in auto_ns.members {

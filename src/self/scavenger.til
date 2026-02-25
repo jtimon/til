@@ -264,6 +264,28 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
+/// Issue #91: Collect local variable names declared in a function body.
+/// Used to remove them from the called set - local variables that look like
+/// function calls (e.g., `op6(3, 5)` where op6 is a func ptr local) are not functions.
+collect_local_declarations : proc(body: Vec, mut locals: Set) = {
+    for stmt: Expr in body {
+        switch stmt.node_type {
+        case NodeType.Declaration(decl):
+            _ := locals.insert(own decl.name.clone())
+        case:
+        }
+        // Recurse into sub-bodies
+        for param: Expr in stmt.params {
+            switch param.node_type {
+            case NodeType.FuncDef(fd):
+                collect_local_declarations(fd.body, locals)
+            case:
+            }
+            collect_local_declarations(param.params, locals)
+        }
+    }
+}
+
 /// Recursively collect all function names called within an expression.
 collect_called_functions : proc(e: Expr, mut called: Set) throws Str = {
     switch e.node_type {
@@ -495,6 +517,14 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
                 if cr_arg.name.len().gt(0) {
                     called.remove(cr_arg.name)
                 }
+            }
+            // Issue #91: Remove local variable names from called set
+            // e.g., `op6 := h3.on_click` inside a proc - op6(3, 5) looks like
+            // a function call but op6 is a local variable
+            mut locals := Set.new(Str)
+            collect_local_declarations(func_def.body, locals)
+            for local_name: Str in locals {
+                called.remove(local_name)
             }
             // Issue #91: Collect function references passed as FuncSig arguments
             for stmt: Expr in func_def.body {

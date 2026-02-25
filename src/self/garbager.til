@@ -212,21 +212,34 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
                 }
                 switch assign_rhs_type {
                 case ValueType.TCustom(type_name):
-                    // Build clone call: Type.clone(rhs_expr)
-                    assign_rhs_expr := assign_first_param.clone()
-                    assign_clone_call := build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col)
-                    mut assign_transformed_params := Vec.new(Expr)
-                    assign_transformed_params.push(own assign_clone_call)
-                    mut assign_i := 1
-                    while assign_i.lt(assign_new_params.len()) {
-                        assign_param := cast(Expr, assign_new_params.get(assign_i)?)
-                        catch (err: IndexOutOfBoundsError) {
-                            throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
-                        }
-                        assign_transformed_params.push(own assign_param)
-                        assign_i = assign_i.add(1)
+                    // Issue #91: Skip clone for FuncSig types (function pointers are just names)
+                    mut assign_is_func_sig := false
+                    mut assign_fsg_sym := SymbolInfo()
+                    assign_fsg_sym = context.scope_stack.lookup_symbol(type_name)?
+                    switch assign_fsg_sym.value_type {
+                    case ValueType.TType(TTypeDef.TFuncSig):
+                        assign_is_func_sig = true
+                    case:
                     }
-                    return Expr.new_explicit(e.node_type, assign_transformed_params, e.line, e.col)
+                    catch (err: KeyNotFoundError) {
+                    }
+                    if not(assign_is_func_sig) {
+                        // Build clone call: Type.clone(rhs_expr)
+                        assign_rhs_expr := assign_first_param.clone()
+                        assign_clone_call := build_clone_call_expr(type_name, assign_rhs_expr, e.line, e.col)
+                        mut assign_transformed_params := Vec.new(Expr)
+                        assign_transformed_params.push(own assign_clone_call)
+                        mut assign_i := 1
+                        while assign_i.lt(assign_new_params.len()) {
+                            assign_param := cast(Expr, assign_new_params.get(assign_i)?)
+                            catch (err: IndexOutOfBoundsError) {
+                                throw e.lang_error(context.path, "garbager", format("IndexOutOfBoundsError: ", err.msg))
+                            }
+                            assign_transformed_params.push(own assign_param)
+                            assign_i = assign_i.add(1)
+                        }
+                        return Expr.new_explicit(e.node_type, assign_transformed_params, e.line, e.col)
+                    }
                 case:
                     // Not a TCustom type
                 }
@@ -786,8 +799,20 @@ transform_struct_literal_fields : proc(context: Context, e: Expr, mut new_params
                 // Check if field type is a non-primitive struct
                 switch field_decl.value_type {
                 case ValueType.TCustom(type_name):
-                    // Check if the NamedArg's value (params[0]) is an identifier
-                    if param.params.len().gt(0) {
+                    // Issue #91: Skip FuncSig types (function pointers don't need clone)
+                    mut is_func_sig_field := false
+                    mut fsg_sym := SymbolInfo()
+                    fsg_sym = context.scope_stack.lookup_symbol(type_name)?
+                    switch fsg_sym.value_type {
+                    case ValueType.TType(TTypeDef.TFuncSig):
+                        is_func_sig_field = true
+                    case:
+                    }
+                    catch (err: KeyNotFoundError) {
+                    }
+                    if is_func_sig_field {
+                        // skip - no clone needed
+                    } else if param.params.len().gt(0) {
                         value_expr := cast(Expr, param.params.get(0)?)
                         dont_delete(value_expr)
                         if is_identifier_expr(value_expr) {

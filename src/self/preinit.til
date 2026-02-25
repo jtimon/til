@@ -15,13 +15,17 @@ MethodResult := struct {
 /// Check if a value type has no fields (no delete/clone needed).
 /// - I64, U8: true built-in primitives
 /// - Dynamic, Type: empty structs with no fields
-is_primitive_type : func(vt: ValueType) returns Bool = {
+/// Issue #91: Also treats FuncSig types as primitive (function pointers don't own resources).
+/// func_sig_types contains names of FuncSig types (e.g., "BinaryIntOp").
+is_primitive_type : func(vt: ValueType, func_sig_types: Set) returns Bool = {
     switch vt {
     case ValueType.TCustom(name):
         if name.eq("I64") { return true }
         if name.eq("U8") { return true }
         if name.eq("Dynamic") { return true }
         if name.eq("Type") { return true }
+        // Issue #91: FuncSig types are like primitives (no delete/clone needed)
+        if func_sig_types.contains(name) { return true }
         return false
     case:
         return false
@@ -30,14 +34,14 @@ is_primitive_type : func(vt: ValueType) returns Bool = {
 
 /// Generate a delete() method for a struct.
 /// The method calls field.delete() for each mutable field in reverse declaration order.
-generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64, col: I64) returns MethodResult = {
+generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64, col: I64, func_sig_types: Set) returns MethodResult = {
     // Build: delete : proc(mut self: StructName) = { self.field_n.delete(); ... self.field_0.delete(); }
 
     // Check if there will be any delete calls (determines if we use _self or self)
     mut has_non_primitive_fields := false
     for mf: Declaration in struct_def.members {
         if mf.is_mut {
-            if not(is_primitive_type(mf.value_type)) {
+            if not(is_primitive_type(mf.value_type, func_sig_types)) {
                 has_non_primitive_fields = true
             }
         }
@@ -69,7 +73,7 @@ generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64
 
         // Skip non-mut fields and primitive types
         if member.is_mut {
-            if not(is_primitive_type(member.value_type)) {
+            if not(is_primitive_type(member.value_type, func_sig_types)) {
                 // Build: self.field_name.delete()
                 mut delete_access_params := Vec.new(Expr)
                 delete_access_params.push(own Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
@@ -118,7 +122,7 @@ generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64
 
 /// Generate a clone() method for a struct.
 /// The method returns a new instance with each mutable field cloned.
-generate_clone_method : func(struct_name: Str, struct_def: StructDef, line: I64, col: I64) returns MethodResult = {
+generate_clone_method : func(struct_name: Str, struct_def: StructDef, line: I64, col: I64, func_sig_types: Set) returns MethodResult = {
     // Build: clone : func(self: StructName) returns StructName = { return StructName(field1 = self.field1.clone(), ...) }
 
     // Use _self when no mut fields (body won't reference self)
@@ -150,7 +154,7 @@ generate_clone_method : func(struct_name: Str, struct_def: StructDef, line: I64,
             // For primitive types, just copy the value directly: self.field_name
             // For other types, call clone: self.field_name.clone()
             mut field_value := Expr()
-            if is_primitive_type(member.value_type) {
+            if is_primitive_type(member.value_type, func_sig_types) {
                 // Build: self.field_name
                 mut access_params := Vec.new(Expr)
                 access_params.push(own Expr.new_explicit(NodeType.Identifier(member.name), Vec.new(Expr), line, col))
@@ -466,7 +470,7 @@ collect_structs_needing_methods : func(ast: Expr, namespace_methods: Set) return
 
 /// Issue #105: Public API for generating delete/clone methods for a macro-expanded struct.
 /// Returns NamespaceDef with auto-generated methods, or empty NamespaceDef if none needed.
-generate_struct_methods : func(struct_name: Str, struct_def: StructDef, _line: I64, _col: I64) returns NamespaceDef = {
+generate_struct_methods : func(struct_name: Str, struct_def: StructDef, _line: I64, _col: I64, func_sig_types: Set) returns NamespaceDef = {
     // Check if delete/clone are already defined (inline or in ns)
     mut has_delete := false
     mut has_clone := false
@@ -497,24 +501,24 @@ generate_struct_methods : func(struct_name: Str, struct_def: StructDef, _line: I
     needs_clone := not(has_clone)
 
     if needs_delete.or(needs_clone) {
-        return generate_namespace_block(struct_name, struct_def, needs_delete, needs_clone)
+        return generate_namespace_block(struct_name, struct_def, needs_delete, needs_clone, func_sig_types)
     }
     return NamespaceDef()
 }
 
 /// Generate a NamespaceDef with auto-generated methods for a struct.
-generate_namespace_block : func(struct_name: Str, struct_def: StructDef, needs_delete: Bool, needs_clone: Bool) returns NamespaceDef = {
+generate_namespace_block : func(struct_name: Str, struct_def: StructDef, needs_delete: Bool, needs_clone: Bool, func_sig_types: Set) returns NamespaceDef = {
     mut members := Vec.new(Declaration)
     mut default_values := Map.new(Str, Expr)
 
     if needs_delete {
-        delete_result := generate_delete_method(struct_name, struct_def, 0, 0)
+        delete_result := generate_delete_method(struct_name, struct_def, 0, 0, func_sig_types)
         members.push(own delete_result.decl)
         default_values.set(own "delete", own delete_result.expr)
     }
 
     if needs_clone {
-        clone_result := generate_clone_method(struct_name, struct_def, 0, 0)
+        clone_result := generate_clone_method(struct_name, struct_def, 0, 0, func_sig_types)
         members.push(own clone_result.decl)
         default_values.set(own "clone", own clone_result.expr)
     }
@@ -648,6 +652,35 @@ preinit_expr : func(e: Expr) returns Expr throws Str = {
         // Pass 2: Find structs that need auto-generated methods
         structs_needing := collect_structs_needing_methods(e, namespace_methods)
 
+        // Issue #91: Collect FuncSig type names (declarations with TType(TFuncSig) annotation
+        // or FuncDef body that's empty {} indicating a signature type)
+        mut func_sig_types := Set.new(Str)
+        for fst_child: Expr in e.params {
+            switch fst_child.node_type {
+            case NodeType.Declaration(fst_decl):
+                switch fst_decl.value_type {
+                case ValueType.TType(TTypeDef.TFuncSig):
+                    _ := func_sig_types.insert(own fst_decl.name.clone())
+                case:
+                    if fst_child.params.len().gt(0) {
+                        fst_value := cast(Expr, fst_child.params.get(0)?)
+                        dont_delete(fst_value)
+                        switch fst_value.node_type {
+                        case NodeType.FuncDef(fst_fd):
+                            if fst_fd.body.len().eq(0) {
+                                _ := func_sig_types.insert(own fst_decl.name.clone())
+                            }
+                        case:
+                        }
+
+                        catch (err: IndexOutOfBoundsError) {
+                        }
+                    }
+                }
+            case:
+            }
+        }
+
         // Pass 3: Process all children, setting ns on struct defs that need auto-generated methods
         mut new_params := Vec.new(Expr)
         for child: Expr in e.params {
@@ -673,7 +706,7 @@ preinit_expr : func(e: Expr) returns Expr throws Str = {
                             }
                         }
                         if found_in_needing {
-                            auto_ns := generate_namespace_block(p_decl.name, p_struct_def, sn_needs_delete, sn_needs_clone)
+                            auto_ns := generate_namespace_block(p_decl.name, p_struct_def, sn_needs_delete, sn_needs_clone, func_sig_types)
                             // Merge auto-generated ns with any user-defined ns
                             mut merged_ns := p_struct_def.ns.clone()
                             for auto_m: Declaration in auto_ns.members {

@@ -254,6 +254,25 @@ fn collect_func_ptr_references(e: &Expr, context: &Context, refs: &mut HashSet<S
     Ok(())
 }
 
+/// Issue #91: Collect local variable names declared in a function body.
+/// Used to remove them from the called set - local variables that look like
+/// function calls (e.g., `op6(3, 5)` where op6 is a func ptr local) are not functions.
+fn collect_local_declarations(body: &[Expr], locals: &mut HashSet<String>) {
+    for stmt in body {
+        if let NodeType::Declaration(decl) = &stmt.node_type {
+            locals.insert(decl.name.clone());
+        }
+        // Recurse into sub-bodies (if/while/for contain Body nodes with FuncDef)
+        for param in &stmt.params {
+            if let NodeType::FuncDef(fd) = &param.node_type {
+                collect_local_declarations(&fd.body, locals);
+            }
+            // Also recurse into non-FuncDef params (e.g., Body/If/While)
+            collect_local_declarations(&param.params, locals);
+        }
+    }
+}
+
 /// Recursively collect all function names called within an expression.
 fn collect_called_functions(e: &Expr, called: &mut HashSet<String>) -> Result<(), String> {
     match &e.node_type {
@@ -440,6 +459,14 @@ fn compute_reachable(
                 if !arg.name.is_empty() {
                     called.remove(&arg.name);
                 }
+            }
+            // Issue #91: Remove local variable names from called set
+            // e.g., `op6 := h3.on_click` inside a proc - op6(3, 5) looks like
+            // a function call but op6 is a local variable
+            let mut locals = HashSet::new();
+            collect_local_declarations(&func_def.body, &mut locals);
+            for local_name in &locals {
+                called.remove(local_name);
             }
             // Issue #91: Collect function references passed as FuncSig arguments
             for stmt in &func_def.body {

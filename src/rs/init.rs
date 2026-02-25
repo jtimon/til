@@ -166,6 +166,19 @@ impl ScopeStack {
         None
     }
 
+    /// Issue #91: Get the set of FuncSig type names (for preinit to skip delete/clone).
+    pub fn get_func_sig_types(&self) -> HashSet<String> {
+        let mut result = HashSet::new();
+        for frame in &self.frames {
+            for (name, sym) in &frame.symbols {
+                if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                    result.insert(name.clone());
+                }
+            }
+        }
+        result
+    }
+
     /// Bug #101: Mark a symbol as used in the current function.
     pub fn mark_symbol_used(&mut self, name: &str) {
         self.used_symbols.insert(name.to_string());
@@ -1471,6 +1484,20 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                     }
                 }
             }
+            // Issue #91: Also resolve inferred FuncSig types (e.g., op := h.on_click)
+            if !is_sig_ref {
+                if let ValueType::TCustom(ref inferred_name) = value_type {
+                    if let Some(sym) = context.scope_stack.lookup_symbol(inferred_name) {
+                        if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                            if let Some(sfd) = context.scope_stack.lookup_func(inferred_name) {
+                                value_type = ValueType::TFunction(sfd.sig.function_type.clone());
+                                sig_func_def = Some(sfd.clone());
+                                is_sig_ref = true;
+                            }
+                        }
+                    }
+                }
+            }
             if decl.value_type != str_to_value_type(INFER_TYPE) && !is_sig_ref {
                 if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
                     value_type = decl.value_type.clone();
@@ -1846,6 +1873,13 @@ impl Context {
             "I64"  => return Ok(8),
             _ => {},
         }
+        // Issue #91: FuncSig types store function names as Str
+        if let Some(sym) = self.scope_stack.lookup_symbol(type_name) {
+            if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                return self.get_type_size("Str");
+            }
+        }
+
         if let Some(enum_def) = self.scope_stack.lookup_enum(type_name) {
             // Calculate maximum variant size (8 bytes for tag + largest payload)
             let mut max_size = 8; // Start with tag size
@@ -2003,7 +2037,18 @@ impl Context {
                     .ok_or_else(|| format!("get_field_offset: field '{}' not found in struct '{}'", field_name, current_type))?;
 
                 current_type = match &field_decl.value_type {
-                    ValueType::TCustom(type_name) => type_name.clone(),
+                    ValueType::TCustom(type_name) => {
+                        // Issue #91: FuncSig types are stored as Str
+                        if let Some(sym) = self.scope_stack.lookup_symbol(type_name) {
+                            if sym.value_type == ValueType::TType(TTypeDef::TFuncSig) {
+                                "Str".to_string()
+                            } else {
+                                type_name.clone()
+                            }
+                        } else {
+                            type_name.clone()
+                        }
+                    },
                     _ => {
                         if field_name == parts.last().unwrap() {
                             should_continue_path = false;
