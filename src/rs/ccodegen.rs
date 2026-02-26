@@ -746,15 +746,28 @@ fn hoist_variadic_args(
             // Need to hoist into a temp
             // Bug #143: Use emit_arg_string to properly handle nested FCalls that need by-ref
             let arg_str = emit_arg_string(arg, None, false, output, indent, ctx, context)?;
-            let temp_var = next_mangled(ctx);
-            output.push_str(&indent_str);
-            output.push_str(&c_elem_type);
-            output.push_str(" ");
-            output.push_str(&temp_var);
-            output.push_str(" = ");
-            output.push_str(&arg_str);
-            output.push_str(";\n");
-            arg_temps.push(temp_var);
+            // Issue #175: If the FCall used _ret, arg_str is already a hoisted
+            // lvalue temp - use it directly without a second copy
+            let is_hoisted = if let NodeType::FCall(_) = &arg.node_type {
+                get_fcall_func_def(context, arg)
+                    .map(|fd| fcall_uses_out_ret(&fd, context))
+                    .unwrap_or(false)
+            } else {
+                false
+            };
+            if is_hoisted {
+                arg_temps.push(arg_str);
+            } else {
+                let temp_var = next_mangled(ctx);
+                output.push_str(&indent_str);
+                output.push_str(&c_elem_type);
+                output.push_str(" ");
+                output.push_str(&temp_var);
+                output.push_str(" = ");
+                output.push_str(&arg_str);
+                output.push_str(";\n");
+                arg_temps.push(temp_var);
+            }
         }
     }
 
