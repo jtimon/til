@@ -802,6 +802,118 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
     case:
     }
 
+    // For FCall nodes, check if any non-first param is a bare StructDef or OwnArg(StructDef).
+    // Replace with struct_def_of("AnonStructN") call so compiled mode gets a runtime StructDef value.
+    switch e.node_type {
+    case NodeType.FCall(_):
+        mut fsv_any_changed := false
+        mut fsv_new_params := Vec.new(Expr)
+        mut fsv_idx := 0
+        for fsv_p: Expr in e.params {
+            if fsv_idx.gt(0) {
+                // Check for bare StructDef or OwnArg-wrapped StructDef
+                mut fsv_is_own := false
+                mut fsv_has_sd := false
+                mut fsv_sd := StructDef()
+                mut fsv_se := fsv_p.clone()
+                switch fsv_p.node_type {
+                case NodeType.StructDef(fsv_sd_inner):
+                    fsv_has_sd = true
+                    fsv_sd = fsv_sd_inner.clone()
+                case NodeType.OwnArg:
+                    if fsv_p.params.len().gt(0) {
+                        fsv_inner := cast(Expr, fsv_p.params.get(0)?)
+                        switch fsv_inner.node_type {
+                        case NodeType.StructDef(fsv_sd_inner2):
+                            fsv_has_sd = true
+                            fsv_is_own = true
+                            fsv_sd = fsv_sd_inner2.clone()
+                            fsv_se = fsv_inner.clone()
+                        case:
+                        }
+                    }
+                case:
+                }
+                if fsv_has_sd {
+                    mut fsv_counter_str := I64.to_str(context.anon_struct_counter)
+                    fsv_temp := format("AnonStruct", fsv_counter_str)
+                    fsv_counter_str.delete()
+                    context.anon_struct_counter.inc()
+                    context.scope_stack.declare_struct(own fsv_temp.clone(), own fsv_sd.clone())?
+                    context.scope_stack.declare_symbol(own fsv_temp.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_own=false, is_comptime_const=false))?
+                    for fsv_md: Declaration in fsv_sd.members {
+                        if not(fsv_md.is_mut) {
+                            mut fsv_has_def := false
+                            fsv_me := cast(Expr, fsv_sd.default_values.get(fsv_md.name)?)
+                            fsv_has_def = true
+                            catch (_err: KeyNotFoundError) { }
+                            if fsv_has_def {
+                                mut fsv_mvt := ValueType.TCustom(INFER_TYPE)
+                                fsv_mvt = get_value_type(context, fsv_me)?
+                                catch (_err: Str) { }
+                                fsv_mfn := format(fsv_temp, ".", fsv_md.name)
+                                context.scope_stack.declare_symbol(own fsv_mfn, own SymbolInfo(value_type=fsv_mvt, is_mut=fsv_md.is_mut, is_own=fsv_md.is_own, is_comptime_const=false))?
+                            }
+                        }
+                    }
+                    fsv_auto_ns := generate_struct_methods(fsv_temp, fsv_sd.clone(), fsv_se.line, fsv_se.col, context.scope_stack.get_func_sig_types())
+                    mut fsv_final_sd := fsv_sd.clone()
+                    if fsv_auto_ns.members.len().gt(0) {
+                        fsv_final_sd.ns = fsv_auto_ns
+                        mut fsv_ns_errors := Vec.new(Str)
+                        init_namespace_into_struct(context, fsv_temp, fsv_final_sd.ns, fsv_se, fsv_ns_errors)?
+                        if fsv_ns_errors.len().gt(0) {
+                            throw fsv_ns_errors.join("\n")
+                        }
+                    }
+                    context.scope_stack.declare_struct(own fsv_temp.clone(), own fsv_final_sd.clone())?
+                    mut fsv_decl := Declaration()
+                    fsv_decl.name = fsv_temp.clone()
+                    fsv_decl.value_type = ValueType.TType(TTypeDef.TStructDef)
+                    fsv_decl.is_mut = false
+                    fsv_decl.is_own = false
+                    mut fsv_dp := Vec.new(Expr)
+                    fsv_dp.push(own Expr.new_clone(NodeType.StructDef(fsv_final_sd), fsv_se, Vec.new(Expr)))
+                    fsv_decl_expr := Expr.new_clone(NodeType.Declaration(fsv_decl), fsv_se, fsv_dp)
+                    pending_decls.push(own fsv_decl_expr)
+                    // Replace with struct_def_of("AnonStructN") call
+                    fsv_sdo_id := Expr.new_clone(NodeType.Identifier("struct_def_of"), fsv_se, Vec.new(Expr))
+                    mut fsv_sdo_args := Vec.new(Expr)
+                    fsv_sdo_args.push(own fsv_sdo_id)
+                    fsv_sdo_args.push(own Expr.new_clone(NodeType.LLiteral(Literal.Str(fsv_temp)), fsv_se, Vec.new(Expr)))
+                    fsv_sdo_call := Expr.new_clone(NodeType.FCall(FCallInfo(does_throw=false, is_bang=false)), fsv_se, fsv_sdo_args)
+                    if fsv_is_own {
+                        mut fsv_own_params := Vec.new(Expr)
+                        fsv_own_params.push(own fsv_sdo_call)
+                        fsv_own_wrapper := Expr.new_clone(NodeType.OwnArg, fsv_p, fsv_own_params)
+                        fsv_new_params.push(own fsv_own_wrapper)
+                    } else {
+                        fsv_new_params.push(own fsv_sdo_call)
+                    }
+                    fsv_any_changed = true
+                    fsv_idx.inc()
+                    continue
+                }
+            }
+            // Recurse into this param normally
+            mut fsv_cp_changed := false
+            fsv_cp_result := expand_anon_struct_fcalls_recursive(context, fsv_p, pending_decls, fsv_cp_changed)?
+            if fsv_cp_changed {
+                fsv_new_params.push(own fsv_cp_result)
+                fsv_any_changed = true
+            } else {
+                fsv_new_params.push(own fsv_p.clone())
+            }
+            fsv_idx.inc()
+        }
+        if fsv_any_changed {
+            was_expanded = true
+            return Expr.new_clone(e.node_type, e, fsv_new_params)
+        }
+        return e.clone()
+    case:
+    }
+
     // Check if this is a Declaration with a StructDef value (e.g. P := struct { ... })
     // Only process if the struct isn't already registered (avoids duplicating top-level structs)
     switch e.node_type {
@@ -907,6 +1019,119 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
 /// Sets was_expanded to true and returns modified expr if any change was made.
 /// pending_decls collects enum declarations to inject at top level.
 expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pending_decls: Vec, mut was_expanded: Bool) returns Expr throws Str = {
+    // For FCall nodes, check if any non-first param is a bare EnumDef or OwnArg(EnumDef).
+    // Replace with enum_def_of() for value args, Identifier for macro args.
+    switch e.node_type {
+    case NodeType.FCall(_):
+        mut fev_any_changed := false
+        mut fev_new_params := Vec.new(Expr)
+        mut fev_idx := 0
+        for fev_p: Expr in e.params {
+            if fev_idx.gt(0) {
+                // Check for bare EnumDef or OwnArg-wrapped EnumDef
+                mut fev_is_own := false
+                mut fev_has_ed := false
+                mut fev_ed := EnumDef()
+                mut fev_ee := fev_p.clone()
+                switch fev_p.node_type {
+                case NodeType.EnumDef(fev_ed_inner):
+                    fev_has_ed = true
+                    fev_ed = fev_ed_inner.clone()
+                case NodeType.OwnArg:
+                    if fev_p.params.len().gt(0) {
+                        fev_inner := cast(Expr, fev_p.params.get(0)?)
+                        switch fev_inner.node_type {
+                        case NodeType.EnumDef(fev_ed_inner2):
+                            fev_has_ed = true
+                            fev_is_own = true
+                            fev_ed = fev_ed_inner2.clone()
+                            fev_ee = fev_inner.clone()
+                        case:
+                        }
+                    }
+                case:
+                }
+                if fev_has_ed {
+                    mut fev_counter_str := I64.to_str(context.anon_enum_counter)
+                    fev_temp := format("AnonEnum", fev_counter_str)
+                    fev_counter_str.delete()
+                    context.anon_enum_counter.inc()
+                    context.scope_stack.declare_enum(own fev_temp.clone(), own fev_ed.clone())?
+                    context.scope_stack.declare_symbol(own fev_temp.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TEnumDef), is_mut=false, is_own=false, is_comptime_const=false))?
+                    mut fev_updated_ed := fev_ed.clone()
+                    fev_auto_ns := generate_enum_methods(fev_temp, false, false, fev_ee.line, fev_ee.col)
+                    if fev_auto_ns.members.len().gt(0) {
+                        fev_updated_ed.ns = fev_auto_ns
+                        mut fev_ns_errors := Vec.new(Str)
+                        init_namespace_into_enum(context, fev_temp, fev_updated_ed.ns, fev_ee, fev_ns_errors)?
+                        if fev_ns_errors.len().gt(0) {
+                            throw fev_ns_errors.join("\n")
+                        }
+                    }
+                    context.scope_stack.declare_enum(own fev_temp.clone(), own fev_updated_ed.clone())?
+                    mut fev_decl := Declaration()
+                    fev_decl.name = fev_temp.clone()
+                    fev_decl.value_type = ValueType.TType(TTypeDef.TEnumDef)
+                    fev_decl.is_mut = false
+                    fev_decl.is_own = false
+                    mut fev_dp := Vec.new(Expr)
+                    fev_dp.push(own Expr.new_clone(NodeType.EnumDef(fev_updated_ed), fev_ee, Vec.new(Expr)))
+                    fev_decl_expr := Expr.new_clone(NodeType.Declaration(fev_decl), fev_ee, fev_dp)
+                    pending_decls.push(own fev_decl_expr)
+                    // Check if the function is a macro
+                    mut fev_is_macro := false
+                    if e.params.len().gt(0) {
+                        fev_first := cast(Expr, e.params.get(0)?)
+                        switch fev_first.node_type {
+                        case NodeType.Identifier(fev_fname):
+                            fev_fdef := context.scope_stack.lookup_func(fev_fname)?
+                            fev_is_macro = fev_fdef.is_macro()
+                            catch (_err: KeyNotFoundError) { }
+                        case:
+                        }
+                    }
+                    if fev_is_macro {
+                        fev_id := Expr.new_clone(NodeType.Identifier(fev_temp), fev_ee, Vec.new(Expr))
+                        fev_new_params.push(own fev_id)
+                    } else {
+                        fev_edo_id := Expr.new_clone(NodeType.Identifier("enum_def_of"), fev_ee, Vec.new(Expr))
+                        mut fev_edo_args := Vec.new(Expr)
+                        fev_edo_args.push(own fev_edo_id)
+                        fev_edo_args.push(own Expr.new_clone(NodeType.LLiteral(Literal.Str(fev_temp)), fev_ee, Vec.new(Expr)))
+                        fev_edo_call := Expr.new_clone(NodeType.FCall(FCallInfo(does_throw=false, is_bang=false)), fev_ee, fev_edo_args)
+                        if fev_is_own {
+                            mut fev_own_params := Vec.new(Expr)
+                            fev_own_params.push(own fev_edo_call)
+                            fev_own_wrapper := Expr.new_clone(NodeType.OwnArg, fev_p, fev_own_params)
+                            fev_new_params.push(own fev_own_wrapper)
+                        } else {
+                            fev_new_params.push(own fev_edo_call)
+                        }
+                    }
+                    fev_any_changed = true
+                    fev_idx.inc()
+                    continue
+                }
+            }
+            // Recurse into this param normally
+            mut fev_cp_changed := false
+            fev_cp_result := expand_anon_enum_fcalls_recursive(context, fev_p, pending_decls, fev_cp_changed)?
+            if fev_cp_changed {
+                fev_new_params.push(own fev_cp_result)
+                fev_any_changed = true
+            } else {
+                fev_new_params.push(own fev_p.clone())
+            }
+            fev_idx.inc()
+        }
+        if fev_any_changed {
+            was_expanded = true
+            return Expr.new_clone(e.node_type, e, fev_new_params)
+        }
+        return e.clone()
+    case:
+    }
+
     // Check if this is a bare EnumDef node -- replace with a registered anonymous enum
     switch e.node_type {
     case NodeType.EnumDef(eaer_enum_def):

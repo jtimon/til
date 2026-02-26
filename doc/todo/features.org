@@ -21,7 +21,7 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
 :IMPACT: Language feature, anonymous data structures, templates
-:STATUS: Nearly complete - introspection, collections, compiled mode all working (2026-02-26). Anonymous struct as Dynamic arg remaining.
+:STATUS: Complete (2026-02-26).
 :RELATED: Issue #91 (First-Class Functions), Issue #106 (First-Class Enums), doc/first_class.org
 :END:
 
@@ -44,17 +44,18 @@ collections, introspect at runtime.
       Codegen pass 4e emits C implementations of ~__struct_field_*~ ext_funcs.
 - [X] Vec of StructDef (~Vec.new(StructDef)~) via ~struct_def_of~ (39192242, 2026-02-26)
       Scavenger recognizes ~struct_def_of("TypeName")~ string args as type references.
+- [X] Anonymous struct as Dynamic arg (~vec.push(own struct { ... })~) (2026-02-26)
+      Precomp replaces bare StructDef value args with ~struct_def_of("AnonStructN")~ calls.
+      Handles OwnArg wrapper. All 4 modes pass.
 
 *** What is missing
-- [ ] Anonymous struct in non-macro function args (~vec.push(own struct { ... })~)
-      Works in interpreted mode. Compiled mode needs codegen support for emitting
-      type definitions (StructDef) as runtime values.
+- [ ] Vec of FuncSig / Vec of FuncDef (placeholder tests, needs runtime repr design)
 
 ** Issue #106: First-Class Enums
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
 :IMPACT: Language feature, anonymous data structures, templates
-:STATUS: Nearly complete - introspection, collections, compiled mode all working (2026-02-26). Anonymous enum as Dynamic arg remaining.
+:STATUS: Complete (2026-02-26).
 :RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs), doc/first_class.org
 :END:
 
@@ -75,11 +76,13 @@ collections, introspect at runtime.
       Codegen pass 4e emits C implementations of ~__enum_variant_*~ ext_funcs.
 - [X] Vec of EnumDef (~Vec.new(EnumDef)~) via ~enum_def_of~ (39192242, 2026-02-26)
       Scavenger recognizes ~enum_def_of("TypeName")~ string args as type references.
+- [X] Anonymous enum as Dynamic arg (~vec.push(own enum { ... })~) (2026-02-26)
+      Precomp replaces bare EnumDef value args with ~enum_def_of("AnonEnumN")~ calls.
+      Distinguishes macro args (use Identifier) from value args (use enum_def_of).
+      Handles OwnArg wrapper. All 4 modes pass.
 
 *** What is missing
-- [ ] Anonymous enum in non-macro function args (~vec.push(own enum { ... })~)
-      Works in interpreted mode. Compiled mode needs codegen support for emitting
-      type definitions (EnumDef) as runtime values.
+- [ ] Vec of FuncSig / Vec of FuncDef (placeholder tests, needs runtime repr design)
 
 ** Issue #153: Enable field and method access on Dynamic parameters
 :PROPERTIES:

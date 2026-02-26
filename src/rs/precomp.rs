@@ -7,7 +7,7 @@ use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, StructDef, EnumDef, EnumVariant, FuncDef, FuncSig, NamespaceDef, Declaration, Literal, TTypeDef,
-    FunctionType, PatternInfo, value_type_to_str, INFER_TYPE,
+    FCallInfo, FunctionType, PatternInfo, value_type_to_str, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
 use crate::rs::eval_heap::EvalHeap;
@@ -633,6 +633,99 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
         }
     }
 
+    // For FCall nodes, check if any non-first param is a bare StructDef (value argument).
+    // Replace with struct_def_of("AnonStructN") call so compiled mode gets a runtime StructDef value.
+    // Only applies to FCall args (not return statements, macro bodies, etc.)
+    if matches!(&e.node_type, NodeType::FCall(_)) {
+        let mut fcall_any_changed = false;
+        let mut fcall_new_params = Vec::new();
+        for (idx, p) in e.params.iter().enumerate() {
+            if idx > 0 {  // skip first param (function name / constructor)
+                // Check for bare StructDef or OwnArg-wrapped StructDef
+                let inner_struct = match &p.node_type {
+                    NodeType::StructDef(sd) => Some((sd, p)),
+                    NodeType::OwnArg => {
+                        if let Some(inner) = p.params.first() {
+                            if let NodeType::StructDef(sd) = &inner.node_type { Some((sd, inner)) } else { None }
+                        } else { None }
+                    },
+                    _ => None,
+                };
+                if let Some((struct_def, struct_expr)) = inner_struct {
+                    let is_own = matches!(&p.node_type, NodeType::OwnArg);
+                    let temp_name = format!("AnonStruct{}", context.anon_struct_counter);
+                    context.anon_struct_counter += 1;
+                    context.scope_stack.declare_struct(temp_name.clone(), struct_def.clone());
+                    context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
+                        value_type: ValueType::TType(TTypeDef::TStructDef),
+                        is_mut: false, is_own: false, is_comptime_const: false,
+                    });
+                    for member_decl in &struct_def.members {
+                        if !member_decl.is_mut {
+                            if let Some(member_expr) = struct_def.default_values.get(&member_decl.name) {
+                                let member_value_type = get_value_type(context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                                let member_full_name = format!("{}.{}", temp_name, member_decl.name);
+                                context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
+                                    value_type: member_value_type,
+                                    is_mut: member_decl.is_mut, is_own: member_decl.is_own, is_comptime_const: false,
+                                });
+                            }
+                        }
+                    }
+                    let mut updated_struct_def = struct_def.clone();
+                    if let Some(auto_ns) = generate_struct_methods(&temp_name, struct_def, struct_expr.line, struct_expr.col, &context.scope_stack.get_func_sig_types()) {
+                        updated_struct_def.ns = auto_ns;
+                        let mut ns_errors_vec = Vec::new();
+                        crate::rs::init::init_namespace_into_struct(context, &temp_name, &updated_struct_def.ns, struct_expr, &mut ns_errors_vec);
+                        if !ns_errors_vec.is_empty() {
+                            return Err(ns_errors_vec.join("\n"));
+                        }
+                    }
+                    context.scope_stack.declare_struct(temp_name.clone(), updated_struct_def.clone());
+                    let struct_decl = Declaration {
+                        name: temp_name.clone(),
+                        value_type: ValueType::TType(TTypeDef::TStructDef),
+                        is_mut: false, is_own: false, default_value: None,
+                    };
+                    let struct_decl_expr = Expr::new_clone(
+                        NodeType::Declaration(struct_decl),
+                        struct_expr,
+                        vec![Expr::new_clone(NodeType::StructDef(updated_struct_def), struct_expr, vec![])],
+                    );
+                    pending_decls.push(struct_decl_expr);
+                    // Replace with struct_def_of("AnonStructN") call
+                    let sdo_id = Expr::new_clone(NodeType::Identifier("struct_def_of".to_string()), struct_expr, vec![]);
+                    let sdo_arg = Expr::new_clone(NodeType::LLiteral(Literal::Str(temp_name)), struct_expr, vec![]);
+                    let sdo_call = Expr::new_clone(
+                        NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),
+                        struct_expr,
+                        vec![sdo_id, sdo_arg],
+                    );
+                    // Preserve OwnArg wrapper if original was own
+                    if is_own {
+                        let own_wrapper = Expr::new_clone(NodeType::OwnArg, p, vec![sdo_call]);
+                        fcall_new_params.push(own_wrapper);
+                    } else {
+                        fcall_new_params.push(sdo_call);
+                    }
+                    fcall_any_changed = true;
+                    continue;
+                }
+            }
+            // Recurse into this param normally
+            if let Some(expanded) = expand_anon_struct_fcalls_recursive(context, p, pending_decls)? {
+                fcall_new_params.push(expanded);
+                fcall_any_changed = true;
+            } else {
+                fcall_new_params.push(p.clone());
+            }
+        }
+        if fcall_any_changed {
+            return Ok(Some(Expr::new_clone(e.node_type.clone(), e, fcall_new_params)));
+        }
+        return Ok(None);
+    }
+
     // Recurse into child expressions
     let mut any_changed = false;
     let mut new_params = Vec::new();
@@ -675,6 +768,100 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
 // Mirrors expand_anon_struct_fcalls_recursive but for EnumDef nodes.
 // Key difference: enums appear as Type arguments (any param position), not as constructors (first param).
 fn expand_anon_enum_fcalls_recursive(context: &mut Context, e: &Expr, pending_decls: &mut Vec<Expr>) -> Result<Option<Expr>, String> {
+    // For FCall nodes, check if any non-first param is a bare EnumDef.
+    // If so, register it AND replace with enum_def_of() (for value arg contexts like Vec.push).
+    // This runs before the generic bare EnumDef check below, which replaces with Identifier
+    // (correct for macros/type args but wrong for value args).
+    if matches!(&e.node_type, NodeType::FCall(_)) {
+        let mut fcall_any_changed = false;
+        let mut fcall_new_params = Vec::new();
+        for (idx, p) in e.params.iter().enumerate() {
+            if idx > 0 {
+                // Check for bare EnumDef or OwnArg-wrapped EnumDef
+                let inner_enum = match &p.node_type {
+                    NodeType::EnumDef(ed) => Some((ed, p)),
+                    NodeType::OwnArg => {
+                        if let Some(inner) = p.params.first() {
+                            if let NodeType::EnumDef(ed) = &inner.node_type { Some((ed, inner)) } else { None }
+                        } else { None }
+                    },
+                    _ => None,
+                };
+                if let Some((enum_def, enum_expr)) = inner_enum {
+                    let is_own = matches!(&p.node_type, NodeType::OwnArg);
+                    let temp_name = format!("AnonEnum{}", context.anon_enum_counter);
+                    context.anon_enum_counter += 1;
+                    context.scope_stack.declare_enum(temp_name.clone(), enum_def.clone());
+                    context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
+                        value_type: ValueType::TType(TTypeDef::TEnumDef),
+                        is_mut: false, is_own: false, is_comptime_const: false,
+                    });
+                    let mut updated_enum_def = enum_def.clone();
+                    if let Some(auto_ns) = generate_enum_methods(&temp_name, false, false, enum_expr.line, enum_expr.col) {
+                        updated_enum_def.ns = auto_ns;
+                        let mut ns_errors_vec = Vec::new();
+                        crate::rs::init::init_namespace_into_enum(context, &temp_name, &updated_enum_def.ns, enum_expr, &mut ns_errors_vec);
+                        if !ns_errors_vec.is_empty() {
+                            return Err(ns_errors_vec.join("\n"));
+                        }
+                    }
+                    context.scope_stack.declare_enum(temp_name.clone(), updated_enum_def.clone());
+                    let enum_decl = Declaration {
+                        name: temp_name.clone(),
+                        value_type: ValueType::TType(TTypeDef::TEnumDef),
+                        is_mut: false, is_own: false, default_value: None,
+                    };
+                    let enum_decl_expr = Expr::new_clone(
+                        NodeType::Declaration(enum_decl),
+                        enum_expr,
+                        vec![Expr::new_clone(NodeType::EnumDef(updated_enum_def), enum_expr, vec![])],
+                    );
+                    pending_decls.push(enum_decl_expr);
+                    // Check if the function is a macro - if so, use Identifier (for compile-time eval)
+                    let func_name = if let Some(first) = e.params.first() {
+                        if let NodeType::Identifier(name) = &first.node_type { Some(name.clone()) } else { None }
+                    } else { None };
+                    let is_macro = if let Some(ref name) = func_name {
+                        context.scope_stack.lookup_func(name).map(|f| f.is_macro()).unwrap_or(false)
+                    } else { false };
+                    if is_macro {
+                        // Macro arg: use Identifier (compile-time constant)
+                        let id_expr = Expr::new_clone(NodeType::Identifier(temp_name), enum_expr, vec![]);
+                        fcall_new_params.push(id_expr);
+                    } else {
+                        // Value arg: use enum_def_of() (runtime value)
+                        let edo_id = Expr::new_clone(NodeType::Identifier("enum_def_of".to_string()), enum_expr, vec![]);
+                        let edo_arg = Expr::new_clone(NodeType::LLiteral(Literal::Str(temp_name)), enum_expr, vec![]);
+                        let edo_call = Expr::new_clone(
+                            NodeType::FCall(FCallInfo { does_throw: false, is_bang: false }),
+                            enum_expr,
+                            vec![edo_id, edo_arg],
+                        );
+                        if is_own {
+                            let own_wrapper = Expr::new_clone(NodeType::OwnArg, p, vec![edo_call]);
+                            fcall_new_params.push(own_wrapper);
+                        } else {
+                            fcall_new_params.push(edo_call);
+                        }
+                    }
+                    fcall_any_changed = true;
+                    continue;
+                }
+            }
+            // Recurse into this param normally
+            if let Some(expanded) = expand_anon_enum_fcalls_recursive(context, p, pending_decls)? {
+                fcall_new_params.push(expanded);
+                fcall_any_changed = true;
+            } else {
+                fcall_new_params.push(p.clone());
+            }
+        }
+        if fcall_any_changed {
+            return Ok(Some(Expr::new_clone(e.node_type.clone(), e, fcall_new_params)));
+        }
+        return Ok(None);
+    }
+
     // Check if this is a bare EnumDef node -- replace with a registered anonymous enum
     if let NodeType::EnumDef(enum_def) = &e.node_type {
         let temp_name = format!("AnonEnum{}", context.anon_enum_counter);

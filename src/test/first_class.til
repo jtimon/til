@@ -134,16 +134,13 @@ test_vec_structdef : proc() = {
 }
 test_vec_structdef()
 
-// TODO: Anonymous struct as inline argument
-// expand_anon_struct_fcalls_recursive doesn't handle StructDef inside
-// NamedArg wrappers (own/copy)
-// test_vec_structdef_anon : proc() = {
-//     mut defs := Vec.new(StructDef)
-//     defs.push(own struct { mut x: I64 = 0, mut y: I64 = 0 })
-//     assert_eq(loc(), 1, defs.len())
-//     defs.delete()
-// }
-// test_vec_structdef_anon()
+test_vec_structdef_anon : proc() = {
+    mut defs := Vec.new(StructDef)
+    defs.push(own struct { mut x: I64 = 0, mut y: I64 = 0 })
+    assert_eq(loc(), 1, defs.len())
+    defs.delete()
+}
+test_vec_structdef_anon()
 
 // ============================================================
 // Tests: First-Class Enums (Issue #106)
@@ -216,14 +213,13 @@ test_vec_enumdef : proc() = {
 }
 test_vec_enumdef()
 
-// TODO: Anonymous enum as inline argument to non-macro functions
-// test_vec_enumdef_anon : proc() = {
-//     mut defs := Vec.new(EnumDef)
-//     defs.push(own enum { Red, Green, Blue })
-//     assert_eq(loc(), 1, defs.len())
-//     defs.delete()
-// }
-// test_vec_enumdef_anon()
+test_vec_enumdef_anon : proc() = {
+    mut defs := Vec.new(EnumDef)
+    defs.push(own enum { Red, Green, Blue })
+    assert_eq(loc(), 1, defs.len())
+    defs.delete()
+}
+test_vec_enumdef_anon()
 
 // ============================================================
 // Tests: First-Class Functions (Issue #91)
