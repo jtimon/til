@@ -15,6 +15,92 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #193: Remove `copy` parameter mode (desugar to `own` + caller `.clone()`)
+:PROPERTIES:
+:DISCOVERED: 2026-02-26
+:IMPACT: Simplifies compiler -- removes 321 is_copy references across 23 files
+:STATUS: Open
+:END:
+
+*** Overview
+
+The ~copy~ parameter mode (~func(copy x: T)~) is syntactic sugar: the garbager
+auto-inserts ~.clone()~ at call sites for struct-typed identifier args. The user
+can achieve identical semantics with ~own~ params and calling ~.clone()~ explicitly
+at the call site. Removing ~copy~ simplifies the compiler significantly.
+
+Can be re-added later as a desugarer pass if desired.
+
+*** What copy currently does
+
+1. *Parser*: Recognizes ~copy~ keyword, sets ~Declaration.is_copy = true~
+2. *Type checker*: Validates struct has ~.clone()~, excludes copy params from ~borrowed_args~
+3. *Garbager*: ~transform_fcall_copy_params()~ wraps identifier args in ~Type.clone()~ at call sites
+4. *Ccodegen*: Copy params passed by value (no ~*~), NOT added to ~current_ref_params~
+5. *All other files*: Propagate ~is_copy~ flag through SymbolInfo, Declaration, etc.
+
+*** Migration
+
+~copy x: T~ becomes ~own x: T~ with caller writing ~.clone()~ explicitly.
+For I64 primitives, ~copy~ is meaningless (already value-type in C), so those
+become plain immutable params.
+
+#+BEGIN_SRC til
+// Before: copy param (garbager auto-clones)
+test_copy_struct : proc(copy v: Vec2) returns Vec2 = { ... }
+result := test_copy_struct(original)
+
+// After: own param (caller clones explicitly)
+test_copy_struct : proc(own v: Vec2) returns Vec2 = { ... }
+result := test_copy_struct(own original.clone())
+#+END_SRC
+
+*** Impact analysis
+
+| Area                | Rust files | TIL files | Total |
+|---------------------+------------+-----------+-------|
+| is_copy references  |        168 |       153 |   321 |
+| Files touched       |         12 |        11 |    23 |
+| Functions deleted   |          1 |         1 |     2 |
+| Test lines removed  |       ~150 |         - |  ~150 |
+
+No compiler source code uses ~copy~ params -- only ~src/test/args.til~ tests.
+
+Most ~is_copy~ occurrences are boilerplate field propagation (~is_copy: false~,
+~is_copy: arg.is_copy~). Real logic removed: garbager auto-clone (~114 lines),
+typer clone-check (~40 lines), ccodegen by-value passing (~20 lines), parser
+keyword handling (~20 lines). Total ~200 lines of actual logic, ~300 lines of
+boilerplate.
+
+*** Removal plan
+
+**** Step 1: Remove is_copy from AST and data structures
+- ~src/rs/ast.rs~ -- remove ~is_copy~ from Declaration struct
+- ~src/rs/init.rs~ / ~src/self/init.til~ -- remove ~is_copy~ from SymbolInfo and all initializations
+
+**** Step 2: Remove from parser/lexer
+- ~src/rs/lexer.rs~ / ~src/self/lexer.til~ -- remove TokenType::Copy, keyword mapping
+- ~src/rs/parser.rs~ / ~src/self/parser.til~ -- remove copy parsing, validation, Declaration field
+
+**** Step 3: Remove from type checker
+- ~src/rs/typer.rs~ / ~src/self/typer.til~ -- remove clone-check validation, borrowed_args exclusion
+
+**** Step 4: Remove from garbager
+- ~src/rs/garbager.rs~ / ~src/self/garbager.til~ -- delete ~transform_fcall_copy_params()~ entirely, remove call site
+
+**** Step 5: Simplify ccodegen
+- ~src/rs/ccodegen.rs~ / ~src/self/ccodegen.til~ -- simplify ~param_needs_by_ref()~, remove copy branch in signature generation, remove copy exclusion from ~current_ref_params~
+
+**** Step 6: Remove from remaining files
+- precomp, interpreter, desugarer, preinit, eval_heap, ufcs (Rust + TIL pairs)
+- All just boilerplate ~is_copy~ field propagation
+
+**** Step 7: Update tests
+- ~src/test/args.til~ -- delete copy test section (lines 296-446) or convert to ~own~ + ~.clone()~ equivalents
+
+**** Step 8: Update documentation
+- ~doc/modifiers.org~ -- remove copy from param mode table
+
 ** Issue #161: Namespace constants, static mutables, and per-instance immutables
 :PROPERTIES:
 :DISCOVERED: 2026-02-04
