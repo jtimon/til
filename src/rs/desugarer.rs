@@ -54,7 +54,7 @@ fn make_decl(name: &str, value_type: ValueType, is_mut: bool, init: Expr, line: 
         name: name.to_string(),
         value_type,
         is_mut,
-        is_copy: false,
+        
         is_own: false,
         default_value: None,
     };
@@ -698,7 +698,7 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     SymbolInfo {
                         value_type: payload_type,
                         is_mut: true,
-                        is_copy: false,
+                        
                         is_own: false,
                         is_comptime_const: false,
                     },
@@ -1237,7 +1237,7 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     SymbolInfo {
                         value_type: arg.value_type.clone(),
                         is_mut: arg.is_mut,
-                        is_copy: arg.is_copy,
+                        
                         is_own: arg.is_own,
                         is_comptime_const: false,
                     },
@@ -1331,7 +1331,7 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 SymbolInfo {
                     value_type: decl.value_type.clone(),
                     is_mut: decl.is_mut,
-                    is_copy: decl.is_copy,
+                    
                     is_own: decl.is_own,
                     is_comptime_const: false,
                 },

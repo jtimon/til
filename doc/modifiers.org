@@ -1,4 +1,4 @@
-#+TITLE: TIL Modifiers: mut, own, borrow, copy
+#+TITLE: TIL Modifiers: mut, own, borrow
 #+DATE: 2026-02-10
 #+AUTHOR: TIL Development
 
@@ -18,7 +18,6 @@ the exceptional cases.
 |----------+--------------------+---------------------+-------------------+--------------------|
 | (none)   | Immutable, inline  | Immutable reference | Owned             | Immutable, inline  |
 | ~mut~    | Mutable, inline    | Mutable reference   | --                | Mutable, inline    |
-| ~copy~   | --                 | Deep copy (clone)   | --                | --                 |
 | ~own~    | Owned pointer      | Ownership transfer  | (default)         | Owned pointer      |
 | ~borrow~ | Borrowed pointer   | --                  | Borrowed ref      | Borrowed pointer   |
 

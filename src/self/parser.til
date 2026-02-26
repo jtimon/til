@@ -219,29 +219,15 @@ parse_assignment : func(mut lexer: Lexer, t: Token, name: Str) returns Expr thro
     return result
 }
 
-validate_mut_copy_own_modifiers : func(t: Token, path: Str, modifier: Str, is_mut: Bool, is_copy: Bool, is_own: Bool) throws Str = {
+validate_mut_own_modifiers : func(t: Token, path: Str, modifier: Str, is_mut: Bool, is_own: Bool) throws Str = {
     if modifier.eq("mut") {
-        if is_copy {
-            throw t.error(path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy.")
-        }
         if is_own {
             throw t.error(path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer.")
-        }
-    }
-    if modifier.eq("copy") {
-        if is_mut {
-            throw t.error(path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy.")
-        }
-        if is_own {
-            throw t.error(path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy.")
         }
     }
     if modifier.eq("own") {
         if is_mut {
             throw t.error(path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer.")
-        }
-        if is_copy {
-            throw t.error(path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy.")
         }
     }
 }
@@ -257,7 +243,6 @@ parse_func_proc_args : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOf
     mut is_variadic := false
     mut arg_name := "unnamed"
     mut is_mut := false
-    mut is_copy := false
     mut is_own := false
 
     while not(lexer.is_eof(0)?).and(not(rightparent_found)) {
@@ -281,7 +266,6 @@ parse_func_proc_args : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOf
                 expect_colon = false
                 expect_name = true
                 is_mut = false
-                is_copy = false
                 is_own = false
                 _ := lexer.expect(TokenType.Comma)?
                 t = lexer.peek()?
@@ -363,7 +347,6 @@ parse_func_proc_args : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOf
                     decl.value_type = str_to_value_type(t.token_str)
                 }
                 decl.is_mut = is_mut
-                decl.is_copy = is_copy
                 decl.is_own = is_own
                 lexer.advance(1)?
                 t = lexer.peek()?
@@ -383,7 +366,6 @@ parse_func_proc_args : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOf
                 args.push(own decl)
                 expect_comma = true
                 is_mut = false
-                is_copy = false
                 is_own = false
                 // Don't advance again - we already did above or parse_expression did
                 t = lexer.peek()?
@@ -393,23 +375,15 @@ parse_func_proc_args : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOf
             if not(expect_name) {
                 throw t.error(lexer.path, "Unexpected 'mut' in argument list.")
             }
-            validate_mut_copy_own_modifiers(t, lexer.path, "mut", is_mut, is_copy, is_own)?
+            validate_mut_own_modifiers(t, lexer.path, "mut", is_mut, is_own)?
             is_mut = true
-            lexer.advance(1)?
-            t = lexer.peek()?
-        case TokenType.Copy:
-            if not(expect_name) {
-                throw t.error(lexer.path, "Unexpected 'copy' in argument list.")
-            }
-            validate_mut_copy_own_modifiers(t, lexer.path, "copy", is_mut, is_copy, is_own)?
-            is_copy = true
             lexer.advance(1)?
             t = lexer.peek()?
         case TokenType.Own:
             if not(expect_name) {
                 throw t.error(lexer.path, "Unexpected 'own' in argument list.")
             }
-            validate_mut_copy_own_modifiers(t, lexer.path, "own", is_mut, is_copy, is_own)?
+            validate_mut_own_modifiers(t, lexer.path, "own", is_mut, is_own)?
             is_own = true
             lexer.advance(1)?
             t = lexer.peek()?
@@ -649,7 +623,6 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
                 new_decl.name = bname
                 new_decl.value_type = arg.value_type
                 new_decl.is_mut = arg.is_mut
-                new_decl.is_copy = arg.is_copy
                 new_decl.is_own = arg.is_own
                 new_args.push(own new_decl)
                 bind_i = bind_i.add(1)
@@ -750,7 +723,6 @@ build_namespace_from_stmts : func(namespace_stmts: Vec) returns NamespaceDef = {
                 ns_assign_decl.name = name.clone()
                 ns_assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
                 ns_assign_decl.is_mut = false
-                ns_assign_decl.is_copy = false
                 ns_assign_decl.is_own = false
                 ns_members.push(own ns_assign_decl.clone())
                 ns_default_values.set(own name.clone(), own ns_assign_val.clone())
@@ -953,7 +925,6 @@ parse_struct_definition : func(mut lexer: Lexer) returns Expr throws Str = {
                         assign_decl.name = name.clone()
                         assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
                         assign_decl.is_mut = false
-                        assign_decl.is_copy = false
                         assign_decl.is_own = false
                         members.push(own assign_decl.clone())
                         default_values.set(own name.clone(), own assign_val.clone())
@@ -1316,12 +1287,12 @@ parse_statement_identifier : func(mut lexer: Lexer) returns Expr throws Str, Ind
         switch nntt {
         case TokenType.Identifier:
             type_name := next_next_t.token_str
-            return parse_declaration(lexer, false, false, type_name, true)?
+            return parse_declaration(lexer, false, type_name, true)?
         case TokenType.Equal:
             // Issue #91: Allow ':= func(...)' for function signature definitions
             // (e.g., BinaryOp := func(I64, I64) returns I64 {})
             // Regular functions use 'name : func(...) = { body }' syntax.
-            return parse_declaration(lexer, false, false, INFER_TYPE, false)?
+            return parse_declaration(lexer, false, INFER_TYPE, false)?
         // Issue #91: name : func(...) = { body }
         case TokenType.Func:
             return parse_colon_func_def(lexer, t, identifier, FunctionType.FTFunc)?
@@ -2098,7 +2069,7 @@ is_binding_tuple_body : func(lexer: Lexer) returns Bool = {
     return false
 }
 
-parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str, has_explicit_type: Bool) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_declaration : func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str, has_explicit_type: Bool) returns Expr throws Str, IndexOutOfBoundsError = {
     t := lexer.peek()?
     decl_name := t.token_str
     initial_current := lexer.current
@@ -2129,7 +2100,6 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit
                     arg.name = name
                     arg.value_type = str_to_value_type(INFER_TYPE)
                     arg.is_mut = false
-                    arg.is_copy = false
                     arg.is_own = false
                     args.push(own arg)
                 }
@@ -2149,7 +2119,6 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit
                 binding_decl.name = decl_name
                 binding_decl.value_type = str_to_value_type(explicit_type)
                 binding_decl.is_mut = is_mut
-                binding_decl.is_copy = is_copy
                 binding_decl.is_own = false
                 binding_initial_token := lexer.get_token(initial_current)?.clone()
                 mut func_params := Vec.new(Expr)
@@ -2168,7 +2137,6 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit
     decl.name = decl_name
     decl.value_type = str_to_value_type(explicit_type)
     decl.is_mut = is_mut
-    decl.is_copy = is_copy
     decl.is_own = false
 
     initial_token := lexer.get_token(initial_current)?.clone()
@@ -2200,10 +2168,10 @@ parse_mut_declaration : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
             switch nntt {
             case TokenType.Identifier:
                 type_name := next_next_t.token_str
-                return parse_declaration(lexer, true, false, type_name, true)?
+                return parse_declaration(lexer, true, type_name, true)?
             case TokenType.Equal:
                 // Issue #91: Allow ':= func(...)' for function signature definitions
-                return parse_declaration(lexer, true, false, INFER_TYPE, false)?
+                return parse_declaration(lexer, true, INFER_TYPE, false)?
             case:
                 throw t.error(lexer.path, format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
             }

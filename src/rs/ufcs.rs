@@ -303,7 +303,7 @@ fn ufcs_func_def(context: &mut Context, e: &Expr, func_def: FuncDef) -> Result<E
         context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
             value_type: arg.value_type.clone(),
             is_mut: arg.is_mut,
-            is_copy: arg.is_copy,
+            
             is_own: arg.is_own,
             is_comptime_const: false,  // Function args are not comptime constants
         });
@@ -377,7 +377,7 @@ fn ufcs_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::D
     context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
         value_type: value_type.clone(),
         is_mut: decl.is_mut,
-        is_copy: decl.is_copy,
+        
         is_own: decl.is_own,
         is_comptime_const: false,  // Determined later in precomp
     });
@@ -416,7 +416,7 @@ fn ufcs_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
         value_type: ValueType::TCustom(type_name),
         is_mut: false,
-        is_copy: false,
+        
         is_own: false,
         is_comptime_const: false,
     });

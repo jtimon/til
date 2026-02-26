@@ -202,8 +202,6 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
         for param: Expr in e.params {
             fcall_new_params.push(own garbager_recursive(context, param)?)
         }
-        // Transform copy params: wrap struct identifier args in Type.clone()
-        transform_fcall_copy_params(context, e, fcall_new_params)
         // Issue #159 Step 5: Transform struct literal fields
         transform_struct_literal_fields(context, e, fcall_new_params)
         return Expr.new_explicit(e.node_type, fcall_new_params, e.line, e.col)
@@ -565,77 +563,6 @@ is_identifier_expr : func(e: Expr) returns Bool = {
         return true
     case:
         return false
-    }
-}
-
-/// Transform FCall copy params: for each arg that is_copy, struct-typed, and an identifier,
-/// wrap in Type.clone().
-transform_fcall_copy_params : proc(context: Context, e: Expr, mut new_params: Vec) = {
-    func_name := get_func_name(e)
-    if func_name.eq("") {
-        return
-    }
-
-    // Skip .clone and .delete calls to avoid infinite recursion / double-free
-    if func_name.ends_with(".clone").or(func_name.ends_with(".delete")) {
-        return
-    }
-
-    // Early out: check if any args (params[1..]) are identifiers
-    mut has_identifier_arg := false
-    for check_i in 1..new_params.len() {
-        check_param := cast(Expr, new_params.get(check_i)?)
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "IndexOutOfBoundsError in check_i loop: ", err.msg)
-        }
-        if is_identifier_expr(check_param) {
-            has_identifier_arg = true
-        }
-    }
-    if not(has_identifier_arg) {
-        return
-    }
-
-    // Look up function definition to get arg metadata
-    mut func_def := FuncDef()
-    mut found_func := false
-    func_def = context.scope_stack.lookup_func(func_name)?
-    found_func = true
-    catch (err: KeyNotFoundError) { }
-    if not(found_func) {
-        return
-    }
-
-    // For each arg: if is_copy AND struct type AND identifier, wrap in Type.clone()
-    for i in 0..func_def.sig.args.len() {
-        arg_def := cast(Declaration, func_def.sig.args.get(i)?)
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "IndexOutOfBoundsError in args loop: ", err.msg)
-        }
-        param_idx := i.add(1) // params[0] is the function name
-        if param_idx.gteq(new_params.len()) {
-            return
-        }
-        if not(arg_def.is_copy) {
-            // skip
-        } else {
-            param_expr := cast(Expr, new_params.get(param_idx)?)
-            catch (err: IndexOutOfBoundsError) {
-                panic(loc(), "IndexOutOfBoundsError getting param_expr: ", err.msg)
-            }
-            if not(is_identifier_expr(param_expr)) {
-                // skip
-            } else {
-                switch arg_def.value_type {
-                case ValueType.TCustom(type_name):
-                    arg_expr := param_expr.clone()
-                    clone_call := build_clone_call_expr(type_name, own arg_expr, e.line, e.col)
-                    new_params.set(param_idx, own clone_call)?
-                    catch (err: IndexOutOfBoundsError) { }
-                case:
-                }
-            }
-        }
     }
 }
 

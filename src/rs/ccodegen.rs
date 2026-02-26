@@ -546,13 +546,9 @@ fn compute_variadic_lvalue_flags(
 }
 
 /// Bug #60: Determine if a parameter should be passed by reference (pointer)
-/// - copy params: pass by value (copy is made)
 /// - Type params: already pointers (const char*), pass by value
 /// - All other const/own/mut params (including Dynamic): pass by pointer
 fn param_needs_by_ref(param: &crate::rs::parser::Declaration) -> bool {
-    if param.is_copy {
-        return false;
-    }
     // Type is already a pointer type in C (const char*), no extra indirection needed
     match &param.value_type {
         ValueType::TCustom(name) if name == "Type" => false,
@@ -3654,7 +3650,7 @@ fn emit_enum_method_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
                                 name: method_name.to_string(),
                                 value_type: ValueType::TFunction(func_def.sig.function_type.clone()),
                                 is_mut: false,
-                                is_copy: false,
+                                
                                 is_own: false,
                                 default_value: None,
                             };
@@ -3684,10 +3680,8 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Track variadic params - they're passed as til_Array* so need dereference
     ctx.current_variadic_params.clear();
     for func_def_arg in &func_def.sig.args {
-        // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
-        if !func_def_arg.is_copy {
-            ctx.current_ref_params.insert(func_def_arg.name.clone());
-        }
+        // Bug #60: All args are passed by pointer (mut, own, and const/default)
+        ctx.current_ref_params.insert(func_def_arg.name.clone());
         if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
             // elem_type is the type name string like "Bool"
             ctx.current_variadic_params.insert(func_def_arg.name.clone(), til_name(elem_type));
@@ -3708,7 +3702,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
         function_frame.symbols.insert(func_def_arg.name.clone(), SymbolInfo {
             value_type: func_def_arg.value_type.clone(),
             is_mut: func_def_arg.is_mut,
-            is_copy: func_def_arg.is_copy,
+            
             is_own: func_def_arg.is_own,
             is_comptime_const: false,
         });
@@ -3976,10 +3970,6 @@ fn emit_func_signature(func_name: &str, func_def: &FuncDef, context: &Context, o
                     output.push_str(&arg_type);
                     output.push_str("* ");
                 }
-            } else if func_def_arg.is_copy {
-                // copy: pass by value, caller's copy is made
-                output.push_str(&arg_type);
-                output.push_str(" ");
             } else {
                 // const (default): pass by const pointer, read-only
                 // Type is already a pointer, so pass by value
@@ -4170,17 +4160,15 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params.clear();
                 for func_def_arg in &func_def.sig.args {
-                    // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+                    // Bug #60: All args are passed by pointer (mut, own, and const/default)
                     // Issue #91: Skip FuncSig-typed params - they're passed by value (function pointers)
-                    if !func_def_arg.is_copy {
-                        let is_fptr = if let ValueType::TCustom(ref tn) = func_def_arg.value_type {
-                            is_func_sig_type(tn, context)
-                        } else {
-                            false
-                        };
-                        if !is_fptr {
-                            ctx.current_ref_params.insert(func_def_arg.name.clone());
-                        }
+                    let is_fptr = if let ValueType::TCustom(ref tn) = func_def_arg.value_type {
+                        is_func_sig_type(tn, context)
+                    } else {
+                        false
+                    };
+                    if !is_fptr {
+                        ctx.current_ref_params.insert(func_def_arg.name.clone());
                     }
                     if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
                         // elem_type is the type name string like "Bool"
@@ -4208,7 +4196,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                     function_frame.symbols.insert(func_def_arg.name.clone(), SymbolInfo {
                         value_type,
                         is_mut: func_def_arg.is_mut,
-                        is_copy: func_def_arg.is_copy,
+                        
                         is_own: func_def_arg.is_own,
                         is_comptime_const: false,
                     });
@@ -4447,7 +4435,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         SymbolInfo {
                             value_type: crate::rs::parser::ValueType::TCustom(err_type_name.clone()),
                             is_mut: false,
-                            is_copy: false,
+                            
                             is_own: false,
                             is_comptime_const: false,
                         }
@@ -4473,7 +4461,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
                             value_type: decl.value_type.clone(),
                             is_mut: false,
-                            is_copy: false,
+                            
                             is_own: false,
                             is_comptime_const: false,
                         });
@@ -4580,7 +4568,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                                     SymbolInfo {
                                         value_type: crate::rs::parser::ValueType::TCustom(err_type_name.clone()),
                                         is_mut: false,
-                                        is_copy: false,
+                                        
                                         is_own: false,
                                         is_comptime_const: false,
                                     }
@@ -4915,7 +4903,7 @@ fn emit_variadic_call(
                 if let Some(first_type) = fd.sig.return_types.first() {
                     context.scope_stack.declare_symbol(
                         var_name.to_string(),
-                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_own: false, is_comptime_const: false }
                     );
                 }
             }
@@ -5036,7 +5024,7 @@ fn emit_ret_call(
             if let Some(first_type) = func_def.sig.return_types.first() {
                 context.scope_stack.declare_symbol(
                     var_name.to_string(),
-                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
+                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_own: false, is_comptime_const: false }
                 );
             }
             let c_var_name = til_var_name_from_context(var_name, context);
@@ -5206,7 +5194,7 @@ fn emit_throwing_call(
                 if let Some(first_type) = fd.sig.return_types.first() {
                     context.scope_stack.declare_symbol(
                         var_name.to_string(),
-                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_own: false, is_comptime_const: false }
                     );
                 }
             }
@@ -5438,7 +5426,7 @@ fn emit_throwing_call(
                             SymbolInfo {
                                 value_type: crate::rs::parser::ValueType::TCustom(err_type_name.clone()),
                                 is_mut: false,
-                                is_copy: false,
+                                
                                 is_own: false,
                                 is_comptime_const: false,
                             }
@@ -5579,7 +5567,7 @@ fn emit_throwing_call_propagate(
                 if let Some(first_type) = fd.sig.return_types.first() {
                     context.scope_stack.declare_symbol(
                         var_name.to_string(),
-                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_own: false, is_comptime_const: false }
                     );
                 }
             }
@@ -5866,7 +5854,7 @@ fn emit_throwing_call_with_goto(
                 if let Some(first_type) = fd.sig.return_types.first() {
                     context.scope_stack.declare_symbol(
                         var_name.to_string(),
-                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_own: false, is_comptime_const: false }
                     );
                 }
             }
@@ -6141,11 +6129,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 ctx.current_function_name = mangled_name.clone();
                 ctx.mangling_counter = 0;  // Reset counter per-function for determinism
 
-                // Bug #60: Track ref and variadic params - all non-copy args are by pointer
+                // Bug #60: Track ref and variadic params - all args are by pointer
                 for func_def_arg in &func_def.sig.args {
-                    if !func_def_arg.is_copy {
-                        ctx.current_ref_params.insert(func_def_arg.name.clone());
-                    }
+                    ctx.current_ref_params.insert(func_def_arg.name.clone());
                     if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
                         ctx.current_variadic_params.insert(func_def_arg.name.clone(), til_name(elem_type));
                     }
@@ -6169,7 +6155,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     function_frame.symbols.insert(func_def_arg.name.clone(), SymbolInfo {
                         value_type,
                         is_mut: func_def_arg.is_mut,
-                        is_copy: func_def_arg.is_copy,
+                        
                         is_own: func_def_arg.is_own,
                         is_comptime_const: false,
                     });
@@ -6264,7 +6250,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
                     value_type: cast_var_type.clone(),
                     is_mut: true,
-                    is_copy: false,
+                    
                     is_own: false,
                     is_comptime_const: false,
                 });
@@ -6417,7 +6403,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     // Add to scope_stack so get_value_type can find it
     context.scope_stack.declare_symbol(
         name.clone(),
-        SymbolInfo { value_type: var_type.clone(), is_mut: decl.is_mut, is_copy: false, is_own: false, is_comptime_const: false }
+        SymbolInfo { value_type: var_type.clone(), is_mut: decl.is_mut, is_own: false, is_comptime_const: false }
     );
 
     // Bug #97: Compute type-mangled C variable name
@@ -7295,7 +7281,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
                 context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
                     value_type: decl.value_type.clone(),
                     is_mut: false,
-                    is_copy: false,
+                    
                     is_own: false,
                     is_comptime_const: false,
                 });
@@ -7319,7 +7305,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
                     context.scope_stack.declare_symbol(else_decl.name.clone(), SymbolInfo {
                         value_type: else_decl.value_type.clone(),
                         is_mut: false,
-                        is_copy: false,
+                        
                         is_own: false,
                         is_comptime_const: false,
                     });
@@ -7405,7 +7391,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
                     value_type: decl.value_type.clone(),
                     is_mut: false,
-                    is_copy: false,
+                    
                     is_own: false,
                     is_comptime_const: false,
                 });
@@ -7556,7 +7542,7 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclarat
             context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
                 value_type: value_type.clone(),
                 is_mut: decl.is_mut,
-                is_copy: false,
+                
                 is_own: false,
                 is_comptime_const: false,
             });

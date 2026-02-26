@@ -43,7 +43,6 @@ pub struct ConsumedSymbolInfo {
 pub struct SymbolInfo {
     pub value_type: ValueType,
     pub is_mut: bool,
-    pub is_copy: bool,
     pub is_own: bool,
     pub is_comptime_const: bool,  // true if value was comptime-evaluable at declaration
 }
@@ -1296,7 +1295,7 @@ fn collect_anon_funcs(context: &mut Context, e: &Expr) {
             context.scope_stack.declare_func(temp_name.clone(), func_def.clone());
             context.scope_stack.declare_symbol(temp_name, SymbolInfo {
                 value_type: ValueType::TFunction(func_def.sig.function_type.clone()),
-                is_mut: false, is_copy: false, is_own: false, is_comptime_const: false,
+                is_mut: false, is_own: false, is_comptime_const: false,
             });
             // Recurse into anon func body for nested anon funcs
             for body_stmt in &func_def.body {
@@ -1346,7 +1345,7 @@ pub fn init_namespace_into_struct(context: &mut Context, type_name: &str, ns_def
             context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
                 value_type: member_value_type.clone(),
                 is_mut: member_decl.is_mut,
-                is_copy: member_decl.is_copy,
+                
                 is_own: member_decl.is_own,
                 is_comptime_const: false
             });
@@ -1383,7 +1382,7 @@ pub fn init_namespace_into_enum(context: &mut Context, type_name: &str, ns_def: 
             context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
                 value_type: member_value_type.clone(),
                 is_mut: member_decl.is_mut,
-                is_copy: member_decl.is_copy,
+                
                 is_own: member_decl.is_own,
                 is_comptime_const: false
             });
@@ -1534,7 +1533,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                 } else {
                                     func_def.clone()
                                 };
-                                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: false });
                                 context.scope_stack.declare_func(decl.name.to_string(), registered_func_def);
                                 // Issue #91: Walk function body for anonymous inline functions
                                 for body_stmt in &func_def.body {
@@ -1546,7 +1545,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                 // from a call or variable), declare as symbol only -- the function
                                 // def will be resolved at runtime
                                 if is_sig_ref {
-                                    context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                                    context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: false });
                                 } else {
                                     errors.push(e.lang_error(&context.path, "init", &format!("{}s should have definitions", value_type_to_str(&value_type))));
                                     return Ok(errors);
@@ -1564,7 +1563,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                                                           decl.name)));
                                 return Ok(errors)
                             }
-                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: false });
                             context.scope_stack.declare_enum(decl.name.to_string(), enum_def.clone());
 
                             // Register enum methods (e.g., delete, clone)
@@ -1572,7 +1571,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                 let full_name = format!("{}.{}", decl.name, method_name);
                                 if let NodeType::FuncDef(func_def) = &method_expr.node_type {
                                     let method_value_type = get_value_type(&context, method_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
-                                    context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: method_value_type, is_mut: false, is_copy: false, is_own: false, is_comptime_const: false });
+                                    context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: method_value_type, is_mut: false, is_own: false, is_comptime_const: false });
                                     context.scope_stack.declare_func(full_name, func_def.clone());
                                 }
                             }
@@ -1584,7 +1583,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                         NodeType::FCall(_) => {
                             // Issue #106: First-class enum - macro/function returning an enum definition
                             // Enum registration deferred to precomp after macro expansion
-                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: false });
                         },
                         _ => {
                             errors.push(e.lang_error(&context.path, "init", "enums should have definitions."));
@@ -1614,7 +1613,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                 }
                             }
                             // Register the struct itself
-                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: false });
                             context.scope_stack.declare_struct(decl.name.to_string(), struct_def.clone());
                             // Register associated funcs and constants (non-mut members only)
                             for member_decl in &struct_def.members {
@@ -1624,7 +1623,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                                         let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
                                         let member_full_name = format!("{}.{}", decl.name, member_decl.name); // Note: using '.' not '::'
                                         // Register in symbols (constants only - functions now go in namespace blocks)
-                                        context.scope_stack.declare_symbol(member_full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false });
+                                        context.scope_stack.declare_symbol(member_full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_own: member_decl.is_own, is_comptime_const: false });
                                     }
                                 }
                             }
@@ -1636,7 +1635,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                         NodeType::FCall(_) => {
                             // Issue #105: First-class struct - macro/function returning a struct definition
                             // Struct registration deferred to precomp after macro expansion
-                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: false });
                         },
                         _ => {
                             errors.push(e.lang_error(&context.path, "init", "struct declarations should have definitions."));
@@ -1649,7 +1648,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                     // Issue #91: Function signature type definition
                     match &inner_e.node_type {
                         NodeType::FuncDef(func_def) => {
-                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: true });
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: true });
                             context.scope_stack.declare_func(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
@@ -1660,7 +1659,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                 },
 
                 ValueType::TMulti(_) | ValueType::TCustom(_) => {
-                    context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                    context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: false });
                 },
             }
         }
@@ -1834,7 +1833,7 @@ impl Context {
                 SymbolInfo {
                     value_type: decl.value_type.clone(),
                     is_mut: decl.is_mut,
-                    is_copy: false,
+                    
                     is_own: false,
                     is_comptime_const: false,
                 },

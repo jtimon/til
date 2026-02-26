@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[allow(unused_imports)]
 use std::collections::HashSet;
 use crate::rs::init::{Context, get_value_type};
-use crate::rs::parser::{Expr, NodeType, ValueType, TTypeDef, FuncDef, FCallInfo, StructDef, EnumDef, NamespaceDef, Declaration};
+use crate::rs::parser::{Expr, NodeType, ValueType, TTypeDef, FuncDef, FCallInfo, StructDef, EnumDef, NamespaceDef};
 #[allow(unused_imports)]
 use crate::rs::typer::is_cast_call;
 
@@ -161,8 +161,6 @@ fn garbager_recursive(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for param in &e.params {
                 fcall_new_params.push(garbager_recursive(context, param)?);
             }
-            // Transform copy params: wrap struct identifier args in Type.clone()
-            transform_fcall_copy_params(context, e, &mut fcall_new_params)?;
             // Issue #159 Step 5: Transform struct literal fields
             transform_struct_literal_fields(context, e, &mut fcall_new_params)?;
             Ok(Expr::new_explicit(e.node_type.clone(), fcall_new_params, e.line, e.col))
@@ -447,53 +445,6 @@ fn get_func_name(e: &Expr) -> Result<String, String> {
 /// Check if an expression is an Identifier node.
 fn is_identifier_expr(e: &Expr) -> bool {
     matches!(&e.node_type, NodeType::Identifier(_))
-}
-
-/// Transform FCall copy params: for each arg that is_copy, struct-typed, and an identifier,
-/// wrap in Type.clone().
-fn transform_fcall_copy_params(context: &Context, e: &Expr, new_params: &mut Vec<Expr>) -> Result<(), String> {
-    let func_name = get_func_name(e)?;
-    if func_name.is_empty() {
-        return Ok(());
-    }
-
-    // Skip .clone and .delete calls to avoid infinite recursion / double-free
-    if func_name.ends_with(".clone") || func_name.ends_with(".delete") {
-        return Ok(());
-    }
-
-    // Early out: check if any args (params[1..]) are identifiers
-    let has_identifier_arg = new_params.iter().skip(1).any(|p| is_identifier_expr(p));
-    if !has_identifier_arg {
-        return Ok(());
-    }
-
-    // Look up function definition to get arg metadata
-    let func_def = match context.scope_stack.lookup_func(&func_name) {
-        Some(fd) => fd,
-        None => return Ok(()),
-    };
-
-    // For each arg: if is_copy AND struct type AND identifier, wrap in Type.clone()
-    let arg_defs: &Vec<Declaration> = &func_def.sig.args;
-    for (i, arg_def) in arg_defs.iter().enumerate() {
-        let param_idx = i + 1; // params[0] is the function name
-        if param_idx >= new_params.len() {
-            break;
-        }
-        if !arg_def.is_copy {
-            continue;
-        }
-        if !is_identifier_expr(&new_params[param_idx]) {
-            continue;
-        }
-        if let ValueType::TCustom(type_name) = &arg_def.value_type {
-            let arg_expr = new_params[param_idx].clone();
-            let clone_call = build_clone_call_expr(type_name, arg_expr, e.line, e.col);
-            new_params[param_idx] = clone_call;
-        }
-    }
-    Ok(())
 }
 
 /// Check if an expression is an FCall to `dont_delete`.

@@ -56,7 +56,7 @@ generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64
         name=self_param_name,
         value_type=ValueType.TCustom(struct_name),
         is_mut=true,
-        is_copy=false,
+        
         is_own=false,
         default_value=Ptr()
     )
@@ -111,7 +111,7 @@ generate_delete_method : func(struct_name: Str, struct_def: StructDef, line: I64
         name="delete",
         value_type=ValueType.TFunction(FunctionType.FTFunc),
         is_mut=false,
-        is_copy=false,
+        
         is_own=false,
         default_value=Ptr()
     )
@@ -142,7 +142,7 @@ generate_clone_method : func(struct_name: Str, struct_def: StructDef, line: I64,
         name=self_param_name,
         value_type=ValueType.TCustom(struct_name),
         is_mut=false,
-        is_copy=false,
+        
         is_own=false,
         default_value=Ptr()
     )
@@ -216,7 +216,7 @@ generate_clone_method : func(struct_name: Str, struct_def: StructDef, line: I64,
         name="clone",
         value_type=ValueType.TFunction(FunctionType.FTFunc),
         is_mut=false,
-        is_copy=false,
+        
         is_own=false,
         default_value=Ptr()
     )
@@ -231,7 +231,7 @@ generate_enum_delete_method : func(enum_name: Str, line: I64, col: I64) returns 
         name="_self",
         value_type=ValueType.TCustom(enum_name),
         is_mut=true,
-        is_copy=false,
+        
         is_own=false,
         default_value=Ptr()
     )
@@ -261,7 +261,7 @@ generate_enum_clone_method : func(enum_name: Str, line: I64, col: I64) returns E
         name="self",
         value_type=ValueType.TCustom(enum_name),
         is_mut=false,
-        is_copy=false,
+        
         is_own=false,
         default_value=Ptr()
     )
@@ -308,7 +308,7 @@ generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: 
                 name="delete",
                 value_type=ValueType.TFunction(FunctionType.FTFunc),
                 is_mut=false,
-                is_copy=false,
+                
                 is_own=false,
                 default_value=Ptr()
             )
@@ -322,7 +322,7 @@ generate_enum_methods : func(enum_name: Str, ns_has_delete: Bool, ns_has_clone: 
                 name="clone",
                 value_type=ValueType.TFunction(FunctionType.FTFunc),
                 is_mut=false,
-                is_copy=false,
+                
                 is_own=false,
                 default_value=Ptr()
             )

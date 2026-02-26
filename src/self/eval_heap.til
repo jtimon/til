@@ -1259,7 +1259,7 @@ namespace:
             } else if Str.eq(elem_type, "Str") {
                 // For Str elements, create temp Str and copy bytes to array slot
                 temp_id := format(name, "_", I64.to_str(i))
-                temp_symbol := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
+                temp_symbol := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_own=false)
                 frame.symbols.set(own temp_id.clone(), own temp_symbol)
 
                 EvalHeap.insert_string_into_frame(ctx, frame, temp_id, val, e)?

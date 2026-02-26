@@ -384,7 +384,7 @@ pub fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -
     ctx.scope_stack.declare_symbol(template_id.clone(), SymbolInfo {
         value_type: ValueType::TCustom(struct_type.to_string()),
         is_mut: true,
-        is_copy: false,
+        
         is_own: false,
         is_comptime_const: false,
     });
@@ -621,7 +621,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 context.scope_stack.declare_symbol(temp_name.to_string(), SymbolInfo {
                     value_type: ValueType::TCustom(name.to_string()),
                     is_mut: true,
-                    is_copy: false,
+                    
                     is_own: false,
                     is_comptime_const: false,
                 });
@@ -719,7 +719,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 context.scope_stack.declare_symbol(default_temp_name.clone(), SymbolInfo {
                     value_type: ValueType::TCustom(name.to_string()),
                     is_mut: true,
-                    is_copy: false,
+                    
                     is_own: false,
                     is_comptime_const: false,
                 });
@@ -793,7 +793,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false,
-                                                is_copy: false,
+                                                
                                                 is_own: false,
                                                 is_comptime_const: false,
                                             });
@@ -811,7 +811,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.scope_stack.declare_symbol(str_lit_temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false, // Temporary string is immutable
-                                                is_copy: false,
+                                                
                                                 is_own: false,
                                                 is_comptime_const: false,
                                             });
@@ -828,7 +828,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.scope_stack.declare_symbol(i64_lit_temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("I64".to_string()),
                                                 is_mut: false,
-                                                is_copy: false,
+                                                
                                                 is_own: false,
                                                 is_comptime_const: false,
                                             });
@@ -845,7 +845,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.scope_stack.declare_symbol(str_fcall_temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false,
-                                                is_copy: false,
+                                                
                                                 is_own: false,
                                                 is_comptime_const: false,
                                             });
@@ -892,7 +892,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.scope_stack.declare_symbol(enum_ctor_temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom(struct_type_name.clone()),
                                                 is_mut: false,
-                                                is_copy: false,
+                                                
                                                 is_own: false,
                                                 is_comptime_const: false,
                                             });
@@ -1046,7 +1046,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
             context.scope_stack.declare_symbol(declaration.name.clone(), SymbolInfo {
                 value_type: ValueType::TCustom(type_name),
                 is_mut: true,
-                is_copy: false,
+                
                 is_own: false,
                 is_comptime_const: false,
             });
@@ -1111,7 +1111,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                     if let Some(global_frame) = context.scope_stack.frames.first_mut() {
                         global_frame.enums.entry(declaration.name.to_string()).or_insert_with(|| enum_def.clone());
                     }
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_own: declaration.is_own, is_comptime_const: false });
                     // Issue #161: Process namespace mutable members for enums
                     for ns_member_decl in &enum_def.ns.members {
                         if !ns_member_decl.is_mut { continue; }
@@ -1158,7 +1158,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                                 },
                             }
                             context.scope_stack.declare_symbol(ns_combined_name.to_string(),
-                                                   SymbolInfo{value_type: ns_member_decl.value_type.clone(), is_mut: ns_member_decl.is_mut, is_copy: ns_member_decl.is_copy, is_own: ns_member_decl.is_own, is_comptime_const: false });
+                                                   SymbolInfo{value_type: ns_member_decl.value_type.clone(), is_mut: ns_member_decl.is_mut, is_own: ns_member_decl.is_own, is_comptime_const: false });
                         }
                     }
                     // Issue #161: Update scope stack enum's ns with resolved types from AST
@@ -1178,7 +1178,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.scope_stack.declare_func(declaration.name.to_string(), func_def.clone());
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: true });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_own: declaration.is_own, is_comptime_const: true });
                     return Ok(EvalResult::new(""));
                 },
                 _ => return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}' of type 'FunctionSig', expected func definition.",
@@ -1196,7 +1196,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                     if let Some(global_frame) = context.scope_stack.frames.first_mut() {
                         global_frame.structs.entry(declaration.name.to_string()).or_insert_with(|| struct_def.clone());
                     }
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_own: declaration.is_own, is_comptime_const: false });
                     // Process members from AST struct_def (not merged struct - namespace members handled separately)
                     for member_decl in &struct_def.members {
                         if !member_decl.is_mut {
@@ -1251,7 +1251,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                             }
 
                             context.scope_stack.declare_symbol(combined_name.to_string(),
-                                                   SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false });
+                                                   SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut, is_own: member_decl.is_own, is_comptime_const: false });
                         }
                     }
                     // Issue #161: Process namespace mutable members
@@ -1300,7 +1300,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                                 },
                             }
                             context.scope_stack.declare_symbol(ns_combined_name.to_string(),
-                                                   SymbolInfo{value_type: ns_member_decl.value_type.clone(), is_mut: ns_member_decl.is_mut, is_copy: ns_member_decl.is_copy, is_own: ns_member_decl.is_own, is_comptime_const: false });
+                                                   SymbolInfo{value_type: ns_member_decl.value_type.clone(), is_mut: ns_member_decl.is_mut, is_own: ns_member_decl.is_own, is_comptime_const: false });
                         }
                     }
                     // Issue #161: Update scope stack struct's ns with resolved types from AST
@@ -1321,7 +1321,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.scope_stack.declare_func(declaration.name.to_string(), func_def.clone());
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_own: declaration.is_own, is_comptime_const: false });
                     return Ok(EvalResult::new(""))
                 },
 
@@ -1336,7 +1336,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                     if let Some(func_def) = context.scope_stack.lookup_func(func_name) {
                         let fd_clone = func_def.clone();
                         context.scope_stack.declare_func(declaration.name.to_string(), fd_clone);
-                        context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                        context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_own: declaration.is_own, is_comptime_const: false });
                         return Ok(EvalResult::new(""))
                     } else {
                         return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}': returned function '{}' not found.",
@@ -1355,7 +1355,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                     }
                     let expr_result_str = result.value;
                     let expr_heap_offset = result.heap_offset;
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_own: declaration.is_own, is_comptime_const: false });
                     if custom_type_name == "Str" && expr_heap_offset > 0 {
                         context.scope_stack.frames.last_mut().unwrap()
                             .heap_index.insert(declaration.name.to_string(), expr_heap_offset);
@@ -1365,7 +1365,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                     return Ok(EvalResult::new(""))
                 },
                 _ => {
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_own: declaration.is_own, is_comptime_const: false });
                     let custom_symbol = match context.scope_stack.lookup_symbol(custom_type_name) {
                         Some(sym) => sym,
                         None => return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", custom_type_name))),
@@ -1447,7 +1447,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
             }
         }
     };
-    if !symbol_info.is_mut && !symbol_info.is_copy && !symbol_info.is_own {
+    if !symbol_info.is_mut && !symbol_info.is_own {
         return Err(e.lang_error(&context.path, "eval", &format!("in eval_assignment, while assigning to '{}': Assignments can only be to mut values. Offending expr: {:?}", var_name, e)));
     }
     if e.params.len() != 1 {
@@ -2022,7 +2022,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                             context.scope_stack.declare_symbol(var_name.to_string(), SymbolInfo {
                                 value_type: ValueType::TCustom(thrown_type.clone()),
                                 is_mut: false,
-                                is_copy: false,
+                                
                                 is_own: false,
                                 is_comptime_const: false,
                             });
@@ -2075,7 +2075,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                             SymbolInfo {
                                                 value_type: field_decl.value_type.clone(),
                                                 is_mut: false,
-                                                is_copy: false,
+                                                
                                                 is_own: false,
                                                 is_comptime_const: false,
                                             },
@@ -2186,7 +2186,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
 
     for arg in &func_def.sig.args {
         if !params_consumed {
-        function_frame.symbols.insert(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
+        function_frame.symbols.insert(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_own: arg.is_own, is_comptime_const: false });
         match &arg.value_type {
             ValueType::TMulti(ref multi_value_type) => {
                 let mut values = Vec::new();
@@ -2206,7 +2206,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                 function_frame.symbols.insert(arg.name.to_string(), SymbolInfo {
                     value_type: ValueType::TCustom(array_type_name),
                     is_mut: arg.is_mut,
-                    is_copy: arg.is_copy,
+                    
                     is_own: arg.is_own,
                     is_comptime_const: false,
                 });
@@ -2260,7 +2260,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                                     function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
                                         value_type: ValueType::TCustom("Str".to_string()),
                                         is_mut: false,
-                                        is_copy: false,
+                                        
                                         is_own: false,
                                         is_comptime_const: false,
                                     });
@@ -2402,7 +2402,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                 // - Only base offset stored in heap_index
                 // - Field offsets calculated dynamically from struct definitions
                 // - Inline memory layout means sharing base offset shares all fields
-                if !arg.is_copy && !arg.is_own && resolved_type_name != "Type" {
+                if !arg.is_own && resolved_type_name != "Type" {
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
                         // Only share offset for SIMPLE identifiers (no field access, no params)
                         // Field access like s.cap is also an Identifier node but has params
@@ -2413,7 +2413,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                             let param_symbol = SymbolInfo {
                                 value_type: resolved_value_type.clone(),
                                 is_mut: arg.is_mut,
-                                is_copy: arg.is_copy,
+                                
                                 is_own: arg.is_own,
                                 is_comptime_const: false,
                             };
@@ -2517,7 +2517,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                                         let id_ = &source_id; // Use the full path we calculated
 
                                         // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
-                                        if !arg.is_copy && !arg.is_own && resolved_type_name != "Type" {
+                                        if !arg.is_own && resolved_type_name != "Type" {
                                             let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
                                                 offset
                                             } else if id_.contains('.') {
@@ -2532,7 +2532,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                                             function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
                                                 value_type: resolved_value_type.clone(),
                                                 is_mut: arg.is_mut,
-                                                is_copy: arg.is_copy,
+                                                
                                                 is_own: arg.is_own,
                                                 is_comptime_const: false,
                                             });
@@ -2558,21 +2558,6 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
 
                                             // Track that this was passed by reference
                                             pass_by_ref_params.insert(arg.name.clone());
-                                        } else if arg.is_copy {
-                                            // Issue #159: garbager inserts Type.clone() for struct identifier copy params.
-                                            // The clone is now an FCall wrapping the identifier, so this branch
-                                            // won't be reached for struct copy params anymore (they go through
-                                            // the expression branch below). Keep this as a safety fallback
-                                            // that just binds the offset.
-                                            let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
-                                                offset
-                                            } else if id_.contains('.') {
-                                                context.get_field_offset(id_)
-                                                    .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-copy: {}", err)))?
-                                            } else {
-                                                return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context heap_index", id_)))
-                                            };
-                                            function_frame.heap_index.insert(arg.name.clone(), src_offset);
                                         } else {
                                             // Own/Type identifier parameters: ownership transfer via offset binding.
                                             // No allocation or copy needed - just bind the existing offset.
@@ -2587,24 +2572,16 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                                         }
                                     },
                                     _ => {
-                                        if arg.is_copy {
-                                            // Issue #159: garbager inserts Type.clone() for copy params.
-                                            // Clone result is already allocated, just bind offset.
-                                            let src_offset = context.scope_stack.lookup_var(&source_id)
-                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
-                                            function_frame.heap_index.insert(arg.name.clone(), src_offset);
-                                        } else {
-                                            // Own/Type expression parameters: bind the expression result offset.
-                                            // The expression is already evaluated and allocated in the heap.
-                                            let src_offset = context.scope_stack.lookup_var(&source_id)
-                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
-                                            function_frame.heap_index.insert(arg.name.clone(), src_offset);
+                                        // Own/Type expression parameters: bind the expression result offset.
+                                        // The expression is already evaluated and allocated in the heap.
+                                        let src_offset = context.scope_stack.lookup_var(&source_id)
+                                            .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
+                                        function_frame.heap_index.insert(arg.name.clone(), src_offset);
 
-                                            // For own parameters, remove the source from caller's context (ownership transferred)
-                                            if arg.is_own {
-                                                context.scope_stack.remove_var(&source_id);
-                                                context.scope_stack.remove_symbol(&source_id);
-                                            }
+                                        // For own parameters, remove the source from caller's context (ownership transferred)
+                                        if arg.is_own {
+                                            context.scope_stack.remove_var(&source_id);
+                                            context.scope_stack.remove_symbol(&source_id);
                                         }
                                     },
                                 }
@@ -2881,7 +2858,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &mut Contex
                                 context.scope_stack.declare_symbol(return_instance.to_string(), SymbolInfo {
                                     value_type: ValueType::TCustom(custom_type_name.to_string()),
                                     is_mut: true,
-                                    is_copy: false,
+                                    
                                     is_own: false,
                                     is_comptime_const: false,
                                 });

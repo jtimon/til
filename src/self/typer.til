@@ -1062,57 +1062,6 @@ check_fcall : proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec 
             }
         }
 
-        // Check copy parameter requirements - structs must have clone() implementation
-        // Only check for explicit 'copy' parameters, not regular immutable parameters
-        if arg.is_copy {
-            // Get the actual type being passed
-            mut arg_type_ok := false
-            mut arg_type := ValueType.TCustom("")
-            arg_type = get_value_type(context, arg_expr)?
-            arg_type_ok = true
-            catch (type_err: Str) {
-                // Type error already reported, skip clone check
-            }
-
-            if arg_type_ok {
-                // Only check for custom types (user-defined structs)
-                switch arg_type {
-                case ValueType.TCustom(type_name):
-                    // Skip primitive types that are trivially copyable (don't require clone())
-                    // These types are copy-by-value and don't need deep cloning
-                    // NOTE: Bool removed from this list - it's a regular struct, not a special primitive
-                    mut is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Str"))
-                    if not(is_primitive) {
-                        mut copy_struct_found := false
-                        mut copy_struct_def := StructDef()
-                        copy_struct_def = context.scope_stack.lookup_struct(type_name)?
-                        copy_struct_found = true
-                        catch (struct_err: KeyNotFoundError) {
-                            // Not found
-                        }
-                        if copy_struct_found {
-                            // Check if clone() exists as a const (associated function)
-                            mut has_clone := false
-                            mut clone_decl := Declaration()
-                            clone_decl = copy_struct_def.get_member("clone")?
-                            has_clone = not(clone_decl.is_mut)
-                            catch (clone_err: Str) {
-                                // No clone method found - has_clone stays false
-                            }
-
-                            if not(has_clone) {
-                                errors.push(own arg_expr.error(context.path, "type", format(
-                                    "Cannot pass struct '", type_name, "' to copy parameter '", arg.name, "' of function '", f_name, "'.\nReason: struct '", type_name, "' does not implement clone() method.\nSuggestion: add 'clone : func(self: ", type_name, ") returns ", type_name, " = { ... }' to struct '", type_name, "'."
-                                )))
-                            }
-                        }
-                    }
-                case:
-                    // Not a custom type
-                }
-            }
-        }
-
         // Note: found_type was already computed at start of loop for Bug #61 skip logic
         // Bug #124: Allow I64 literals to be passed as U8 arguments
         mut arg_is_u8_i64_coercion := false
@@ -1444,26 +1393,26 @@ check_func_proc_types : proc(func_def: FuncDef, mut context: Context, e: Expr) r
             switch custom_symbol.value_type {
             case ValueType.TType(TTypeDef.TStructDef):
                 // Valid: struct type
-                context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
+                context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_own=arg.is_own))?
                 // Register struct fields for type checking
                 context.register_struct_fields_for_typecheck(arg.name, custom_type_name)?
             case ValueType.TType(TTypeDef.TEnumDef):
                 // Valid: enum type
-                context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
+                context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_own=arg.is_own))?
             case ValueType.TType(TTypeDef.TFuncSig):
                 // Issue #91: Valid: function signature type as parameter
-                context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
+                context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_own=arg.is_own))?
             case:
                 // Invalid: not a type, it's a value or something else
                 errors.push(own e.error(context.path, "type", format("Argument '", arg.name, "' has type '", custom_type_name, "' which is not a valid type (expected struct, enum, or function signature)")))
             }
         case:
-            context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))?
+            context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_own=arg.is_own))?
         }
         // Bug #101: Register argument in function_locals for unused tracking
         context.scope_stack.register_function_local(arg.name, e.line, e.col)
         // Bug #192: Track borrowed (const/mut) params for own-transfer validation
-        if not(arg.is_own).and(not(arg.is_copy)) {
+        if not(arg.is_own) {
             _ := context.scope_stack.borrowed_args.insert(own arg.name.clone())
         }
     }
@@ -2156,7 +2105,7 @@ check_body_returns_throws : proc(mut context: Context, e: Expr, func_def: FuncDe
 
                     if not(already_declared) {
                         mut inferred_type := get_value_type(context, initializer)?
-                        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=inferred_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=inferred_type, is_mut=decl.is_mut, is_own=decl.is_own))?
                         catch (err: Str) {
                             // Can't infer type, skip declaration
                         }
@@ -2498,7 +2447,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
             case ValueType.TType(TTypeDef.TFuncSig):
                 typer_resolved_fd := context.scope_stack.lookup_func(decl.name)?
                 resolved_value_type := ValueType.TFunction(typer_resolved_fd.sig.function_type)
-                context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=resolved_value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=resolved_value_type, is_mut=decl.is_mut, is_own=decl.is_own))?
                 // Type-check the function body using the resolved func_def
                 context.scope_stack.push(ScopeType.Function)
                 errors.extend(check_func_proc_types(typer_resolved_fd, context, inner_e)?)
@@ -2516,7 +2465,7 @@ check_declaration : proc(mut context: Context, e: Expr, decl: Declaration) retur
         }
 
         // TODO move to init_context() ? inner contexts are not persisted in init_context
-        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+        context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_own=decl.is_own))?
 
         switch value_type {
         case ValueType.TCustom(custom_type):
@@ -2594,7 +2543,7 @@ check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Ve
         if symbol_exists {
             // Bug #101: Mark the variable as used (even though we're assigning to it)
             context.scope_stack.mark_symbol_used(var_name)
-            if not(symbol_info.is_mut).and(not(symbol_info.is_copy)).and(not(symbol_info.is_own)) {
+            if not(symbol_info.is_mut).and(not(symbol_info.is_own)) {
                 errors.push(own e.error(context.path, "type", format("Cannot assign to constant '", var_name, "', Suggestion: declare it as 'mut'.")))
             }
             // Additional check: if this is a field access (e.g., "s.value"), also check base instance mutability
@@ -2609,7 +2558,7 @@ check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Ve
                     context.scope_stack.mark_symbol_used(base_var)
                     if not(sym_is_mut) {
                         mut base_info := context.scope_stack.lookup_symbol(base_var)?
-                        if not(base_info.is_mut).and(not(base_info.is_copy)).and(not(base_info.is_own)) {
+                        if not(base_info.is_mut).and(not(base_info.is_own)) {
                             errors.push(own e.error(context.path, "type", format("Cannot assign to field of constant '", base_var, "', Suggestion: declare it as 'mut ", base_var, "'.")))
                         }
                         catch (err: KeyNotFoundError) {
@@ -2634,7 +2583,7 @@ check_assignment : proc(mut context: Context, e: Expr, var_name: Str) returns Ve
 
             if field_base_exists {
                 // Check base mutability
-                if not(field_base_info.is_mut).and(not(field_base_info.is_copy)).and(not(field_base_info.is_own)) {
+                if not(field_base_info.is_mut).and(not(field_base_info.is_own)) {
                     errors.push(own e.error(context.path, "type", format("Cannot assign to field of constant '", field_base_var, "', Suggestion: declare it as 'mut ", field_base_var, "'.")))
                 }
 
@@ -3860,7 +3809,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
                 context.scope_stack.declare_symbol(own var_name.clone(), own SymbolInfo(
                     value_type=var_type,
                     is_mut=false,
-                    is_copy=false,
+                    
                     is_own=false,
                     is_comptime_const=false
                 ))?
@@ -4007,7 +3956,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
                 name=member.name,
                 value_type=resolved_type,
                 is_mut=member.is_mut,
-                is_copy=member.is_copy,
+                
                 is_own=member.is_own,
                 default_value=member.default_value
             ))
@@ -4050,7 +3999,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
                 name=ns_member.name,
                 value_type=ns_resolved_type,
                 is_mut=ns_member.is_mut,
-                is_copy=ns_member.is_copy,
+                
                 is_own=ns_member.is_own,
                 default_value=ns_member.default_value
             ))
@@ -4094,7 +4043,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
         context.scope_stack.declare_symbol(own catch_var_name.clone(), own SymbolInfo(
             value_type=ValueType.TCustom(catch_type_name),
             is_mut=false,
-            is_copy=false,
+            
             is_own=false,
             is_comptime_const=false
         ))?
@@ -4161,7 +4110,7 @@ resolve_inferred_types : proc(mut context: Context, e: Expr) returns Expr throws
                 name=enum_ns_member.name,
                 value_type=enum_ns_resolved_type,
                 is_mut=enum_ns_member.is_mut,
-                is_copy=enum_ns_member.is_copy,
+                
                 is_own=enum_ns_member.is_own,
                 default_value=enum_ns_member.default_value
             ))
@@ -4258,7 +4207,7 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         name=decl.name,
         value_type=resolved_type,
         is_mut=decl.is_mut,
-        is_copy=decl.is_copy,
+        
         is_own=decl.is_own,
         default_value=decl.default_value
     )
@@ -4279,7 +4228,7 @@ resolve_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         context.scope_stack.declare_symbol(own new_decl.name.clone(), own SymbolInfo(
             value_type=new_decl.value_type,
             is_mut=new_decl.is_mut,
-            is_copy=new_decl.is_copy,
+            
             is_own=new_decl.is_own,
             is_comptime_const=false
         ))?
@@ -4387,7 +4336,7 @@ resolve_funcdef : proc(mut context: Context, e: Expr, func_def: FuncDef) returns
         context.scope_stack.declare_symbol(own arg.name.clone(), own SymbolInfo(
             value_type=arg.value_type,
             is_mut=arg.is_mut,
-            is_copy=arg.is_copy,
+            
             is_own=arg.is_own,
             is_comptime_const=false
         ))?

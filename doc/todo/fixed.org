@@ -5689,6 +5689,32 @@ sugar.til moved from rs_common + til_common to all_common. til_common now empty.
 - src/tests.til: Added all_common Vec, processing in run_all_tests(), updated usage()
 * Implemented Issues
 
+** Issue #193: Remove `copy` parameter mode (desugar to `own` + caller `.clone()`)
+:PROPERTIES:
+:DISCOVERED: 2026-02-26
+:IMPLEMENTED: 2026-02-26
+:IMPACT: Simplifies compiler -- 531 net lines removed from source
+:STATUS: Fixed
+:END:
+
+Removed ~copy~ parameter mode entirely. It was syntactic sugar: the garbager
+auto-inserted ~.clone()~ at call sites. Users can achieve the same with ~own~
+params and explicit ~.clone()~ at the call site. Can be re-added as a desugarer
+pass if desired.
+
+What was removed:
+- ~is_copy~ field from Declaration (ast.rs) and SymbolInfo (init.rs/init.til)
+- ~TokenType::Copy~ keyword from lexer (Rust + TIL)
+- Copy param parsing and ~validate_mut_copy_own_modifiers~ from parser (Rust + TIL)
+- Clone-check validation block from type checker (Rust + TIL)
+- ~transform_fcall_copy_params()~ function from garbager (Rust + TIL)
+- Copy-specific by-value passing from ccodegen (Rust + TIL)
+- ~is_copy~ boilerplate propagation from precomp, interpreter, desugarer, preinit, eval_heap, ufcs
+- Copy param tests from ~src/test/args.til~
+- Copy row from ~doc/modifiers.org~ modifier table
+
+Total: 321 ~is_copy~ references across 23 files eliminated. 838 lines removed, 307 added (531 net).
+
 ** Issue #120: Str.ends_with() and Str.starts_with()
 :PROPERTIES:
 :DISCOVERED: 2026-01-15

@@ -50,7 +50,7 @@ fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize
         name: self_param_name.to_string(),
         value_type: ValueType::TCustom(struct_name.to_string()),
         is_mut: true,
-        is_copy: false,
+        
         is_own: false,
         default_value: None,
     };
@@ -106,7 +106,7 @@ fn generate_delete_method(struct_name: &str, struct_def: &StructDef, line: usize
         name: "delete".to_string(),
         value_type: ValueType::TFunction(FunctionType::FTFunc),
         is_mut: false,
-        is_copy: false,
+        
         is_own: false,
         default_value: None,
     };
@@ -130,7 +130,7 @@ fn generate_clone_method(struct_name: &str, struct_def: &StructDef, line: usize,
         name: self_param_name.to_string(),
         value_type: ValueType::TCustom(struct_name.to_string()),
         is_mut: false,
-        is_copy: false,
+        
         is_own: false,
         default_value: None,
     };
@@ -224,7 +224,7 @@ fn generate_clone_method(struct_name: &str, struct_def: &StructDef, line: usize,
         name: "clone".to_string(),
         value_type: ValueType::TFunction(FunctionType::FTFunc),
         is_mut: false,
-        is_copy: false,
+        
         is_own: false,
         default_value: None,
     };
@@ -241,7 +241,7 @@ fn generate_enum_delete_method(enum_name: &str, line: usize, col: usize) -> Expr
         name: "_self".to_string(),
         value_type: ValueType::TCustom(enum_name.to_string()),
         is_mut: true,
-        is_copy: false,
+        
         is_own: false,
         default_value: None,
     };
@@ -267,7 +267,7 @@ fn generate_enum_clone_method(enum_name: &str, line: usize, col: usize) -> Expr 
         name: "self".to_string(),
         value_type: ValueType::TCustom(enum_name.to_string()),
         is_mut: false,
-        is_copy: false,
+        
         is_own: false,
         default_value: None,
     };
@@ -404,7 +404,7 @@ pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool,
                 name: "delete".to_string(),
                 value_type: ValueType::TFunction(FunctionType::FTFunc),
                 is_mut: false,
-                is_copy: false,
+                
                 is_own: false,
                 default_value: None,
             };
@@ -418,7 +418,7 @@ pub fn generate_enum_methods(enum_name: &str, has_delete: bool, has_clone: bool,
                 name: "clone".to_string(),
                 value_type: ValueType::TFunction(FunctionType::FTFunc),
                 is_mut: false,
-                is_copy: false,
+                
                 is_own: false,
                 default_value: None,
             };

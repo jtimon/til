@@ -269,7 +269,7 @@ create_default_instance : proc(mut ctx: Context, struct_type: Str, e: Expr) retu
     template_id := format("__default_", struct_type)
 
     // Declare temporary symbol for template (needed by insert_struct_core)
-    sym_info := SymbolInfo(value_type=ValueType.TCustom(struct_type), is_mut=true, is_copy=false, is_own=false)
+    sym_info := SymbolInfo(value_type=ValueType.TCustom(struct_type), is_mut=true, is_own=false)
     ctx.scope_stack.declare_symbol(own template_id.clone(), own sym_info)?
 
     // Evaluate defaults and create template
@@ -973,7 +973,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 own SymbolInfo(
                     value_type=ValueType.TCustom(cast_type_name),
                     is_mut=true,
-                    is_copy=false,
+                    
                     is_own=false,
                     is_comptime_const=false
                 )
@@ -1083,7 +1083,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 return i64_result
             }
             i64_expr_result_str := i64_result.value
-            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own))?
             EvalHeap.insert_primitive(context, own declaration.name.clone(), value_type, i64_expr_result_str, e)?
             return EvalResult.new("")
         } else if s.eq("U8") {
@@ -1092,7 +1092,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                 return u8_result
             }
             u8_expr_result_str := u8_result.value
-            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own))?
             EvalHeap.insert_primitive(context, own declaration.name.clone(), value_type, u8_expr_result_str, e)?
             return EvalResult.new("")
         } else if s.eq("Str") {
@@ -1102,7 +1102,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             }
             str_expr_result_str := str_result.value
             str_expr_heap_offset := str_result.heap_offset
-            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own))?
             if str_expr_heap_offset.gt(0) {
                 str_decl_last_idx := context.scope_stack.frames.len().sub(1)
                 mut str_decl_last_frame := cast(ScopeFrame, context.scope_stack.frames.get(str_decl_last_idx)?)
@@ -1114,7 +1114,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
         } else {
             // Custom type (not I64/U8/Str)
             custom_type_name := s
-            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own))?
             mut custom_symbol := SymbolInfo()
             custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)?
             catch (err: KeyNotFoundError) {
@@ -1199,7 +1199,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             context.scope_stack.declare_enum(own declaration.name.clone(), own enum_def.clone())?
             // Issue #106: Also register in global frame so enum survives macro function scope pops
             context.scope_stack.declare_enum_global(own declaration.name.clone(), own enum_def.clone())?
-            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own))?
             // Issue #161: Process namespace mutable members for enums
             for enum_ns_member_decl: Declaration in enum_def.ns.members {
                 if not(enum_ns_member_decl.is_mut) { continue }
@@ -1219,7 +1219,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                         }
                         enum_ns_expr_result_str := enum_ns_result.value
                         EvalHeap.insert_primitive(context, own enum_ns_combined_name.clone(), enum_ns_member_decl.value_type, enum_ns_expr_result_str, e)?
-                        context.scope_stack.declare_symbol(own enum_ns_combined_name, own SymbolInfo(value_type=enum_ns_member_decl.value_type, is_mut=enum_ns_member_decl.is_mut, is_copy=enum_ns_member_decl.is_copy, is_own=enum_ns_member_decl.is_own))?
+                        context.scope_stack.declare_symbol(own enum_ns_combined_name, own SymbolInfo(value_type=enum_ns_member_decl.value_type, is_mut=enum_ns_member_decl.is_mut, is_own=enum_ns_member_decl.is_own))?
                     }
                 }
             }
@@ -1240,7 +1240,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
         switch inner_e.node_type {
         case NodeType.FuncDef(func_def):
             context.scope_stack.declare_func(own declaration.name.clone(), own func_def.clone())?
-            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own, is_comptime_const=true))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own, is_comptime_const=true))?
             return EvalResult.new("")
         case:
             throw e.lang_error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type 'FunctionSig', expected func definition."))
@@ -1254,7 +1254,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             }
             // Issue #105: Also register in global frame so struct survives macro function scope pops
             context.scope_stack.declare_struct_global(own declaration.name.clone(), own struct_def.clone())?
-            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own))?
             // Process struct members with default values
             for member_decl: Declaration in struct_def.members {
                 if not(member_decl.is_mut) {
@@ -1304,7 +1304,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                         throw e.todo_error(context.path, "eval", format("Cannot declare '", declaration.name, ".", member_decl.name, "' of type '", value_type_to_str(member_decl.value_type), "'"))
                     }
 
-                    context.scope_stack.declare_symbol(own combined_name, own SymbolInfo(value_type=member_decl.value_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
+                    context.scope_stack.declare_symbol(own combined_name, own SymbolInfo(value_type=member_decl.value_type, is_mut=member_decl.is_mut, is_own=member_decl.is_own))?
                 }
             }
             // Issue #161: Process namespace mutable members
@@ -1326,7 +1326,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
                         }
                         struct_ns_expr_result_str := struct_ns_result.value
                         EvalHeap.insert_primitive(context, own struct_ns_combined_name.clone(), struct_ns_member_decl.value_type, struct_ns_expr_result_str, e)?
-                        context.scope_stack.declare_symbol(own struct_ns_combined_name, own SymbolInfo(value_type=struct_ns_member_decl.value_type, is_mut=struct_ns_member_decl.is_mut, is_copy=struct_ns_member_decl.is_copy, is_own=struct_ns_member_decl.is_own))?
+                        context.scope_stack.declare_symbol(own struct_ns_combined_name, own SymbolInfo(value_type=struct_ns_member_decl.value_type, is_mut=struct_ns_member_decl.is_mut, is_own=struct_ns_member_decl.is_own))?
                     }
                 }
             }
@@ -1348,7 +1348,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
         switch inner_e.node_type {
         case NodeType.FuncDef(func_def):
             context.scope_stack.declare_func(own declaration.name.clone(), own func_def.clone())?
-            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own))?
             return EvalResult.new("")
         case:
             // Issue #91: Function pointer value from expression (e.g., op := get_op(0))
@@ -1361,7 +1361,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
             fptr_fd := context.scope_stack.lookup_func(func_name)?
             fptr_fd_clone := fptr_fd.clone()
             context.scope_stack.declare_func(own declaration.name.clone(), own fptr_fd_clone)?
-            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))?
+            context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own))?
             return EvalResult.new("")
             catch (err: KeyNotFoundError) {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "': returned function '", func_name, "' not found."))
@@ -1403,12 +1403,8 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
         }
     }
 
-    if not(symbol_info.is_mut) {
-        if not(symbol_info.is_copy) {
-            if not(symbol_info.is_own) {
-                throw e.lang_error(context.path, "eval", format("in eval_assignment, while assigning to '", var_name, "': Assignments can only be to mut values."))
-            }
-        }
+    if not(symbol_info.is_mut).and(not(symbol_info.is_own)) {
+        throw e.lang_error(context.path, "eval", format("in eval_assignment, while assigning to '", var_name, "': Assignments can only be to mut values."))
     }
     if not(e.params.len().eq(1)) {
         throw e.lang_error(context.path, "eval", format("in eval_assignment, while assigning to '", var_name, "': assignments must take exactly one value"))
@@ -2239,7 +2235,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
     for arg: Declaration in func_def.sig.args {
         if not(params_consumed) {
             // Use set() to allow overwriting - Rust's HashMap.insert overwrites
-            function_frame.symbols.set(own arg.name, own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+            function_frame.symbols.set(own arg.name, own SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_own=arg.is_own))
 
             switch arg.value_type {
             case ValueType.TMulti(multi_value_type):
@@ -2257,7 +2253,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
 
                 array_type_name := "Array"
                 // Use set() to overwrite the TMulti entry with TCustom("Array")
-                function_frame.symbols.set(own arg.name, own SymbolInfo(value_type=ValueType.TCustom(array_type_name), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+                function_frame.symbols.set(own arg.name, own SymbolInfo(value_type=ValueType.TCustom(array_type_name), is_mut=arg.is_mut, is_own=arg.is_own))
                 EvalHeap.insert_array_into_frame(context, function_frame, arg.name, multi_value_type, values, e)?
                 params_consumed = true
 
@@ -2463,7 +2459,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                     // - Only base offset stored in heap_index
                     // - Field offsets calculated dynamically from struct definitions
                     // - Inline memory layout means sharing base offset shares all fields
-                    if not(arg.is_copy).and(not(arg.is_own)).and(not(resolved_type_name.eq("Type"))) {
+                    if not(arg.is_own).and(not(resolved_type_name.eq("Type"))) {
                         switch current_arg.node_type {
                         case NodeType.Identifier(source_var):
                             // Only share offset for SIMPLE identifiers (no field access, no params)
@@ -2473,7 +2469,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                 mut share_offset := 0
                                 share_offset = context.scope_stack.lookup_var(source_var)?
                                 // Create symbol info for parameter using the resolved type
-                                param_symbol := SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
+                                param_symbol := SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_own=arg.is_own)
                                 function_frame.symbols.set(own arg.name.clone(), own param_symbol)
                                 function_frame.heap_index.set(own arg.name.clone(), own share_offset)
 
@@ -2599,15 +2595,8 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                 if is_identifier {
                                     id_ := source_id // Use the full path we calculated
 
-                                    // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
-                                    mut should_share_offset := false
-                                    if not(arg.is_copy) {
-                                        if not(arg.is_own) {
-                                            if not(resolved_type_name.eq("Type")) {
-                                                should_share_offset = true
-                                            }
-                                        }
-                                    }
+                                    // For pass-by-reference (non-own, non-Type), just share the offset
+                                    mut should_share_offset := not(arg.is_own).and(not(resolved_type_name.eq("Type")))
                                     if should_share_offset {
                                         mut src_offset := 0
                                         mut src_offset_found := false
@@ -2624,7 +2613,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                         }
 
                                         // Create symbol for parameter
-                                        function_frame.symbols.set(own arg.name.clone(), own SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+                                        function_frame.symbols.set(own arg.name.clone(), own SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_own=arg.is_own))
 
                                         // Share the offset (pass-by-reference)
                                         function_frame.heap_index.set(own arg.name.clone(), own src_offset)
@@ -2652,27 +2641,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                         // Track that this was passed by reference
                                         pass_by_ref_params.push(own arg.name.clone())
                                     }
-                                    if not(should_share_offset).and(arg.is_copy) {
-                                        // Issue #159: garbager inserts Type.clone() for struct identifier copy params.
-                                        // The clone is now an FCall wrapping the identifier, so this branch
-                                        // won't be reached for struct copy params anymore (they go through
-                                        // the expression branch below). Keep this as a safety fallback
-                                        // that just binds the offset.
-                                        mut copy_src_offset := 0
-                                        mut copy_src_offset_found := false
-                                        copy_src_offset = context.scope_stack.lookup_var(id_)?
-                                        copy_src_offset_found = true
-                                        catch (err: KeyNotFoundError) { }
-                                        if not(copy_src_offset_found) {
-                                            if id_.contains(".") {
-                                                copy_src_offset = context.get_field_offset(id_)?
-                                            } else {
-                                                throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context heap_index"))
-                                            }
-                                        }
-                                        function_frame.heap_index.set(own arg.name.clone(), own copy_src_offset)
-                                    }
-                                    if not(should_share_offset).and(not(arg.is_copy)) {
+                                    if not(should_share_offset) {
                                         // Own/Type identifier parameters: ownership transfer via offset binding.
                                         // No allocation or copy needed - just bind the existing offset.
                                         mut own_src_offset := 0
@@ -2692,28 +2661,18 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                         function_frame.heap_index.set(own arg.name.clone(), own own_src_offset)
                                     }
                                 } else {
-                                    if arg.is_copy {
-                                        // Issue #159: garbager inserts Type.clone() for copy params.
-                                        // Clone result is already allocated, just bind offset.
-                                        expr_copy_src_offset := context.scope_stack.lookup_var(source_id)?
-                                        catch (err: KeyNotFoundError) {
-                                            throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
-                                        }
-                                        function_frame.heap_index.set(own arg.name.clone(), own expr_copy_src_offset)
-                                    } else {
-                                        // Own/Type expression parameters: bind the expression result offset.
-                                        // The expression is already evaluated and allocated in the heap.
-                                        expr_src_offset := context.scope_stack.lookup_var(source_id)?
-                                        catch (err: KeyNotFoundError) {
-                                            throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
-                                        }
-                                        function_frame.heap_index.set(own arg.name.clone(), own expr_src_offset)
+                                    // Own/Type expression parameters: bind the expression result offset.
+                                    // The expression is already evaluated and allocated in the heap.
+                                    expr_src_offset := context.scope_stack.lookup_var(source_id)?
+                                    catch (err: KeyNotFoundError) {
+                                        throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
+                                    }
+                                    function_frame.heap_index.set(own arg.name.clone(), own expr_src_offset)
 
-                                        // For own parameters, remove the source from caller's context (ownership transferred)
-                                        if arg.is_own {
-                                            _ := context.scope_stack.remove_var(source_id)?
-                                            _ := context.scope_stack.remove_symbol(source_id)?
-                                        }
+                                    // For own parameters, remove the source from caller's context (ownership transferred)
+                                    if arg.is_own {
+                                        _ := context.scope_stack.remove_var(source_id)?
+                                        _ := context.scope_stack.remove_symbol(source_id)?
                                     }
                                 }
                             } else {

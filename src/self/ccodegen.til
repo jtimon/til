@@ -530,13 +530,9 @@ get_fcall_func_def : proc(context: Context, fcall_expr: Expr) returns FuncDef th
 }
 
 /// Bug #60: Determine if a parameter should be passed by reference (pointer)
-/// - copy params: pass by value (copy is made)
 /// - Type params: already pointers (const char*), pass by value
 /// - All other const/own/mut params (including Dynamic): pass by pointer
 param_needs_by_ref : func(param: Declaration) returns Bool = {
-    if param.is_copy {
-        return false
-    }
     // Type is already a pointer type in C (const char*), no extra indirection needed
     switch param.value_type {
     case ValueType.TCustom(type_name):
@@ -4350,7 +4346,7 @@ emit_enum_method_bodies : proc(expr: Expr, mut output: Str, mut ctx: CodegenCont
                             name=method_name,
                             value_type=ValueType.TFunction(func_def.sig.function_type),
                             is_mut=false,
-                            is_copy=false,
+                            
                             is_own=false,
                             default_value=Ptr()
                         )
@@ -4386,10 +4382,8 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: Fu
     // Track variadic params - they're passed as til_Array* so need dereference
     ctx.current_variadic_params.clear()
     for func_def_arg: Declaration in func_def.sig.args {
-        // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
-        if not(func_def_arg.is_copy) {
-            _ := ctx.current_ref_params.insert(own func_def_arg.name.clone())
-        }
+        // Bug #60: All args are passed by pointer (mut, own, and const/default)
+        _ := ctx.current_ref_params.insert(own func_def_arg.name.clone())
         switch func_def_arg.value_type {
         case ValueType.TMulti(elem_type):
             // elem_type is the type name string like "Bool"
@@ -4406,7 +4400,6 @@ emit_struct_func_body : proc(struct_name: Str, member: Declaration, func_def: Fu
         mut info := SymbolInfo()
         info.value_type = func_def_arg.value_type
         info.is_mut = func_def_arg.is_mut
-        info.is_copy = func_def_arg.is_copy
         info.is_own = func_def_arg.is_own
         info.is_comptime_const = false
         function_frame.symbols.set(own func_def_arg.name.clone(), own info)
@@ -4846,10 +4839,6 @@ emit_func_signature : proc(func_name: Str, func_def: FuncDef, context: Context, 
                     output.push_str(arg_type)
                     output.push_str("* ")
                 }
-            } else if func_def_arg.is_copy {
-                // copy: pass by value, caller's copy is made
-                output.push_str(arg_type)
-                output.push_str(" ")
             } else {
                 // const (default): pass by const pointer, read-only
                 // Type is already a pointer, so pass by value
@@ -5099,18 +5088,16 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params.clear()
                 for func_def_arg: Declaration in func_def.sig.args {
-                    // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+                    // Bug #60: All args are passed by pointer (mut, own, and const/default)
                     // Issue #91: Skip FuncSig-typed params - they're passed by value (function pointers)
-                    if not(func_def_arg.is_copy) {
-                        mut is_fptr := false
-                        switch func_def_arg.value_type {
-                        case ValueType.TCustom(tn):
-                            is_fptr = is_func_sig_type(tn, context)
-                        case:
-                        }
-                        if not(is_fptr) {
-                            _ := ctx.current_ref_params.insert(own func_def_arg.name.clone())
-                        }
+                    mut is_fptr := false
+                    switch func_def_arg.value_type {
+                    case ValueType.TCustom(tn):
+                        is_fptr = is_func_sig_type(tn, context)
+                    case:
+                    }
+                    if not(is_fptr) {
+                        _ := ctx.current_ref_params.insert(own func_def_arg.name.clone())
                     }
                     switch func_def_arg.value_type {
                     case ValueType.TMulti(elem_type):
@@ -5135,7 +5122,6 @@ emit_func_declaration : proc(expr: Expr, mut output: Str, mut ctx: CodegenContex
                     mut info := SymbolInfo()
                     info.value_type = value_type
                     info.is_mut = func_def_arg.is_mut
-                    info.is_copy = func_def_arg.is_copy
                     info.is_own = func_def_arg.is_own
                     info.is_comptime_const = false
                     function_frame.symbols.set(own func_def_arg.name.clone(), own info)
@@ -5460,7 +5446,6 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                     mut info := SymbolInfo()
                     info.value_type = ValueType.TCustom(err_type_name.clone())
                     info.is_mut = false
-                    info.is_copy = false
                     info.is_own = false
                     info.is_comptime_const = false
                     context.scope_stack.declare_symbol(own err_var_name.clone(), own info)?
@@ -5493,7 +5478,6 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                         mut sym_info := SymbolInfo()
                         sym_info.value_type = decl.value_type
                         sym_info.is_mut = false
-                        sym_info.is_copy = false
                         sym_info.is_own = false
                         sym_info.is_comptime_const = false
                         context.scope_stack.declare_symbol(own decl.name.clone(), own sym_info)?
@@ -5617,7 +5601,6 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                                 mut emit_sym_info := SymbolInfo()
                                 emit_sym_info.value_type = ValueType.TCustom(stmt_err_type_name.clone())
                                 emit_sym_info.is_mut = false
-                                emit_sym_info.is_copy = false
                                 emit_sym_info.is_own = false
                                 emit_sym_info.is_comptime_const = false
                                 context.scope_stack.declare_symbol(own emit_err_var_name.clone(), own emit_sym_info)?
@@ -6017,7 +6000,6 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
                 mut sym_info := SymbolInfo()
                 sym_info.value_type = first_type
                 sym_info.is_mut = true
-                sym_info.is_copy = false
                 sym_info.is_own = false
                 sym_info.is_comptime_const = false
                 context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
@@ -6404,7 +6386,6 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
-            sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
             context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
@@ -6665,7 +6646,6 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
                         mut catch_sym_info := SymbolInfo()
                         catch_sym_info.value_type = ValueType.TCustom(err_type_name.clone())
                         catch_sym_info.is_mut = false
-                        catch_sym_info.is_copy = false
                         catch_sym_info.is_own = false
                         catch_sym_info.is_comptime_const = false
                         context.scope_stack.declare_symbol(own err_var_name.clone(), own catch_sym_info)?
@@ -6825,7 +6805,6 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
-            sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
             context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
@@ -7150,7 +7129,6 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
-            sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
             context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
@@ -7463,11 +7441,9 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                 ctx.current_function_name = mangled_name.clone()
                 ctx.mangling_counter = 0  // Reset counter per-function for determinism
 
-                // Bug #60: Track ref and variadic params - all non-copy args are by pointer
+                // Bug #60: Track ref and variadic params - all args are by pointer
                 for func_def_arg: Declaration in func_def.sig.args {
-                    if not(func_def_arg.is_copy) {
-                        _ := ctx.current_ref_params.insert(own func_def_arg.name.clone())
-                    }
+                    _ := ctx.current_ref_params.insert(own func_def_arg.name.clone())
                     switch func_def_arg.value_type {
                     case ValueType.TMulti(elem_type):
                         ctx.current_variadic_params.set(own func_def_arg.name.clone(), own til_name(elem_type))
@@ -7490,7 +7466,6 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                     mut nested_symbol_info := SymbolInfo()
                     nested_symbol_info.value_type = value_type
                     nested_symbol_info.is_mut = func_def_arg.is_mut
-                    nested_symbol_info.is_copy = func_def_arg.is_copy
                     nested_symbol_info.is_own = func_def_arg.is_own
                     nested_symbol_info.is_comptime_const = false
                     function_frame.symbols.set(own func_def_arg.name.clone(), own nested_symbol_info)
@@ -7614,7 +7589,7 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                     own SymbolInfo(
                         value_type=cast_var_type,
                         is_mut=true,
-                        is_copy=false,
+                        
                         is_own=false,
                         is_comptime_const=false
                     )
@@ -7804,7 +7779,6 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
     mut decl_symbol_info := SymbolInfo()
     decl_symbol_info.value_type = var_type
     decl_symbol_info.is_mut = decl.is_mut
-    decl_symbol_info.is_copy = false
     decl_symbol_info.is_own = false
     decl_symbol_info.is_comptime_const = false
     context.scope_stack.declare_symbol(own name.clone(), own decl_symbol_info)?
@@ -9016,7 +8990,6 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
             mut sym_info := SymbolInfo()
             sym_info.value_type = decl.value_type
             sym_info.is_mut = false
-            sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
             context.scope_stack.declare_symbol(own decl.name.clone(), own sym_info)?
@@ -9044,7 +9017,6 @@ emit_if : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext
                 mut else_sym_info := SymbolInfo()
                 else_sym_info.value_type = else_decl.value_type
                 else_sym_info.is_mut = false
-                else_sym_info.is_copy = false
                 else_sym_info.is_own = false
                 else_sym_info.is_comptime_const = false
                 context.scope_stack.declare_symbol(own else_decl.name.clone(), own else_sym_info)?
@@ -9157,7 +9129,6 @@ emit_while : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             mut sym_info := SymbolInfo()
             sym_info.value_type = decl.value_type
             sym_info.is_mut = false
-            sym_info.is_copy = false
             sym_info.is_own = false
             sym_info.is_comptime_const = false
             context.scope_stack.declare_symbol(own decl.name.clone(), own sym_info)?
@@ -9328,7 +9299,6 @@ collect_declarations_recursive : proc(expr: Expr, mut decls: Vec, mut collected:
         mut symbol_info := SymbolInfo()
         symbol_info.value_type = value_type
         symbol_info.is_mut = decl.is_mut
-        symbol_info.is_copy = false
         symbol_info.is_own = false
         symbol_info.is_comptime_const = false
         context.scope_stack.declare_symbol(own decl.name.clone(), own symbol_info)?

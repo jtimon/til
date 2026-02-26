@@ -44,7 +44,6 @@ pub struct Declaration {
     pub name: String,
     pub value_type: ValueType,
     pub is_mut: bool,
-    pub is_copy: bool,
     pub is_own: bool,
     pub default_value: Option<Box<Expr>>,  // For optional function arguments
 }

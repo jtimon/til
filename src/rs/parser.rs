@@ -184,29 +184,15 @@ fn parse_assignment(lexer: &mut Lexer, t: &Token, name: &String) -> Result<Expr,
     return Ok(Expr::new_parse(NodeType::Assignment(name.to_string()), t.clone(), params))
 }
 
-fn validate_mut_copy_own_modifiers(t: &Token, path: &str, modifier: &str, is_mut: bool, is_copy: bool, is_own: bool) -> Result<(), String> {
+fn validate_mut_own_modifiers(t: &Token, path: &str, modifier: &str, is_mut: bool, is_own: bool) -> Result<(), String> {
     if modifier == "mut" {
-        if is_copy {
-            return Err(t.error(path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy."));
-        }
         if is_own {
             return Err(t.error(path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer."));
-        }
-    }
-    if modifier == "copy" {
-        if is_mut {
-            return Err(t.error(path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy."));
-        }
-        if is_own {
-            return Err(t.error(path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy."));
         }
     }
     if modifier == "own" {
         if is_mut {
             return Err(t.error(path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer."));
-        }
-        if is_copy {
-            return Err(t.error(path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy."));
         }
     }
     Ok(())
@@ -223,7 +209,6 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
     let mut is_variadic = false;
     let mut arg_name = "unnamed".to_string();
     let mut is_mut = false;
-    let mut is_copy = false;
     let mut is_own = false;
     while !(lexer.is_eof(0) || rightparent_found) {
         match t.token_type {
@@ -246,7 +231,6 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                     expect_colon = false;
                     expect_name = true;
                     is_mut = false;
-                    is_copy = false;
                     is_own = false;
                     lexer.expect(TokenType::Comma)?;
                     t = lexer.peek();
@@ -309,7 +293,6 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                             name: "".to_string(),
                             value_type: arg_type,
                             is_mut: false,
-                            is_copy: false,
                             is_own: false,
                             default_value: None,
                         });
@@ -340,13 +323,11 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                         name: arg_name.to_string(),
                         value_type: arg_type,
                         is_mut: is_mut,
-                        is_copy: is_copy,
                         is_own: is_own,
                         default_value: default_value,
                     });
                     expect_comma = true;
                     is_mut = false;
-                    is_copy = false;
                     is_own = false;
                     // Don't advance again - we already did above or parse_expression did
                     t = lexer.peek();
@@ -359,17 +340,8 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                 if !expect_name {
                     return Err(t.error(&lexer.path, "Unexpected 'mut' in argument list."));
                 }
-                validate_mut_copy_own_modifiers(&t, &lexer.path, "mut", is_mut, is_copy, is_own)?;
+                validate_mut_own_modifiers(&t, &lexer.path, "mut", is_mut, is_own)?;
                 is_mut = true;
-                lexer.advance(1)?;
-                t = lexer.peek();
-            },
-            TokenType::Copy => {
-                if !expect_name {
-                    return Err(t.error(&lexer.path, "Unexpected 'copy' in argument list."));
-                }
-                validate_mut_copy_own_modifiers(&t, &lexer.path, "copy", is_mut, is_copy, is_own)?;
-                is_copy = true;
                 lexer.advance(1)?;
                 t = lexer.peek();
             },
@@ -377,7 +349,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                 if !expect_name {
                     return Err(t.error(&lexer.path, "Unexpected 'own' in argument list."));
                 }
-                validate_mut_copy_own_modifiers(&t, &lexer.path, "own", is_mut, is_copy, is_own)?;
+                validate_mut_own_modifiers(&t, &lexer.path, "own", is_mut, is_own)?;
                 is_own = true;
                 lexer.advance(1)?;
                 t = lexer.peek();
@@ -702,7 +674,6 @@ fn build_namespace_from_stmts(namespace_stmts: Vec<Expr>) -> NamespaceDef {
                         name: name.clone(),
                         value_type: ValueType::TCustom(INFER_TYPE.to_string()),
                         is_mut: false,
-                        is_copy: false,
                         is_own: false,
                         default_value: None,
                     };
@@ -881,7 +852,6 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                                     name: name.clone(),
                                     value_type: ValueType::TCustom(INFER_TYPE.to_string()),
                                     is_mut: false,
-                                    is_copy: false,
                                     is_own: false,
                                     default_value: None,
                                 };
@@ -1145,13 +1115,13 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
             match next_next_token_type {
                 TokenType::Identifier => {
                     let type_name = &next_next_t.token_str;
-                    return parse_declaration(lexer, false, false, type_name, true)
+                    return parse_declaration(lexer, false, type_name, true)
                 }
                 TokenType::Equal => {
                     // Issue #91: Allow ':= func(...)' for function signature definitions
                     // (e.g., BinaryOp := func(I64, I64) returns I64 {})
                     // Regular functions use 'name : func(...) = { body }' syntax.
-                    return parse_declaration(lexer, false, false, INFER_TYPE, false)
+                    return parse_declaration(lexer, false, INFER_TYPE, false)
                 },
                 // Issue #91: name : func(...) = { body }
                 TokenType::Func | TokenType::Proc | TokenType::FuncExt
@@ -1164,9 +1134,9 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                         TokenType::Macro => FunctionType::FTMacro,
                         _ => unreachable!(),
                     };
+                    let decl = Declaration{name: identifier.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: false, is_own: false, default_value: None};
                     lexer.advance(2)?; // past name and colon, now at func/proc
                     let func_expr = parse_func_proc_definition(lexer, func_type)?;
-                    let decl = Declaration{name: identifier.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: false, is_copy: false, is_own: false, default_value: None};
                     return Ok(Expr::new_parse(NodeType::Declaration(decl), t.clone(), vec![func_expr]))
                 },
                 _ => {
@@ -1441,7 +1411,6 @@ fn desugar_range_for(
         name: loop_var_name.to_string(),
         value_type: str_to_value_type(var_type),
         is_mut: true,
-        is_copy: false,
         is_own: false,
         default_value: None,
     };
@@ -1787,7 +1756,7 @@ fn is_binding_tuple_body(lexer: &Lexer) -> bool {
     }
 }
 
-fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_type: &str, has_explicit_type: bool) -> Result<Expr, String> {
+fn parse_declaration(lexer: &mut Lexer, is_mut: bool, explicit_type: &str, has_explicit_type: bool) -> Result<Expr, String> {
     let t = lexer.peek();
     let decl_name = &t.token_str;
     let initial_current = lexer.current;
@@ -1796,6 +1765,8 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_ty
     if has_explicit_type {
         lexer.advance(1)?; // skip equal after type token (Bug #129: use boolean, not string comparison)
     }
+
+    let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut, is_own: false, default_value: None};
 
     // Issue #91: Detect binding-tuple-body pattern: name : TypeName = (a, b) { body }
     // This creates a FuncDef with arg names from the binding tuple and inferred types.
@@ -1811,7 +1782,7 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_ty
             let body = parse_body(lexer, TokenType::RightBrace)?;
             // Issue #91: Binding tuple form - arg names come from binding, types inferred later
             let sig_args: Vec<Declaration> = binding_names.iter().map(|n| {
-                Declaration { name: n.clone(), value_type: str_to_value_type(INFER_TYPE), is_mut: false, is_copy: false, is_own: false, default_value: None }
+                Declaration { name: n.clone(), value_type: str_to_value_type(INFER_TYPE), is_mut: false, is_own: false, default_value: None }
             }).collect();
             let func_def = FuncDef {
                 sig: FuncSig {
@@ -1825,7 +1796,6 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_ty
                 source_path: lexer.path.clone(),
             };
             let func_expr = Expr::new_parse(NodeType::FuncDef(func_def), t.clone(), Vec::new());
-            let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut, is_copy: is_copy, is_own: false, default_value: None};
             return Ok(Expr::new_parse(NodeType::Declaration(decl), lexer.get_token(initial_current)?.clone(), vec![func_expr]));
         }
     }
@@ -1833,7 +1803,6 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_ty
     let mut params : Vec<Expr> = Vec::new();
     params.push(parse_primary(lexer)?);
 
-    let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut, is_copy: is_copy, is_own: false, default_value: None};
 
     return Ok(Expr::new_parse(NodeType::Declaration(decl), lexer.get_token(initial_current)?.clone(), params))
 }
@@ -1857,11 +1826,11 @@ fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
     match next_next_token_type {
         TokenType::Identifier => {
             let type_name = &next_next_t.token_str;
-            return parse_declaration(lexer, true, false, type_name, true)
+            return parse_declaration(lexer, true, type_name, true)
         }
         TokenType::Equal => {
             // Issue #91: Allow ':= func(...)' for function signature definitions
-            return parse_declaration(lexer, true, false, INFER_TYPE, false)
+            return parse_declaration(lexer, true, INFER_TYPE, false)
         },
         _ => {
             Err(t.error(&lexer.path, &format!("Expected a type identifier or '=' after 'mut {} :' in statement, found '{:?}'.",

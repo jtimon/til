@@ -112,7 +112,7 @@ substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns F
         switch arg.value_type {
         case ValueType.TCustom(type_name):
             concrete := cast(Str, subs.get(type_name)?)
-            new_args.push(own Declaration(name=arg.name, value_type=ValueType.TCustom(concrete), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+            new_args.push(own Declaration(name=arg.name, value_type=ValueType.TCustom(concrete), is_mut=arg.is_mut, is_own=arg.is_own))
             substituted = true
             catch (_err: KeyNotFoundError) {
                 // Expected: not all types need substitution
@@ -182,7 +182,7 @@ substitute_type_params_in_struct : func(struct_def: StructDef, subs: Map) return
         switch member.value_type {
         case ValueType.TCustom(type_name):
             concrete_type := cast(Str, subs.get(type_name)?)
-            new_members.push(own Declaration(name=member.name, value_type=ValueType.TCustom(concrete_type), is_mut=member.is_mut, is_copy=member.is_copy, is_own=member.is_own))
+            new_members.push(own Declaration(name=member.name, value_type=ValueType.TCustom(concrete_type), is_mut=member.is_mut, is_own=member.is_own))
             substituted = true
             catch (_err: KeyNotFoundError) {
                 // Expected: not all types need substitution
@@ -354,7 +354,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                             esm_counter_str.delete()
                             context.anon_struct_counter.inc()
                             context.scope_stack.declare_struct(own esm_temp_name.clone(), own esm_struct_def.clone())?
-                            context.scope_stack.declare_symbol(own esm_temp_name.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+                            context.scope_stack.declare_symbol(own esm_temp_name.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_own=false, is_comptime_const=false))?
                             // Register immutable fields as namespace constants
                             for esm_member_decl: Declaration in esm_struct_def.members {
                                 if not(esm_member_decl.is_mut) {
@@ -367,7 +367,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                         esm_member_vt = get_value_type(context, esm_member_expr)?
                                         catch (_err: Str) { }
                                         esm_member_full_name := format(esm_temp_name, ".", esm_member_decl.name)
-                                        context.scope_stack.declare_symbol(own esm_member_full_name, own SymbolInfo(value_type=esm_member_vt, is_mut=esm_member_decl.is_mut, is_copy=esm_member_decl.is_copy, is_own=esm_member_decl.is_own, is_comptime_const=false))?
+                                        context.scope_stack.declare_symbol(own esm_member_full_name, own SymbolInfo(value_type=esm_member_vt, is_mut=esm_member_decl.is_mut, is_own=esm_member_decl.is_own, is_comptime_const=false))?
                                     }
                                 }
                             }
@@ -390,7 +390,6 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                             esm_struct_decl.name = esm_temp_name.clone()
                             esm_struct_decl.value_type = ValueType.TType(TTypeDef.TStructDef)
                             esm_struct_decl.is_mut = false
-                            esm_struct_decl.is_copy = false
                             esm_struct_decl.is_own = false
                             mut esm_decl_params := Vec.new(Expr)
                             esm_decl_params.push(own Expr.new_clone(NodeType.StructDef(esm_final_struct_def), esm_first_param, Vec.new(Expr)))
@@ -468,7 +467,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                                     default_value := cast(Expr, substituted.default_values.get(member_decl.name)?)
                                                     mut resolved_type := get_value_type(context, default_value)?
                                                     catch (_err: Str) {}
-                                                    resolved_member := Declaration(name=member_decl.name, value_type=resolved_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own)
+                                                    resolved_member := Declaration(name=member_decl.name, value_type=resolved_type, is_mut=member_decl.is_mut, is_own=member_decl.is_own)
                                                     resolved_members.push(own resolved_member)
                                                     resolved = true
                                                     catch (_err: KeyNotFoundError) {
@@ -567,7 +566,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
                                                         // Failed to get type - just use INFER_TYPE default
                                                     }
                                                     member_full_name := format(decl.name, ".", member_decl.name)
-                                                    ScopeStack.declare_symbol(context.scope_stack, own member_full_name.clone(), own SymbolInfo(value_type=value_type_clone(member_value_type), is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
+                                                    ScopeStack.declare_symbol(context.scope_stack, own member_full_name.clone(), own SymbolInfo(value_type=value_type_clone(member_value_type), is_mut=member_decl.is_mut, is_own=member_decl.is_own))?
                                                 }
                                             }
                                         }
@@ -744,7 +743,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
                 ear_counter_str.delete()
                 context.anon_struct_counter.inc()
                 context.scope_stack.declare_struct(own ear_temp.clone(), own ear_sd.clone())?
-                context.scope_stack.declare_symbol(own ear_temp.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+                context.scope_stack.declare_symbol(own ear_temp.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_own=false, is_comptime_const=false))?
                 // Register immutable fields as namespace constants
                 for ear_md: Declaration in ear_sd.members {
                     if not(ear_md.is_mut) {
@@ -757,7 +756,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
                             ear_mvt = get_value_type(context, ear_me)?
                             catch (_err: Str) { }
                             ear_mfn := format(ear_temp, ".", ear_md.name)
-                            context.scope_stack.declare_symbol(own ear_mfn, own SymbolInfo(value_type=ear_mvt, is_mut=ear_md.is_mut, is_copy=ear_md.is_copy, is_own=ear_md.is_own, is_comptime_const=false))?
+                            context.scope_stack.declare_symbol(own ear_mfn, own SymbolInfo(value_type=ear_mvt, is_mut=ear_md.is_mut, is_own=ear_md.is_own, is_comptime_const=false))?
                         }
                     }
                 }
@@ -778,7 +777,6 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
                 ear_decl.name = ear_temp.clone()
                 ear_decl.value_type = ValueType.TType(TTypeDef.TStructDef)
                 ear_decl.is_mut = false
-                ear_decl.is_copy = false
                 ear_decl.is_own = false
                 mut ear_dp := Vec.new(Expr)
                 ear_dp.push(own Expr.new_clone(NodeType.StructDef(ear_final_sd), ear_first, Vec.new(Expr)))
@@ -818,7 +816,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
                 }
                 // Register the struct with the declared name
                 context.scope_stack.declare_struct(own ear_decl.name, own ear_decl_sd.clone())?
-                context.scope_stack.declare_symbol(own ear_decl.name.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+                context.scope_stack.declare_symbol(own ear_decl.name.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_own=false, is_comptime_const=false))?
                 // Register immutable fields as namespace constants
                 for ear_decl_md: Declaration in ear_decl_sd.members {
                     if not(ear_decl_md.is_mut) {
@@ -831,7 +829,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
                             ear_decl_mvt = get_value_type(context, ear_decl_me)?
                             catch (_err: Str) { }
                             ear_decl_mfn := format(ear_decl.name, ".", ear_decl_md.name)
-                            context.scope_stack.declare_symbol(own ear_decl_mfn, own SymbolInfo(value_type=ear_decl_mvt, is_mut=ear_decl_md.is_mut, is_copy=ear_decl_md.is_copy, is_own=ear_decl_md.is_own, is_comptime_const=false))?
+                            context.scope_stack.declare_symbol(own ear_decl_mfn, own SymbolInfo(value_type=ear_decl_mvt, is_mut=ear_decl_md.is_mut, is_own=ear_decl_md.is_own, is_comptime_const=false))?
                         }
                     }
                 }
@@ -917,7 +915,7 @@ expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pend
         eaer_counter_str.delete()
         context.anon_enum_counter.inc()
         context.scope_stack.declare_enum(own eaer_temp.clone(), own eaer_enum_def.clone())?
-        context.scope_stack.declare_symbol(own eaer_temp.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TEnumDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+        context.scope_stack.declare_symbol(own eaer_temp.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TEnumDef), is_mut=false, is_own=false, is_comptime_const=false))?
         // Generate enum methods (delete/clone) and set ns on enum
         mut eaer_updated_enum_def := eaer_enum_def.clone()
         eaer_auto_ns := generate_enum_methods(eaer_temp, false, false, e.line, e.col)
@@ -935,7 +933,6 @@ expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pend
         eaer_decl.name = eaer_temp.clone()
         eaer_decl.value_type = ValueType.TType(TTypeDef.TEnumDef)
         eaer_decl.is_mut = false
-        eaer_decl.is_copy = false
         eaer_decl.is_own = false
         mut eaer_dp := Vec.new(Expr)
         eaer_dp.push(own Expr.new_clone(NodeType.EnumDef(eaer_updated_enum_def), e, Vec.new(Expr)))
@@ -1475,7 +1472,7 @@ precomp_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) return
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.sig.args {
-        sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
+        sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_own=arg.is_own)
         context.scope_stack.declare_symbol(own arg.name.clone(), own sym)?
     }
 
@@ -1621,7 +1618,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         switch inner_e.node_type {
         case NodeType.EnumDef(enum_def):
             context.scope_stack.declare_enum(own decl.name.clone(), own enum_def.clone())?
-            context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=true))?
+            context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_own=decl.is_own, is_comptime_const=true))?
             // Update scope_stack with namespace FuncDefs so interpreter uses desugared versions
             for enum_ns_name: Str in enum_def.ns.default_values.keys {
                 enum_ns_value_expr := cast(Expr, enum_def.ns.default_values.get(enum_ns_name)?)
@@ -1668,7 +1665,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         switch inner_e.node_type {
         case NodeType.FuncDef(func_def):
             context.scope_stack.declare_func(own decl.name.clone(), own func_def.clone())?
-            context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=true))?
+            context.scope_stack.declare_symbol(own decl.name.clone(), own SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_own=decl.is_own, is_comptime_const=true))?
             return e.clone()
         case:
         }
@@ -1830,7 +1827,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
         .and(is_comptime_evaluable(context, first_param)?)
 
     // Register the declared variable in scope
-    sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=is_comptime_const)
+    sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_own=decl.is_own, is_comptime_const=is_comptime_const)
     context.scope_stack.declare_symbol(own decl.name.clone(), own sym)?
 
     // Also register function definitions so UFCS can resolve their return types
@@ -1872,7 +1869,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
     // run eval_declaration to store the instance in EvalHeap so ccodegen can find it.
     // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
-    if at_global_scope.and(not(decl.is_mut)).and(not(decl.is_copy)).and(not(decl.is_own)).and(is_comptime_evaluable(context, first_param)?) {
+    if at_global_scope.and(not(decl.is_mut)).and(not(decl.is_own)).and(is_comptime_evaluable(context, first_param)?) {
         switch value_type {
         case ValueType.TCustom(custom_type_name):
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
@@ -1945,7 +1942,6 @@ precomp_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     mut sym := SymbolInfo()
     sym.value_type = ValueType.TCustom(type_name)
     sym.is_mut = false
-    sym.is_copy = false
     sym.is_own = false
     sym.is_comptime_const = false
     context.scope_stack.declare_symbol(own var_name, own sym)?
@@ -1996,7 +1992,7 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         pf_counter_str.delete()
         context.anon_struct_counter.inc()
         context.scope_stack.declare_struct(own pf_temp_name.clone(), own pf_struct_def.clone())?
-        context.scope_stack.declare_symbol(own pf_temp_name.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_copy=false, is_own=false, is_comptime_const=false))?
+        context.scope_stack.declare_symbol(own pf_temp_name.clone(), own SymbolInfo(value_type=ValueType.TType(TTypeDef.TStructDef), is_mut=false, is_own=false, is_comptime_const=false))?
         // Register immutable fields as namespace constants
         for pf_member_decl: Declaration in pf_struct_def.members {
             if not(pf_member_decl.is_mut) {
@@ -2009,7 +2005,7 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                     pf_member_vt = get_value_type(context, pf_member_expr)?
                     catch (_err: Str) { }
                     pf_member_full_name := format(pf_temp_name, ".", pf_member_decl.name)
-                    context.scope_stack.declare_symbol(own pf_member_full_name, own SymbolInfo(value_type=pf_member_vt, is_mut=pf_member_decl.is_mut, is_copy=pf_member_decl.is_copy, is_own=pf_member_decl.is_own, is_comptime_const=false))?
+                    context.scope_stack.declare_symbol(own pf_member_full_name, own SymbolInfo(value_type=pf_member_vt, is_mut=pf_member_decl.is_mut, is_own=pf_member_decl.is_own, is_comptime_const=false))?
                 }
             }
         }
@@ -2032,7 +2028,6 @@ precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         pf_struct_decl.name = pf_temp_name.clone()
         pf_struct_decl.value_type = ValueType.TType(TTypeDef.TStructDef)
         pf_struct_decl.is_mut = false
-        pf_struct_decl.is_copy = false
         pf_struct_decl.is_own = false
         mut pf_decl_params := Vec.new(Expr)
         pf_decl_params.push(own Expr.new_clone(NodeType.StructDef(pf_final_sd), func_expr, Vec.new(Expr)))

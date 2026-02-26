@@ -381,7 +381,7 @@ ufcs_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns E
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.sig.args {
-        sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own, is_comptime_const=false)
+        sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_own=arg.is_own, is_comptime_const=false)
         context.scope_stack.declare_symbol(own arg.name.clone(), own sym)?
     }
 
@@ -490,7 +490,7 @@ ufcs_declaration : proc(mut context: Context, e: Expr, decl: Declaration) return
     }
 
     // Register the declared variable in scope
-    sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=false)
+    sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_own=decl.is_own, is_comptime_const=false)
     context.scope_stack.declare_symbol(own decl.name.clone(), own sym)?
 
     // Also register function definitions so UFCS can resolve their return types
@@ -542,7 +542,6 @@ ufcs_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     mut sym := SymbolInfo()
     sym.value_type = ValueType.TCustom(type_name)
     sym.is_mut = false
-    sym.is_copy = false
     sym.is_own = false
     sym.is_comptime_const = false
     context.scope_stack.declare_symbol(own var_name.clone(), own sym)?

@@ -243,7 +243,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                             context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
                                 value_type: ValueType::TType(TTypeDef::TStructDef),
                                 is_mut: false,
-                                is_copy: false,
+                                
                                 is_own: false,
                                 is_comptime_const: false,
                             });
@@ -256,7 +256,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                         context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
                                             value_type: member_value_type,
                                             is_mut: member_decl.is_mut,
-                                            is_copy: member_decl.is_copy,
+                                            
                                             is_own: member_decl.is_own,
                                             is_comptime_const: false,
                                         });
@@ -281,7 +281,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                 name: temp_name.clone(),
                                 value_type: ValueType::TType(TTypeDef::TStructDef),
                                 is_mut: false,
-                                is_copy: false,
+                                
                                 is_own: false,
                                 default_value: None,
                             };
@@ -399,7 +399,7 @@ pub fn expand_struct_macros(context: &mut Context, e: &Expr) -> Result<Expr, Str
                                                 context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
                                                     value_type: member_value_type,
                                                     is_mut: member_decl.is_mut,
-                                                    is_copy: member_decl.is_copy,
+                                                    
                                                     is_own: member_decl.is_own,
                                                     is_comptime_const: false,
                                                 });
@@ -537,7 +537,7 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                 context.scope_stack.declare_struct(temp_name.clone(), struct_def.clone());
                 context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
                     value_type: ValueType::TType(TTypeDef::TStructDef),
-                    is_mut: false, is_copy: false, is_own: false, is_comptime_const: false,
+                    is_mut: false, is_own: false, is_comptime_const: false,
                 });
                 // Register immutable fields as namespace constants
                 for member_decl in &struct_def.members {
@@ -547,7 +547,7 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                             let member_full_name = format!("{}.{}", temp_name, member_decl.name);
                             context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
                                 value_type: member_value_type,
-                                is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false,
+                                is_mut: member_decl.is_mut, is_own: member_decl.is_own, is_comptime_const: false,
                             });
                         }
                     }
@@ -567,7 +567,7 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                 let struct_decl = Declaration {
                     name: temp_name.clone(),
                     value_type: ValueType::TType(TTypeDef::TStructDef),
-                    is_mut: false, is_copy: false, is_own: false, default_value: None,
+                    is_mut: false, is_own: false, default_value: None,
                 };
                 let struct_decl_expr = Expr::new_clone(
                     NodeType::Declaration(struct_decl),
@@ -597,7 +597,7 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                 context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
                 context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
                     value_type: ValueType::TType(TTypeDef::TStructDef),
-                    is_mut: false, is_copy: false, is_own: false, is_comptime_const: false,
+                    is_mut: false, is_own: false, is_comptime_const: false,
                 });
                 // Register immutable fields as namespace constants
                 for member_decl in &struct_def.members {
@@ -607,7 +607,7 @@ fn expand_anon_struct_fcalls_recursive(context: &mut Context, e: &Expr, pending_
                             let member_full_name = format!("{}.{}", decl.name, member_decl.name);
                             context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
                                 value_type: member_value_type,
-                                is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false,
+                                is_mut: member_decl.is_mut, is_own: member_decl.is_own, is_comptime_const: false,
                             });
                         }
                     }
@@ -682,7 +682,7 @@ fn expand_anon_enum_fcalls_recursive(context: &mut Context, e: &Expr, pending_de
         context.scope_stack.declare_enum(temp_name.clone(), enum_def.clone());
         context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
             value_type: ValueType::TType(TTypeDef::TEnumDef),
-            is_mut: false, is_copy: false, is_own: false, is_comptime_const: false,
+            is_mut: false, is_own: false, is_comptime_const: false,
         });
         // Generate enum methods (delete/clone) and set ns on enum
         let mut updated_enum_def = enum_def.clone();
@@ -699,7 +699,7 @@ fn expand_anon_enum_fcalls_recursive(context: &mut Context, e: &Expr, pending_de
         let enum_decl = Declaration {
             name: temp_name.clone(),
             value_type: ValueType::TType(TTypeDef::TEnumDef),
-            is_mut: false, is_copy: false, is_own: false, default_value: None,
+            is_mut: false, is_own: false, default_value: None,
         };
         let enum_decl_expr = Expr::new_clone(
             NodeType::Declaration(enum_decl),
@@ -1144,7 +1144,7 @@ fn precomp_func_def(context: &mut Context, e: &Expr, func_def: FuncDef) -> Resul
         context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
             value_type: arg.value_type.clone(),
             is_mut: arg.is_mut,
-            is_copy: arg.is_copy,
+            
             is_own: arg.is_own,
             is_comptime_const: false,  // Function args are not comptime constants
         });
@@ -1231,7 +1231,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         match &inner_e.node_type {
             NodeType::EnumDef(enum_def) => {
                 context.scope_stack.declare_enum(decl.name.clone(), enum_def.clone());
-                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: true });
+                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: true });
                 // Update scope_stack with namespace FuncDefs so interpreter uses desugared versions
                 for (name, ns_value_expr) in &enum_def.ns.default_values {
                     if let NodeType::FuncDef(func_def) = &ns_value_expr.node_type {
@@ -1263,7 +1263,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
             context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
                 value_type: value_type.clone(),
                 is_mut: decl.is_mut,
-                is_copy: decl.is_copy,
+                
                 is_own: decl.is_own,
                 is_comptime_const: true,
             });
@@ -1386,7 +1386,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
         value_type: value_type.clone(),
         is_mut: decl.is_mut,
-        is_copy: decl.is_copy,
+        
         is_own: decl.is_own,
         is_comptime_const,
     });
@@ -1425,7 +1425,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
     // run eval_declaration to store the instance in EvalHeap so ccodegen can find it.
     // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
-    if at_global_scope && !decl.is_mut && !decl.is_copy && !decl.is_own && !new_params.is_empty() && is_comptime_evaluable(context, &new_params[0])? {
+    if at_global_scope && !decl.is_mut && !decl.is_own && !new_params.is_empty() && is_comptime_evaluable(context, &new_params[0])? {
         if let ValueType::TCustom(ref custom_type_name) = &value_type {
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
             if custom_type_name != "I64" && custom_type_name != "U8" && custom_type_name != "Str" {
@@ -1480,7 +1480,7 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
         value_type: ValueType::TCustom(type_name),
         is_mut: false,
-        is_copy: false,
+        
         is_own: false,
         is_comptime_const: false,
     });
@@ -1522,7 +1522,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo {
             value_type: ValueType::TType(TTypeDef::TStructDef),
             is_mut: false,
-            is_copy: false,
+            
             is_own: false,
             is_comptime_const: false,
         });
@@ -1535,7 +1535,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     context.scope_stack.declare_symbol(member_full_name, SymbolInfo {
                         value_type: member_value_type,
                         is_mut: member_decl.is_mut,
-                        is_copy: member_decl.is_copy,
+                        
                         is_own: member_decl.is_own,
                         is_comptime_const: false,
                     });
@@ -1561,7 +1561,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             name: temp_name.clone(),
             value_type: ValueType::TType(TTypeDef::TStructDef),
             is_mut: false,
-            is_copy: false,
+            
             is_own: false,
             default_value: None,
         };

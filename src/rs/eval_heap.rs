@@ -302,7 +302,7 @@ impl EvalHeap {
         ctx.scope_stack.declare_symbol(id.to_string(), SymbolInfo {
             value_type: ValueType::TCustom(custom_type_name.to_string()),
             is_mut: true,
-            is_copy: false,
+            
             is_own: false,
             is_comptime_const: false,
         });
@@ -357,7 +357,7 @@ impl EvalHeap {
                                     let nested_symbol = SymbolInfo {
                                         value_type: ValueType::TCustom(type_name.clone()),
                                         is_mut: true,
-                                        is_copy: false,
+                                        
                                         is_own: false,
                                         is_comptime_const: false,
                                     };
@@ -371,7 +371,7 @@ impl EvalHeap {
                                     let nested_symbol = SymbolInfo {
                                         value_type: ValueType::TCustom(type_name.clone()),
                                         is_mut: true,
-                                        is_copy: false,
+                                        
                                         is_own: false,
                                         is_comptime_const: false,
                                     };
@@ -418,7 +418,7 @@ impl EvalHeap {
             result.symbols.push(SymbolEntry { name: combined_name, info: SymbolInfo {
                 value_type: decl.value_type.clone(),
                 is_mut,
-                is_copy: false,
+                
                 is_own: false,
                 is_comptime_const: false,
             }});
@@ -478,7 +478,7 @@ impl EvalHeap {
                 result.symbols.push(SymbolEntry { name: combined_name.clone(), info: SymbolInfo {
                     value_type: decl.value_type.clone(),
                     is_mut,
-                    is_copy: false,
+                    
                     is_own: false,
                     is_comptime_const: false,
                 }});
@@ -491,7 +491,7 @@ impl EvalHeap {
                             ctx.scope_stack.declare_symbol(combined_name.clone(), SymbolInfo {
                                 value_type: ValueType::TCustom(type_name.clone()),
                                 is_mut: true,
-                                is_copy: false,
+                                
                                 is_own: false,
                                 is_comptime_const: false,
                             });
@@ -1021,7 +1021,7 @@ impl EvalHeap {
                     frame.symbols.insert(temp_id.clone(), SymbolInfo {
                         value_type: ValueType::TCustom("Str".to_string()),
                         is_mut: false,
-                        is_copy: false,
+                        
                         is_own: false,
                         is_comptime_const: false,
                     });

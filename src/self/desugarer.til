@@ -55,7 +55,7 @@ make_if : func(own cond: Expr, own then_body: Expr, else_body_ptr: Ptr, line: I6
 
 /// Create a variable declaration with initializer
 make_decl : func(name: Str, value_type: ValueType, is_mut: Bool, own init: Expr, line: I64, col: I64) returns Expr = {
-    decl := Declaration(name=name, value_type=value_type, is_mut=is_mut, is_copy=false, is_own=false)
+    decl := Declaration(name=name, value_type=value_type, is_mut=is_mut, is_own=false)
     mut params := Vec.new(Expr)
     params.push(own init)
     return Expr.new_explicit(NodeType.Declaration(decl), params, line, col)
@@ -579,7 +579,7 @@ build_case_condition : proc(
                 name=unique_name,
                 value_type=vt,
                 is_mut=true,
-                is_copy=false,
+                
                 is_own=false,
                 default_value=Ptr()
             )
@@ -734,7 +734,7 @@ build_case_condition : proc(
                             name=inner_var_name,
                             value_type=nested_vt,
                             is_mut=true,
-                            is_copy=false,
+                            
                             is_own=false,
                             default_value=Ptr()
                         )
@@ -1001,7 +1001,7 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                     own SymbolInfo(
                         value_type=payload_vt,
                         is_mut=true,
-                        is_copy=false,
+                        
                         is_own=false,
                         is_comptime_const=false
                     )
@@ -1891,7 +1891,7 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
                 own SymbolInfo(
                     value_type=arg.value_type,
                     is_mut=arg.is_mut,
-                    is_copy=arg.is_copy,
+                    
                     is_own=arg.is_own,
                     is_comptime_const=false
                 )
@@ -2011,7 +2011,7 @@ desugar_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             own SymbolInfo(
                 value_type=decl.value_type,
                 is_mut=decl.is_mut,
-                is_copy=decl.is_copy,
+                
                 is_own=decl.is_own,
                 is_comptime_const=false
             )
