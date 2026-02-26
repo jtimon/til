@@ -1240,6 +1240,25 @@ emit_arg_string_dynamic : proc(arg: Expr, mut hoist_output: Str, indent: I64, in
                     // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
                     return format("(", TIL_PREFIX, "Dynamic*)", resolve_var_name(name, ctx, context))
                 }
+                // Issue #91: Function names are C functions, not variables.
+                // &function gives the code address, not a pointer variable.
+                // Hoist to temp so memcpy copies the pointer VALUE.
+                func_sym := context.scope_stack.lookup_symbol(name)?
+                switch func_sym.value_type {
+                case ValueType.TFunction(_):
+                    temp := next_mangled(ctx)
+                    hoist_output.push_str(indent_str)
+                    hoist_output.push_str("void* ")
+                    hoist_output.push_str(temp)
+                    hoist_output.push_str(" = (void*)")
+                    hoist_output.push_str(til_name(name))
+                    hoist_output.push_str(";\n")
+                    return format("(", TIL_PREFIX, "Dynamic*)&", temp)
+                case:
+                }
+                catch (err: KeyNotFoundError) {
+                    // Symbol not found -- fall through to lvalue path
+                }
             }
         case:
         }

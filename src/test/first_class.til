@@ -340,11 +340,20 @@ test_vec_func_ptrs : proc() = {
 
     assert_eq(loc(), 3, ops.len())
 
-    // TODO: retrieve and call function pointers from Vec
-    // op := cast(BinaryIntOp, ops.get(0)?)
-    // assert_eq(loc(), 8, op(3, 5))
+    // Retrieve and call function pointers from Vec
+    op0 := cast(BinaryIntOp, ops.get(0)?)
+    assert_eq(loc(), 8, op0(3, 5))
+    op1 := cast(BinaryIntOp, ops.get(1)?)
+    assert_eq(loc(), 6, op1(10, 4))
+    op2 := cast(BinaryIntOp, ops.get(2)?)
+    assert_eq(loc(), 15, op2(3, 5))
 
     ops.delete()
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        exit(1)
+    }
 }
 test_vec_func_ptrs()
 

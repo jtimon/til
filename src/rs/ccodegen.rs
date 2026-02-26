@@ -1030,6 +1030,21 @@ fn emit_arg_string(
                         // Bug #168: resolve_var_name maps ret_var_alias to "_ret"
                         return Ok(format!("({}Dynamic*){}", TIL_PREFIX, resolve_var_name(name, ctx, context)));
                     }
+                    // Issue #91: Function names are C functions, not variables.
+                    // &function gives the code address, not a pointer variable.
+                    // Hoist to temp so memcpy copies the pointer VALUE.
+                    if let Some(sym) = context.scope_stack.lookup_symbol(name) {
+                        if matches!(sym.value_type, ValueType::TFunction(_)) {
+                            let temp = next_mangled(ctx);
+                            hoist_output.push_str(&_indent_str);
+                            hoist_output.push_str("void* ");
+                            hoist_output.push_str(&temp);
+                            hoist_output.push_str(" = (void*)");
+                            hoist_output.push_str(&til_name(name));
+                            hoist_output.push_str(";\n");
+                            return Ok(format!("({}Dynamic*)&{}", TIL_PREFIX, temp));
+                        }
+                    }
                 }
             }
             // Pure lvalue (simple var or field access) - emit with & directly
