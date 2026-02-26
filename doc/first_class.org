@@ -95,10 +95,11 @@ Point := struct { mut x: I64 = 0, mut y: I64 = 0 }   // infers StructDef
 Color := enum { Red, Green, Blue }                      // infers EnumDef
 BinaryOp := func(I64, I64) returns I64                  // infers FuncSig
 
-// Function definitions: the type IS the signature, the value IS the body
-add : func(a: I64, b: I64) returns I64 = {
-    return a.add(b)
-}
+// Function definitions: FuncDef literal (type inferred as FuncDef)
+add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+// Or with explicit FuncSig as type (FuncSig form)
+add : func(I64, I64) returns I64 = (a, b) { return a.add(b) }
 #+END_SRC
 
 ** The Type hierarchy
@@ -153,38 +154,31 @@ Vec.new(Type)       // Vec of any type definition
 ~:=~ infers the type from the RHS. Explicit types are always allowed but
 never required for declarations:
 
-| Declaration                         | Inferred type                   |
-|-------------------------------------+---------------------------------|
-| ~x := 5~                            | ~I64~                           |
-| ~name := "hello"~                   | ~Str~                           |
-| ~Point := struct { ... }~           | ~StructDef~ (or ~Type~)         |
-| ~Color := enum { ... }~             | ~EnumDef~ (or ~Type~)           |
-| ~BinaryOp := func(I64, I64) ret I64~ | ~FuncSig~ (or ~Type~) (no body) |
+| Declaration                                                | Inferred type |
+|------------------------------------------------------------+---------------|
+| ~x := 5~                                                  | ~I64~         |
+| ~name := "hello"~                                         | ~Str~         |
+| ~Point := struct { ... }~                                  | ~StructDef~   |
+| ~Color := enum { ... }~                                    | ~EnumDef~     |
+| ~BinaryOp := func(I64, I64) returns I64~                   | ~FuncSig~     |
+| ~add := func(a: I64, b: I64) returns I64 { return ... }~  | ~FuncDef~     |
 
-Function *definitions* (with body) are instances, not type definitions.
-The signature IS the type, so ~:=~ (type inference) does not apply:
-#+BEGIN_SRC til
-// CORRECT: signature is the type, body is the value
-add : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+The distinction between FuncSig and FuncDef mirrors struct/enum:
+- ~Point := struct { ... }~ defines a *type* (infers StructDef)
+- ~p := Point(x=10)~ creates an *instance* (infers Point)
+- ~BinaryOp := func(I64, I64) returns I64~ defines a *type* (infers FuncSig)
+- ~add := func(a: I64, b: I64) returns I64 { ... }~ creates an *instance* (infers FuncDef)
 
-// WRONG: := means "infer the type", but the signature already IS the type
-add := func(a: I64, b: I64) returns I64 { return a.add(b) }  // error
-#+END_SRC
+A bodyless func/proc is a FuncSig (type definition). A bodied func/proc is a
+FuncDef (value). The presence of a body (and parameter names) distinguishes them.
 
-This parallels how struct/enum work: ~Point := struct { ... }~ defines a *type*
-(infers StructDef). ~p := Point(x=10)~ creates an *instance* (infers Point).
-For functions: ~BinaryOp := func(I64, I64) returns I64~ defines a *type*
-(infers FuncSig). ~add : func(a: I64, b: I64) returns I64 = { ... }~ creates
-an *instance* where the signature is explicitly stated as the type.
-
-The only place where types are NOT inferred is function signatures.
 Parameters always require explicit types:
 #+BEGIN_SRC til
 // REQUIRED: explicit types in function parameters
-add : func(a: I64, b: I64) returns I64 = { ... }
+add := func(a: I64, b: I64) returns I64 { ... }
 
 // NOT ALLOWED: inferred parameter types
-add : func(a, b) returns I64 = { ... }  // error
+add := func(a, b) returns I64 { ... }  // error
 #+END_SRC
 
 This is a deliberate design decision. TIL has ~Dynamic~ and ~Type~ as special
@@ -213,12 +207,17 @@ BinaryOp := func(a: I64, b: I64) returns I64  // same type, names are documentat
 A bodyless func/proc is a *type definition* (a ~FuncSig~, which is a ~Type~).
 A bodied func/proc is a *value* (an instance of its ~FuncSig~).
 
-** Definition: normal form vs sugar
+** Definition: FuncSig form vs FuncDef form
 
-The canonical (normal) form separates types from parameter names:
+There are two ways to define a function, reflecting the two metatypes:
+
+*** FuncSig form
+
+The type between ~:~ and ~=~ is a FuncSig (pure types, no names). The value
+after ~=~ provides argument names and body:
 
 #+BEGIN_SRC til
-// Normal form: type has no names, names are in the value with (a, b)
+// FuncSig form: type is the signature, value is names + body
 add : func(I64, I64) returns I64 = (a, b) {
     return a.add(b)
 }
@@ -229,54 +228,63 @@ add : BinaryOp = (a, b) {
 }
 #+END_SRC
 
-But writing types and names separately is tedious for inline definitions.
-Sugar form merges names into the type position:
+This is the explicit form -- the FuncSig is the type, the rest is the value.
+Internally, FuncSig always stores just types -- parameter names live in the
+body binding.
+
+*** FuncDef form
+
+The whole ~func(names: Types) returns Type { body }~ is a FuncDef literal,
+just as ~struct { ... }~ is a StructDef literal:
 
 #+BEGIN_SRC til
-// Sugar form: names merged into signature (most common, current TIL syntax)
-add : func(a: I64, b: I64) returns I64 = {
-    return a.add(b)
-}
+// FuncDef form: the whole thing is a FuncDef literal, type inferred
+add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+// Same with explicit metatype:
+add : FuncDef = func(a: I64, b: I64) returns I64 { return a.add(b) }
 #+END_SRC
 
-The parser transforms the sugar form into the normal form by extracting
-parameter names from the signature and producing the ~(a, b)~ binding in
-the AST. The rest of the pipeline (typer, interpreter, ccodegen) only ever
-sees the normal form.
+This is the natural way to define a function. The literal includes names
+and body -- it is the same syntax used for lambdas (anonymous FuncDef
+literals). ~:=~ infers the type as FuncDef, just as ~Point := struct { ... }~
+infers StructDef.
 
-All three forms are equivalent:
+*** Equivalence
+
+All forms produce the same result:
 #+BEGIN_SRC til
-// 1. Sugar: names in type position (most common)
-add : func(a: I64, b: I64) returns I64 = { return a.add(b) }
+// 1. FuncDef form: FuncDef literal (type inferred)
+add := func(a: I64, b: I64) returns I64 { return a.add(b) }
 
-// 2. Normal form: names separated
+// 2. FuncSig form: explicit signature as type
 add : func(I64, I64) returns I64 = (a, b) { return a.add(b) }
 
-// 3. Named type alias
+// 3. FuncSig form with named alias
 add : BinaryOp = (a, b) { return a.add(b) }
 #+END_SRC
 
-Forms 2 and 3 are the same thing (with or without an alias). Form 1 is
-syntax sugar that desugars to form 2. Internally, FuncSig always stores
-just types -- parameter names live in the body binding.
+Forms 2 and 3 are the same (with or without a type alias). Form 1 is the
+FuncDef literal form -- the parser extracts argument names and body to
+produce the same internal representation.
 
 ** More examples
 #+BEGIN_SRC til
-// With throws
+// With throws -- FuncSig form:
 parse : func(Str) returns Ast throws ParseError = (s) {
     // ...
 }
-// Sugar form:
-parse : func(s: Str) returns Ast throws ParseError = {
+// FuncDef form:
+parse := func(s: Str) returns Ast throws ParseError {
     // ...
 }
 
-// Proc
+// Proc -- FuncSig form:
 greet : proc(Str) = (name) {
     println("hello", name)
 }
-// Sugar form:
-greet : proc(name: Str) = {
+// FuncDef form:
+greet := proc(name: Str) {
     println("hello", name)
 }
 #+END_SRC
@@ -307,10 +315,11 @@ get_op : func(which: Str) returns BinaryOp = {
 
 ** Anonymous functions (inline)
 #+BEGIN_SRC til
+// Anonymous FuncDef literal (lambda):
 apply(func(a: I64, b: I64) returns I64 { return a.add(b) }, 3, 5)
 
-// Or assigned to a variable:
-double : func(a: I64) returns I64 = { return a.mul(2) }
+// Same syntax works for named definitions (FuncDef form):
+double := func(a: I64) returns I64 { return a.mul(2) }
 #+END_SRC
 
 ** Stored in collections
@@ -369,8 +378,8 @@ part of the type identity. ~func(a: I64, b: I64) returns I64~ and
 
 ** Lambda functions (anonymous inline functions)
 
-Lambda functions are anonymous function values passed directly as arguments.
-With the sugar form, they look like current TIL functions without a name:
+Lambda functions are anonymous FuncDef literals passed directly as arguments.
+They use the same syntax as named FuncDef definitions, just without a name:
 
 #+BEGIN_SRC til
 Transformer := func(I64) returns I64
@@ -386,15 +395,15 @@ map : func(v: Vec(I64), f: Transformer) returns Vec(I64) = {
 
 numbers := Vec.from(1, 2, 3, 4, 5)
 
-// Lambda: anonymous function passed inline (sugar form)
+// Lambda: anonymous FuncDef literal passed inline
 doubled := numbers.map(func(a: I64) returns I64 { return a.mul(2) })
 // [2, 4, 6, 8, 10]
 
-// Same in normal form (type separated from param name)
+// Same in FuncSig form (type separated from param name)
 doubled := numbers.map(func(I64) returns I64 = (a) { return a.mul(2) })
 
 // Named function works too, of course
-double : func(a: I64) returns I64 = { return a.mul(2) }
+double := func(a: I64) returns I64 { return a.mul(2) }
 doubled := numbers.map(double)
 #+END_SRC
 
@@ -433,7 +442,7 @@ scale := 3
 scaled := numbers.map(func(a: I64) returns I64 [scale] { return a.mul(scale) })
 // [3, 6, 9, 12, 15]
 
-// Normal form equivalent:
+// FuncSig form equivalent:
 scaled := numbers.map(func(I64) returns I64 = (a) [scale] { return a.mul(scale) })
 
 // Named closure:
