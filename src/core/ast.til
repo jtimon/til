@@ -483,6 +483,7 @@ TTypeDef := enum {
     TEnumDef,
     TStructDef,
     TFuncSig,
+    TFuncDef,
 }
 
 ValueType := enum {

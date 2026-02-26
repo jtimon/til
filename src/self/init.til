@@ -858,6 +858,8 @@ metatype_matches : func(declared: ValueType, inferred: ValueType) returns Bool =
                 return name.eq("EnumDef")
             case TTypeDef.TFuncSig:
                 return name.eq("FuncSig")
+            case TTypeDef.TFuncDef:
+                return name.eq("FuncDef")
             }
         case:
             return false

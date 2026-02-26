@@ -32,6 +32,7 @@ pub fn value_type_to_str(arg_type: &ValueType) -> String {
         ValueType::TType(TTypeDef::TEnumDef) => "enum".to_string(),
         ValueType::TType(TTypeDef::TStructDef) => "struct".to_string(),
         ValueType::TType(TTypeDef::TFuncSig) => "FunctionSig".to_string(),
+        ValueType::TType(TTypeDef::TFuncDef) => "FunctionDef".to_string(),
         ValueType::TFunction(ftype) => match ftype {
             FunctionType::FTFunc | FunctionType::FTFuncExt => "func".to_string(),
             FunctionType::FTProc | FunctionType::FTProcExt => "proc".to_string(),
@@ -50,6 +51,7 @@ pub fn str_to_value_type(arg_type: &str) -> ValueType {
         "enum" => ValueType::TType(TTypeDef::TEnumDef),
         "struct" => ValueType::TType(TTypeDef::TStructDef),
         "FunctionSig" => ValueType::TType(TTypeDef::TFuncSig),
+        "FunctionDef" => ValueType::TType(TTypeDef::TFuncDef),
         type_name => ValueType::TCustom(type_name.to_string()),
     }
 }

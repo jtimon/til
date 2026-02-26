@@ -255,6 +255,7 @@ pub enum TTypeDef {
     TEnumDef,
     TStructDef,
     TFuncSig,
+    TFuncDef,
 }
 
 #[derive(Debug, Clone, PartialEq)]

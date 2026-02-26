@@ -50,11 +50,13 @@ static inline til_FunctionType til_FunctionType_make_FTProcExt(void) { return ti
 
 typedef enum {
     til_TTypeDef_TEnumDef = 0,
-    til_TTypeDef_TFuncSig = 1,
-    til_TTypeDef_TStructDef = 2,
+    til_TTypeDef_TFuncDef = 1,
+    til_TTypeDef_TFuncSig = 2,
+    til_TTypeDef_TStructDef = 3,
 } til_TTypeDef;
 
 static inline til_TTypeDef til_TTypeDef_make_TEnumDef(void) { return til_TTypeDef_TEnumDef; }
+static inline til_TTypeDef til_TTypeDef_make_TFuncDef(void) { return til_TTypeDef_TFuncDef; }
 static inline til_TTypeDef til_TTypeDef_make_TFuncSig(void) { return til_TTypeDef_TFuncSig; }
 static inline til_TTypeDef til_TTypeDef_make_TStructDef(void) { return til_TTypeDef_TStructDef; }
 
@@ -706,6 +708,7 @@ static inline til_Str til_NodeType_to_str(const til_NodeType* e) {
 static inline til_Str til_TTypeDef_to_str(const til_TTypeDef* e) {
     switch(*e) {
         case til_TTypeDef_TEnumDef: return ((til_Str){((til_Ptr){(til_I64)"TTypeDef.TEnumDef", 1, 0, 0, 0}), 17, 0});
+        case til_TTypeDef_TFuncDef: return ((til_Str){((til_Ptr){(til_I64)"TTypeDef.TFuncDef", 1, 0, 0, 0}), 17, 0});
         case til_TTypeDef_TFuncSig: return ((til_Str){((til_Ptr){(til_I64)"TTypeDef.TFuncSig", 1, 0, 0, 0}), 17, 0});
         case til_TTypeDef_TStructDef: return ((til_Str){((til_Ptr){(til_I64)"TTypeDef.TStructDef", 1, 0, 0, 0}), 19, 0});
     }

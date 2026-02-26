@@ -61,6 +61,8 @@ value_type_to_str : func(arg_type: ValueType) returns Str = {
         return "struct"
     case ValueType.TType(TTypeDef.TFuncSig):
         return "FunctionSig"
+    case ValueType.TType(TTypeDef.TFuncDef):
+        return "FunctionDef"
     case ValueType.TFunction(FunctionType.FTFunc):
         return "func"
     case ValueType.TFunction(FunctionType.FTFuncExt):
@@ -98,6 +100,9 @@ str_to_value_type : func(arg_type: Str) returns ValueType = {
     }
     if arg_type.eq("FunctionSig") {
         return ValueType.TType(TTypeDef.TFuncSig)
+    }
+    if arg_type.eq("FunctionDef") {
+        return ValueType.TType(TTypeDef.TFuncDef)
     }
     // Default: custom type
     return ValueType.TCustom(arg_type)

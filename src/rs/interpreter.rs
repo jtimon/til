@@ -1417,6 +1417,11 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                 },
             }
         },
+        ValueType::TType(TTypeDef::TFuncDef) => {
+            // Issue #91: FuncDef metatype (placeholder for future first-class function definitions)
+            context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_own: declaration.is_own, is_comptime_const: false });
+            return Ok(EvalResult::new(""))
+        },
         ValueType::TMulti(_) => {
             return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}'",
                                                 &declaration.name, value_type_to_str(&declaration.value_type))))
@@ -1592,7 +1597,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
             }
         },
 
-        ValueType::TType(TTypeDef::TEnumDef) | ValueType::TType(TTypeDef::TFuncSig) | ValueType::TMulti(_) => {
+        ValueType::TType(TTypeDef::TEnumDef) | ValueType::TType(TTypeDef::TFuncSig) | ValueType::TType(TTypeDef::TFuncDef) | ValueType::TMulti(_) => {
             Err(e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' of type '{}'.", &var_name, value_type_to_str(&value_type))))
         },
     }

@@ -575,6 +575,7 @@ fn metatype_matches(declared: &ValueType, inferred: &ValueType) -> bool {
         (ValueType::TCustom(name), ValueType::TType(TTypeDef::TStructDef)) if name == "StructDef" => true,
         (ValueType::TCustom(name), ValueType::TType(TTypeDef::TEnumDef)) if name == "EnumDef" => true,
         (ValueType::TCustom(name), ValueType::TType(TTypeDef::TFuncSig)) if name == "FuncSig" => true,
+        (ValueType::TCustom(name), ValueType::TType(TTypeDef::TFuncDef)) if name == "FuncDef" => true,
         _ => false,
     }
 }
@@ -1656,6 +1657,11 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
                             return Ok(errors);
                         },
                     }
+                },
+
+                ValueType::TType(TTypeDef::TFuncDef) => {
+                    // Issue #91: FuncDef metatype (placeholder for future first-class function definitions)
+                    context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_own: decl.is_own, is_comptime_const: false });
                 },
 
                 ValueType::TMulti(_) | ValueType::TCustom(_) => {

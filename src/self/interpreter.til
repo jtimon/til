@@ -1245,6 +1245,10 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
         case:
             throw e.lang_error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type 'FunctionSig', expected func definition."))
         }
+    case ValueType.TType(TTypeDef.TFuncDef):
+        // Issue #91: FuncDef metatype (placeholder for future first-class function definitions)
+        context.scope_stack.declare_symbol(own declaration.name.clone(), own SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_own=declaration.is_own, is_comptime_const=false))?
+        return EvalResult.new("")
     case ValueType.TType(TTypeDef.TStructDef):
         switch inner_e.node_type {
         case NodeType.StructDef(struct_def):
@@ -1563,6 +1567,8 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
     case ValueType.TType(TTypeDef.TEnumDef):
         throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of type '", value_type_to_str(value_type), "'."))
     case ValueType.TType(TTypeDef.TFuncSig):
+        throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of type '", value_type_to_str(value_type), "'."))
+    case ValueType.TType(TTypeDef.TFuncDef):
         throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of type '", value_type_to_str(value_type), "'."))
     case ValueType.TMulti(types):
         throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of type '", value_type_to_str(value_type), "'."))
@@ -2546,6 +2552,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                                 case TTypeDef.TStructDef:
                                     is_struct_def = true
                                 case TTypeDef.TFuncSig:
+                                case TTypeDef.TFuncDef:
                                 }
                             case:
                             }
@@ -2900,6 +2907,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                     case TTypeDef.TStructDef:
                         mut_arg_is_struct_def = true
                     case TTypeDef.TFuncSig:
+                    case TTypeDef.TFuncDef:
                     }
                 case:
                 }
@@ -3004,6 +3012,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
                         case TTypeDef.TEnumDef:
                             copy_ret_is_enum_def = true
                         case TTypeDef.TFuncSig:
+                        case TTypeDef.TFuncDef:
                         }
                     case:
                     }
