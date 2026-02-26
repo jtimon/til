@@ -6782,6 +6782,18 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 }
             }
 
+            // Issue #175: Intercept non-throwing _ret FCalls in return expression
+            if let NodeType::FCall(_) = return_expr.node_type {
+                if let Some(fd) = get_fcall_func_def(context, return_expr) {
+                    if fcall_uses_out_ret(&fd, context) && detect_variadic_fcall(return_expr, ctx)?.is_none() {
+                        emit_ret_call(return_expr, &fd, None, Some("*_ret"), output, indent, ctx, context)?;
+                        output.push_str(&indent_str);
+                        output.push_str("return 0;\n");
+                        return Ok(());
+                    }
+                }
+            }
+
             // Bug #143: Use emit_arg_string to handle hoisting
             let return_str = emit_arg_string(return_expr, None, false, output, indent, ctx, context)?;
 
@@ -6863,6 +6875,15 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str(&indent_str);
                     output.push_str("return;\n");
                     return Ok(());
+                }
+                // Issue #175: Intercept non-throwing _ret FCalls in return expression
+                if let Some(fd) = get_fcall_func_def(context, return_expr) {
+                    if fcall_uses_out_ret(&fd, context) && detect_variadic_fcall(return_expr, ctx)?.is_none() {
+                        emit_ret_call(return_expr, &fd, None, Some("*_ret"), output, indent, ctx, context)?;
+                        output.push_str(&indent_str);
+                        output.push_str("return;\n");
+                        return Ok(());
+                    }
                 }
             }
 

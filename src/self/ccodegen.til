@@ -5725,7 +5725,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                 }
             }
             catch (err: KeyNotFoundError) {
-                // Not a function call, continue
+                // REM: not a user-defined function call, fall through
             }
         }
 
@@ -5767,7 +5767,7 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
                 }
             }
             catch (err: KeyNotFoundError) {
-                // Not a function call, continue
+                // REM: not a user-defined function call, fall through to emit_expr
             }
         }
 
@@ -8341,6 +8341,34 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 }
             }
 
+            // Issue #175: Intercept non-throwing _ret FCalls in return expression
+            switch thr_return_expr.node_type {
+            case NodeType.FCall(_):
+                mut thr_ret_fd_found := false
+                mut thr_ret_fd := FuncDef()
+                dont_delete(thr_ret_fd)
+                thr_ret_fd = get_fcall_func_def(context, thr_return_expr)?
+                thr_ret_fd_found = true
+                catch (err: KeyNotFoundError) {
+                    // REM: not a user-defined function (ext or builtin), skip optimization
+                }
+                if thr_ret_fd_found.and(fcall_uses_out_ret(thr_ret_fd, context)) {
+                    mut thr_ret_is_variadic := false
+                    thr_ret_vi := detect_variadic_fcall(thr_return_expr, ctx)?
+                    thr_ret_is_variadic = not(thr_ret_vi.elem_type.is_empty())
+                    catch (err: KeyNotFoundError) {
+                        // REM: not a variadic function
+                    }
+                    if not(thr_ret_is_variadic) {
+                        emit_ret_call(thr_return_expr, thr_ret_fd, "", "*_ret", output, indent, ctx, context)?
+                        output.push_str(indent_str)
+                        output.push_str("return 0;\n")
+                        return
+                    }
+                }
+            case:
+            }
+
             // Bug #143: Use emit_arg_string to handle hoisting
             return_str := emit_arg_string(thr_return_expr, Ptr(), false, output, indent, ctx, context)?
 
@@ -8483,6 +8511,21 @@ emit_return : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     output.push_str(indent_str)
                     output.push_str("return;\n")
                     return
+                }
+                // Issue #175: Intercept non-throwing _ret FCalls in return expression
+                if nv_thr_fd_found.and(fcall_uses_out_ret(nv_thr_fd, context)) {
+                    mut nv_ret_is_variadic := false
+                    nv_ret_vi := detect_variadic_fcall(return_expr, ctx)?
+                    nv_ret_is_variadic = not(nv_ret_vi.elem_type.is_empty())
+                    catch (err: KeyNotFoundError) {
+                        // REM: not a variadic function
+                    }
+                    if not(nv_ret_is_variadic) {
+                        emit_ret_call(return_expr, nv_thr_fd, "", "*_ret", output, indent, ctx, context)?
+                        output.push_str(indent_str)
+                        output.push_str("return;\n")
+                        return
+                    }
                 }
             case:
             }
