@@ -5752,15 +5752,19 @@ emit_stmts : proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCont
             }
         }
 
-        // Issue #175: Intercept non-throwing _ret FCalls in declarations
-        // Uses dest_ptr to write directly to destination, avoiding temp-to-var copy
-        // Only declarations (not assignments) because assignment targets may alias function args
+        // Issue #175: Intercept non-throwing _ret FCalls in declarations/assignments
+        // Uses dest_ptr to write directly to destination, avoiding temp-to-var copy.
+        // Assignments to fields (name contains '.') are excluded because the dest_ptr
+        // can alias function arguments (e.g. cloned.ptr = _alloc_ptr(cloned, cap)).
         if maybe_fcall_found {
             ret_fd := get_fcall_func_def(context, maybe_fcall)?
-            if fcall_uses_out_ret(ret_fd, context).and(not(maybe_decl_name.is_empty())) {
-                emit_ret_call(maybe_fcall, ret_fd, maybe_decl_name, "", output, effective_indent, ctx, context)?
-                i.inc()
-                continue
+            if fcall_uses_out_ret(ret_fd, context) {
+                safe_assign := not(maybe_assign_name.is_empty()).and(not(maybe_assign_name.contains(".")))
+                if not(maybe_decl_name.is_empty()).or(safe_assign) {
+                    emit_ret_call(maybe_fcall, ret_fd, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)?
+                    i.inc()
+                    continue
+                }
             }
             catch (err: KeyNotFoundError) {
                 // Not a function call, continue

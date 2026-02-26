@@ -4692,13 +4692,18 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         }
 
         // Issue #175: Intercept non-throwing _ret FCalls in declarations/assignments
-        // Uses dest_ptr to write directly to destination, avoiding temp-to-var copy
+        // Uses dest_ptr to write directly to destination, avoiding temp-to-var copy.
+        // Assignments to fields (name contains '.') are excluded because the dest_ptr
+        // can alias function arguments (e.g. cloned.ptr = _alloc_ptr(cloned, cap)).
         if let Some(fcall) = maybe_fcall {
             if let Some(fd) = get_fcall_func_def(context, fcall) {
-                if fcall_uses_out_ret(&fd, context) && maybe_decl_name.is_some() {
-                    emit_ret_call(fcall, &fd, maybe_decl_name.as_deref(), None, output, effective_indent, ctx, context)?;
-                    i += 1;
-                    continue;
+                if fcall_uses_out_ret(&fd, context) {
+                    let safe_assign = maybe_assign_name.as_ref().map(|n| !n.contains('.')).unwrap_or(false);
+                    if maybe_decl_name.is_some() || safe_assign {
+                        emit_ret_call(fcall, &fd, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
+                        i += 1;
+                        continue;
+                    }
                 }
             }
         }
