@@ -8,6 +8,47 @@ Everything in TIL is a value. Functions, structs, enums -- they can all be
 assigned, passed, returned, and stored. The syntax should reflect this
 uniformity.
 
+** Some types have literal syntax
+
+Some types in TIL have special literal syntax:
+
+| Type        | Literal syntax                              | Value type   |
+|-------------+---------------------------------------------+--------------|
+| ~I64~       | ~69~                                        | I64          |
+| ~U8~        | ~5~ (with type annotation)                  | U8           |
+| ~Str~       | ~"hello"~                                   | Str          |
+| ~StructDef~ | ~struct { mut x: I64 = 0 }~                 | StructDef    |
+| ~EnumDef~   | ~enum { Red, Green, Blue }~                 | EnumDef      |
+| ~FuncSig~   | ~func(I64, I64) returns I64 {}~              | FuncSig      |
+| ~FuncDef~   | ~func(a: I64, b: I64) returns I64 { ... }~  | FuncDef      |
+
+Many types do NOT have literal syntax: ~Bool~ uses constants (~true~, ~false~),
+user-defined structs use struct literals (~Point { x = 1, y = 2 }~), and types
+like ~Vec~, ~Map~, ~Arena~ are instantiated via ~.new()~.
+
+The key insight for first-class types is that ~struct { ... }~ is a literal
+that produces a StructDef value, just as ~69~ is a literal that produces an I64
+value. This means type definitions can appear anywhere a value can: as function
+arguments, in collections, as return values.
+
+#+BEGIN_SRC til
+// These are all the same pattern: name := literal
+x := 69
+name := "hello"
+Point := struct { mut x: I64 = 0, mut y: I64 = 0 }
+Color := enum { Red, Green, Blue }
+BinaryOp := func(I64, I64) returns I64 {}
+
+// And since they're values, they can go anywhere values go:
+mut defs := Vec.new(StructDef)
+defs.push(own struct { mut x: I64 = 0, mut y: I64 = 0 })
+#+END_SRC
+
+For the compiler, this means the codegen emits type definition literals as
+compound literals of their runtime struct type (e.g. ~til_StructDef~ for a
+struct literal, with its ~members~ Vec, ~default_values~ Map, and ~ns~
+NamespaceDef populated).
+
 * Current vs Proposed Syntax
 
 ** Current (asymmetric)
