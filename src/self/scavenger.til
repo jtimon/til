@@ -36,7 +36,23 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
             if name.len().gt(0).and(name.find(".").lt(0)) {
                 // Check if this is a struct constructor
                 if context.scope_stack.has_struct(name) {
-                    _ := used_types.insert(own name)
+                    _ := used_types.insert(own name.clone())
+                }
+            }
+            // Issue #105/#106: Introspection calls - struct_def_of("TypeName") / enum_def_of("TypeName")
+            // The string literal argument refers to a type that must be kept
+            if name.eq("struct_def_of").or(name.eq("enum_def_of")) {
+                if e.params.len().gt(1) {
+                    e1 := cast(Expr, e.params.get(1)?)
+                    switch e1.node_type {
+                    case NodeType.LLiteral(lit):
+                        switch lit {
+                        case Literal.Str(itn):
+                            _ := used_types.insert(own itn.clone())
+                        case:
+                        }
+                    case:
+                    }
                 }
             }
         }

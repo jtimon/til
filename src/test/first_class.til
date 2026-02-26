@@ -122,18 +122,17 @@ test_vec_struct_instances : proc() = {
 }
 test_vec_struct_instances()
 
-// TODO: Vec of StructDef (type definitions as values)
-// Depends on struct_def_of working in compiled mode
-// test_vec_structdef : proc() = {
-//     mut defs := Vec.new(StructDef)
-//     point_def := struct_def_of("Point")
-//     defs.push(own point_def)
-//     color_def := struct_def_of("Color")
-//     defs.push(own color_def)
-//     assert_eq(loc(), 2, defs.len())
-//     defs.delete()
-// }
-// test_vec_structdef()
+// Vec of StructDef (type definitions as values)
+test_vec_structdef : proc() = {
+    mut defs := Vec.new(StructDef)
+    point_def := struct_def_of("Point")
+    defs.push(own point_def)
+    color_def := struct_def_of("Color")
+    defs.push(own color_def)
+    assert_eq(loc(), 2, defs.len())
+    defs.delete()
+}
+test_vec_structdef()
 
 // TODO: Anonymous struct as inline argument
 // expand_anon_struct_fcalls_recursive doesn't handle StructDef inside
@@ -205,18 +204,17 @@ test_vec_enum_instances : proc() = {
 }
 test_vec_enum_instances()
 
-// TODO: Vec of EnumDef (type definitions as values)
-// Depends on enum_def_of working in compiled mode
-// test_vec_enumdef : proc() = {
-//     mut defs := Vec.new(EnumDef)
-//     dir_def := enum_def_of("Direction")
-//     defs.push(own dir_def)
-//     shape_def := enum_def_of("Shape")
-//     defs.push(own shape_def)
-//     assert_eq(loc(), 2, defs.len())
-//     defs.delete()
-// }
-// test_vec_enumdef()
+// Vec of EnumDef (type definitions as values)
+test_vec_enumdef : proc() = {
+    mut defs := Vec.new(EnumDef)
+    dir_def := enum_def_of("Direction")
+    defs.push(own dir_def)
+    shape_def := enum_def_of("Shape")
+    defs.push(own shape_def)
+    assert_eq(loc(), 2, defs.len())
+    defs.delete()
+}
+test_vec_enumdef()
 
 // TODO: Anonymous enum as inline argument to non-macro functions
 // test_vec_enumdef_anon : proc() = {
