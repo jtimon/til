@@ -865,10 +865,23 @@ hoist_variadic_args : proc(elem_type: Str, variadic_args: Vec, already_hoisted: 
             // Need to hoist into a temp
             // Bug #143: Use emit_arg_string to properly handle nested FCalls that need by-ref
             arg_str := emit_arg_string(arg, Ptr(), false, output, indent, ctx, context)?
-            // Issue #175: If the FCall used _ret, arg_str is already a hoisted
-            // lvalue temp - use it directly without a second copy
-            is_hoisted := fcall_expr_is_hoisted(arg, context)
-            if is_hoisted {
+            // Issue #175: If the arg is already a C lvalue (identifier, field access,
+            // _ret FCall result), use it directly without creating a temp copy.
+            mut is_lvalue := false
+            switch arg.node_type {
+            case NodeType.FCall(_):
+                is_lvalue = fcall_expr_is_hoisted(arg, context)
+            case NodeType.Identifier(_):
+                is_lvalue = is_pure_lvalue(arg, context)
+            case NodeType.LLiteral(hva_lit):
+                switch hva_lit {
+                case Literal.Str(_):
+                    is_lvalue = true
+                case:
+                }
+            case:
+            }
+            if is_lvalue {
                 arg_temps.push(own arg_str.clone())
             } else {
                 temp_var := next_mangled(ctx)
