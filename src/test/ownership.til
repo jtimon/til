@@ -1,12 +1,12 @@
 mode test
 
-consume : proc(own n: I64) = {
+consume := proc(own n: I64) {
     if n.eq(0) {
         assert(loc(), false)
     }
 }
 
-test_use_after_own : proc() = {
+test_use_after_own := proc() {
     mut x := 42
     consume(own x) // TODO #185: Should error: own keyword missing for owned arg
     // println("x after:", I64.to_str(x))  // TODO #185: Should error: x consumed by consume()

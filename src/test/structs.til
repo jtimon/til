@@ -17,21 +17,21 @@ MyStruct := struct {
 
     // FIXED: Type checker now correctly catches these errors!
     // Commented out to allow tests to pass - these were intentionally buggy test cases
-    // to_string : proc(self: MyStruct) returns Str = {
+    // to_string := proc(self: MyStruct) returns Str {
     //     todo("implement MyStruct.to_string()")
     //     return ""
     // }
     //
-    // unchecked_associated : func() returns I64 = {
+    // unchecked_associated := func() returns I64 {
     //     return my_undefined_symbol // FIXED: Now caught at type checking phase!
     // }
     //
-    // unchecked_method : func(ms: MyStruct) returns I64 = {
+    // unchecked_method := func(ms: MyStruct) returns I64 {
     //     return my_undefined_symbol // FIXED: Now caught at type checking phase!
     // }
 }
 
-test_my_struct : proc() = {
+test_my_struct := proc() {
     test(loc(), MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
 
     v := Vec2(x=1, y=2)
@@ -84,7 +84,7 @@ Vec2 := struct {
     mut y : I64 = 0
 
 namespace:
-    add_all_coordinates : func(self: Vec2) returns I64 = {
+    add_all_coordinates := func(self: Vec2) returns I64 {
         return self.x.add(self.y)
     }
 }
@@ -98,7 +98,7 @@ Vec3 := struct {
 // my_struct_type := MyStruct
 // trying_dot_struct2 : Bool = MyStruct.bool_field.ccccc // TODO implement nested structs
 
-test_structs : proc() = {
+test_structs := proc() {
     _my_empty_struct := EmptyStruct() // NOTE: empty instantiations are allowed
     my_vec2 := Vec2(x=40, y=2)
     assert_eq(loc(), 42, Vec2.add_all_coordinates(my_vec2)) // associated functions using fields
@@ -129,11 +129,11 @@ test_structs()
 // Test that struct default values maintain purity rules
 // Default values can call funcs but not procs (to keep constructors pure)
 
-pure_func : func() returns I64 = {
+pure_func := func() returns I64 {
     return 42
 }
 
-impure_proc : proc() returns I64 = {
+impure_proc := proc() returns I64 {
     println("Side effect!")
     return 99
 }
@@ -178,7 +178,7 @@ U8Struct := struct {
 }
 
 // Test 3: Function return types must match
-returns_i64 : func() returns I64 = {
+returns_i64 := func() returns I64 {
     return 123
 }
 
@@ -186,7 +186,7 @@ FuncReturnStruct := struct {
     mut value1: I64 = returns_i64()
 }
 
-test_struct_member_types : proc() = {
+test_struct_member_types := proc() {
     // Test purity
     mut purity := PurityTestStruct()
     assert_eq(loc(), 10, purity.value1)
@@ -220,7 +220,7 @@ test_struct_member_types : proc() = {
     // Test 5: The following should fail type check (wrong function return type)
     // Uncomment to test error detection:
     //
-    // returns_str : func() returns Str = {
+    // returns_str := func() returns Str {
     //     return "string result"
     // }
     //
@@ -244,32 +244,32 @@ TestAssociatedFunctions := struct {
 
 namespace:
     // Using "self" as parameter name (conventional)
-    get_value_self : func(self: TestAssociatedFunctions) returns I64 = {
+    get_value_self := func(self: TestAssociatedFunctions) returns I64 {
         return self.value
     }
 
     // Using "urmum" as parameter name (unconventional but valid)
-    get_value_urmum : func(urmum: TestAssociatedFunctions) returns I64 = {
+    get_value_urmum := func(urmum: TestAssociatedFunctions) returns I64 {
         return urmum.value
     }
 
     // Using "instance" as parameter name
-    get_value_instance : func(instance: TestAssociatedFunctions) returns I64 = {
+    get_value_instance := func(instance: TestAssociatedFunctions) returns I64 {
         return instance.value
     }
 
     // Type parameter doesn't have to be first - but then UFCS won't work for it
-    add_with_instance_last : func(amount: I64, instance: TestAssociatedFunctions) returns I64 = {
+    add_with_instance_last := func(amount: I64, instance: TestAssociatedFunctions) returns I64 {
         return instance.value.add(amount)
     }
 
     // Type parameter in the middle
-    add_with_instance_middle : func(amount1: I64, instance: TestAssociatedFunctions, amount2: I64) returns I64 = {
+    add_with_instance_middle := func(amount1: I64, instance: TestAssociatedFunctions, amount2: I64) returns I64 {
         return instance.value.add(amount1).add(amount2)
     }
 }
 
-test_associated_function_names : proc() = {
+test_associated_function_names := proc() {
     mut obj := TestAssociatedFunctions()
     obj.value = 42
 
@@ -297,7 +297,7 @@ test_associated_function_names()
 // === Struct Literals Tests ===
 // Struct instantiation with named field values
 
-test_struct_literals : proc() = {
+test_struct_literals := proc() {
     // Default constructor (already works)
     p1 := Vec2()
     assert_eq(loc(), 0, p1.x)
@@ -339,11 +339,11 @@ ChainedInner := struct {
     mut value: I64 = 42
 }
 
-get_chained_inner : func() returns ChainedInner = {
+get_chained_inner := func() returns ChainedInner {
     return ChainedInner()
 }
 
-test_chained_field_access : proc() = {
+test_chained_field_access := proc() {
     // After get_chained_inner() returns ChainedInner, access .value
     result := get_chained_inner().value
     assert_eq(loc(), 42, result)
@@ -357,7 +357,7 @@ test_chained_field_access()
 // === Issue #105: First-class structs (macro-returned struct definitions) ===
 
 // Macro that returns a simple struct definition
-make_point : macro() returns struct = {
+make_point := macro() returns struct {
     return struct {
         mut x: I64 = 0
         mut y: I64 = 0
@@ -367,7 +367,7 @@ make_point : macro() returns struct = {
 Point := make_point()
 
 // Macro returning a struct with mixed field types
-make_config : macro() returns struct = {
+make_config := macro() returns struct {
     return struct {
         mut width: I64 = 800
         mut height: I64 = 600
@@ -379,7 +379,7 @@ Config := make_config()
 
 // TODO #105: Immutable-only fields from macro fail in compiled mode
 // Codegen doesn't emit constants for macro-expanded structs
-// make_constants : macro() returns struct = {
+// make_constants := macro() returns struct {
 //     return struct {
 //         pi_approx: I64 = 3
 //         e_approx: I64 = 2
@@ -390,7 +390,7 @@ Config := make_config()
 // TODO #105: Macro parameters in struct defaults fail
 // Init type-checks struct literal inside macro body before macro expansion,
 // so macro params are "undefined symbol"
-// make_pair_with_default : macro(default_val: I64) returns struct = {
+// make_pair_with_default := macro(default_val: I64) returns struct {
 //     return struct {
 //         mut first: I64 = default_val
 //         mut second: I64 = default_val
@@ -400,7 +400,7 @@ Config := make_config()
 
 // TODO #105: Namespace blocks on macro-defined structs fail
 // Init processes namespaces before macro expansion, so struct isn't registered yet
-// make_vec2 : macro() returns struct = {
+// make_vec2 := macro() returns struct {
 //     return struct {
 //         mut x: I64 = 0
 //         mut y: I64 = 0
@@ -408,12 +408,12 @@ Config := make_config()
 // }
 // MyVec2 := make_vec2()
 // namespace MyVec2 {
-//     sum : func(self: MyVec2) returns I64 = {
+//     sum := func(self: MyVec2) returns I64 {
 //         return self.x.add(self.y)
 //     }
 // }
 
-test_first_class_structs : proc() = {
+test_first_class_structs := proc() {
     // Basic: macro-defined struct works like a normal struct
     p := Point()
     assert_eq(loc(), 0, p.x)
@@ -491,7 +491,7 @@ namespace:
     mut next_id := 0
 }
 
-test_ns_mut_struct := proc() = {
+test_ns_mut_struct := proc() {
     assert_eq(loc(), 0, Counter161.next_id)
     Counter161.next_id = 1
     assert_eq(loc(), 1, Counter161.next_id)

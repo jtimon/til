@@ -5,7 +5,7 @@ import("std.list")
 import("std.map")
 
 // Test Str.clone()
-test_str_clone : proc() = {
+test_str_clone := proc() {
     original := "hello"
     mut cloned := original.clone()
 
@@ -16,7 +16,7 @@ test_str_clone : proc() = {
 test_str_clone()
 
 // Test Array.clone()
-test_array_clone : proc() = {
+test_array_clone := proc() {
     mut original := Array.new(I64, 3)
     original.set(0, own 10)?
     original.set(1, own 20)?
@@ -48,7 +48,7 @@ test_array_clone : proc() = {
 test_array_clone()
 
 // Test Vec.clone()
-test_vec_clone : proc() = {
+test_vec_clone := proc() {
     mut original := Vec.new(I64)
     original.push(own 10)
     original.push(own 20)
@@ -74,7 +74,7 @@ test_vec_clone : proc() = {
 test_vec_clone()
 
 // Test List.clone()
-test_list_clone : proc() = {
+test_list_clone := proc() {
     mut original := List.new()
     original.push(I64, own 42)?
     original.push(Str, own "hello")?
@@ -108,7 +108,7 @@ test_list_clone : proc() = {
 test_list_clone()
 
 // Test Map.clone()
-test_map_clone : proc() = {
+test_map_clone := proc() {
     mut original := Map.new(Str, I64)
     original.insert(own "one", own 1)?
     original.insert(own "two", own 2)?

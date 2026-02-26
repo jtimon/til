@@ -8,7 +8,7 @@ import("self.init")
 // ---------- Type collection helpers
 
 /// Extract type name from a ValueType, if it's a custom or multi type
-extract_type_name : proc(vt: ValueType) returns Str = {
+extract_type_name := proc(vt: ValueType) returns Str {
     switch vt {
     case ValueType.TCustom(name):
         return name.clone()
@@ -21,7 +21,7 @@ extract_type_name : proc(vt: ValueType) returns Str = {
 
 /// Collect all type names used in an expression (declarations, constructors, etc.)
 /// Uses context to look up whether names refer to structs/enums.
-collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: Set) throws Str = {
+collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: Set) throws Str {
     switch e.node_type {
     case NodeType.Declaration(decl):
         type_name := extract_type_name(decl.value_type)
@@ -77,7 +77,7 @@ collect_used_types_from_expr : proc(context: Context, e: Expr, mut used_types: S
 }
 
 /// Collect all type names from a function definition (args, return types, throw types, body)
-collect_used_types_from_func : proc(context: Context, func_def: FuncDef, mut used_types: Set) throws Str = {
+collect_used_types_from_func := proc(context: Context, func_def: FuncDef, mut used_types: Set) throws Str {
     // Collect from arguments
     for arg: Declaration in func_def.sig.args {
         type_name := extract_type_name(arg.value_type)
@@ -108,7 +108,7 @@ collect_used_types_from_func : proc(context: Context, func_def: FuncDef, mut use
 // ---------- Helper functions
 
 /// Issue #108: Rebuild a namespace definition, keeping only reachable methods
-rebuild_namespace_without_unreachable_methods : proc(ns_def: NamespaceDef, type_name: Str, reachable: Set) returns NamespaceDef = {
+rebuild_namespace_without_unreachable_methods := proc(ns_def: NamespaceDef, type_name: Str, reachable: Set) returns NamespaceDef {
     mut new_members := Vec.new(Declaration)
     mut new_default_values := Map.new(Str, Expr)
 
@@ -143,7 +143,7 @@ rebuild_namespace_without_unreachable_methods : proc(ns_def: NamespaceDef, type_
 }
 
 /// Rebuild a struct without unreachable methods
-rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def: StructDef, reachable: Set) returns Expr = {
+rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def: StructDef, reachable: Set) returns Expr {
     struct_name := decl.name
     mut new_members := Vec.new(Declaration)
     mut new_default_values := Map.new(Str, Expr)
@@ -191,7 +191,7 @@ rebuild_struct_without_unreachable_methods : proc(decl: Declaration, struct_def:
 /// When `apply_op(add2, 3, 5)` is called and `apply_op`'s first param is FuncSig-typed,
 /// `add2` is a function reference that must be marked reachable.
 /// Also handles `return add2` where the return type is FuncSig.
-collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) throws Str = {
+collect_func_ptr_references := proc(e: Expr, context: Context, mut refs: Set) throws Str {
     switch e.node_type {
     case NodeType.FCall(_):
         if e.params.len().gt(0) {
@@ -292,7 +292,7 @@ collect_func_ptr_references : proc(e: Expr, context: Context, mut refs: Set) thr
 /// Issue #91: Collect local variable names declared in a function body.
 /// Used to remove them from the called set - local variables that look like
 /// function calls (e.g., `op6(3, 5)` where op6 is a func ptr local) are not functions.
-collect_local_declarations : proc(body: Vec, mut locals: Set) = {
+collect_local_declarations := proc(body: Vec, mut locals: Set) {
     for stmt: Expr in body {
         switch stmt.node_type {
         case NodeType.Declaration(decl):
@@ -312,7 +312,7 @@ collect_local_declarations : proc(body: Vec, mut locals: Set) = {
 }
 
 /// Recursively collect all function names called within an expression.
-collect_called_functions : proc(e: Expr, mut called: Set) throws Str = {
+collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
     switch e.node_type {
     case NodeType.FCall(_):
         // After precomp, function calls have params[0] as Identifier(function_name)
@@ -353,7 +353,7 @@ collect_called_functions : proc(e: Expr, mut called: Set) throws Str = {
 }
 
 /// Get combined name from an identifier expression (handles a.b.c chains)
-get_combined_name_from_identifier : proc(e: Expr) returns Str throws Str = {
+get_combined_name_from_identifier := proc(e: Expr) returns Str throws Str {
     switch e.node_type {
     case NodeType.Identifier(name):
         if e.params.len().eq(0) {
@@ -389,7 +389,7 @@ get_combined_name_from_identifier : proc(e: Expr) returns Str throws Str = {
 }
 
 /// Helper to add a function to both reachable and worklist at the same time
-mark_reachable : proc(func_name: Str, mut reachable: Set, mut worklist: Vec) = {
+mark_reachable := proc(func_name: Str, mut reachable: Set, mut worklist: Vec) {
     if not(reachable.contains(func_name)) {
         _ := reachable.insert(own func_name.clone())
         worklist.push(own func_name.clone())
@@ -399,7 +399,7 @@ mark_reachable : proc(func_name: Str, mut reachable: Set, mut worklist: Vec) = {
 
 /// Recursively register all functions and structs from the AST into context.scope_stack.
 /// This mirrors what the interpreter does - it registers declarations as it walks the AST.
-register_declarations_recursive : proc(mut context: Context, e: Expr) throws Str = {
+register_declarations_recursive := proc(mut context: Context, e: Expr) throws Str {
     switch e.node_type {
     case NodeType.Declaration(decl):
         if e.params.len().gt(0) {
@@ -465,12 +465,12 @@ register_declarations_recursive : proc(mut context: Context, e: Expr) throws Str
 }
 
 /// Register all functions and structs from the AST into context.scope_stack.
-register_declarations : proc(mut context: Context, e: Expr) throws Str = {
+register_declarations := proc(mut context: Context, e: Expr) throws Str {
     register_declarations_recursive(context, e)?
 }
 
 /// Types required by ext.c - these must be kept since ext.c is always included
-get_ext_c_types : proc() returns Vec = {
+get_ext_c_types := proc() returns Vec {
     mut types := Vec.new(Str)
     types.push(own "Bool")
     types.push(own "Str")
@@ -491,7 +491,7 @@ ComputeReachableResult := struct {
 /// Compute the transitive closure of reachable functions starting from roots.
 /// Uses context.scope_stack.lookup_func() to find function bodies.
 /// Returns (reachable_set, used_types_set, needs_variadic_support).
-compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeReachableResult throws Str = {
+compute_reachable := proc(context: Context, roots: Set, e: Expr) returns ComputeReachableResult throws Str {
     mut reachable := Set.new(Str)
     mut used_types := Set.new(Str)
     mut worklist := Vec.new(Str)
@@ -896,7 +896,7 @@ compute_reachable : proc(context: Context, roots: Set, e: Expr) returns ComputeR
 
 /// Remove unused function declarations from the AST.
 /// This runs after precomp, so UFCS is already resolved.
-scavenger_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // DEBUG
 
     // Only process Body nodes at the top level

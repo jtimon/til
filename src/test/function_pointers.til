@@ -30,7 +30,7 @@ add_proc : BinaryIntProc = (a, b) { return a.add(b) }
 assert_eq(loc(), 7, add_proc(3, 4))
 
 // Issue #91: Pass functions as arguments (higher-order)
-apply_op : func(op: BinaryIntOp, a: I64, b: I64) returns I64 = {
+apply_op := func(op: BinaryIntOp, a: I64, b: I64) returns I64 {
     return op(a, b)
 }
 assert_eq(loc(), 8, apply_op(add2, 3, 5))
@@ -43,7 +43,7 @@ assert_eq(loc(), 30, apply_op(multiply, 5, 6))
 
 // Issue #91: Runtime function pointer calls (not constant-foldable)
 // Use a wrapper proc to force runtime dispatch
-test_runtime_dispatch := proc(op: BinaryIntOp, a: I64, b: I64) returns I64 = {
+test_runtime_dispatch := proc(op: BinaryIntOp, a: I64, b: I64) returns I64 {
     return op(a, b)
 }
 assert_eq(loc(), 11, test_runtime_dispatch(add2, 5, 6))
@@ -51,13 +51,13 @@ assert_eq(loc(), 4, test_runtime_dispatch(subtract, 10, 6))
 assert_eq(loc(), 42, test_runtime_dispatch(multiply, 6, 7))
 
 // Multiple function-typed parameters
-apply_two : func(f: BinaryIntOp, g: BinaryIntOp, a: I64, b: I64) returns I64 = {
+apply_two := func(f: BinaryIntOp, g: BinaryIntOp, a: I64, b: I64) returns I64 {
     return f(a, g(a, b))
 }
 assert_eq(loc(), 18, apply_two(add2, multiply, 3, 5))
 
 // Nested higher-order: function that takes a function that takes a function
-compose_and_apply : func(outer: BinaryIntOp, inner: BinaryIntOp, a: I64, b: I64) returns I64 = {
+compose_and_apply := func(outer: BinaryIntOp, inner: BinaryIntOp, a: I64, b: I64) returns I64 {
     intermediate := inner(a, b)
     return outer(intermediate, intermediate)
 }
@@ -65,7 +65,7 @@ assert_eq(loc(), 16, compose_and_apply(add2, add2, 3, 5))
 assert_eq(loc(), 225, compose_and_apply(multiply, multiply, 3, 5))
 
 // Issue #91: Returning functions from functions
-get_op : func(which: I64) returns BinaryIntOp = {
+get_op := func(which: I64) returns BinaryIntOp {
     if which.eq(0) { return add2 }
     return subtract
 }
@@ -75,7 +75,7 @@ op2 := get_op(1)
 assert_eq(loc(), 6, op2(10, 4))
 
 // Return function through multiple calls
-get_op2 : func(which: I64) returns BinaryIntOp = {
+get_op2 := func(which: I64) returns BinaryIntOp {
     if which.eq(0) { return add2 }
     if which.eq(1) { return subtract }
     return multiply
@@ -104,7 +104,7 @@ op5 := h2.on_click
 assert_eq(loc(), 6, op5(10, 4))
 
 // Reassign
-test_reassign := proc() = {
+test_reassign := proc() {
     mut h3 := Handler()
     h3.on_click = multiply
     op6 := h3.on_click
@@ -113,7 +113,7 @@ test_reassign := proc() = {
 test_reassign()
 
 // Issue #91: Func ptr passthrough (return param)
-passthrough_op : func(op: BinaryIntOp) returns BinaryIntOp = { return op }
+passthrough_op := func(op: BinaryIntOp) returns BinaryIntOp { return op }
 result_op := passthrough_op(add2)
 assert_eq(loc(), 8, result_op(3, 5))
 result_op2 := passthrough_op(subtract)
@@ -128,7 +128,7 @@ safe_div : ThrowingOp = (a, b) {
     return a.div(b)
 }
 
-test_throwing := proc() = {
+test_throwing := proc() {
     result := safe_div(10, 2)?
     assert_eq(loc(), 5, result)
 

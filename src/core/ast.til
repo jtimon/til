@@ -14,7 +14,7 @@ EnumVariant := struct {
     mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None (no payload)
 
 namespace:
-    clone : func(self: EnumVariant) returns EnumVariant = {
+    clone := func(self: EnumVariant) returns EnumVariant {
         mut result := EnumVariant()
         result.name = self.name.clone()
         if not(NULL.eq(self.payload_type.data)) {
@@ -32,7 +32,7 @@ NamespaceDef := struct {
     mut default_values: Map = Map.new(Str, Expr)
 
 namespace:
-    clone : func(self: NamespaceDef) returns NamespaceDef = {
+    clone := func(self: NamespaceDef) returns NamespaceDef {
         mut result := NamespaceDef()
         // Deep clone members
         for m: Declaration in self.members {
@@ -54,7 +54,7 @@ EnumDef := struct {
     mut ns: NamespaceDef = NamespaceDef()
 
 namespace:
-    clone : func(self: EnumDef) returns EnumDef = {
+    clone := func(self: EnumDef) returns EnumDef {
         mut result := EnumDef()
         // Deep clone: iterate and clone each element
         for v: EnumVariant in self.variants {
@@ -66,16 +66,16 @@ namespace:
         return result
     }
 
-    len : func(self: EnumDef) returns I64 = {
+    len := func(self: EnumDef) returns I64 {
         return self.variants.len()
     }
 
-    size : func(self: EnumDef) returns I64 = {
+    size := func(self: EnumDef) returns I64 {
         return self.variants.size()
     }
 
     // Helper methods for backward compatibility
-    get : func(self: EnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError = {
+    get := func(self: EnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError {
         for v: EnumVariant in self.variants {
             if v.name.eq(variant_name) {
                 return v.payload_type
@@ -84,7 +84,7 @@ namespace:
         throw KeyNotFoundError()
     }
 
-    contains_key : func(self: EnumDef, variant_name: Str) returns Bool = {
+    contains_key := func(self: EnumDef, variant_name: Str) returns Bool {
         for v: EnumVariant in self.variants {
             if v.name.eq(variant_name) {
                 return true
@@ -103,7 +103,7 @@ Declaration := struct {
     mut default_value: Ptr = Ptr()  // Ptr to Expr, NULL = None (for optional function arguments)
 
 namespace:
-    clone : func(self: Declaration) returns Declaration = {
+    clone := func(self: Declaration) returns Declaration {
         mut result := Declaration()
         result.name = self.name.clone()
         result.value_type = value_type_clone(self.value_type)
@@ -147,7 +147,7 @@ FuncSig := struct {
     mut throw_types: Vec = Vec.new(ValueType)
 
 namespace:
-    clone : func(self: FuncSig) returns FuncSig = {
+    clone := func(self: FuncSig) returns FuncSig {
         mut result := FuncSig()
         result.function_type = self.function_type
         for arg: Declaration in self.args {
@@ -162,7 +162,7 @@ namespace:
         return result
     }
 
-    is_proc : func(self: FuncSig) returns Bool = {
+    is_proc := func(self: FuncSig) returns Bool {
         ft := self.function_type
         switch ft {
         case FunctionType.FTProc:
@@ -174,7 +174,7 @@ namespace:
         }
     }
 
-    is_ext : func(self: FuncSig) returns Bool = {
+    is_ext := func(self: FuncSig) returns Bool {
         ft := self.function_type
         switch ft {
         case FunctionType.FTFuncExt:
@@ -186,7 +186,7 @@ namespace:
         }
     }
 
-    is_macro : func(self: FuncSig) returns Bool = {
+    is_macro := func(self: FuncSig) returns Bool {
         ft := self.function_type
         switch ft {
         case FunctionType.FTMacro:
@@ -205,7 +205,7 @@ FuncDef := struct {
     mut source_path: Str = ""
 
 namespace:
-    clone : func(self: FuncDef) returns FuncDef = {
+    clone := func(self: FuncDef) returns FuncDef {
         mut result := FuncDef()
         result.sig = self.sig.clone()
         for n: Str in self.arg_names {
@@ -218,15 +218,15 @@ namespace:
         return result
     }
 
-    is_proc : func(self: FuncDef) returns Bool = {
+    is_proc := func(self: FuncDef) returns Bool {
         return self.sig.is_proc()
     }
 
-    is_ext : func(self: FuncDef) returns Bool = {
+    is_ext := func(self: FuncDef) returns Bool {
         return self.sig.is_ext()
     }
 
-    is_macro : func(self: FuncDef) returns Bool = {
+    is_macro := func(self: FuncDef) returns Bool {
         return self.sig.is_macro()
     }
 }
@@ -237,7 +237,7 @@ StructDef := struct {
     mut ns: NamespaceDef = NamespaceDef()
 
 namespace:
-    clone : func(self: StructDef) returns StructDef = {
+    clone := func(self: StructDef) returns StructDef {
         mut result := StructDef()
         // Deep clone members
         for m: Declaration in self.members {
@@ -254,7 +254,7 @@ namespace:
     }
 
     /** Helper to find a member by name */
-    get_member : func(self: StructDef, member_name: Str) returns Declaration throws Str = {
+    get_member := func(self: StructDef, member_name: Str) returns Declaration throws Str {
         for i in 0..self.members.len() {
             member := cast(Declaration, self.members.get(i)?)
             if Str.eq(member.name, member_name) {
@@ -269,7 +269,7 @@ namespace:
     }
 
     /** Helper to find a member by name or return an error */
-    get_member_or_err : func(self: StructDef, member_name: Str, struct_name: Str, path: Str, e: Expr) returns Declaration throws Str = {
+    get_member_or_err := func(self: StructDef, member_name: Str, struct_name: Str, path: Str, e: Expr) returns Declaration throws Str {
         member := self.get_member(member_name)?
         catch (err: Str) {
             throw e.error(path, "type", format("Struct '", struct_name, "' has no member '", member_name, "'"))
@@ -284,7 +284,7 @@ Literal := enum {
     List: Str,  // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
 }
 
-literal_clone : func(lit: Literal) returns Literal = {
+literal_clone := func(lit: Literal) returns Literal {
     switch lit {
     case Literal.Number(s):
         // TODO Bug #56: inline s.clone() should work here
@@ -336,7 +336,7 @@ NodeType := enum {
 
 // Deep clone a NodeType, including all payloads
 // TODO Bug #56: inline clone calls should work in enum payloads
-node_type_clone : func(nt: NodeType) returns NodeType = {
+node_type_clone := func(nt: NodeType) returns NodeType {
     switch nt {
     case NodeType.LLiteral(lit):
         lit_cloned := literal_clone(lit)
@@ -383,19 +383,19 @@ Expr := struct {
     mut col: I64 = 0
 
 namespace:
-    new_explicit : func(node_type: NodeType, params: Vec, line: I64, col: I64) returns Expr = {
+    new_explicit := func(node_type: NodeType, params: Vec, line: I64, col: I64) returns Expr {
         return Expr(node_type=node_type, params=params, line=line, col=col)
     }
 
-    new_clone : func(node_type: NodeType, e: Expr, params: Vec) returns Expr = {
+    new_clone := func(node_type: NodeType, e: Expr, params: Vec) returns Expr {
         return Expr.new_explicit(node_type, params, e.line, e.col)
     }
 
-    len : func(self: Expr) returns I64 = {
+    len := func(self: Expr) returns I64 {
         return self.params.len()
     }
 
-    to_str : func(self: Expr) returns Str = {
+    to_str := func(self: Expr) returns Str {
         mut s := "Expr{"
         switch self.node_type {
         case NodeType.Identifier(name):
@@ -420,11 +420,11 @@ namespace:
         return s
     }
 
-    size : func(_self: Expr) returns I64 = {
+    size := func(_self: Expr) returns I64 {
         return size_of(Expr)
     }
 
-    clone : func(self: Expr) returns Expr = {
+    clone := func(self: Expr) returns Expr {
         // Deep clone: clone node_type and each element in params
         mut cloned_params := Vec.new(Expr)
         for e: Expr in self.params {
@@ -433,7 +433,7 @@ namespace:
         return Expr(node_type=node_type_clone(self.node_type), params=cloned_params, line=self.line, col=self.col)
     }
 
-    exit_error : proc(self: Expr, phase: Str, msg: Str) = {
+    exit_error := proc(self: Expr, phase: Str, msg: Str) {
         line_str := self.line.to_str()
         col_str := self.col.to_str()
         if phase.eq("warning") {
@@ -444,7 +444,7 @@ namespace:
         exit(1)
     }
 
-    lang_error : func(self: Expr, path: Str, phase: Str, msg: Str) returns Str = {
+    lang_error := func(self: Expr, path: Str, phase: Str, msg: Str) returns Str {
         prefix := path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str()).concat(": ")
         suffix := "\nExplanation: This should never happen, this is a bug in the language."
         if phase.eq("warning") {
@@ -453,7 +453,7 @@ namespace:
         return prefix.concat(phase).concat(" ERROR: ").concat(msg).concat(suffix)
     }
 
-    todo_error : func(self: Expr, path: Str, phase: Str, msg: Str) returns Str = {
+    todo_error := func(self: Expr, path: Str, phase: Str, msg: Str) returns Str {
         prefix := path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str()).concat(": ")
         suffix := "\nExplanation: Not implemented yet, this is a missing feature in the language."
         if phase.eq("warning") {
@@ -462,7 +462,7 @@ namespace:
         return prefix.concat(phase).concat(" ERROR: ").concat(msg).concat(suffix)
     }
 
-    error : func(self: Expr, path: Str, phase: Str, msg: Str) returns Str = {
+    error := func(self: Expr, path: Str, phase: Str, msg: Str) returns Str {
         prefix := path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str()).concat(": ")
         if phase.eq("warning") {
             return prefix.concat("WARNING: ").concat(msg)
@@ -470,7 +470,7 @@ namespace:
         return prefix.concat(phase).concat(" ERROR: ").concat(msg)
     }
 
-    params_clone : func(self: Expr) returns Vec = {
+    params_clone := func(self: Expr) returns Vec {
         mut cloned := Vec.new(Expr)
         for elem: Expr in self.params {
             cloned.push(own elem)
@@ -495,7 +495,7 @@ ValueType := enum {
 
 // Deep clone a ValueType, including string payloads
 // TODO Bug #56: inline clone calls should work in enum payloads
-value_type_clone : func(vt: ValueType) returns ValueType = {
+value_type_clone := func(vt: ValueType) returns ValueType {
     switch vt {
     case ValueType.TCustom(s):
         custom_cloned := s.clone()

@@ -51,12 +51,17 @@ multiply : BinaryIntOp = (a, b) { return a.mul(b) }
 UnaryIntOp : FuncSig = func(I64) returns I64 {}
 double : UnaryIntOp = (x) { return x.mul(2) }
 
+// FuncDef declarations -- inferred type (FuncDef form)
+negate := func(x: I64) returns I64 { return x.mul(I64_MINUS1) }
+// Explicit metatype annotation (Issue #91)
+triple : FuncDef = func(x: I64) returns I64 { return x.mul(3) }
+
 // ============================================================
 // Tests: First-Class Structs (Issue #105)
 // ============================================================
 
 // Struct instantiation
-test_struct_instantiation : proc() = {
+test_struct_instantiation := proc() {
     p := Point(x=10, y=20)
     assert_eq(loc(), 10, p.x)
     assert_eq(loc(), 20, p.y)
@@ -74,7 +79,7 @@ test_struct_instantiation : proc() = {
 test_struct_instantiation()
 
 // Anonymous struct instantiation (Issue #105)
-test_anon_struct_instantiation : proc() = {
+test_anon_struct_instantiation := proc() {
     p := struct { mut x: I64 = 0, mut y: I64 = 0 }(x=10, y=20)
     assert_eq(loc(), 10, p.x)
     assert_eq(loc(), 20, p.y)
@@ -83,7 +88,7 @@ test_anon_struct_instantiation()
 
 // Struct introspection (Issue #105)
 import("std.meta")
-test_struct_introspection : proc() = {
+test_struct_introspection := proc() {
     def := struct_def_of("Point")
     mut mut_count := 0
     for i in 0..def.members.len() {
@@ -99,7 +104,7 @@ test_struct_introspection : proc() = {
 test_struct_introspection()
 
 // Vec of struct instances
-test_vec_struct_instances : proc() = {
+test_vec_struct_instances := proc() {
     mut points := Vec.new(Point)
     p1 := Point(x=10, y=20)
     points.push(own p1)
@@ -123,7 +128,7 @@ test_vec_struct_instances : proc() = {
 test_vec_struct_instances()
 
 // Vec of StructDef (type definitions as values)
-test_vec_structdef : proc() = {
+test_vec_structdef := proc() {
     mut defs := Vec.new(StructDef)
     point_def := struct_def_of("Point")
     defs.push(own point_def)
@@ -134,7 +139,7 @@ test_vec_structdef : proc() = {
 }
 test_vec_structdef()
 
-test_vec_structdef_anon : proc() = {
+test_vec_structdef_anon := proc() {
     mut defs := Vec.new(StructDef)
     defs.push(own struct { mut x: I64 = 0, mut y: I64 = 0 })
     assert_eq(loc(), 1, defs.len())
@@ -147,7 +152,7 @@ test_vec_structdef_anon()
 // ============================================================
 
 // Enum instantiation
-test_enum_instantiation : proc() = {
+test_enum_instantiation := proc() {
     d := Direction.North
     switch d {
     case Direction.North: test(loc(), true, "should be North")
@@ -170,7 +175,7 @@ test_enum_instantiation : proc() = {
 test_enum_instantiation()
 
 // Enum introspection (Issue #106)
-test_enum_introspection : proc() = {
+test_enum_introspection := proc() {
     def := enum_def_of("Direction")
     assert_eq(loc(), 4, def.variants.len())
     v0 := cast(EnumVariant, def.variants.get(0)?)
@@ -181,7 +186,7 @@ test_enum_introspection : proc() = {
 test_enum_introspection()
 
 // Vec of enum instances
-test_vec_enum_instances : proc() = {
+test_vec_enum_instances := proc() {
     mut dirs := Vec.new(Direction)
     dirs.push(own Direction.North)
     dirs.push(own Direction.South)
@@ -202,7 +207,7 @@ test_vec_enum_instances : proc() = {
 test_vec_enum_instances()
 
 // Vec of EnumDef (type definitions as values)
-test_vec_enumdef : proc() = {
+test_vec_enumdef := proc() {
     mut defs := Vec.new(EnumDef)
     dir_def := enum_def_of("Direction")
     defs.push(own dir_def)
@@ -213,7 +218,7 @@ test_vec_enumdef : proc() = {
 }
 test_vec_enumdef()
 
-test_vec_enumdef_anon : proc() = {
+test_vec_enumdef_anon := proc() {
     mut defs := Vec.new(EnumDef)
     defs.push(own enum { Red, Green, Blue })
     assert_eq(loc(), 1, defs.len())
@@ -226,10 +231,10 @@ test_vec_enumdef_anon()
 // ============================================================
 
 // Pass functions as arguments
-apply_op : func(op: BinaryIntOp, a: I64, b: I64) returns I64 = {
+apply_op := func(op: BinaryIntOp, a: I64, b: I64) returns I64 {
     return op(a, b)
 }
-test_func_as_arg : proc() = {
+test_func_as_arg := proc() {
     assert_eq(loc(), 8, apply_op(add2, 3, 5))
     assert_eq(loc(), 6, apply_op(subtract, 10, 4))
     assert_eq(loc(), 15, apply_op(multiply, 3, 5))
@@ -237,12 +242,12 @@ test_func_as_arg : proc() = {
 test_func_as_arg()
 
 // Return functions from functions
-get_op : func(which: I64) returns BinaryIntOp = {
+get_op := func(which: I64) returns BinaryIntOp {
     if which.eq(0) { return add2 }
     if which.eq(1) { return subtract }
     return multiply
 }
-test_func_return : proc() = {
+test_func_return := proc() {
     op0 := get_op(0)
     assert_eq(loc(), 8, op0(3, 5))
     op1 := get_op(1)
@@ -253,7 +258,7 @@ test_func_return : proc() = {
 test_func_return()
 
 // Anonymous inline functions (lambdas)
-test_lambda : proc() = {
+test_lambda := proc() {
     assert_eq(loc(), 8, apply_op(func(a: I64, b: I64) returns I64 { return a.add(b) }, 3, 5))
     assert_eq(loc(), 15, apply_op(func(a: I64, b: I64) returns I64 { return a.mul(b) }, 3, 5))
 }
@@ -263,7 +268,7 @@ test_lambda()
 Handler := struct {
     mut on_click: BinaryIntOp = add2
 }
-test_struct_func_field : proc() = {
+test_struct_func_field := proc() {
     // Default value
     h := Handler()
     op := h.on_click
@@ -282,9 +287,24 @@ test_struct_func_field : proc() = {
 }
 test_struct_func_field()
 
+// FuncDef declarations (inferred and explicit metatype)
+test_funcdef_declarations := proc() {
+    // Inferred FuncDef
+    assert_eq(loc(), I64_MINUS1, negate(1))
+    assert_eq(loc(), 5, negate(I64_MINUS1.mul(5)))
+
+    // Explicit FuncDef metatype
+    assert_eq(loc(), 9, triple(3))
+    assert_eq(loc(), 30, triple(10))
+
+    // FuncDef as UnaryIntOp (same signature)
+    assert_eq(loc(), 10, double(5))
+}
+test_funcdef_declarations()
+
 // Func ptr passthrough (return parameter)
-passthrough_op : func(op: BinaryIntOp) returns BinaryIntOp = { return op }
-test_func_passthrough : proc() = {
+passthrough_op := func(op: BinaryIntOp) returns BinaryIntOp { return op }
+test_func_passthrough := proc() {
     result_op := passthrough_op(add2)
     assert_eq(loc(), 8, result_op(3, 5))
     result_op2 := passthrough_op(subtract)
@@ -300,7 +320,7 @@ safe_div : ThrowingOp = (a, b) {
     }
     return a.div(b)
 }
-test_throwing_func_ptr : proc() = {
+test_throwing_func_ptr := proc() {
     result := safe_div(10, 2)?
     assert_eq(loc(), 5, result)
 
@@ -309,7 +329,7 @@ test_throwing_func_ptr : proc() = {
 test_throwing_func_ptr()
 
 // Vec of function pointers (same FuncSig -- different defs implementing BinaryIntOp)
-test_vec_func_ptrs : proc() = {
+test_vec_func_ptrs := proc() {
     mut ops := Vec.new(BinaryIntOp)
     ops.push(own add2)
     ops.push(own subtract)
@@ -332,7 +352,7 @@ test_vec_func_ptrs : proc() = {
 test_vec_func_ptrs()
 
 // TODO: Vec of FuncSig (different signatures stored in same Vec)
-// test_vec_funcsig : proc() = {
+// test_vec_funcsig := proc() {
 //     mut sigs := Vec.new(FuncSig)
 //     // Each element is a different function signature type
 //     sigs.delete()
@@ -340,7 +360,7 @@ test_vec_func_ptrs()
 // test_vec_funcsig()
 
 // TODO: Vec of FuncDef (different function definitions stored in same Vec)
-// test_vec_funcdef : proc() = {
+// test_vec_funcdef := proc() {
 //     mut defs := Vec.new(FuncDef)
 //     // Each element is a different function definition (any signature)
 //     defs.delete()

@@ -8,7 +8,7 @@ import("self.init")
 /// Try to replace compile-time intrinsic calls with literals.
 /// Returns the replaced Expr if it's a compile-time intrinsic, or the original expr if not.
 /// Sets out_replaced to true if replacement happened.
-try_replace_comptime_intrinsic : func(context: Context, e: Expr, mut out_replaced: Bool) returns Expr = {
+try_replace_comptime_intrinsic := func(context: Context, e: Expr, mut out_replaced: Bool) returns Expr {
     out_replaced = false
 
     if e.params.len().eq(0) {

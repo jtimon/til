@@ -5,17 +5,17 @@ mode test
 // Vec.push, the data is shallow-copied. If the caller's variable is later
 // reassigned, the garbager's delete-before-reassignment frees shared data.
 
-store_name : proc(mut v: Vec, own name: Str) = {
+store_name := proc(mut v: Vec, own name: Str) {
     v.push(own name)
 }
 
-make_str : proc(a: Str, b: Str) returns Str = {
+make_str := proc(a: Str, b: Str) returns Str {
     mut result := Str.clone(a)
     result.push_str(b)
     return result
 }
 
-test_own_reassign : proc() = {
+test_own_reassign := proc() {
     mut names := Vec.new(Str)
     mut f_name := make_str("ab", "c")
     store_name(names, own f_name.clone())

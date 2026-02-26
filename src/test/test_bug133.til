@@ -12,7 +12,7 @@
 mode cli
 
 // func that returns Vec - triggers Bug #133 when used in global init
-create_data : func() returns Vec = {
+create_data := func() returns Vec {
     mut v := Vec.new(Str)
     v.push("hello")
     v.push("world")
@@ -22,7 +22,7 @@ create_data : func() returns Vec = {
 // Global initialization - this is what triggers the bug
 data := create_data()
 
-main : proc() = {
+main := proc() {
     println("data len: ", data.len().to_str())
 
     item0 := cast(Str, data.get(0)?)

@@ -1,6 +1,6 @@
 mode test
 
-test_strings : proc() = {
+test_strings := proc() {
     test(loc(), format("Hello, ", "world!").eq("Hello, world!"), "format('Hello, ', 'world!') = 'Hello, world!'")
     assert_eq_str(loc(), "abc", format("a", "b", "c"))
     test(loc(), I64.from_str("123").eq(123), "I64.from_str('123') = 123")

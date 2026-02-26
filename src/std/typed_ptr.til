@@ -14,14 +14,14 @@ import("core.mem")
  *   p.get(result)
  *   p.delete()
  */
-make_typed_ptr : macro(T: Type) returns struct = {
+make_typed_ptr := macro(T: Type) returns struct {
     TemplatedPtr := struct {
         mut data: I64 = 0
         mut is_borrowed: I64 = 0
         mut alloc_size: I64 = 0
 
     namespace:
-        new : proc() returns TemplatedPtr = {
+        new := proc() returns TemplatedPtr {
             mut p := TemplatedPtr()
             p.data = malloc(size_of(T))?
             p.alloc_size = size_of(T)
@@ -30,7 +30,7 @@ make_typed_ptr : macro(T: Type) returns struct = {
             catch (err: BadAlloc) { panic(loc(), "typed_ptr: malloc failed") }
         }
 
-        new_array : proc(count: I64) returns TemplatedPtr = {
+        new_array := proc(count: I64) returns TemplatedPtr {
             total := size_of(T).mul(count)
             mut p := TemplatedPtr()
             p.data = malloc(total)?
@@ -40,7 +40,7 @@ make_typed_ptr : macro(T: Type) returns struct = {
             catch (err: BadAlloc) { panic(loc(), "typed_ptr: malloc failed") }
         }
 
-        delete : func(mut self: TemplatedPtr) = {
+        delete := func(mut self: TemplatedPtr) {
             if NULL.eq(self.data) { return }
             if self.is_borrowed.eq(0) {
                 free(self.data)
@@ -48,15 +48,15 @@ make_typed_ptr : macro(T: Type) returns struct = {
             self.data = NULL
         }
 
-        is_null : func(self: TemplatedPtr) returns Bool = {
+        is_null := func(self: TemplatedPtr) returns Bool {
             return NULL.eq(self.data)
         }
 
-        set : proc(mut self: TemplatedPtr, value: T) = {
+        set := proc(mut self: TemplatedPtr, value: T) {
             memcpy(self.data, to_ptr(value), size_of(T))
         }
 
-        get : proc(self: TemplatedPtr, mut dest: T) = {
+        get := proc(self: TemplatedPtr, mut dest: T) {
             memcpy(to_ptr(dest), self.data, size_of(T))
         }
     }

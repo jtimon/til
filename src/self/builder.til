@@ -26,7 +26,7 @@ ParseFileResult := struct {
     mut mode_def: ModeDef = ModeDef()
 }
 
-parse_file : proc(path: Str) returns ParseFileResult throws Str = {
+parse_file := proc(path: Str) returns ParseFileResult throws Str {
     source := readfile(path)?
     catch (err: ReadError) {
         throw format("Failed to read file '", path, "': ", err.msg)
@@ -64,7 +64,7 @@ parse_file : proc(path: Str) returns ParseFileResult throws Str = {
 
 // Recursively collect all imports from an AST
 // Each file is precompiled with its own path before being added to all_asts
-collect_imports : proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut context: Context) throws Str = {
+collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut context: Context) throws Str {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
@@ -136,7 +136,7 @@ collect_imports : proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut cont
 }
 
 // Merge multiple ASTs into one, filtering out import statements
-merge_asts : proc(main_ast: Expr, dep_asts: Vec) returns Expr = {
+merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr {
     mut all_params := Vec.new(Expr)
 
     // Add dependencies first (in order they were collected)
@@ -175,7 +175,7 @@ merge_asts : proc(main_ast: Expr, dep_asts: Vec) returns Expr = {
     return result
 }
 
-is_import_call : func(expr: Expr) returns Bool = {
+is_import_call := func(expr: Expr) returns Bool {
     switch expr.node_type {
     case NodeType.FCall(_):
         if not(expr.params.is_empty()) {
@@ -197,7 +197,7 @@ is_import_call : func(expr: Expr) returns Bool = {
 }
 
 // Collect import paths from an AST without precompilation (lightweight for deps checking)
-collect_import_paths : proc(ast: Expr, mut collected: Set) = {
+collect_import_paths := proc(ast: Expr, mut collected: Set) {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
@@ -253,7 +253,7 @@ collect_import_paths : proc(ast: Expr, mut collected: Set) = {
 // - core.til and its imports
 // - Mode-specific imports
 // - All transitive imports
-collect_all_deps : proc(path: Str) returns Vec throws Str = {
+collect_all_deps := proc(path: Str) returns Vec throws Str {
     mut deps := Set.new(Str)
 
     // Add main file
@@ -298,7 +298,7 @@ collect_all_deps : proc(path: Str) returns Vec throws Str = {
 // Build a TIL source file with target, lang, and translate_only options
 // Returns the output path (executable or source file)
 // cc: Compiler override (Issue #131). If empty, uses default for target.
-build : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bool) returns Str throws Str = {
+build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bool) returns Str throws Str {
     // Validate lang is supported for target
     validate_lang_for_target(lang, target)?
 

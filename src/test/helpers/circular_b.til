@@ -6,6 +6,6 @@ TypeB := struct {
     mut val: I64 = 0
 }
 
-use_a : func(a: TypeA) returns I64 = {
+use_a := func(a: TypeA) returns I64 {
     return a.val
 }

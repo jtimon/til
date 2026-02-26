@@ -13,7 +13,7 @@ import("std.io")            // readfile, input_read_line
 // ---------- Helper functions
 
 /// Convert a single byte to a 1-character string
-byte_to_str : func(byte: U8) returns Str = {
+byte_to_str := func(byte: U8) returns Str {
     mut s := Str()
     s.c_string = Ptr.new_by_size(2)  // 1 byte + null terminator
     s.c_string.is_borrowed = 0
@@ -26,7 +26,7 @@ byte_to_str : func(byte: U8) returns Str = {
 }
 
 // General whitelist for all modes
-make_allowed_commands : proc() returns Array = {
+make_allowed_commands := proc() returns Array {
     mut arr := Array.new(Str, 9)
     arr.set(0, own "ls")?
     arr.set(1, own "mkdir")?
@@ -43,7 +43,7 @@ make_allowed_commands : proc() returns Array = {
 ALLOWED_COMMANDS := make_allowed_commands()
 
 // More restrictive whitelist for safe_script mode
-make_safe_commands : proc() returns Array = {
+make_safe_commands := proc() returns Array {
     mut arr := Array.new(Str, 2)
     arr.set(0, own "ls")?
     arr.set(1, own "mkdir")?
@@ -60,7 +60,7 @@ SAFE_COMMANDS := make_safe_commands()
 
 // Validates that a function/procedure call has the expected number of arguments.
 // The e.params.len() includes the function name as the first parameter, so we subtract 1.
-validate_arg_count : proc(path: Str, e: Expr, func_name: Str, expected: I64, is_proc: Bool) throws Str = {
+validate_arg_count := proc(path: Str, e: Expr, func_name: Str, expected: I64, is_proc: Bool) throws Str {
     actual := e.params.len().sub(1)  // First param is function name
     if not(actual.eq(expected)) {
         mut func_type := "func"
@@ -74,7 +74,7 @@ validate_arg_count : proc(path: Str, e: Expr, func_name: Str, expected: I64, is_
 // Read a Str value from context (reads c_string and _len from heap)
 // Issue #91: Read a Str value from a raw heap address (e.g., for FuncSig variables from cast)
 // This bypasses the field offset system which requires a known struct type.
-string_from_addr : proc(context: Context, addr: I64) returns Str throws Str = {
+string_from_addr := proc(context: Context, addr: I64) returns Str throws Str {
     // Str layout: c_string (Ptr at offset 0), _len (I64 after Ptr)
     // c_string.data is at offset 0 within Ptr (first field)
     // _len is at offset = size_of(Ptr) within Str (second field after c_string)
@@ -97,7 +97,7 @@ string_from_addr : proc(context: Context, addr: I64) returns Str throws Str = {
     return result
 }
 
-string_from_context : proc(context: Context, id: Str, e: Expr) returns Str throws Str = {
+string_from_context := proc(context: Context, id: Str, e: Expr) returns Str throws Str {
     // Read the c_string.data field (I64 pointer to string data in EvalHeap)
     // Note: c_string is a Ptr struct { data: I64, is_borrowed: I64 }, so we read .data
     c_string_ptr := EvalHeap.get_i64(context, format(id, ".c_string.data"), e)?
@@ -118,7 +118,7 @@ string_from_context : proc(context: Context, id: Str, e: Expr) returns Str throw
 
 // ---------- Core functions - called from interpreter dispatcher
 
-func_loc : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_loc := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "loc", 0, false)?
     file := context.path
     line := e.line
@@ -126,24 +126,24 @@ func_loc : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
     return EvalResult.new(format(file, ":", line.to_str(), ":", col.to_str(), ":"))
 }
 
-func_file : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_file := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "_file", 0, false)?
     return EvalResult.new(context.path)
 }
 
-func_line : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_line := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "_line", 0, false)?
     return EvalResult.new(e.line.to_str())
 }
 
-func_col : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_col := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "_col", 0, false)?
     return EvalResult.new(e.col.to_str())
 }
 
 // ---------- eval memory
 
-func_malloc : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "malloc", 1, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -161,7 +161,7 @@ func_malloc : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     return EvalResult.new(offset.to_str())
 }
 
-func_free : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_free := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "free", 1, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -176,7 +176,7 @@ func_free : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
     return EvalResult.new("")
 }
 
-func_memset : proc(mut context: Context, e: Expr) returns EvalResult throws Str, U8_Overflow = {
+func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str, U8_Overflow {
     validate_arg_count(context.path, e, "memset", 3, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -202,7 +202,7 @@ func_memset : proc(mut context: Context, e: Expr) returns EvalResult throws Str,
     return EvalResult.new("")
 }
 
-func_memcpy : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "memcpy", 3, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -230,7 +230,7 @@ func_memcpy : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     return EvalResult.new("")
 }
 
-func_to_ptr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_to_ptr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "to_ptr", 1, false)?
 
     identifier_expr := cast(Expr, e.params.get(1)?)
@@ -243,7 +243,7 @@ func_to_ptr : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     return EvalResult.new(addr.to_str())
 }
 
-func_size_of : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_size_of := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "size_of", 1, false)?
 
     type_expr := cast(Expr, e.params.get(1)?)
@@ -283,7 +283,7 @@ func_size_of : proc(mut context: Context, e: Expr) returns EvalResult throws Str
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_type_as_str : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_type_as_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "type_as_str", 1, false)?
 
     type_expr := cast(Expr, e.params.get(1)?)
@@ -322,7 +322,7 @@ func_type_as_str : proc(mut context: Context, e: Expr) returns EvalResult throws
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_lt : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_lt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "lt", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -336,7 +336,7 @@ func_lt : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
     return EvalResult.new(a.lt(b).to_str())
 }
 
-func_gt : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_gt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "gt", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -350,7 +350,7 @@ func_gt : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
     return EvalResult.new(a.gt(b).to_str())
 }
 
-func_u8_lt : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_lt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "u8_lt", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -370,7 +370,7 @@ func_u8_lt : proc(mut context: Context, e: Expr) returns EvalResult throws Str =
     return result
 }
 
-func_u8_gt : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_gt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "u8_gt", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -390,7 +390,7 @@ func_u8_gt : proc(mut context: Context, e: Expr) returns EvalResult throws Str =
     return result
 }
 
-func_u8_xor : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_xor := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "u8_xor", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -410,7 +410,7 @@ func_u8_xor : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     return result
 }
 
-func_u8_and : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_and := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "u8_and", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -430,7 +430,7 @@ func_u8_and : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     return result
 }
 
-func_u8_or : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_or := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "u8_or", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -450,7 +450,7 @@ func_u8_or : proc(mut context: Context, e: Expr) returns EvalResult throws Str =
     return result
 }
 
-func_add : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "add", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -464,7 +464,7 @@ func_add : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
     return EvalResult.new(a.add(b).to_str())
 }
 
-func_sub : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_sub := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "sub", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -478,7 +478,7 @@ func_sub : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
     return EvalResult.new(a.sub(b).to_str())
 }
 
-func_mul : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_mul := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "mul", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -492,7 +492,7 @@ func_mul : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
     return EvalResult.new(a.mul(b).to_str())
 }
 
-func_div : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_div := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "div", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -510,7 +510,7 @@ func_div : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
     return EvalResult.new(a.div(b).to_str())
 }
 
-func_mod : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_mod := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "mod", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -529,7 +529,7 @@ func_mod : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
 }
 
 // Bitwise operations - don't really belong in arithmetics, but here for now
-func_i64_xor : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_i64_xor := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "i64_xor", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -543,7 +543,7 @@ func_i64_xor : proc(mut context: Context, e: Expr) returns EvalResult throws Str
     return EvalResult.new(I64.xor(a, b).to_str())
 }
 
-func_i64_and : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_i64_and := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "i64_and", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -557,7 +557,7 @@ func_i64_and : proc(mut context: Context, e: Expr) returns EvalResult throws Str
     return EvalResult.new(I64.and(a, b).to_str())
 }
 
-func_i64_or : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_i64_or := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "i64_or", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -571,7 +571,7 @@ func_i64_or : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_str_to_i64 : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_str_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "str_to_i64", 1, false)?
     e1 := cast(Expr, e.params.get(1)?)
     result := eval_expr(context, e1)?
@@ -581,7 +581,7 @@ func_str_to_i64 : proc(mut context: Context, e: Expr) returns EvalResult throws 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_i64_to_str : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_i64_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "i64_to_str", 1, false)?
     e1 := cast(Expr, e.params.get(1)?)
     result := eval_expr(context, e1)?
@@ -590,7 +590,7 @@ func_i64_to_str : proc(mut context: Context, e: Expr) returns EvalResult throws 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_enum_to_str : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_enum_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "enum_to_str", 1, false)?
     e1 := cast(Expr, e.params.get(1)?)
     result := eval_expr(context, e1)?
@@ -599,7 +599,7 @@ func_enum_to_str : proc(mut context: Context, e: Expr) returns EvalResult throws
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_enum_get_payload : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "enum_get_payload", 3, false)?
     e1 := cast(Expr, e.params.get(1)?)
     result := eval_expr(context, e1)?
@@ -680,7 +680,7 @@ func_enum_get_payload : proc(mut context: Context, e: Expr) returns EvalResult t
 /// - VariantName: the variant whose payload we're accessing (e.g., TType)
 /// - PayloadType: the type of the payload (e.g., TTypeDef)
 /// In interpreter, we just use temp_enum_payload. The extra args are for ccodegen.
-func_enum_get_payload_type : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_enum_get_payload_type := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "enum_get_payload_type", 3, false)?
     e1 := cast(Expr, e.params.get(1)?)
     result := eval_expr(context, e1)?
@@ -736,7 +736,7 @@ func_enum_get_payload_type : proc(mut context: Context, e: Expr) returns EvalRes
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_u8_to_i64 : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "u8_to_i64", 1, false)?
     e1 := cast(Expr, e.params.get(1)?)
     result := eval_expr(context, e1)?
@@ -746,7 +746,7 @@ func_u8_to_i64 : proc(mut context: Context, e: Expr) returns EvalResult throws S
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_i64_to_u8 : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_i64_to_u8 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "i64_to_u8", 1, false)?
     e1 := cast(Expr, e.params.get(1)?)
     result := eval_expr(context, e1)?
@@ -755,7 +755,7 @@ func_i64_to_u8 : proc(mut context: Context, e: Expr) returns EvalResult throws S
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_u8_add : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "U8_add", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -771,7 +771,7 @@ func_u8_add : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_u8_sub : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_sub := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "U8_sub", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -787,7 +787,7 @@ func_u8_sub : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_u8_mul : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_mul := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "U8_mul", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -803,7 +803,7 @@ func_u8_mul : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_u8_div : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_div := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "U8_div", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -822,7 +822,7 @@ func_u8_div : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_u8_mod : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_u8_mod := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "U8_mod", 2, false)?
     e1 := cast(Expr, e.params.get(1)?)
     a_result := eval_expr(context, e1)?
@@ -846,7 +846,7 @@ func_u8_mod : proc(mut context: Context, e: Expr) returns EvalResult throws Str 
 // Note: If this prints an Array instead of a Str, check that single_print is declared
 // as `ext_proc(s: Str)` not `ext_proc(args: ..Str)` in core.til. Variadic wrapping
 // bypasses validate_arg_count by passing args as a single Array. (Bug #30)
-proc_single_print : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_single_print := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "single_print", 1, true)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -858,14 +858,14 @@ proc_single_print : proc(mut context: Context, e: Expr) returns EvalResult throw
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-proc_print_flush : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_print_flush := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "print_flush", 0, true)?
     print_flush()
     return EvalResult.new("")
 }
 
 // Bug #98: Now throws ReadError instead of Str
-proc_input_read_line : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_input_read_line := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "input_read_line", 1, true)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -885,7 +885,7 @@ proc_input_read_line : proc(mut context: Context, e: Expr) returns EvalResult th
 }
 
 // Bug #98: Now throws ReadError instead of returning empty string
-proc_readfile : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_readfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "readfile", 1, true)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -906,7 +906,7 @@ proc_readfile : proc(mut context: Context, e: Expr) returns EvalResult throws St
 }
 
 // Bug #98: Now throws WriteError instead of panicking
-proc_writefile : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_writefile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "writefile", 2, true)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -937,7 +937,7 @@ proc_writefile : proc(mut context: Context, e: Expr) returns EvalResult throws S
 // In mode safe_script, only whitelisted commands are allowed (configurable).
 // In other modes, arbitrary commands can be executed - use with caution.
 // Returns exit code as I64, output is written to mut output_str arg
-proc_run_cmd : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     // run_cmd(mut output_str, args...) - runs a command with arguments
     // First arg is mut output string, second is command, remaining are args
     // Returns exit code as I64
@@ -1001,7 +1001,7 @@ proc_run_cmd : proc(mut context: Context, e: Expr) returns EvalResult throws Str
 
 // ---------- Introspection functions
 
-func_has_const : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_has_const := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "has_const", 2, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1029,7 +1029,7 @@ func_has_const : proc(mut context: Context, e: Expr) returns EvalResult throws S
     return EvalResult.new("false")
 }
 
-func_has_field : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_has_field := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "has_field", 2, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1059,7 +1059,7 @@ func_has_field : proc(mut context: Context, e: Expr) returns EvalResult throws S
 
 // ---------- Struct introspection functions (Issue #105)
 
-func_struct_field_count : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_struct_field_count := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "__struct_field_count", 1, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1076,7 +1076,7 @@ func_struct_field_count : proc(mut context: Context, e: Expr) returns EvalResult
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_struct_field_name : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_struct_field_name := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "__struct_field_name", 2, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1105,7 +1105,7 @@ func_struct_field_name : proc(mut context: Context, e: Expr) returns EvalResult 
     }
 }
 
-func_struct_field_is_mut : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_struct_field_is_mut := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "__struct_field_is_mut", 2, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1138,7 +1138,7 @@ func_struct_field_is_mut : proc(mut context: Context, e: Expr) returns EvalResul
     }
 }
 
-func_struct_field_type_kind : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_struct_field_type_kind := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "__struct_field_type_kind", 2, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1176,7 +1176,7 @@ func_struct_field_type_kind : proc(mut context: Context, e: Expr) returns EvalRe
     }
 }
 
-func_struct_field_type_arg : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_struct_field_type_arg := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "__struct_field_type_arg", 2, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1216,7 +1216,7 @@ func_struct_field_type_arg : proc(mut context: Context, e: Expr) returns EvalRes
 
 // ---------- Enum introspection functions (Issue #106)
 
-func_enum_variant_count : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_enum_variant_count := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "__enum_variant_count", 1, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1233,7 +1233,7 @@ func_enum_variant_count : proc(mut context: Context, e: Expr) returns EvalResult
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_enum_variant_name : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_enum_variant_name := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "__enum_variant_name", 2, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1262,7 +1262,7 @@ func_enum_variant_name : proc(mut context: Context, e: Expr) returns EvalResult 
     }
 }
 
-func_enum_variant_has_payload : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_enum_variant_has_payload := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "__enum_variant_has_payload", 2, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1295,7 +1295,7 @@ func_enum_variant_has_payload : proc(mut context: Context, e: Expr) returns Eval
     }
 }
 
-func_enum_variant_payload_type : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_enum_variant_payload_type := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "__enum_variant_payload_type", 2, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1339,7 +1339,7 @@ func_enum_variant_payload_type : proc(mut context: Context, e: Expr) returns Eva
     }
 }
 
-func_exit : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_exit := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "exit", 1, false)?
 
     e_exit_code := cast(Expr, e.params.get(1)?)
@@ -1364,7 +1364,7 @@ func_exit : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
 
 // ---------- Process spawning functions
 
-proc_spawn_cmd : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_spawn_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "spawn_cmd", 1, true)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1383,7 +1383,7 @@ proc_spawn_cmd : proc(mut context: Context, e: Expr) returns EvalResult throws S
     return EvalResult.new(pid.to_str())
 }
 
-proc_check_cmd_status : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_check_cmd_status := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "check_cmd_status", 1, true)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1397,7 +1397,7 @@ proc_check_cmd_status : proc(mut context: Context, e: Expr) returns EvalResult t
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-proc_sleep : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_sleep := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "sleep", 1, true)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1416,7 +1416,7 @@ proc_sleep : proc(mut context: Context, e: Expr) returns EvalResult throws Str =
     return EvalResult.new("")
 }
 
-proc_get_thread_count : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_get_thread_count := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "get_thread_count", 0, true)?
 
     // Call host-provided get_thread_count (when running on rstil)
@@ -1425,7 +1425,7 @@ proc_get_thread_count : proc(mut context: Context, e: Expr) returns EvalResult t
     return EvalResult.new(count.to_str())
 }
 
-func_file_mtime : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_file_mtime := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "file_mtime", 1, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1441,7 +1441,7 @@ func_file_mtime : proc(mut context: Context, e: Expr) returns EvalResult throws 
 }
 
 // Bug #98: Now throws IOError instead of returning empty string
-func_list_dir_raw : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_list_dir_raw := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "list_dir_raw", 1, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1459,7 +1459,7 @@ func_list_dir_raw : proc(mut context: Context, e: Expr) returns EvalResult throw
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-func_fs_parent_dir : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+func_fs_parent_dir := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "fs_parent_dir", 1, false)?
 
     e1 := cast(Expr, e.params.get(1)?)
@@ -1474,7 +1474,7 @@ func_fs_parent_dir : proc(mut context: Context, e: Expr) returns EvalResult thro
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-proc_fs_mkdir_p : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_fs_mkdir_p := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "fs_mkdir_p", 1, true)?
 
     e1 := cast(Expr, e.params.get(1)?)

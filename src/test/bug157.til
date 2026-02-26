@@ -7,14 +7,14 @@ Wrapper := struct {
     mut value: I64 = 0
 }
 
-get_wrapper : func(should_fail: Bool) returns Wrapper throws Str = {
+get_wrapper := func(should_fail: Bool) returns Wrapper throws Str {
     if should_fail {
         throw "failed"
     }
     return Wrapper(value=42)
 }
 
-test_field_access_on_throwing_call : proc() = {
+test_field_access_on_throwing_call := proc() {
     // Bug #157: field access on throwing call in declaration
     // This generates invalid C without the fix
     val := get_wrapper(false)?.value

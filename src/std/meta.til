@@ -4,25 +4,25 @@ import("core.vec")
 
 // Metaprogramming and introspection utilities
 
-enum_to_str : ext_func(e: Dynamic) returns Str = {}
-enum_get_payload : ext_func(e: Dynamic, payload_type: Type, mut out: Dynamic) = {}
-enum_get_payload_type : ext_func(e: Dynamic, variant_name: Type, payload_type: Type) returns Str = {}
+enum_to_str := ext_func(e: Dynamic) returns Str {}
+enum_get_payload := ext_func(e: Dynamic, payload_type: Type, mut out: Dynamic) {}
+enum_get_payload_type := ext_func(e: Dynamic, variant_name: Type, payload_type: Type) returns Str {}
 
-eval_to_str     : ext_proc(a: Str) returns Str = {}
-eval_to_ast_str : ext_proc(src: Str) returns Str = {}  // TODO
-eval_to_expr    : ext_proc(src: Str) returns Expr = {} // TODO
-eval_file       : ext_proc(args: ..Str) = {}
+eval_to_str     := ext_proc(a: Str) returns Str {}
+eval_to_ast_str := ext_proc(src: Str) returns Str {}  // TODO
+eval_to_expr    := ext_proc(src: Str) returns Expr {} // TODO
+eval_file       := ext_proc(args: ..Str) {}
 
 // Struct introspection primitives (Issue #105)
 // These are low-level ext functions used by struct_def_of in core/ast.til
-__struct_field_count     : ext_func(type_name: Str) returns I64 = {}
-__struct_field_name      : ext_func(type_name: Str, index: I64) returns Str = {}
-__struct_field_is_mut    : ext_func(type_name: Str, index: I64) returns I64 = {}
-__struct_field_type_kind : ext_func(type_name: Str, index: I64) returns Str = {}
-__struct_field_type_arg  : ext_func(type_name: Str, index: I64) returns Str = {}
+__struct_field_count     := ext_func(type_name: Str) returns I64 {}
+__struct_field_name      := ext_func(type_name: Str, index: I64) returns Str {}
+__struct_field_is_mut    := ext_func(type_name: Str, index: I64) returns I64 {}
+__struct_field_type_kind := ext_func(type_name: Str, index: I64) returns Str {}
+__struct_field_type_arg  := ext_func(type_name: Str, index: I64) returns Str {}
 
 // Build a StructDef for the named type by querying scope_stack via ext functions
-struct_def_of : proc(type_name: Str) returns StructDef = {
+struct_def_of := proc(type_name: Str) returns StructDef {
     mut def := StructDef()
     n := __struct_field_count(type_name)
     for i in 0..n {
@@ -46,13 +46,13 @@ struct_def_of : proc(type_name: Str) returns StructDef = {
 }
 
 // Enum introspection primitives (Issue #106)
-__enum_variant_count        : ext_func(type_name: Str) returns I64 = {}
-__enum_variant_name         : ext_func(type_name: Str, index: I64) returns Str = {}
-__enum_variant_has_payload  : ext_func(type_name: Str, index: I64) returns I64 = {}
-__enum_variant_payload_type : ext_func(type_name: Str, index: I64) returns Str = {}
+__enum_variant_count        := ext_func(type_name: Str) returns I64 {}
+__enum_variant_name         := ext_func(type_name: Str, index: I64) returns Str {}
+__enum_variant_has_payload  := ext_func(type_name: Str, index: I64) returns I64 {}
+__enum_variant_payload_type := ext_func(type_name: Str, index: I64) returns Str {}
 
 // Build an EnumDef for the named type by querying scope_stack via ext functions
-enum_def_of : proc(type_name: Str) returns EnumDef = {
+enum_def_of := proc(type_name: Str) returns EnumDef {
     mut def := EnumDef()
     n := __enum_variant_count(type_name)
     for i in 0..n {
@@ -83,11 +83,11 @@ namespace:
     // Check if a type has a specific const (immutable field)
     // This includes associated functions like clone, len, size, etc.
     // Returns true if the const exists, false otherwise
-    has_const : ext_func(type_name: Str, const_name: Str) returns Bool = {}
+    has_const := ext_func(type_name: Str, const_name: Str) returns Bool {}
 
     // Check if a type has a specific mutable field
     // Returns true if the field exists, false otherwise
-    has_field : ext_func(type_name: Str, field_name: Str) returns Bool = {}
+    has_field := ext_func(type_name: Str, field_name: Str) returns Bool {}
 
     // TODO: Future functions to implement:
     // get_consts := ext_func(type_name: Str) returns Vec;

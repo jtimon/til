@@ -15,7 +15,7 @@ OuterEnum := enum {
     TCustom: Str,
 }
 
-test_forin_enum_with_enum_payload : proc() = {
+test_forin_enum_with_enum_payload := proc() {
     mut outer := Vec.new(OuterEnum)
     o1 := OuterEnum.TCustom("test")
     outer.push(o1)

@@ -371,7 +371,7 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     let mut end_found = false;
     let mut return_types : Vec<ValueType> = Vec::new();
     let mut t = lexer.peek();
-    // Issue #91: Don't consume '=' (new syntax: `func() = { body }`)
+    // Issue #91: Don't consume '=' -- FuncSig form: `func(I64) = (a) { body }`
     if t.token_type == TokenType::Equal {
         return Ok(return_types);
     }
@@ -387,7 +387,7 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
                 end_found = true;
                 lexer.advance(1)?;
             },
-            // Issue #91: new syntax `name : func(...) returns T = { body }`
+            // Issue #91: FuncSig form `name : func(...) returns T = (a) { body }`
             TokenType::Equal => {
                 end_found = true;
                 // Don't advance - parse_func_proc_definition handles '='
@@ -458,7 +458,7 @@ fn func_proc_throws(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
                 end_found = true;
                 lexer.advance(1)?;
             },
-            // Issue #91: new syntax `name : func(...) throws E = { body }`
+            // Issue #91: FuncSig form `name : func(...) throws E = (a) { body }`
             TokenType::Equal => {
                 end_found = true;
                 // Don't advance - parse_func_proc_definition handles '='
@@ -546,14 +546,13 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) ->
     let saved_loop_counter = save_loop_var_counter();
     reset_loop_var_counter();
 
-    // Issue #91: Check for new syntax `= (binding) { body }` or `= { body }` vs current `{ body }`
-    // After returns/throws, lexer is either past '{' (current) or at '=' (new)
+    // After returns/throws, lexer is either past '{' (FuncDef form) or at '=' (FuncSig form)
     let next = lexer.peek();
     let body = if next.token_type == TokenType::Equal {
         lexer.advance(1)?; // consume '='
         let after_eq = lexer.peek();
         if after_eq.token_type == TokenType::LeftParen {
-            // Normal form binding tuple: = (a, b) { body }
+            // FuncSig form binding tuple: = (a, b) { body }
             let binding_names = parse_binding_tuple(lexer)?;
             if binding_names.len() != args.len() {
                 restore_loop_var_counter(saved_loop_counter);
@@ -591,35 +590,16 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) ->
                 },
             }
         } else if after_eq.token_type == TokenType::LeftBrace {
-            // Sugar form: = { body } — names already in args from signature
-            // Validate: all params must have names (no type-only params without binding)
-            for arg in &args {
-                if arg.name.is_empty() {
-                    restore_loop_var_counter(saved_loop_counter);
-                    return Err(after_eq.error(&lexer.path,
-                        "Type-only parameters require a binding tuple: = (name, ...) {{ body }}"));
-                }
-            }
-            lexer.advance(1)?; // consume '{'
-            match parse_body(lexer, TokenType::RightBrace) {
-                Ok(body) => {
-                    if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
-                        restore_loop_var_counter(saved_loop_counter);
-                        return Err(t.error(&lexer.path, "ext_func/ext_proc cannot have a body"));
-                    }
-                    body.params
-                },
-                Err(err_str) => {
-                    restore_loop_var_counter(saved_loop_counter);
-                    return Err(err_str);
-                },
-            }
+            // Sugar form removed. Guide user to FuncDef form.
+            restore_loop_var_counter(saved_loop_counter);
+            return Err(after_eq.error(&lexer.path,
+                "Sugar form '= { body }' removed. Use FuncDef form: 'name := func(a: I64) returns I64 { body }'"));
         } else {
             restore_loop_var_counter(saved_loop_counter);
             return Err(after_eq.error(&lexer.path, "Expected '{{' or '(' after '=' in function definition"));
         }
     } else {
-        // Current syntax: '{' already consumed by returns/throws
+        // FuncDef form: '{' already consumed by returns/throws
         match parse_body(lexer, TokenType::RightBrace) {
             Ok(body) => {
                 if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
@@ -1120,12 +1100,13 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                     return parse_declaration(lexer, false, type_name, true)
                 }
                 TokenType::Equal => {
-                    // Issue #91: Allow ':= func(...)' for function signature definitions
-                    // (e.g., BinaryOp := func(I64, I64) returns I64 {})
-                    // Regular functions use 'name : func(...) = { body }' syntax.
+                    // ':=' -- type inferred from RHS (FuncDef, FuncSig, or any expression)
                     return parse_declaration(lexer, false, INFER_TYPE, false)
                 },
-                // Issue #91: name : func(...) = { body }
+                // name : func/proc/ext_func/ext_proc/macro(...) -- FuncDef declaration
+                // Both FuncDef form and FuncSig form go through here:
+                //   FuncDef: name : func(a: I64) returns I64 { body }
+                //   FuncSig: name : func(I64, I64) returns I64 = (a, b) { body }
                 TokenType::Func | TokenType::Proc | TokenType::FuncExt
                 | TokenType::ProcExt | TokenType::Macro => {
                     let func_type = match next_next_token_type {
@@ -1831,7 +1812,7 @@ fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
             return parse_declaration(lexer, true, type_name, true)
         }
         TokenType::Equal => {
-            // Issue #91: Allow ':= func(...)' for function signature definitions
+            // 'mut name :=' -- type inferred from RHS
             return parse_declaration(lexer, true, INFER_TYPE, false)
         },
         _ => {

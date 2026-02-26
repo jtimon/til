@@ -19,7 +19,7 @@ I64 := struct {
 namespace:
     /** Division that throws DivideByZero when dividing by zero.
      *  Use div() if you want silent behavior (returns 0). */
-    safe_div : func(a: I64, b: I64) returns I64 throws DivideByZero = {
+    safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
         if I64.eq(b, 0) {
             throw DivideByZero()
         }
@@ -28,7 +28,7 @@ namespace:
 
     /** Addition that throws I64_Overflow when overflow occurs.
      *  Use add() if you want silent wrapping behavior. */
-    safe_add : func(a: I64, b: I64) returns I64 throws I64_Overflow = {
+    safe_add := func(a: I64, b: I64) returns I64 throws I64_Overflow {
         result := a.add(b)
         // Overflow detection: adding positive gave smaller, or adding negative gave larger
         if b.gt(0) {
@@ -46,7 +46,7 @@ namespace:
 
     /** Subtraction that throws I64_Overflow when underflow occurs.
      *  Use sub() if you want silent wrapping behavior. */
-    safe_sub : func(a: I64, b: I64) returns I64 throws I64_Overflow = {
+    safe_sub := func(a: I64, b: I64) returns I64 throws I64_Overflow {
         result := a.sub(b)
         // Underflow detection: subtracting positive gave larger, or subtracting negative gave smaller
         if b.gt(0) {
@@ -64,7 +64,7 @@ namespace:
 
     /** Multiplication that throws I64_Overflow when overflow occurs.
      *  Use mul() if you want silent wrapping behavior. */
-    safe_mul : func(a: I64, b: I64) returns I64 throws I64_Overflow = {
+    safe_mul := func(a: I64, b: I64) returns I64 throws I64_Overflow {
         result := a.mul(b)
         // Overflow detection: if a != 0 and result / a != b, overflow occurred
         if not(a.eq(0)) {
@@ -76,54 +76,54 @@ namespace:
     }
 
     // Bitwise operations
-    xor : func(a: I64, b: I64) returns I64 = {
-        i64_xor : ext_func(a: I64, b: I64) returns I64 = {}
+    xor := func(a: I64, b: I64) returns I64 {
+        i64_xor := ext_func(a: I64, b: I64) returns I64 {}
         return i64_xor(a, b)
     }
 
-    and : func(a: I64, b: I64) returns I64 = {
-        i64_and : ext_func(a: I64, b: I64) returns I64 = {}
+    and := func(a: I64, b: I64) returns I64 {
+        i64_and := ext_func(a: I64, b: I64) returns I64 {}
         return i64_and(a, b)
     }
 
-    or : func(a: I64, b: I64) returns I64 = {
-        i64_or : ext_func(a: I64, b: I64) returns I64 = {}
+    or := func(a: I64, b: I64) returns I64 {
+        i64_or := ext_func(a: I64, b: I64) returns I64 {}
         return i64_or(a, b)
     }
 
     /** Modulo operation. Returns 0 when dividing by zero. */
-    mod : func(a: I64, b: I64) returns I64 = {
-        i64_mod : ext_func(a: I64, b: I64) returns I64 = {}
+    mod := func(a: I64, b: I64) returns I64 {
+        i64_mod := ext_func(a: I64, b: I64) returns I64 {}
         return i64_mod(a, b)
     }
 
     /** Subtraction. */
-    sub : func(a: I64, b: I64) returns I64 = {
-        i64_sub : ext_func(a: I64, b: I64) returns I64 = {}
+    sub := func(a: I64, b: I64) returns I64 {
+        i64_sub := ext_func(a: I64, b: I64) returns I64 {}
         return i64_sub(a, b)
     }
 
     /** Multiplication. */
-    mul : func(a: I64, b: I64) returns I64 = {
-        i64_mul : ext_func(a: I64, b: I64) returns I64 = {}
+    mul := func(a: I64, b: I64) returns I64 {
+        i64_mul := ext_func(a: I64, b: I64) returns I64 {}
         return i64_mul(a, b)
     }
 
     /** Division that returns 0 when dividing by zero.
      *  This is the default, silent behavior - no error, no throw.
      *  Use safe_div() if you want to catch division by zero errors. */
-    div : func(a: I64, b: I64) returns I64 = {
-        i64_div : ext_func(a: I64, b: I64) returns I64 = {}
+    div := func(a: I64, b: I64) returns I64 {
+        i64_div := ext_func(a: I64, b: I64) returns I64 {}
         return i64_div(a, b)
     }
 
     /** Addition. */
-    add : func(a: I64, b: I64) returns I64 = {
-        i64_add : ext_func(a: I64, b: I64) returns I64 = {}
+    add := func(a: I64, b: I64) returns I64 {
+        i64_add := ext_func(a: I64, b: I64) returns I64 {}
         return i64_add(a, b)
     }
 
-    eq : func(a: I64, b: I64) returns Bool = {
+    eq := func(a: I64, b: I64) returns Bool {
         // REM We can't use the variadic or from here without mutual recusrion and a stack overflow
         if a.gt(b) {
             return false
@@ -140,35 +140,35 @@ namespace:
         return true
     }
 
-    lt : func(a: I64, b: I64) returns Bool = {
-        i64_lt : ext_func(a: I64, b: I64) returns Bool = {}
+    lt := func(a: I64, b: I64) returns Bool {
+        i64_lt := ext_func(a: I64, b: I64) returns Bool {}
         return i64_lt(a, b)
     }
 
-    gt : func(a: I64, b: I64) returns Bool = {
-        i64_gt : ext_func(a: I64, b: I64) returns Bool = {}
+    gt := func(a: I64, b: I64) returns Bool {
+        i64_gt := ext_func(a: I64, b: I64) returns Bool {}
         return i64_gt(a, b)
     }
 
-    to_str : func(self: I64) returns Str = {
-        i64_to_str : ext_func(a: I64) returns Str = {}
+    to_str := func(self: I64) returns Str {
+        i64_to_str := ext_func(a: I64) returns Str {}
         return i64_to_str(self)
     }
 
-    from_str : func(str: Str) returns I64 = {
-        str_to_i64 : ext_func(a: Str) returns I64 = {}
+    from_str := func(str: Str) returns I64 {
+        str_to_i64 := ext_func(a: Str) returns I64 {}
         return str_to_i64(str) // TODO: this can fail and panic from rust
     }
 
-    inc : proc(mut self: I64) = {
+    inc := proc(mut self: I64) {
         self = self.add(1)
     }
 
-    dec : proc(mut self: I64) = {
+    dec := proc(mut self: I64) {
         self = self.sub(1)
     }
 
-    gteq : func(a: I64, b: I64) returns Bool = {
+    gteq := func(a: I64, b: I64) returns Bool {
         if a.gt(b) {
             return true
         }
@@ -178,7 +178,7 @@ namespace:
         return true  // equal
     }
 
-    lteq : func(a: I64, b: I64) returns Bool = {
+    lteq := func(a: I64, b: I64) returns Bool {
         if a.lt(b) {
             return true
         }
@@ -188,16 +188,16 @@ namespace:
         return true  // equal
     }
 
-    size : func() returns I64 = {
+    size := func() returns I64 {
         return 8
     }
 
     /** No-op delete for primitive type. Required for ASAP destruction. */
-    delete : func(mut _self: I64) = {
+    delete := func(mut _self: I64) {
     }
 
     /** Clone returns self for primitive type (value semantics). */
-    clone : func(self: I64) returns I64 = {
+    clone := func(self: I64) returns I64 {
         return self
     }
 }

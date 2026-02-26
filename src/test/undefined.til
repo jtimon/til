@@ -10,7 +10,7 @@ BadStruct := struct {
     mut status: UndefinedEnum = UndefinedEnum.Active
 }
 
-test_undefined : proc() = {
+test_undefined := proc() {
     println("Should not reach here - undefined types should cause compile error")
 }
 

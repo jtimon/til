@@ -1,6 +1,6 @@
 mode test
 
-concat2 : proc(args: ..Str) returns Str = {
+concat2 := proc(args: ..Str) returns Str {
     mut result := ""
     for val: Str in args {
         result = format(result, val)
@@ -10,7 +10,7 @@ concat2 : proc(args: ..Str) returns Str = {
 }
 assert_eq_str(loc(), "Variadic: foobarbaz", concat2("Variadic: ", "foo", "bar", "baz"))
 
-var_i64_add : proc(args: ..I64) returns I64 = {
+var_i64_add := proc(args: ..I64) returns I64 {
     mut result := 0
     for val: I64 in args {
         result = result.add(val)
@@ -19,7 +19,7 @@ var_i64_add : proc(args: ..I64) returns I64 = {
 }
 assert_eq(loc(), add(34, 35), var_i64_add(34, 35))
 
-var_safe_add : proc(args: ..U8) returns U8 = {
+var_safe_add := proc(args: ..U8) returns U8 {
     mut result : U8 = 0
     for val: U8 in args {
         result = result.safe_add(val)?
@@ -32,7 +32,7 @@ var_safe_add : proc(args: ..U8) returns U8 = {
 
     return result
 }
-test_var_safe_add : proc() = {
+test_var_safe_add := proc() {
     assert_eq(loc(), add(34, 35), U8.to_i64(var_safe_add(U8.from_i64(34)?, U8.from_i64(35)?)))
 
     catch(err: U8_Overflow) {
@@ -42,7 +42,7 @@ test_var_safe_add : proc() = {
 test_var_safe_add()
 
 // Test: Variadic type checking (merged from variadic_type_check.til)
-test_i64_variadic : func(args: ..I64) returns I64 = {
+test_i64_variadic := func(args: ..I64) returns I64 {
     mut sum := 0
     for val: I64 in args {
         sum = sum.add(val)
@@ -55,7 +55,7 @@ assert_eq(loc(), 6, test_i64_variadic(1, 2, 3))
 assert_eq(loc(), 30, test_i64_variadic(10, 20))
 assert_eq(loc(), 0, test_i64_variadic())
 
-test_str_variadic : func(args: ..Str) returns Str = {
+test_str_variadic := func(args: ..Str) returns Str {
     mut result := ""
     for val: Str in args {
         result = format(result, val)
@@ -77,7 +77,7 @@ assert_eq(loc(), 15, test_i64_variadic(1, 2, 3, 4, 5))
 assert_eq_str(loc(), "onetwothreefourfive", test_str_variadic("one", "two", "three", "four", "five"))
 
 // Test: Variadic with Bool type
-test_bool_variadic : func(args: ..Bool) returns I64 = {
+test_bool_variadic := func(args: ..Bool) returns I64 {
     mut count_true := 0
     for val: Bool in args {
         if val {

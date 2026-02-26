@@ -2,7 +2,7 @@ mode test
 
 my_u8 : U8 = 42
 
-test_u8 : proc() = {
+test_u8 := proc() {
     assert_eq(loc(), 0, U8.from_i64(0)?.to_i64())
     assert_eq(loc(), 42, U8.from_i64(42)?.to_i64())
     assert_eq(loc(), 42, my_u8.to_i64())

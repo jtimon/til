@@ -15,7 +15,7 @@ TestHelper := struct {
 
 namespace:
     // Method with for-in loop - tests precomp_struct_def fix
-    sum_items : func(items: Vec) returns I64 = {
+    sum_items := func(items: Vec) returns I64 {
         mut total := 0
         for item: I64 in items {
             total = total.add(item)
@@ -24,7 +24,7 @@ namespace:
     }
 
     // Method with nested for-in loops
-    cross_sum : func(list_a: Vec, list_b: Vec) returns I64 = {
+    cross_sum := func(list_a: Vec, list_b: Vec) returns I64 {
         mut total := 0
         for a: I64 in list_a {
             for b: I64 in list_b {
@@ -36,7 +36,7 @@ namespace:
 }
 
 // Test for-in in regular function - tests precomp_declaration fix
-test_forin_declaration : proc() = {
+test_forin_declaration := proc() {
     mut sum := 0
     mut items := Vec.new(I64)
     items.push(own 1)
@@ -52,7 +52,7 @@ test_forin_declaration : proc() = {
 }
 
 // Test nested for-in loops - tests counter increments correctly
-test_forin_nested : proc() = {
+test_forin_nested := proc() {
     mut sum := 0
     mut outer := Vec.new(I64)
     outer.push(own 1)
@@ -74,7 +74,7 @@ test_forin_nested : proc() = {
 }
 
 // Test for-in in struct methods - tests precomp_struct_def fix
-test_forin_struct_method : proc() = {
+test_forin_struct_method := proc() {
     mut items := Vec.new(I64)
     items.push(own 1)
     items.push(own 2)
@@ -86,7 +86,7 @@ test_forin_struct_method : proc() = {
 }
 
 // Test nested for-in in struct methods
-test_forin_struct_nested : proc() = {
+test_forin_struct_nested := proc() {
     mut list_a := Vec.new(I64)
     list_a.push(own 1)
     list_a.push(own 2)
@@ -102,7 +102,7 @@ test_forin_struct_nested : proc() = {
 }
 
 // Test multiple functions with for-in to verify counter resets per function
-test_forin_counter_reset : proc() = {
+test_forin_counter_reset := proc() {
     // Each function should have its own counter starting at 0
     // so the variable names should be:
     // test_forin_declaration: _for_i_test_forin_declaration_0
@@ -122,7 +122,7 @@ test_forin_counter_reset : proc() = {
 
 }
 
-main : proc() = {
+main := proc() {
     test_forin_declaration()
     test_forin_nested()
     test_forin_struct_method()

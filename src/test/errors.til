@@ -1,7 +1,7 @@
 mode test
 
 AAAError := struct {}
-simplest_catch : proc () = {
+simplest_catch := proc () {
     mut catched := false
     if I64.eq(1, 1) {
         throw AAAError()
@@ -19,7 +19,7 @@ ErrorWithMessage := struct {
     mut msg: Str = "default error message"
 }
 
-test_catch_with_fields : proc() = {
+test_catch_with_fields := proc() {
     mut caught_msg := ""
     mut catched := false
     if I64.eq(1, 1) {
@@ -37,7 +37,7 @@ test_catch_with_fields()
 
 // DivideByZero and safe_div are now in core/i64.til
 
-unsafe_div : proc(a: I64, b: I64) returns I64 = {
+unsafe_div := proc(a: I64, b: I64) returns I64 {
     result := a.safe_div(b)?
 
     catch (err: DivideByZero) {
@@ -47,14 +47,14 @@ unsafe_div : proc(a: I64, b: I64) returns I64 = {
     return result
 }
 
-test_unsafe_div : proc() = {
+test_unsafe_div := proc() {
     mut result := unsafe_div(42, 0)
     // If we get here without panic, the catch worked
     assert_eq(loc(), 0, result)
 }
 test_unsafe_div()
 
-unsafe_div2 : proc(a: I64, b: I64) returns I64 = {
+unsafe_div2 := proc(a: I64, b: I64) returns I64 {
     res := a.safe_div(b)?
     assertm(loc(), false, "DivideByZero should have been thrown")
     catch (err: DivideByZero) {
@@ -63,7 +63,7 @@ unsafe_div2 : proc(a: I64, b: I64) returns I64 = {
     return res
 }
 
-test_unsafe_div2 : proc() = {
+test_unsafe_div2 := proc() {
     mut result := unsafe_div2(42, 0)
     // If we get here without panic, the catch worked
     assert_eq(loc(), 0, result)
@@ -72,7 +72,7 @@ test_unsafe_div2()
 
 // Only the selecter error can be thrown
 // REM Remove 'throws DivideByZero' to trigger a static type error
-missing_throws : proc() throws DivideByZero = {
+missing_throws := proc() throws DivideByZero {
     mut zero := 0 // REM mut so precomp doesn't catch the error at compile time
     _ := I64.safe_div(42, zero)?
 }
@@ -81,7 +81,7 @@ missing_throws : proc() throws DivideByZero = {
 // All exceptions that are not catched must be declared in the throws section again
 // TODO: We should have a way to signal which calls can throw? perhaps not if the compiler errors are good enough?
 // perhaps try at the beginning of each statement that can throw or ? at the end
-test_example_catch : proc() = {
+test_example_catch := proc() {
     a := 420
     mut b := 10
     mut catched := false
@@ -107,24 +107,24 @@ ErrorUndeclaredInFunc := struct {}
 ErrorUndeclaredInMethod := struct {}
 ErrorUndeclaredInAssoc := struct {}
 
-another_func : proc() throws ErrorUndeclaredInFunc = { // REM proc so precomp doesn't fold it
+another_func := proc() throws ErrorUndeclaredInFunc { // REM proc so precomp doesn't fold it
     throw ErrorUndeclaredInFunc()
 }
 
 SomeStruct := struct {
 
 namespace:
-    some_method : func(_self: SomeStruct) throws ErrorUndeclaredInFunc = {
+    some_method := func(_self: SomeStruct) throws ErrorUndeclaredInFunc {
         throw ErrorUndeclaredInFunc() // FIXED: the compiler now correctly tells us this error must be declared!
     }
 
-    some_assoc : proc() throws ErrorUndeclaredInAssoc = { // REM proc so precomp doesn't fold it
+    some_assoc := proc() throws ErrorUndeclaredInAssoc { // REM proc so precomp doesn't fold it
         throw ErrorUndeclaredInAssoc()
     }
 }
 
 // Remove things from the throws section to test the errors
-undeclared_throws : proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndeclaredInFunc = {
+undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndeclaredInFunc {
     if true {
         another_func()?
         catch (err: ErrorUndeclaredInFunc) {
@@ -143,7 +143,7 @@ undeclared_throws : proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndecla
     // another_func() // REM if uncommented, should ask undeclared_throws to throws ErrorUndeclaredInFunc
 }
 
-test_undeclared_throws : proc() = {
+test_undeclared_throws := proc() {
     mut catched_assoc := false
 
     undeclared_throws()?
@@ -162,7 +162,7 @@ test_undeclared_throws : proc() = {
 test_undeclared_throws()
 
 // Test catching and printing Str errors
-test_catch_str_error : proc() = {
+test_catch_str_error := proc() {
     mut caught := false
     mut error_msg := ""
 
@@ -182,7 +182,7 @@ test_catch_str_error : proc() = {
 test_catch_str_error()
 
 // Test catching errors with Str fields in structs
-test_catch_error_with_str_field : proc() = {
+test_catch_error_with_str_field := proc() {
     mut caught := false
     mut caught_msg := ""
 
@@ -207,7 +207,7 @@ test_catch_error_with_str_field()
 
 // Test rethrowing error field as different type
 // Note: takes dummy arg to prevent compile-time evaluation (precomp)
-trigger_out_of_bounds : func(_dummy: I64) returns I64 throws Str = {
+trigger_out_of_bounds := func(_dummy: I64) returns I64 throws Str {
     mut arr := Array.new(I64, 2)
     _ := arr.get(10)?  // Intentionally out of bounds
 
@@ -218,7 +218,7 @@ trigger_out_of_bounds : func(_dummy: I64) returns I64 throws Str = {
     return 0
 }
 
-test_rethrow_error_field : proc() = {
+test_rethrow_error_field := proc() {
     mut caught := false
     mut error_msg := ""
     mut dummy := 0  // Use variable to prevent compile-time evaluation
@@ -236,7 +236,7 @@ test_rethrow_error_field()
 
 // Test assigning error field to variable then throwing (Bug #29 regression)
 // Note: takes dummy arg to prevent compile-time evaluation (precomp)
-trigger_out_of_bounds_assign : func(_dummy: I64) returns I64 throws Str = {
+trigger_out_of_bounds_assign := func(_dummy: I64) returns I64 throws Str {
     mut arr := Array.new(I64, 2)
     _ := arr.get(10)?
 
@@ -248,7 +248,7 @@ trigger_out_of_bounds_assign : func(_dummy: I64) returns I64 throws Str = {
     return 0
 }
 
-test_rethrow_error_field_via_assign : proc() = {
+test_rethrow_error_field_via_assign := proc() {
     mut caught := false
     mut error_msg := ""
     mut dummy := 0  // Use variable to prevent compile-time evaluation
@@ -272,14 +272,14 @@ Bug34Error := struct {
     mut msg: Str = ""
 }
 
-bug34_maybe_throw : func(should_throw: Bool) throws Bug34Error = {
+bug34_maybe_throw := func(should_throw: Bool) throws Bug34Error {
     if should_throw {
         throw Bug34Error()
     }
 }
 
 // Test that code AFTER catch runs on success path
-test_bug34_after_catch_success : proc() = {
+test_bug34_after_catch_success := proc() {
     mut after_catch_ran := false
 
     bug34_maybe_throw(false)?  // Does NOT throw
@@ -295,7 +295,7 @@ test_bug34_after_catch_success : proc() = {
 test_bug34_after_catch_success()
 
 // Test that code AFTER catch runs on error path (this was the bug)
-test_bug34_after_catch_error : proc() = {
+test_bug34_after_catch_error := proc() {
     mut after_catch_ran := false
 
     bug34_maybe_throw(true)?   // DOES throw
@@ -321,7 +321,7 @@ test_bug34_after_catch_error()
 // NOTE: This test FAILS with `rstil run` until Bug #34 is fixed!
 mut bug34_between_test_completed := false
 
-test_bug34_between_throw_and_catch : proc() = {
+test_bug34_between_throw_and_catch := proc() {
     mut caught := false
 
     bug34_maybe_throw(true)?
@@ -337,7 +337,7 @@ test_bug34_between_throw_and_catch()
 test(loc(), bug34_between_test_completed, "Bug #34: code after catch must run")
 
 // Test that code BETWEEN throw and catch DOES run on success path
-test_bug34_between_success : proc() = {
+test_bug34_between_success := proc() {
     mut between_ran := false
     mut caught := false
 
@@ -366,7 +366,7 @@ Bug36TestData := struct {
 }
 
 // A function that throws
-bug36_throws : proc(should_throw: Bool) returns I64 throws Bug36Error = { // REM proc so precomp doesn't fold it
+bug36_throws := proc(should_throw: Bool) returns I64 throws Bug36Error { // REM proc so precomp doesn't fold it
     if should_throw {
         throw Bug36Error(msg="test error")
     }
@@ -376,14 +376,14 @@ bug36_throws : proc(should_throw: Bool) returns I64 throws Bug36Error = { // REM
 // Bug #36: This function should compile without error.
 // The compiler incorrectly said Bug36Error is declared but never thrown,
 // because it didn't see the throwing function inside the struct literal.
-bug36_test_throws_in_struct_literal : proc() returns Bug36TestData throws Bug36Error = { // REM proc so precomp doesn't fold it
+bug36_test_throws_in_struct_literal := proc() returns Bug36TestData throws Bug36Error { // REM proc so precomp doesn't fold it
     return Bug36TestData(
         a=bug36_throws(true)?,
         b=bug36_throws(true)?
     )
 }
 
-test_bug36 : proc() = {
+test_bug36 := proc() {
     mut caught := false
     _result := bug36_test_throws_in_struct_literal()?
     // Should not reach here
@@ -405,19 +405,19 @@ test_bug36()
 TestErrorA := struct {}
 TestErrorB := struct {}
 
-throw_a_maybe : func(should_throw: Bool) throws TestErrorA = {
+throw_a_maybe := func(should_throw: Bool) throws TestErrorA {
     if should_throw {
         throw TestErrorA()
     }
 }
 
-throw_b_maybe : func(should_throw: Bool) throws TestErrorB = {
+throw_b_maybe := func(should_throw: Bool) throws TestErrorB {
     if should_throw {
         throw TestErrorB()
     }
 }
 
-test_non_consecutive_catches : proc() = {
+test_non_consecutive_catches := proc() {
     mut after_a_ran := false
     mut after_b_ran := false
     mut caught_a := false
@@ -447,7 +447,7 @@ test_non_consecutive_catches()
 CallerCalleeErrorA := struct {}
 CallerCalleeErrorB := struct {}
 
-callee2_throws_both : func(throw_a: Bool, throw_b: Bool) throws CallerCalleeErrorA, CallerCalleeErrorB = {
+callee2_throws_both := func(throw_a: Bool, throw_b: Bool) throws CallerCalleeErrorA, CallerCalleeErrorB {
     if throw_b {
         throw CallerCalleeErrorB()
     }
@@ -457,7 +457,7 @@ callee2_throws_both : func(throw_a: Bool, throw_b: Bool) throws CallerCalleeErro
 }
 
 // callee1 only exposes ErrorA, must catch ErrorB internally
-callee1_throws_a_only : func(throw_a: Bool, throw_b: Bool) returns Bool throws CallerCalleeErrorA = {
+callee1_throws_a_only := func(throw_a: Bool, throw_b: Bool) returns Bool throws CallerCalleeErrorA {
     mut after_callee2_ran := false
     mut caught_b := false
 
@@ -471,7 +471,7 @@ callee1_throws_a_only : func(throw_a: Bool, throw_b: Bool) returns Bool throws C
     return caught_b
 }
 
-test_caller_callee_different_throws : proc() = {
+test_caller_callee_different_throws := proc() {
     mut after_callee1_ran := false
     mut caught_a := false
 
@@ -498,13 +498,13 @@ test_caller_callee_different_throws()
 // Test C: Multiple throwing calls before single catch
 MultiThrowError := struct {}
 
-multi_throw_maybe : func(should_throw: Bool) throws MultiThrowError = {
+multi_throw_maybe := func(should_throw: Bool) throws MultiThrowError {
     if should_throw {
         throw MultiThrowError()
     }
 }
 
-test_multi_throw_single_catch : proc() = {
+test_multi_throw_single_catch := proc() {
     mut after_first_ran := false
     mut after_second_ran := false
     mut caught := false
@@ -524,7 +524,7 @@ test_multi_throw_single_catch : proc() = {
 test_multi_throw_single_catch()
 
 // Test C variant: success path - all code should run when nothing throws
-test_multi_throw_success : proc() = {
+test_multi_throw_success := proc() {
     mut after_first_ran := false
     mut after_second_ran := false
     mut caught := false
@@ -559,7 +559,7 @@ test_multi_throw_success()
 //     location: Str = ""
 // }
 //
-// test_implicit_panic : proc() = {
+// test_implicit_panic := proc() {
 //     // This should work without declaring throws PanicError
 //     panic(loc(), "Something went wrong")
 //     catch (err: PanicError) {
@@ -571,7 +571,7 @@ test_multi_throw_success()
 // Currently partially works - can have multiple catch blocks
 // Could be improved with better syntax
 //
-// test_multiple_catches : proc() = {
+// test_multiple_catches := proc() {
 //     risky_operation()
 //     catch (err: IOError) {
 //         println("IO error: ", err.msg)
@@ -592,14 +592,14 @@ test_multi_throw_success()
 //     Err: E,
 // }
 //
-// safe_divide : func(a: I64, b: I64) returns Result<I64, DivideByZero> = {
+// safe_divide := func(a: I64, b: I64) returns Result<I64, DivideByZero> {
 //     if eq(b, 0) {
 //         return Result.Err(DivideByZero())
 //     }
 //     return Result.Ok(div(a, b))
 // }
 //
-// test_result_type : proc() = {
+// test_result_type := proc() {
 //     result := safe_divide(10, 2)
 //     switch result {
 //     case Result.Ok(value):
@@ -612,7 +612,7 @@ test_multi_throw_success()
 // TODO: Rethrow keyword
 // Currently have to manually throw again
 //
-// test_rethrow : proc() throws SomeError = {
+// test_rethrow := proc() throws SomeError {
 //     risky_operation()
 //     catch (err: SomeError) {
 //         println("Logging error before rethrow")
@@ -623,7 +623,7 @@ test_multi_throw_success()
 // TODO: Try operator (? in Rust)
 // Automatically propagate errors without explicit catch
 //
-// parse_and_compute : func(s: Str) returns I64 throws ParseError, ComputeError = {
+// parse_and_compute := func(s: Str) returns I64 throws ParseError, ComputeError {
 //     n := parse_number(s)?  // Auto-propagates ParseError
 //     result := compute(n)?  // Auto-propagates ComputeError
 //     return result
@@ -632,7 +632,7 @@ test_multi_throw_success()
 // TODO: Finally blocks
 // Cleanup code that runs whether error is thrown or not
 //
-// test_finally : proc() = {
+// test_finally := proc() {
 //     resource := acquire_resource()
 //     try {
 //         use_resource(resource)

@@ -3,18 +3,18 @@ mode lib
 import("std.meta")            // runfile
 
 // test := assertm // TODO implement function aliases
-test : proc(loc_str: Str, cond: Bool, msg: Str) = {
+test := proc(loc_str: Str, cond: Bool, msg: Str) {
     assertm(loc_str, cond, msg)
 }
 
-assert_eq_str : proc(loc_str: Str, a: Str, b: Str) = {
+assert_eq_str := proc(loc_str: Str, a: Str, b: Str) {
     if not(a.eq(b)) {
         println(loc_str, "assert_eq_str failed: expected '", a, "', found '", b, "'")
         exit(1)
     }
 }
 
-assert_eq : proc(loc_str: Str, a: I64, b: I64) = {
+assert_eq := proc(loc_str: Str, a: I64, b: I64) {
     if not(a.eq(b)) {
         println(loc_str, "assert_eq failed: expected '", I64.to_str(a), "', found '", I64.to_str(b), "'")
         exit(1)

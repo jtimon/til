@@ -12,19 +12,19 @@ e1 := MyEnum.Variant1(s.clone())
 println("top level declaration: OK")
 
 // FAILS: inside func, clone in enum payload
-test_in_func : func() returns MyEnum = {
+test_in_func := func() returns MyEnum {
     x := "hello"
     return MyEnum.Variant1(x.clone())  // ERROR: Struct payload must be a variable identifier or literal, got FCall
 }
 
 // WORKAROUND: extract clone result to variable first
-test_workaround : func() returns MyEnum = {
+test_workaround := func() returns MyEnum {
     x := "hello"
     x_cloned := x.clone()
     return MyEnum.Variant1(x_cloned)  // This works
 }
 
-run_test : proc() = {
+run_test := proc() {
     _e2 := test_workaround()
     println("workaround in func: OK")
 

@@ -5,12 +5,12 @@ import("std.arena")
 // Global Arena instance - interpreted mode requires global for struct mutations to persist
 mut g_test_arena := Arena.new()
 
-test_arena_new : proc() = {
+test_arena_new := proc() {
     assert_eq(loc(), 1, g_test_arena.len())  // First byte reserved (invalid address 0)
 }
 test_arena_new()
 
-test_arena_put : proc() = {
+test_arena_put := proc() {
     initial_len := g_test_arena.len()
 
     mut val : I64 = 12345
@@ -21,7 +21,7 @@ test_arena_put : proc() = {
 }
 test_arena_put()
 
-test_arena_get : proc() = {
+test_arena_get := proc() {
     mut val : I64 = 42
     offset := g_test_arena.put(to_ptr(val), 8)
 
@@ -32,7 +32,7 @@ test_arena_get : proc() = {
 }
 test_arena_get()
 
-test_arena_set : proc() = {
+test_arena_set := proc() {
     mut val : I64 = 100
     offset := g_test_arena.put(to_ptr(val), 8)
 
@@ -46,7 +46,7 @@ test_arena_set : proc() = {
 }
 test_arena_set()
 
-test_arena_reserve : proc() = {
+test_arena_reserve := proc() {
     initial_len := g_test_arena.len()
 
     offset := g_test_arena.reserve(16)
@@ -64,7 +64,7 @@ test_arena_reserve : proc() = {
 }
 test_arena_reserve()
 
-test_arena_multiple_values : proc() = {
+test_arena_multiple_values := proc() {
     mut v1 : I64 = 111
     mut v2 : I64 = 222
     mut v3 : I64 = 333

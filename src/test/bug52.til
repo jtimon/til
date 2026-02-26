@@ -24,7 +24,7 @@ Bug52Expr := struct {
     mut line: I64 = 0
 }
 
-test_vec_iteration : proc() = {
+test_vec_iteration := proc() {
     mut parent := Bug52Expr()
 
     mut child1 := Bug52Expr(node_type=Bug52NodeType.Body, line=1)

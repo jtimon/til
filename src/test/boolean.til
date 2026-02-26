@@ -122,7 +122,7 @@ test(loc(), false.to_str().eq("false"), "Bool.to_str: false.to_str() == 'false'"
 // I64 bitwise operations
 // ============================================================
 
-test_i64_bitwise : proc() = {
+test_i64_bitwise := proc() {
     // XOR tests
     test(loc(), I64.xor(0, 0).eq(0), "I64: 0 XOR 0 = 0")
     test(loc(), I64.xor(1, 0).eq(1), "I64: 1 XOR 0 = 1")
@@ -154,7 +154,7 @@ test_i64_bitwise()
 // U8 bitwise operations
 // ============================================================
 
-test_u8_bitwise : proc() = {
+test_u8_bitwise := proc() {
     u8_0 : U8 = 0
     u8_1 : U8 = 1
     u8_6 : U8 = 6

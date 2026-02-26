@@ -2,17 +2,17 @@ mode lib
 
 // Printing functions
 
-single_print : ext_proc(s: Str) = {}
-print_flush  : ext_proc() = {}
+single_print := ext_proc(s: Str) {}
+print_flush  := ext_proc() {}
 
-print : proc(args: ..Str) = {
+print := proc(args: ..Str) {
     for print_arg: Str in args {
         single_print(print_arg)
     }
     print_flush()
 }
 
-println : proc(args: ..Str) = {
+println := proc(args: ..Str) {
     for print_arg: Str in args {
         single_print(print_arg)
     }

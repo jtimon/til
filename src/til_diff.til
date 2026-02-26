@@ -7,7 +7,7 @@ mode cli
 import("std.sys")
 import("std.io")
 
-main : proc(file_path: Str) = {
+main := proc(file_path: Str) {
     println("Comparing C output for: ", file_path)
 
     // Get base name for temp files

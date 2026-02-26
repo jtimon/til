@@ -14,17 +14,17 @@ Array := struct {
 
 namespace:
     /** Get number of elements in array. */
-    len : func(self: Array) returns I64 = {
+    len := func(self: Array) returns I64 {
         return self._len
     }
 
     /** Get total size in bytes. */
-    size : func(self: Array) returns I64 = {
+    size := func(self: Array) returns I64 {
         return mul(self._len, self.ptr.elem_size)
     }
 
     /** Create new array with specified element type and capacity. */
-    new : proc(T: Type, capacity: I64) returns Array = {
+    new := proc(T: Type, capacity: I64) returns Array {
         mut arr := Array()
         size_bytes := mul(capacity, size_of(T))
         // Use malloc directly (not Ptr.new_by_size) to avoid circular dependency:
@@ -42,7 +42,7 @@ namespace:
     }
 
     /** Get borrowed Ptr to element at index. No copy - points into array memory. */
-    get : proc(self: Array, index: I64) returns Ptr throws IndexOutOfBoundsError = {
+    get := proc(self: Array, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Array.get: index out of bounds"))
         }
@@ -50,7 +50,7 @@ namespace:
     }
 
     /** Set element at index. */
-    set : proc(mut self: Array, index: I64, own value: Dynamic) throws IndexOutOfBoundsError = {
+    set := proc(mut self: Array, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
         dont_delete(value)
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Array.set: index out of bounds"))
@@ -61,7 +61,7 @@ namespace:
     }
 
     /** Free array memory. */
-    delete : func(mut self: Array) = {
+    delete := func(mut self: Array) {
         if not(self.ptr.is_null()) {
             self.ptr.delete()
         }
@@ -69,7 +69,7 @@ namespace:
     }
 
     /** Clone the array. */
-    clone : func(self: Array) returns Array = {
+    clone := func(self: Array) returns Array {
         mut cloned := Array()
         cloned._len = self._len
         mut total_bytes := mul(self._len, self.ptr.elem_size)
@@ -85,7 +85,7 @@ namespace:
     }
 
     /** Check if array contains value (for Str arrays). */
-    contains : proc(self: Array, value: Str) returns Bool = {
+    contains := proc(self: Array, value: Str) returns Bool {
         for elem: Str in self {
             if elem.eq(value) {
                 return true

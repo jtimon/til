@@ -9,7 +9,7 @@ import("self.init")
 import("self.parser")
 import("self.typer")
 
-test_bug68 : proc() = {
+test_bug68 := proc() {
     // Create a minimal context
     mut context := Context()
     context.path = "test.til"

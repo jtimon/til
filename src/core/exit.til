@@ -2,12 +2,12 @@ mode lib
 
 // Exit and assertion functions - all paths lead to exit()
 
-exit : ext_func(code: I64) = {}
+exit := ext_func(code: I64) {}
 
 /** Print location and message(s), then exit with code 1.
  *  Usage: panic(loc(), "error message", optional_details...)
  */
-panic : proc(loc_str: Str, msg: Str, extra_msgs: ..Str) = {
+panic := proc(loc_str: Str, msg: Str, extra_msgs: ..Str) {
     single_print(loc_str)
     single_print(msg)
     for extra_msg: Str in extra_msgs {
@@ -18,16 +18,16 @@ panic : proc(loc_str: Str, msg: Str, extra_msgs: ..Str) = {
     exit(1)
 }
 
-assertm : func(loc_str: Str, cond: Bool, msg: Str) = {
+assertm := func(loc_str: Str, cond: Bool, msg: Str) {
     if not(cond) {
         panic(loc_str, format("assert failed: ", msg))
     }
 }
 
-assert : func(loc_str: Str, cond: Bool) = {
+assert := func(loc_str: Str, cond: Bool) {
     assertm(loc_str, cond, "")
 }
 
-TODO : func(loc_str: Str, msg: Str) = {
+TODO := func(loc_str: Str, msg: Str) {
     assertm(loc_str, false, format("TODO: ", msg))
 }

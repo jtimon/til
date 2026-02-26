@@ -4,7 +4,7 @@ mode test
 // The _ variable is used to discard return values (per Bug #8 fix)
 // Multiple _ := declarations should be allowed in the same scope
 
-returns_value : func() returns I64 = {
+returns_value := func() returns I64 {
     return 42
 }
 
@@ -12,7 +12,7 @@ returns_value : func() returns I64 = {
 _ := returns_value()
 _ := returns_value()
 
-test_multiple_underscore_decls : proc() = {
+test_multiple_underscore_decls := proc() {
     // Both _ declarations should work without "already declared" error inside functions too
     _ := returns_value()
     _ := returns_value()
@@ -22,11 +22,11 @@ test_multiple_underscore_decls : proc() = {
 
 // Test multiple _ declarations with variadic function calls
 // This tests a different code path in ccodegen (emit_variadic_call)
-variadic_func : func(args: ..I64) returns I64 = {
+variadic_func := func(args: ..I64) returns I64 {
     return args.len()
 }
 
-test_multiple_underscore_variadic : proc() = {
+test_multiple_underscore_variadic := proc() {
     // Multiple _ declarations with variadic calls should also work
     _ := variadic_func(1, 2, 3)
     _ := variadic_func(4, 5)

@@ -1,11 +1,11 @@
 mode test
 
-consume : proc(own n: I64) returns I64 = {
+consume := proc(own n: I64) returns I64 {
     return mul(n, 2)
 }
 
 // Test: Is variable invalidated after passing to own param?
-test_use_after_move : proc() = {
+test_use_after_move := proc() {
     mut x := 42
     _result := consume(x)
     println("x after:", I64.to_str(x))  // Should this be rejected? Currently NOT checked

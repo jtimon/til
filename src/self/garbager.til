@@ -8,12 +8,12 @@ import("self.parser")
 // Issue #159: Insert clone() calls for deep copy semantics on struct assignments.
 
 /// Garbager phase entry point: Transform AST for proper memory semantics.
-garbager_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+garbager_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     return garbager_recursive(context, e)?
 }
 
 /// Recursively transform the AST.
-garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+garbager_recursive := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     // Recurse into FuncDef bodies
     case NodeType.FuncDef(func_def):
@@ -306,7 +306,7 @@ garbager_recursive : proc(mut context: Context, e: Expr) returns Expr throws Str
 /// Only locals with owned init are safe to delete at function end.
 /// Aliases from shallow copies (memcpy) would cause double-free if deleted.
 /// Build AST for Type.clone(src_expr): FCall( Identifier("Type").Identifier("clone"), src_expr )
-build_clone_call_expr : func(type_name: Str, own src_expr: Expr, line: I64, col: I64) returns Expr = {
+build_clone_call_expr := func(type_name: Str, own src_expr: Expr, line: I64, col: I64) returns Expr {
     // Type.clone access: Identifier("Type") with child Identifier("clone")
     clone_ident := Expr(node_type=NodeType.Identifier("clone"), line=line, col=col)
     mut type_clone_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
@@ -321,7 +321,7 @@ build_clone_call_expr : func(type_name: Str, own src_expr: Expr, line: I64, col:
 
 /// Build AST for var = Type.clone(var): Assignment with RHS = clone FCall.
 /// Used to break shallow-copy aliasing after container get/pop calls.
-build_clone_assignment_expr : func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr = {
+build_clone_assignment_expr := func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr {
     var_expr := Expr(node_type=NodeType.Identifier(var_name), line=line, col=col)
     clone_call := build_clone_call_expr(type_name, own var_expr, line, col)
     mut assign := Expr(node_type=NodeType.Assignment(var_name), line=line, col=col)
@@ -331,7 +331,7 @@ build_clone_assignment_expr : func(type_name: Str, var_name: Str, line: I64, col
 
 /// Build AST for Type.delete(var): FCall( Identifier("Type").Identifier("delete"), Identifier(var) )
 /// Issue #191: Used to free old value before reassignment.
-build_delete_call_expr : func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr = {
+build_delete_call_expr := func(type_name: Str, var_name: Str, line: I64, col: I64) returns Expr {
     delete_ident := Expr(node_type=NodeType.Identifier("delete"), line=line, col=col)
     mut type_delete_access := Expr(node_type=NodeType.Identifier(type_name), line=line, col=col)
     type_delete_access.params.push(own delete_ident)
@@ -344,7 +344,7 @@ build_delete_call_expr : func(type_name: Str, var_name: Str, line: I64, col: I64
 
 /// Check if stmt is a container get/pop call with a shallow-copy out-param.
 /// Returns true if match, with var_name and type_name via out-params.
-detect_shallow_copy_outparam : proc(stmt: Expr, local_types: Map, context: Context, mut out_var: Str, mut out_type: Str) returns Bool = {
+detect_shallow_copy_outparam := proc(stmt: Expr, local_types: Map, context: Context, mut out_var: Str, mut out_type: Str) returns Bool {
     switch stmt.node_type {
     case NodeType.FCall(_):
     case:
@@ -438,7 +438,7 @@ detect_shallow_copy_outparam : proc(stmt: Expr, local_types: Map, context: Conte
 
 /// Insert clone assignments after container get/pop calls in a statement list.
 /// Recurses into nested Body nodes but not into FuncDef bodies.
-insert_clone_after_get : proc(stmts: Vec, local_types: Map, context: Context) returns Vec throws Str = {
+insert_clone_after_get := proc(stmts: Vec, local_types: Map, context: Context) returns Vec throws Str {
     mut result := Vec.new(Expr)
     for stmt: Expr in stmts {
         processed := process_stmt_for_clone_after_get(stmt, local_types, context)?
@@ -456,7 +456,7 @@ insert_clone_after_get : proc(stmts: Vec, local_types: Map, context: Context) re
 }
 
 /// Process a single statement: recurse into Body children, leave FuncDef alone.
-process_stmt_for_clone_after_get : proc(e: Expr, local_types: Map, context: Context) returns Expr throws Str = {
+process_stmt_for_clone_after_get := proc(e: Expr, local_types: Map, context: Context) returns Expr throws Str {
     switch e.node_type {
     case NodeType.FuncDef(_):
         return e // separate scope, don't touch
@@ -476,7 +476,7 @@ process_stmt_for_clone_after_get : proc(e: Expr, local_types: Map, context: Cont
 /// Issue #191: Check if an expression tree contains a reference to a specific variable.
 /// Used to avoid delete-before-reassignment when the RHS references the variable
 /// being reassigned (would cause use-after-free).
-expr_references_var : func(e: Expr, var_name: Str) returns Bool = {
+expr_references_var := func(e: Expr, var_name: Str) returns Bool {
     switch e.node_type {
     case NodeType.Identifier(name):
         if name.eq(var_name) {
@@ -496,7 +496,7 @@ expr_references_var : func(e: Expr, var_name: Str) returns Bool = {
 /// Only processes top-level statements, no recursion into sub-bodies.
 /// Skips variables in cast_vars (initialized from cast, hold borrowed values).
 /// Skips when the RHS references the variable being reassigned (use-after-free).
-insert_delete_before_reassignment : func(stmts: Vec, local_types: Map, cast_vars: Set) returns Vec = {
+insert_delete_before_reassignment := func(stmts: Vec, local_types: Map, cast_vars: Set) returns Vec {
     mut result := Vec.new(Expr)
     for stmt: Expr in stmts {
         // Only check top-level assignments, no recursion into sub-bodies for now
@@ -530,7 +530,7 @@ insert_delete_before_reassignment : func(stmts: Vec, local_types: Map, cast_vars
 
 /// Extract function name from FCall's first param (the name expression).
 /// Returns "foo" for foo(x) or "Type.method" for Type.method(x).
-get_func_name : func(e: Expr) returns Str = {
+get_func_name := func(e: Expr) returns Str {
     if e.params.len().eq(0) {
         return ""
     }
@@ -557,7 +557,7 @@ get_func_name : func(e: Expr) returns Str = {
 }
 
 /// Check if an expression is an Identifier node.
-is_identifier_expr : func(e: Expr) returns Bool = {
+is_identifier_expr := func(e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.Identifier(_):
         return true
@@ -567,7 +567,7 @@ is_identifier_expr : func(e: Expr) returns Bool = {
 }
 
 /// Check if an expression is an FCall to `dont_delete`.
-is_dont_delete_call : func(e: Expr) returns Bool = {
+is_dont_delete_call := func(e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.FCall(_):
         func_name := get_func_name(e)
@@ -585,7 +585,7 @@ ResolvedFCall := struct {
 
 /// Walk an FCall's name expression to extract the full identifier chain.
 /// e.g., for `self.frames.push(frame)`, returns ["self", "frames", "push"]
-get_fcall_identifier_chain : proc(e: Expr, mut chain: Vec) = {
+get_fcall_identifier_chain := proc(e: Expr, mut chain: Vec) {
     switch e.node_type {
     case NodeType.FCall(_):
         if e.params.len().gt(0) {
@@ -599,7 +599,7 @@ get_fcall_identifier_chain : proc(e: Expr, mut chain: Vec) = {
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-collect_identifier_chain : proc(e: Expr, mut chain: Vec) = {
+collect_identifier_chain := proc(e: Expr, mut chain: Vec) {
     switch e.node_type {
     case NodeType.Identifier(name):
         chain.push(own name)
@@ -612,7 +612,7 @@ collect_identifier_chain : proc(e: Expr, mut chain: Vec) = {
 
 /// Resolve a function call from its identifier chain, handling UFCS and chained field access.
 /// For UFCS calls, self is implicit so arg-to-param mapping differs.
-resolve_fcall_from_chain : proc(chain: Vec, local_types: Map, context: Context) returns ResolvedFCall throws KeyNotFoundError = {
+resolve_fcall_from_chain := proc(chain: Vec, local_types: Map, context: Context) returns ResolvedFCall throws KeyNotFoundError {
     if chain.len().eq(0) {
         throw KeyNotFoundError(msg="resolve_fcall_from_chain: empty chain")
     }
@@ -703,7 +703,7 @@ resolve_fcall_from_chain : proc(chain: Vec, local_types: Map, context: Context) 
 /// Issue #159 Step 5: Transform struct literal fields.
 /// For struct literal constructors like Point(inner=some_var), if a NamedArg value
 /// is an identifier pointing to a struct type, wrap it in Type.clone().
-transform_struct_literal_fields : proc(context: Context, e: Expr, mut new_params: Vec) = {
+transform_struct_literal_fields := proc(context: Context, e: Expr, mut new_params: Vec) {
     // Extract the struct name from the original FCall (before child transforms)
     struct_name := get_func_name(e)
     if struct_name.eq("") {

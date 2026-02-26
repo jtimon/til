@@ -23,7 +23,7 @@ ParseBuildOptionsResult := struct {
     mut mem_report: Bool = false
 }
 
-parse_build_options : proc(args: Vec) returns ParseBuildOptionsResult throws Str = {
+parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws Str {
     mut remaining := Vec.new(Str)
     mut target_set := false
     mut target := Target.LinuxX64
@@ -85,7 +85,7 @@ parse_build_options : proc(args: Vec) returns ParseBuildOptionsResult throws Str
 // Compute the binary output path from a TIL source path
 // Mirrors the logic in builder.til
 // Bug #141: Use LANG_NAME to separate rstil (rs) and til outputs
-source_to_binary_path : func(path: Str, target: Target) returns Str = {
+source_to_binary_path := func(path: Str, target: Target) returns Str {
     exe_extension := executable_extension(target)
     bin_filename := path.replace(".til", exe_extension)
     bin_prefix := concat("bin/", LANG_NAME).concat("/")
@@ -98,7 +98,7 @@ source_to_binary_path : func(path: Str, target: Target) returns Str = {
 
 // Check if binary needs to be rebuilt based on source file modification times
 // Returns true if binary doesn't exist or any dependency is newer than binary
-needs_rebuild : proc(binary_path: Str, deps: Vec) returns Bool = {
+needs_rebuild := proc(binary_path: Str, deps: Vec) returns Bool {
     binary_mtime := file_mtime(binary_path)
     neg_one := sub(0, 1)
     if binary_mtime.eq(neg_one) {
@@ -116,7 +116,7 @@ needs_rebuild : proc(binary_path: Str, deps: Vec) returns Bool = {
 
 // ---------- main, usage, args, etc
 
-usage : proc() = {
+usage := proc() {
     println("Usage: til [command] [path] [options]\n")
     println("Entering no arguments is equavalent to: til repl")
     println("Entering a single argument that's not a command is interpreted as a path, equivalent to: til interpret <path>\n")
@@ -138,7 +138,7 @@ usage : proc() = {
     println("--force-rebuild   Force rebuild even if binary is up-to-date.\n")
 }
 
-interpret_file_or_exit : proc(path: Str, args: Vec) = {
+interpret_file_or_exit := proc(path: Str, args: Vec) {
     _ := interpret_file(path, args)?
     catch (err: Str) {
         println("ERROR: ", err)
@@ -149,7 +149,7 @@ interpret_file_or_exit : proc(path: Str, args: Vec) = {
     }
 }
 
-build_file_or_exit : proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bool, force_rebuild: Bool) = {
+build_file_or_exit := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bool, force_rebuild: Bool) {
     // Skip rebuild check for translate (always regenerate source)
     if not(translate_only).and(not(force_rebuild)) {
         exe_path := source_to_binary_path(path, target)
@@ -174,7 +174,7 @@ build_file_or_exit : proc(path: Str, target: Target, lang: Lang, cc: Str, transl
     }
 }
 
-run_file_or_exit : proc(path: Str, target: Target, lang: Lang, cc: Str, extra_args: Vec, force_rebuild: Bool) = {
+run_file_or_exit := proc(path: Str, target: Target, lang: Lang, cc: Str, extra_args: Vec, force_rebuild: Bool) {
     // Compute expected binary path
     exe_path := source_to_binary_path(path, target)
 
@@ -208,7 +208,7 @@ run_file_or_exit : proc(path: Str, target: Target, lang: Lang, cc: Str, extra_ar
     }
 }
 
-main : proc(args: ..Str) = {
+main := proc(args: ..Str) {
     // args already collected by TIL runtime
 
     if args.len().gt(1) {

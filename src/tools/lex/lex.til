@@ -47,7 +47,7 @@ LexerState := struct {
 }
 
 // Check if a word is reserved
-is_reserved : func(state: LexerState, word: Str) returns Bool = {
+is_reserved := func(state: LexerState, word: Str) returns Bool {
     for w: Str in state.reserved_words {
         if w.eq(word) {
             return true
@@ -57,7 +57,7 @@ is_reserved : func(state: LexerState, word: Str) returns Bool = {
 }
 
 // Peek current character
-peek_char : func(state: LexerState) returns Str = {
+peek_char := func(state: LexerState) returns Str {
     if state.pos.gteq(state.source.len()) {
         return ""
     }
@@ -67,7 +67,7 @@ peek_char : func(state: LexerState) returns Str = {
 }
 
 // Advance and return current character
-advance : proc(mut state: LexerState) returns Str = {
+advance := proc(mut state: LexerState) returns Str {
     if state.pos.gteq(state.source.len()) {
         return ""
     }
@@ -84,7 +84,7 @@ advance : proc(mut state: LexerState) returns Str = {
 }
 
 // Skip whitespace
-skip_whitespace : proc(mut state: LexerState) = {
+skip_whitespace := proc(mut state: LexerState) {
     while state.pos.lt(state.source.len()) {
         c := peek_char(state)
         if c.eq(" ").or(c.eq("\t")).or(c.eq("\n")).or(c.eq("\r")) {
@@ -96,7 +96,7 @@ skip_whitespace : proc(mut state: LexerState) = {
 }
 
 // Check if character is alpha or underscore
-is_alpha : func(c: Str) returns Bool = {
+is_alpha := func(c: Str) returns Bool {
     if c.len().eq(0) {
         return false
     }
@@ -109,7 +109,7 @@ is_alpha : func(c: Str) returns Bool = {
 }
 
 // Check if character is digit
-is_digit : func(c: Str) returns Bool = {
+is_digit := func(c: Str) returns Bool {
     if c.len().eq(0) {
         return false
     }
@@ -120,12 +120,12 @@ is_digit : func(c: Str) returns Bool = {
 }
 
 // Check if character is alphanumeric or underscore
-is_alnum : func(c: Str) returns Bool = {
+is_alnum := func(c: Str) returns Bool {
     return is_alpha(c).or(is_digit(c))
 }
 
 // Scan identifier or reserved word
-scan_identifier : proc(mut state: LexerState) returns Token = {
+scan_identifier := proc(mut state: LexerState) returns Token {
     start_col := state.col
     mut word := ""
     while is_alnum(peek_char(state)) {
@@ -146,7 +146,7 @@ scan_identifier : proc(mut state: LexerState) returns Token = {
 }
 
 // Scan a single token
-scan_token : proc(mut state: LexerState) returns Token = {
+scan_token := proc(mut state: LexerState) returns Token {
     skip_whitespace(state)
 
     if state.pos.gteq(state.source.len()) {
@@ -219,7 +219,7 @@ scan_token : proc(mut state: LexerState) returns Token = {
 }
 
 // Scan all tokens from source
-scan_tokens : proc(source: Str, reserved_words: Vec) returns Vec = {
+scan_tokens := proc(source: Str, reserved_words: Vec) returns Vec {
     mut state := LexerState()
     state.source = source
     state.reserved_words = reserved_words

@@ -6,7 +6,7 @@ import("std.list")
 // List.push() and List.set() now take type as first parameter: list.push(I64, 42)
 
 // Test creating empty list
-test_list_new : proc() = {
+test_list_new := proc() {
     mut list := List.new()
 
     assert_eq(loc(), 0, list.len())
@@ -16,7 +16,7 @@ test_list_new : proc() = {
 test_list_new()
 
 // Test pushing heterogeneous types
-test_list_push_heterogeneous : proc() = {
+test_list_push_heterogeneous := proc() {
     mut list := List.new()
 
     // Push I64
@@ -50,7 +50,7 @@ test_list_push_heterogeneous : proc() = {
 test_list_push_heterogeneous()
 
 // Test getting elements
-test_list_get : proc() = {
+test_list_get := proc() {
     mut list := List.new()
 
     list.push(I64, own 100)?
@@ -80,7 +80,7 @@ test_list_get : proc() = {
 test_list_get()
 
 // Test setting elements (same size)
-test_list_set_same_size : proc() = {
+test_list_set_same_size := proc() {
     mut list := List.new()
 
     list.push(I64, own 10)?
@@ -109,7 +109,7 @@ test_list_set_same_size : proc() = {
 test_list_set_same_size()
 
 // Test setting elements (different size)
-test_list_set_different_size : proc() = {
+test_list_set_different_size := proc() {
     mut list := List.new()
 
     list.push(I64, own 1)?
@@ -148,7 +148,7 @@ Vec2 := struct {
     mut y : I64 = 0
 }
 
-test_list_with_struct : proc() = {
+test_list_with_struct := proc() {
     mut list := List.new()
 
     v1 := Vec2(x=10, y=20)
@@ -181,7 +181,7 @@ test_list_with_struct : proc() = {
 test_list_with_struct()
 
 // Test len field
-test_list_len : proc() = {
+test_list_len := proc() {
     mut list := List.new()
 
     test(loc(), list.len().eq(0), "Empty list length")
@@ -202,7 +202,7 @@ test_list_len : proc() = {
 test_list_len()
 
 // Test index out of bounds error
-test_list_out_of_bounds : proc() = {
+test_list_out_of_bounds := proc() {
     mut list := List.new()
 
     list.push(I64, own 10)?
@@ -219,7 +219,7 @@ test_list_out_of_bounds : proc() = {
 test_list_out_of_bounds()
 
 // Test multiple pushes
-test_list_multiple_pushes : proc() = {
+test_list_multiple_pushes := proc() {
     mut list := List.new()
 
     // Push several elements
@@ -252,7 +252,7 @@ test_list_multiple_pushes : proc() = {
 test_list_multiple_pushes()
 
 // Test nested lists
-test_nested_lists : proc() = {
+test_nested_lists := proc() {
     mut inner := List.new()
 
     inner.push(I64, own 1)?
@@ -285,7 +285,7 @@ test_nested_lists : proc() = {
 }
 test_nested_lists()
 
-test_list_pop : proc() = {
+test_list_pop := proc() {
     mut stack := List.new()
 
     // Push heterogeneous values

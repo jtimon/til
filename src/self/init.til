@@ -36,7 +36,7 @@ SymbolInfo := struct {
     mut is_comptime_const: Bool = false  // true if value was comptime-evaluable at declaration
 
 namespace:
-    clone : func(self: SymbolInfo) returns SymbolInfo = {
+    clone := func(self: SymbolInfo) returns SymbolInfo {
         // Uses standalone value_type_clone since ValueType enum doesn't have .clone() method
         return SymbolInfo(value_type=value_type_clone(self.value_type), is_mut=self.is_mut, is_own=self.is_own, is_comptime_const=self.is_comptime_const)
     }
@@ -59,7 +59,7 @@ FunctionLocal := struct {
     mut col: I64 = 0
 
 namespace:
-    eq : func(self: FunctionLocal, other: FunctionLocal) returns Bool = {
+    eq := func(self: FunctionLocal, other: FunctionLocal) returns Bool {
         return self.name.eq(other.name).and(self.line.eq(other.line)).and(self.col.eq(other.col))
     }
 }
@@ -116,7 +116,7 @@ ScopeStack := struct {
     mut borrowed_args: Set = Set.new(Str)
 
 namespace:
-    new : func() returns ScopeStack = {
+    new := func() returns ScopeStack {
         mut stack := ScopeStack()
         stack.frames = Vec.new(ScopeFrame)
         stack.function_locals = Vec.new(FunctionLocal)
@@ -128,7 +128,7 @@ namespace:
         return stack
     }
 
-    push : proc(mut self: ScopeStack, scope_type: ScopeType) = {
+    push := proc(mut self: ScopeStack, scope_type: ScopeType) {
         mut frame := ScopeFrame()
         frame.heap_index = Map.new(Str, I64)
         frame.symbols = Map.new(Str, SymbolInfo)
@@ -139,7 +139,7 @@ namespace:
         self.frames.push(own frame)
     }
 
-    pop : proc(mut self: ScopeStack) returns ScopeFrame throws Str, IndexOutOfBoundsError = {
+    pop := proc(mut self: ScopeStack) returns ScopeFrame throws Str, IndexOutOfBoundsError {
         if self.frames.len().lteq(1) {
             throw "Cannot pop global scope"
         }
@@ -149,22 +149,22 @@ namespace:
         return popped
     }
 
-    len : proc(self: ScopeStack) returns I64 = {
+    len := proc(self: ScopeStack) returns I64 {
         return self.frames.len()
     }
 
-    size : func(self: ScopeStack) returns I64 = {
+    size := func(self: ScopeStack) returns I64 {
         return self.frames.size()
     }
 
     // REM TODO Use this approach instead of the other workaround in files other than interpreter.til
-    last_frame : func(self: ScopeStack) returns ScopeFrame throws IndexOutOfBoundsError = {
+    last_frame := func(self: ScopeStack) returns ScopeFrame throws IndexOutOfBoundsError {
         out := cast(ScopeFrame, self.frames.get(self.frames.len().sub(1))?)
         // TODO Bug #177: clone needed because ccodegen skips *_ret for cast returns
         return out.clone()
     }
 
-    lookup_var : func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError = {
+    lookup_var := func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError {
         // Walk up the stack from innermost to outermost
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
@@ -182,7 +182,7 @@ namespace:
         throw KeyNotFoundError(msg="lookup_var: Var not found in ScopeStack")
     }
 
-    lookup_symbol : func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError = {
+    lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
 
@@ -202,7 +202,7 @@ namespace:
     /// Bug #50: Check if accessing this symbol would require closure capture.
     /// Returns true if we're inside a nested function and the symbol is defined
     /// in an outer function scope (not global, not current function).
-    is_closure_capture : func(self: ScopeStack, name: Str) returns Bool = {
+    is_closure_capture := func(self: ScopeStack, name: Str) returns Bool {
         mut function_boundaries_crossed := 0
         mut in_function := false
 
@@ -243,7 +243,7 @@ namespace:
         return false
     }
 
-    declare_var : proc(mut self: ScopeStack, own name: Str, offset: I64, own symbol: SymbolInfo) throws Str = {
+    declare_var := proc(mut self: ScopeStack, own name: Str, offset: I64, own symbol: SymbolInfo) throws Str {
         if self.frames.len().eq(0) {
             throw "No active scope"
         }
@@ -265,7 +265,7 @@ namespace:
         }
     }
 
-    declare_symbol : proc(mut self: ScopeStack, own name: Str, own symbol: SymbolInfo) throws Str = {
+    declare_symbol := proc(mut self: ScopeStack, own name: Str, own symbol: SymbolInfo) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -276,7 +276,7 @@ namespace:
         }
     }
 
-    remove_symbol : proc(mut self: ScopeStack, name: Str) returns Ptr throws Str = {
+    remove_symbol := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -301,7 +301,7 @@ namespace:
     }
 
     /// Issue #185: Remove symbol from scope and record what consumed it.
-    consume_symbol : proc(mut self: ScopeStack, name: Str, consumed_by: Str, expr: Expr) throws Str = {
+    consume_symbol := proc(mut self: ScopeStack, name: Str, consumed_by: Str, expr: Expr) throws Str {
         removed := self.remove_symbol(name)?
         if removed.data.gt(0) {
             self.consumed_symbols.set(own name.clone(), own ConsumedSymbolInfo(consumed_by=consumed_by, expr=expr))
@@ -309,12 +309,12 @@ namespace:
     }
 
     /// Issue #185: Look up whether a symbol was consumed by ownership transfer.
-    lookup_consumed_symbol : func(self: ScopeStack, name: Str) returns ConsumedSymbolInfo throws KeyNotFoundError = {
+    lookup_consumed_symbol := func(self: ScopeStack, name: Str) returns ConsumedSymbolInfo throws KeyNotFoundError {
         info := cast(ConsumedSymbolInfo, self.consumed_symbols.get(name)?)
         return info
     }
 
-    remove_var : proc(mut self: ScopeStack, name: Str) returns Ptr throws Str = {
+    remove_var := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -336,7 +336,7 @@ namespace:
     }
 
     // Insert a variable without a corresponding symbol (simpler than declare_var)
-    insert_var : proc(mut self: ScopeStack, own name: Str, offset: I64) throws Str = {
+    insert_var := proc(mut self: ScopeStack, own name: Str, offset: I64) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -347,7 +347,7 @@ namespace:
         }
     }
 
-    lookup_func : func(self: ScopeStack, name: Str) returns FuncDef throws KeyNotFoundError = {
+    lookup_func := func(self: ScopeStack, name: Str) returns FuncDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
 
@@ -364,7 +364,7 @@ namespace:
         throw KeyNotFoundError(msg="lookup_func: Function not found in Context")
     }
 
-    declare_func : proc(mut self: ScopeStack, own name: Str, own func_def: FuncDef) throws Str = {
+    declare_func := proc(mut self: ScopeStack, own name: Str, own func_def: FuncDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -382,7 +382,7 @@ namespace:
     /// Update an existing func_def wherever it was originally declared.
     /// Unlike declare_func (which always inserts at current scope), this finds
     /// where the func was originally declared and updates it there.
-    update_func : proc(mut self: ScopeStack, own name: Str, own func_def: FuncDef) throws Str = {
+    update_func := proc(mut self: ScopeStack, own name: Str, own func_def: FuncDef) throws Str {
         for frame: ScopeFrame in self.frames {
             if frame.funcs.contains_key(name) {
                 frame.funcs.set(own name, own func_def)
@@ -393,7 +393,7 @@ namespace:
         self.declare_func(own name, own func_def)?
     }
 
-    lookup_enum : func(self: ScopeStack, name: Str) returns EnumDef throws KeyNotFoundError = {
+    lookup_enum := func(self: ScopeStack, name: Str) returns EnumDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
 
@@ -410,7 +410,7 @@ namespace:
         throw KeyNotFoundError(msg="lookup_enum: Enum not found in ScopeStack")
     }
 
-    declare_enum : proc(mut self: ScopeStack, own name: Str, own enum_def: EnumDef) throws Str = {
+    declare_enum := proc(mut self: ScopeStack, own name: Str, own enum_def: EnumDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -421,7 +421,7 @@ namespace:
         }
     }
 
-    lookup_struct : func(self: ScopeStack, name: Str) returns StructDef throws KeyNotFoundError = {
+    lookup_struct := func(self: ScopeStack, name: Str) returns StructDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
 
@@ -439,7 +439,7 @@ namespace:
     }
 
     // Existence check methods - avoid full struct retrieval when only checking presence
-    has_var : func(self: ScopeStack, name: Str) returns Bool = {
+    has_var := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
             if frame.heap_index.contains_key(name) {
@@ -452,7 +452,7 @@ namespace:
         return false
     }
 
-    has_symbol : func(self: ScopeStack, name: Str) returns Bool = {
+    has_symbol := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
             if frame.symbols.contains_key(name) {
@@ -465,7 +465,7 @@ namespace:
         return false
     }
 
-    has_func : func(self: ScopeStack, name: Str) returns Bool = {
+    has_func := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
             if frame.funcs.contains_key(name) {
@@ -478,7 +478,7 @@ namespace:
         return false
     }
 
-    has_enum : func(self: ScopeStack, name: Str) returns Bool = {
+    has_enum := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
             if frame.enums.contains_key(name) {
@@ -491,7 +491,7 @@ namespace:
         return false
     }
 
-    has_struct : func(self: ScopeStack, name: Str) returns Bool = {
+    has_struct := func(self: ScopeStack, name: Str) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
             if frame.structs.contains_key(name) {
@@ -505,7 +505,7 @@ namespace:
     }
 
     // Check if a combined name (e.g., "Color.Green") refers to an enum constructor
-    is_enum_constructor : func(self: ScopeStack, combined_name: Str) returns Bool = {
+    is_enum_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         mut parts := combined_name.split(".")?
         if parts.len().eq(2) {
             enum_type := cast(Str, parts.get(0)?)
@@ -524,7 +524,7 @@ namespace:
     }
 
     // Check if a combined name refers to a struct constructor
-    is_struct_constructor : func(self: ScopeStack, combined_name: Str) returns Bool = {
+    is_struct_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         mut parts := combined_name.split(".")?
         if parts.len().eq(1) {
             struct_name := cast(Str, parts.get(0)?)
@@ -537,11 +537,11 @@ namespace:
     }
 
     // Check if a combined name refers to a type constructor (enum or struct)
-    is_type_constructor : func(self: ScopeStack, combined_name: Str) returns Bool = {
+    is_type_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         return self.is_enum_constructor(combined_name).or(self.is_struct_constructor(combined_name))
     }
 
-    all_structs : func(self: ScopeStack) returns Vec throws Str = {
+    all_structs := func(self: ScopeStack) returns Vec throws Str {
         mut result := Vec.new(StructDef)
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
@@ -557,7 +557,7 @@ namespace:
         return result
     }
 
-    declare_struct : proc(mut self: ScopeStack, own name: Str, own struct_def: StructDef) throws Str = {
+    declare_struct := proc(mut self: ScopeStack, own name: Str, own struct_def: StructDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -569,7 +569,7 @@ namespace:
     }
 
     // Issue #105: Register struct in global frame (survives function scope pops)
-    declare_struct_global : proc(mut self: ScopeStack, own name: Str, own struct_def: StructDef) throws Str = {
+    declare_struct_global := proc(mut self: ScopeStack, own name: Str, own struct_def: StructDef) throws Str {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
             global_frame.structs.set(own name, own struct_def)
@@ -580,7 +580,7 @@ namespace:
     }
 
     // Issue #91: Register function in global frame (survives function scope pops)
-    declare_func_global : proc(mut self: ScopeStack, own name: Str, own func_def: FuncDef) throws Str = {
+    declare_func_global := proc(mut self: ScopeStack, own name: Str, own func_def: FuncDef) throws Str {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
             global_frame.funcs.set(own name, own func_def)
@@ -591,7 +591,7 @@ namespace:
     }
 
     // Issue #106: Register enum in global frame (survives function scope pops)
-    declare_enum_global : proc(mut self: ScopeStack, own name: Str, own enum_def: EnumDef) throws Str = {
+    declare_enum_global := proc(mut self: ScopeStack, own name: Str, own enum_def: EnumDef) throws Str {
         if self.frames.len().gt(0) {
             mut global_frame := cast(ScopeFrame, self.frames.get(0)?)
             global_frame.enums.set(own name, own enum_def)
@@ -601,7 +601,7 @@ namespace:
         }
     }
 
-    get_symbols_with_prefix : func(self: ScopeStack, prefix: Str) returns Vec = {
+    get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec {
         // Collect all keys from all scopes that start with the given prefix
         mut keys := Vec.new(Str)
         for frame: ScopeFrame in self.frames {
@@ -614,7 +614,7 @@ namespace:
         return keys
     }
 
-    get_all_struct_names : func(self: ScopeStack) returns Vec = {
+    get_all_struct_names := func(self: ScopeStack) returns Vec {
         mut names := Vec.new(Str)
         for frame: ScopeFrame in self.frames {
             for key: Str in frame.structs.keys {
@@ -625,7 +625,7 @@ namespace:
     }
 
     // Bug #97: Check if we're currently inside a function (not at global scope).
-    is_inside_function : func(self: ScopeStack) returns Bool = {
+    is_inside_function := func(self: ScopeStack) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             frame := cast(ScopeFrame, self.frames.get(i)?)
             switch frame.scope_type {
@@ -643,7 +643,7 @@ namespace:
     // Bug #97: Check if symbol exists in an ENCLOSING function scope (not current frame, not global).
     // Searches from parent frame back to the nearest Function frame (inclusive).
     // Used to detect variable shadowing - only errors if symbol is in an outer scope.
-    lookup_symbol_in_enclosing_scope : func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError = {
+    lookup_symbol_in_enclosing_scope := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
         // Skip the current frame - we're looking for shadowing of outer variables
         mut skipped_first := false
         for i in self.frames.len().sub(1)..sub(0, 1) {
@@ -674,7 +674,7 @@ namespace:
     // Bug #97: Check if a variable name was already declared at a DIFFERENT location in this function.
     // Returns true if the name exists but at a different (line, col) - indicating actual shadowing.
     // Returns false if same (name, line, col) exists - indicating AST duplication, not shadowing.
-    is_shadowing_in_function : func(self: ScopeStack, name: Str, line: I64, col: I64) returns Bool = {
+    is_shadowing_in_function := func(self: ScopeStack, name: Str, line: I64, col: I64) returns Bool {
         // Check if any entry with same name but different location exists
         for local: FunctionLocal in self.function_locals {
             if local.name.eq(name).and(local.line.eq(line).not().or(local.col.eq(col).not())) {
@@ -686,7 +686,7 @@ namespace:
 
     // Bug #97: Check if this exact declaration (name, line, col) was already processed.
     // Used to detect AST duplication from transformations like for-in desugaring.
-    is_already_processed : func(self: ScopeStack, name: Str, line: I64, col: I64) returns Bool = {
+    is_already_processed := func(self: ScopeStack, name: Str, line: I64, col: I64) returns Bool {
         mut target := FunctionLocal(name=name, line=line, col=col)
         for local: FunctionLocal in self.function_locals {
             if local.eq(target) {
@@ -698,7 +698,7 @@ namespace:
 
     // Bug #97: Register a variable declaration in the current function.
     // Call this when declaring a new variable.
-    register_function_local : proc(mut self: ScopeStack, name: Str, line: I64, col: I64) = {
+    register_function_local := proc(mut self: ScopeStack, name: Str, line: I64, col: I64) {
         mut local := FunctionLocal(name=name, line=line, col=col)
         // Only insert if not already present (set semantics)
         mut already_exists := false
@@ -714,17 +714,17 @@ namespace:
     }
 
     // Bug #101: Mark a symbol as used in the current function.
-    mark_symbol_used : proc(mut self: ScopeStack, name: Str) = {
+    mark_symbol_used := proc(mut self: ScopeStack, name: Str) {
         _ := self.used_symbols.insert(own name.clone())
     }
 
     /// Issue #117: Begin tracking symbol removals (supports nesting via depth counter).
-    begin_removal_tracking : proc(mut self: ScopeStack) = {
+    begin_removal_tracking := proc(mut self: ScopeStack) {
         self.removal_tracking_depth = self.removal_tracking_depth.add(1)
     }
 
     /// Issue #117: End tracking symbol removals. Clears log when outermost level exits.
-    end_removal_tracking : proc(mut self: ScopeStack) = {
+    end_removal_tracking := proc(mut self: ScopeStack) {
         self.removal_tracking_depth = self.removal_tracking_depth.sub(1)
         if self.removal_tracking_depth.eq(0) {
             self.removed_log.clear()
@@ -732,12 +732,12 @@ namespace:
     }
 
     /// Issue #117: Get current position in the removal log (used as a mark for drain_removals_since).
-    removal_mark : func(self: ScopeStack) returns I64 = {
+    removal_mark := func(self: ScopeStack) returns I64 {
         return self.removed_log.len()
     }
 
     /// Issue #117: Drain removals logged since the given mark, returning them.
-    drain_removals_since : proc(mut self: ScopeStack, mark: I64) returns Vec throws Str = {
+    drain_removals_since := proc(mut self: ScopeStack, mark: I64) returns Vec throws Str {
         mut result := self.removed_log.split_off(mark)?
         return result
 
@@ -747,7 +747,7 @@ namespace:
     }
 
     /// Issue #117: Re-insert removed symbols into the current frame (if not already present).
-    restore_removed : proc(mut self: ScopeStack, removed: Vec) throws Str = {
+    restore_removed := proc(mut self: ScopeStack, removed: Vec) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut frame := cast(ScopeFrame, self.frames.get(last_idx)?)
@@ -765,7 +765,7 @@ namespace:
 
     // Bug #101: Get all declared symbols in function_locals that are not in used_symbols
     // and don't start with underscore.
-    get_unused_symbols : func(self: ScopeStack) returns Vec = {
+    get_unused_symbols := func(self: ScopeStack) returns Vec {
         mut unused := Vec.new(Str)
         for local: FunctionLocal in self.function_locals {
             if not(local.name.starts_with("_")) {
@@ -788,7 +788,7 @@ namespace:
     }
 
     /// Issue #91: Get the set of FuncSig type names (for preinit to skip delete/clone).
-    get_func_sig_types : func(self: ScopeStack) returns Set = {
+    get_func_sig_types := func(self: ScopeStack) returns Set {
         mut result := Set.new(Str)
         mut fi := 0
         while fi.lt(self.frames.len()) {
@@ -815,7 +815,7 @@ namespace:
     }
 }
 
-get_func_name_in_call : func(e: Expr) returns Str throws Str = {
+get_func_name_in_call := func(e: Expr) returns Str throws Str {
     mut node_type_str := enum_to_str(e.node_type)
     if not(node_type_str.eq("NodeType.FCall")) {
         throw "get_func_name_in_call(): expected fcall node."
@@ -846,7 +846,7 @@ get_func_name_in_call : func(e: Expr) returns Str throws Str = {
 }
 
 // Issue #105 Step 4d: Check if a declared metatype annotation matches an inferred TType
-metatype_matches : func(declared: ValueType, inferred: ValueType) returns Bool = {
+metatype_matches := func(declared: ValueType, inferred: ValueType) returns Bool {
     switch declared {
     case ValueType.TCustom(name):
         switch inferred {
@@ -861,6 +861,9 @@ metatype_matches : func(declared: ValueType, inferred: ValueType) returns Bool =
             case TTypeDef.TFuncDef:
                 return name.eq("FuncDef")
             }
+        // name : FuncDef = func(a: I64) { body } -- func literal inferred as TFunction
+        case ValueType.TFunction(_ft):
+            return name.eq("FuncDef")
         case:
             return false
         }
@@ -869,7 +872,7 @@ metatype_matches : func(declared: ValueType, inferred: ValueType) returns Bool =
     }
 }
 
-value_type_func_proc : func(path: Str, e: Expr, name: Str, func_def: FuncDef) returns ValueType throws Str = {
+value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: FuncDef) returns ValueType throws Str {
     mut returns_len := func_def.sig.return_types.len()
     if returns_len.eq(0) {
         throw e.error(path, "init", format("func '", name, "' does not return anything"))
@@ -898,7 +901,7 @@ value_type_func_proc : func(path: Str, e: Expr, name: Str, func_def: FuncDef) re
     throw e.todo_error(path, "init", format("func '", name, "' returns multiple values"))
 }
 
-get_ufcs_fcall_value_type : func(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str = {
+get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str {
     if id_expr.params.len().eq(0) {
         throw e.error(context.path, "init", format("Cannot call '", f_name, "', it is not a function or struct, it is a '", value_type_to_str(symbol.value_type), "'"))
     }
@@ -959,7 +962,7 @@ get_ufcs_fcall_value_type : func(context: Context, e: Expr, f_name: Str, id_expr
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-get_fcall_value_type : func(context: Context, e: Expr) returns ValueType throws Str = {
+get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
 
     // Issue #105: anonymous struct instantiation - struct { ... }(args)
     // First param is StructDef, not Identifier - defer type resolution to precomp/interpreter
@@ -1417,7 +1420,7 @@ get_fcall_value_type : func(context: Context, e: Expr) returns ValueType throws 
     throw e.error(context.path, "init", format("Undefined symbol '", f_name, "'"))
 }
 
-get_value_type : func(context: Context, e: Expr) returns ValueType throws Str = {
+get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
     switch e.node_type {
     case NodeType.LLiteral(literal):
         switch literal {
@@ -1606,7 +1609,7 @@ get_value_type : func(context: Context, e: Expr) returns ValueType throws Str = 
 # Convert dot-based import path to OS-specific file path
 # Example: "std.io" -> "src/std/io.til" (Unix) or "src\std\io.til" (Windows)
 # Auto-prefixes with "src."
-import_path_to_file_path : func(import_path: Str) returns Str = {
+import_path_to_file_path := func(import_path: Str) returns Str {
     mut full_path := format("src.", import_path)
     mut file_path := full_path.replace(".", MAIN_SEPARATOR_STR)
     mut result := format(file_path, ".til")
@@ -1618,7 +1621,7 @@ import_path_to_file_path : func(import_path: Str) returns Str = {
 # Import declarations only (no eval) - for init phase
 # This processes imports during declaration indexing, copying only declarations
 # to the parent context. The typer and eval phases will use the stored AST.
-init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: Str) throws Str = {
+init_import_declarations := proc(mut context: Context, e: Expr, import_path_str: Str) throws Str {
     mut path := import_path_to_file_path(import_path_str)
     mut original_path := context.path.clone()
 
@@ -1733,7 +1736,7 @@ init_import_declarations : proc(mut context: Context, e: Expr, import_path_str: 
 // Issue #91: Walk an expression tree to find and register anonymous FuncDef nodes.
 // Anonymous functions have non-empty bodies but aren't inside a Declaration.
 // They get registered with temp names like __anon_func_0.
-collect_anon_funcs : proc(mut context: Context, e: Expr) throws Str = {
+collect_anon_funcs := proc(mut context: Context, e: Expr) throws Str {
     switch e.node_type {
     case NodeType.FuncDef(func_def):
         if func_def.body.len().gt(0) {
@@ -1767,7 +1770,7 @@ collect_anon_funcs : proc(mut context: Context, e: Expr) throws Str = {
 }
 
 /// Merge namespace members into an already-registered struct
-init_namespace_into_struct : proc(mut context: Context, type_name: Str, ns_def: NamespaceDef, e: Expr, mut errors: Vec) throws Str = {
+init_namespace_into_struct := proc(mut context: Context, type_name: Str, ns_def: NamespaceDef, e: Expr, mut errors: Vec) throws Str {
     mut existing_struct := StructDef()
     existing_struct = context.scope_stack.lookup_struct(type_name)?
     catch (err: KeyNotFoundError) {
@@ -1845,7 +1848,7 @@ init_namespace_into_struct : proc(mut context: Context, type_name: Str, ns_def: 
 }
 
 /// Merge namespace members into an already-registered enum
-init_namespace_into_enum : proc(mut context: Context, type_name: Str, ns_def: NamespaceDef, e: Expr, mut errors: Vec) throws Str = {
+init_namespace_into_enum := proc(mut context: Context, type_name: Str, ns_def: NamespaceDef, e: Expr, mut errors: Vec) throws Str {
     mut existing_enum := EnumDef()
     existing_enum = context.scope_stack.lookup_enum(type_name)?
     catch (err: KeyNotFoundError) {
@@ -1904,7 +1907,7 @@ init_namespace_into_enum : proc(mut context: Context, type_name: Str, ns_def: Na
 // Process AST and register all declarations (funcs, enums, structs, vars)
 // Returns array of error strings (empty if success)
 // Corresponds to init_context in init.rs
-init_context : proc(mut context: Context, e: Expr) returns Vec throws Str = {
+init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
 
     switch e.node_type {
@@ -2389,7 +2392,7 @@ Context := struct {
 
 namespace:
     # Context methods (insert/get/copy methods moved to EvalHeap in interpreter.til)
-    new : func(path: Str, mode_name: Str) returns Context throws Str = {
+    new := func(path: Str, mode_name: Str) returns Context throws Str {
         mut scope_stack := ScopeStack.new()
         scope_stack.push(ScopeType.Global) # Initialize global scope
 
@@ -2416,7 +2419,7 @@ namespace:
     }
 
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
-    get_variant_pos : func(selfi: EnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str = {
+    get_variant_pos := func(selfi: EnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str {
         for search_idx in 0..selfi.variants.len() {
             search_v := cast(EnumVariant, selfi.variants.get(search_idx)?)
             if search_v.name.eq(variant_name) {
@@ -2434,7 +2437,7 @@ namespace:
     }
 
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
-    variant_pos_to_str : func(selfi: EnumDef, position: I64, path: Str, e: Expr) returns Str throws Str = {
+    variant_pos_to_str := func(selfi: EnumDef, position: I64, path: Str, e: Expr) returns Str throws Str {
         if position.lt(0).or(position.gteq(selfi.variants.len())) {
             mut err_names := Vec.new(Str)
             for err_v: EnumVariant in selfi.variants {
@@ -2454,7 +2457,7 @@ namespace:
     // Bug #160: map_instance_fields removed - symbols are registered by type checker
     // via register_struct_fields_for_typecheck, offsets calculated dynamically via get_field_offset
 
-    get_struct : func(self: Context, id: Str, e: Expr) returns Str throws Str = {
+    get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str {
         # Validate that the struct variable exists by checking if we can get its offset
         mut found_var := false
         mut offset := 0
@@ -2483,7 +2486,7 @@ namespace:
 
     // Push a new function scope and switch to the function's source path
     // Returns the saved path that should be restored when popping
-    push_function_scope : proc(mut self: Context, function_path: Str) returns Str = {
+    push_function_scope := proc(mut self: Context, function_path: Str) returns Str {
         self.scope_stack.push(ScopeType.Function)
         mut saved_path := self.path.clone()
         self.path = function_path
@@ -2491,7 +2494,7 @@ namespace:
     }
 
     // Pop the current function scope and restore the previous path
-    pop_function_scope : proc(mut self: Context, saved_path: Str) throws Str = {
+    pop_function_scope := proc(mut self: Context, saved_path: Str) throws Str {
         self.path = saved_path
         self.scope_stack.pop()?.delete() // TODO remove this #183 workaround
         catch (err: IndexOutOfBoundsError) {
@@ -2500,7 +2503,7 @@ namespace:
     }
 
     // Get the size of a type in bytes
-    get_type_size : func(self: Context, type_name: Str) returns I64 throws Str = {
+    get_type_size := func(self: Context, type_name: Str) returns I64 throws Str {
         if type_name.eq("U8") {
             return 1
         }
@@ -2592,7 +2595,7 @@ namespace:
     }
 
     // Calculate the offset of a specific field within a struct type
-    calculate_field_offset : func(self: Context, struct_type: Str, field_name: Str) returns I64 throws Str = {
+    calculate_field_offset := func(self: Context, struct_type: Str, field_name: Str) returns I64 throws Str {
         mut struct_def := self.scope_stack.lookup_struct(struct_type)?
         catch (err: KeyNotFoundError) {
             throw format("calculate_field_offset: struct '", struct_type, "' not found")
@@ -2622,7 +2625,7 @@ namespace:
     }
 
     // Get the absolute heap offset for a field path (e.g., "my_vec._len")
-    get_field_offset : func(self: Context, field_path: Str) returns I64 throws Str = {
+    get_field_offset := func(self: Context, field_path: Str) returns I64 throws Str {
         mut parts := field_path.split(".")?
         if parts.len().eq(0) {
             throw "get_field_offset: empty field path"
@@ -2780,7 +2783,7 @@ namespace:
     }
 
     // Get the ValueType for a field path (e.g., "s.color")
-    get_field_type : func(self: Context, field_path: Str) returns ValueType throws Str = {
+    get_field_type := func(self: Context, field_path: Str) returns ValueType throws Str {
         mut parts := field_path.split(".")?
         if parts.len().eq(0) {
             throw "get_field_type: empty field path"
@@ -2843,7 +2846,7 @@ namespace:
         return current_type
     }
 
-    register_struct_fields_for_typecheck : proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str = {
+    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str {
         mut found_struct := false
         mut struct_def := StructDef()
         struct_def = self.scope_stack.lookup_struct(custom_type_name)?.clone()

@@ -1,6 +1,6 @@
 mode test
 
-test_shadow : proc() = {
+test_shadow := proc() {
     mut x := 1
     if true {
         mut x := "inner"

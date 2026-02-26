@@ -11,7 +11,7 @@ namespace:
      * Create new empty set with specified element type
      * Example: Set.new(Str)
      */
-    new : proc(T: Type) returns Set = {
+    new := proc(T: Type) returns Set {
         mut s := Set()
         s.elements = Vec.new_from_type_info(type_as_str(T), size_of(T))
         s._size = 0
@@ -23,7 +23,7 @@ namespace:
      * Returns true if element was inserted (not already present)
      * Returns false if element already exists
      */
-    insert : proc(mut self: Set, own elem: Dynamic) returns Bool = {
+    insert := proc(mut self: Set, own elem: Dynamic) returns Bool {
         dont_delete(elem)
         // Check if element already exists
         mut i := 0
@@ -60,7 +60,7 @@ namespace:
     }
 
     /** Remove element from set. Does nothing if element doesn't exist. */
-    remove : proc(mut self: Set, elem: Dynamic) = {
+    remove := proc(mut self: Set, elem: Dynamic) {
         mut i := 0
         while i.lt(self._size) {
             mut elems_match := 0
@@ -101,7 +101,7 @@ namespace:
     }
 
     /** Check if element exists in set */
-    contains : proc(self: Set, elem: Dynamic) returns Bool = {
+    contains := proc(self: Set, elem: Dynamic) returns Bool {
         mut i := 0
         while i.lt(self._size) {
             mut elems_match := 0
@@ -130,12 +130,12 @@ namespace:
     }
 
     /** Get number of elements in set */
-    len : proc(self: Set) returns I64 = {
+    len := proc(self: Set) returns I64 {
         return self._size
     }
 
     /** Get borrowed Ptr to element at index. No copy - points into set memory. */
-    get : proc(self: Set, index: I64) returns Ptr throws IndexOutOfBoundsError = {
+    get := proc(self: Set, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if index.lt(0).or(not(index.lt(self._size))) {
             throw IndexOutOfBoundsError(msg=format("Set.get: index ", I64.to_str(index), " out of bounds (size: ", I64.to_str(self._size), ")"))
         }
@@ -143,22 +143,22 @@ namespace:
     }
 
     /** Get total size in bytes */
-    size : func(self: Set) returns I64 = {
+    size := func(self: Set) returns I64 {
         return self._size.mul(self.elements.ptr.elem_size)
     }
 
     /** Free set memory and reset */
-    clear : proc(mut self: Set) = {
+    clear := proc(mut self: Set) {
         self.delete()
     }
 
     /** Free set memory and reset */
-    delete : func(mut self: Set) = {
+    delete := func(mut self: Set) {
         self.elements.delete()
         self._size = 0
     }
 
-    clone : func(self: Set) returns Set = {
+    clone := func(self: Set) returns Set {
         mut cloned := Set()
         cloned.elements = self.elements.clone()
         cloned._size = self._size

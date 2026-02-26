@@ -4,7 +4,7 @@ mode test
 // defer - basic: return value is hoisted before defer runs
 // ============================================================
 
-test_basic_defer := func() returns I64 = {
+test_basic_defer := func() returns I64 {
     mut x := 0
     defer x = 99
     return x
@@ -17,7 +17,7 @@ assert_eq(loc(), 0, test_basic_defer())
 // Return value hoisted before any defer runs
 // ============================================================
 
-test_lifo := func() returns I64 = {
+test_lifo := func() returns I64 {
     mut x := 0
     defer x = 10
     defer x = 20
@@ -31,7 +31,7 @@ assert_eq(loc(), 0, test_lifo())
 // Block-scoped: defer runs at end of if-body
 // ============================================================
 
-test_cond_true := func() returns I64 = {
+test_cond_true := func() returns I64 {
     mut x := 10
     if true {
         defer x = 20
@@ -45,7 +45,7 @@ assert_eq(loc(), 20, test_cond_true())
 // defer - conditional: defer inside if (branch NOT taken)
 // ============================================================
 
-test_cond_false := func() returns I64 = {
+test_cond_false := func() returns I64 {
     mut x := 10
     if false {
         defer x = 20
@@ -59,7 +59,7 @@ assert_eq(loc(), 10, test_cond_false())
 // defer - early return: only active defers run
 // ============================================================
 
-test_early_return := func(n: I64) returns I64 = {
+test_early_return := func(n: I64) returns I64 {
     mut x := 0
     defer x = 100
     if n.eq(0) {
@@ -77,7 +77,7 @@ assert_eq(loc(), 0, test_early_return(5))
 // defer - inside switch case
 // ============================================================
 
-test_defer_in_switch := func(n: I64) returns I64 = {
+test_defer_in_switch := func(n: I64) returns I64 {
     mut result := 0
     switch n {
     case 1:
@@ -95,12 +95,12 @@ assert_eq(loc(), 0, test_defer_in_switch(2))
 // defer - with throw: defer runs before throw propagates
 // ============================================================
 
-test_throw_inner := proc() throws Str = {
+test_throw_inner := proc() throws Str {
     mut x := 0
     defer x = 99
     throw "error"
 }
-test_throw := proc() = {
+test_throw := proc() {
     test_throw_inner()?
     catch (err: Str) {}
 }
@@ -110,7 +110,7 @@ test_throw()
 // defer - fall-through (no explicit return)
 // ============================================================
 
-test_fallthrough := proc() = {
+test_fallthrough := proc() {
     mut x := 0
     defer x = 42
 }
@@ -120,7 +120,7 @@ test_fallthrough()
 // defer - Vec.delete() (the primary use case)
 // ============================================================
 
-test_defer_delete := func() returns I64 = {
+test_defer_delete := func() returns I64 {
     mut v := Vec.new(I64)
     defer v.delete()
     v.push(own 42)

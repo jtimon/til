@@ -15,22 +15,22 @@ HeapState := struct {
 
 namespace:
 
-    enable : proc() = {
+    enable := proc() {
         g_entries = Vec.new(HeapEntry)
         g_enabled = true
     }
 
-    disable : proc() = {
+    disable := proc() {
         g_enabled = false
     }
 
-    add : proc(ptr: I64, size: I64) = {
+    add := proc(ptr: I64, size: I64) {
         if not(g_enabled) { return }
         mut entry := HeapEntry(ptr=ptr, size=size)
         g_entries.push(own entry)
     }
 
-    remove : proc(ptr: I64) = {
+    remove := proc(ptr: I64) {
         if not(g_enabled) { return }
         if ptr.eq(0) { return }
         for i in 0..g_entries.len() {
@@ -50,7 +50,7 @@ namespace:
         }
     }
 
-    report : proc() = {
+    report := proc() {
         if not(g_enabled) { return }
         mut leaked := 0
         mut leaked_bytes := 0

@@ -13,7 +13,7 @@ INFER_TYPE := "auto"
 // Bug #146: Reset per-function for deterministic output (like Issue #127 fix for precomp_forin_counter)
 mut LOOP_VAR_COUNTER := 0
 
-next_loop_var : func() returns Str = {
+next_loop_var := func() returns Str {
     n := LOOP_VAR_COUNTER
     LOOP_VAR_COUNTER = add(LOOP_VAR_COUNTER, 1)
     mut n_str := n.to_str()
@@ -22,26 +22,26 @@ next_loop_var : func() returns Str = {
     return result
 }
 
-save_loop_var_counter : func() returns I64 = {
+save_loop_var_counter := func() returns I64 {
     return LOOP_VAR_COUNTER
 }
 
-reset_loop_var_counter : func() returns I64 = {
+reset_loop_var_counter := func() returns I64 {
     LOOP_VAR_COUNTER = 0
     return 0
 }
 
-restore_loop_var_counter : func(saved: I64) returns I64 = {
+restore_loop_var_counter := func(saved: I64) returns I64 {
     LOOP_VAR_COUNTER = saved
     return 0
 }
 
 // Expr.new_parse as free function (Expr struct is in core/ast.til, Token is in self/lexer)
-expr_new_parse : func(node_type: NodeType, token: Token, params: Vec) returns Expr = {
+expr_new_parse := func(node_type: NodeType, token: Token, params: Vec) returns Expr {
     return Expr(node_type=node_type, params=params, line=token.line, col=token.col)
 }
 
-is_literal : func(t: Token) returns Bool = {
+is_literal := func(t: Token) returns Bool {
     tt := t.token_type
     switch tt {
     case TokenType.String:
@@ -53,7 +53,7 @@ is_literal : func(t: Token) returns Bool = {
     }
 }
 
-value_type_to_str : func(arg_type: ValueType) returns Str = {
+value_type_to_str := func(arg_type: ValueType) returns Str {
     switch arg_type {
     case ValueType.TType(TTypeDef.TEnumDef):
         return "enum"
@@ -82,7 +82,7 @@ value_type_to_str : func(arg_type: ValueType) returns Str = {
     }
 }
 
-str_to_value_type : func(arg_type: Str) returns ValueType = {
+str_to_value_type := func(arg_type: Str) returns ValueType {
     if arg_type.eq("func") {
         return ValueType.TFunction(FunctionType.FTFunc)
     }
@@ -108,7 +108,7 @@ str_to_value_type : func(arg_type: Str) returns ValueType = {
     return ValueType.TCustom(arg_type)
 }
 
-parse_literal : func(mut lexer: Lexer, t: Token) returns Expr throws Str = {
+parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
     params := Vec.new(Expr)
     tt := t.token_type
     mut node_type := NodeType.Body  // Default, will be overwritten
@@ -129,7 +129,7 @@ parse_literal : func(mut lexer: Lexer, t: Token) returns Expr throws Str = {
     return e
 }
 
-parse_args : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     mut rightparent_found := false
     mut params := Vec.new(Expr)
     initial_current := lexer.current
@@ -215,7 +215,7 @@ parse_args : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsErr
     }
 }
 
-parse_assignment : func(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str = {
+parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str {
     _ := lexer.expect(TokenType.Equal)?
     mut params := Vec.new(Expr)
     value := parse_primary(lexer)?
@@ -224,7 +224,7 @@ parse_assignment : func(mut lexer: Lexer, t: Token, name: Str) returns Expr thro
     return result
 }
 
-validate_mut_own_modifiers : func(t: Token, path: Str, modifier: Str, is_mut: Bool, is_own: Bool) throws Str = {
+validate_mut_own_modifiers := func(t: Token, path: Str, modifier: Str, is_mut: Bool, is_own: Bool) throws Str {
     if modifier.eq("mut") {
         if is_own {
             throw t.error(path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer.")
@@ -237,7 +237,7 @@ validate_mut_own_modifiers : func(t: Token, path: Str, modifier: Str, is_mut: Bo
     }
 }
 
-parse_func_proc_args : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError = {
+parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError {
     _ := lexer.expect(TokenType.LeftParen)?
     mut rightparent_found := false
     mut args := Vec.new(Declaration)
@@ -407,11 +407,11 @@ parse_func_proc_args : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOf
     }
 }
 
-func_proc_returns : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError = {
+func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError {
     mut end_found := false
     mut return_types := Vec.new(ValueType)
     mut t := lexer.peek()?
-    // Issue #91: Don't consume '=' (new syntax: `func() = { body }`)
+    // Issue #91: Don't consume '=' -- FuncSig form: `func(I64) = (a) { body }`
     tt_early := t.token_type
     switch tt_early {
     case TokenType.Equal:
@@ -438,7 +438,7 @@ func_proc_returns : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
         case TokenType.LeftBrace:
             end_found = true
             lexer.advance(1)?
-        // Issue #91: new syntax `name : func(...) returns T = { body }`
+        // Issue #91: FuncSig form `name : func(...) returns T = (a) { body }`
         case TokenType.Equal:
             end_found = true
             // Don't advance - parse_func_proc_definition handles '='
@@ -490,7 +490,7 @@ func_proc_returns : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
 }
 
 // TODO DRY with func_proc_returns ?
-func_proc_throws : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError = {
+func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError {
     mut end_found := false
     mut return_types := Vec.new(ValueType)
     mut t := lexer.previous()?
@@ -510,7 +510,7 @@ func_proc_throws : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoun
         case TokenType.LeftBrace:
             end_found = true
             lexer.advance(1)?
-        // Issue #91: new syntax `name : func(...) throws E = { body }`
+        // Issue #91: FuncSig form `name : func(...) throws E = (a) { body }`
         case TokenType.Equal:
             end_found = true
             // Don't advance - parse_func_proc_definition handles '='
@@ -545,7 +545,7 @@ func_proc_throws : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoun
 
 // Issue #91: Parse binding tuple `(a, b, c)` for normal form function definitions
 // e.g. `func(I64, I64) returns I64 = (a, b) { body }`
-parse_binding_tuple : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError = {
+parse_binding_tuple := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError {
     _ := lexer.expect(TokenType.LeftParen)?
     mut names := Vec.new(Str)
     mut expect_comma := false
@@ -576,7 +576,7 @@ parse_binding_tuple : func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfB
     return names
 }
 
-parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType) returns Expr throws Str = {
+parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType) returns Expr throws Str {
     lexer.advance(1)?
     t := lexer.peek()?
     if lexer.is_eof(1)? {
@@ -597,8 +597,7 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
     saved_loop_counter := save_loop_var_counter()
     mut _ignore := reset_loop_var_counter()
 
-    // Issue #91: Check for new syntax `= (binding) { body }` or `= { body }` vs current `{ body }`
-    // After returns/throws, lexer is either past '{' (current) or at '=' (new)
+    // After returns/throws, lexer is either past '{' (FuncDef form) or at '=' (FuncSig form)
     next := lexer.peek()?
     next_tt := next.token_type
     mut body := Vec.new(Expr)
@@ -609,7 +608,7 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
         after_eq_tt := after_eq.token_type
         switch after_eq_tt {
         case TokenType.LeftParen:
-            // Normal form binding tuple: = (a, b) { body }
+            // FuncSig form binding tuple: = (a, b) { body }
             binding_names := parse_binding_tuple(lexer)?
             if not(binding_names.len().eq(args.len())) {
                 _ignore = restore_loop_var_counter(saved_loop_counter)
@@ -646,23 +645,15 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
             bind_body_expr := parse_body(lexer, TokenType.RightBrace)?
             body = bind_body_expr.params
         case TokenType.LeftBrace:
-            // Sugar form: = { body } -- names already in args from signature
-            // Validate: all params must have names (no type-only params without binding)
-            for sugar_arg: Declaration in args {
-                if sugar_arg.name.len().eq(0) {
-                    _ignore = restore_loop_var_counter(saved_loop_counter)
-                    throw after_eq.error(lexer.path, "Type-only parameters require a binding tuple: = (name, ...) {{ body }}")
-                }
-            }
-            lexer.advance(1)? // consume '{'
-            sugar_body_expr := parse_body(lexer, TokenType.RightBrace)?
-            body = sugar_body_expr.params
+            // Sugar form removed. Guide user to FuncDef form.
+            _ignore = restore_loop_var_counter(saved_loop_counter)
+            throw after_eq.error(lexer.path, "Sugar form '= { body }' removed. Use FuncDef form: 'name := func(a: I64) returns I64 { body }'")
         case:
             _ignore = restore_loop_var_counter(saved_loop_counter)
             throw after_eq.error(lexer.path, "Expected '{{' or '(' after '=' in function definition")
         }
     case:
-        // Current syntax: '{' already consumed by returns/throws
+        // FuncDef form: '{' already consumed by returns/throws
         curr_body_expr := parse_body(lexer, TokenType.RightBrace)?
         body = curr_body_expr.params
     }
@@ -707,7 +698,7 @@ parse_func_proc_definition : func(mut lexer: Lexer, function_type: FunctionType)
     return e
 }
 
-build_namespace_from_stmts : func(namespace_stmts: Vec) returns NamespaceDef = {
+build_namespace_from_stmts := func(namespace_stmts: Vec) returns NamespaceDef {
     mut ns_members := Vec.new(Declaration)
     mut ns_default_values := Map.new(Str, Expr)
     for stmt: Expr in namespace_stmts {
@@ -744,7 +735,7 @@ build_namespace_from_stmts : func(namespace_stmts: Vec) returns NamespaceDef = {
     return ns_def
 }
 
-enum_definition : func(mut lexer: Lexer) returns Expr throws Str = {
+enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
     lexer.advance(1)?
 
@@ -858,7 +849,7 @@ enum_definition : func(mut lexer: Lexer) returns Expr throws Str = {
     return e
 }
 
-parse_struct_definition : func(mut lexer: Lexer) returns Expr throws Str = {
+parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     _ := lexer.expect(TokenType.Struct)?
     t := lexer.peek()?
     tt := t.token_type
@@ -970,7 +961,7 @@ parse_struct_definition : func(mut lexer: Lexer) returns Expr throws Str = {
 
 // Parse namespace TypeName { declarations... }
 
-parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
+parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
     t := lexer.peek()?
     mut next_t := lexer.next()?
@@ -1187,7 +1178,7 @@ parse_primary_identifier : func(mut lexer: Lexer) returns Expr throws Str = {
     return result
 }
 
-get_combined_name : func(path: Str, e: Expr) returns Str throws Str = {
+get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
     mut to_return := ""
     nt := e.node_type
     switch nt {
@@ -1225,8 +1216,8 @@ get_combined_name : func(path: Str, e: Expr) returns Str throws Str = {
     return to_return
 }
 
-// Issue #91: helper for `name : func/proc(...) = { body }` syntax
-parse_colon_func_def : func(mut lexer: Lexer, t: Token, identifier: Str, func_type: FunctionType) returns Expr throws Str = {
+// Issue #91: helper for `name := func/proc(...) { body }` syntax
+parse_colon_func_def := func(mut lexer: Lexer, t: Token, identifier: Str, func_type: FunctionType) returns Expr throws Str {
     lexer.advance(2)? // past name and colon, now at func/proc
     func_expr := parse_func_proc_definition(lexer, func_type)?
     mut decl := Declaration()
@@ -1237,7 +1228,7 @@ parse_colon_func_def : func(mut lexer: Lexer, t: Token, identifier: Str, func_ty
     return expr_new_parse(NodeType.Declaration(decl), t.clone(), children)
 }
 
-parse_statement_identifier : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()?
     mut next_t := lexer.next()?
     mut next_token_type := next_t.token_type
@@ -1294,11 +1285,9 @@ parse_statement_identifier : func(mut lexer: Lexer) returns Expr throws Str, Ind
             type_name := next_next_t.token_str
             return parse_declaration(lexer, false, type_name, true)?
         case TokenType.Equal:
-            // Issue #91: Allow ':= func(...)' for function signature definitions
-            // (e.g., BinaryOp := func(I64, I64) returns I64 {})
-            // Regular functions use 'name : func(...) = { body }' syntax.
+            // ':=' -- type inferred from RHS (FuncDef, FuncSig, or any expression)
             return parse_declaration(lexer, false, INFER_TYPE, false)?
-        // Issue #91: name : func(...) = { body }
+        // name : func/proc/ext_func/ext_proc/macro(...) -- FuncDef or FuncSig form
         case TokenType.Func:
             return parse_colon_func_def(lexer, t, identifier, FunctionType.FTFunc)?
         case TokenType.Proc:
@@ -1317,7 +1306,7 @@ parse_statement_identifier : func(mut lexer: Lexer) returns Expr throws Str, Ind
     }
 }
 
-parse_primary : func(mut lexer: Lexer) returns Expr throws Str = {
+parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
     t := lexer.peek()?
     mut result := Expr()
 
@@ -1375,7 +1364,7 @@ parse_primary : func(mut lexer: Lexer) returns Expr throws Str = {
     return result
 }
 
-return_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)?
     mut params := Vec.new(Expr)
@@ -1408,7 +1397,7 @@ return_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     return expr_new_parse(NodeType.Return, initial_token, params)
 }
 
-parse_break_statement : func(mut lexer: Lexer) returns Expr throws Str = {
+parse_break_statement := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
     lexer.advance(1)? // consume 'break'
     initial_token := lexer.get_token(initial_current)?.clone()
@@ -1416,7 +1405,7 @@ parse_break_statement : func(mut lexer: Lexer) returns Expr throws Str = {
     return expr_new_parse(NodeType.Break, initial_token, params)
 }
 
-parse_continue_statement : func(mut lexer: Lexer) returns Expr throws Str = {
+parse_continue_statement := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
     lexer.advance(1)? // consume 'continue'
     initial_token := lexer.get_token(initial_current)?.clone()
@@ -1425,7 +1414,7 @@ parse_continue_statement : func(mut lexer: Lexer) returns Expr throws Str = {
 }
 
 // Issue #188: defer <statement>
-parse_defer_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_defer_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)? // consume 'defer'
     deferred_expr := parse_statement(lexer)?
@@ -1435,7 +1424,7 @@ parse_defer_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
     return expr_new_parse(NodeType.Defer, initial_token, params)
 }
 
-parse_throw_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)?
     mut params := Vec.new(Expr)
@@ -1465,7 +1454,7 @@ parse_throw_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
     return expr_new_parse(NodeType.Throw, initial_token, params)
 }
 
-parse_catch_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)? // consume 'catch'
 
@@ -1504,7 +1493,7 @@ parse_catch_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
     return expr_new_parse(NodeType.Catch, initial_token, params)
 }
 
-if_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)?
     mut params := Vec.new(Expr)
@@ -1552,7 +1541,7 @@ if_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsE
     return expr_new_parse(NodeType.If, initial_token, params)
 }
 
-while_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)?
     mut params := Vec.new(Expr)
@@ -1581,7 +1570,7 @@ while_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoun
 // Bug #57 fix: Transform continue statements to include the step expression before continue.
 // This ensures the loop variable is incremented/decremented even when continue is used.
 // Transforms: continue -> { step_expr; continue }
-transform_continue_with_step : func(expr: Expr, step_expr: Expr) returns Expr = {
+transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr {
     switch expr.node_type {
     case NodeType.Continue:
         // Replace continue with { step_expr; continue }
@@ -1607,7 +1596,7 @@ transform_continue_with_step : func(expr: Expr, step_expr: Expr) returns Expr = 
 
 // Helper to desugar range-based for loop to while loop
 // Shared by typed (for i: I64 in 0..10) and untyped (for i in 0..10) range loops
-desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, end_expr: Expr, body_expr: Expr, initial_token: Token) returns Expr = {
+desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, end_expr: Expr, body_expr: Expr, initial_token: Token) returns Expr {
     // Check if both bounds are numeric literals for compile-time direction detection
     // is_forward: 0 = unknown (runtime), 1 = forward, 2 = reverse
     mut is_forward := 0
@@ -1645,7 +1634,7 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
     decl_expr := expr_new_parse(NodeType.Declaration(decl), initial_token.clone(), decl_params)
 
     // Helper to create forward while loop
-    make_fwd_while : func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr = {
+    make_fwd_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr {
         mut lt_params := Vec.new(Expr)
         lt_ident := expr_new_parse(NodeType.Identifier("lt"), tok.clone(), Vec.new(Expr))
         lt_params.push(own lt_ident)
@@ -1677,7 +1666,7 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
     }
 
     // Helper to create reverse while loop
-    make_rev_while : func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr = {
+    make_rev_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr {
         mut gt_params := Vec.new(Expr)
         gt_ident := expr_new_parse(NodeType.Identifier("gt"), tok.clone(), Vec.new(Expr))
         gt_params.push(own gt_ident)
@@ -1751,7 +1740,7 @@ desugar_range_for : func(loop_var_name: Str, var_type: Str, start_expr: Expr, en
     return Expr.new_explicit(NodeType.Body, final_params, initial_token.line, initial_token.col)
 }
 
-parse_for_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_token := lexer.peek()?
     lexer.advance(1)? // consume 'for'
 
@@ -1853,7 +1842,7 @@ parse_for_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOf
 
 // Helper function to extract full identifier name from an expression
 // Handles both simple identifiers and dotted names (represented as FCall)
-get_full_identifier_name : func(e: Expr) returns Str throws Str = {
+get_full_identifier_name := func(e: Expr) returns Str throws Str {
     mut result := ""
     ent := e.node_type
     switch ent {
@@ -1889,7 +1878,7 @@ get_full_identifier_name : func(e: Expr) returns Str throws Str = {
     return result
 }
 
-parse_case_expr : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     left := parse_primary(lexer)?
     t := lexer.peek()?
     tt := t.token_type
@@ -1952,7 +1941,7 @@ parse_case_expr : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoun
     return left
 }
 
-parse_switch_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()?
     initial_current := lexer.current
     lexer.advance(1)?
@@ -2041,7 +2030,7 @@ parse_switch_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOu
 }
 
 // Issue #91: Check if current position starts a binding-tuple-body pattern: (ident, ...) {
-is_binding_tuple_body : func(lexer: Lexer) returns Bool = {
+is_binding_tuple_body := func(lexer: Lexer) returns Bool {
     mut offset := 1  // skip past '('
     mut depth := 1
     while true {
@@ -2074,7 +2063,7 @@ is_binding_tuple_body : func(lexer: Lexer) returns Bool = {
     return false
 }
 
-parse_declaration : func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str, has_explicit_type: Bool) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_declaration := func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str, has_explicit_type: Bool) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()?
     decl_name := t.token_str
     initial_current := lexer.current
@@ -2150,7 +2139,7 @@ parse_declaration : func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str, has
     return expr_new_parse(NodeType.Declaration(decl), initial_token, params)
 }
 
-parse_mut_declaration : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()?
     mut next_t := lexer.next()?
     mut next_token_type := next_t.token_type
@@ -2175,7 +2164,7 @@ parse_mut_declaration : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
                 type_name := next_next_t.token_str
                 return parse_declaration(lexer, true, type_name, true)?
             case TokenType.Equal:
-                // Issue #91: Allow ':= func(...)' for function signature definitions
+                // 'mut name :=' -- type inferred from RHS
                 return parse_declaration(lexer, true, INFER_TYPE, false)?
             case:
                 throw t.error(lexer.path, format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
@@ -2188,7 +2177,7 @@ parse_mut_declaration : func(mut lexer: Lexer) returns Expr throws Str, IndexOut
     }
 }
 
-parse_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()?
     tt := t.token_type
 
@@ -2227,7 +2216,7 @@ parse_statement : func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoun
     }
 }
 
-parse_body : func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
     mut params := Vec.new(Expr)
     mut end_found := false
@@ -2266,7 +2255,7 @@ parse_body : func(mut lexer: Lexer, end_token: TokenType) returns Expr throws St
     throw t.error(lexer.path, format("Expected '", token_type_to_str(end_token), "' to end body."))
 }
 
-parse_tokens : proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError = {
+parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     e := parse_body(lexer, TokenType.Eof)?
 
     lexer_len_val := lexer.len()

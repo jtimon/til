@@ -21,7 +21,7 @@ import("std.io")            // readfile
 RETURN_INSTANCE_NAME := "___temp_return_val_"
 
 /// Convert I64 to little-endian bytes (Vec<U8>)?
-i64_to_le_bytes : func(val: I64) returns Vec = {
+i64_to_le_bytes := func(val: I64) returns Vec {
     mut bytes := Vec.new(U8)
     // Extract 8 bytes in little-endian order using bit shifts
     for i in 0..8 {
@@ -33,7 +33,7 @@ i64_to_le_bytes : func(val: I64) returns Vec = {
 }
 
 /// Copy bytes from heap memory into a Vec<U8>
-heap_memory_slice : func(heap: EvalHeap, offset: I64, size: I64) returns Vec = {
+heap_memory_slice := func(heap: EvalHeap, offset: I64, size: I64) returns Vec {
     mut bytes := Vec.new(U8)
     for _ in 0..size {
         bytes.push(own 0)
@@ -53,23 +53,23 @@ EvalResult := struct {
     mut heap_offset: I64 = 0  // 0 means None (heap offset 0 is reserved for null)
 
 namespace:
-    new : func(value: Str) returns EvalResult = {
+    new := func(value: Str) returns EvalResult {
         return EvalResult(value=value)
     }
 
-    new_return : func(value: Str) returns EvalResult = {
+    new_return := func(value: Str) returns EvalResult {
         return EvalResult(value=value, is_return=true)
     }
 
-    new_throw : func(value: Str, thrown_type: ValueType) returns EvalResult = {
+    new_throw := func(value: Str, thrown_type: ValueType) returns EvalResult {
         return EvalResult(value=value, is_throw=true, thrown_type=value_type_to_str(thrown_type))
     }
 
-    new_break : func() returns EvalResult = {
+    new_break := func() returns EvalResult {
         return EvalResult(is_break=true)
     }
 
-    new_continue : func() returns EvalResult = {
+    new_continue := func() returns EvalResult {
         return EvalResult(is_continue=true)
     }
 }
@@ -78,7 +78,7 @@ namespace:
 // validate_conditional_params is in typer.til
 
 // Helper to evaluate boolean conditions for if/while statements.
-eval_condition_to_bool : proc(context: Context, result: EvalResult, expr: Expr) returns Bool throws Str = {
+eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr) returns Bool throws Str {
     // Handle "true" and "false" directly (builtins return these, and they're the constant names)
     if result.value.eq("true") {
         return true
@@ -104,7 +104,7 @@ eval_condition_to_bool : proc(context: Context, result: EvalResult, expr: Expr) 
 /// but skips ptr fields to avoid copying pointers to temp instance memory.
 /// Bug #43 fix: Recursively read primitive fields from nested structs to get
 /// correct cap, _len values while skipping ptr. Also reads Str values as strings.
-read_struct_primitive_fields : proc(ctx: Context, instance_id: Str, struct_type: Str, prefix: Str, e: Expr) returns Map throws Str, I64_Overflow = {
+read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type: Str, prefix: Str, e: Expr) returns Map throws Str, I64_Overflow {
     mut struct_def := ctx.scope_stack.lookup_struct(struct_type)?
     catch (err: KeyNotFoundError) {
         throw e.lang_error(ctx.path, "read_struct_primitive_fields", format("struct '", struct_type, "' not found"))
@@ -176,7 +176,7 @@ read_struct_primitive_fields : proc(ctx: Context, instance_id: Str, struct_type:
 
 /// Pre-evaluate all default values for a struct type, including nested structs.
 /// Returns a map from field name (with dotted paths for nested) to evaluated string value.
-eval_struct_defaults : proc(mut ctx: Context, struct_type: Str, e: Expr) returns Map throws Str = {
+eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) returns Map throws Str {
     mut struct_def := ctx.scope_stack.lookup_struct(struct_type)?
     catch (err: KeyNotFoundError) {
         throw e.lang_error(ctx.path, "eval_struct_defaults", format("struct '", struct_type, "' not found"))
@@ -257,7 +257,7 @@ eval_struct_defaults : proc(mut ctx: Context, struct_type: Str, e: Expr) returns
 
 /// Create a default instance template for a struct type.
 /// Called eagerly when struct declarations are evaluated.
-create_default_instance : proc(mut ctx: Context, struct_type: Str, e: Expr) returns I64 throws Str = {
+create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) returns I64 throws Str {
     // Check if template already exists (e.g., from a previous import)
     if g_heap.default_instances.contains_key(struct_type) {
         offset := cast(I64, g_heap.default_instances.get(struct_type)?)
@@ -293,7 +293,7 @@ create_default_instance : proc(mut ctx: Context, struct_type: Str, e: Expr) retu
 
 /// Insert a struct instance using cached template.
 /// Template is guaranteed to exist - created eagerly on eval_declaration.
-insert_struct_instance : proc(mut ctx: Context, id: Str, type_name: Str, e: Expr) throws Str = {
+insert_struct_instance := proc(mut ctx: Context, id: Str, type_name: Str, e: Expr) throws Str {
     if not(g_heap.default_instances.contains_key(type_name)) {
         throw e.lang_error(ctx.path, "insert_struct_instance", format("template for '", type_name, "' not found"))
     }
@@ -302,7 +302,7 @@ insert_struct_instance : proc(mut ctx: Context, id: Str, type_name: Str, e: Expr
     EvalHeap.insert_struct(ctx, id, type_name, template_offset, e)?
 }
 
-eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     switch e.node_type {
     case NodeType.Body:
         return eval_body(context, e.params)?
@@ -469,7 +469,7 @@ eval_expr : proc(mut context: Context, e: Expr) returns EvalResult throws Str = 
     return EvalResult.new("")
 }
 
-eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str = {
+eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
     mut is_fcall := false
     switch e.node_type {
     case NodeType.FCall(_):
@@ -938,7 +938,7 @@ eval_func_proc_call : proc(name: Str, mut context: Context, e: Expr) returns Eva
     return eval_user_func_proc_call(func_def, combined_name, context, new_fcall_e)?
 }
 
-eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr) returns EvalResult throws Str = {
+eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr) returns EvalResult throws Str {
     inner_e := cast(Expr, e.params.get(0)?)
 
     // cast(Type, ptr_expr) - create alias to data at ptr.data address
@@ -1380,7 +1380,7 @@ eval_declaration : proc(declaration: Declaration, mut context: Context, e: Expr)
     return EvalResult.new("")
 }
 
-eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns EvalResult throws Str = {
+eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
     // Issue #161: Check if the full name is a namespace mutable first
     // For field access (e.g., "v.x"), extract the base variable name
     mut symbol_info := SymbolInfo()
@@ -1579,7 +1579,7 @@ eval_assignment : proc(var_name: Str, mut context: Context, e: Expr) returns Eva
     return EvalResult.new("")
 }
 
-eval_identifier_expr_struct_member : proc(name: Str, inner_name: Str, mut context: Context, inner_e: Expr, member_decl: Declaration) returns EvalResult throws Str = {
+eval_identifier_expr_struct_member := proc(name: Str, inner_name: Str, mut context: Context, inner_e: Expr, member_decl: Declaration) returns EvalResult throws Str {
     switch member_decl.value_type {
     case ValueType.TCustom(custom_type_name):
         combined := format(name, ".", inner_name)
@@ -1601,7 +1601,7 @@ eval_identifier_expr_struct_member : proc(name: Str, inner_name: Str, mut contex
     return EvalResult.new("")
 }
 
-eval_identifier_expr_struct : proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str = {
+eval_identifier_expr_struct := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
     struct_def := context.scope_stack.lookup_struct(name)?
     catch (err: KeyNotFoundError) {
         throw e.lang_error(context.path, "eval", format("Struct '", name, "' not found in context"))
@@ -1652,7 +1652,7 @@ eval_identifier_expr_struct : proc(name: Str, mut context: Context, e: Expr) ret
     return EvalResult.new("")
 }
 
-eval_custom_expr : proc(e: Expr, mut context: Context, name: Str, custom_type_name: Str) returns EvalResult throws Str = {
+eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_name: Str) returns EvalResult throws Str {
     custom_symbol := context.scope_stack.lookup_symbol(custom_type_name)?
     catch (err: KeyNotFoundError) {
         throw e.lang_error(context.path, "eval", format("Argument '", name, "' is of undefined type ", custom_type_name, "."))
@@ -1820,7 +1820,7 @@ eval_custom_expr : proc(e: Expr, mut context: Context, name: Str, custom_type_na
     return EvalResult.new("")
 }
 
-eval_identifier_expr : proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str = {
+eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
     // Bug #32 fix: Handle field access on expression results
     // When name is "_" and params[0] is an FCall, evaluate that first,
     // then params[1..] are field access on its result
@@ -1999,7 +1999,7 @@ eval_identifier_expr : proc(name: Str, mut context: Context, e: Expr) returns Ev
     return EvalResult.new("")
 }
 
-eval_body : proc(mut context: Context, statements: Vec) returns EvalResult throws Str = {
+eval_body := proc(mut context: Context, statements: Vec) returns EvalResult throws Str {
     mut pending_throw := EvalResult()
     mut has_pending_throw := false
 
@@ -2226,7 +2226,7 @@ CollectedMutArg := struct {
     mut value: MutArgValue = MutArgValue.I64(0)
 }
 
-eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Context, e: Expr) returns EvalResult throws Str = {
+eval_user_func_proc_call := proc(func_def: FuncDef, name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
     // TODO REFACTOR: Replace context.clone() with scope push/pop
 
     mut function_frame := ScopeFrame(scope_type=ScopeType.Function)
@@ -3084,7 +3084,7 @@ eval_user_func_proc_call : proc(func_def: FuncDef, name: Str, mut context: Conte
 
 // ---------- Core function/procedure dispatcher
 
-eval_core_func_proc_call : proc(name: Str, mut context: Context, e: Expr, is_proc: Bool) returns EvalResult throws Str = {
+eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_proc: Bool) returns EvalResult throws Str {
     switch name {
     case "loc":
         return func_loc(context, e)?
@@ -3235,7 +3235,7 @@ eval_core_func_proc_call : proc(name: Str, mut context: Context, e: Expr, is_pro
 
 /// Main run function - lexes, parses, inits, typechecks, and evaluates source code
 /// Follows rstil.rs main_interpret implementation
-main_interpret : proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str, source: Str, main_args: Vec) returns EvalResult throws Str = {
+main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str, source: Str, main_args: Vec) returns EvalResult throws Str {
     // Mark main file as "done" to prevent re-processing via circular imports
     _ := context.imports_init_done.insert(own path.clone())
     _ := context.imports_typer_done.insert(own path.clone())
@@ -3384,7 +3384,7 @@ main_interpret : proc(skip_init_and_typecheck: Bool, mut context: Context, path:
 
 /// Run a file with an existing context (for imports)
 /// Follows rstil.rs interpret_file_with_context implementation
-interpret_file_with_context : proc(is_import: Bool, skip_init: Bool, mut context: Context, path: Str, main_args: Vec) returns EvalResult throws Str = {
+interpret_file_with_context := proc(is_import: Bool, skip_init: Bool, mut context: Context, path: Str, main_args: Vec) returns EvalResult throws Str {
     mut previous_mode := context.mode_def
 
     source := readfile(path)?
@@ -3406,7 +3406,7 @@ interpret_file_with_context : proc(is_import: Bool, skip_init: Bool, mut context
 
 /// Run a file from scratch (creates new context, imports core.til first)
 /// Follows rstil.rs interpret_file implementation
-interpret_file : proc(path: Str, main_args: Vec) returns EvalResult throws Str = {
+interpret_file := proc(path: Str, main_args: Vec) returns EvalResult throws Str {
     mut context := Context.new(path, "lib")?  // default mode, will be overwritten by file's mode
     // Context.new throws Str on error
 
@@ -3422,7 +3422,7 @@ interpret_file : proc(path: Str, main_args: Vec) returns EvalResult throws Str =
 
 // ---------- proc_eval_to_str, proc_eval_file, proc_import (moved from ext.til)
 
-proc_eval_to_str : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_eval_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "eval_to_str", 1, true)?
 
     path := "eval"  // Placeholder path
@@ -3437,7 +3437,7 @@ proc_eval_to_str : proc(mut context: Context, e: Expr) returns EvalResult throws
     return main_interpret(false, context, path, str_source, Vec.new(Str))?
 }
 
-proc_eval_file : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_eval_file := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     if e.params.len().lt(2) {
         throw e.lang_error(context.path, "eval", "Core proc 'eval_file' expects at least 1 parameter")
     }
@@ -3463,7 +3463,7 @@ proc_eval_file : proc(mut context: Context, e: Expr) returns EvalResult throws S
 
 // import_path_to_file_path is defined in init.til
 
-proc_import : proc(mut context: Context, e: Expr) returns EvalResult throws Str = {
+proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "import", 1, true)?
 
     e1 := cast(Expr, e.params.get(1)?)

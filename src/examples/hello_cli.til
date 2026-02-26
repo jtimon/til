@@ -1,5 +1,5 @@
 mode cli
 
-main : proc() = {
+main := proc() {
     println("Hello World!")
 }

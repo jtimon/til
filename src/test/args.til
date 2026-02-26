@@ -9,7 +9,7 @@ Vec2 := struct {
     mut y : I64 = 0
 
 namespace:
-    clone : func(self: Vec2) returns Vec2 = {
+    clone := func(self: Vec2) returns Vec2 {
         return Vec2(x=self.x, y=self.y)
     }
 }
@@ -22,31 +22,31 @@ Color := enum {
 
 // === Test primitive argument passing ===
 
-test_i64_arg : proc(n: I64) returns I64 = {
+test_i64_arg := proc(n: I64) returns I64 {
     return mul(n, 2)
 }
 
-test_i64_args : proc() = {
+test_i64_args := proc() {
     result := test_i64_arg(21)
     assert_eq(loc(), 42, result)
 }
 test_i64_args()
 
-test_bool_arg : proc(b: Bool) returns Bool = {
+test_bool_arg := proc(b: Bool) returns Bool {
     return not(b)
 }
 
-test_bool_args : proc() = {
+test_bool_args := proc() {
     result := test_bool_arg(true)
     test(loc(), Bool.eq(false, result), "bool arg should be negated")
 }
 test_bool_args()
 
-test_str_arg : proc(s: Str) returns Str = {
+test_str_arg := proc(s: Str) returns Str {
     return format(s, " world")
 }
 
-test_str_args : proc() = {
+test_str_args := proc() {
     result := test_str_arg("hello")
     assert_eq_str(loc(), "hello world", result)
 }
@@ -54,11 +54,11 @@ test_str_args()
 
 // === Test struct argument passing ===
 
-sum_vec : func(v: Vec2) returns I64 = {
+sum_vec := func(v: Vec2) returns I64 {
     return add(v.x, v.y)
 }
 
-test_struct_arg : proc() = {
+test_struct_arg := proc() {
     v := Vec2(x=10, y=20)
     result := sum_vec(v)
     assert_eq(loc(), 30, result)
@@ -67,7 +67,7 @@ test_struct_arg()
 
 // === Test enum argument passing ===
 
-color_to_i64 : func(c: Color) returns I64 = {
+color_to_i64 := func(c: Color) returns I64 {
     switch c {
     case Color.Red: return 1
     case Color.Green: return 2
@@ -75,7 +75,7 @@ color_to_i64 : func(c: Color) returns I64 = {
     }
 }
 
-test_enum_arg : proc() = {
+test_enum_arg := proc() {
     result := color_to_i64(Color.Green)
     assert_eq(loc(), 2, result)
 }
@@ -83,33 +83,33 @@ test_enum_arg()
 
 // === Test mut primitive arguments ===
 
-double_i64 : proc(mut n: I64) = {
+double_i64 := proc(mut n: I64) {
     n = mul(n, 2)
 }
 
-test_mut_i64 : proc() = {
+test_mut_i64 := proc() {
     mut value := 21
     double_i64(value)
     assert_eq(loc(), 42, value)
 }
 test_mut_i64()
 
-toggle_bool : proc(mut b: Bool) = {
+toggle_bool := proc(mut b: Bool) {
     b = not(b)
 }
 
-test_mut_bool : proc() = {
+test_mut_bool := proc() {
     mut flag := true
     toggle_bool(flag)
     test(loc(), Bool.eq(false, flag), "flag should be toggled to false")
 }
 test_mut_bool()
 
-append_str : proc(mut s: Str, suffix: Str) = {
+append_str := proc(mut s: Str, suffix: Str) {
     s = format(s, suffix)
 }
 
-test_mut_str : proc() = {
+test_mut_str := proc() {
     mut text := "hello"
     append_str(text, " world")
     assert_eq_str(loc(), "hello world", text)
@@ -118,12 +118,12 @@ test_mut_str()
 
 // === Test mut struct arguments ===
 
-scale_vec : proc(mut v: Vec2, factor: I64) = {
+scale_vec := proc(mut v: Vec2, factor: I64) {
     v.x = mul(v.x, factor)
     v.y = mul(v.y, factor)
 }
 
-test_mut_struct : proc() = {
+test_mut_struct := proc() {
     mut v := Vec2(x=3, y=4)
     scale_vec(v, 10)
     assert_eq(loc(), 30, v.x)
@@ -133,7 +133,7 @@ test_mut_struct()
 
 // === Test mut enum arguments ===
 
-next_color : proc(mut c: Color) = {
+next_color := proc(mut c: Color) {
     switch c {
     case Color.Red: c = Color.Green
     case Color.Green: c = Color.Blue
@@ -141,7 +141,7 @@ next_color : proc(mut c: Color) = {
     }
 }
 
-test_mut_enum : proc() = {
+test_mut_enum := proc() {
     mut col := Color.Red
     next_color(col)
     assert_eq(loc(), color_to_i64(Color.Green), color_to_i64(col))
@@ -153,11 +153,11 @@ test_mut_enum()
 
 // === Test multiple arguments ===
 
-add_three : func(a: I64, b: I64, c: I64) returns I64 = {
+add_three := func(a: I64, b: I64, c: I64) returns I64 {
     return add(add(a, b), c)
 }
 
-test_multiple_args : proc() = {
+test_multiple_args := proc() {
     result := add_three(10, 20, 30)
     assert_eq(loc(), 60, result)
 }
@@ -165,11 +165,11 @@ test_multiple_args()
 
 // === Test mixed mut and non-mut arguments ===
 
-add_to_first : proc(mut a: I64, b: I64) = {
+add_to_first := proc(mut a: I64, b: I64) {
     a = add(a, b)
 }
 
-test_mixed_mut : proc() = {
+test_mixed_mut := proc() {
     mut x := 10
     y := 20
     add_to_first(x, y)
@@ -178,12 +178,12 @@ test_mixed_mut : proc() = {
 }
 test_mixed_mut()
 
-translate_vec : proc(mut v: Vec2, dx: I64, dy: I64) = {
+translate_vec := proc(mut v: Vec2, dx: I64, dy: I64) {
     v.x = add(v.x, dx)
     v.y = add(v.y, dy)
 }
 
-test_struct_mixed_mut : proc() = {
+test_struct_mixed_mut := proc() {
     mut pos := Vec2(x=100, y=200)
     translate_vec(pos, 50, 75)
     assert_eq(loc(), 150, pos.x)
@@ -197,14 +197,14 @@ test_struct_mixed_mut()
 // a non-mut parameter, but we can test that passing a struct doesn't
 // affect the original when using non-mut
 
-copy_and_modify : func(v: Vec2) returns Vec2 = {
+copy_and_modify := func(v: Vec2) returns Vec2 {
     mut dup := v
     dup.x = 999
     dup.y = 888
     return dup
 }
 
-test_non_mut_isolation : proc() = {
+test_non_mut_isolation := proc() {
     original := Vec2(x=1, y=2)
     modified := copy_and_modify(original)
 
@@ -220,11 +220,11 @@ test_non_mut_isolation()
 
 // === Test arrays with mut arguments ===
 
-push_value : proc(mut arr: Vec, own value: I64) = {
+push_value := proc(mut arr: Vec, own value: I64) {
     arr.push(own value)
 }
 
-test_mut_array : proc() = {
+test_mut_array := proc() {
     mut numbers := Vec.new(I64)
 
     assert_eq(loc(), 0, numbers.len())
@@ -259,7 +259,7 @@ Point := struct {
     mut y : I64 = 0
 
 namespace:
-    clone : func(self: Point) returns Point = {
+    clone := func(self: Point) returns Point {
         return Point(x=self.x, y=self.y)
     }
 }
@@ -269,19 +269,19 @@ Line := struct {
     mut end   : Point = Point()
 
 namespace:
-    clone : func(self: Line) returns Line = {
+    clone := func(self: Line) returns Line {
         return Line(start=self.start.clone(), end=self.end.clone())
     }
 }
 
-move_line : proc(mut line: Line, dx: I64, dy: I64) = {
+move_line := proc(mut line: Line, dx: I64, dy: I64) {
     line.start.x = add(line.start.x, dx)
     line.start.y = add(line.start.y, dy)
     line.end.x = add(line.end.x, dx)
     line.end.y = add(line.end.y, dy)
 }
 
-test_nested_struct_mut : proc() = {
+test_nested_struct_mut := proc() {
     mut l := Line(start=Point(x=10, y=20), end=Point(x=30, y=40))
 
     move_line(l, 5, 10)
@@ -295,7 +295,7 @@ test_nested_struct_mut()
 
 // === Test that declarations create independent copies ===
 
-test_declaration_creates_copy : proc() = {
+test_declaration_creates_copy := proc() {
     original := Vec2(x=1, y=2)
     mut dup := original  // Should create copy, not share offset
     dup.x = 999
@@ -316,11 +316,11 @@ test_declaration_creates_copy()
 // TODO: Fix infinite loop and field access issues
 
 // Test 1: own parameter with primitive (I64)
-consume_i64 : proc(own n: I64) returns I64 = {
+consume_i64 := proc(own n: I64) returns I64 {
     return mul(n, 2)
 }
 
-test_own_primitive : proc() = {
+test_own_primitive := proc() {
     mut x := 42
     result := consume_i64(own x)
     assert_eq(loc(), 84, result)
@@ -330,11 +330,11 @@ test_own_primitive : proc() = {
 test_own_primitive()
 
 // Test 2: own parameter with struct - test field access
-consume_vec : proc(own v: Vec2) returns I64 = {
+consume_vec := proc(own v: Vec2) returns I64 {
     return add(v.x, v.y)
 }
 
-test_own_struct : proc() = {
+test_own_struct := proc() {
     mut point := Vec2(x=10, y=20)
     result := consume_vec(own point)
     assert_eq(loc(), 30, result)
@@ -342,13 +342,13 @@ test_own_struct : proc() = {
 test_own_struct()
 
 // Test 3: own parameter can modify the received value
-modify_own_struct : proc(own v: Vec2) returns Vec2 = {
+modify_own_struct := proc(own v: Vec2) returns Vec2 {
     v.x = 100
     v.y = 200
     return v
 }
 
-test_own_can_modify : proc() = {
+test_own_can_modify := proc() {
     mut original := Vec2(x=1, y=2)
     modified := modify_own_struct(own original)
     assert_eq(loc(), 100, modified.x)
@@ -357,11 +357,11 @@ test_own_can_modify : proc() = {
 test_own_can_modify()
 
 // Test 4: own with string
-consume_string : proc(own s: Str) returns Str = {
+consume_string := proc(own s: Str) returns Str {
     return format(s, " consumed")
 }
 
-test_own_string : proc() = {
+test_own_string := proc() {
     mut text := "hello"
     result := consume_string(own text)
     assert_eq_str(loc(), "hello consumed", result)
@@ -369,18 +369,18 @@ test_own_string : proc() = {
 test_own_string()
 
 // Test 5: own with expression (not a variable) - should allocate fresh
-test_own_expression : proc() = {
+test_own_expression := proc() {
     result := consume_vec(own Vec2(x=5, y=15))
     assert_eq(loc(), 20, result)  // 5+15=20
 }
 test_own_expression()
 
 // Test 6: own parameter with nested struct
-consume_line : proc(own l: Line) returns I64 = {
+consume_line := proc(own l: Line) returns I64 {
     return add(add(l.start.x, l.start.y), add(l.end.x, l.end.y))
 }
 
-test_own_nested_struct : proc() = {
+test_own_nested_struct := proc() {
     mut line := Line()
     line.start.x = 1
     line.start.y = 2
@@ -393,11 +393,11 @@ test_own_nested_struct : proc() = {
 test_own_nested_struct()
 
 // Test 7: Multiple own parameters
-sum_owned : proc(own a: I64, own b: I64) returns I64 = {
+sum_owned := proc(own a: I64, own b: I64) returns I64 {
     return add(a, b)
 }
 
-test_multiple_own : proc() = {
+test_multiple_own := proc() {
     mut x := 10
     mut y := 20
     result := sum_owned(own x, own y)
@@ -406,12 +406,12 @@ test_multiple_own : proc() = {
 test_multiple_own()
 
 // Test 8: Mix of own, mut, and regular parameters
-mixed_params : proc(normal: I64, mut m: I64, own o: I64) returns I64 = {
+mixed_params := proc(normal: I64, mut m: I64, own o: I64) returns I64 {
     m = mul(m, 2)
     return add(add(normal, m), o)
 }
 
-test_mixed_own : proc() = {
+test_mixed_own := proc() {
     a := 1
     mut b := 10
     mut c := 100
@@ -424,9 +424,9 @@ test_mixed_own()
 
 // === Step 1: Named Arguments ===
 
-test_named_args_basic : proc() = {
+test_named_args_basic := proc() {
     // Helper function
-    minus : func(a: I64, b: I64) returns I64 = { return sub(a, b) }
+    minus := func(a: I64, b: I64) returns I64 { return sub(a, b) }
 
     // Positional (existing behavior)
     assert_eq(loc(), 7, minus(10, 3))
@@ -442,11 +442,11 @@ test_named_args_basic()
 
 // === Step 2: Optional Arguments (with defaults) ===
 
-greet : func(name: Str, greeting: Str = "Hello") returns Str = {
+greet := func(name: Str, greeting: Str = "Hello") returns Str {
     return format(greeting, " ", name)
 }
 
-test_optional_args : proc() = {
+test_optional_args := proc() {
     // With default
     assert_eq_str(loc(), "Hello World", greet("World"))
     // With explicit value
@@ -458,7 +458,7 @@ test_optional_args()
 
 // === Step 3: Variadic Arguments ===
 
-sum_all : func(numbers: ..I64) returns I64 = {
+sum_all := func(numbers: ..I64) returns I64 {
     mut total := 0
     for n: I64 in numbers {
         total = add(total, n)
@@ -466,14 +466,14 @@ sum_all : func(numbers: ..I64) returns I64 = {
     return total
 }
 
-test_variadic_args : proc() = {
+test_variadic_args := proc() {
     assert_eq(loc(), 0, sum_all())
     assert_eq(loc(), 5, sum_all(5))
     assert_eq(loc(), 15, sum_all(1, 2, 3, 4, 5))
 }
 test_variadic_args()
 
-join_strings : func(sep: Str, parts: ..Str) returns Str = {
+join_strings := func(sep: Str, parts: ..Str) returns Str {
     mut result := ""
     mut first := true
     for part: Str in parts {
@@ -487,7 +487,7 @@ join_strings : func(sep: Str, parts: ..Str) returns Str = {
     return result
 }
 
-test_variadic_strings : proc() = {
+test_variadic_strings := proc() {
     assert_eq_str(loc(), "", join_strings(", "))
     assert_eq_str(loc(), "a", join_strings(", ", "a"))
     assert_eq_str(loc(), "a, b, c", join_strings(", ", "a", "b", "c"))
@@ -500,7 +500,7 @@ test_variadic_strings()
 // run_cmd(mut output: Str, timeout: I64 = 0, args: ..Str) returns I64
 
 // Test case: optional arg before variadic
-log_with_level : func(level: I64 = 1, messages: ..Str) returns Str = {
+log_with_level := func(level: I64 = 1, messages: ..Str) returns Str {
     mut result := format("[", level.to_str(), "] ")
     for msg: Str in messages {
         result = format(result, msg)
@@ -508,7 +508,7 @@ log_with_level : func(level: I64 = 1, messages: ..Str) returns Str = {
     return result
 }
 
-test_optional_before_variadic : proc() = {
+test_optional_before_variadic := proc() {
     // Explicit level - works
     assert_eq_str(loc(), "[2] hello world", log_with_level(2, "hello ", "world"))
 

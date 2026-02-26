@@ -4,7 +4,7 @@ mode script
 // This test is expected to FAIL with a precomp error
 
 // A pure function that always throws when called with n > 0
-always_throws : func(n: I64) returns I64 throws Str = {
+always_throws := func(n: I64) returns I64 throws Str {
     if gt(n, 0) {
         throw "intentional precomp error"
     }

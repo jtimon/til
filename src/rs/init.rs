@@ -576,6 +576,8 @@ fn metatype_matches(declared: &ValueType, inferred: &ValueType) -> bool {
         (ValueType::TCustom(name), ValueType::TType(TTypeDef::TEnumDef)) if name == "EnumDef" => true,
         (ValueType::TCustom(name), ValueType::TType(TTypeDef::TFuncSig)) if name == "FuncSig" => true,
         (ValueType::TCustom(name), ValueType::TType(TTypeDef::TFuncDef)) if name == "FuncDef" => true,
+        // name : FuncDef = func(a: I64) { body } -- func literal inferred as TFunction
+        (ValueType::TCustom(name), ValueType::TFunction(_)) if name == "FuncDef" => true,
         _ => false,
     }
 }

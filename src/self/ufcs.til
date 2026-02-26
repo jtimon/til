@@ -12,7 +12,7 @@ import("self.typer")
 /// Reorder named arguments to match function parameter order.
 /// Transforms: func(b=3, a=10) -> func(10, 3) (for func(a, b))
 /// This runs during ufcs so both interpreter and builder share the work.
-reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str = {
+reorder_named_args := func(context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str {
     // params[0] is the function identifier, params[1..] are the arguments
     // Calculate call_args_len (number of arguments, not counting function identifier)
     mut call_args_len := 0
@@ -255,7 +255,7 @@ reorder_named_args : func(context: Context, e: Expr, func_def: FuncDef) returns 
 ///   a.add(b)         -> I64.add(a, b)     (where a is I64)
 ///   obj.items.len()  -> Vec.len(obj.items)
 ///   add(1, 2).mul(3) -> I64.mul(add(1, 2), 3)
-ufcs_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+ufcs_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
         return ufcs_body(context, e)?
@@ -324,7 +324,7 @@ ufcs_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 // ---------- AST transformation
 
 /// Transform Body node - recursively transform all statements
-ufcs_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+ufcs_body := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
         new_params.push(own ufcs_expr(context, p)?)
@@ -333,7 +333,7 @@ ufcs_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 }
 
 /// Transform node params - recursively transform all child expressions
-ufcs_params : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+ufcs_params := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
         new_params.push(own ufcs_expr(context, p)?)
@@ -342,7 +342,7 @@ ufcs_params : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
-ufcs_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) returns Expr throws Str = {
+ufcs_struct_def := proc(mut context: Context, e: Expr, struct_def: StructDef) returns Expr throws Str {
     mut new_default_values := Map.new(Str, Expr)
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
@@ -377,7 +377,7 @@ ufcs_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) ret
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
-ufcs_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str = {
+ufcs_func_def := proc(mut context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.sig.args {
@@ -414,7 +414,7 @@ ufcs_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns E
 }
 
 /// Transform Declaration - register the declared variable in scope, then transform value
-ufcs_declaration : proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str = {
+ufcs_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str {
     // Get value type for the declared variable
     inner_e := cast(Expr, e.params.get(0)?)
     mut value_type := ValueType.TCustom("Dynamic")
@@ -511,7 +511,7 @@ ufcs_declaration : proc(mut context: Context, e: Expr, decl: Declaration) return
 }
 
 /// Transform Catch node - register the catch variable in scope before processing body
-ufcs_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     if e.params.len().lt(3) {
         // Malformed catch - just use default handling
         return ufcs_params(context, e)?
@@ -568,7 +568,7 @@ ufcs_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 }
 
 /// Transform EnumDef - transform ns function bodies
-ufcs_enum_def : proc(mut context: Context, e: Expr, enum_def: EnumDef) returns Expr throws Str = {
+ufcs_enum_def := proc(mut context: Context, e: Expr, enum_def: EnumDef) returns Expr throws Str {
     mut ns_new_default_values := Map.new(Str, Expr)
     for ns_name: Str in enum_def.ns.default_values.keys {
         ns_value_expr := cast(Expr, enum_def.ns.default_values.get(ns_name)?)
@@ -592,7 +592,7 @@ ufcs_enum_def : proc(mut context: Context, e: Expr, enum_def: EnumDef) returns E
 }
 
 /// Transform FCall node - this is where UFCS resolution happens
-ufcs_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Transform all arguments first
     mut transformed_params := Vec.new(Expr)
     for p: Expr in e.params {

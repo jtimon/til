@@ -5,7 +5,7 @@ mode liba
 
 // This proc calls println - must be proc since it has I/O side effects.
 // (mode liba allows print/println in both funcs and procs)
-print_debug : proc(msg: Str) returns I64 = {
+print_debug := proc(msg: Str) returns I64 {
     println("DEBUG:", msg)
     return 42
 }

@@ -2,7 +2,7 @@ mode test
 
 import("core.vec")
 
-test_array_static_u8 : proc() = {
+test_array_static_u8 := proc() {
     mut stat := Array.new(U8, 3)
     assert_eq(loc(), 3, stat.len())       // Static array len equals cap
     stat.set(0, own U8.from_i64(10)?)?
@@ -30,7 +30,7 @@ test_array_static_u8 : proc() = {
 }
 test_array_static_u8()
 
-test_array_static_str : proc() = {
+test_array_static_str := proc() {
     mut stat := Array.new(Str, 3)
     assert_eq(loc(), 3, stat.len())
 
@@ -51,7 +51,7 @@ test_array_static_str : proc() = {
 }
 test_array_static_str()
 
-test_array_contains : proc() = {
+test_array_contains := proc() {
     mut arr := Array.new(Str, 3)
     arr.set(0, own "apple")?
     arr.set(1, own "banana")?
@@ -73,7 +73,7 @@ test_array_contains : proc() = {
 }
 test_array_contains()
 
-test_array_static_bool : proc() = {
+test_array_static_bool := proc() {
     mut stat := Array.new(Bool, 3)
     assert_eq(loc(), 3, stat.len())
 
@@ -94,7 +94,7 @@ test_array_static_bool : proc() = {
 }
 test_array_static_bool()
 
-test_array_static_i64 : proc() = {
+test_array_static_i64 := proc() {
     mut stat := Array.new(I64, 3)
     assert_eq(loc(), 3, stat.len())
 
@@ -120,7 +120,7 @@ Vec2 := struct {
     mut y : I64 = 0
 }
 
-test_array_static_vec2 : proc() = {
+test_array_static_vec2 := proc() {
     mut stat := Array.new(Vec2, 3)
     assert_eq(loc(), 3, stat.len())
 

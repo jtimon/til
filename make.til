@@ -11,24 +11,16 @@ import("core.vec")
 // Empty string means use default
 mut g_cc := ""
 
-// Global flag: extra flags to forward to tests (e.g., --rust-only, -j8)
-mut g_extra_flags := ""
-
 // Get --cc flag string for commands (returns "" if not set, " --cc=X" if set)
-get_cc_flag : func() returns Str = {
+get_cc_flag := func() returns Str {
     if g_cc.is_empty() {
         return ""
     }
     return concat(" --cc=", g_cc)
 }
 
-// Get extra flags string for tests (returns "" if none, " --rust-only ..." if set)
-get_extra_flags : func() returns Str = {
-    return g_extra_flags
-}
-
 // Run command with streaming output (prints as it goes)
-run_stream_cmd : proc(cmd: Str) returns I64 = {
+run_stream_cmd := proc(cmd: Str) returns I64 {
     println(cmd)
     pid := spawn_cmd(cmd)?
     status := wait_cmd(pid)
@@ -41,12 +33,12 @@ run_stream_cmd : proc(cmd: Str) returns I64 = {
     return status
 }
 
-run_clean : proc() = {
+run_clean := proc() {
     _ := run_stream_cmd("rm -rf bin/* gen/*")
 }
 
 // REPL = Read-Eval-Print-Loop
-run_repl : proc() = {
+run_repl := proc() {
     _ := run_stream_cmd("rlwrap ./bin/rstil repl")
 }
 
@@ -55,7 +47,7 @@ run_repl : proc() = {
  * Returns true if target doesn't exist or any dependency is newer than target.
  * Used only for non-.til dependencies (Rust files, etc.)
  */
-needs_rebuild : proc(target: Str, deps: Vec) returns Bool = {
+needs_rebuild := proc(target: Str, deps: Vec) returns Bool {
     target_mtime := file_mtime(target)
     if target_mtime.eq(I64_MINUS1) {
         return true  // target doesn't exist
@@ -69,7 +61,7 @@ needs_rebuild : proc(target: Str, deps: Vec) returns Bool = {
     return false
 }
 
-build_rstil : proc() = {
+build_rstil := proc() {
     // Check if rstil needs rebuilding (Rust files - not tracked by til build)
     mut deps := Vec.new(Str)
     deps.push(own "src/rstil.rs")
@@ -90,7 +82,7 @@ build_rstil : proc() = {
     }
 }
 
-build_rstil_til : proc() = {
+build_rstil_til := proc() {
     // .til dependency tracking is automatic via `rstil build`
     // But automatic tracking only knows about .til files, not the compiler itself.
     // If bin/rstil changed, we must force rebuild even if .til files are unchanged.
@@ -117,7 +109,7 @@ build_rstil_til : proc() = {
 // WARNING: This target currently hangs!
 // ./bin/rs/til translate src/til.til takes >2min and doesn't complete
 // Bug #141: til outputs to bin/til/ and gen/til/c/
-build_til_til : proc() = {
+build_til_til := proc() {
     mut status := 0
     status = run_stream_cmd("./bin/rs/til build src/til.til")
     if status.eq(0).not() {
@@ -127,7 +119,7 @@ build_til_til : proc() = {
     println("til_til C output: gen/til/c/til.c")
 }
 
-build_test_runner : proc() = {
+build_test_runner := proc() {
     build_rstil_til()
     // .til dependency tracking is automatic via `rstil build`
     // Bug #141: rstil outputs to bin/rs/
@@ -138,7 +130,7 @@ build_test_runner : proc() = {
     }
 }
 
-build_tests : proc() = {
+build_tests := proc() {
     build_test_runner()  // tests.til spawns test_runner for each test
     // .til dependency tracking is automatic via `rstil build`
     mut status := 0
@@ -148,13 +140,13 @@ build_tests : proc() = {
     }
 }
 
-run_tests : proc() = {
+run_tests := proc() {
     build_tests()
     mut status := 0
-    // Forward --cc and extra flags (--rust-only, -jN, etc.) to tests
+    // Issue #131: Pass --cc flag to tests
+    // test_runner.til calls rstil/til build per test, which has needs_rebuild logic
     cc_flag := get_cc_flag()
-    extra := get_extra_flags()
-    status = run_stream_cmd(format("./bin/rs/tests", cc_flag, extra))
+    status = run_stream_cmd(concat("./bin/rs/tests", cc_flag))
     tests_status := status
     status = run_stream_cmd("cp gen/rs/c/test/constfold.c src/test/constfold.c")
     println("Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c")
@@ -163,34 +155,32 @@ run_tests : proc() = {
     }
 }
 
-run_regen : proc() = {
+run_regen := proc() {
     build_tests()
     mut status := 0
-    // Forward --cc and extra flags to tests
+    // Issue #131: Pass --cc flag to tests
     cc_flag := get_cc_flag()
-    extra := get_extra_flags()
-    status = run_stream_cmd(format("./bin/rs/tests", cc_flag, extra, " regen"))
+    status = run_stream_cmd(concat("./bin/rs/tests", cc_flag).concat(" regen"))
     println("Regenerated all test outputs")
     if status.eq(0).not() {
         exit(1)
     }
 }
 
-run_benchmark : proc() = {
+run_benchmark := proc() {
     run_tests()
     _ := run_stream_cmd("cp gen/totals.org doc/totals.org")
     println("Benchmark saved to doc/totals.org, can be committed")
 }
 
-run_mem_report : proc() = {
+run_mem_report := proc() {
     build_tests()
     cc_flag := get_cc_flag()
-    extra := get_extra_flags()
     // Write flag file so compiled tests/test_runner can detect --mem-report
     // Don't pass --mem-report on command line - it would enable HeapState in
     // tests/test_runner themselves (C runtime strips it). Flag file is sufficient.
     writefile("tmp/.mem_report_flag", "1")?
-    status := run_stream_cmd(format("./bin/rs/tests", cc_flag, extra))
+    status := run_stream_cmd(format("./bin/rs/tests", cc_flag))
     // Clean up flag file
     mut rm_out := ""
     _ := rm_out.run_cmd("rm", "-f", "tmp/.mem_report_flag")
@@ -204,7 +194,7 @@ run_mem_report : proc() = {
     catch (err: WriteError) { panic(loc(), err.msg) }
 }
 
-run_test_cross : proc() = {
+run_test_cross := proc() {
     mut status := 0
     println("=== Cross-compilation tests ===")
     // Bug #141: rstil outputs to bin/rs/
@@ -224,7 +214,7 @@ run_test_cross : proc() = {
 
 // Build til with debug symbols and run gdb
 // Bug #141: rstil outputs to gen/rs/c/
-build_til_debug : proc() = {
+build_til_debug := proc() {
     build_rstil_til()
     mut status := 0
     status = run_stream_cmd("gcc -g -O0 -o bin/til_debug gen/rs/c/til.c -lm -I src")
@@ -235,7 +225,7 @@ build_til_debug : proc() = {
 }
 
 // Compare C output from rstil vs til for a given file
-run_diff : proc(file_path: Str) = {
+run_diff := proc(file_path: Str) {
     build_rstil_til()
     mut status := 0
     status = run_stream_cmd(concat("./bin/rstil interpret src/til_diff.til ", file_path))
@@ -244,7 +234,7 @@ run_diff : proc(file_path: Str) = {
     }
 }
 
-go_build_yourself : proc(args: Vec) = {
+go_build_yourself := proc(args: Vec) {
     mut deps := Vec.new(Str)
     deps.push(own "make.til")
     deps.push(own "bin/rstil")
@@ -284,7 +274,7 @@ go_build_yourself : proc(args: Vec) = {
     exit(exit_code)
 }
 
-main : proc(args: ..Str) = {
+main := proc(args: ..Str) {
     // Self-rebuild check (before any arg parsing)
     mut args_vec := Vec.new(Str)
     for arg: Str in args { args_vec.push(own arg) }
@@ -293,17 +283,14 @@ main : proc(args: ..Str) = {
     if args.len().eq(0) {
         println("Usage: make.til <target> [options]")
         println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, mem-report, test-cross, diff <file>")
-        println("Options: --cc=COMPILER, --rust-only, -jN, --mem-report")
+        println("Options: --cc=COMPILER (e.g., --cc=clang)")
         exit(1)
     }
-    // Parse options and collect extra flags to forward to tests
+    // Parse --cc= option (Issue #131)
     mut remaining_args := Vec.new(Str)
     for arg: Str in args {
         if arg.starts_with("--cc=") {
             g_cc = arg.get_substr(5, arg.len())?
-        } else if arg.starts_with("-") {
-            // Forward flags like --rust-only, -j8, --mem-report to tests
-            g_extra_flags = g_extra_flags.concat(" ").concat(arg)
         } else {
             remaining_args.push(own arg)
         }

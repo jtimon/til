@@ -1,6 +1,6 @@
 mode test
 
-hello : func() returns Str = {
+hello := func() returns Str {
     return "Hello World!"
 }
 

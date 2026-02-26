@@ -34,7 +34,7 @@ HashMap := struct {
 namespace:
     /** Create new empty HashMap with specified key and value types.
      *  Example: HashMap.new(Str, I64) */
-    new : proc(KeyType: Type, ValueType: Type) returns HashMap = {
+    new := proc(KeyType: Type, ValueType: Type) returns HashMap {
         mut m := HashMap()
         m.keys = Vec.new_from_type_info(type_as_str(KeyType), size_of(KeyType))
         m.values = Vec.new_from_type_info(type_as_str(ValueType), size_of(ValueType))
@@ -53,7 +53,7 @@ namespace:
 
     /** Hash a key and return the bucket index.
      *  For Str keys, uses Str.hash(). For others, uses FNV-1a on raw bytes. */
-    hash_key : func(self: HashMap, key_ptr: I64) returns I64 = {
+    hash_key := func(self: HashMap, key_ptr: I64) returns I64 {
         mut h : I64 = 0
 
         if self.keys._is_str_type() {
@@ -87,7 +87,7 @@ namespace:
 
     /** Compare two keys for equality.
      *  For Str keys, uses Str.eq(). For others, uses memcmp. */
-    keys_equal : func(self: HashMap, key_a_ptr: I64, key_b_ptr: I64) returns Bool = {
+    keys_equal := func(self: HashMap, key_a_ptr: I64, key_b_ptr: I64) returns Bool {
         if self.keys._is_str_type() {
             mut a := ""
             mut b := ""
@@ -101,7 +101,7 @@ namespace:
     }
 
     /** Look up a key and return its index, or -1 if not found. */
-    find_key : func(self: HashMap, key: Dynamic) returns I64 = {
+    find_key := func(self: HashMap, key: Dynamic) returns I64 {
         if self._size.eq(0) {
             return sub(0, 1)
         }
@@ -130,7 +130,7 @@ namespace:
     }
 
     /** Resize the hash table when load factor exceeds threshold. */
-    resize : proc(mut self: HashMap) = {
+    resize := proc(mut self: HashMap) {
         self._num_buckets = self._num_buckets.mul(2)
 
         // Clear and reinitialize buckets
@@ -170,7 +170,7 @@ namespace:
     /** Insert new key-value pair.
      *  Throws DuplicatedKeyError if key already exists.
      *  Use set() instead if you want to overwrite existing keys. */
-    insert : proc(mut self: HashMap, own key: Dynamic, own value: Dynamic) throws DuplicatedKeyError = {
+    insert := proc(mut self: HashMap, own key: Dynamic, own value: Dynamic) throws DuplicatedKeyError {
         dont_delete(key)
         dont_delete(value)
         // Check if key already exists
@@ -211,7 +211,7 @@ namespace:
     /** Set key-value pair.
      *  Overwrites value if key already exists.
      *  Creates new entry if key doesn't exist. */
-    set : proc(mut self: HashMap, own key: Dynamic, own value: Dynamic) = {
+    set := proc(mut self: HashMap, own key: Dynamic, own value: Dynamic) {
         dont_delete(key)
         dont_delete(value)
         existing_idx := self.find_key(key)
@@ -252,7 +252,7 @@ namespace:
     }
 
     /** Get borrowed Ptr to value for given key. No copy - points into HashMap memory. */
-    get : proc(self: HashMap, key: Dynamic) returns Ptr throws KeyNotFoundError = {
+    get := proc(self: HashMap, key: Dynamic) returns Ptr throws KeyNotFoundError {
         idx := self.find_key(key)
         if idx.gteq(0) {
             return self.values.ptr.offset(idx.mul(self.values.ptr.elem_size))
@@ -261,23 +261,23 @@ namespace:
     }
 
     /** Check if key exists in map. */
-    contains_key : proc(self: HashMap, key: Dynamic) returns Bool = {
+    contains_key := proc(self: HashMap, key: Dynamic) returns Bool {
         idx := self.find_key(key)
         return idx.gteq(0)
     }
 
     /** Get number of entries in map. */
-    len : proc(self: HashMap) returns I64 = {
+    len := proc(self: HashMap) returns I64 {
         return self._size
     }
 
     /** Check if map is empty. */
-    is_empty : func(self: HashMap) returns Bool = {
+    is_empty := func(self: HashMap) returns Bool {
         return self._size.eq(0)
     }
 
     /** Clear all entries from map (reset to empty). */
-    clear : proc(mut self: HashMap) = {
+    clear := proc(mut self: HashMap) {
         self._size = 0
         self.keys._len = 0
         self.values._len = 0
@@ -296,14 +296,14 @@ namespace:
     }
 
     /** Get total size in bytes (keys + values). */
-    size : func(self: HashMap) returns I64 = {
+    size := func(self: HashMap) returns I64 {
         keys_size := self._size.mul(self.keys.ptr.elem_size)
         values_size := self._size.mul(self.values.ptr.elem_size)
         return keys_size.add(values_size)
     }
 
     /** Free map memory and reset. */
-    delete : func(mut self: HashMap) = {
+    delete := func(mut self: HashMap) {
         mut keys_arr := self.keys
         keys_arr.delete()
 
@@ -323,7 +323,7 @@ namespace:
     /** Remove key from map if it exists.
      *  Does nothing if key doesn't exist.
      *  Note: This is O(n) as it rebuilds hash chains after removal. */
-    remove : proc(mut self: HashMap, key: Dynamic) = {
+    remove := proc(mut self: HashMap, key: Dynamic) {
         idx := self.find_key(key)
         if idx.lt(0) {
             return  // Key not found
@@ -363,7 +363,7 @@ namespace:
     }
 
     /** Clone the HashMap. */
-    clone : func(self: HashMap) returns HashMap = {
+    clone := func(self: HashMap) returns HashMap {
         return HashMap(
             keys=self.keys.clone(),
             values=self.values.clone(),

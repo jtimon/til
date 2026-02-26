@@ -18,17 +18,17 @@ Vec := struct {
 namespace:
 
     /** Get number of elements in vec. */
-    len : func(self: Vec) returns I64 = {
+    len := func(self: Vec) returns I64 {
         return self._len
     }
 
     /** Get total size in bytes. */
-    size : func(self: Vec) returns I64 = {
+    size := func(self: Vec) returns I64 {
         return mul(self._len, self.ptr.elem_size)
     }
 
     /** Check if this Vec's element type is Str (compares elem_type C string). */
-    _is_str_type : func(self: Vec) returns Bool = {
+    _is_str_type := func(self: Vec) returns Bool {
         if NULL.eq(self.ptr.elem_type) { return false }
         str_ref := "Str"
         str_ref_ptr := str_ref.c_string
@@ -36,7 +36,7 @@ namespace:
     }
 
     /** Create new empty vec with specified element type. */
-    new : proc(T: Type) returns Vec = {
+    new := proc(T: Type) returns Vec {
         mut vec := Vec()
         type_str := type_as_str(T)
         type_c := type_str.c_string
@@ -51,7 +51,7 @@ namespace:
 
     /** Internal helper for Map.new() - creates Vec from type info.
      *  TODO: Remove this workaround once we can pass Dynamic params through nested calls. */
-    new_from_type_info : proc(type_name: Str, type_size: I64) returns Vec = {
+    new_from_type_info := proc(type_name: Str, type_size: I64) returns Vec {
         mut vec := Vec()
         type_c := type_name.c_string
         mut p := Ptr()
@@ -64,7 +64,7 @@ namespace:
     }
 
     /** Internal: allocate a Ptr with Vec's type info for deep cloning support. */
-    _alloc_ptr : proc(mut self: Vec, capacity: I64) returns Ptr = {
+    _alloc_ptr := proc(mut self: Vec, capacity: I64) returns Ptr {
         mut p := Ptr.new_by_size(capacity.mul(self.ptr.elem_size))
         p.elem_type = self.ptr.elem_type
         p.elem_size = self.ptr.elem_size
@@ -73,7 +73,7 @@ namespace:
 
     /** Create new empty vec with pre-allocated capacity.
      *  Use when you know approximately how many elements you'll need. */
-    with_capacity : proc(T: Type, capacity: I64) returns Vec = {
+    with_capacity := proc(T: Type, capacity: I64) returns Vec {
         mut vec := Vec()
         type_str := type_as_str(T)
         type_c := type_str.c_string
@@ -93,7 +93,7 @@ namespace:
     }
 
     /** Push element to end of vec. */
-    push : proc(mut self: Vec, own value: Dynamic) = {
+    push := proc(mut self: Vec, own value: Dynamic) {
         dont_delete(value)
 
         // Grow if needed (handles cap=0 case with max(1, cap*2))
@@ -123,7 +123,7 @@ namespace:
     }
 
     /** Get borrowed Ptr to element at index. No copy - points into vec memory. */
-    get : proc(self: Vec, index: I64) returns Ptr throws IndexOutOfBoundsError = {
+    get := proc(self: Vec, index: I64) returns Ptr throws IndexOutOfBoundsError {
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.get: index out of bounds"))
         }
@@ -131,7 +131,7 @@ namespace:
     }
 
     /** Set element at index. */
-    set : proc(mut self: Vec, index: I64, own value: Dynamic) throws IndexOutOfBoundsError = {
+    set := proc(mut self: Vec, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
         dont_delete(value)
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.set: index out of bounds"))
@@ -142,7 +142,7 @@ namespace:
     }
 
     /** Pop last element from vec. */
-    pop : proc(mut self: Vec, mut dest: Dynamic) throws IndexOutOfBoundsError = {
+    pop := proc(mut self: Vec, mut dest: Dynamic) throws IndexOutOfBoundsError {
         if self._len.eq(0) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.pop: cannot pop from empty Vec"))
         }
@@ -157,7 +157,7 @@ namespace:
     }
 
     /** Free vec memory. */
-    delete : func(mut self: Vec) = {
+    delete := func(mut self: Vec) {
         if not(self.ptr.is_null()) {
             self.ptr.delete()
         }
@@ -168,7 +168,7 @@ namespace:
     /** Clone the vec (allocates new memory, copies elements byte-wise).
      *  Note: This is a shallow clone of elements - nested Ptrs will share data.
      *  For deep cloning, use clone_deep() once interpreter support is added. */
-    clone : proc(self: Vec) returns Vec = {
+    clone := proc(self: Vec) returns Vec {
         mut cloned := Vec()
         mut p := Ptr()
         p.elem_type = self.ptr.elem_type
@@ -186,7 +186,7 @@ namespace:
     }
 
     /** Extend vec with all elements from another vec. */
-    extend : proc(mut self: Vec, other: Vec) = {
+    extend := proc(mut self: Vec, other: Vec) {
         mut i := 0
         while i.lt(other._len) {
             // Copy element from other to self
@@ -220,7 +220,7 @@ namespace:
     }
 
     /** Extend vec with `count` copies of `value` (byte-level copy). */
-    extend_with : proc(mut self: Vec, own value: Dynamic, count: I64) = {
+    extend_with := proc(mut self: Vec, own value: Dynamic, count: I64) {
         dont_delete(value)
         // Inline push logic: can't call self.push(value) in loop since push takes own.
         for _ in 0..count {
@@ -253,7 +253,7 @@ namespace:
 
     /** Check if vec contains element.
      *  Uses Str.eq() for Str elements, memcmp for others. */
-    contains : func(self: Vec, value: Dynamic) returns Bool = {
+    contains := func(self: Vec, value: Dynamic) returns Bool {
         mut i := 0
         while i.lt(self._len) {
             src := self.ptr.offset(i.mul(self.ptr.elem_size))
@@ -277,7 +277,7 @@ namespace:
     }
 
     /** Remove element at index, shifting remaining elements left. */
-    remove : proc(mut self: Vec, index: I64) throws IndexOutOfBoundsError = {
+    remove := proc(mut self: Vec, index: I64) throws IndexOutOfBoundsError {
         if index.gteq(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.remove: index out of bounds"))
         }
@@ -296,7 +296,7 @@ namespace:
 
     /** Insert element at index, shifting remaining elements right.
      *  Index must be in range [0, len] (can insert at end). */
-    insert_at : proc(mut self: Vec, index: I64, own value: Dynamic) throws IndexOutOfBoundsError = {
+    insert_at := proc(mut self: Vec, index: I64, own value: Dynamic) throws IndexOutOfBoundsError {
         dont_delete(value)
         if index.gt(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.insert_at: index out of bounds"))
@@ -340,7 +340,7 @@ namespace:
 
     /** Convert vec to string representation (like Rust's {:?} format).
      *  Only works for Vec of Str elements. */
-    to_str : func(self: Vec) returns Str = {
+    to_str := func(self: Vec) returns Str {
         mut result := "["
         for i in 0..self._len {
             if i.gt(0) {
@@ -359,14 +359,14 @@ namespace:
     }
 
     /** Check if vec is empty. */
-    is_empty : func(self: Vec) returns Bool = {
+    is_empty := func(self: Vec) returns Bool {
         return self._len.eq(0)
     }
 
     /** Split off elements from index `at` to end, returning them as a new Vec.
      *  After this call, self contains elements [0, at) and the returned Vec
      *  contains elements [at, len). Like Rust's Vec::split_off. */
-    split_off : proc(mut self: Vec, at: I64) returns Vec throws IndexOutOfBoundsError = {
+    split_off := proc(mut self: Vec, at: I64) returns Vec throws IndexOutOfBoundsError {
         if at.gt(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.split_off: index out of bounds"))
         }
@@ -388,13 +388,13 @@ namespace:
     }
 
     /** Clear all elements from vec (keeps capacity). */
-    clear : proc(mut self: Vec) = {
+    clear := proc(mut self: Vec) {
         self._len = 0
     }
 }
 
 // Sort a Vec<Str> in-place (simple bubble sort)
-sort_str_vec : proc(mut v: Vec) = {
+sort_str_vec := proc(mut v: Vec) {
     mut n := v.len()
     while gt(n, 1) {
         mut new_n := 0

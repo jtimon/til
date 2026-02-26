@@ -12,7 +12,7 @@ import("self.precomp_ext")
 
 /// Build a substitution map from macro Type/Dynamic parameters to actual type names.
 /// For `make_vec3(I64)` where `make_vec3` takes `T: Type`, returns {"T": "I64"}.
-build_type_param_subs : func(func_def: FuncDef, fcall: Expr) returns Map throws Str = {
+build_type_param_subs := func(func_def: FuncDef, fcall: Expr) returns Map throws Str {
     mut subs := Map.new(Str, Str)
     for i in 0..func_def.sig.args.len() {
         arg := cast(Declaration, func_def.sig.args.get(i)?)
@@ -41,7 +41,7 @@ build_type_param_subs : func(func_def: FuncDef, fcall: Expr) returns Map throws 
 }
 
 /// Recursively replace Identifier nodes matching type param names with concrete types.
-substitute_type_params_in_expr : func(e: Expr, subs: Map) returns Expr = {
+substitute_type_params_in_expr := func(e: Expr, subs: Map) returns Expr {
     switch e.node_type {
     case NodeType.Identifier(name):
         mut new_name := name
@@ -105,7 +105,7 @@ substitute_type_params_in_expr : func(e: Expr, subs: Map) returns Expr = {
 }
 
 /// Substitute type param names in a FuncDef's args, return types, throw types, and body.
-substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns FuncDef = {
+substitute_type_params_in_funcdef := func(func_def: FuncDef, subs: Map) returns FuncDef {
     mut new_args := Vec.new(Declaration)
     for arg: Declaration in func_def.sig.args {
         mut substituted := false
@@ -175,7 +175,7 @@ substitute_type_params_in_funcdef : func(func_def: FuncDef, subs: Map) returns F
 }
 
 /// Apply type param substitution to a struct definition's member types and default values.
-substitute_type_params_in_struct : func(struct_def: StructDef, subs: Map) returns StructDef = {
+substitute_type_params_in_struct := func(struct_def: StructDef, subs: Map) returns StructDef {
     mut new_members := Vec.new(Declaration)
     for member: Declaration in struct_def.members {
         mut substituted := false
@@ -207,7 +207,7 @@ substitute_type_params_in_struct : func(struct_def: StructDef, subs: Map) return
 }
 
 /// Issue #106: Apply type param substitution to an enum definition's variant payload types.
-substitute_type_params_in_enum : func(enum_def: EnumDef, subs: Map) returns EnumDef = {
+substitute_type_params_in_enum := func(enum_def: EnumDef, subs: Map) returns EnumDef {
     mut new_variants := Vec.new(EnumVariant)
     for v: EnumVariant in enum_def.variants {
         if not(v.payload_type.is_null()) {
@@ -241,7 +241,7 @@ substitute_type_params_in_enum : func(enum_def: EnumDef, subs: Map) returns Enum
 /// Extract namespace stmts from a macro's body AST.
 /// Scans for Return nodes or Declaration nodes containing a StructDef or EnumDef with params (namespace stmts).
 /// Returns the first matching set of namespace params (simple macros only).
-extract_namespace_from_macro : func(func_def: FuncDef) returns NamespaceDef = {
+extract_namespace_from_macro := func(func_def: FuncDef) returns NamespaceDef {
     for stmt: Expr in func_def.body {
         // Pattern 1: return struct/enum { ... namespace: ... }
         switch stmt.node_type {
@@ -294,7 +294,7 @@ extract_namespace_from_macro : func(func_def: FuncDef) returns NamespaceDef = {
 /// Extract the internal type name from a macro body (e.g., "TemplatedPtr" from
 /// `TemplatedPtr := struct { ... }` or "TemplatedOption" from `TemplatedOption := enum { ... }`).
 /// Returns empty string for anonymous types (`return struct/enum { ... }`).
-extract_internal_type_name : func(func_def: FuncDef) returns Str = {
+extract_internal_type_name := func(func_def: FuncDef) returns Str {
     for stmt: Expr in func_def.body {
         switch stmt.node_type {
         case NodeType.Declaration(inner_decl):
@@ -324,7 +324,7 @@ extract_internal_type_name : func(func_def: FuncDef) returns Str = {
 /// Issue #105: Expand struct-returning macros before type checking.
 /// Runs between init and typer to make struct definitions available for type checking.
 /// Only expands macros at the top-level body that return struct definitions.
-expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+expand_struct_macros := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
     case:
@@ -728,7 +728,7 @@ expand_struct_macros : proc(mut context: Context, e: Expr) returns Expr throws S
 /// Issue #105: Recursively walk an expression and expand anonymous struct FCall instantiations.
 /// Sets was_expanded to true and returns modified expr if any change was made.
 /// pending_decls collects struct declarations + namespace blocks to inject at top level.
-expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pending_decls: Vec, mut was_expanded: Bool) returns Expr throws Str = {
+expand_anon_struct_fcalls_recursive := proc(mut context: Context, e: Expr, mut pending_decls: Vec, mut was_expanded: Bool) returns Expr throws Str {
     // Check if this is an FCall with a StructDef first param
     mut is_anon_fcall := false
     switch e.node_type {
@@ -1018,7 +1018,7 @@ expand_anon_struct_fcalls_recursive : proc(mut context: Context, e: Expr, mut pe
 /// Issue #106: Recursively walk an expression and expand anonymous enum definitions.
 /// Sets was_expanded to true and returns modified expr if any change was made.
 /// pending_decls collects enum declarations to inject at top level.
-expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pending_decls: Vec, mut was_expanded: Bool) returns Expr throws Str = {
+expand_anon_enum_fcalls_recursive := proc(mut context: Context, e: Expr, mut pending_decls: Vec, mut was_expanded: Bool) returns Expr throws Str {
     // For FCall nodes, check if any non-first param is a bare EnumDef or OwnArg(EnumDef).
     // Replace with enum_def_of() for value args, Identifier for macro args.
     switch e.node_type {
@@ -1242,7 +1242,7 @@ expand_anon_enum_fcalls_recursive : proc(mut context: Context, e: Expr, mut pend
 /// Precomputation phase: Perform compile-time constant folding and handle
 /// struct/enum constructors and import().
 /// Takes an AST that has already passed type checking and UFCS resolution.
-precomp_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
         return precomp_body(context, e)?
@@ -1341,7 +1341,7 @@ precomp_expr : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 // ---------- Compile-time constant folding
 
 /// Check if an FCall is a macro call.
-is_macro_fcall : proc(context: Context, e: Expr) returns Bool = {
+is_macro_fcall := proc(context: Context, e: Expr) returns Bool {
     mut e_clone := e.clone()
     func_def := get_func_def_for_fcall_with_expr(context, e_clone)?
     result := func_def.is_macro()
@@ -1358,7 +1358,7 @@ is_macro_fcall : proc(context: Context, e: Expr) returns Bool = {
 
 /// Check if an expression can be evaluated at compile time.
 /// Currently only handles literals and pure function calls with literal arguments.
-is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str = {
+is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool throws Str {
     switch e.node_type {
     case NodeType.LLiteral:
         return true
@@ -1499,7 +1499,7 @@ is_comptime_evaluable : proc(context: Context, e: Expr) returns Bool throws Str 
 }
 
 /// Evaluate a comptime-evaluable expression and convert result back to AST literal.
-eval_comptime : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Save and restore context.path - interpreter may change it during function calls
     saved_path := context.path
     result := eval_expr(context, e)?
@@ -1573,7 +1573,7 @@ eval_comptime : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 // ---------- AST transformation
 
 /// Transform Body node - recursively transform all statements
-precomp_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+precomp_body := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
         saved_decl_count := context.anon_struct_decls.len()
@@ -1601,7 +1601,7 @@ precomp_body : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 }
 
 /// Transform node params - recursively transform all child expressions
-precomp_params : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+precomp_params := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
         new_params.push(own precomp_expr(context, p)?)
@@ -1611,7 +1611,7 @@ precomp_params : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
-precomp_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) returns Expr throws Str = {
+precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: StructDef) returns Expr throws Str {
     mut new_default_values := Map.new(Str, Expr)
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
@@ -1693,7 +1693,7 @@ precomp_struct_def : proc(mut context: Context, e: Expr, struct_def: StructDef) 
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
-precomp_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str = {
+precomp_func_def := proc(mut context: Context, e: Expr, func_def: FuncDef) returns Expr throws Str {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.sig.args {
@@ -1730,7 +1730,7 @@ precomp_func_def : proc(mut context: Context, e: Expr, func_def: FuncDef) return
 }
 
 /// Transform Declaration - register the declared variable in scope, then transform value
-precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str = {
+precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str {
     // Eagerly create default instance template for this struct type
     inner_e := cast(Expr, e.params.get(0)?)
     mut value_type := get_value_type(context, inner_e)?
@@ -2136,7 +2136,7 @@ precomp_declaration : proc(mut context: Context, e: Expr, decl: Declaration) ret
 /// Transform Catch node - register the catch variable in scope before processing body
 /// This enables UFCS resolution for methods called on the error variable
 /// Catch structure: [var_name_expr, type_expr, body_expr]
-precomp_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     if e.params.len().lt(3) {
         // Malformed catch - just use default handling
         return precomp_params(context, e)?
@@ -2193,7 +2193,7 @@ precomp_catch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
 }
 
 /// Transform FCall node - handles compile-time intrinsics, struct/enum constructors, and import()
-precomp_fcall : proc(mut context: Context, e: Expr) returns Expr throws Str = {
+precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // 1. Check for compile-time intrinsics (loc, _file, _line, _col)
     mut was_replaced := false
     replaced := try_replace_comptime_intrinsic(context, e, was_replaced)

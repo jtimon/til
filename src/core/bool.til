@@ -7,29 +7,29 @@ Bool := struct {
     mut data: U8 = 0
 
 namespace:
-    len : func(_self: Bool) returns I64 = {
+    len := func(_self: Bool) returns I64 {
         return 1
     }
 
-    eq : func(a: Bool, b: Bool) returns Bool = {
+    eq := func(a: Bool, b: Bool) returns Bool {
         return a.and(b).or(not(b).and(not(a)))
     }
 
-    and : func(self: Bool, other: Bool) returns Bool = {
+    and := func(self: Bool, other: Bool) returns Bool {
         if self {
             return other
         }
         return false
     }
 
-    or : func(self: Bool, other: Bool) returns Bool = {
+    or := func(self: Bool, other: Bool) returns Bool {
         if self {
             return true
         }
         return other
     }
 
-    to_str : func(self: Bool) returns Str = {
+    to_str := func(self: Bool) returns Str {
         if self {
             return "true"
         }
@@ -37,18 +37,18 @@ namespace:
     }
 
     /** Necessary for branchless arithmetics (but it must be implemented as a cast for it to make sense that way). */
-    to_i64 : func(self: Bool) returns I64 = {
+    to_i64 := func(self: Bool) returns I64 {
         if self {
             return 1
         }
         return 0
     }
 
-    to_u8 : func(self: Bool) returns U8 = {
+    to_u8 := func(self: Bool) returns U8 {
         return self.data
     }
 
-    from_i64 : func(i: I64) returns Bool = {
+    from_i64 := func(i: I64) returns Bool {
         mut b := Bool()
         if gt(i, 0) {
             b.data = 1
@@ -56,7 +56,7 @@ namespace:
         return b
     }
 
-    size : func() returns I64 = {
+    size := func() returns I64 {
         return 1
     }
 }
@@ -65,14 +65,14 @@ namespace:
 false := Bool(data=0)
 true := Bool(data=1)
 
-not : func(b: Bool) returns Bool = {
+not := func(b: Bool) returns Bool {
     if b {
         return false
     }
     return true
 }
 
-or : func(args: ..Bool) returns Bool = {
+or := func(args: ..Bool) returns Bool {
     for b: Bool in args {
         if b {
             return true
@@ -81,7 +81,7 @@ or : func(args: ..Bool) returns Bool = {
     return false
 }
 
-and : func(args: ..Bool) returns Bool = {
+and := func(args: ..Bool) returns Bool {
     for b: Bool in args {
         if not(b) {
             return false
@@ -90,14 +90,14 @@ and : func(args: ..Bool) returns Bool = {
     return true
 }
 
-xor : func(a: Bool, b: Bool) returns Bool = {
+xor := func(a: Bool, b: Bool) returns Bool {
     return not(a.eq(b))
 }
 
-xnor : func(a: Bool, b: Bool) returns Bool = {
+xnor := func(a: Bool, b: Bool) returns Bool {
     return a.eq(b)
 }
 
-branchless : func(cond: Bool, a: I64, b: I64) returns I64 = {
+branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
     return add(mul(a, Bool.to_i64(cond)), mul(b, Bool.to_i64(not(cond))))
 }

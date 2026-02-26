@@ -11,18 +11,18 @@ mode test
 ErrorA := struct { mut msg: Str = "" }
 ErrorC := struct { mut msg: Str = "" }
 
-maybe_throw_A : func(do_throw: Bool) returns I64 throws ErrorA = {
+maybe_throw_A := func(do_throw: Bool) returns I64 throws ErrorA {
     if do_throw { throw ErrorA(msg="A") }
     return 1
 }
 
-maybe_throw_C : func(do_throw: Bool) returns I64 throws ErrorC = {
+maybe_throw_C := func(do_throw: Bool) returns I64 throws ErrorC {
     if do_throw { throw ErrorC(msg="C") }
     return 3
 }
 
 // Simulates get_fcall_value_type structure
-test_func : func() returns I64 throws Str = {
+test_func := func() returns I64 throws Str {
     // This block mimics the "if e.params.len().gteq(2)" block
     if true {
         mut val := maybe_throw_A(false)?
@@ -46,7 +46,7 @@ test_func : func() returns I64 throws Str = {
     return 0
 }
 
-caller : proc() = {
+caller := proc() {
     mut r := test_func()?
     catch (err: Str) {
         println("ERROR: ", err)

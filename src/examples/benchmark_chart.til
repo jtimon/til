@@ -6,7 +6,7 @@ import("core.str")
 import("core.vec")
 import("std.sys")
 
-main : proc() = {
+main := proc() {
     // Get commits that touched benchmark.org
     mut git_log := ""
     _ := run_cmd(git_log, "git", "log", "--oneline", "--follow", "doc/benchmark.org")

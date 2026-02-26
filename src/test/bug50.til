@@ -3,10 +3,10 @@ mode test
 // Bug #50: Nested functions accessing outer scope variables (closures)
 // This should fail with a todo_error saying closures are not supported yet.
 
-test_closure : proc() = {
+test_closure := proc() {
     _outer_var := 42
 
-    inner : func() returns I64 = {
+    inner := func() returns I64 {
         return _outer_var  // Uses variable from outer scope - NOT SUPPORTED
     }
 

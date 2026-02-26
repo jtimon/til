@@ -13,7 +13,7 @@ test(loc(), not(I64.lt(2, 1)), "I64: not(2 < 1)")
 test(loc(), not(I64.gt(1, 2)), "I64: not(1 > 2)")
 
 // U8 comparisons
-test_u8_comparisons : proc() = {
+test_u8_comparisons := proc() {
     a : U8 = 10
     b : U8 = 20
     c : U8 = 10

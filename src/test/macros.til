@@ -5,7 +5,7 @@ mode test
 
 // Compile-time factorial - computed once at compile-time, not at runtime
 // This is the "real world" use case: expensive computation done at compile-time
-factorial : macro(n: I64) returns I64 = {
+factorial := macro(n: I64) returns I64 {
     if n.lteq(1) {
         return 1
     }
@@ -14,7 +14,7 @@ factorial : macro(n: I64) returns I64 = {
 }
 
 // Compile-time fibonacci - another example of expensive computation
-fib : macro(n: I64) returns I64 = {
+fib := macro(n: I64) returns I64 {
     if n.lteq(1) {
         return n
     }
@@ -22,22 +22,22 @@ fib : macro(n: I64) returns I64 = {
 }
 
 // Basic macro returning I64
-double : macro(x: I64) returns I64 = {
+double := macro(x: I64) returns I64 {
     return x.mul(2)
 }
 
 // Macro that calls another macro
-quadruple : macro(x: I64) returns I64 = {
+quadruple := macro(x: I64) returns I64 {
     return double(double(x))
 }
 
 // Macro with multiple args
-add3 : macro(a: I64, b: I64, c: I64) returns I64 = {
+add3 := macro(a: I64, b: I64, c: I64) returns I64 {
     return a.add(b).add(c)
 }
 
 // Test that macros work with compile-time known values
-test_basic_macro : proc() = {
+test_basic_macro := proc() {
     result1 := double(5)
     assert_eq(loc(), 10, result1)
 
@@ -48,13 +48,13 @@ test_basic_macro : proc() = {
     assert_eq(loc(), 200, result3)
 }
 
-test_nested_macro : proc() = {
+test_nested_macro := proc() {
     // quadruple(3) = double(double(3)) = double(6) = 12
     result := quadruple(3)
     assert_eq(loc(), 12, result)
 }
 
-test_multi_arg_macro : proc() = {
+test_multi_arg_macro := proc() {
     result := add3(1, 2, 3)
     assert_eq(loc(), 6, result)
 
@@ -63,7 +63,7 @@ test_multi_arg_macro : proc() = {
 }
 
 // Test macro used in expressions
-test_macro_in_expression : proc() = {
+test_macro_in_expression := proc() {
     x := double(5).add(double(3))
     assert_eq(loc(), 16, x)  // 10 + 6
 
@@ -72,8 +72,8 @@ test_macro_in_expression : proc() = {
 }
 
 // Test macro inside a function body (not just at global scope)
-test_macro_inside_function : proc() = {
-    inner_test : func() returns I64 = {
+test_macro_inside_function := proc() {
+    inner_test := func() returns I64 {
         return double(7)
     }
     result := inner_test()
@@ -81,7 +81,7 @@ test_macro_inside_function : proc() = {
 }
 
 // Test compile-time factorial
-test_factorial : proc() = {
+test_factorial := proc() {
     // These are all computed at compile-time, not runtime
     assert_eq(loc(), 1, factorial(0))
     assert_eq(loc(), 1, factorial(1))
@@ -93,7 +93,7 @@ test_factorial : proc() = {
 }
 
 // Test compile-time fibonacci
-test_fibonacci : proc() = {
+test_fibonacci := proc() {
     assert_eq(loc(), 0, fib(0))
     assert_eq(loc(), 1, fib(1))
     assert_eq(loc(), 1, fib(2))
@@ -103,7 +103,7 @@ test_fibonacci : proc() = {
 }
 
 // Issue #105: Parameterized struct template via macro
-make_vec3 : macro(T: Type) returns struct = {
+make_vec3 := macro(T: Type) returns struct {
     return struct {
         mut x: T = T()
         mut y: T = T()
@@ -114,7 +114,7 @@ make_vec3 : macro(T: Type) returns struct = {
 I64Vec3 := make_vec3(I64)
 U8Vec3 := make_vec3(U8)
 
-test_i64_vec3 : proc() = {
+test_i64_vec3 := proc() {
     v := I64Vec3(x=1, y=2, z=3)
     assert_eq(loc(), 1, v.x)
     assert_eq(loc(), 2, v.y)
@@ -126,7 +126,7 @@ test_i64_vec3 : proc() = {
     assert_eq(loc(), 0, v2.z)
 }
 
-test_u8_vec3 : proc() = {
+test_u8_vec3 := proc() {
     v := U8Vec3(x=10, y=20, z=30)
     assert_eq(loc(), 10, U8.to_i64(v.x))
     assert_eq(loc(), 20, U8.to_i64(v.y))
@@ -143,7 +143,7 @@ import("std.typed_ptr")
 
 I64Ptr := make_typed_ptr(I64)
 
-test_typed_ptr_basic : proc() = {
+test_typed_ptr_basic := proc() {
     mut p := I64Ptr.new()
     test(loc(), p.is_null().not(), "typed_ptr new allocates")
 
@@ -160,14 +160,14 @@ test_typed_ptr_basic : proc() = {
     test(loc(), p.is_null(), "typed_ptr deleted")
 }
 
-test_typed_ptr_array : proc() = {
+test_typed_ptr_array := proc() {
     mut p := I64Ptr.new_array(3)
     test(loc(), p.is_null().not(), "typed_ptr array allocates")
     p.delete()
 }
 
 // Issue #105: Macro struct with NULL constant default
-make_nullable : macro(T: Type) returns struct = {
+make_nullable := macro(T: Type) returns struct {
     return struct {
         mut data: I64 = NULL
         mut size: I64 = 0
@@ -176,14 +176,14 @@ make_nullable : macro(T: Type) returns struct = {
 
 NullableI64 := make_nullable(I64)
 
-test_null_default : proc() = {
+test_null_default := proc() {
     x := NullableI64()
     assert_eq(loc(), 0, x.data)
     assert_eq(loc(), 0, x.size)
 }
 
 // Issue #105: Macro struct with immutable (constant) field
-make_tagged : macro(T: Type) returns struct = {
+make_tagged := macro(T: Type) returns struct {
     return struct {
         tag: Str = "default_tag"
         mut data: I64 = 0
@@ -192,7 +192,7 @@ make_tagged : macro(T: Type) returns struct = {
 
 TaggedI64 := make_tagged(I64)
 
-test_immutable_field : proc() = {
+test_immutable_field := proc() {
     t := TaggedI64()
     assert_eq(loc(), 0, t.data)
     assert_eq_str(loc(), "default_tag", TaggedI64.tag)
@@ -217,13 +217,13 @@ import("std.typed_option")
 
 I64Option := make_option(I64)
 
-test_option_none : proc() = {
+test_option_none := proc() {
     opt := I64Option.None
     test(loc(), opt.is_none(), "None is_none")
     test(loc(), opt.is_some().not(), "None not is_some")
 }
 
-test_option_some : proc() = {
+test_option_some := proc() {
     opt := I64Option.Some(42)
     test(loc(), opt.is_some(), "Some is_some")
     test(loc(), opt.is_none().not(), "Some not is_none")
@@ -241,7 +241,7 @@ Point105 := struct {
 }
 
 // Macro that counts mutable fields (user-declared data fields)
-count_fields : macro(T: Type) returns I64 = {
+count_fields := macro(T: Type) returns I64 {
     def := struct_def_of(type_as_str(T))
     mut count := 0
     for i in 0..def.members.len() {
@@ -255,7 +255,7 @@ count_fields : macro(T: Type) returns I64 = {
 assert_eq(loc(), 2, count_fields(Point105))
 
 // Macro that gets first field name
-first_field_name : macro(T: Type) returns Str = {
+first_field_name := macro(T: Type) returns Str {
     def := struct_def_of(type_as_str(T))
     m := cast(Declaration, def.members.get(0)?)
     return m.name
@@ -268,7 +268,7 @@ Color106 := enum { Red, Green, Blue }
 TaggedVal106 := enum { None, Some: I64 }
 
 // Count variants
-count_variants : macro(T: Type) returns I64 = {
+count_variants := macro(T: Type) returns I64 {
     def := enum_def_of(type_as_str(T))
     return def.variants.len()
 }
@@ -276,7 +276,7 @@ assert_eq(loc(), 3, count_variants(Color106))
 assert_eq(loc(), 2, count_variants(TaggedVal106))
 
 // Get first variant name
-first_variant_name : macro(T: Type) returns Str = {
+first_variant_name := macro(T: Type) returns Str {
     def := enum_def_of(type_as_str(T))
     v := cast(EnumVariant, def.variants.get(0)?)
     return v.name

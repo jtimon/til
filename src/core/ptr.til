@@ -12,7 +12,7 @@ Ptr := struct {
     mut elem_size: I64 = 0    // Bytes per element (0 = single value, not array)
 
 namespace:
-    new_by_size : proc(size: I64) returns Ptr = {
+    new_by_size := proc(size: I64) returns Ptr {
         if size.lteq(0) {
             panic(loc(), "Ptr.new_by_size: invalid size")
         }
@@ -23,7 +23,7 @@ namespace:
         return p
     }
 
-    new : proc(T: Type) returns Ptr = {
+    new := proc(T: Type) returns Ptr {
         mut p := Ptr.new_by_size(size_of(T))
         p.elem_size = size_of(T)
         // elem_type must be set by caller if deep cloning is needed
@@ -31,7 +31,7 @@ namespace:
     }
 
     /** Create a Ptr for an array of elements. */
-    new_array : proc(T: Type, count: I64) returns Ptr = {
+    new_array := proc(T: Type, count: I64) returns Ptr {
         elem_sz := size_of(T)
         total := elem_sz.mul(count)
         mut p := Ptr.new_by_size(total)
@@ -40,7 +40,7 @@ namespace:
         return p
     }
 
-    delete : func(mut self: Ptr) = {
+    delete := func(mut self: Ptr) {
         if NULL.eq(self.data) {
             // Already deleted or never allocated - safe to call multiple times
             return
@@ -51,7 +51,7 @@ namespace:
         self.data = NULL
     }
 
-    clone : proc(self: Ptr) returns Ptr = {
+    clone := proc(self: Ptr) returns Ptr {
         // Deep clone - allocates new memory and copies data.
         // For element-wise deep cloning (calling elem.clone()), use clone_deep().
         if NULL.eq(self.data) {
@@ -73,7 +73,7 @@ namespace:
     }
 
     /** Ptr.offset is danger-ous, also known as "pointer arythmetics". */
-    offset : proc(self: Ptr, byte_offset: I64) returns Ptr = {
+    offset := proc(self: Ptr, byte_offset: I64) returns Ptr {
         mut p := Ptr()
         p.data = self.data.add(byte_offset)
         p.is_borrowed = 1  // Offset pointers don't own the memory
@@ -83,39 +83,39 @@ namespace:
         return p
     }
 
-    copy_from : proc(mut self: Ptr, src: Ptr, size: I64) = {
+    copy_from := proc(mut self: Ptr, src: Ptr, size: I64) {
         // TODO this should fail if self arg is not declared as mut
         memcpy(self.data, src.data, size)
     }
 
-    copy_to : proc(self: Ptr, mut dest: Ptr, size: I64) = {
+    copy_to := proc(self: Ptr, mut dest: Ptr, size: I64) {
         memcpy(dest.data, self.data, size)
     }
 
-    set_zero : proc(mut self: Ptr, size: I64) = {
+    set_zero := proc(mut self: Ptr, size: I64) {
         zero : U8 = 0
         memset(self.data, zero, size)
     }
 
     /** Copy from a Dynamic value into this Ptr. */
-    copy_from_dynamic : proc(mut self: Ptr, value: Dynamic, size: I64) = {
+    copy_from_dynamic := proc(mut self: Ptr, value: Dynamic, size: I64) {
         memcpy(self.data, to_ptr(value), size)
     }
 
     /** Copy from this Ptr into a Dynamic destination. */
-    copy_to_dynamic : proc(self: Ptr, mut dest: Dynamic, size: I64) = {
+    copy_to_dynamic := proc(self: Ptr, mut dest: Dynamic, size: I64) {
         memcpy(to_ptr(dest), self.data, size)
     }
 
     /** Dereference pointer - copy value at this address into dest. */
-    dereference : proc(self: Ptr, T: Type, mut dest: Dynamic) = {
+    dereference := proc(self: Ptr, T: Type, mut dest: Dynamic) {
         memcpy(to_ptr(dest), self.data, size_of(T))
     }
 
     // TODO FIX should type error because size is already declared
-    size_of : func() returns I64 = { return size_of(I64) }
+    size_of := func() returns I64 { return size_of(I64) }
 
-    is_null : func(self: Ptr) returns Bool = {
+    is_null := func(self: Ptr) returns Bool {
         return NULL.eq(self.data)
     }
 }

@@ -8,7 +8,7 @@ mode test
 //
 // This test passes with rstil but fails with til until Bug #65 is fixed.
 
-test_dynamic_param : proc() = {
+test_dynamic_param := proc() {
     mut v := Vec.new(I64)
     v.push(10)  // Fails with til: "Source '10' not found in caller context"
     assert_eq(loc(), 1, v.len())

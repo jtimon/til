@@ -2,50 +2,50 @@ mode test
 
 // Test that return values must be used (Bug #8 fix)
 
-my_add : func(a: I64, b: I64) returns I64 = {
+my_add := func(a: I64, b: I64) returns I64 {
     return add(a, b)
 }
 
-double : func(x: I64) returns I64 = {
+double := func(x: I64) returns I64 {
     return mul(x, 2)
 }
 
-get_value : func() returns I64 = {
+get_value := func() returns I64 {
     return 42
 }
 
-print_hello : proc() = {
+print_hello := proc() {
     println("Hello from test")
 }
 
 // This should work: return value is captured
-test_captured : proc() = {
+test_captured := proc() {
     result := my_add(1, 2)
     assert_eq(loc(), 3, result)
 }
 test_captured()
 
 // This should work: return value is used as an argument
-test_used_as_arg : proc() = {
+test_used_as_arg := proc() {
     result := double(my_add(3, 4))
     assert_eq(loc(), 14, result)
 }
 test_used_as_arg()
 
 // This should work: return value is discarded with _
-test_discarded_with_underscore : proc() = {
+test_discarded_with_underscore := proc() {
     _ := get_value()
 }
 test_discarded_with_underscore()
 
 // This should work: proc doesn't return a value
-test_proc_no_return : proc() = {
+test_proc_no_return := proc() {
     print_hello()
 }
 test_proc_no_return()
 
 // Uncomment to see type error: return value not used
-// test_error_unused : proc() = {
+// test_error_unused := proc() {
 //     my_add(1, 2)  // ERROR: return value not captured
 // }
 // test_error_unused()

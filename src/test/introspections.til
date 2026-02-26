@@ -43,7 +43,7 @@ VEC_INIT_CAP_IS_FIELD := Introspection.has_field("Vec", "INIT_CAP")
 GHOST_TYPE_HAS_FIELD := Introspection.has_field("NonexistentType", "anything")
 
 // Test has_const - associated functions (clone)
-test_has_const_clone : proc() = {
+test_has_const_clone := proc() {
     test(loc(), VEC_HAS_CLONE, "Expected Vec to have clone() const")
     test(loc(), STR_HAS_CLONE, "Expected Str to have clone() const")
     test(loc(), ARRAY_HAS_CLONE, "Expected Array to have clone() const")
@@ -53,7 +53,7 @@ test_has_const_clone : proc() = {
 test_has_const_clone()
 
 // Test has_const - struct constants
-test_has_const_constants : proc() = {
+test_has_const_constants := proc() {
     test(loc(), VEC_HAS_INIT_CAP, "Expected Vec to have INIT_CAP const")
     test(loc(), VEC_HAS_MAX_CAP, "Expected Vec to have MAX_CAP const")
     test(loc(), VEC_HAS_NEW, "Expected Vec to have new const")
@@ -63,7 +63,7 @@ test_has_const_constants : proc() = {
 test_has_const_constants()
 
 // Test has_const - negative cases
-test_has_const_negative : proc() = {
+test_has_const_negative := proc() {
     test(loc(), not(VEC_HAS_NONEXISTENT_CONST), "Expected Vec to NOT have 'nonexistent' const")
     test(loc(), not(VEC_LEN_IS_CONST), "Expected Vec._len to NOT be a const (it's mutable)")
     test(loc(), not(GHOST_TYPE_HAS_CONST), "Expected nonexistent type to return false")
@@ -71,7 +71,7 @@ test_has_const_negative : proc() = {
 test_has_const_negative()
 
 // Test has_field - Vec mutable fields
-test_has_field_vec : proc() = {
+test_has_field_vec := proc() {
     test(loc(), VEC_HAS_PTR, "Expected Vec to have ptr field")
     test(loc(), VEC_HAS_ULEN, "Expected Vec to have _len field")
     test(loc(), VEC_HAS_CAP, "Expected Vec to have cap field")
@@ -79,14 +79,14 @@ test_has_field_vec : proc() = {
 test_has_field_vec()
 
 // Test has_field - Str mutable fields
-test_has_field_str : proc() = {
+test_has_field_str := proc() {
     test(loc(), STR_HAS_C_STRING, "Expected Str to have c_string field")
     test(loc(), STR_HAS_CAP, "Expected Str to have cap field")
 }
 test_has_field_str()
 
 // Test has_field - negative cases
-test_has_field_negative : proc() = {
+test_has_field_negative := proc() {
     test(loc(), not(VEC_HAS_NONEXISTENT_FIELD), "Expected Vec to NOT have 'nonexistent' field")
     test(loc(), not(VEC_CLONE_IS_FIELD), "Expected Vec.clone to NOT be a field (it's a const)")
     test(loc(), not(VEC_INIT_CAP_IS_FIELD), "Expected Vec.INIT_CAP to NOT be a field (it's a const)")
@@ -95,7 +95,7 @@ test_has_field_negative : proc() = {
 test_has_field_negative()
 
 // Test that has_const and has_field are mutually exclusive
-test_mutual_exclusion : proc() = {
+test_mutual_exclusion := proc() {
     // clone is a const, not a field
     test(loc(), VEC_HAS_CLONE, "Expected clone to be a const")
     test(loc(), not(VEC_CLONE_IS_FIELD), "Expected clone to NOT be a field")
