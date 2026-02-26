@@ -35,9 +35,7 @@ typedef struct til_Str {
 } til_Str;
 
 typedef struct til_Array {
-    til_Str type_name;
-    til_I64 type_size;
-    til_I64 ptr;
+    til_Ptr ptr;
     til_I64 _len;
 } til_Array;
 
@@ -411,7 +409,7 @@ til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
     size_t cmd_len = 0;
 
     for (til_I64 i = 0; i < args->_len; i++) {
-        til_Str* arg = (til_Str*)((char*)args->ptr + i * sizeof(til_Str));
+        til_Str* arg = (til_Str*)((char*)args->ptr.data + i * sizeof(til_Str));
         if (i > 0) {
             if (cmd_len < sizeof(cmd_buf) - 1) {
                 cmd_buf[cmd_len++] = ' ';
