@@ -484,6 +484,25 @@ fcall_expr_is_hoisted : proc(fcall_expr: Expr, context: Context) returns Bool = 
     catch (err: KeyNotFoundError) { return false }
 }
 
+// Issue #175: Compute hoisted lvalue flags for variadic args
+// Returns a Vec(Bool) where true means the arg is already a hoisted _ret lvalue temp
+compute_variadic_hoisted_flags : proc(fcall: Expr, regular_count: I64, context: Context) returns Vec = {
+    mut flags := Vec.new(Bool)
+    mut vi := 0
+    variadic_start := add(1, regular_count)
+    while vi.lt(sub(fcall.params.len(), variadic_start)) {
+        arg_idx := add(variadic_start, vi)
+        arg := cast(Expr, fcall.params.get(arg_idx)?)
+        dont_delete(arg)
+        is_hoisted := fcall_expr_is_hoisted(arg, context)
+        flags.push(own is_hoisted)
+        vi.inc()
+    }
+    return flags
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
 get_fcall_func_def : proc(context: Context, fcall_expr: Expr) returns FuncDef throws KeyNotFoundError = {
     mut expr_clone := fcall_expr.clone()
     defer expr_clone.delete()
@@ -1461,7 +1480,10 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
             variadic_arg_strings.push(own vas)
             vi.inc()
         }
-        variadic_arr_var = emit_variadic_array_with_strings(variadic_info.elem_type, variadic_arg_strings, hoist_output, indent, ctx)
+        // Issue #175: Compute hoisted flags so we skip redundant temp copies
+        mut hoisted_flags_7 := compute_variadic_hoisted_flags(arg, variadic_info.regular_count, context)
+        defer hoisted_flags_7.delete()
+        variadic_arr_var = emit_variadic_array_with_strings(variadic_info.elem_type, variadic_arg_strings, hoisted_flags_7, hoist_output, indent, ctx)
     }
 
     // Emit the function call with output pointers
@@ -1750,7 +1772,10 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
         variadic_arg_strings.push(own vas)
         vai.inc()
     }
-    variadic_arr_var := emit_variadic_array_with_strings(vi.elem_type, variadic_arg_strings, hoist_output, indent, ctx)
+    // Issue #175: Compute hoisted flags so we skip redundant temp copies
+    mut hoisted_flags_8 := compute_variadic_hoisted_flags(arg, vi.regular_count, context)
+    defer hoisted_flags_8.delete()
+    variadic_arr_var := emit_variadic_array_with_strings(vi.elem_type, variadic_arg_strings, hoisted_flags_8, hoist_output, indent, ctx)
 
     // Get function name
     if arg.params.is_empty() {
@@ -1841,7 +1866,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
 
 /// Helper: Build variadic array using pre-computed arg strings
 /// Mirrors hoist_variadic_args but uses pre-computed arg_strings instead of emit_expr
-emit_variadic_array_with_strings : proc(elem_type: Str, arg_strings: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext) returns Str = {
+emit_variadic_array_with_strings : proc(elem_type: Str, arg_strings: Vec, hoisted_lvalues: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext) returns Str = {
     indent_str := repeat("    ", indent)
     arr_var := next_mangled(ctx)
     err_suffix := next_mangled(ctx)
@@ -1868,20 +1893,34 @@ emit_variadic_array_with_strings : proc(elem_type: Str, arg_strings: Vec, mut ou
     output.push_str(";\n")
 
     // Hoist variadic args into temp vars (needed to pass address to Array.set)
+    // Issue #175: Skip temp copy for args that are already hoisted lvalue temps
     mut arg_temps := Vec.new(Str)
     defer arg_temps.delete()
     mut asi := 0
     while asi.lt(arg_strings.len()) {
         arg_str := cast(Str, arg_strings.get(asi)?)
-        temp_var := next_mangled(ctx)
-        output.push_str(indent_str)
-        output.push_str(c_elem_type)
-        output.push_str(" ")
-        output.push_str(temp_var)
-        output.push_str(" = ")
-        output.push_str(arg_str)
-        output.push_str(";\n")
-        arg_temps.push(own temp_var)
+        // Check if this arg is already a hoisted lvalue
+        mut is_hoisted_lv := false
+        if asi.lt(hoisted_lvalues.len()) {
+            hoisted_val := cast(Bool, hoisted_lvalues.get(asi)?)
+            is_hoisted_lv = hoisted_val
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // REM: index out of range, treat as not hoisted
+        }
+        if is_hoisted_lv {
+            arg_temps.push(own arg_str.clone())
+        } else {
+            temp_var := next_mangled(ctx)
+            output.push_str(indent_str)
+            output.push_str(c_elem_type)
+            output.push_str(" ")
+            output.push_str(temp_var)
+            output.push_str(" = ")
+            output.push_str(arg_str)
+            output.push_str(";\n")
+            arg_temps.push(own temp_var)
+        }
         asi.inc()
     }
 
@@ -5878,7 +5917,10 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
         variadic_arg_strings.push(own vas)
         vi.inc()
     }
-    variadic_arr_var := emit_variadic_array_with_strings(elem_type, variadic_arg_strings, output, indent, ctx)
+    // Issue #175: Compute hoisted flags so we skip redundant temp copies
+    mut hoisted_flags_3 := compute_variadic_hoisted_flags(fcall, regular_count, context)
+    defer hoisted_flags_3.delete()
+    variadic_arr_var := emit_variadic_array_with_strings(elem_type, variadic_arg_strings, hoisted_flags_3, output, indent, ctx)
 
     // Determine return type if we need to declare a variable
     mut ret_type := "int"
@@ -6342,7 +6384,10 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
         variadic_arg_strings.push(own vi_as)
         vi_j.inc()
     }
-    variadic_arr_var = emit_variadic_array_with_strings(vi_info.elem_type, variadic_arg_strings, output, indent, ctx)
+    // Issue #175: Compute hoisted flags so we skip redundant temp copies
+    mut hoisted_flags_4 := compute_variadic_hoisted_flags(fcall, vi_regular_count, context)
+    defer hoisted_flags_4.delete()
+    variadic_arr_var = emit_variadic_array_with_strings(vi_info.elem_type, variadic_arg_strings, hoisted_flags_4, output, indent, ctx)
     has_variadic = true
     catch (err: KeyNotFoundError) {
     }
@@ -6761,7 +6806,10 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
         variadic_arg_strings.push(own va_s)
         va_j.inc()
     }
-    variadic_arr_var = emit_variadic_array_with_strings(prop_vi2.elem_type, variadic_arg_strings, output, indent, ctx)
+    // Issue #175: Compute hoisted flags so we skip redundant temp copies
+    mut hoisted_flags_5 := compute_variadic_hoisted_flags(fcall, prop_vi_regular_count, context)
+    defer hoisted_flags_5.delete()
+    variadic_arr_var = emit_variadic_array_with_strings(prop_vi2.elem_type, variadic_arg_strings, hoisted_flags_5, output, indent, ctx)
     catch (err: KeyNotFoundError) {
         // REM: Not variadic
     }
@@ -7083,7 +7131,10 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
         variadic_arg_strings.push(own va_s)
         va_j.inc()
     }
-    variadic_arr_var = emit_variadic_array_with_strings(goto_vi2.elem_type, variadic_arg_strings, output, indent, ctx)
+    // Issue #175: Compute hoisted flags so we skip redundant temp copies
+    mut hoisted_flags_6 := compute_variadic_hoisted_flags(fcall, goto_vi_regular_count, context)
+    defer hoisted_flags_6.delete()
+    variadic_arr_var = emit_variadic_array_with_strings(goto_vi2.elem_type, variadic_arg_strings, hoisted_flags_6, output, indent, ctx)
     catch (err: KeyNotFoundError) {
         // REM: Not variadic
     }
@@ -9809,7 +9860,10 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             variadic_arg_strings.push(own varg_str)
             vi.inc()
         }
-        variadic_arr_var = emit_variadic_array_with_strings(elem_type, variadic_arg_strings, output, indent, ctx)
+        // Issue #175: Track which variadic args are already hoisted lvalue temps
+        mut hoisted_flags := compute_variadic_hoisted_flags(expr, regular_count, context)
+        defer hoisted_flags.delete()
+        variadic_arr_var = emit_variadic_array_with_strings(elem_type, variadic_arg_strings, hoisted_flags, output, indent, ctx)
         has_variadic_arr = true
         catch (err: KeyNotFoundError) {
             panic(loc(), "func_variadic_args.get failed: ", err.msg)
