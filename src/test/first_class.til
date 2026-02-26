@@ -73,14 +73,13 @@ test_struct_instantiation : proc() = {
 }
 test_struct_instantiation()
 
-// TODO: Anonymous struct instantiation (Issue #105)
-// struct { ... }(args) should create a value with an anonymous struct type
-// test_anon_struct_instantiation : proc() = {
-//     p := struct { mut x: I64 = 0, mut y: I64 = 0 }(x=10, y=20)
-//     assert_eq(loc(), 10, p.x)
-//     assert_eq(loc(), 20, p.y)
-// }
-// test_anon_struct_instantiation()
+// Anonymous struct instantiation (Issue #105)
+test_anon_struct_instantiation : proc() = {
+    p := struct { mut x: I64 = 0, mut y: I64 = 0 }(x=10, y=20)
+    assert_eq(loc(), 10, p.x)
+    assert_eq(loc(), 20, p.y)
+}
+test_anon_struct_instantiation()
 
 // TODO: struct_def_of introspection (Issue #105)
 // Compiled mode fails: ext_funcs (__struct_field_count etc.) not linked in generated C
