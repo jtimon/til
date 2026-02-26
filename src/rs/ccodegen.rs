@@ -1,7 +1,7 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-use crate::rs::parser::{Expr, NodeType, Literal, FuncDef, EnumDef, NamespaceDef, ValueType, INFER_TYPE, FunctionType, TTypeDef};
+use crate::rs::parser::{Expr, NodeType, Literal, FuncDef, StructDef, EnumDef, NamespaceDef, ValueType, INFER_TYPE, FunctionType, TTypeDef};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType, PrecomputedHeapValue};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use crate::rs::eval_heap::{EvalHeap, VecContents};
@@ -2452,6 +2452,9 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Pass 4d: emit til_size_of function (runtime type size lookup)
     emit_size_of_function(&mut output, &ctx);
 
+    // Pass 4e: Issue #105/#106 - emit introspection metadata for compiled mode
+    emit_introspection_metadata(ast, &mut output, context);
+
     output.push_str("\n");
 
     // Pass 5: emit function definitions
@@ -3356,6 +3359,306 @@ fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
     }
 
     output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string.data);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+}
+
+// Issue #105/#106: Emit introspection metadata for structs and enums.
+// Generates static metadata tables and C implementations of the __struct_field_*
+// and __enum_variant_* ext_funcs so introspection works in compiled mode.
+fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Context) {
+    // Collect struct and enum declarations from AST
+    let mut struct_entries: Vec<(String, StructDef)> = Vec::new();
+    let mut enum_entries: Vec<(String, EnumDef)> = Vec::new();
+
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if let NodeType::Declaration(decl) = &child.node_type {
+                if !child.params.is_empty() {
+                    let inner = child.params.get(0).unwrap();
+                    match &inner.node_type {
+                        NodeType::StructDef(sd) => {
+                            // Skip primitives
+                            if decl.name != "I64" && decl.name != "U8" && decl.name != "Bool"
+                                && decl.name != "Dynamic" && decl.name != "Type" {
+                                struct_entries.push((decl.name.clone(), sd.clone()));
+                            }
+                        }
+                        NodeType::EnumDef(ed) => {
+                            enum_entries.push((decl.name.clone(), ed.clone()));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    output.push_str("\n// Issue #105/#106: Introspection metadata for compiled mode\n");
+
+    // Helper: emit a borrowed Str literal in C
+    // Returns: ((til_Str){((til_Ptr){(til_I64)"str", 1, 0, 0, 0}), len, 0})
+    fn emit_borrowed_str(s: &str, output: &mut String) {
+        output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64)\"", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
+        // Escape special characters
+        for c in s.chars() {
+            match c {
+                '\0' => output.push_str("\\0"),
+                '\n' => output.push_str("\\n"),
+                '\r' => output.push_str("\\r"),
+                '\t' => output.push_str("\\t"),
+                '\\' => output.push_str("\\\\"),
+                '"' => output.push_str("\\\""),
+                _ => output.push(c),
+            }
+        }
+        output.push_str(&format!("\", 1, 0, 0, 0}}), {}, 0}})", s.len()));
+    }
+
+    // Helper: get type kind string for a ValueType
+    fn type_kind_str(vt: &ValueType) -> &'static str {
+        match vt {
+            ValueType::TCustom(_) => "TCustom",
+            ValueType::TMulti(_) => "TMulti",
+            ValueType::TType(_) => "TType",
+            ValueType::TFunction(_) => "TFunction",
+        }
+    }
+
+    // Helper: get type arg string for a ValueType
+    fn type_arg_str(vt: &ValueType) -> String {
+        match vt {
+            ValueType::TCustom(s) => s.clone(),
+            ValueType::TMulti(s) => s.clone(),
+            ValueType::TType(tdef) => format!("{:?}", tdef),
+            ValueType::TFunction(ftype) => format!("{:?}", ftype),
+        }
+    }
+
+    // __struct_field_count
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64 ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__struct_field_count(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name) {\n");
+    for (name, sd) in &struct_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) return ");
+        output.push_str(&format!("{}", sd.members.len()));
+        output.push_str(";\n");
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __struct_field_name
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__struct_field_name(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, sd) in &struct_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, member) in sd.members.iter().enumerate() {
+            output.push_str(&format!("        case {}: return ", j));
+            emit_borrowed_str(&member.name, output);
+            output.push_str(";\n");
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_name: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __struct_field_is_mut
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64 ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__struct_field_is_mut(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, sd) in &struct_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, member) in sd.members.iter().enumerate() {
+            output.push_str(&format!("        case {}: return {};\n", j, if member.is_mut { 1 } else { 0 }));
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_is_mut: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __struct_field_type_kind
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__struct_field_type_kind(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, sd) in &struct_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, member) in sd.members.iter().enumerate() {
+            output.push_str(&format!("        case {}: return ", j));
+            emit_borrowed_str(type_kind_str(&member.value_type), output);
+            output.push_str(";\n");
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_type_kind: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __struct_field_type_arg
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__struct_field_type_arg(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, sd) in &struct_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, member) in sd.members.iter().enumerate() {
+            output.push_str(&format!("        case {}: return ", j));
+            emit_borrowed_str(&type_arg_str(&member.value_type), output);
+            output.push_str(";\n");
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_type_arg: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __enum_variant_count
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64 ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__enum_variant_count(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name) {\n");
+    for (name, ed) in &enum_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) return ");
+        output.push_str(&format!("{}", ed.variants.len()));
+        output.push_str(";\n");
+    }
+    output.push_str("    fprintf(stderr, \"__enum_variant_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __enum_variant_name
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__enum_variant_name(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, ed) in &enum_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, variant) in ed.variants.iter().enumerate() {
+            output.push_str(&format!("        case {}: return ", j));
+            emit_borrowed_str(&variant.name, output);
+            output.push_str(";\n");
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__enum_variant_name: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __enum_variant_has_payload
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64 ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__enum_variant_has_payload(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, ed) in &enum_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, variant) in ed.variants.iter().enumerate() {
+            output.push_str(&format!("        case {}: return {};\n", j, if variant.payload_type.is_some() { 1 } else { 0 }));
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__enum_variant_has_payload: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __enum_variant_payload_type
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__enum_variant_payload_type(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, ed) in &enum_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, variant) in ed.variants.iter().enumerate() {
+            let payload_str = match &variant.payload_type {
+                Some(vt) => crate::rs::parser::value_type_to_str(vt),
+                None => String::new(),
+            };
+            output.push_str(&format!("        case {}: return ", j));
+            emit_borrowed_str(&payload_str, output);
+            output.push_str(";\n");
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__enum_variant_payload_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
     output.push_str("    exit(1);\n");
     output.push_str("}\n");
 }

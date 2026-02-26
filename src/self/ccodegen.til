@@ -2901,6 +2901,9 @@ emit : proc(ast: Expr, mut context: Context) returns Str throws Str = {
     // Pass 4d: emit til_size_of function (runtime type size lookup)
     emit_size_of_function(output, ctx)
 
+    // Pass 4e: Issue #105/#106 - emit introspection metadata for compiled mode
+    emit_introspection_metadata(ast, output, context)
+
     output.push_str("\n")
 
     // Pass 5: emit function definitions
@@ -3603,6 +3606,372 @@ emit_size_of_function : proc(mut output: Str, ctx: CodegenContext) = {
     output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string.data);\n")
     output.push_str("    exit(1);\n")
     output.push_str("}\n")
+}
+
+// Issue #105/#106: Emit introspection metadata for structs and enums.
+// Generates C implementations of the __struct_field_* and __enum_variant_*
+// ext_funcs so introspection works in compiled mode.
+emit_introspection_metadata : proc(ast: Expr, mut output: Str, _context: Context) = {
+    // Collect struct and enum declarations from AST
+    mut struct_names := Vec.new(Str)
+    mut struct_defs := Vec.new(StructDef)
+    mut enum_names := Vec.new(Str)
+    mut enum_defs := Vec.new(EnumDef)
+
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            switch child.node_type {
+            case NodeType.Declaration(decl):
+                if child.params.len().gt(0) {
+                    inner := cast(Expr, child.params.get(0)?)
+                    switch inner.node_type {
+                    case NodeType.StructDef(sd):
+                        if not(decl.name.eq("I64")) {
+                            if not(decl.name.eq("U8")) {
+                                if not(decl.name.eq("Bool")) {
+                                    if not(decl.name.eq("Dynamic")) {
+                                        if not(decl.name.eq("Type")) {
+                                            struct_names.push(own decl.name.clone())
+                                            struct_defs.push(own sd.clone())
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    case NodeType.EnumDef(ed):
+                        enum_names.push(own decl.name.clone())
+                        enum_defs.push(own ed.clone())
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    output.push_str("\n// Issue #105/#106: Introspection metadata for compiled mode\n")
+
+    emit_introspection_struct_funcs(struct_names, struct_defs, output)
+    emit_introspection_enum_funcs(enum_names, enum_defs, output)
+
+    struct_names.delete()
+    struct_defs.delete()
+    enum_names.delete()
+    enum_defs.delete()
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+// Helper: get type kind string for a ValueType
+introspection_type_kind_str : func(vt: ValueType) returns Str = {
+    switch vt {
+    case ValueType.TCustom(s): return "TCustom"
+    case ValueType.TMulti(s): return "TMulti"
+    case ValueType.TType(t): return "TType"
+    case ValueType.TFunction(f): return "TFunction"
+    }
+    return ""
+}
+
+// Helper: get type arg string for a ValueType
+introspection_type_arg_str : func(vt: ValueType) returns Str = {
+    switch vt {
+    case ValueType.TCustom(s): return s
+    case ValueType.TMulti(s): return s
+    case ValueType.TType(t): return enum_to_str(t)
+    case ValueType.TFunction(f): return enum_to_str(f)
+    }
+    return ""
+}
+
+// Emit the 5 __struct_field_* C functions
+emit_introspection_struct_funcs : proc(struct_names: Vec, struct_defs: Vec, mut output: Str) = {
+    // __struct_field_count
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64 ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__struct_field_count(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name) {\n")
+    for s1i in 0..struct_names.len() {
+        s1n := cast(Str, struct_names.get(s1i)?)
+        s1d := cast(StructDef, struct_defs.get(s1i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(s1n)
+        output.push_str("\") == 0) return ")
+        output.push_str(s1d.members.len().to_str())
+        output.push_str(";\n")
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __struct_field_name
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__struct_field_name(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for s2i in 0..struct_names.len() {
+        s2n := cast(Str, struct_names.get(s2i)?)
+        s2d := cast(StructDef, struct_defs.get(s2i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(s2n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for s2j in 0..s2d.members.len() {
+            s2m := cast(Declaration, s2d.members.get(s2j)?)
+            output.push_str("        case ")
+            output.push_str(s2j.to_str())
+            output.push_str(": return ")
+            emit_str_literal(s2m.name, output)
+            output.push_str(";\n")
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_name: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __struct_field_is_mut
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64 ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__struct_field_is_mut(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for s3i in 0..struct_names.len() {
+        s3n := cast(Str, struct_names.get(s3i)?)
+        s3d := cast(StructDef, struct_defs.get(s3i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(s3n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for s3j in 0..s3d.members.len() {
+            s3m := cast(Declaration, s3d.members.get(s3j)?)
+            output.push_str("        case ")
+            output.push_str(s3j.to_str())
+            output.push_str(": return ")
+            if s3m.is_mut {
+                output.push_str("1;\n")
+            } else {
+                output.push_str("0;\n")
+            }
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_is_mut: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __struct_field_type_kind
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__struct_field_type_kind(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for s4i in 0..struct_names.len() {
+        s4n := cast(Str, struct_names.get(s4i)?)
+        s4d := cast(StructDef, struct_defs.get(s4i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(s4n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for s4j in 0..s4d.members.len() {
+            s4m := cast(Declaration, s4d.members.get(s4j)?)
+            output.push_str("        case ")
+            output.push_str(s4j.to_str())
+            output.push_str(": return ")
+            emit_str_literal(introspection_type_kind_str(s4m.value_type), output)
+            output.push_str(";\n")
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_type_kind: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __struct_field_type_arg
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__struct_field_type_arg(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for s5i in 0..struct_names.len() {
+        s5n := cast(Str, struct_names.get(s5i)?)
+        s5d := cast(StructDef, struct_defs.get(s5i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(s5n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for s5j in 0..s5d.members.len() {
+            s5m := cast(Declaration, s5d.members.get(s5j)?)
+            output.push_str("        case ")
+            output.push_str(s5j.to_str())
+            output.push_str(": return ")
+            emit_str_literal(introspection_type_arg_str(s5m.value_type), output)
+            output.push_str(";\n")
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__struct_field_type_arg: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+// Emit the 4 __enum_variant_* C functions
+emit_introspection_enum_funcs : proc(enum_names: Vec, enum_defs: Vec, mut output: Str) = {
+    // __enum_variant_count
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64 ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__enum_variant_count(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name) {\n")
+    for e1i in 0..enum_names.len() {
+        e1n := cast(Str, enum_names.get(e1i)?)
+        e1d := cast(EnumDef, enum_defs.get(e1i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(e1n)
+        output.push_str("\") == 0) return ")
+        output.push_str(e1d.variants.len().to_str())
+        output.push_str(";\n")
+    }
+    output.push_str("    fprintf(stderr, \"__enum_variant_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __enum_variant_name
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__enum_variant_name(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for e2i in 0..enum_names.len() {
+        e2n := cast(Str, enum_names.get(e2i)?)
+        e2d := cast(EnumDef, enum_defs.get(e2i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(e2n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for e2j in 0..e2d.variants.len() {
+            e2v := cast(EnumVariant, e2d.variants.get(e2j)?)
+            output.push_str("        case ")
+            output.push_str(e2j.to_str())
+            output.push_str(": return ")
+            emit_str_literal(e2v.name, output)
+            output.push_str(";\n")
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__enum_variant_name: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __enum_variant_has_payload
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64 ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__enum_variant_has_payload(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for e3i in 0..enum_names.len() {
+        e3n := cast(Str, enum_names.get(e3i)?)
+        e3d := cast(EnumDef, enum_defs.get(e3i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(e3n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for e3j in 0..e3d.variants.len() {
+            e3v := cast(EnumVariant, e3d.variants.get(e3j)?)
+            output.push_str("        case ")
+            output.push_str(e3j.to_str())
+            output.push_str(": return ")
+            if not(NULL.eq(e3v.payload_type.data)) {
+                output.push_str("1;\n")
+            } else {
+                output.push_str("0;\n")
+            }
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__enum_variant_has_payload: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __enum_variant_payload_type
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__enum_variant_payload_type(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for e4i in 0..enum_names.len() {
+        e4n := cast(Str, enum_names.get(e4i)?)
+        e4d := cast(EnumDef, enum_defs.get(e4i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(e4n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for e4j in 0..e4d.variants.len() {
+            e4v := cast(EnumVariant, e4d.variants.get(e4j)?)
+            mut e4_payload_str := ""
+            if not(NULL.eq(e4v.payload_type.data)) {
+                mut e4_vt : ValueType = ValueType.TCustom("")
+                memcpy(to_ptr(e4_vt), e4v.payload_type.data, size_of(ValueType))
+                e4_payload_str = value_type_to_str(e4_vt)
+            }
+            output.push_str("        case ")
+            output.push_str(e4j.to_str())
+            output.push_str(": return ")
+            emit_str_literal(e4_payload_str, output)
+            output.push_str(";\n")
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__enum_variant_payload_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Bug #133 fix: Emit static arrays for precomputed heap values (Vec, List, etc.)

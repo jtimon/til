@@ -774,6 +774,824 @@ static inline til_I64 til_size_of(const til_Str* type_name) {
     exit(1);
 }
 
+// Issue #105/#106: Introspection metadata for compiled mode
+
+static inline til_I64 til___struct_field_count(const til_Str* type_name) {
+    if (strcmp((char*)type_name->c_string.data, "IndexOutOfBoundsError") == 0) return 1;
+    if (strcmp((char*)type_name->c_string.data, "BadAlloc") == 0) return 0;
+    if (strcmp((char*)type_name->c_string.data, "Ptr") == 0) return 5;
+    if (strcmp((char*)type_name->c_string.data, "Array") == 0) return 2;
+    if (strcmp((char*)type_name->c_string.data, "I64_Overflow") == 0) return 1;
+    if (strcmp((char*)type_name->c_string.data, "DivideByZero") == 0) return 0;
+    if (strcmp((char*)type_name->c_string.data, "Vec") == 0) return 5;
+    if (strcmp((char*)type_name->c_string.data, "Str") == 0) return 3;
+    if (strcmp((char*)type_name->c_string.data, "U8_Overflow") == 0) return 1;
+    if (strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) return 2;
+    if (strcmp((char*)type_name->c_string.data, "HeapState") == 0) return 0;
+    if (strcmp((char*)type_name->c_string.data, "Map") == 0) return 3;
+    if (strcmp((char*)type_name->c_string.data, "NamespaceDef") == 0) return 2;
+    if (strcmp((char*)type_name->c_string.data, "EnumDef") == 0) return 3;
+    if (strcmp((char*)type_name->c_string.data, "Declaration") == 0) return 6;
+    if (strcmp((char*)type_name->c_string.data, "PatternInfo") == 0) return 2;
+    if (strcmp((char*)type_name->c_string.data, "FuncSig") == 0) return 4;
+    if (strcmp((char*)type_name->c_string.data, "FuncDef") == 0) return 4;
+    if (strcmp((char*)type_name->c_string.data, "StructDef") == 0) return 3;
+    if (strcmp((char*)type_name->c_string.data, "FCallInfo") == 0) return 2;
+    if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) return 2;
+    if (strcmp((char*)type_name->c_string.data, "CfRect") == 0) return 2;
+    fprintf(stderr, "__struct_field_count: type '%s' not found\n", (char*)type_name->c_string.data);
+    exit(1);
+}
+
+static inline til_Str til___struct_field_name(const til_Str* type_name, const til_I64* index) {
+    if (strcmp((char*)type_name->c_string.data, "IndexOutOfBoundsError") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"msg", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "BadAlloc") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Ptr") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"data", 1, 0, 0, 0}), 4, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"is_borrowed", 1, 0, 0, 0}), 11, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"alloc_size", 1, 0, 0, 0}), 10, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"elem_type", 1, 0, 0, 0}), 9, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"elem_size", 1, 0, 0, 0}), 9, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Array") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"ptr", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"_len", 1, 0, 0, 0}), 4, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "I64_Overflow") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"msg", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "DivideByZero") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Vec") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"ptr", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"_len", 1, 0, 0, 0}), 4, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"cap", 1, 0, 0, 0}), 3, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"INIT_CAP", 1, 0, 0, 0}), 8, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"MAX_CAP", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Str") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"c_string", 1, 0, 0, 0}), 8, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"_len", 1, 0, 0, 0}), 4, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"cap", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "U8_Overflow") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"msg", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"ptr", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"size", 1, 0, 0, 0}), 4, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "HeapState") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Map") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"keys", 1, 0, 0, 0}), 4, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"values", 1, 0, 0, 0}), 6, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"_size", 1, 0, 0, 0}), 5, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "NamespaceDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"members", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"default_values", 1, 0, 0, 0}), 14, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "EnumDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"variants", 1, 0, 0, 0}), 8, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"methods", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"ns", 1, 0, 0, 0}), 2, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Declaration") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"name", 1, 0, 0, 0}), 4, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"value_type", 1, 0, 0, 0}), 10, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"is_mut", 1, 0, 0, 0}), 6, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"is_copy", 1, 0, 0, 0}), 7, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"is_own", 1, 0, 0, 0}), 6, 0});
+        case 5: return ((til_Str){((til_Ptr){(til_I64)"default_value", 1, 0, 0, 0}), 13, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "PatternInfo") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"variant_name", 1, 0, 0, 0}), 12, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"binding_var", 1, 0, 0, 0}), 11, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FuncSig") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"function_type", 1, 0, 0, 0}), 13, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"args", 1, 0, 0, 0}), 4, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"return_types", 1, 0, 0, 0}), 12, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"throw_types", 1, 0, 0, 0}), 11, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FuncDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"sig", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"arg_names", 1, 0, 0, 0}), 9, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"body", 1, 0, 0, 0}), 4, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"source_path", 1, 0, 0, 0}), 11, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "StructDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"members", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"default_values", 1, 0, 0, 0}), 14, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"ns", 1, 0, 0, 0}), 2, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FCallInfo") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"does_throw", 1, 0, 0, 0}), 10, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"is_bang", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"x", 1, 0, 0, 0}), 1, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"y", 1, 0, 0, 0}), 1, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "CfRect") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"top_left", 1, 0, 0, 0}), 8, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"bottom_right", 1, 0, 0, 0}), 12, 0});
+        }
+    }
+    fprintf(stderr, "__struct_field_name: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
+static inline til_I64 til___struct_field_is_mut(const til_Str* type_name, const til_I64* index) {
+    if (strcmp((char*)type_name->c_string.data, "IndexOutOfBoundsError") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "BadAlloc") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Ptr") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        case 3: return 1;
+        case 4: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Array") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "I64_Overflow") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "DivideByZero") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Vec") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        case 3: return 0;
+        case 4: return 0;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Str") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "U8_Overflow") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "HeapState") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Map") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "NamespaceDef") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "EnumDef") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Declaration") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        case 3: return 1;
+        case 4: return 1;
+        case 5: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "PatternInfo") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FuncSig") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        case 3: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FuncDef") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        case 3: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "StructDef") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FCallInfo") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "CfRect") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        }
+    }
+    fprintf(stderr, "__struct_field_is_mut: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
+static inline til_Str til___struct_field_type_kind(const til_Str* type_name, const til_I64* index) {
+    if (strcmp((char*)type_name->c_string.data, "IndexOutOfBoundsError") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "BadAlloc") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Ptr") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Array") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "I64_Overflow") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "DivideByZero") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Vec") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Str") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "U8_Overflow") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "HeapState") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Map") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "NamespaceDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "EnumDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Declaration") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 5: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "PatternInfo") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FuncSig") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FuncDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "StructDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FCallInfo") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "CfRect") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        }
+    }
+    fprintf(stderr, "__struct_field_type_kind: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
+static inline til_Str til___struct_field_type_arg(const til_Str* type_name, const til_I64* index) {
+    if (strcmp((char*)type_name->c_string.data, "IndexOutOfBoundsError") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "BadAlloc") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Ptr") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Array") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Ptr", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "I64_Overflow") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "DivideByZero") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Vec") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Ptr", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Str") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Ptr", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "U8_Overflow") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "HeapEntry") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "HeapState") == 0) {
+        switch (*index) {
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Map") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "NamespaceDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Map", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "EnumDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Map", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"NamespaceDef", 1, 0, 0, 0}), 12, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Declaration") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"ValueType", 1, 0, 0, 0}), 9, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"Bool", 1, 0, 0, 0}), 4, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"Bool", 1, 0, 0, 0}), 4, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"Bool", 1, 0, 0, 0}), 4, 0});
+        case 5: return ((til_Str){((til_Ptr){(til_I64)"Ptr", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "PatternInfo") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FuncSig") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"FunctionType", 1, 0, 0, 0}), 12, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FuncDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"FuncSig", 1, 0, 0, 0}), 7, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "StructDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Vec", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Map", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"NamespaceDef", 1, 0, 0, 0}), 12, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "FCallInfo") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Bool", 1, 0, 0, 0}), 4, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Bool", 1, 0, 0, 0}), 4, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"I64", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "CfRect") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"CfVec2", 1, 0, 0, 0}), 6, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"CfVec2", 1, 0, 0, 0}), 6, 0});
+        }
+    }
+    fprintf(stderr, "__struct_field_type_arg: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
+static inline til_I64 til___enum_variant_count(const til_Str* type_name) {
+    if (strcmp((char*)type_name->c_string.data, "FunctionType") == 0) return 5;
+    if (strcmp((char*)type_name->c_string.data, "Literal") == 0) return 3;
+    if (strcmp((char*)type_name->c_string.data, "NodeType") == 0) return 24;
+    if (strcmp((char*)type_name->c_string.data, "TTypeDef") == 0) return 4;
+    if (strcmp((char*)type_name->c_string.data, "ValueType") == 0) return 4;
+    fprintf(stderr, "__enum_variant_count: type '%s' not found\n", (char*)type_name->c_string.data);
+    exit(1);
+}
+
+static inline til_Str til___enum_variant_name(const til_Str* type_name, const til_I64* index) {
+    if (strcmp((char*)type_name->c_string.data, "FunctionType") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"FTFunc", 1, 0, 0, 0}), 6, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"FTProc", 1, 0, 0, 0}), 6, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"FTMacro", 1, 0, 0, 0}), 7, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"FTFuncExt", 1, 0, 0, 0}), 9, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"FTProcExt", 1, 0, 0, 0}), 9, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Literal") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Number", 1, 0, 0, 0}), 6, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"List", 1, 0, 0, 0}), 4, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "NodeType") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Body", 1, 0, 0, 0}), 4, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"LLiteral", 1, 0, 0, 0}), 8, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"FCall", 1, 0, 0, 0}), 5, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"Identifier", 1, 0, 0, 0}), 10, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"Declaration", 1, 0, 0, 0}), 11, 0});
+        case 5: return ((til_Str){((til_Ptr){(til_I64)"Assignment", 1, 0, 0, 0}), 10, 0});
+        case 6: return ((til_Str){((til_Ptr){(til_I64)"NamedArg", 1, 0, 0, 0}), 8, 0});
+        case 7: return ((til_Str){((til_Ptr){(til_I64)"FuncDef", 1, 0, 0, 0}), 7, 0});
+        case 8: return ((til_Str){((til_Ptr){(til_I64)"EnumDef", 1, 0, 0, 0}), 7, 0});
+        case 9: return ((til_Str){((til_Ptr){(til_I64)"StructDef", 1, 0, 0, 0}), 9, 0});
+        case 10: return ((til_Str){((til_Ptr){(til_I64)"Return", 1, 0, 0, 0}), 6, 0});
+        case 11: return ((til_Str){((til_Ptr){(til_I64)"Throw", 1, 0, 0, 0}), 5, 0});
+        case 12: return ((til_Str){((til_Ptr){(til_I64)"Catch", 1, 0, 0, 0}), 5, 0});
+        case 13: return ((til_Str){((til_Ptr){(til_I64)"Break", 1, 0, 0, 0}), 5, 0});
+        case 14: return ((til_Str){((til_Ptr){(til_I64)"Continue", 1, 0, 0, 0}), 8, 0});
+        case 15: return ((til_Str){((til_Ptr){(til_I64)"Defer", 1, 0, 0, 0}), 5, 0});
+        case 16: return ((til_Str){((til_Ptr){(til_I64)"OwnArg", 1, 0, 0, 0}), 6, 0});
+        case 17: return ((til_Str){((til_Ptr){(til_I64)"If", 1, 0, 0, 0}), 2, 0});
+        case 18: return ((til_Str){((til_Ptr){(til_I64)"While", 1, 0, 0, 0}), 5, 0});
+        case 19: return ((til_Str){((til_Ptr){(til_I64)"Switch", 1, 0, 0, 0}), 6, 0});
+        case 20: return ((til_Str){((til_Ptr){(til_I64)"DefaultCase", 1, 0, 0, 0}), 11, 0});
+        case 21: return ((til_Str){((til_Ptr){(til_I64)"Range", 1, 0, 0, 0}), 5, 0});
+        case 22: return ((til_Str){((til_Ptr){(til_I64)"Pattern", 1, 0, 0, 0}), 7, 0});
+        case 23: return ((til_Str){((til_Ptr){(til_I64)"ForIn", 1, 0, 0, 0}), 5, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "TTypeDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TEnumDef", 1, 0, 0, 0}), 8, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TStructDef", 1, 0, 0, 0}), 10, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TFuncSig", 1, 0, 0, 0}), 8, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"TFuncDef", 1, 0, 0, 0}), 8, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "ValueType") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"TFunction", 1, 0, 0, 0}), 9, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TType", 1, 0, 0, 0}), 5, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"TCustom", 1, 0, 0, 0}), 7, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"TMulti", 1, 0, 0, 0}), 6, 0});
+        }
+    }
+    fprintf(stderr, "__enum_variant_name: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
+static inline til_I64 til___enum_variant_has_payload(const til_Str* type_name, const til_I64* index) {
+    if (strcmp((char*)type_name->c_string.data, "FunctionType") == 0) {
+        switch (*index) {
+        case 0: return 0;
+        case 1: return 0;
+        case 2: return 0;
+        case 3: return 0;
+        case 4: return 0;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Literal") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "NodeType") == 0) {
+        switch (*index) {
+        case 0: return 0;
+        case 1: return 1;
+        case 2: return 1;
+        case 3: return 1;
+        case 4: return 1;
+        case 5: return 1;
+        case 6: return 1;
+        case 7: return 1;
+        case 8: return 1;
+        case 9: return 1;
+        case 10: return 0;
+        case 11: return 0;
+        case 12: return 0;
+        case 13: return 0;
+        case 14: return 0;
+        case 15: return 0;
+        case 16: return 0;
+        case 17: return 0;
+        case 18: return 0;
+        case 19: return 0;
+        case 20: return 0;
+        case 21: return 0;
+        case 22: return 1;
+        case 23: return 1;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "TTypeDef") == 0) {
+        switch (*index) {
+        case 0: return 0;
+        case 1: return 0;
+        case 2: return 0;
+        case 3: return 0;
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "ValueType") == 0) {
+        switch (*index) {
+        case 0: return 1;
+        case 1: return 1;
+        case 2: return 1;
+        case 3: return 1;
+        }
+    }
+    fprintf(stderr, "__enum_variant_has_payload: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
+static inline til_Str til___enum_variant_payload_type(const til_Str* type_name, const til_I64* index) {
+    if (strcmp((char*)type_name->c_string.data, "FunctionType") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "Literal") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "NodeType") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"Literal", 1, 0, 0, 0}), 7, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"FCallInfo", 1, 0, 0, 0}), 9, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        case 4: return ((til_Str){((til_Ptr){(til_I64)"Declaration", 1, 0, 0, 0}), 11, 0});
+        case 5: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        case 6: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        case 7: return ((til_Str){((til_Ptr){(til_I64)"FuncDef", 1, 0, 0, 0}), 7, 0});
+        case 8: return ((til_Str){((til_Ptr){(til_I64)"EnumDef", 1, 0, 0, 0}), 7, 0});
+        case 9: return ((til_Str){((til_Ptr){(til_I64)"StructDef", 1, 0, 0, 0}), 9, 0});
+        case 10: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 11: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 12: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 13: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 14: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 15: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 16: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 17: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 18: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 19: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 20: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 21: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 22: return ((til_Str){((til_Ptr){(til_I64)"PatternInfo", 1, 0, 0, 0}), 11, 0});
+        case 23: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "TTypeDef") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0});
+        }
+    }
+    if (strcmp((char*)type_name->c_string.data, "ValueType") == 0) {
+        switch (*index) {
+        case 0: return ((til_Str){((til_Ptr){(til_I64)"FunctionType", 1, 0, 0, 0}), 12, 0});
+        case 1: return ((til_Str){((til_Ptr){(til_I64)"TTypeDef", 1, 0, 0, 0}), 8, 0});
+        case 2: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        case 3: return ((til_Str){((til_Ptr){(til_I64)"Str", 1, 0, 0, 0}), 3, 0});
+        }
+    }
+    fprintf(stderr, "__enum_variant_payload_type: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
 til_I64 til_memcmp(const til_I64* til_I64_ptr1, const til_I64* til_I64_ptr2, const til_I64* til_I64_size) {
     til_I64 til_I64_i = 0;
     til_U8 til_U8_byte1;

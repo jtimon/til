@@ -81,26 +81,22 @@ test_anon_struct_instantiation : proc() = {
 }
 test_anon_struct_instantiation()
 
-// TODO: struct_def_of introspection (Issue #105)
-// Compiled mode fails: ext_funcs (__struct_field_count etc.) not linked in generated C
-// import("std.meta")
-// test_struct_introspection : proc() = {
-//     def := struct_def_of("Point")
-//     mut mut_count := 0
-//     for i in 0..def.members.len() {
-//         m := cast(Declaration, def.members.get(i)?)
-//         if m.is_mut {
-//             mut_count = mut_count.add(1)
-//         }
-//     }
-//     assert_eq(loc(), 2, mut_count)
-//
-//     catch (err: IndexOutOfBoundsError) {
-//         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-//         exit(1)
-//     }
-// }
-// test_struct_introspection()
+// Struct introspection (Issue #105)
+import("std.meta")
+test_struct_introspection : proc() = {
+    def := struct_def_of("Point")
+    mut mut_count := 0
+    for i in 0..def.members.len() {
+        m := cast(Declaration, def.members.get(i)?)
+        if m.is_mut {
+            mut_count = mut_count.add(1)
+        }
+    }
+    assert_eq(loc(), 2, mut_count)
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+test_struct_introspection()
 
 // Vec of struct instances
 test_vec_struct_instances : proc() = {
@@ -122,10 +118,7 @@ test_vec_struct_instances : proc() = {
 
     points.delete()
 
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        exit(1)
-    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 test_vec_struct_instances()
 
@@ -180,20 +173,16 @@ test_enum_instantiation : proc() = {
 }
 test_enum_instantiation()
 
-// TODO: enum_def_of introspection (Issue #106)
-// Compiled mode fails: ext_funcs (__enum_variant_count etc.) not linked in generated C
-// test_enum_introspection : proc() = {
-//     def := enum_def_of("Direction")
-//     assert_eq(loc(), 4, def.variants.len())
-//     v0 := cast(EnumVariant, def.variants.get(0)?)
-//     assert_eq_str(loc(), "North", v0.name)
-//
-//     catch (err: IndexOutOfBoundsError) {
-//         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-//         exit(1)
-//     }
-// }
-// test_enum_introspection()
+// Enum introspection (Issue #106)
+test_enum_introspection : proc() = {
+    def := enum_def_of("Direction")
+    assert_eq(loc(), 4, def.variants.len())
+    v0 := cast(EnumVariant, def.variants.get(0)?)
+    assert_eq_str(loc(), "North", v0.name)
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+test_enum_introspection()
 
 // Vec of enum instances
 test_vec_enum_instances : proc() = {
@@ -212,10 +201,7 @@ test_vec_enum_instances : proc() = {
 
     dirs.delete()
 
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        exit(1)
-    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 test_vec_enum_instances()
 
@@ -324,10 +310,7 @@ test_throwing_func_ptr : proc() = {
     result := safe_div(10, 2)?
     assert_eq(loc(), 5, result)
 
-    catch (err: Str) {
-        println("ERROR:", err)
-        exit(1)
-    }
+    catch (err: Str) { panic(loc(), err) }
 }
 test_throwing_func_ptr()
 
@@ -350,10 +333,7 @@ test_vec_func_ptrs : proc() = {
 
     ops.delete()
 
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        exit(1)
-    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 test_vec_func_ptrs()
 
