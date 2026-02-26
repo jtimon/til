@@ -5076,6 +5076,59 @@ fn emit_ret_call(
     Ok(())
 }
 
+/// Bug #159: Emit a non-throwing _ret FCall with an explicit destination pointer.
+/// Used by emit_throw to write directly into error out-params or catch temp vars,
+/// avoiding the shallow copy through a temp.
+fn emit_ret_call_with_dest(
+    fcall: &Expr,
+    dest_ptr: &str,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+
+    let func_def = get_fcall_func_def(context, fcall)
+        .ok_or_else(|| fcall.error(&context.path, "ccodegen", "Cannot determine function def (emit_ret_call_with_dest)"))?;
+
+    // Get function name
+    let mut func_name = get_fcall_func_name(fcall)
+        .ok_or_else(|| fcall.error(&context.path, "ccodegen", "Cannot determine function name (emit_ret_call_with_dest)"))?;
+
+    // Check if this is a call to a nested (hoisted) function - use mangled name
+    if let Some(mangled_name) = ctx.nested_func_names.get(&func_name) {
+        func_name = mangled_name.clone();
+    }
+
+    // Compute arg strings via emit_arg_string
+    let mut arg_strings = Vec::new();
+    if fcall.params.len() > 1 {
+        for (i, arg) in fcall.params.iter().skip(1).enumerate() {
+            let param_type = func_def.sig.args.get(i).map(|a| &a.value_type);
+            let by_ref = func_def.sig.args.get(i).map(|a| param_needs_by_ref(a)).unwrap_or(false);
+            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            arg_strings.push(arg_str);
+        }
+    }
+
+    // Emit function call: func(dest_ptr, args...)
+    output.push_str(&indent_str);
+    output.push_str(&til_func_name(&func_name));
+    output.push_str("(");
+    output.push_str(dest_ptr);
+
+    // Remaining args
+    for arg_str in &arg_strings {
+        output.push_str(", ");
+        output.push_str(arg_str);
+    }
+
+    output.push_str(");\n");
+
+    Ok(())
+}
+
 /// Emit a call to a throwing function with catch handling
 fn emit_throwing_call(
     fcall: &Expr,
@@ -7046,10 +7099,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     let indent_str = "    ".repeat(indent);
     let thrown_expr = expr.params.get(0).unwrap();
 
-    // Bug #143: Use emit_arg_string to handle hoisting of thrown expression
-    let thrown_str = emit_arg_string(thrown_expr, None, false, output, indent, ctx, context)?;
-
-    // Get the thrown type name from the expression
+    // Get the thrown type name from the expression (pure AST analysis, no emit)
     // For FCall, we need to determine if it's:
     // 1. A constructor like DivideByZero() - use the type name
     // 2. A function that returns an error type like format() - use the return type
@@ -7107,6 +7157,27 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         _ => return Err(format!("ccodegen: throw expression must be a constructor, got {:?}", thrown_expr.node_type)),
     };
 
+    // Bug #159: Check if the thrown expression is a non-throwing, non-variadic _ret FCall.
+    // If so, we can use dest-passing to write directly into the error destination,
+    // avoiding the shallow copy through a temp.
+    // Variadic calls (format etc.) need array construction and can't use simple dest-passing.
+    let thrown_is_ret_fcall = if let NodeType::FCall(_) = &thrown_expr.node_type {
+        if let Some(fd) = get_fcall_func_def(context, thrown_expr) {
+            if fcall_uses_out_ret(&fd, context) {
+                // Exclude variadic functions
+                let func_name = get_fcall_func_name(thrown_expr).unwrap_or_default();
+                !ctx.func_variadic_args.contains_key(&func_name)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    // Determine the destination for the thrown value and emit accordingly
     // Check if this type is locally caught (has a catch block at function level)
     if let Some(nh_catch_info) = ctx.local_catch_labels.get(&nh_thrown_type_name) {
         let nh_label = nh_catch_info.label.clone();
@@ -7128,12 +7199,18 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             return Ok(());
         }
 
-        // Bug #143: Use thrown_str (already hoisted by emit_arg_string)
-        output.push_str(&indent_str);
-        output.push_str(&nh_temp_var);
-        output.push_str(" = ");
-        output.push_str(&thrown_str);
-        output.push_str(";\n");
+        // Bug #159: Use dest-passing for _ret FCalls to write directly into catch temp
+        if thrown_is_ret_fcall {
+            let dest_ptr = format!("&{}", nh_temp_var);
+            emit_ret_call_with_dest(thrown_expr, &dest_ptr, output, indent, ctx, context)?;
+        } else {
+            let thrown_str = emit_arg_string(thrown_expr, None, false, output, indent, ctx, context)?;
+            output.push_str(&indent_str);
+            output.push_str(&nh_temp_var);
+            output.push_str(" = ");
+            output.push_str(&thrown_str);
+            output.push_str(";\n");
+        }
 
         // Jump to the catch block
         output.push_str(&indent_str);
@@ -7163,11 +7240,17 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
             // Issue #119: Skip storing error value for empty struct errors
             if !is_empty_err {
-                // Bug #143: Use thrown_str (already hoisted by emit_arg_string)
-                output.push_str(&indent_str);
-                output.push_str(&format!("*_err{} = ", idx + 1));
-                output.push_str(&thrown_str);
-                output.push_str(";\n");
+                // Bug #159: Use dest-passing for _ret FCalls to write directly into error out-param
+                if thrown_is_ret_fcall {
+                    let dest_ptr = format!("_err{}", idx + 1);
+                    emit_ret_call_with_dest(thrown_expr, &dest_ptr, output, indent, ctx, context)?;
+                } else {
+                    let thrown_str = emit_arg_string(thrown_expr, None, false, output, indent, ctx, context)?;
+                    output.push_str(&indent_str);
+                    output.push_str(&format!("*_err{} = ", idx + 1));
+                    output.push_str(&thrown_str);
+                    output.push_str(";\n");
+                }
             }
 
             // Return the error index (1-based, since 0 = success)
