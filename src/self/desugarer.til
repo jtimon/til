@@ -89,20 +89,20 @@ make_temp_name : func(prefix: Str, func_name: Str, id: I64) returns Str = {
 }
 
 /// Build: eq(var_name, enum_to_str(case_pattern))
-build_enum_eq_condition : func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr = {
+build_enum_eq_condition : func(var_expr: Expr, case_pattern: Expr, line: I64, col: I64) returns Expr = {
     mut args := Vec.new(Expr)
     args.push(own case_pattern.clone())
     case_val_str := make_call("enum_to_str", args, line, col)
     mut eq_args := Vec.new(Expr)
-    eq_args.push(own make_id(var_name, line, col))
+    eq_args.push(own var_expr.clone())
     eq_args.push(own case_val_str)
     return make_call("eq", eq_args, line, col)
 }
 
-/// Build: eq(var_name, case_pattern)
-build_eq_condition : func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr = {
+/// Build: eq(var_expr, case_pattern)
+build_eq_condition : func(var_expr: Expr, case_pattern: Expr, line: I64, col: I64) returns Expr = {
     mut args := Vec.new(Expr)
-    args.push(own make_id(var_name, line, col))
+    args.push(own var_expr.clone())
     args.push(own case_pattern.clone())
     return make_call("eq", args, line, col)
 }
@@ -489,17 +489,18 @@ infer_switch_type_from_cases : func(e: Expr) returns Ptr = {
     return Ptr() // NULL - couldn't infer
 }
 
-/// Build: eq(var_name, "literal_str")
-build_str_eq_call : func(var_name: Str, literal_str: Str, line: I64, col: I64) returns Expr = {
+/// Build: eq(var_expr, "literal_str")
+build_str_eq_call : func(var_expr: Expr, literal_str: Str, line: I64, col: I64) returns Expr = {
     mut args := Vec.new(Expr)
-    args.push(own make_id(var_name, line, col))
+    args.push(own var_expr.clone())
     args.push(own make_str(literal_str, line, col))
     return make_call("eq", args, line, col)
 }
 
 /// Build the condition expression and any body prefix for a case pattern
 /// Returns (condition_expr, body_prefix_statements, rename_old_name, rename_new_name, inner_condition)
-/// switch_expr_var_name: name of the temp variable holding the switch expression value (for enum_get_payload)
+/// switch_cmp_expr: expression for comparisons (_switch_variant for enum, original expr for non-enum)
+/// switch_expr_ref: expression for enum_get_payload (original expr or temp for non-lvalue)
 /// switch_id: global unique ID for this switch statement
 /// case_index: index of this case within the switch (for generating unique payload names)
 /// func_name: current function name for generating unique names
@@ -507,10 +508,10 @@ build_str_eq_call : func(var_name: Str, literal_str: Str, line: I64, col: I64) r
 build_case_condition : proc(
     context: Context,
     case_pattern: Expr,
-    switch_var_name: Str,
+    switch_cmp_expr: Expr,
     is_enum_switch: Bool,
     enum_type_name: Str,
-    switch_expr_var_name: Str,
+    switch_expr_ref: Expr,
     switch_id: I64,
     case_index: I64,
     func_name: Str,
@@ -541,7 +542,7 @@ build_case_condition : proc(
 
         // Condition: Str.eq(_switch_variant, "Type.Variant")
         variant_str := format(actual_type_name, ".", info.variant_name)
-        condition = build_str_eq_call(switch_var_name, variant_str, line, col)
+        condition = build_str_eq_call(switch_cmp_expr, variant_str, line, col)
 
         // Body prefix: extract payload
         // Generate unique name to avoid conflicts with outer scope variables
@@ -601,7 +602,7 @@ build_case_condition : proc(
             case:
             }
             mut get_payload_args := Vec.new(Expr)
-            get_payload_args.push(own make_id(switch_expr_var_name, line, col))
+            get_payload_args.push(own switch_expr_ref.clone())
             get_payload_args.push(own make_id(payload_type_name, line, col))
             get_payload_args.push(own make_id(unique_name, line, col))
             get_payload_call := make_call("enum_get_payload", get_payload_args, line, col)
@@ -622,15 +623,15 @@ build_case_condition : proc(
         low := cast(Expr, case_pattern.params.get(0)?)
         high := cast(Expr, case_pattern.params.get(1)?)
 
-        // Build: gteq(_switch_val, low)
+        // Build: gteq(switch_cmp_expr, low)
         mut gteq_args := Vec.new(Expr)
-        gteq_args.push(own make_id(switch_var_name, line, col))
+        gteq_args.push(own switch_cmp_expr.clone())
         gteq_args.push(own low)
         gteq_call := make_call("gteq", gteq_args, line, col)
 
-        // Build: lteq(_switch_val, high)
+        // Build: lteq(switch_cmp_expr, high)
         mut lteq_args := Vec.new(Expr)
-        lteq_args.push(own make_id(switch_var_name, line, col))
+        lteq_args.push(own switch_cmp_expr.clone())
         lteq_args.push(own high)
         lteq_call := make_call("lteq", lteq_args, line, col)
 
@@ -654,19 +655,19 @@ build_case_condition : proc(
                 ident_actual_type_name = ident_info.type_name
             }
             ident_variant_str := format(ident_actual_type_name, ".", ident_info.variant_name)
-            condition = build_str_eq_call(switch_var_name, ident_variant_str, line, col)
+            condition = build_str_eq_call(switch_cmp_expr, ident_variant_str, line, col)
             return
         }
         if is_enum_switch {
-            condition = build_enum_eq_condition(switch_var_name, case_pattern, line, col)
+            condition = build_enum_eq_condition(switch_cmp_expr, case_pattern, line, col)
         } else {
-            condition = build_eq_condition(switch_var_name, case_pattern, line, col)
+            condition = build_eq_condition(switch_cmp_expr, case_pattern, line, col)
         }
         return
 
     case NodeType.LLiteral(_):
         // Literal value case: case 1: or case "foo":
-        condition = build_eq_condition(switch_var_name, case_pattern, line, col)
+        condition = build_eq_condition(switch_cmp_expr, case_pattern, line, col)
         return
 
     case NodeType.FCall(_):
@@ -682,7 +683,7 @@ build_case_condition : proc(
                 fcall_actual_type_name = fcall_info.type_name
             }
             fcall_variant_str := format(fcall_actual_type_name, ".", fcall_info.variant_name)
-            outer_condition := build_str_eq_call(switch_var_name, fcall_variant_str, line, col)
+            outer_condition := build_str_eq_call(switch_cmp_expr, fcall_variant_str, line, col)
 
             // Check for nested enum patterns - e.g., ValueType.TType(TTypeDef.TEnumDef)
             if case_pattern.params.len().gt(1) {
@@ -747,9 +748,9 @@ build_case_condition : proc(
                         )
                         body_prefix.push(own nested_binding_decl_expr)
 
-                        // Build: enum_get_payload(_switch_expr, Type, _inner_payload_N)
+                        // Build: enum_get_payload(switch_expr_ref, Type, _inner_payload_N)
                         mut extract_args := Vec.new(Expr)
-                        extract_args.push(own make_id(switch_expr_var_name, line, col))
+                        extract_args.push(own switch_expr_ref.clone())
                         extract_args.push(own make_id(inner_type_name, line, col))
                         extract_args.push(own make_id(inner_var_name, line, col))
                         extract_call := make_call("enum_get_payload", extract_args, line, col)
@@ -788,17 +789,17 @@ build_case_condition : proc(
             return
         }
         if is_enum_switch {
-            condition = build_enum_eq_condition(switch_var_name, case_pattern, line, col)
+            condition = build_enum_eq_condition(switch_cmp_expr, case_pattern, line, col)
             return
         }
-        condition = build_eq_condition(switch_var_name, case_pattern, line, col)
+        condition = build_eq_condition(switch_cmp_expr, case_pattern, line, col)
         return
 
     case:
         if is_enum_switch {
-            condition = build_enum_eq_condition(switch_var_name, case_pattern, line, col)
+            condition = build_enum_eq_condition(switch_cmp_expr, case_pattern, line, col)
         } else {
-            condition = build_eq_condition(switch_var_name, case_pattern, line, col)
+            condition = build_eq_condition(switch_cmp_expr, case_pattern, line, col)
         }
         return
     }
@@ -888,49 +889,65 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
     desugared_switch_expr := desugar_expr(context, switch_expr)?
 
     // Build declarations for switch variables
-    // For enum switches, we need TWO temp vars to avoid ccodegen bug with throwing calls in func args:
-    //   _switch_expr := switch_expr     (captures the enum value, handles ?)
-    //   _switch_variant := enum_to_str(_switch_expr)  (simple identifier, no ?)
-    // For non-enum switches: _switch_val := switch_expr
+    // Bug #159: When the switch expression is already an lvalue (identifier/field access),
+    // use it directly instead of creating a shallow copy temp. Only create a temp when the
+    // expression is a function call (which uses _ret destination-passing, so no copy anyway).
     mut decl_exprs := Vec.new(Expr)
 
-    // Name for the expression temp (for enum switches) or value temp (for non-enum)
-    mut switch_expr_var_name := switch_var_name
-    if is_enum_switch {
-        switch_expr_var_name = make_temp_name("_switch_expr", func_name, switch_id)
+    // Check if the desugared switch expression is a simple identifier (no field access).
+    // Field access (e.g., _.token_type) can't be skipped because ccodegen may inline
+    // the underlying expression. Only plain variable names are safe to use directly.
+    mut switch_expr_is_lvalue := false
+    switch desugared_switch_expr.node_type {
+    case NodeType.Identifier(_):
+        if desugared_switch_expr.params.len().eq(0) {
+            switch_expr_is_lvalue = true
+        }
+    case:
     }
 
-    // Type for the expression temp (enum type or value type)
-    // First try get_value_type on the original expression, then fall back to other methods
-    mut switch_expr_var_type := ValueType.TCustom("I64") // Default
-    if not(switch_type_ptr.is_null()) {
-        switch_type_ptr.copy_to_dynamic(switch_expr_var_type, size_of(ValueType))
+    // The expression to use for enum_to_str/enum_get_payload (enum) or comparisons (non-enum)
+    mut switch_expr_ref := Expr()
+
+    if switch_expr_is_lvalue {
+        // Lvalue: use the original expression directly, no temp needed
+        switch_expr_ref = desugared_switch_expr.clone()
     } else {
-        // Try get_value_type on the desugared expression
-        mut desugar_vt := get_value_type(context, desugared_switch_expr)?
-        switch_expr_var_type = desugar_vt
-        catch (err: Str) {
-            // Try infer from enum or case patterns
-            if is_enum_switch.and(enum_type_name.len().gt(0)) {
-                switch_expr_var_type = ValueType.TCustom(enum_type_name)
-            } else {
-                inferred_type_ptr := infer_switch_type_from_cases(e)
-                if not(inferred_type_ptr.is_null()) {
-                    inferred_type_ptr.copy_to_dynamic(switch_expr_var_type, size_of(ValueType))
+        // Non-lvalue (function call etc.): create temp to capture the result
+        // The temp is the destination for _ret, so no shallow copy
+        mut switch_expr_var_name := switch_var_name
+        if is_enum_switch {
+            switch_expr_var_name = make_temp_name("_switch_expr", func_name, switch_id)
+        }
+
+        // Type for the expression temp
+        mut switch_expr_var_type := ValueType.TCustom("I64") // Default
+        if not(switch_type_ptr.is_null()) {
+            switch_type_ptr.copy_to_dynamic(switch_expr_var_type, size_of(ValueType))
+        } else {
+            mut desugar_vt := get_value_type(context, desugared_switch_expr)?
+            switch_expr_var_type = desugar_vt
+            catch (err: Str) {
+                if is_enum_switch.and(enum_type_name.len().gt(0)) {
+                    switch_expr_var_type = ValueType.TCustom(enum_type_name)
+                } else {
+                    inferred_type_ptr := infer_switch_type_from_cases(e)
+                    if not(inferred_type_ptr.is_null()) {
+                        inferred_type_ptr.copy_to_dynamic(switch_expr_var_type, size_of(ValueType))
+                    }
                 }
-                // Otherwise use default I64
             }
         }
+
+        decl_exprs.push(own make_decl(switch_expr_var_name, switch_expr_var_type, false, own desugared_switch_expr.clone(), line, col))
+        switch_expr_ref = make_id(switch_expr_var_name, line, col)
     }
 
-    // First declaration: capture the switch expression
-    // Bug #157 fix in ccodegen handles field access on throwing calls properly now
-    decl_exprs.push(own make_decl(switch_expr_var_name, switch_expr_var_type, false, own desugared_switch_expr.clone(), line, col))
-
-    // For enum switches, add second declaration: _switch_variant := enum_to_str(_switch_expr)
+    // For enum switches, add declaration: _switch_variant := enum_to_str(switch_expr_ref)
+    // For non-enum lvalue switches, switch_var_name is not used as a declaration - use switch_expr_ref directly
     if is_enum_switch {
         mut enum_to_str_args := Vec.new(Expr)
-        enum_to_str_args.push(own make_id(switch_expr_var_name, line, col))
+        enum_to_str_args.push(own switch_expr_ref.clone())
         enum_to_str_call := make_call("enum_to_str", enum_to_str_args, line, col)
 
         decl_exprs.push(own make_decl(switch_var_name, str_to_value_type("Str"), false, own enum_to_str_call, line, col))
@@ -1076,13 +1093,20 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
             mut nested_inner_condition := Expr()
             mut nested_has_inner_condition := false
 
+            // For enum switches, comparisons use _switch_variant (enum_to_str result)
+            // For non-enum switches, comparisons use the switch expression directly
+            mut nested_switch_cmp_expr := switch_expr_ref.clone()
+            if is_enum_switch {
+                nested_switch_cmp_expr = make_id(switch_var_name, line, col)
+            }
+
             build_case_condition(
                 context,
                 nested_case_pattern,
-                switch_var_name,
+                nested_switch_cmp_expr,
                 is_enum_switch,
                 enum_type_name,
-                switch_expr_var_name,
+                switch_expr_ref,
                 switch_id,
                 nested_case_index,
                 func_name,
@@ -1222,13 +1246,20 @@ desugar_switch : proc(mut context: Context, e: Expr) returns Expr throws Str = {
         mut rev_inner_condition := Expr()
         mut rev_has_inner_condition := false
 
+        // For enum switches, comparisons use _switch_variant (enum_to_str result)
+        // For non-enum switches, comparisons use the switch expression directly
+        mut rev_switch_cmp_expr := switch_expr_ref.clone()
+        if is_enum_switch {
+            rev_switch_cmp_expr = make_id(switch_var_name, line, col)
+        }
+
         build_case_condition(
             context,
             rev_case_pattern,
-            switch_var_name,
+            rev_switch_cmp_expr,
             is_enum_switch,
             enum_type_name,
-            switch_expr_var_name,
+            switch_expr_ref,
             switch_id,
             rev_ci,
             func_name,
