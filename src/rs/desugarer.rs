@@ -613,11 +613,15 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     // expression is a function call (which uses _ret destination-passing, so no copy anyway).
     let mut decl_exprs: Vec<Expr> = Vec::new();
 
-    // Check if the desugared switch expression is a simple identifier (no field access).
-    // Field access (e.g., _.token_type) can't be skipped because ccodegen may inline
-    // the underlying expression. Only plain variable names are safe to use directly.
+    // Check if the desugared switch expression is a pure lvalue (identifier with
+    // optional field access chain). Field accesses like self.node_type, token.token_type,
+    // and even _.token_type (from ? desugaring) are stable C lvalues that can be
+    // used directly without a temp copy. Only non-lvalue expressions (FCalls etc.)
+    // need a temp.
     let switch_expr_is_lvalue = match &desugared_switch_expr.node_type {
-        NodeType::Identifier(_) => desugared_switch_expr.params.is_empty(),
+        NodeType::Identifier(_) => desugared_switch_expr.params.iter().all(|p| {
+            matches!(p.node_type, NodeType::Identifier(_))
+        }),
         _ => false,
     };
 
