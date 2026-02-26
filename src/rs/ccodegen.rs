@@ -512,21 +512,34 @@ fn fcall_uses_out_ret(func_def: &FuncDef, context: &Context) -> bool {
     }
 }
 
-/// Issue #175: Compute hoisted lvalue flags for variadic args
-/// Returns a Vec<bool> where true means the arg is already a hoisted _ret lvalue temp
-fn compute_variadic_hoisted_flags(
+/// Issue #175: Compute lvalue flags for variadic args
+/// Returns a Vec<bool> where true means the arg string from emit_arg_string
+/// is already a C lvalue (can take & directly without creating a temp copy).
+/// This covers: identifiers, field access chains, string literals (compound
+/// literals are C99 lvalues), and _ret FCall results (already hoisted temps).
+fn compute_variadic_lvalue_flags(
     fcall: &Expr,
     regular_count: usize,
     context: &Context,
 ) -> Vec<bool> {
     fcall.params.iter().skip(1 + regular_count)
         .map(|arg| {
-            if let NodeType::FCall(_) = &arg.node_type {
-                get_fcall_func_def(context, arg)
-                    .map(|fd| fcall_uses_out_ret(&fd, context))
-                    .unwrap_or(false)
-            } else {
-                false
+            match &arg.node_type {
+                NodeType::FCall(_) => {
+                    // _ret FCalls are hoisted to lvalue temps by emit_arg_string
+                    get_fcall_func_def(context, arg)
+                        .map(|fd| fcall_uses_out_ret(&fd, context))
+                        .unwrap_or(false)
+                }
+                NodeType::Identifier(_) => {
+                    // Identifiers and field access chains are lvalues
+                    is_pure_lvalue(arg, context)
+                }
+                NodeType::LLiteral(Literal::Str(_)) => {
+                    // String literals become compound literals (C99 lvalues)
+                    true
+                }
+                _ => false,
             }
         })
         .collect()
@@ -1258,7 +1271,7 @@ fn emit_throwing_arg_string(
     // Build variadic array if needed (variadic_info was computed earlier)
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
     let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
-        let hoisted_flags = compute_variadic_hoisted_flags(arg, vi.regular_count, context);
+        let hoisted_flags = compute_variadic_lvalue_flags(arg, vi.regular_count, context);
         // Build variadic array using the nested arg strings
         Some(emit_variadic_array_with_strings(
             &vi.elem_type,
@@ -1511,7 +1524,7 @@ fn emit_variadic_arg_string(
 
     // Build variadic array using the nested arg strings
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
-    let hoisted_flags = compute_variadic_hoisted_flags(arg, vi.regular_count, context);
+    let hoisted_flags = compute_variadic_lvalue_flags(arg, vi.regular_count, context);
     let variadic_arr_var = emit_variadic_array_with_strings(
         &vi.elem_type,
         &nested_arg_strings[vi.regular_count..],
@@ -1585,7 +1598,7 @@ fn emit_variadic_arg_string(
 fn emit_variadic_array_with_strings(
     elem_type: &str,
     arg_strings: &[String],
-    hoisted_lvalues: &[bool],
+    lvalue_flags: &[bool],
     output: &mut String,
     indent: usize,
     ctx: &mut CodegenContext,
@@ -1613,11 +1626,11 @@ fn emit_variadic_array_with_strings(
     output.push_str(";\n");
 
     // Hoist variadic args into temp vars (needed to pass address to Array.set)
-    // Issue #175: Skip temp copy for args that are already hoisted lvalue temps
+    // Issue #175: Skip temp copy for args that are already C lvalues
     let mut arg_temps: Vec<String> = Vec::new();
     for (vi, arg_str) in arg_strings.iter().enumerate() {
-        if hoisted_lvalues.get(vi).copied().unwrap_or(false) {
-            // Already a hoisted lvalue temp - use directly
+        if lvalue_flags.get(vi).copied().unwrap_or(false) {
+            // Already an lvalue - use directly
             arg_temps.push(arg_str.clone());
         } else {
             let temp_var = next_mangled(ctx);
@@ -4835,7 +4848,7 @@ fn emit_variadic_call(
     // Construct variadic array using pre-computed arg_strings
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
     let variadic_arg_strings: Vec<String> = arg_strings.iter().skip(regular_count).cloned().collect();
-    let hoisted_flags = compute_variadic_hoisted_flags(fcall, regular_count, context);
+    let hoisted_flags = compute_variadic_lvalue_flags(fcall, regular_count, context);
     let variadic_arr_var = emit_variadic_array_with_strings(elem_type, &variadic_arg_strings, &hoisted_flags, output, indent, ctx)?;
 
     // Determine return type if we need to declare a variable
@@ -5193,7 +5206,7 @@ fn emit_throwing_call(
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
     let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
         let variadic_arg_strings: Vec<String> = arg_strings.iter().skip(vi.regular_count).cloned().collect();
-        let hoisted_flags = compute_variadic_hoisted_flags(fcall, vi.regular_count, context);
+        let hoisted_flags = compute_variadic_lvalue_flags(fcall, vi.regular_count, context);
         Some(emit_variadic_array_with_strings(&vi.elem_type, &variadic_arg_strings, &hoisted_flags, output, indent, ctx)?)
     } else {
         None
@@ -5566,7 +5579,7 @@ fn emit_throwing_call_propagate(
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
     let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
         let variadic_arg_strings: Vec<String> = arg_strings.iter().skip(vi.regular_count).cloned().collect();
-        let hoisted_flags = compute_variadic_hoisted_flags(fcall, vi.regular_count, context);
+        let hoisted_flags = compute_variadic_lvalue_flags(fcall, vi.regular_count, context);
         Some(emit_variadic_array_with_strings(&vi.elem_type, &variadic_arg_strings, &hoisted_flags, output, indent, ctx)?)
     } else {
         None
@@ -5853,7 +5866,7 @@ fn emit_throwing_call_with_goto(
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
     let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
         let variadic_arg_strings: Vec<String> = arg_strings.iter().skip(vi.regular_count).cloned().collect();
-        let hoisted_flags = compute_variadic_hoisted_flags(fcall, vi.regular_count, context);
+        let hoisted_flags = compute_variadic_lvalue_flags(fcall, vi.regular_count, context);
         Some(emit_variadic_array_with_strings(&vi.elem_type, &variadic_arg_strings, &hoisted_flags, output, indent, ctx)?)
     } else {
         None
@@ -7958,7 +7971,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // Bug #143: Use pre-computed arg_strings
                     let variadic_arg_strings = &arg_strings[regular_count..];
                     // Issue #175: Track which variadic args are already hoisted lvalue temps
-                    let hoisted_flags = compute_variadic_hoisted_flags(expr, regular_count, context);
+                    let hoisted_flags = compute_variadic_lvalue_flags(expr, regular_count, context);
                     Some(emit_variadic_array_with_strings(&elem_type, variadic_arg_strings, &hoisted_flags, output, indent, ctx)?)
                 } else {
                     None

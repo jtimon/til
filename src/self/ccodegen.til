@@ -484,9 +484,12 @@ fcall_expr_is_hoisted : proc(fcall_expr: Expr, context: Context) returns Bool = 
     catch (err: KeyNotFoundError) { return false }
 }
 
-// Issue #175: Compute hoisted lvalue flags for variadic args
-// Returns a Vec(Bool) where true means the arg is already a hoisted _ret lvalue temp
-compute_variadic_hoisted_flags : proc(fcall: Expr, regular_count: I64, context: Context) returns Vec = {
+// Issue #175: Compute lvalue flags for variadic args
+// Returns a Vec(Bool) where true means the arg string from emit_arg_string
+// is already a C lvalue (can take & directly without creating a temp copy).
+// Covers: identifiers, field access chains, string literals (compound
+// literals are C99 lvalues), and _ret FCall results (already hoisted temps).
+compute_variadic_lvalue_flags : proc(fcall: Expr, regular_count: I64, context: Context) returns Vec = {
     mut flags := Vec.new(Bool)
     mut vi := 0
     variadic_start := add(1, regular_count)
@@ -494,8 +497,21 @@ compute_variadic_hoisted_flags : proc(fcall: Expr, regular_count: I64, context: 
         arg_idx := add(variadic_start, vi)
         arg := cast(Expr, fcall.params.get(arg_idx)?)
         dont_delete(arg)
-        is_hoisted := fcall_expr_is_hoisted(arg, context)
-        flags.push(own is_hoisted)
+        mut is_lv := false
+        switch arg.node_type {
+        case NodeType.FCall:
+            is_lv = fcall_expr_is_hoisted(arg, context)
+        case NodeType.Identifier:
+            is_lv = is_pure_lvalue(arg, context)
+        case NodeType.LLiteral(lit):
+            switch lit {
+            case Literal.Str:
+                is_lv = true
+            case:
+            }
+        case:
+        }
+        flags.push(own is_lv)
         vi.inc()
     }
     return flags
@@ -1481,7 +1497,7 @@ emit_throwing_arg_string : proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_b
             vi.inc()
         }
         // Issue #175: Compute hoisted flags so we skip redundant temp copies
-        mut hoisted_flags_7 := compute_variadic_hoisted_flags(arg, variadic_info.regular_count, context)
+        mut hoisted_flags_7 := compute_variadic_lvalue_flags(arg, variadic_info.regular_count, context)
         defer hoisted_flags_7.delete()
         variadic_arr_var = emit_variadic_array_with_strings(variadic_info.elem_type, variadic_arg_strings, hoisted_flags_7, hoist_output, indent, ctx)
     }
@@ -1773,7 +1789,7 @@ emit_variadic_arg_string : proc(arg: Expr, vi: VariadicFCallInfo, param_type: Pt
         vai.inc()
     }
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
-    mut hoisted_flags_8 := compute_variadic_hoisted_flags(arg, vi.regular_count, context)
+    mut hoisted_flags_8 := compute_variadic_lvalue_flags(arg, vi.regular_count, context)
     defer hoisted_flags_8.delete()
     variadic_arr_var := emit_variadic_array_with_strings(vi.elem_type, variadic_arg_strings, hoisted_flags_8, hoist_output, indent, ctx)
 
@@ -5918,7 +5934,7 @@ emit_variadic_call : proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_
         vi.inc()
     }
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
-    mut hoisted_flags_3 := compute_variadic_hoisted_flags(fcall, regular_count, context)
+    mut hoisted_flags_3 := compute_variadic_lvalue_flags(fcall, regular_count, context)
     defer hoisted_flags_3.delete()
     variadic_arr_var := emit_variadic_array_with_strings(elem_type, variadic_arg_strings, hoisted_flags_3, output, indent, ctx)
 
@@ -6385,7 +6401,7 @@ emit_throwing_call : proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl
         vi_j.inc()
     }
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
-    mut hoisted_flags_4 := compute_variadic_hoisted_flags(fcall, vi_regular_count, context)
+    mut hoisted_flags_4 := compute_variadic_lvalue_flags(fcall, vi_regular_count, context)
     defer hoisted_flags_4.delete()
     variadic_arr_var = emit_variadic_array_with_strings(vi_info.elem_type, variadic_arg_strings, hoisted_flags_4, output, indent, ctx)
     has_variadic = true
@@ -6807,7 +6823,7 @@ emit_throwing_call_propagate : proc(fcall: Expr, throw_types: Vec, decl_name: St
         va_j.inc()
     }
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
-    mut hoisted_flags_5 := compute_variadic_hoisted_flags(fcall, prop_vi_regular_count, context)
+    mut hoisted_flags_5 := compute_variadic_lvalue_flags(fcall, prop_vi_regular_count, context)
     defer hoisted_flags_5.delete()
     variadic_arr_var = emit_variadic_array_with_strings(prop_vi2.elem_type, variadic_arg_strings, hoisted_flags_5, output, indent, ctx)
     catch (err: KeyNotFoundError) {
@@ -7132,7 +7148,7 @@ emit_throwing_call_with_goto : proc(fcall: Expr, throw_types: Vec, decl_name: St
         va_j.inc()
     }
     // Issue #175: Compute hoisted flags so we skip redundant temp copies
-    mut hoisted_flags_6 := compute_variadic_hoisted_flags(fcall, goto_vi_regular_count, context)
+    mut hoisted_flags_6 := compute_variadic_lvalue_flags(fcall, goto_vi_regular_count, context)
     defer hoisted_flags_6.delete()
     variadic_arr_var = emit_variadic_array_with_strings(goto_vi2.elem_type, variadic_arg_strings, hoisted_flags_6, output, indent, ctx)
     catch (err: KeyNotFoundError) {
@@ -9861,7 +9877,7 @@ emit_fcall : proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             vi.inc()
         }
         // Issue #175: Track which variadic args are already hoisted lvalue temps
-        mut hoisted_flags := compute_variadic_hoisted_flags(expr, regular_count, context)
+        mut hoisted_flags := compute_variadic_lvalue_flags(expr, regular_count, context)
         defer hoisted_flags.delete()
         variadic_arr_var = emit_variadic_array_with_strings(elem_type, variadic_arg_strings, hoisted_flags, output, indent, ctx)
         has_variadic_arr = true
