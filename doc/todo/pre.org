@@ -332,7 +332,7 @@ can finally be idiomatic Til instead of "Til that looks like Rust."
 - [X] Bug #86: For-in loop fails with enum that has enum payload
 - [ ] Bug #87: Scavenger not pruning struct methods
 - [ ] Issue #88: Macro Support (Compile-Time Evaluation)
-- [-] Issue #91: First-Class Functions (FunctionSig + function pointers done, closures/collections next)
+- [-] Issue #91: First-Class Functions (func ptrs, Vec of func ptrs, TFuncDef done; Vec of FuncSig/FuncDef + closures remaining)
 - [X] Bug #92: Range loops should allow explicit iterator type annotation (Fixed 2026-01-29)
 - [ ] Bug #94: gcc warnings cause bug47.til compilation failure
 - [ ] Bug #98: ext_proc errors should throw specific error types instead of panicking

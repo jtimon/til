@@ -21,7 +21,7 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
 :IMPACT: Language feature, anonymous data structures, templates
-:STATUS: Partially implemented - macro support done, collections and compiled introspection remaining
+:STATUS: Nearly complete - introspection, collections, compiled mode all working (2026-02-26). Anonymous struct as Dynamic arg remaining.
 :RELATED: Issue #91 (First-Class Functions), Issue #106 (First-Class Enums), doc/first_class.org
 :END:
 
@@ -40,17 +40,21 @@ collections, introspect at runtime.
 - [X] Step 4c: SStructDef -> StructDef, SEnumDef -> EnumDef, SFuncDef -> FuncDef
 - [X] Step 4d: Explicit metatype annotations (~Point : StructDef = struct { ... }~)
 - [X] Vec of struct instances (~Vec.new(Point)~)
+- [X] ~struct_def_of~ introspection in compiled mode (4a02061f, 2026-02-26)
+      Codegen pass 4e emits C implementations of ~__struct_field_*~ ext_funcs.
+- [X] Vec of StructDef (~Vec.new(StructDef)~) via ~struct_def_of~ (39192242, 2026-02-26)
+      Scavenger recognizes ~struct_def_of("TypeName")~ string args as type references.
 
 *** What is missing
-- [ ] ~struct_def_of~ ext_funcs not linked in compiled mode (only works interpreted)
 - [ ] Anonymous struct in non-macro function args (~vec.push(own struct { ... })~)
-- [ ] Vec of StructDef (~Vec.new(StructDef)~) -- depends on compiled struct_def_of or direct StructDef construction
+      Works in interpreted mode. Compiled mode needs codegen support for emitting
+      type definitions (StructDef) as runtime values.
 
 ** Issue #106: First-Class Enums
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
 :IMPACT: Language feature, anonymous data structures, templates
-:STATUS: Partially implemented - macro support done, collections and compiled introspection remaining
+:STATUS: Nearly complete - introspection, collections, compiled mode all working (2026-02-26). Anonymous enum as Dynamic arg remaining.
 :RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs), doc/first_class.org
 :END:
 
@@ -67,11 +71,15 @@ collections, introspect at runtime.
 - [X] Anonymous enum expressions: ~some_macro(enum { A, B })~ (in macro args)
 - [X] Explicit metatype annotations (~Color : EnumDef = enum { ... }~)
 - [X] Vec of enum instances (~Vec.new(Direction)~)
+- [X] ~enum_def_of~ introspection in compiled mode (4a02061f, 2026-02-26)
+      Codegen pass 4e emits C implementations of ~__enum_variant_*~ ext_funcs.
+- [X] Vec of EnumDef (~Vec.new(EnumDef)~) via ~enum_def_of~ (39192242, 2026-02-26)
+      Scavenger recognizes ~enum_def_of("TypeName")~ string args as type references.
 
 *** What is missing
-- [ ] ~enum_def_of~ ext_funcs not linked in compiled mode (only works interpreted)
 - [ ] Anonymous enum in non-macro function args (~vec.push(own enum { ... })~)
-- [ ] Vec of EnumDef (~Vec.new(EnumDef)~) -- depends on compiled enum_def_of or direct EnumDef construction
+      Works in interpreted mode. Compiled mode needs codegen support for emitting
+      type definitions (EnumDef) as runtime values.
 
 ** Issue #153: Enable field and method access on Dynamic parameters
 :PROPERTIES:
@@ -532,7 +540,7 @@ run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
 :IMPACT: Language feature, polymorphism, higher-order programming
-:STATUS: In progress - FunctionSig + func ptrs + lambdas + return + struct fields + passthrough + throws + collection infrastructure done (2026-02-25), next: Vec/Map collection tests
+:STATUS: Nearly complete - func ptrs, lambdas, return, struct fields, throws, Vec of func ptrs, TFuncDef all done (2026-02-26). Vec of FuncSig/FuncDef and closures remaining.
 :RELATED: Bug #90 (semicolon/body syntax), Bug #159 (needs func ptrs for deep clone/delete), Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), Issue #182 (Closures -- explicit captures), src/test/function_pointers.til, doc/first_class.org
 :END:
 
@@ -666,8 +674,21 @@ Infrastructure for storing func ptrs in Vec/Map:
 - ext.til: string_from_addr helper for reading function name strings from heap addresses
 - Ccodegen: FuncSig case/switch handling for function pointer types in assignments and returns
 
+**** Vec of function pointers (DONE - 6f936429, 2026-02-26)
+#+BEGIN_SRC til
+mut ops := Vec.new(BinaryIntOp)
+ops.push(own add2)
+op0 := cast(BinaryIntOp, ops.get(0)?)
+assert_eq(loc(), 8, op0(3, 5))
+#+END_SRC
+Fix: hoist func-name-as-Dynamic to temp variable in emit_arg_string so memcpy
+copies the pointer value, not machine code bytes.
+
+**** TFuncDef metatype (DONE - 1d902a51, 2026-02-26)
+Added ~TFuncDef~ to ~TTypeDef~ enum for symmetry with TStructDef/TEnumDef/TFuncSig.
+Allows ~MyFunc : FuncDef = func(...) returns ... = { ... }~ explicit metatype annotations.
+
 *** What is missing
-- Retrieve and call function pointers from Vec (~cast(BinaryOp, ops.get(0)?)~ then call)
 - Vec of FuncSig (different signatures stored in same Vec)
 - Vec of FuncDef (different definitions stored in same Vec)
 - Closures (Issue #182 -- explicit capture lists)
