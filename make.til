@@ -11,12 +11,20 @@ import("core.vec")
 // Empty string means use default
 mut g_cc := ""
 
+// Global flag: extra flags to forward to tests (e.g., --rust-only, -j8)
+mut g_extra_flags := ""
+
 // Get --cc flag string for commands (returns "" if not set, " --cc=X" if set)
 get_cc_flag : func() returns Str = {
     if g_cc.is_empty() {
         return ""
     }
     return concat(" --cc=", g_cc)
+}
+
+// Get extra flags string for tests (returns "" if none, " --rust-only ..." if set)
+get_extra_flags : func() returns Str = {
+    return g_extra_flags
 }
 
 // Run command with streaming output (prints as it goes)
@@ -143,10 +151,10 @@ build_tests : proc() = {
 run_tests : proc() = {
     build_tests()
     mut status := 0
-    // Issue #131: Pass --cc flag to tests
-    // test_runner.til calls rstil/til build per test, which has needs_rebuild logic
+    // Forward --cc and extra flags (--rust-only, -jN, etc.) to tests
     cc_flag := get_cc_flag()
-    status = run_stream_cmd(concat("./bin/rs/tests", cc_flag))
+    extra := get_extra_flags()
+    status = run_stream_cmd(format("./bin/rs/tests", cc_flag, extra))
     tests_status := status
     status = run_stream_cmd("cp gen/rs/c/test/constfold.c src/test/constfold.c")
     println("Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c")
@@ -158,9 +166,10 @@ run_tests : proc() = {
 run_regen : proc() = {
     build_tests()
     mut status := 0
-    // Issue #131: Pass --cc flag to tests
+    // Forward --cc and extra flags to tests
     cc_flag := get_cc_flag()
-    status = run_stream_cmd(concat("./bin/rs/tests", cc_flag).concat(" regen"))
+    extra := get_extra_flags()
+    status = run_stream_cmd(format("./bin/rs/tests", cc_flag, extra, " regen"))
     println("Regenerated all test outputs")
     if status.eq(0).not() {
         exit(1)
@@ -176,11 +185,12 @@ run_benchmark : proc() = {
 run_mem_report : proc() = {
     build_tests()
     cc_flag := get_cc_flag()
+    extra := get_extra_flags()
     // Write flag file so compiled tests/test_runner can detect --mem-report
     // Don't pass --mem-report on command line - it would enable HeapState in
     // tests/test_runner themselves (C runtime strips it). Flag file is sufficient.
     writefile("tmp/.mem_report_flag", "1")?
-    status := run_stream_cmd(format("./bin/rs/tests", cc_flag))
+    status := run_stream_cmd(format("./bin/rs/tests", cc_flag, extra))
     // Clean up flag file
     mut rm_out := ""
     _ := rm_out.run_cmd("rm", "-f", "tmp/.mem_report_flag")
@@ -283,14 +293,17 @@ main : proc(args: ..Str) = {
     if args.len().eq(0) {
         println("Usage: make.til <target> [options]")
         println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, mem-report, test-cross, diff <file>")
-        println("Options: --cc=COMPILER (e.g., --cc=clang)")
+        println("Options: --cc=COMPILER, --rust-only, -jN, --mem-report")
         exit(1)
     }
-    // Parse --cc= option (Issue #131)
+    // Parse options and collect extra flags to forward to tests
     mut remaining_args := Vec.new(Str)
     for arg: Str in args {
         if arg.starts_with("--cc=") {
             g_cc = arg.get_substr(5, arg.len())?
+        } else if arg.starts_with("-") {
+            // Forward flags like --rust-only, -j8, --mem-report to tests
+            g_extra_flags = g_extra_flags.concat(" ").concat(arg)
         } else {
             remaining_args.push(own arg)
         }
