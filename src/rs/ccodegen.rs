@@ -6376,20 +6376,29 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                             // This is a function call - must hoist to a temp variable
                             // Use emit_arg_string which properly hoists nested function call arguments
                             let call_str = emit_arg_string(value_expr, Some(&member.value_type), false, output, indent, ctx, context)?;
-                            // Now hoist the call result to a temp var
-                            let temp_var = next_mangled(ctx);
-                            let hoisted_value_type = get_value_type(context, value_expr)
-                                .unwrap_or(member.value_type.clone());
-                            let hoisted_c_type = til_type_to_c(&hoisted_value_type)
-                                .map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
-                            output.push_str(&indent_str);
-                            output.push_str(&hoisted_c_type);
-                            output.push_str(" ");
-                            output.push_str(&temp_var);
-                            output.push_str(" = ");
-                            output.push_str(&call_str);
-                            output.push_str(";\n");
-                            hoisted_values.insert(member.name.clone(), temp_var);
+                            // Issue #175: If the FCall used _ret, call_str is already a
+                            // hoisted lvalue temp name - use it directly without a second copy
+                            let is_hoisted = get_fcall_func_def(context, value_expr)
+                                .map(|fd| fcall_uses_out_ret(&fd, context))
+                                .unwrap_or(false);
+                            if is_hoisted {
+                                hoisted_values.insert(member.name.clone(), call_str);
+                            } else {
+                                // Non-_ret call (ext, throwing, primitive return) - need temp copy
+                                let temp_var = next_mangled(ctx);
+                                let hoisted_value_type = get_value_type(context, value_expr)
+                                    .unwrap_or(member.value_type.clone());
+                                let hoisted_c_type = til_type_to_c(&hoisted_value_type)
+                                    .map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+                                output.push_str(&indent_str);
+                                output.push_str(&hoisted_c_type);
+                                output.push_str(" ");
+                                output.push_str(&temp_var);
+                                output.push_str(" = ");
+                                output.push_str(&call_str);
+                                output.push_str(";\n");
+                                hoisted_values.insert(member.name.clone(), temp_var);
+                            }
                         }
                     }
                 }

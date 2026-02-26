@@ -7775,20 +7775,30 @@ emit_declaration : proc(decl: Declaration, expr: Expr, mut output: Str, indent: 
                         mut member_type_ptr := Ptr()
                         member_type_ptr.data = to_ptr(member.value_type)
                         call_str := emit_arg_string(value_expr, member_type_ptr, false, output, indent, ctx, context)?
-                        // Now hoist the call result to a temp var
-                        temp_var := next_mangled(ctx)
-                        hoisted_value_type := get_value_type(context, value_expr)?
-                        hoisted_c_type := til_type_to_c(hoisted_value_type)?
-                        output.push_str(indent_str)
-                        output.push_str(hoisted_c_type)
-                        output.push_str(" ")
-                        output.push_str(temp_var)
-                        output.push_str(" = ")
-                        output.push_str(call_str)
-                        output.push_str(";\n")
-                        hoisted_values.insert(own member.name.clone(), own temp_var)?
-                        catch (err: DuplicatedKeyError) {
-                            // Should not happen - each member name is unique
+                        // Issue #175: If the FCall used _ret, call_str is already a
+                        // hoisted lvalue temp name - use it directly without a second copy
+                        is_hoisted := fcall_expr_is_hoisted(value_expr, context)
+                        if is_hoisted {
+                            hoisted_values.insert(own member.name.clone(), own call_str.clone())?
+                            catch (err: DuplicatedKeyError) {
+                                // REM: should not happen - each member name is unique
+                            }
+                        } else {
+                            // Non-_ret call (ext, throwing, primitive return) - need temp copy
+                            temp_var := next_mangled(ctx)
+                            hoisted_value_type := get_value_type(context, value_expr)?
+                            hoisted_c_type := til_type_to_c(hoisted_value_type)?
+                            output.push_str(indent_str)
+                            output.push_str(hoisted_c_type)
+                            output.push_str(" ")
+                            output.push_str(temp_var)
+                            output.push_str(" = ")
+                            output.push_str(call_str)
+                            output.push_str(";\n")
+                            hoisted_values.insert(own member.name.clone(), own temp_var)?
+                            catch (err: DuplicatedKeyError) {
+                                // REM: should not happen - each member name is unique
+                            }
                         }
                     }
                 }
