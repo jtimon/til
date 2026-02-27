@@ -14,6 +14,39 @@ see features.org. For bugs, see bugs.org.
 
 * Open Issues
 
+** Issue #194: make.til flag forwarding to tests
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Usability -- enable ./bin/rs/make benchmark --rust-only
+:STATUS: Open -- reverted, needs investigation
+:RELATED: b0730483 (reverted in c6e18eac)
+:END:
+
+*** Description
+
+Forward extra CLI flags (--rust-only, -jN, --mem-report) from make.til
+to the tests binary. Commit b0730483 implemented this by collecting
+non-target, non---cc= args into a ~g_extra_flags~ global string and
+appending it to the ~./bin/rs/tests~ command.
+
+*** Problem
+
+The commit caused OOM during ~./bin/rstil build src/tests.til~ under the
+70G systemd memory limit. The build step itself only uses ~10MB standalone,
+but under the systemd scope with the flag-forwarding code present, it
+consistently failed with ~Ptr.new_by_size: malloc failed~. Reverting the
+flag-forwarding changes fixed the OOM. Root cause is unknown -- the
+flag-forwarding code only affects how tests are *run*, not how they are
+*built*. The compiled make.til binary itself may be larger or trigger
+different memory behavior in the cgroup.
+
+*** TODO
+
+- Investigate why the flag-forwarding code causes OOM during build
+- Re-implement with minimal changes once root cause is understood
+- Makefile can't forward flags easily ($(MAKECMDGOALS) only passes targets)
+- Workaround: use ~./bin/rs/make benchmark --rust-only~ once fixed
+
 ** Issue #189: Replace Assignment NodeType with ext_func call
 :PROPERTIES:
 :DISCOVERED: 2026-02-23
