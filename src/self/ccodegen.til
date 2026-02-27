@@ -71,8 +71,8 @@ CodegenContext := struct {
     // Bug #133 fix: Map var_name -> static array name for precomputed heap values
     // When emitting assignments in main(), Ptr fields will use these static pointers
     mut precomputed_static_arrays: Map = Map.new(Str, PrecomputedStaticInfo)
-    // Bug #168: variable name aliased to _ret for placement construction
-    mut ret_var_alias: Str = ""
+    // Bug #168: variable names aliased to _ret for placement construction
+    mut ret_var_aliases: Set = Set.new(Str)
 
 namespace:
     new := func() returns CodegenContext {
@@ -165,12 +165,10 @@ til_var_name_from_context := func(name: Str, context: Context) returns Str {
     return format(TIL_PREFIX, type_str, "_", name)
 }
 
-// Bug #168: Resolve a variable name, mapping ret_var_alias to "_ret"
+// Bug #168: Resolve a variable name, mapping ret_var_aliases to "_ret"
 resolve_var_name := func(name: Str, ctx: CodegenContext, context: Context) returns Str {
-    if not(ctx.ret_var_alias.is_empty()) {
-        if name.eq(ctx.ret_var_alias) {
-            return "_ret"
-        }
+    if ctx.ret_var_aliases.contains(name) {
+        return "_ret"
     }
     return til_var_name_from_context(name, context)
 }
@@ -211,19 +209,94 @@ has_reassignment_of := proc(stmts: Vec, var_name: Str) returns Bool {
     return false
 }
 
+// Check if a variable name appears as an Identifier anywhere in the given exprs.
+contains_identifier := proc(stmts: Vec, var_name: Str) returns Bool {
+    for expr: Expr in stmts {
+        switch expr.node_type {
+        case NodeType.Identifier(name):
+            if name.eq(var_name) {
+                return true
+            }
+        case NodeType.FuncDef(_):
+            // Skip nested function bodies
+        case:
+        }
+        switch expr.node_type {
+        case NodeType.FuncDef(_):
+        case:
+            if contains_identifier(expr.params, var_name) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+// Check if a variable is used anywhere in the function body other than:
+// - Its own declaration (Declaration node with matching name)
+// - As the direct return value (Return -> Identifier(var_name))
+// If it's used in any other context (field access, function argument, condition,
+// etc.), it cannot safely alias _ret in a multi-alias scenario because another
+// alias's write to _ret would corrupt this variable's value.
+has_non_return_use_of := proc(stmts: Vec, var_name: Str) returns Bool {
+    for expr: Expr in stmts {
+        switch expr.node_type {
+        case NodeType.Return:
+            // Return statements are fine - that's the intended use.
+            // But if the return has field access on our var (return x.field),
+            // that's a read we need to protect. Check if the returned expr
+            // is just the bare identifier with no children (no field access).
+            if not(expr.params.is_empty()) {
+                value := cast(Expr, expr.params.get(0)!)
+                dont_delete(value)
+                switch value.node_type {
+                case NodeType.Identifier(name):
+                    if name.eq(var_name).and(value.params.is_empty()) {
+                        // Simple `return var_name` - this is fine, skip it
+                        continue
+                    }
+                case:
+                }
+                // Return with some other expression - check if var_name appears in it
+                if contains_identifier(expr.params, var_name) {
+                    return true
+                }
+            }
+        case NodeType.Declaration(decl):
+            if decl.name.eq(var_name) {
+                // This is the initialization - skip it
+                continue
+            }
+            // Some other declaration that might use our var in its initializer
+            if contains_identifier(expr.params, var_name) {
+                return true
+            }
+        case NodeType.FuncDef(_):
+            // Skip nested function bodies
+        case:
+            // Any other statement - check if our var appears in it
+            if contains_identifier(expr.params, var_name) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 // Bug #168: Pre-scan function body to find a single return variable that can be
-// placed directly into _ret. Returns the var name or "" if not applicable.
-find_ret_var_for_placement := proc(func_def: FuncDef) returns Str {
+// placed directly into _ret. Returns a set of candidate variable names.
+find_ret_var_for_placement := proc(func_def: FuncDef) returns Set {
+    mut empty := Set.new(Str)
     // Issue #175: Now works for both throwing and non-throwing functions with return type
     if func_def.sig.return_types.is_empty() {
-        return ""
+        return empty
     }
     first_ret_type := cast(ValueType, func_def.sig.return_types.get(0)!)
     switch first_ret_type {
     case ValueType.TCustom(_):
         // good - struct/enum return type
     case:
-        return ""
+        return empty
     }
 
     // Collect all return expressions
@@ -232,56 +305,30 @@ find_ret_var_for_placement := proc(func_def: FuncDef) returns Str {
     collect_return_exprs(func_def.body, ret_exprs)
 
     if ret_exprs.is_empty() {
-        return ""
+        return empty
     }
 
-    // Check that all returns use the same simple Identifier
-    mut ret_var_name := ""
-    mut has_ret_var := false
+    // Collect all returned variable names into candidate set
+    mut candidates := Set.new(Str)
     for ret_expr: Expr in ret_exprs {
         if ret_expr.params.is_empty() {
-            return ""  // bare return with no value
+            return empty  // bare return with no value
         }
         value := cast(Expr, ret_expr.params.get(0)!)
         dont_delete(value)
         switch value.node_type {
         case NodeType.Identifier(name):
             if not(value.params.is_empty()) {
-                return ""  // field access like result.field
+                return empty  // field access like result.field
             }
-            if not(has_ret_var) {
-                ret_var_name = name.clone()
-                has_ret_var = true
-            } else if not(ret_var_name.eq(name)) {
-                return ""  // different return variables
-            }
+            _ := candidates.insert(own name.clone())
         case:
-            return ""  // not a simple identifier (e.g. FCall)
+            return empty  // not a simple identifier (e.g. FCall)
         }
     }
 
-    if not(has_ret_var) {
-        return ""
-    }
-
-    // Must not be a function parameter (params have their own storage)
-    for arg: Declaration in func_def.sig.args {
-        if arg.name.eq(ret_var_name) {
-            return ""
-        }
-    }
-
-    // Must not be reassigned after initialization (RVO aliasing makes
-    // *_ret = func(_ret, ...) unsafe - the C compiler may construct the
-    // return value directly in *_ret, destroying the input argument)
-    if has_reassignment_of(func_def.body, ret_var_name) {
-        return ""
-    }
-
-    // Bug #159: Must not be a _payload_ variable - these are emitted as pointers
-    // by the enum_get_payload handler, not value types
-    if ret_var_name.starts_with("_payload_").or(ret_var_name.starts_with("_inner_payload_")) {
-        return ""
+    if candidates.len().eq(0) {
+        return empty
     }
 
     // Must not have any parameter with the same type as the return type.
@@ -291,11 +338,38 @@ find_ret_var_for_placement := proc(func_def: FuncDef) returns Str {
     ret_type_str := value_type_to_str(first_ret_type)
     for arg: Declaration in func_def.sig.args {
         if value_type_to_str(arg.value_type).eq(ret_type_str) {
-            return ""
+            return empty
         }
     }
 
-    return ret_var_name
+    // Filter out candidates that are function parameters, reassigned, or _payload_
+    mut filtered := Set.new(Str)
+    mut i := 0
+    while i.lt(candidates.len()) {
+        var_name := cast(Str, candidates.get(i)!)
+        dont_delete(var_name)
+        // Must not be a constant or generated name (true, false, _tmp_*, etc.)
+        if var_name.eq("true").or(var_name.eq("false")).or(var_name.starts_with("_")) {
+            i.inc()
+            continue
+        }
+        mut is_param := false
+        for arg: Declaration in func_def.sig.args {
+            if arg.name.eq(var_name) {
+                is_param = true
+            }
+        }
+        if not(is_param) {
+            if not(has_reassignment_of(func_def.body, var_name)) {
+                if not(has_non_return_use_of(func_def.body, var_name)) {
+                    _ := filtered.insert(own var_name.clone())
+                }
+            }
+        }
+        i.inc()
+    }
+
+    return filtered
 }
 
 // Emit a struct literal, using compound literal syntax if already_declared
@@ -4782,16 +4856,20 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: F
     }
 
     // Bug #168: Pre-scan for return variable placement optimization
-    // Issue #175: Only use ret_var_alias when the function has _ret parameter
+    // Issue #175: Only use ret_var_aliases when the function has _ret parameter
     // (throwing functions or non-throwing struct/enum-returning functions)
     has_ret_param := not(func_def.sig.throw_types.is_empty()).or(fcall_uses_out_ret(func_def, context))
     if has_ret_param {
-        ctx.ret_var_alias = find_ret_var_for_placement(func_def)
+        ctx.ret_var_aliases = find_ret_var_for_placement(func_def)
     } else {
-        ctx.ret_var_alias = ""
+        ctx.ret_var_aliases.clear()
     }
-    if not(ctx.ret_var_alias.is_empty()) {
-        _ := ctx.current_ref_params.insert(own ctx.ret_var_alias.clone())
+    mut rva_i := 0
+    while rva_i.lt(ctx.ret_var_aliases.len()) {
+        rva_alias := cast(Str, ctx.ret_var_aliases.get(rva_i)!)
+        dont_delete(rva_alias)
+        _ := ctx.current_ref_params.insert(own rva_alias.clone())
+        rva_i.inc()
     }
 
     // Issue #117: Hoist struct locals for catch-safe deletion
@@ -4830,7 +4908,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: F
     // Clear current function context
     ctx.current_throw_types.clear()
     ctx.current_return_types.clear()
-    ctx.ret_var_alias = ""
+    ctx.ret_var_aliases.clear()
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -5018,8 +5096,8 @@ emit_hoisted_locals := proc(stmts: Vec, mut output: Str, mut ctx: CodegenContext
     collect_struct_locals_inner(stmts, local_vars, local_types, seen)
     for i in 0..local_vars.len() {
         var_name := cast(Str, local_vars.get(i)?)
-        // Skip ret_var_alias -- it maps to _ret, not a local variable
-        if not(ctx.ret_var_alias.eq("")).and(ctx.ret_var_alias.eq(var_name)) {
+        // Skip ret_var_aliases -- they map to _ret, not a local variable
+        if ctx.ret_var_aliases.contains(var_name) {
             continue
         }
         type_name := cast(Str, local_types.get(i)?)
@@ -5502,16 +5580,20 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 }
 
                 // Bug #168: Pre-scan for return variable placement optimization
-                // Issue #175: Only use ret_var_alias when the function has _ret parameter
+                // Issue #175: Only use ret_var_aliases when the function has _ret parameter
                 // (throwing functions or non-throwing struct/enum-returning functions)
                 has_ret_param := not(func_def.sig.throw_types.is_empty()).or(fcall_uses_out_ret(func_def, context))
                 if has_ret_param {
-                    ctx.ret_var_alias = find_ret_var_for_placement(func_def)
+                    ctx.ret_var_aliases = find_ret_var_for_placement(func_def)
                 } else {
-                    ctx.ret_var_alias = ""
+                    ctx.ret_var_aliases.clear()
                 }
-                if not(ctx.ret_var_alias.is_empty()) {
-                    _ := ctx.current_ref_params.insert(own ctx.ret_var_alias.clone())
+                mut nf_rva_i := 0
+                while nf_rva_i.lt(ctx.ret_var_aliases.len()) {
+                    nf_rva_alias := cast(Str, ctx.ret_var_aliases.get(nf_rva_i)!)
+                    dont_delete(nf_rva_alias)
+                    _ := ctx.current_ref_params.insert(own nf_rva_alias.clone())
+                    nf_rva_i.inc()
                 }
 
                 // Issue #117: Hoist struct locals for catch-safe deletion
@@ -5548,7 +5630,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 // Clear current function context
                 ctx.current_throw_types.clear()
                 ctx.current_return_types.clear()
-                ctx.ret_var_alias = ""
+                ctx.ret_var_aliases.clear()
 
                 return
             case:
@@ -6534,7 +6616,7 @@ emit_ret_call := proc(fcall: Expr, func_def: FuncDef, decl_name: Str, assign_nam
                 context.scope_stack.declare_symbol(own decl_name.clone(), own erc_sym)?
             }
             erc_c_var_name := til_var_name_from_context(decl_name, context)
-            erc_is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
+            erc_is_ret_alias := ctx.ret_var_aliases.contains(decl_name)
             if not(erc_is_ret_alias).and(not(ctx.declared_vars.contains(erc_c_var_name))) {
                 output.push_str(indent_str)
                 output.push_str(erc_ret_type)
@@ -6739,7 +6821,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         throw_c_var_name := til_var_name_from_context(decl_name, context)
         // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
         // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
-        is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
+        is_ret_alias := ctx.ret_var_aliases.contains(decl_name)
         if not(is_ret_alias).and(not(ctx.declared_vars.contains(throw_c_var_name.clone()))) {
             output.push_str(indent_str)
             output.push_str(ret_type)
@@ -7036,11 +7118,9 @@ build_dest_ptr_expr := func(decl_name: Str, assign_name: Str, ctx: CodegenContex
         if decl_name.eq("_") {
             return ""
         }
-        // Bug #168: ret_var_alias is already mapped to _ret pointer
-        if not(ctx.ret_var_alias.is_empty()) {
-            if decl_name.eq(ctx.ret_var_alias) {
-                return "_ret"
-            }
+        // Bug #168: ret_var_aliases are already mapped to _ret pointer
+        if ctx.ret_var_aliases.contains(decl_name) {
+            return "_ret"
         }
         decl_c_name := til_var_name_from_context(decl_name, context)
         return format("&", decl_c_name)
@@ -7167,7 +7247,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         throwing_decl_c_var := til_var_name_from_context(decl_name, context)
         // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
         // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
-        is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
+        is_ret_alias := ctx.ret_var_aliases.contains(decl_name)
         if not(is_ret_alias).and(not(ctx.declared_vars.contains(throwing_decl_c_var.clone()))) {
             output.push_str(indent_str)
             output.push_str(ret_type)
@@ -7488,7 +7568,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         throwing_decl_c_var := til_var_name_from_context(decl_name, context)
         // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
         // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
-        is_ret_alias := not(ctx.ret_var_alias.is_empty()).and(decl_name.eq(ctx.ret_var_alias))
+        is_ret_alias := ctx.ret_var_aliases.contains(decl_name)
         if not(is_ret_alias).and(not(ctx.declared_vars.contains(throwing_decl_c_var.clone()))) {
             output.push_str(indent_str)
             output.push_str(ret_type)
@@ -7784,7 +7864,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 prev_variadic_params := ctx.current_variadic_params.clone()
                 prev_function_name := ctx.current_function_name.clone()
                 prev_mangling_counter := ctx.mangling_counter
-                prev_ret_var_alias := ctx.ret_var_alias.clone()
+                prev_ret_var_aliases := ctx.ret_var_aliases.clone()
 
                 ctx.current_throw_types = func_def.sig.throw_types.clone()
                 ctx.current_return_types = func_def.sig.return_types.clone()
@@ -7842,16 +7922,20 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 }
 
                 // Bug #168: Pre-scan for return variable placement optimization
-                // Issue #175: Only use ret_var_alias when the function has _ret parameter
+                // Issue #175: Only use ret_var_aliases when the function has _ret parameter
                 // (throwing functions or non-throwing struct/enum-returning functions)
                 has_ret_param := not(func_def.sig.throw_types.is_empty()).or(fcall_uses_out_ret(func_def, context))
                 if has_ret_param {
-                    ctx.ret_var_alias = find_ret_var_for_placement(func_def)
+                    ctx.ret_var_aliases = find_ret_var_for_placement(func_def)
                 } else {
-                    ctx.ret_var_alias = ""
+                    ctx.ret_var_aliases.clear()
                 }
-                if not(ctx.ret_var_alias.is_empty()) {
-                    _ := ctx.current_ref_params.insert(own ctx.ret_var_alias.clone())
+                mut nf_rva_i := 0
+                while nf_rva_i.lt(ctx.ret_var_aliases.len()) {
+                    nf_rva_alias := cast(Str, ctx.ret_var_aliases.get(nf_rva_i)!)
+                    dont_delete(nf_rva_alias)
+                    _ := ctx.current_ref_params.insert(own nf_rva_alias.clone())
+                    nf_rva_i.inc()
                 }
 
                 // Issue #117: Hoist struct locals for catch-safe deletion
@@ -7893,7 +7977,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 ctx.current_variadic_params = prev_variadic_params
                 ctx.current_function_name = prev_function_name
                 ctx.mangling_counter = prev_mangling_counter
-                ctx.ret_var_alias = prev_ret_var_alias
+                ctx.ret_var_aliases = prev_ret_var_aliases
 
                 ctx.hoisted_functions.push(own func_output)
 
@@ -7964,12 +8048,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 if not(is_cast_func_sig) {
                     _ := ctx.current_ref_params.insert(own decl.name.clone())
                 }
-                // Bug #177: Cast variables can't be ret_var_alias targets
-                if not(ctx.ret_var_alias.is_empty()) {
-                    if decl.name.eq(ctx.ret_var_alias) {
-                        ctx.ret_var_alias = ""
-                    }
-                }
+                // Bug #177: Cast variables can't be ret_var_aliases targets
+                ctx.ret_var_aliases.remove(decl.name)
                 // Emit: var = (Type*)ptr.data;
                 // For FuncSig: var = *(Type*)ptr.data; (dereference to get function pointer value)
                 output.push_str(indent_str)
@@ -8147,14 +8227,12 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
     // Bug #97: Use type-mangled name so same name with different types are different variables
     mut already_declared := ctx.declared_vars.contains(orig_c_var_name)
 
-    // Bug #168: If this variable is the ret_var_alias, use (*_ret) as lvalue
+    // Bug #168: If this variable is a ret_var_alias, use (*_ret) as lvalue
     mut is_ret_alias := false
-    if not(ctx.ret_var_alias.is_empty()) {
-        if name.eq(ctx.ret_var_alias).and(not(already_declared)) {
-            _ := ctx.declared_vars.insert(own orig_c_var_name)
-            already_declared = true
-            is_ret_alias = true
-        }
+    if ctx.ret_var_aliases.contains(name).and(not(already_declared)) {
+        _ := ctx.declared_vars.insert(own orig_c_var_name)
+        already_declared = true
+        is_ret_alias = true
     }
     mut c_var_name := orig_c_var_name
     if is_ret_alias {
@@ -8759,18 +8837,14 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             case:
             }
 
-            // Bug #168: If returning the ret_var_alias, skip the copy - it's already in _ret
+            // Bug #168: If returning a ret_var_alias, skip the copy - it's already in _ret
             mut skip_ret_copy := false
             switch thr_return_expr.node_type {
             case NodeType.Identifier(ret_name):
-                if thr_return_expr.params.is_empty() {
-                    if not(ctx.ret_var_alias.is_empty()) {
-                        if ret_name.eq(ctx.ret_var_alias) {
-                            output.push_str(indent_str)
-                            output.push_str("return 0;\n")
-                            skip_ret_copy = true
-                        }
-                    }
+                if thr_return_expr.params.is_empty().and(ctx.ret_var_aliases.contains(ret_name)) {
+                    output.push_str(indent_str)
+                    output.push_str("return 0;\n")
+                    skip_ret_copy = true
                 }
             case:
             }
@@ -9015,17 +9089,13 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             case:
             }
 
-            // Bug #168: If returning the ret_var_alias, skip the copy - it's already in _ret
+            // Bug #168: If returning a ret_var_alias, skip the copy - it's already in _ret
             switch return_expr.node_type {
             case NodeType.Identifier(ret_name):
-                if return_expr.params.is_empty() {
-                    if not(ctx.ret_var_alias.is_empty()) {
-                        if ret_name.eq(ctx.ret_var_alias) {
-                            output.push_str(indent_str)
-                            output.push_str("return;\n")
-                            return
-                        }
-                    }
+                if return_expr.params.is_empty().and(ctx.ret_var_aliases.contains(ret_name)) {
+                    output.push_str(indent_str)
+                    output.push_str("return;\n")
+                    return
                 }
             case:
             }

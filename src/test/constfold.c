@@ -3067,15 +3067,15 @@ void til_Vec__alloc_ptr(til_Ptr* _ret, til_Vec* til_Vec_self, const til_I64* til
 void til_Vec_with_capacity(til_Vec* _ret, til_Type til_Type_T, const til_I64* til_I64_capacity) {
     (void)_ret;
     til_Ptr _tmp_til_Vec_with_capacity_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
-    (*_ret) = (til_Vec){.ptr = _tmp_til_Vec_with_capacity_0, ._len = 0, .cap = 0};
+    til_Vec til_Vec_vec = {.ptr = _tmp_til_Vec_with_capacity_0, ._len = 0, .cap = 0};
     til_Str til_Str_type_str = ((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0});
     til_Ptr til_Ptr_type_c = til_Str_type_str.c_string;
     til_Ptr til_Ptr_p = {.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
     til_Ptr_p.elem_type = til_Ptr_type_c.data;
     til_Ptr_p.elem_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_Type_T, 1, 0, 0, 0}), strlen(til_Type_T), 0}));
-    _ret->ptr = til_Ptr_p;
-    _ret->_len = 0;
-    _ret->cap = (*til_I64_capacity);
+    til_Vec_vec.ptr = til_Ptr_p;
+    til_Vec_vec._len = 0;
+    til_Vec_vec.cap = (*til_I64_capacity);
     til_I64 _tmp_til_Vec_with_capacity_1 = 0;
     til_Bool _tmp_til_Vec_with_capacity_2;
     til_I64_gt(&_tmp_til_Vec_with_capacity_2, til_I64_capacity, &_tmp_til_Vec_with_capacity_1);
@@ -3094,9 +3094,10 @@ void til_Vec_with_capacity(til_Vec* _ret, til_Type til_Type_T, const til_I64* ti
             til_Array_delete(&_tmp_til_Vec_with_capacity_5);
         }
         til_Ptr _tmp_til_Vec_with_capacity_9;
-        til_Vec__alloc_ptr(&_tmp_til_Vec_with_capacity_9, _ret, til_I64_capacity);
-        _ret->ptr = _tmp_til_Vec_with_capacity_9;
+        til_Vec__alloc_ptr(&_tmp_til_Vec_with_capacity_9, &til_Vec_vec, til_I64_capacity);
+        til_Vec_vec.ptr = _tmp_til_Vec_with_capacity_9;
     }
+    *_ret = til_Vec_vec;
     return;
 }
 
@@ -3884,24 +3885,25 @@ void til_Str_delete(til_Str* til_Str_self) {
 void til_Str_from_byte(til_Str* _ret, const til_U8* til_U8_byte) {
     (void)_ret;
     til_Ptr _tmp_til_Str_from_byte_0 = (til_Ptr){.data = til_I64_NULL, .is_borrowed = 0, .alloc_size = 0, .elem_type = til_I64_NULL, .elem_size = 0};
-    (*_ret) = (til_Str){.c_string = _tmp_til_Str_from_byte_0, ._len = 0, .cap = 0};
+    til_Str til_Str_s = {.c_string = _tmp_til_Str_from_byte_0, ._len = 0, .cap = 0};
     til_I64 _tmp_til_Str_from_byte_1 = 2;
     til_Ptr _tmp_til_Str_from_byte_2;
     til_Ptr_new_by_size(&_tmp_til_Str_from_byte_2, &_tmp_til_Str_from_byte_1);
-    _ret->c_string = _tmp_til_Str_from_byte_2;
-    _ret->c_string.is_borrowed = 0;
-    _ret->_len = 1;
-    _ret->cap = 2;
+    til_Str_s.c_string = _tmp_til_Str_from_byte_2;
+    til_Str_s.c_string.is_borrowed = 0;
+    til_Str_s._len = 1;
+    til_Str_s.cap = 2;
     til_I64 _tmp_til_Str_from_byte_3 = (til_I64)&(*til_U8_byte);
     til_I64 _tmp_til_Str_from_byte_4 = 1;
-    til_memcpy(&_ret->c_string.data, &_tmp_til_Str_from_byte_3, &_tmp_til_Str_from_byte_4);
+    til_memcpy(&til_Str_s.c_string.data, &_tmp_til_Str_from_byte_3, &_tmp_til_Str_from_byte_4);
     til_U8 til_U8_zero = 0;
     til_I64 _tmp_til_Str_from_byte_5 = 1;
     til_Ptr _tmp_til_Str_from_byte_6;
-    til_Ptr_offset(&_tmp_til_Str_from_byte_6, &_ret->c_string, &_tmp_til_Str_from_byte_5);
+    til_Ptr_offset(&_tmp_til_Str_from_byte_6, &til_Str_s.c_string, &_tmp_til_Str_from_byte_5);
     til_I64 _tmp_til_Str_from_byte_7 = (til_I64)&til_U8_zero;
     til_I64 _tmp_til_Str_from_byte_8 = 1;
     til_memcpy(&_tmp_til_Str_from_byte_6.data, &_tmp_til_Str_from_byte_7, &_tmp_til_Str_from_byte_8);
+    *_ret = til_Str_s;
     return;
 }
 
@@ -5006,7 +5008,8 @@ void til_Str_replacen(til_Str* _ret, const til_Str* til_Str_self, const til_Str*
 
 int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str* til_Str_self, const til_Str* til_Str_delimiter) {
     (void)_ret;
-    til_Vec_new(_ret, "Str");
+    til_Vec til_Vec_parts;
+    til_Vec_new(&til_Vec_parts, "Str");
     til_I64 _tmp_til_Str_split_0 = til_Str_len(til_Str_delimiter);
     til_I64 _tmp_til_Str_split_1 = 0;
     til_Bool _tmp_til_Str_split_2;
@@ -5014,7 +5017,8 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
     if (_tmp_til_Str_split_2.data) {
         til_Str _tmp_til_Str_split_3;
         til_Str_clone(&_tmp_til_Str_split_3, til_Str_self);
-        til_Vec_push(_ret, (til_Dynamic*)&_tmp_til_Str_split_3);
+        til_Vec_push(&til_Vec_parts, (til_Dynamic*)&_tmp_til_Str_split_3);
+        *_ret = til_Vec_parts;
         return 0;
     }
     til_I64 til_I64_start = 0;
@@ -5101,9 +5105,9 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
                 til_IndexOutOfBoundsError _err0__tmp_til_Str_split_34 = {};
                 int __attribute__((unused)) _status__tmp_til_Str_split_34 = til_get_substr(&til_Str_part, &_err0__tmp_til_Str_split_34, til_Str_self, &til_I64_start, &til_I64_pos);
                 if (_status__tmp_til_Str_split_34 == 1) { *_err1 = _err0__tmp_til_Str_split_34; return 1; }
-                til_Vec_push(_ret, (til_Dynamic*)&til_Str_part);
+                til_Vec_push(&til_Vec_parts, (til_Dynamic*)&til_Str_part);
             } else {
-                til_Vec_push(_ret, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
+                til_Vec_push(&til_Vec_parts, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
             }
             til_I64 _tmp_til_Str_split_35 = til_Str_len(til_Str_delimiter);
             til_I64_start = til_I64_add(&til_I64_pos, &_tmp_til_Str_split_35);
@@ -5121,15 +5125,16 @@ int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str
         til_IndexOutOfBoundsError _err0__tmp_til_Str_split_38 = {};
         int __attribute__((unused)) _status__tmp_til_Str_split_38 = til_get_substr(&til_Str_remaining_part, &_err0__tmp_til_Str_split_38, til_Str_self, &til_I64_start, &_tmp_til_Str_split_39);
         if (_status__tmp_til_Str_split_38 == 1) { *_err1 = _err0__tmp_til_Str_split_38; return 1; }
-        til_Vec_push(_ret, (til_Dynamic*)&til_Str_remaining_part);
+        til_Vec_push(&til_Vec_parts, (til_Dynamic*)&til_Str_remaining_part);
     } else {
         til_I64 _tmp_til_Str_split_40 = til_Str_len(til_Str_self);
         til_Bool _tmp_til_Str_split_41;
         til_I64_eq(&_tmp_til_Str_split_41, &til_I64_start, &_tmp_til_Str_split_40);
         if (_tmp_til_Str_split_41.data) {
-            til_Vec_push(_ret, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
+            til_Vec_push(&til_Vec_parts, (til_Dynamic*)&((til_Str){((til_Ptr){(til_I64)"", 1, 0, 0, 0}), 0, 0}));
         }
     }
+    *_ret = til_Vec_parts;
     return 0;
     return 0;
 }

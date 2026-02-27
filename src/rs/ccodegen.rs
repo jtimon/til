@@ -44,8 +44,8 @@ struct CodegenContext {
     // Bug #133 fix: Map var_name -> static array name for precomputed heap values
     // When emitting assignments in main(), Ptr fields will use these static pointers
     precomputed_static_arrays: HashMap<String, PrecomputedStaticInfo>,
-    // Bug #168: variable name aliased to _ret for placement construction
-    ret_var_alias: Option<String>,
+    // Bug #168: variable names aliased to _ret for placement construction
+    ret_var_aliases: HashSet<String>,
 }
 
 // Bug #133: Info about a precomputed Vec's static array serialization
@@ -71,7 +71,7 @@ impl CodegenContext {
             hoisted_prototypes: Vec::new(),
             nested_func_names: HashMap::new(),
             precomputed_static_arrays: HashMap::new(),
-            ret_var_alias: None,
+            ret_var_aliases: HashSet::new(),
         }
     }
 }
@@ -126,12 +126,10 @@ fn til_var_name_from_context(name: &str, context: &Context) -> String {
     til_name(name)
 }
 
-// Bug #168: Resolve a variable name, mapping ret_var_alias to "_ret"
+// Bug #168: Resolve a variable name, mapping ret_var_aliases to "_ret"
 fn resolve_var_name(name: &str, ctx: &CodegenContext, context: &Context) -> String {
-    if let Some(ref alias) = ctx.ret_var_alias {
-        if name == alias {
-            return "_ret".to_string();
-        }
+    if ctx.ret_var_aliases.contains(name) {
+        return "_ret".to_string();
     }
     til_var_name_from_context(name, context)
 }
@@ -180,20 +178,99 @@ fn has_reassignment_of(stmts: &[Expr], var_name: &str) -> bool {
     false
 }
 
-// Bug #168: Pre-scan function body to find a single return variable that can be
-// placed directly into _ret. Returns Some(var_name) if ALL of:
-// - Function is throwing (has _ret out-pointer)
+// Check if a variable name appears as an Identifier anywhere in the given exprs.
+fn contains_identifier(stmts: &[Expr], var_name: &str) -> bool {
+    for expr in stmts {
+        match &expr.node_type {
+            NodeType::Identifier(name) => {
+                if name == var_name {
+                    return true;
+                }
+            }
+            NodeType::FuncDef(_) => {
+                // Skip nested function bodies
+            }
+            _ => {}
+        }
+        if !matches!(&expr.node_type, NodeType::FuncDef(_)) {
+            if contains_identifier(&expr.params, var_name) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+// Check if a variable is used anywhere in the function body other than:
+// - Its own declaration (Declaration node with matching name)
+// - As the direct return value (Return -> Identifier(var_name))
+// If it's used in any other context (field access, function argument, condition,
+// etc.), it cannot safely alias _ret in a multi-alias scenario because another
+// alias's write to _ret would corrupt this variable's value.
+fn has_non_return_use_of(stmts: &[Expr], var_name: &str) -> bool {
+    for expr in stmts {
+        match &expr.node_type {
+            NodeType::Return => {
+                // Return statements are fine - that's the intended use.
+                // But if the return has field access on our var (return x.field),
+                // that's a read we need to protect. Check if the returned expr
+                // is just the bare identifier with no children (no field access).
+                if !expr.params.is_empty() {
+                    let value = &expr.params[0];
+                    if let NodeType::Identifier(name) = &value.node_type {
+                        if name == var_name && value.params.is_empty() {
+                            // Simple `return var_name` - this is fine, skip it
+                            continue;
+                        }
+                    }
+                    // Return with some other expression - check if var_name appears in it
+                    if contains_identifier(&expr.params, var_name) {
+                        return true;
+                    }
+                }
+            }
+            NodeType::Declaration(decl) => {
+                if decl.name == var_name {
+                    // This is the initialization - skip it
+                    continue;
+                }
+                // Some other declaration that might use our var in its initializer
+                if contains_identifier(&expr.params, var_name) {
+                    return true;
+                }
+            }
+            NodeType::FuncDef(_) => {
+                // Skip nested function bodies
+            }
+            _ => {
+                // Any other statement - check if our var appears in it
+                if contains_identifier(&expr.params, var_name) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+// Bug #168: Pre-scan function body to find return variables that can be
+// placed directly into _ret. Returns a set of variable names where ALL of:
+// - Function has _ret out-pointer (throwing or struct/enum-returning)
 // - Return type is TCustom (struct/enum - primitives don't benefit)
-// - All Return nodes return the same simple Identifier
-// - That variable is NOT a function parameter
-// - That variable is NOT reassigned (RVO aliasing makes reassignment unsafe)
-fn find_ret_var_for_placement(func_def: &FuncDef) -> Result<String, String> {
+// - All Return nodes return simple Identifiers (no FCall, field access, bare return)
+// - Each candidate is NOT a function parameter
+// - Each candidate is NOT reassigned (RVO aliasing makes reassignment unsafe)
+// - Each candidate is NOT a _payload_ variable (emitted as pointer)
+// - No parameter has the same type as the return type (caller aliasing danger)
+fn find_ret_var_for_placement(func_def: &FuncDef) -> Result<HashSet<String>, String> {
+    let empty = HashSet::new();
+
     // Issue #175: Now works for both throwing and non-throwing functions with return type
     if func_def.sig.return_types.is_empty() {
-        return Ok(String::new());
+        return Ok(empty);
     }
     if !matches!(&func_def.sig.return_types[0], ValueType::TCustom(_)) {
-        return Ok(String::new());
+        return Ok(empty);
     }
 
     // Collect all return expressions
@@ -201,56 +278,28 @@ fn find_ret_var_for_placement(func_def: &FuncDef) -> Result<String, String> {
     collect_return_exprs(&func_def.body, &mut returns);
 
     if returns.is_empty() {
-        return Ok(String::new());
+        return Ok(empty);
     }
 
-    // Check that all returns use the same simple Identifier
-    let mut ret_var_name: Option<String> = None;
+    // Collect all returned variable names into candidate set
+    let mut candidates: HashSet<String> = HashSet::new();
     for ret_expr in &returns {
         if ret_expr.params.is_empty() {
-            return Ok(String::new()); // bare return with no value
+            return Ok(empty); // bare return with no value
         }
         let value = ret_expr.params.get(0).unwrap();
         if let NodeType::Identifier(name) = &value.node_type {
             if !value.params.is_empty() {
-                return Ok(String::new()); // field access like result.field
+                return Ok(empty); // field access like result.field
             }
-            match &ret_var_name {
-                None => ret_var_name = Some(name.clone()),
-                Some(existing) => {
-                    if existing != name {
-                        return Ok(String::new()); // different return variables
-                    }
-                }
-            }
+            candidates.insert(name.clone());
         } else {
-            return Ok(String::new()); // not a simple identifier (e.g. FCall)
+            return Ok(empty); // not a simple identifier (e.g. FCall)
         }
     }
 
-    let var_name = match ret_var_name {
-        Some(v) => v,
-        None => return Ok(String::new()),
-    };
-
-    // Must not be a function parameter (params have their own storage)
-    for arg in &func_def.sig.args {
-        if arg.name == var_name {
-            return Ok(String::new());
-        }
-    }
-
-    // Must not be reassigned after initialization (RVO aliasing makes
-    // *_ret = func(_ret, ...) unsafe - the C compiler may construct the
-    // return value directly in *_ret, destroying the input argument)
-    if has_reassignment_of(&func_def.body, &var_name) {
-        return Ok(String::new());
-    }
-
-    // Bug #159: Must not be a _payload_ variable - these are emitted as pointers
-    // by the enum_get_payload handler, not value types
-    if var_name.starts_with("_payload_") || var_name.starts_with("_inner_payload_") {
-        return Ok(String::new());
+    if candidates.is_empty() {
+        return Ok(empty);
     }
 
     // Must not have any parameter with the same type as the return type.
@@ -260,11 +309,36 @@ fn find_ret_var_for_placement(func_def: &FuncDef) -> Result<String, String> {
     let ret_type = &func_def.sig.return_types[0];
     for arg in &func_def.sig.args {
         if &arg.value_type == ret_type {
-            return Ok(String::new());
+            return Ok(empty);
         }
     }
 
-    Ok(var_name)
+    // Filter out candidates that are function parameters, reassigned, or _payload_
+    candidates.retain(|var_name| {
+        // Must not be a constant or generated name (true, false, _tmp_*, etc.)
+        if var_name == "true" || var_name == "false" || var_name.starts_with('_') {
+            return false;
+        }
+        // Must not be a function parameter (params have their own storage)
+        for arg in &func_def.sig.args {
+            if &arg.name == var_name {
+                return false;
+            }
+        }
+        // Must not be reassigned after initialization
+        if has_reassignment_of(&func_def.body, var_name) {
+            return false;
+        }
+        // Must only be used in return statements. If the variable is read
+        // anywhere else (field access, function argument, condition, etc.),
+        // another alias writing to _ret would corrupt this variable's value.
+        if has_non_return_use_of(&func_def.body, var_name) {
+            return false;
+        }
+        true
+    });
+
+    Ok(candidates)
 }
 
 // Bug #97: Convert a ValueType to a short string for use in variable name mangling
@@ -363,11 +437,9 @@ fn emit_hoisted_locals(
     }
     let locals = collect_struct_locals(stmts);
     for (var_name, type_name) in &locals {
-        // Skip ret_var_alias -- it maps to _ret, not a local variable
-        if let Some(ref alias) = ctx.ret_var_alias {
-            if alias == var_name {
-                continue;
-            }
+        // Skip ret_var_aliases -- they map to _ret, not a local variable
+        if ctx.ret_var_aliases.contains(var_name.as_str()) {
+            continue;
         }
         let c_type = til_type_to_c(&ValueType::TCustom(type_name.clone()))
             .map_err(|e| format!("ccodegen: hoisted local: {}", e))?;
@@ -4065,12 +4137,11 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     }
 
     // Bug #168: Pre-scan for return variable placement optimization
-    // Issue #175: Only use ret_var_alias when the function has _ret parameter
+    // Issue #175: Only use ret_var_aliases when the function has _ret parameter
     // (throwing functions or non-throwing struct/enum-returning functions)
     let has_ret_param = !func_def.sig.throw_types.is_empty() || fcall_uses_out_ret(func_def, context);
-    let ret_var = if has_ret_param { find_ret_var_for_placement(func_def)? } else { String::new() };
-    ctx.ret_var_alias = if ret_var.is_empty() { None } else { Some(ret_var) };
-    if let Some(ref alias) = ctx.ret_var_alias {
+    ctx.ret_var_aliases = if has_ret_param { find_ret_var_for_placement(func_def)? } else { HashSet::new() };
+    for alias in &ctx.ret_var_aliases {
         ctx.current_ref_params.insert(alias.clone());
     }
 
@@ -4104,7 +4175,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Clear current function context
     ctx.current_throw_types.clear();
     ctx.current_return_types.clear();
-    ctx.ret_var_alias = None;
+    ctx.ret_var_aliases.clear();
 
     Ok(())
 }
@@ -4558,12 +4629,11 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 }
 
                 // Bug #168: Pre-scan for return variable placement optimization
-                // Issue #175: Only use ret_var_alias when the function has _ret parameter
+                // Issue #175: Only use ret_var_aliases when the function has _ret parameter
                 // (throwing functions or non-throwing struct/enum-returning functions)
                 let has_ret_param = !func_def.sig.throw_types.is_empty() || fcall_uses_out_ret(func_def, context);
-                let ret_var = if has_ret_param { find_ret_var_for_placement(func_def)? } else { String::new() };
-                ctx.ret_var_alias = if ret_var.is_empty() { None } else { Some(ret_var) };
-                if let Some(ref alias) = ctx.ret_var_alias {
+                ctx.ret_var_aliases = if has_ret_param { find_ret_var_for_placement(func_def)? } else { HashSet::new() };
+                for alias in &ctx.ret_var_aliases {
                     ctx.current_ref_params.insert(alias.clone());
                 }
 
@@ -4595,7 +4665,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 // Clear current function context
                 ctx.current_throw_types.clear();
                 ctx.current_return_types.clear();
-                ctx.ret_var_alias = None;
+                ctx.ret_var_aliases.clear();
 
                 return Ok(());
             }
@@ -5362,7 +5432,7 @@ fn emit_ret_call(
                 );
             }
             let c_var_name = til_var_name_from_context(var_name, context);
-            let is_ret_alias = ctx.ret_var_alias.as_ref().map(|a| a == var_name).unwrap_or(false);
+            let is_ret_alias = ctx.ret_var_aliases.contains(var_name);
             if !is_ret_alias && !ctx.declared_vars.contains(&c_var_name) {
                 output.push_str(&indent_str);
                 output.push_str(&ret_type);
@@ -5535,7 +5605,7 @@ fn emit_throwing_call(
             let c_var_name = til_var_name_from_context(var_name, context);
             // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
             // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
-            let is_ret_alias = ctx.ret_var_alias.as_ref().map(|a| a == var_name).unwrap_or(false);
+            let is_ret_alias = ctx.ret_var_aliases.contains(var_name);
             if !is_ret_alias && !ctx.declared_vars.contains(&c_var_name) {
                 output.push_str(&indent_str);
                 output.push_str(&ret_type);
@@ -5804,11 +5874,9 @@ fn build_dest_ptr_expr(
         if var_name == "_" {
             return None;
         }
-        // Bug #168: ret_var_alias is already mapped to _ret pointer
-        if let Some(ref alias) = ctx.ret_var_alias {
-            if var_name == alias {
-                return Some("_ret".to_string());
-            }
+        // Bug #168: ret_var_aliases are already mapped to _ret pointer
+        if ctx.ret_var_aliases.contains(var_name) {
+            return Some("_ret".to_string());
         }
         let decl_c_name = til_var_name_from_context(var_name, context);
         return Some(format!("&{}", decl_c_name));
@@ -5918,7 +5986,7 @@ fn emit_throwing_call_propagate(
             let c_var_name = til_var_name_from_context(var_name, context);
             // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
             // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
-            let is_ret_alias = ctx.ret_var_alias.as_ref().map(|a| a == var_name).unwrap_or(false);
+            let is_ret_alias = ctx.ret_var_aliases.contains(var_name);
             if !is_ret_alias && !ctx.declared_vars.contains(&c_var_name) {
                 output.push_str(&indent_str);
                 output.push_str(&ret_type);
@@ -6205,7 +6273,7 @@ fn emit_throwing_call_with_goto(
             let c_var_name = til_var_name_from_context(var_name, context);
             // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
             // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
-            let is_ret_alias = ctx.ret_var_alias.as_ref().map(|a| a == var_name).unwrap_or(false);
+            let is_ret_alias = ctx.ret_var_aliases.contains(var_name);
             if !is_ret_alias && !ctx.declared_vars.contains(&c_var_name) {
                 output.push_str(&indent_str);
                 output.push_str(&ret_type);
@@ -6466,7 +6534,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 let prev_variadic_params = std::mem::take(&mut ctx.current_variadic_params);
                 let prev_function_name = ctx.current_function_name.clone();
                 let prev_mangling_counter = ctx.mangling_counter;
-                let prev_ret_var_alias = ctx.ret_var_alias.take();
+                let prev_ret_var_aliases = std::mem::take(&mut ctx.ret_var_aliases);
 
                 ctx.current_throw_types = func_def.sig.throw_types.clone();
                 ctx.current_return_types = func_def.sig.return_types.clone();
@@ -6525,12 +6593,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 }
 
                 // Bug #168: Pre-scan for return variable placement optimization
-                // Issue #175: Only use ret_var_alias when the function has _ret parameter
+                // Issue #175: Only use ret_var_aliases when the function has _ret parameter
                 // (throwing functions or non-throwing struct/enum-returning functions)
                 let has_ret_param = !func_def.sig.throw_types.is_empty() || fcall_uses_out_ret(func_def, context);
-                let ret_var = if has_ret_param { find_ret_var_for_placement(func_def)? } else { String::new() };
-                ctx.ret_var_alias = if ret_var.is_empty() { None } else { Some(ret_var) };
-                if let Some(ref alias) = ctx.ret_var_alias {
+                ctx.ret_var_aliases = if has_ret_param { find_ret_var_for_placement(func_def)? } else { HashSet::new() };
+                for alias in &ctx.ret_var_aliases {
                     ctx.current_ref_params.insert(alias.clone());
                 }
 
@@ -6560,7 +6627,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 ctx.current_variadic_params = prev_variadic_params;
                 ctx.current_function_name = prev_function_name;
                 ctx.mangling_counter = prev_mangling_counter;
-                ctx.ret_var_alias = prev_ret_var_alias;
+                ctx.ret_var_aliases = prev_ret_var_aliases;
 
                 ctx.hoisted_functions.push(func_output);
 
@@ -6619,11 +6686,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 if !is_cast_func_sig {
                     ctx.current_ref_params.insert(decl.name.clone());
                 }
-                // Bug #177: Cast variables can't be ret_var_alias targets - the optimization
+                // Bug #177: Cast variables can't be ret_var_aliases targets - the optimization
                 // writes to _ret via resolve_var_name, but cast writes to the real var name
-                if ctx.ret_var_alias.as_deref() == Some(decl.name.as_str()) {
-                    ctx.ret_var_alias = None;
-                }
+                ctx.ret_var_aliases.remove(&decl.name);
                 // Emit: var = (Type*)ptr.data;
                 // For FuncSig: var = *(Type*)ptr.data; (dereference to get function pointer value)
                 output.push_str(&indent_str);
@@ -6764,14 +6829,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     // Bug #97: Use type-mangled name so same name with different types are different variables
     let already_declared = ctx.declared_vars.contains(&c_var_name);
 
-    // Bug #168: If this variable is the ret_var_alias, use (*_ret) as lvalue
-    let (c_var_name, already_declared) = if let Some(ref alias) = ctx.ret_var_alias {
-        if name == alias && !already_declared {
-            ctx.declared_vars.insert(c_var_name);
-            ("(*_ret)".to_string(), true)
-        } else {
-            (c_var_name, already_declared)
-        }
+    // Bug #168: If this variable is a ret_var_alias, use (*_ret) as lvalue
+    let (c_var_name, already_declared) = if ctx.ret_var_aliases.contains(name) && !already_declared {
+        ctx.declared_vars.insert(c_var_name);
+        ("(*_ret)".to_string(), true)
     } else {
         (c_var_name, already_declared)
     };
@@ -7204,16 +7265,12 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 }
             }
 
-            // Bug #168: If returning the ret_var_alias, skip the copy - it's already in _ret
+            // Bug #168: If returning a ret_var_alias, skip the copy - it's already in _ret
             if let NodeType::Identifier(name) = &return_expr.node_type {
-                if return_expr.params.is_empty() {
-                    if let Some(ref alias) = ctx.ret_var_alias {
-                        if name == alias {
-                            output.push_str(&indent_str);
-                            output.push_str("return 0;\n");
-                            return Ok(());
-                        }
-                    }
+                if return_expr.params.is_empty() && ctx.ret_var_aliases.contains(name.as_str()) {
+                    output.push_str(&indent_str);
+                    output.push_str("return 0;\n");
+                    return Ok(());
                 }
             }
 
@@ -7355,16 +7412,12 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 }
             }
 
-            // Bug #168: If returning the ret_var_alias, skip the copy - it's already in _ret
+            // Bug #168: If returning a ret_var_alias, skip the copy - it's already in _ret
             if let NodeType::Identifier(name) = &return_expr.node_type {
-                if return_expr.params.is_empty() {
-                    if let Some(ref alias) = ctx.ret_var_alias {
-                        if name == alias {
-                            output.push_str(&indent_str);
-                            output.push_str("return;\n");
-                            return Ok(());
-                        }
-                    }
+                if return_expr.params.is_empty() && ctx.ret_var_aliases.contains(name.as_str()) {
+                    output.push_str(&indent_str);
+                    output.push_str("return;\n");
+                    return Ok(());
                 }
             }
 

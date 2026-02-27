@@ -69,7 +69,7 @@
 | #170 | Scope-exit deletion for local variables                  | Blocked by #159 |
 | #168 | ccodegen returns create copies interpreter doesn't       | Partial         |
 | #161 | Namespace constants, static mutables, immutables         | Partial         |
-| #159 | Shallow copy semantics not fully eliminated              | Open            |
+| #159 | Shallow copy semantics not fully eliminated              | Steps 1-3 done  |
 | #135 | True cross-compilation via precompiled ext.o             | Open            |
 | #117 | ASAP Destruction (auto-delete on last use)               | Paused          |
 | #115 | Owned struct fields and auto-generated methods           | Open            |
