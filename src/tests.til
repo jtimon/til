@@ -1331,7 +1331,7 @@ main := proc(args: ..Str) {
     // Parse options first (before other args processing)
     // -jN: parallelism (e.g., -j8, -j32) - like make
     // Issue #117: use half the threads to reduce memory pressure
-    mut parallelism := get_thread_count().div(4)
+    mut parallelism := get_thread_count().div(8)
     if parallelism.lt(1) {
         parallelism = 1
     }
