@@ -3,6 +3,7 @@ use std::io::ErrorKind;
 use std::collections::{HashMap, HashSet};
 
 use crate::rs::lexer::{lexer_from_source, Token, TokenType};
+use crate::rs::utils::is_function_signature;
 use crate::rs::mode::{ModeDef, can_be_imported, parse_mode, mode_from_name};
 use crate::rs::ordered_map::OrderedMap;
 use crate::rs::parser::{
@@ -1470,8 +1471,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Result<Vec<String>, Stri
             };
             // Issue #91: Detect function signature definitions
             if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-                if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
-                    && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+                if is_function_signature(func_def) {
                     value_type = ValueType::TType(TTypeDef::TFuncSig);
                 }
             }

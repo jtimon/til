@@ -1739,29 +1739,10 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     }
 
     // Issue #91: Detect function signature definitions
-    // A FuncDef with empty body and type-only args (no names) is a function signature type
     switch inner_e.node_type {
     case NodeType.FuncDef(func_def):
-        if func_def.body.len().eq(0) {
-            mut all_type_only := true
-            for arg: Declaration in func_def.sig.args {
-                if not(arg.name.eq("")) {
-                    all_type_only = false
-                }
-            }
-            if all_type_only {
-                mut is_func_or_proc := false
-                switch func_def.sig.function_type {
-                case FunctionType.FTFunc:
-                    is_func_or_proc = true
-                case FunctionType.FTProc:
-                    is_func_or_proc = true
-                case:
-                }
-                if is_func_or_proc {
-                    value_type = ValueType.TType(TTypeDef.TFuncSig)
-                }
-            }
+        if is_function_signature(func_def) {
+            value_type = ValueType.TType(TTypeDef.TFuncSig)
         }
     case:
     }

@@ -7,12 +7,13 @@ use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, StructDef, EnumDef, EnumVariant, FuncDef, FuncSig, NamespaceDef, Declaration, Literal, TTypeDef,
-    FCallInfo, FunctionType, PatternInfo, value_type_to_str, INFER_TYPE,
+    FCallInfo, PatternInfo, value_type_to_str, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
 use crate::rs::eval_heap::EvalHeap;
 use crate::rs::precomp_ext::try_replace_comptime_intrinsic;
 use crate::rs::preinit::{generate_struct_methods, generate_enum_methods};
+use crate::rs::utils::is_function_signature;
 
 // ---------- Issue #105: Early struct macro expansion
 
@@ -1379,10 +1380,8 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         },
     };
     // Issue #91: Detect function signature definitions
-    // A FuncDef with empty body and type-only args (no names) is a function signature type
     if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-        if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
-            && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+        if is_function_signature(func_def) {
             value_type = ValueType::TType(TTypeDef::TFuncSig);
         }
     }

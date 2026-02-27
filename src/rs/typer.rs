@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use crate::rs::init::{Context, SymbolInfo, RemovedSymbol, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
+use crate::rs::utils::is_function_signature;
 use crate::rs::parser::{
     INFER_TYPE, Literal,
     Expr, NodeType, ValueType, EnumDef, StructDef, FuncDef, FCallInfo, NamespaceDef, Declaration, PatternInfo, FunctionType, TTypeDef,
@@ -1076,8 +1077,7 @@ fn check_func_proc_types(func_def: &FuncDef, context: &mut Context, e: &Expr) ->
     }
 
     // Issue #91: Skip type-checking function signature definitions
-    // These have empty body and type-only args (no names)
-    if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty()) {
+    if is_function_signature(func_def) {
         context.scope_stack.function_locals = saved_function_locals;
         context.scope_stack.used_symbols = saved_used_symbols;
         context.scope_stack.borrowed_args = saved_borrowed_args;
@@ -1945,8 +1945,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Res
 
         // Issue #91: Detect function signature definitions (empty body + type-only args)
         if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-            if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
-                && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+            if is_function_signature(func_def) {
                 value_type = ValueType::TType(TTypeDef::TFuncSig);
             }
         }
@@ -2913,8 +2912,7 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                     let mut inferred = get_value_type(context, inner_e)?;
                     // Issue #91: Detect function signature definitions
                     if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-                        if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
-                            && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+                        if is_function_signature(func_def) {
                             inferred = ValueType::TType(TTypeDef::TFuncSig);
                         }
                     }

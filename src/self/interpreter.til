@@ -993,26 +993,8 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
     // Issue #91: Detect function signature definitions
     switch inner_e.node_type {
     case NodeType.FuncDef(eval_func_def):
-        if eval_func_def.body.len().eq(0) {
-            mut eval_all_type_only := true
-            for eval_arg: Declaration in eval_func_def.sig.args {
-                if not(eval_arg.name.eq("")) {
-                    eval_all_type_only = false
-                }
-            }
-            if eval_all_type_only {
-                mut eval_is_func_or_proc := false
-                switch eval_func_def.sig.function_type {
-                case FunctionType.FTFunc:
-                    eval_is_func_or_proc = true
-                case FunctionType.FTProc:
-                    eval_is_func_or_proc = true
-                case:
-                }
-                if eval_is_func_or_proc {
-                    value_type = ValueType.TType(TTypeDef.TFuncSig)
-                }
-            }
+        if is_function_signature(eval_func_def) {
+            value_type = ValueType.TType(TTypeDef.TFuncSig)
         }
     case:
     }

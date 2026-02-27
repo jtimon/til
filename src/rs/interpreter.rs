@@ -8,6 +8,7 @@ use crate::rs::parser::{
     value_type_to_str, get_combined_name, parse_tokens,
 };
 use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, type_check, check_body_returns_throws, typer_import_declarations, ThrownType};
+use crate::rs::utils::is_function_signature;
 use crate::rs::lexer::lexer_from_source;
 use crate::rs::mode::{can_be_imported, parse_mode, DEFAULT_MODE};
 use crate::rs::preinit::preinit_expr;
@@ -1066,8 +1067,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
     };
     // Issue #91: Detect function signature definitions
     if let NodeType::FuncDef(func_def) = &inner_e.node_type {
-        if func_def.body.is_empty() && func_def.sig.args.iter().all(|a| a.name.is_empty())
-            && matches!(func_def.sig.function_type, FunctionType::FTFunc | FunctionType::FTProc) {
+        if is_function_signature(func_def) {
             value_type = ValueType::TType(TTypeDef::TFuncSig);
         }
     }

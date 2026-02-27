@@ -1,0 +1,22 @@
+mode liba
+
+/// Issue #91: Detect function signature definitions.
+/// A FuncDef with empty body and type-only args (no names) is a function signature type.
+is_function_signature := func(func_def: FuncDef) returns Bool {
+    if not(func_def.body.len().eq(0)) {
+        return false
+    }
+    for arg: Declaration in func_def.sig.args {
+        if not(arg.name.eq("")) {
+            return false
+        }
+    }
+    switch func_def.sig.function_type {
+    case FunctionType.FTFunc:
+        return true
+    case FunctionType.FTProc:
+        return true
+    case:
+        return false
+    }
+}

@@ -23,6 +23,7 @@ mod rs {
     pub mod ccodegen;
     pub mod builder;
     pub mod ordered_map;
+    pub mod utils;
 }
 use rs::interpreter::interpret_file;
 use rs::builder;

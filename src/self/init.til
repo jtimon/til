@@ -4,6 +4,7 @@ import("core.array")
 import("core.ptr")
 import("self.parser")
 import("self.preinit")
+import("self.utils")
 import("core.set")
 import("std.io")            // readfile
 import("std.meta")          // enum_to_str
@@ -1990,26 +1991,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
         // Issue #91: Detect function signature definitions
         switch inner_e.node_type {
         case NodeType.FuncDef(init_func_def):
-            if init_func_def.body.len().eq(0) {
-                mut init_all_type_only := true
-                for init_arg: Declaration in init_func_def.sig.args {
-                    if not(init_arg.name.eq("")) {
-                        init_all_type_only = false
-                    }
-                }
-                if init_all_type_only {
-                    mut init_is_func_or_proc := false
-                    switch init_func_def.sig.function_type {
-                    case FunctionType.FTFunc:
-                        init_is_func_or_proc = true
-                    case FunctionType.FTProc:
-                        init_is_func_or_proc = true
-                    case:
-                    }
-                    if init_is_func_or_proc {
-                        value_type = ValueType.TType(TTypeDef.TFuncSig)
-                    }
-                }
+            if is_function_signature(init_func_def) {
+                value_type = ValueType.TType(TTypeDef.TFuncSig)
             }
         case:
         }
