@@ -1,8 +1,8 @@
 #+TITLE: Open Bugs and Issues Summary
 #+AUTHOR: TIL Development
-#+DATE: 2026-02-23
+#+DATE: 2026-02-27
 
-* bugs.org (6 bugs/issues)
+* bugs.org (6 bugs)
 
 | #    | Issue                                                       | Status           |
 |------+-------------------------------------------------------------+------------------|
@@ -13,25 +13,34 @@
 | #99  | Eliminate all C compiler warnings and enable -Werror        | Open             |
 | #94  | gcc warnings cause bug47.til compilation failure            | Blocked by #99   |
 
-* features.org (10 issues)
+* features.org (15 issues)
 
-| #    | Issue                                            | Status      |
-|------+--------------------------------------------------+-------------|
-| #182 | Closures -- explicit capture lists               | Open        |
-| #181 | First-class bodies -- store, pass, return blocks | Open        |
-| #180 | Bang operator ! for panic-on-throw (unwrap)      | In progress |
-| #153 | Enable field/method access on Dynamic parameters | Open        |
-| #151 | Explicit pointer/reference syntax                | Open        |
-| #111 | Support returns Dynamic                          | Open        |
-|  #91 | First-Class Functions                            | In progress |
-|  #88 | Macro Support (Compile-Time Evaluation)          | Partial     |
-|  #83 | No spread/splat operator for variadic forwarding | Open        |
-|  #64 | Custom main args in mode cli don't work          | Deferred    |
+| #    | Issue                                                    | Status      |
+|------+----------------------------------------------------------+-------------|
+| #200 | File I/O -- open, read, write, seek, binary/text modes  | Open        |
+| #199 | Codebase cleanup -- use ! where ? + catch is unnecessary | Open        |
+| #198 | Usize -- pointer-sized unsigned type                     | Open        |
+| #197 | Internal pointer representation should be unsigned       | Open        |
+| #196 | U64 native unsigned 64-bit integer type                  | Open        |
+| #195 | U32 native unsigned 32-bit integer type                  | Open        |
+| #182 | Closures -- explicit capture lists                       | Open        |
+| #181 | First-class bodies -- store, pass, return blocks         | Open        |
+| #153 | Enable field/method access on Dynamic parameters         | Open        |
+| #151 | Explicit pointer/reference syntax                        | Open        |
+| #111 | Support returns Dynamic                                  | Open        |
+|  #91 | First-Class Functions                                    | In progress |
+|  #88 | Macro Support (Compile-Time Evaluation)                  | Partial     |
+|  #83 | No spread/splat operator for variadic forwarding         | Open        |
+|  #64 | Custom main args in mode cli don't work                  | Deferred    |
 
-* future.org (8 issues)
+* future.org (12 issues)
 
 | #    | Issue                                                | Status  |
 |------+------------------------------------------------------+---------|
+| #201 | Bang operator catch deduplication optimization       | Open    |
+| #194 | make.til flag forwarding to tests                    | Open    |
+| #190 | Replace Declaration NodeType with ext_func call      | Open    |
+| #189 | Replace Assignment NodeType with ext_func call       | Open    |
 | #186 | Symbol tracking perf -- is_consumed, is_used         | Open    |
 | #178 | Eliminate TTypeDef, unify type representation        | Open    |
 | #169 | Get rid of memcmp                                    | Partial |
@@ -48,22 +57,21 @@
 | #167 | Benchmark HashMap vs Map/OrderedMap | Open    |
 | #112 | HashMap type slower than Map in TIL | Blocked |
 
-* pre.org (16 issues)
+* pre.org (15 issues)
 
 | #    | Issue                                                    | Status          |
 |------+----------------------------------------------------------+-----------------|
 | #187 | Integrated profiling for self-hosted compiler            | Open            |
-| #161 | Namespace constants, static mutables, immutables         | Open            |
-| #185 | Require own at call sites, better consumed errors        | Fixed           |
 | #184 | Integer-based enum comparison                            | Open            |
 | #183 | Manual delete calls as temporary memory management       | In progress     |
 | #179 | Typer should reject cast() in non-declaration pos        | Phase 1 done    |
 | #175 | Unify C calling convention -- all return via _ret        | Open            |
 | #170 | Scope-exit deletion for local variables                  | Blocked by #159 |
 | #168 | ccodegen returns create copies interpreter doesn't       | Partial         |
+| #161 | Namespace constants, static mutables, immutables         | Partial         |
 | #159 | Shallow copy semantics not fully eliminated              | Open            |
 | #135 | True cross-compilation via precompiled ext.o             | Open            |
-| #117 | ASAP Destruction (auto-delete on last use)               | In progress     |
+| #117 | ASAP Destruction (auto-delete on last use)               | Paused          |
 | #115 | Owned struct fields and auto-generated methods           | Open            |
 | #100 | Get rid of rstil                                         | Blocked         |
 |  #82 | make.til - Replace Makefile with TIL                     | Partial         |
@@ -73,7 +81,7 @@
 
 | #    | Issue                                             | Status  |
 |------+---------------------------------------------------+---------|
-| #156 | Implement match keyword (expression-based switch) | Partial |
+| #156 | Implement match keyword (expression-based switch) | Open    |
 | #155 | Add Unicode support to TIL                        | Open    |
 | #154 | Template vs Dynamic compilation mode              | Open    |
 | #122 | Add regex support to standard library             | Open    |
@@ -81,4 +89,4 @@
 | #109 | Proper Imports                                    | Open    |
 | #104 | TempleOS Support                                  | Open    |
 | #103 | Mode GUI                                          | Open    |
-|  #90 | Parser: remove {} requirement for ext_func/proc   | Open    |
+|  #90 | Parser: remove {} requirement for ext_func/proc   | Partial |
