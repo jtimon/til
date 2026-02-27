@@ -1992,6 +1992,36 @@ Move all OS-specific code into ~ext.c~ and precompile it for each target:
 - Size impact of shipping multiple .o files?
 - Alternative: use ~zig cc~ which bundles everything (simpler but adds dependency)
 
+*** Rejected Approach: branch ~claude/fix-issue-135-SMlEh~
+
+Attempted separate ext.o compilation with hardcoded extern declarations:
+
+1. Removed ~static inline~ from all ext.c functions, added standalone type
+   definitions (til_Str, til_Ptr, til_Array, etc.) so ext.c compiles as its
+   own translation unit.
+
+2. Changed ~til_size_of~ from ~static inline~ to ~extern~ (generated per-program,
+   resolved at link time from the generated C).
+
+3. Replaced ~#include <ext.c>~ in ccodegen with 50+ hardcoded ~extern~
+   declarations for every ext.c function.
+
+4. Wrapped all stdlib calls in generated C: ~strlen~ -> ~til_raw_strlen~,
+   ~strcmp~ -> ~til_raw_strcmp~, ~fprintf(stderr,...)+exit~ ->
+   ~til_size_of_error~/~til_introspect_error~/~til_introspect_index_error~.
+
+5. Moved ~#define true/false~ from ext.c into generated C (macros can't cross
+   translation units).
+
+6. Updated builder.rs/til to compile ext.c to ext.o separately, check for
+   precompiled ~lib/ext-{target}.o~, then link with generated C.
+
+*Why rejected:* 50+ manually-synced extern declarations in both ccodegen.rs
+AND ccodegen.til is extremely brittle -- adding any function to ext.c
+requires updating two codegen files. ext.c also duplicates type definitions
+that must stay perfectly in sync with what ccodegen generates. The branch
+also mixed in unrelated GNU time detection changes (~g_has_gnu_time~).
+
 ** Bug #170: Scope-exit deletion for local variables
 :PROPERTIES:
 :DISCOVERED: 2026-02-11
