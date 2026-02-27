@@ -17,6 +17,24 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 
 * Open Issues
 
+** Issue #196: U64 native unsigned 64-bit integer type
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Language feature -- unsigned 64-bit integer type
+:STATUS: Open
+:RELATED: U8, U32, I64
+:END:
+
+*** Description
+
+Add U64 as a native unsigned 64-bit integer type, following the same pattern
+as U8 and I64. U64 gets its own ~u64.til~ file, just like ~u8.til~ and
+~i64.til~. Same size as I64, but unsigned.
+
+*** Range
+
+0 to 18,446,744,073,709,551,615 (2^64 - 1)
+
 ** Issue #195: U32 native unsigned 32-bit integer type
 :PROPERTIES:
 :DISCOVERED: 2026-02-27
