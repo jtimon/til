@@ -14,6 +14,43 @@ see features.org. For bugs, see bugs.org.
 
 * Open Issues
 
+** Issue #202: Polymorphism -- Vec/Array deep clone and deep delete through Dynamic
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Correctness -- enables proper memory management for collections
+:STATUS: Open
+:RELATED: Bug #159 (shallow copies), Issue #117 (auto-deletion)
+:END:
+
+*** Description
+
+Vec and Array store elements as ~Dynamic~ (type-erased void pointers). Clone
+and delete operations on collections currently do shallow memcpy / free of
+the raw bytes, which aliases or leaks heap pointers inside the elements.
+
+For correct deep clone: ~Vec.clone()~ must call ~Element.clone()~ for each
+element. For correct deep delete: ~Vec.delete()~ must call ~Element.delete()~
+for each element. Both require knowing the concrete element type at runtime
+and dispatching to the right clone/delete function.
+
+*** Approaches
+
+1. **Function pointer table per collection**: Store clone/delete function
+   pointers alongside the element type name. Vec already stores
+   ~elem_type_name~; add ~elem_clone_fn~ and ~elem_delete_fn~.
+
+2. **Runtime dispatch via type name**: Use the existing ~elem_type_name~ to
+   look up clone/delete at call time (generated switch or function table).
+
+3. **Monomorphization**: Generate type-specific Vec variants at compile time
+   (~Vec_Str~, ~Vec_Expr~, etc.) that call the concrete clone/delete.
+
+*** Blocked by
+
+Nothing -- can be implemented independently of #159 and #117. But #117
+(auto-deletion) and #159 (shallow copy elimination) both benefit from this
+being solved.
+
 ** Issue #201: Bang operator catch deduplication -- one catch per function, not per call
 :PROPERTIES:
 :DISCOVERED: 2026-02-27
