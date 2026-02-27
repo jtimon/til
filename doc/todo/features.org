@@ -17,6 +17,24 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 
 * Open Issues
 
+** Issue #195: U32 native unsigned 32-bit integer type
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Language feature -- unsigned 32-bit integer type
+:STATUS: Open
+:RELATED: U8, I64
+:END:
+
+*** Description
+
+Add U32 as a native unsigned 32-bit integer type, following the same pattern
+as U8 and I64. U32 gets its own ~u32.til~ file, just like ~u8.til~ and
+~i64.til~. Half the size of I64, four times the size of U8, unsigned.
+
+*** Range
+
+0 to 4,294,967,295 (2^32 - 1)
+
 ** Issue #153: Enable field and method access on Dynamic parameters
 :PROPERTIES:
 :DISCOVERED: 2025-11-12
