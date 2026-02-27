@@ -17,6 +17,34 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 
 * Open Issues
 
+** Issue #198: Usize -- pointer-sized unsigned type for pointers and indexes
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Language feature -- unified type for pointer widths and collection indexing
+:STATUS: Open
+:RELATED: Issue #195 (U32), Issue #196 (U64), Issue #197 (unsigned pointers)
+:END:
+
+*** Description
+
+Most languages have a pointer-sized unsigned integer type that serves for
+both pointer representation and collection indexing: Rust has ~usize~, C has
+~size_t~, Go has ~uint~, Zig has ~usize~.
+
+TIL should have ~Usize~ -- an unsigned integer whose width matches the
+target pointer size (64-bit on 64-bit machines, 32-bit on 32-bit machines).
+
+This solves the naming problem from Issue #197: the internal pointer type
+doesn't need an ad-hoc name like ~RawPtr~ or ~AddrSize~ -- it's just ~Usize~,
+which is the standard name for this concept. It also naturally serves as the
+index type for Vec, Array, and other collections.
+
+*** Relationship to U32/U64
+
+Usize is not a replacement for U32 or U64 -- those are fixed-width types
+with specific semantics. Usize is target-dependent: it equals U64 on 64-bit
+targets and U32 on 32-bit targets.
+
 ** Issue #197: Internal pointer representation should be unsigned, not I64
 :PROPERTIES:
 :DISCOVERED: 2026-02-27
