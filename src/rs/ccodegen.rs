@@ -4876,15 +4876,20 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                             // Add empty statement after label - C11 requires statement after label, not declaration
                             output.push_str(":;\n");
 
-                            // Bind error variable
+                            // Bug #159: Save ref_params BEFORE inserting catch binding pointer,
+                            // so the binding gets removed on restore after the catch body.
+                            let saved_ref_params = ctx.current_ref_params.clone();
+
+                            // Bug #159: Bind error variable as pointer to _thrown_ (no copy)
                             if let NodeType::Identifier(err_var_name) = &stmt.params.get(0).unwrap().node_type {
                                 let inner_indent = "    ".repeat(indent + 1);
                                 output.push_str(&inner_indent);
                                 output.push_str(&til_name(err_type_name));
-                                output.push_str(" ");
+                                output.push_str("* ");
                                 // Bug #97: Use type-mangled name for catch variable
-                                output.push_str(&til_var_name(err_var_name, err_type_name));
-                                output.push_str(" = ");
+                                let catch_c_var = til_var_name(err_var_name, err_type_name);
+                                output.push_str(&catch_c_var);
+                                output.push_str(" = &");
                                 output.push_str(&temp_var);
                                 output.push_str(";\n");
 
@@ -4894,11 +4899,15 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                                     SymbolInfo {
                                         value_type: crate::rs::parser::ValueType::TCustom(err_type_name.clone()),
                                         is_mut: false,
-                                        
                                         is_own: false,
                                         is_comptime_const: false,
                                     }
                                 );
+
+                                // current_ref_params handles all downstream usage:
+                                // &var -> var, var.field -> var->field, var -> (*var)
+                                ctx.current_ref_params.insert(err_var_name.clone());
+                                ctx.declared_vars.insert(catch_c_var);
                             }
 
                             // Emit catch body
@@ -4906,7 +4915,6 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                             // the catch body don't try to jump to catches - catches shouldn't catch
                             // errors from their own body, only from code before them
                             let saved_catch_labels = std::mem::take(&mut ctx.local_catch_labels);
-                            let saved_ref_params = ctx.current_ref_params.clone();
                             emit_expr(stmt.params.get(2).unwrap(), output, indent + 1, ctx, context)?;
                             ctx.current_ref_params = saved_ref_params;
                             ctx.local_catch_labels = saved_catch_labels;
@@ -5727,23 +5735,32 @@ fn emit_throwing_call(
                     output.push_str(&(idx + 1).to_string());
                     output.push_str(") {\n");
 
-                    // Bind error variable and add to scope for type resolution
+                    // Bug #159: Save ref_params BEFORE inserting catch binding pointer,
+                    // so the binding gets removed on restore after the catch body.
+                    let saved_ref_params = ctx.current_ref_params.clone();
+
+                    // Bug #159: Bind error variable as pointer to _err (no copy)
                     if let NodeType::Identifier(err_var_name) = &catch_block.params.get(0).unwrap().node_type {
                         let inner_indent = "    ".repeat(indent + 1);
                         output.push_str(&inner_indent);
                         output.push_str(&til_name(err_type_name));
-                        output.push_str(" ");
-                        output.push_str(&til_name(err_var_name));
                         // Issue #119: For empty struct errors, use empty initializer since _err var doesn't exist
                         let throw_type = &throw_types[idx];
                         if is_empty_error_struct(context, throw_type) {
+                            output.push_str(" ");
+                            output.push_str(&til_name(err_var_name));
                             output.push_str(" = {};\n");
                         } else {
-                            output.push_str(" = _err");
+                            output.push_str("* ");
+                            let inline_catch_c_var = til_name(err_var_name);
+                            output.push_str(&inline_catch_c_var);
+                            output.push_str(" = &_err");
                             output.push_str(&idx.to_string());
                             output.push_str("_");
                             output.push_str(&temp_suffix.to_string());
                             output.push_str(";\n");
+                            ctx.current_ref_params.insert(err_var_name.clone());
+                            ctx.declared_vars.insert(inline_catch_c_var);
                         }
 
                         // Add error variable to scope for type resolution in catch body
@@ -5752,7 +5769,7 @@ fn emit_throwing_call(
                             SymbolInfo {
                                 value_type: crate::rs::parser::ValueType::TCustom(err_type_name.clone()),
                                 is_mut: false,
-                                
+
                                 is_own: false,
                                 is_comptime_const: false,
                             }
@@ -5761,6 +5778,7 @@ fn emit_throwing_call(
 
                     // Emit catch body
                     emit_expr(catch_block.params.get(2).unwrap(), output, indent + 1, ctx, context)?;
+                    ctx.current_ref_params = saved_ref_params;
 
                     output.push_str(&indent_str);
                     output.push_str("}");

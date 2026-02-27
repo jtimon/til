@@ -5925,7 +5925,11 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                             // Add empty statement after label - C11 requires statement after label, not declaration
                             output.push_str(":;\n")
 
-                            // Bind error variable
+                            // Bug #159: Save ref_params BEFORE inserting catch binding pointer,
+                            // so the binding gets removed on restore after the catch body.
+                            saved_ref_params := ctx.current_ref_params.clone()
+
+                            // Bug #159: Bind error variable as pointer to _thrown_ (no copy)
                             emit_err_var_param := cast(Expr, stmt.params.get(0)?)
                             dont_delete(emit_err_var_param)
                             switch emit_err_var_param.node_type {
@@ -5933,10 +5937,11 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                                 emit_inner_indent := repeat("    ", indent.add(1))
                                 output.push_str(emit_inner_indent)
                                 output.push_str(til_name(stmt_err_type_name))
-                                output.push_str(" ")
+                                output.push_str("* ")
                                 // Bug #97: Use type-mangled name for catch error variable
-                                output.push_str(til_var_name(emit_err_var_name, stmt_err_type_name))
-                                output.push_str(" = ")
+                                catch_c_var := til_var_name(emit_err_var_name, stmt_err_type_name)
+                                output.push_str(catch_c_var)
+                                output.push_str(" = &")
                                 output.push_str(catch_entry_temp_var)
                                 output.push_str(";\n")
 
@@ -5947,6 +5952,10 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                                 emit_sym_info.is_own = false
                                 emit_sym_info.is_comptime_const = false
                                 context.scope_stack.declare_symbol(own emit_err_var_name.clone(), own emit_sym_info)?
+
+                                // current_ref_params handles all downstream usage
+                                _ := ctx.current_ref_params.insert(own emit_err_var_name.clone())
+                                _ := ctx.declared_vars.insert(own catch_c_var.clone())
                             case:
                             }
 
@@ -5955,7 +5964,6 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                             // the catch body don't try to jump to catches - catches shouldn't catch
                             // errors from their own body, only from code before them
                             saved_catch_labels := ctx.local_catch_labels.clone()
-                            saved_ref_params := ctx.current_ref_params.clone()
                             ctx.local_catch_labels.clear()
                             catch_body_expr := cast(Expr, stmt.params.get(2)?)
                             dont_delete(catch_body_expr)
@@ -6955,7 +6963,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     output.push_str(I64.to_str(found_idx.add(1)))
                     output.push_str(") {\n")
 
-                    // Bind error variable and add to scope for type resolution
+                    // Bug #159: Save ref_params BEFORE inserting catch binding pointer,
+                    // so the binding gets removed on restore after the catch body.
+                    saved_ref_params := ctx.current_ref_params.clone()
+
+                    // Bug #159: Bind error variable as pointer to _err (no copy)
                     err_var_param := cast(Expr, catch_block.params.get(0)?)
                     dont_delete(err_var_param)
                     switch err_var_param.node_type {
@@ -6963,19 +6975,23 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                         inner_indent := repeat("    ", indent.add(1))
                         output.push_str(inner_indent)
                         output.push_str(til_name(err_type_name))
-                        output.push_str(" ")
-                        // Bug #97: Use type-mangled name for catch error variable
-                        output.push_str(til_var_name(err_var_name, err_type_name))
                         // Issue #119: For empty struct errors, use empty initializer since _err var doesn't exist
                         catch_throw_type := ValueType.TCustom(err_type_name.clone())
                         if is_empty_error_struct(context, catch_throw_type) {
+                            output.push_str(" ")
+                            output.push_str(til_name(err_var_name))
                             output.push_str(" = {};\n")
                         } else {
-                            output.push_str(" = _err")
+                            output.push_str("* ")
+                            inline_catch_c_var := til_name(err_var_name)
+                            output.push_str(inline_catch_c_var)
+                            output.push_str(" = &_err")
                             output.push_str(I64.to_str(found_idx))
                             output.push_str("_")
                             output.push_str(temp_suffix)
                             output.push_str(";\n")
+                            _ := ctx.current_ref_params.insert(own err_var_name.clone())
+                            _ := ctx.declared_vars.insert(own inline_catch_c_var.clone())
                         }
 
                         // Add error variable to scope for type resolution in catch body
@@ -6992,6 +7008,10 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     catch_body := cast(Expr, catch_block.params.get(2)?)
                     dont_delete(catch_body)
                     emit_expr(catch_body, output, indent.add(1), ctx, context)?
+                    // #183: Delete modified values before restoring saved
+                    ctx.current_ref_params.delete()
+                    ctx.current_ref_params = saved_ref_params
+                    dont_delete(saved_ref_params)
 
                     output.push_str(indent_str)
                     output.push_str("}")
