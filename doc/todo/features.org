@@ -17,6 +17,63 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 
 * Open Issues
 
+** Issue #203: Borrowed returns -- optional keyword to mark borrowed return values
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Garbager correctness -- know which returns are borrowed vs owned
+:STATUS: Open
+:RELATED: Issue #111 (returns Dynamic), Bug #159 (shallow copies), Bug #165 (memory leaks)
+:END:
+
+*** Description
+Add an optional keyword before ~returns~ to indicate that a function returns
+borrowed data rather than owned data. In TIL, all values are passed by
+reference (offset binding), but the distinction between borrowed and owned
+matters for the garbager: owned return values can be deleted by the caller,
+borrowed return values must NOT be deleted.
+
+*** Problem
+Currently there is no way for the garbager to know whether a function's
+return value is borrowed or owned. This matters for Bug #159 (shallow copies)
+and Bug #165 (memory leaks). Consider:
+
+#+BEGIN_SRC til
+// Returns owned -- caller is responsible for deletion
+clone := func(self: Vec) returns Vec { ... }
+
+// Returns borrowed -- caller must NOT delete
+get := func(self: Vec, i: I64) returns Ptr { ... }
+#+END_SRC
+
+Without this annotation, the garbager must guess (whitelist/blacklist) which
+functions return owned vs borrowed data. This is fragile and error-prone.
+
+*** Proposed syntax
+#+BEGIN_SRC til
+// Borrowed return (pointer into existing data, must not be freed by caller):
+get := func(self: Vec, i: I64) returns borrowed Ptr { ... }
+
+// Owned return (freshly allocated, caller must eventually free):
+clone := func(self: Vec) returns Vec { ... }   // owned is the default
+#+END_SRC
+
+The ~borrowed~ keyword tells the garbager: the return value points into data
+owned by one of the arguments (typically ~self~). The caller gets a reference
+that is only valid while the source lives. No deletion should be generated.
+
+*** Analogy to Rust
+In Rust, this is the difference between returning ~&T~ (borrowed reference)
+and ~T~ (owned value). In TIL everything is a reference, so instead of
+different pointer types, we annotate the return with ~borrowed~ to convey
+the same information.
+
+*** Scope
+- Parser: recognize ~borrowed~ keyword before return type
+- Type checker: track borrowed vs owned on function signatures
+- Garbager: skip deletion of borrowed return values
+- Interpreter: no change (offset binding, no ownership tracking)
+- CCodegen: generate pointer returns for borrowed, value returns for owned
+
 ** Issue #200: File I/O -- open, read, write, seek, binary and text modes
 :PROPERTIES:
 :DISCOVERED: 2026-02-27
@@ -703,45 +760,43 @@ Allows ~MyFunc : FuncDef = func(...) returns ... = { ... }~ explicit metatype an
 :DISCOVERED: 2026-01-13
 :IMPACT: Cleaner API for Vec.get, enum_payload, etc.
 :STATUS: Open
-:RELATED: Issue #110 (enum_payload needs this)
+:RELATED: Issue #110 (enum_payload needs this), Issue #202 (polymorphism)
 :END:
 
 *** Description
-Allow functions to return Dynamic type. Currently Vec.get uses inout parameter
-as workaround. With ~returns Dynamic~, APIs become cleaner and closer to Rust/templates.
+Allow ~func(a: Dynamic) returns Dynamic~ -- functions that accept and return
+type-erased values. This enables generic-style APIs without templates.
 
-*** Key Constraint
-Disallow type inference for Dynamic returns - caller must annotate the type:
+*** Current state (2026-02-27)
+~Vec.get~ currently returns a borrowed ~Ptr~, which callers turn into an
+alias via ~cast~:
 #+BEGIN_SRC til
-val: I64 = vec.get(0)      // OK - type annotated
-val := vec.get(0)          // ERROR - can't infer Dynamic return
+elem := cast(Expr, vec.get(i)?)
+dont_delete(elem)
 #+END_SRC
 
-This sidesteps inference complexity while enabling the feature.
+This works but is verbose and requires manual borrow management.
 
-*** Benefits
-- Vec.get returns value directly instead of inout param
-- enum_payload (Issue #110) can work cleanly
-- Closer to Rust and future templates
-- More idiomatic TIL
+*** Wanted syntax
+#+BEGIN_SRC til
+// Function signature:
+get := func(self: Vec, index: I64) returns Dynamic throws IndexOutOfBoundsError { ... }
+
+// Caller must annotate type explicitly (no inference for Dynamic):
+val: I64 = vec.get(0)      // OK - type annotated
+val := vec.get(0)          // ERROR - can't infer from Dynamic return
+#+END_SRC
+
+*** Key constraint
+When ~returns Dynamic~ appears in a Declaration, type inference is not
+possible. The caller MUST provide an explicit type annotation. This
+sidesteps inference complexity while enabling the feature.
 
 *** Refactor Opportunity
 Once implemented, refactor collection APIs in src/core and src/self:
-- Array/Vec: get, pop, etc. return value instead of inout
-- Set/Map: get, contains, etc. return value instead of inout
-Big cleanup of self-hosted code.
-
-*** Example
-Current (workaround):
-#+BEGIN_SRC til
-mut val: I64 = 0
-vec.get(0, mut val)  // inout parameter
-#+END_SRC
-
-With returns Dynamic:
-#+BEGIN_SRC til
-val: I64 = vec.get(0)  // direct return
-#+END_SRC
+- Array/Vec: get, pop, etc. return value instead of inout/Ptr
+- Set/Map: get, contains, etc. return value instead of inout/Ptr
+Big cleanup of self-hosted code (~cast~ + ~dont_delete~ boilerplate removed).
 
 ** Issue #88: Macro Support (Compile-Time Evaluation)
 :PROPERTIES:
