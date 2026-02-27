@@ -600,7 +600,11 @@ func_enum_to_str := proc(mut context: Context, e: Expr) returns EvalResult throw
 }
 
 func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "enum_get_payload", 3, false)?
+    // Accept 3 or 4 args (4th arg is variant_name, used only by ccodegen)
+    egp_arg_count := e.params.len().sub(1)
+    if egp_arg_count.lt(3).or(egp_arg_count.gt(4)) {
+        throw e.lang_error(context.path, "eval", "enum_get_payload requires 3 or 4 arguments")
+    }
     e1 := cast(Expr, e.params.get(1)?)
     result := eval_expr(context, e1)?
     if result.is_throw { return result }

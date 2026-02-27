@@ -847,6 +847,7 @@ fn build_case_condition(
                     switch_expr_ref.clone(),
                     make_id(&payload_type_name, line, col),
                     make_id(&unique_name, line, col),
+                    make_id(&info.variant_name, line, col),
                 ], line, col));
 
                 rename_pair = Some((original_name, unique_name));

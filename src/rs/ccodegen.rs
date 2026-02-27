@@ -247,6 +247,12 @@ fn find_ret_var_for_placement(func_def: &FuncDef) -> Result<String, String> {
         return Ok(String::new());
     }
 
+    // Bug #159: Must not be a _payload_ variable - these are emitted as pointers
+    // by the enum_get_payload handler, not value types
+    if var_name.starts_with("_payload_") || var_name.starts_with("_inner_payload_") {
+        return Ok(String::new());
+    }
+
     // Must not have any parameter with the same type as the return type.
     // Callers can pass the same variable as both _ret and an input param
     // (e.g. new_body = f(new_body, ...)). The optimization writes to *_ret
@@ -323,7 +329,9 @@ fn collect_struct_locals_inner(stmts: &[Expr], locals: &mut Vec<(String, String)
                         } else { None })
                         .map(|name| name == "cast")
                         .unwrap_or(false);
-                    if !is_cast && seen.insert(decl.name.clone()) {
+                    // Bug #159: Skip _payload_ declarations — they emit as pointer types
+                    let is_payload = decl.name.starts_with("_payload_") || decl.name.starts_with("_inner_payload_");
+                    if !is_cast && !is_payload && seen.insert(decl.name.clone()) {
                         locals.push((decl.name.clone(), type_name.clone()));
                     }
                 }
@@ -6724,6 +6732,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         SymbolInfo { value_type: var_type.clone(), is_mut: decl.is_mut, is_own: false, is_comptime_const: false }
     );
 
+    // Bug #159: Skip C emission for _payload_ declarations.
+    // The enum_get_payload FCall handler emits the pointer declaration instead.
+    if name.starts_with("_payload_") || name.starts_with("_inner_payload_") {
+        return Ok(());
+    }
+
     // Bug #97: Compute type-mangled C variable name
     let type_prefix = value_type_to_c_prefix(&var_type);
     let c_var_name = til_var_name(name, &type_prefix);
@@ -8111,49 +8125,83 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 Err(format!("ccodegen: enum_to_str argument has non-custom type: {:?}", value_type))
             }
         },
-        // enum_get_payload(e, payload_type, out) - extract enum payload into out parameter
-        // Emits call to til_enum_get_payload runtime function
-        "enum_get_payload" => {
+        // enum_get_payload: 3-arg form (user code in tests) - emit runtime call
+        "enum_get_payload" if expr.params.len() < 5 => {
             if expr.params.len() < 4 {
-                return Err("ccodegen: enum_get_payload requires 3 arguments".to_string());
+                return Err("ccodegen: enum_get_payload requires at least 3 arguments".to_string());
             }
-            let payload_enum_arg = expr.params.get(1).unwrap();
-            let payload_type_arg = expr.params.get(2).unwrap();
-            let payload_out_arg = expr.params.get(3).unwrap();
-
+            // Emit: til_enum_get_payload((Dynamic*)&enum_expr, &"Type", (Dynamic*)&out_var);
+            let indent_str = "    ".repeat(indent);
+            output.push_str(&indent_str);
             output.push_str(TIL_PREFIX);
             output.push_str("enum_get_payload((");
             output.push_str(TIL_PREFIX);
             output.push_str("Dynamic*)&");
-            emit_expr(payload_enum_arg, output, 0, ctx, context)?;
+            emit_expr(expr.params.get(1).unwrap(), output, 0, ctx, context)?;
             output.push_str(", &");
-            // Emit type argument as Str (similar to size_of handling)
-            if let NodeType::Identifier(payload_type_name) = &payload_type_arg.node_type {
-                // Check if this is a Type variable or a literal type name
-                let payload_is_type_var = if let Some(payload_sym) = context.scope_stack.lookup_symbol(payload_type_name) {
-                    matches!(&payload_sym.value_type, ValueType::TCustom(t) if t == "Type")
-                } else {
-                    false
-                };
-                if payload_is_type_var {
-                    // Type variable - wrap in Str struct literal
-                    // Bug #97: Use type-mangled name for Type variable reference
-                    // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
-                    let c_var_name = til_var_name_from_context(payload_type_name, context);
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
-                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
-                } else {
-                    // Literal type name - create Str compound literal
-                    emit_str_literal(payload_type_name, output);
-                }
+            // Type arg: emit as Str compound literal
+            let type_name = get_type_arg_name(expr.params.get(2).unwrap(), context)
+                .unwrap_or_else(|| {
+                    // Not a type - will be a variable, emit normally
+                    String::new()
+                });
+            if !type_name.is_empty() {
+                emit_str_literal(&type_name, output);
             } else {
-                return Err("ccodegen: enum_get_payload type argument must be a type name".to_string());
+                emit_expr(expr.params.get(2).unwrap(), output, 0, ctx, context)?;
             }
             output.push_str(", (");
             output.push_str(TIL_PREFIX);
             output.push_str("Dynamic*)&");
-            emit_expr(payload_out_arg, output, 0, ctx, context)?;
-            output.push_str(");");
+            emit_expr(expr.params.get(3).unwrap(), output, 0, ctx, context)?;
+            output.push_str(");\n");
+            Ok(())
+        },
+        // Bug #159: enum_get_payload - 4-arg form (desugarer-generated):
+        // emit direct pointer into enum's payload union
+        "enum_get_payload" => {
+            let payload_enum_arg = expr.params.get(1).unwrap();
+            let payload_type_arg = expr.params.get(2).unwrap();
+            let payload_out_arg = expr.params.get(3).unwrap();
+            let payload_variant_arg = expr.params.get(4).unwrap();
+
+            let payload_variant_name = if let NodeType::Identifier(name) = &payload_variant_arg.node_type {
+                name.clone()
+            } else {
+                return Err("ccodegen: enum_get_payload: variant_name must be identifier".to_string());
+            };
+            let payload_c_type_name = if let NodeType::Identifier(name) = &payload_type_arg.node_type {
+                name.clone()
+            } else {
+                return Err("ccodegen: enum_get_payload: payload type must be identifier".to_string());
+            };
+            let payload_out_name = if let NodeType::Identifier(name) = &payload_out_arg.node_type {
+                name.clone()
+            } else {
+                return Err("ccodegen: enum_get_payload: out must be identifier".to_string());
+            };
+
+            let payload_c_type = til_type_to_c(&ValueType::TCustom(payload_c_type_name))?;
+            let payload_c_var = til_var_name_from_context(&payload_out_name, context);
+
+            // Emit: Type* _payload_x = (Type*)&enum_expr.payload.VariantName;
+            // Cast strips const from non-mut enum parameters.
+            let payload_indent_str = "    ".repeat(indent);
+            output.push_str(&payload_indent_str);
+            output.push_str(&payload_c_type);
+            output.push_str("* ");
+            output.push_str(&payload_c_var);
+            output.push_str(" = (");
+            output.push_str(&payload_c_type);
+            output.push_str("*)&");
+            emit_expr(payload_enum_arg, output, 0, ctx, context)?;
+            output.push_str(".payload.");
+            output.push_str(&payload_variant_name);
+            output.push_str(";\n");
+
+            // current_ref_params handles all downstream usage automatically
+            ctx.current_ref_params.insert(payload_out_name);
+            ctx.declared_vars.insert(payload_c_var);
             Ok(())
         },
         // size_of(T) - runtime type size lookup via til_size_of function

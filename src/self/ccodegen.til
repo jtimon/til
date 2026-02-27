@@ -278,6 +278,12 @@ find_ret_var_for_placement := proc(func_def: FuncDef) returns Str {
         return ""
     }
 
+    // Bug #159: Must not be a _payload_ variable - these are emitted as pointers
+    // by the enum_get_payload handler, not value types
+    if ret_var_name.starts_with("_payload_").or(ret_var_name.starts_with("_inner_payload_")) {
+        return ""
+    }
+
     // Must not have any parameter with the same type as the return type.
     // Callers can pass the same variable as both _ret and an input param
     // (e.g. new_body = f(new_body, ...)). The optimization writes to *_ret
@@ -4964,7 +4970,9 @@ collect_struct_locals_inner := proc(stmts: Vec, mut local_vars: Vec, mut local_t
                         }
                         catch (err: IndexOutOfBoundsError) { }
                     }
-                    if not(is_cast).and(not(seen.contains(decl.name))) {
+                    // Bug #159: Skip _payload_ declarations -- they emit as pointer types
+                    is_payload := decl.name.starts_with("_payload_").or(decl.name.starts_with("_inner_payload_"))
+                    if not(is_cast).and(not(is_payload)).and(not(seen.contains(decl.name))) {
                         _ := seen.insert(own decl.name.clone())
                         local_vars.push(own decl.name.clone())
                         local_types.push(own type_name.clone())
@@ -8105,6 +8113,12 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
     decl_symbol_info.is_comptime_const = false
     context.scope_stack.declare_symbol(own name.clone(), own decl_symbol_info)?
 
+    // Bug #159: Skip C emission for _payload_ declarations.
+    // The enum_get_payload FCall handler emits the pointer declaration instead.
+    if name.starts_with("_payload_").or(name.starts_with("_inner_payload_")) {
+        return
+    }
+
     // Bug #97: Compute type-mangled C variable name
     type_prefix := value_type_to_c_prefix(var_type)
     orig_c_var_name := til_var_name(name, type_prefix)
@@ -9929,70 +9943,97 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         case:
             throw "ccodegen: enum_to_str argument has non-custom type"
         }
-    } else if orig_func_name.eq("enum_get_payload") {
-        // enum_get_payload(e, payload_type, out) - extract enum payload into out parameter
-        // Emits call to til_enum_get_payload runtime function
+    } else if orig_func_name.eq("enum_get_payload").and(expr.params.len().lt(5)) {
+        // enum_get_payload: 3-arg form (user code in tests) - emit runtime call
         if expr.params.len().lt(4) {
-            throw "ccodegen: enum_get_payload requires 3 arguments"
+            throw "ccodegen: enum_get_payload requires at least 3 arguments"
         }
+        egp3_indent_str := repeat("    ", indent)
+        output.push_str(egp3_indent_str)
+        output.push_str("til_enum_get_payload((til_Dynamic*)&")
+        egp3_enum_arg := cast(Expr, expr.params.get(1)!)
+        dont_delete(egp3_enum_arg)
+        emit_expr(egp3_enum_arg, output, 0, ctx, context)?
+        output.push_str(", &")
+        // Type arg: emit as Str compound literal
+        mut egp3_type_name := ""
+        mut egp3_is_type := false
+        egp3_type_arg := cast(Expr, expr.params.get(2)!)
+        dont_delete(egp3_type_arg)
+        egp3_type_name = get_type_arg_name(egp3_type_arg, context)?
+        egp3_is_type = true
+        catch (err: KeyNotFoundError) { }
+        if egp3_is_type {
+            emit_str_literal(egp3_type_name, output)
+        } else {
+            emit_expr(egp3_type_arg, output, 0, ctx, context)?
+        }
+        output.push_str(", (til_Dynamic*)&")
+        egp3_out_arg := cast(Expr, expr.params.get(3)!)
+        dont_delete(egp3_out_arg)
+        emit_expr(egp3_out_arg, output, 0, ctx, context)?
+        output.push_str(");\n")
+        return
+    } else if orig_func_name.eq("enum_get_payload").and(not(expr.params.len().lt(5))) {
+        // Bug #159: enum_get_payload(e, payload_type, out, variant_name)
+        // 4-arg form (desugarer-generated): emit direct pointer into enum's payload union
         payload_enum_arg := cast(Expr, expr.params.get(1)!)
         dont_delete(payload_enum_arg)
         payload_type_arg := cast(Expr, expr.params.get(2)!)
         dont_delete(payload_type_arg)
         payload_out_arg := cast(Expr, expr.params.get(3)!)
         dont_delete(payload_out_arg)
+        payload_variant_arg := cast(Expr, expr.params.get(4)!)
+        dont_delete(payload_variant_arg)
 
-        output.push_str(TIL_PREFIX)
-        output.push_str("enum_get_payload((")
-        output.push_str(TIL_PREFIX)
-        output.push_str("Dynamic*)&")
-        emit_expr(payload_enum_arg, output, 0, ctx, context)?
-        output.push_str(", &")
-        // Emit type argument as Str (similar to size_of handling)
-        switch payload_type_arg.node_type {
-        case NodeType.Identifier(payload_type_name):
-            // Check if this is a Type variable or a literal type name
-            mut payload_is_type_var := false
-            payload_sym := context.scope_stack.lookup_symbol(payload_type_name)?
-            switch payload_sym.value_type {
-            case ValueType.TCustom(t):
-                if t.eq("Type") {
-                    payload_is_type_var = true
-                }
-            case:
-                // REM: not Type
-            }
-            catch (err: KeyNotFoundError) {
-                // REM: symbol not found
-            }
-            if payload_is_type_var {
-                // Type variable - wrap in Str struct literal
-                // Bug #97: Use type-mangled name for Type variable reference
-                // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }
-                payload_c_var_name := til_var_name_from_context(payload_type_name, context)
-                output.push_str("((")
-                output.push_str(TIL_PREFIX)
-                output.push_str("Str){((")
-                output.push_str(TIL_PREFIX)
-                output.push_str("Ptr){(")
-                output.push_str(TIL_PREFIX)
-                output.push_str("I64)")
-                output.push_str(payload_c_var_name)
-                output.push_str(", 1, 0, 0, 0}), strlen(")
-                output.push_str(payload_c_var_name)
-                output.push_str("), 0})")
-            } else {
-                // Literal type name - create Str compound literal
-                emit_str_literal(payload_type_name, output)
-            }
+        // Get variant name
+        mut payload_variant_name := ""
+        switch payload_variant_arg.node_type {
+        case NodeType.Identifier(pv_name):
+            payload_variant_name = pv_name
         case:
-            throw "ccodegen: enum_get_payload type argument must be a type name"
+            throw "ccodegen: enum_get_payload: variant_name must be identifier"
         }
-        output.push_str(", (")
-        output.push_str(TIL_PREFIX)
-        output.push_str("Dynamic*)&")
-        emit_expr(payload_out_arg, output, 0, ctx, context)?
-        output.push_str(");")
+
+        // Get payload type for the C type
+        mut payload_c_type_name := ""
+        switch payload_type_arg.node_type {
+        case NodeType.Identifier(pt_name):
+            payload_c_type_name = pt_name
+        case:
+            throw "ccodegen: enum_get_payload: payload type must be identifier"
+        }
+
+        // Get output variable name
+        mut payload_out_name := ""
+        switch payload_out_arg.node_type {
+        case NodeType.Identifier(po_name):
+            payload_out_name = po_name
+        case:
+            throw "ccodegen: enum_get_payload: out must be identifier"
+        }
+
+        payload_c_type := til_type_to_c(ValueType.TCustom(payload_c_type_name))?
+        payload_c_var := til_var_name_from_context(payload_out_name, context)
+
+        // Emit: Type* _payload_x = (Type*)&enum_expr.payload.VariantName;
+        // Cast strips const from non-mut enum parameters.
+        payload_indent_str := repeat("    ", indent)
+        output.push_str(payload_indent_str)
+        output.push_str(payload_c_type)
+        output.push_str("* ")
+        output.push_str(payload_c_var)
+        output.push_str(" = (")
+        output.push_str(payload_c_type)
+        output.push_str("*)&")
+        emit_expr(payload_enum_arg, output, 0, ctx, context)?
+        output.push_str(".payload.")
+        output.push_str(payload_variant_name)
+        output.push_str(";\n")
+
+        // current_ref_params handles all downstream usage automatically
+        _ := ctx.current_ref_params.insert(own payload_out_name.clone())
+        _ := ctx.declared_vars.insert(own payload_c_var.clone())
         return
     } else if orig_func_name.eq("enum_get_payload_type") {
         // enum_get_payload_type: generates PayloadType_to_str(&enum_expr.payload.VariantName)

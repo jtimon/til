@@ -605,6 +605,7 @@ build_case_condition := proc(
             get_payload_args.push(own switch_expr_ref.clone())
             get_payload_args.push(own make_id(payload_type_name, line, col))
             get_payload_args.push(own make_id(unique_name, line, col))
+            get_payload_args.push(own make_id(info.variant_name, line, col))
             get_payload_call := make_call("enum_get_payload", get_payload_args, line, col)
             body_prefix.push(own get_payload_call)
 
@@ -753,6 +754,7 @@ build_case_condition := proc(
                         extract_args.push(own switch_expr_ref.clone())
                         extract_args.push(own make_id(inner_type_name, line, col))
                         extract_args.push(own make_id(inner_var_name, line, col))
+                        extract_args.push(own make_id(fcall_info.variant_name, line, col))
                         extract_call := make_call("enum_get_payload", extract_args, line, col)
                         body_prefix.push(own extract_call)
 

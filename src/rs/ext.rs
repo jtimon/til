@@ -531,7 +531,11 @@ pub fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
 }
 
 pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "enum_get_payload", 3, false)?;
+    // Accept 3 or 4 args (4th arg is variant_name, used only by ccodegen)
+    let _egp_arg_count = e.params.len() - 1;
+    if _egp_arg_count < 3 || _egp_arg_count > 4 {
+        return Err(e.lang_error(&context.path, "eval", "enum_get_payload requires 3 or 4 arguments"));
+    }
     let result = eval_expr(context, e.params.get(1).unwrap())?;
     if result.is_throw {
         return Ok(result);
