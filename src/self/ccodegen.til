@@ -922,7 +922,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     // Emit Array.set for each variadic arg
     mut ti := 0
     while ti.lt(arg_temps.len()) {
-        temp_item := cast(Str, arg_temps.get(ti)?)
+        temp_item := cast(Str, arg_temps.get(ti)!)
         // Bug #60: Hoist index literal because we can't take address of integer literal
         idx_temp := next_mangled(ctx)
         output.push_str(indent_str)
@@ -980,8 +980,6 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         ti.inc()
     }
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-
     return arr_var
 }
 
@@ -1015,7 +1013,7 @@ is_pure_lvalue := func(arg: Expr, context: Context) returns Bool {
             // Could be field access OR enum/struct constructor
             // Check if name.first_param is an enum constructor
             if not(arg.params.is_empty()) {
-                first_param := cast(Expr, arg.params.get(0)?)
+                first_param := cast(Expr, arg.params.get(0)!)
                 dont_delete(first_param)
                 switch first_param.node_type {
                 case NodeType.Identifier(variant):
@@ -1047,7 +1045,6 @@ is_pure_lvalue := func(arg: Expr, context: Context) returns Bool {
     case:
         return false
     }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// This is the core of the single-pass hoist+emit approach (Bug #143 fix).
@@ -1162,7 +1159,7 @@ emit_arg_string := proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hois
     switch arg.node_type {
     case NodeType.Identifier(ufcs_name):
         if ufcs_name.eq("_").and(not(arg.params.is_empty())) {
-            ufcs_first := cast(Expr, arg.params.get(0)?)
+            ufcs_first := cast(Expr, arg.params.get(0)!)
             dont_delete(ufcs_first)
             switch ufcs_first.node_type {
             case NodeType.FCall(_):
@@ -1170,7 +1167,7 @@ emit_arg_string := proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hois
                 mut ufcs_result := base_str.clone()
                 mut ufcs_i := 1
                 while ufcs_i.lt(arg.params.len()) {
-                    ufcs_field := cast(Expr, arg.params.get(ufcs_i)?)
+                    ufcs_field := cast(Expr, arg.params.get(ufcs_i)!)
                     dont_delete(ufcs_field)
                     switch ufcs_field.node_type {
                     case NodeType.Identifier(field_name):
@@ -1192,7 +1189,6 @@ emit_arg_string := proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hois
     emit_expr(arg, final_expr_str, 0, ctx, context)?
 
     return final_expr_str
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Helper for emit_arg_string: Handle Dynamic params
@@ -1348,7 +1344,7 @@ emit_arg_string_by_ref := proc(arg: Expr, mut hoist_output: Str, indent: I64, in
     case NodeType.Identifier(id_name):
         // Handle UFCS chain: _[FCall, field...]
         if id_name.eq("_").and(not(arg.params.is_empty())) {
-            ufcs_first := cast(Expr, arg.params.get(0)?)
+            ufcs_first := cast(Expr, arg.params.get(0)!)
             dont_delete(ufcs_first)
             switch ufcs_first.node_type {
             case NodeType.FCall(_):
@@ -1356,7 +1352,7 @@ emit_arg_string_by_ref := proc(arg: Expr, mut hoist_output: Str, indent: I64, in
                 mut chain_result := base_str.clone()
                 mut chain_i := 1
                 while chain_i.lt(arg.params.len()) {
-                    chain_field := cast(Expr, arg.params.get(chain_i)?)
+                    chain_field := cast(Expr, arg.params.get(chain_i)!)
                     dont_delete(chain_field)
                     switch chain_field.node_type {
                     case NodeType.Identifier(field_name):
@@ -1385,7 +1381,7 @@ emit_arg_string_by_ref := proc(arg: Expr, mut hoist_output: Str, indent: I64, in
         ref_is_hoisted = fcall_expr_is_hoisted(arg, context)
     case NodeType.Identifier(ref_id_name):
         if ref_id_name.eq("_").and(not(arg.params.is_empty())) {
-            ref_ufcs_first := cast(Expr, arg.params.get(0)?)
+            ref_ufcs_first := cast(Expr, arg.params.get(0)!)
             dont_delete(ref_ufcs_first)
             switch ref_ufcs_first.node_type {
             case NodeType.FCall(_):
@@ -1411,7 +1407,6 @@ emit_arg_string_by_ref := proc(arg: Expr, mut hoist_output: Str, indent: I64, in
     hoist_output.push_str(";\n")
 
     return format("&", ref_temp)
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 /// Helper: Emit a throwing FCall arg, hoisting it and returning temp var string
@@ -1439,13 +1434,13 @@ emit_throwing_arg_string := proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(arg.params.len()) {
-            nested_arg := cast(Expr, arg.params.get(arg_idx)?)
+            nested_arg := cast(Expr, arg.params.get(arg_idx)!)
             dont_delete(nested_arg)
             is_variadic_arg := not(i.lt(variadic_regular_count))
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
             if i.lt(fd.sig.args.len()) {
-                param_decl := cast(Declaration, fd.sig.args.get(i)?)
+                param_decl := cast(Declaration, fd.sig.args.get(i)!)
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     nested_by_ref = param_needs_by_ref(param_decl)
@@ -1466,7 +1461,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_
     if fd.sig.return_types.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Throwing call has no return type")
     }
-    first_ret := cast(ValueType, fd.sig.return_types.get(0)?)
+    first_ret := cast(ValueType, fd.sig.return_types.get(0)!)
     c_type := til_type_to_c(first_ret)?
 
     // Declare temp variable
@@ -1505,7 +1500,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_
         defer variadic_arg_strings.delete()
         mut vi := variadic_info.regular_count
         while vi.lt(nested_arg_strings.len()) {
-            vas := cast(Str, nested_arg_strings.get(vi)?)
+            vas := cast(Str, nested_arg_strings.get(vi)!)
             variadic_arg_strings.push(own vas)
             vi.inc()
         }
@@ -1525,7 +1520,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_
     if arg.params.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name")
     }
-    ta_first_param := cast(Expr, arg.params.get(0)?)
+    ta_first_param := cast(Expr, arg.params.get(0)!)
     dont_delete(ta_first_param)
     func_name := get_func_name_string(ta_first_param)?
     catch (err: KeyNotFoundError) {
@@ -1574,7 +1569,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_
     }
     mut ri := 0
     while ri.lt(regular_count) {
-        arg_str := cast(Str, nested_arg_strings.get(ri)?)
+        arg_str := cast(Str, nested_arg_strings.get(ri)!)
         hoist_output.push_str(", ")
         hoist_output.push_str(arg_str)
         ri.inc()
@@ -1599,8 +1594,6 @@ emit_throwing_arg_string := proc(arg: Expr, fd: FuncDef, param_type: Ptr, param_
         hoist_output.push_str(variadic_arr_var)
         hoist_output.push_str(");\n")
     }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Return the temp var name with appropriate prefix
     return format_hoisted_result(temp_var, param_type, param_by_ref)
@@ -1756,13 +1749,13 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(arg.params.len()) {
-            nested_arg := cast(Expr, arg.params.get(arg_idx)?)
+            nested_arg := cast(Expr, arg.params.get(arg_idx)!)
             dont_delete(nested_arg)
             is_variadic_arg := not(i.lt(vi.regular_count))
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
             if i.lt(fd.sig.args.len()) {
-                param_decl := cast(Declaration, fd.sig.args.get(i)?)
+                param_decl := cast(Declaration, fd.sig.args.get(i)!)
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     nested_by_ref = param_needs_by_ref(param_decl)
@@ -1782,7 +1775,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     if fd.sig.return_types.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
     }
-    first_ret := cast(ValueType, fd.sig.return_types.get(0)?)
+    first_ret := cast(ValueType, fd.sig.return_types.get(0)!)
     c_type := til_type_to_c(first_ret)?
 
     // Declare temp variable
@@ -1797,7 +1790,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     defer variadic_arg_strings.delete()
     mut vai := vi.regular_count
     while vai.lt(nested_arg_strings.len()) {
-        vas := cast(Str, nested_arg_strings.get(vai)?)
+        vas := cast(Str, nested_arg_strings.get(vai)!)
         variadic_arg_strings.push(own vas)
         vai.inc()
     }
@@ -1810,7 +1803,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     if arg.params.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name")
     }
-    va_first_param := cast(Expr, arg.params.get(0)?)
+    va_first_param := cast(Expr, arg.params.get(0)!)
     dont_delete(va_first_param)
     func_name := get_func_name_string(va_first_param)?
     catch (err: KeyNotFoundError) {
@@ -1842,7 +1835,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
         mut vas_ri := 0
         while vas_ri.lt(vi.regular_count) {
             hoist_output.push_str(", ")
-            vas_arg_str := cast(Str, nested_arg_strings.get(vas_ri)?)
+            vas_arg_str := cast(Str, nested_arg_strings.get(vas_ri)!)
             hoist_output.push_str(vas_arg_str)
             vas_ri.inc()
         }
@@ -1862,7 +1855,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
         mut vas_first := true
         mut vas_ri2 := 0
         while vas_ri2.lt(vi.regular_count) {
-            vas_arg_str2 := cast(Str, nested_arg_strings.get(vas_ri2)?)
+            vas_arg_str2 := cast(Str, nested_arg_strings.get(vas_ri2)!)
             if not(vas_first) {
                 hoist_output.push_str(", ")
             }
@@ -1886,8 +1879,6 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     hoist_output.push_str("Array_delete(&")
     hoist_output.push_str(variadic_arr_var)
     hoist_output.push_str(");\n")
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Return the temp var name with appropriate prefix
     return format_hoisted_result(temp_var, param_type, param_by_ref)
@@ -1927,15 +1918,12 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, hoist
     defer arg_temps.delete()
     mut asi := 0
     while asi.lt(arg_strings.len()) {
-        arg_str := cast(Str, arg_strings.get(asi)?)
+        arg_str := cast(Str, arg_strings.get(asi)!)
         // Check if this arg is already a hoisted lvalue
         mut is_hoisted_lv := false
         if asi.lt(hoisted_lvalues.len()) {
-            hoisted_val := cast(Bool, hoisted_lvalues.get(asi)?)
+            hoisted_val := cast(Bool, hoisted_lvalues.get(asi)!)
             is_hoisted_lv = hoisted_val
-        }
-        catch (err: IndexOutOfBoundsError) {
-            // REM: index out of range, treat as not hoisted
         }
         if is_hoisted_lv {
             arg_temps.push(own arg_str.clone())
@@ -1994,7 +1982,7 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, hoist
     // Emit Array.set for each variadic arg
     mut ti := 0
     while ti.lt(arg_temps.len()) {
-        temp_item := cast(Str, arg_temps.get(ti)?)
+        temp_item := cast(Str, arg_temps.get(ti)!)
         // Hoist index literal
         idx_temp := next_mangled(ctx)
         output.push_str(indent_str)
@@ -2025,8 +2013,6 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, hoist
         ti.inc()
     }
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-
     return arr_var
 }
 
@@ -2037,7 +2023,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
     if arg.params.is_empty() {
         throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name")
     }
-    first_param := cast(Expr, arg.params.get(0)?)
+    first_param := cast(Expr, arg.params.get(0)!)
     dont_delete(first_param)
     func_name := get_func_name_string(first_param)?
 
@@ -2049,12 +2035,12 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
     defer field_values.delete()
     mut ai := 1
     while ai.lt(arg.params.len()) {
-        named_arg := cast(Expr, arg.params.get(ai)?)
+        named_arg := cast(Expr, arg.params.get(ai)!)
         dont_delete(named_arg)
         switch named_arg.node_type {
         case NodeType.NamedArg(field_name):
             if not(named_arg.params.is_empty()) {
-                value_expr := cast(Expr, named_arg.params.get(0)?)
+                value_expr := cast(Expr, named_arg.params.get(0)!)
                 dont_delete(value_expr)
                 // Find the field's expected type
                 mut field_type := Ptr()
@@ -2125,7 +2111,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         if arg.params.len().lt(2) {
             throw arg.lang_error(context.path, "ccodegen", "to_ptr requires 1 argument")
         }
-        inner_arg := cast(Expr, arg.params.get(1)?)
+        inner_arg := cast(Expr, arg.params.get(1)!)
         dont_delete(inner_arg)
         // Check if arg is a Dynamic parameter (already void*)
         mut is_dynamic_param := false
@@ -2164,7 +2150,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         if arg.params.len().lt(2) {
             throw arg.lang_error(context.path, "ccodegen", "size_of requires 1 argument")
         }
-        sizeof_arg := cast(Expr, arg.params.get(1)?)
+        sizeof_arg := cast(Expr, arg.params.get(1)!)
         dont_delete(sizeof_arg)
         mut sizeof_result := ""
         sizeof_result.push_str(TIL_PREFIX)
@@ -2204,7 +2190,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         if arg.params.len().lt(2) {
             throw arg.lang_error(context.path, "ccodegen", "enum_to_str requires 1 argument")
         }
-        ets_inner_arg := cast(Expr, arg.params.get(1)?)
+        ets_inner_arg := cast(Expr, arg.params.get(1)!)
         dont_delete(ets_inner_arg)
         value_type := get_value_type(context, ets_inner_arg)?
         switch value_type {
@@ -2239,7 +2225,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         if arg.params.len().lt(2) {
             throw arg.lang_error(context.path, "ccodegen", "type_as_str requires 1 argument")
         }
-        tas_arg := cast(Expr, arg.params.get(1)?)
+        tas_arg := cast(Expr, arg.params.get(1)!)
         dont_delete(tas_arg)
         switch tas_arg.node_type {
         case NodeType.Identifier(type_name):
@@ -2288,12 +2274,12 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         mut i := 0
         mut arg_idx := 1
         while arg_idx.lt(arg.params.len()) {
-            nested_arg := cast(Expr, arg.params.get(arg_idx)?)
+            nested_arg := cast(Expr, arg.params.get(arg_idx)!)
             dont_delete(nested_arg)
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
             if fd_found.and(i.lt(fd_opt.sig.args.len())) {
-                param_decl := cast(Declaration, fd_opt.sig.args.get(i)?)
+                param_decl := cast(Declaration, fd_opt.sig.args.get(i)!)
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 // Issue #91: Function pointer params are passed by value
                 mut nested_is_fptr := false
@@ -2380,7 +2366,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
     // Hoist the call to a statement, pass &temp as _ret, return temp name
     if eas_has_ret.and(not(eas_is_func_ptr_call)) {
         eas_indent_str := repeat("    ", indent)
-        eas_ret_vt := cast(ValueType, fd_opt.sig.return_types.get(0)?)
+        eas_ret_vt := cast(ValueType, fd_opt.sig.return_types.get(0)!)
         eas_ret_type := til_type_to_c(eas_ret_vt)?
         eas_temp_var := next_mangled(ctx)
 
@@ -2398,21 +2384,19 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         mut eas_ci := 0
         while eas_ci.lt(nested_arg_strings.len()) {
             call_str.push_str(", ")
-            eas_arg_str := cast(Str, nested_arg_strings.get(eas_ci)?)
+            eas_arg_str := cast(Str, nested_arg_strings.get(eas_ci)!)
             call_str.push_str(eas_arg_str)
             eas_ci.inc()
         }
         call_str.push_str(");\n")
         hoist_output.push_str(call_str)
 
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-
         return eas_temp_var
     }
 
     mut ci := 0
     while ci.lt(nested_arg_strings.len()) {
-        arg_str := cast(Str, nested_arg_strings.get(ci)?)
+        arg_str := cast(Str, nested_arg_strings.get(ci)!)
         if ci.gt(0) {
             call_str.push_str(", ")
         }
@@ -2442,7 +2426,7 @@ get_c_type_for_expr := proc(arg: Expr, context: Context) returns Str throws Str 
     case NodeType.FCall(_):
         fd := get_fcall_func_def(context, arg)?
         if not(fd.sig.return_types.is_empty()) {
-            ret_type := cast(ValueType, fd.sig.return_types.get(0)?)
+            ret_type := cast(ValueType, fd.sig.return_types.get(0)!)
             return til_type_to_c(ret_type)?
         }
         catch (err: KeyNotFoundError) {
@@ -2470,7 +2454,7 @@ get_c_type_for_expr := proc(arg: Expr, context: Context) returns Str throws Str 
             // Bug #143: Handle UFCS chain with field access: _[FCall, field1, field2, ...]
             // After UFCS desugaring, x.method().field1.field2 becomes _[FCall, field1, field2]
             if name.eq("_") {
-                first_param := cast(Expr, arg.params.get(0)?)
+                first_param := cast(Expr, arg.params.get(0)!)
                 dont_delete(first_param)
                 switch first_param.node_type {
                 case NodeType.FCall(_):
@@ -2488,7 +2472,7 @@ get_c_type_for_expr := proc(arg: Expr, context: Context) returns Str throws Str 
                     mut current_type := struct_name.clone()
                     mut field_idx := 1
                     while field_idx.lt(arg.params.len()) {
-                        field_param := cast(Expr, arg.params.get(field_idx)?)
+                        field_param := cast(Expr, arg.params.get(field_idx)!)
                         dont_delete(field_param)
                         switch field_param.node_type {
                         case NodeType.Identifier(field_name):
@@ -2523,7 +2507,7 @@ get_c_type_for_expr := proc(arg: Expr, context: Context) returns Str throws Str 
                 }
             }
             // Type-qualified call or field access
-            typeq_first_param := cast(Expr, arg.params.get(0)?)
+            typeq_first_param := cast(Expr, arg.params.get(0)!)
             dont_delete(typeq_first_param)
             switch typeq_first_param.node_type {
             case NodeType.Identifier(field_or_variant):
@@ -2701,7 +2685,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         mut sorted_indices := topological_sort_types(type_decls)
         defer sorted_indices.delete()
         for idx: I64 in sorted_indices {
-            child := cast(Expr, type_decls.get(idx)?)
+            child := cast(Expr, type_decls.get(idx)!)
             if is_struct_declaration(child) {
                 emit_struct_declaration(child, output)?
             } else {
@@ -2739,7 +2723,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             switch child.node_type {
             case NodeType.Declaration(ns2b2_decl):
                 if child.params.len().gt(0) {
-                    ns2b2_inner := cast(Expr, child.params.get(0)?)
+                    ns2b2_inner := cast(Expr, child.params.get(0)!)
                     switch ns2b2_inner.node_type {
                     case NodeType.StructDef(ns2b2_sd):
                         if ns2b2_sd.ns.members.len().gt(0) {
@@ -2764,7 +2748,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             switch ns2b3_child.node_type {
             case NodeType.Declaration(ns2b3_decl):
                 if ns2b3_child.params.len().gt(0) {
-                    ns2b3_inner := cast(Expr, ns2b3_child.params.get(0)?)
+                    ns2b3_inner := cast(Expr, ns2b3_child.params.get(0)!)
                     switch ns2b3_inner.node_type {
                     case NodeType.StructDef(ns2b3_sd):
                         if ns2b3_sd.ns.members.len().gt(0) {
@@ -2919,7 +2903,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             switch child.node_type {
             case NodeType.Declaration(ns5b2_decl):
                 if child.params.len().gt(0) {
-                    ns5b2_inner := cast(Expr, child.params.get(0)?)
+                    ns5b2_inner := cast(Expr, child.params.get(0)!)
                     switch ns5b2_inner.node_type {
                     case NodeType.StructDef(ns5b2_sd):
                         if ns5b2_sd.ns.members.len().gt(0) {
@@ -3047,7 +3031,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output.push_str("    return 0;\n")
     output.push_str("}\n")
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return output
 }
 
@@ -3397,19 +3380,19 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, context: C
     case NodeType.If:
         // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
         if expr.params.len().gt(1) {
-            then_branch := cast(Expr, expr.params.get(1)?)
+            then_branch := cast(Expr, expr.params.get(1)!)
             dont_delete(then_branch)
             collect_nested_func_info(then_branch, ctx, context, parent_func_name)?
         }
         if expr.params.len().gt(2) {
-            else_branch := cast(Expr, expr.params.get(2)?)
+            else_branch := cast(Expr, expr.params.get(2)!)
             dont_delete(else_branch)
             collect_nested_func_info(else_branch, ctx, context, parent_func_name)?
         }
     case NodeType.While:
         // Check loop body (params[0] = condition, params[1] = body)
         if expr.params.len().gt(1) {
-            body := cast(Expr, expr.params.get(1)?)
+            body := cast(Expr, expr.params.get(1)!)
             dont_delete(body)
             collect_nested_func_info(body, ctx, context, parent_func_name)?
         }
@@ -3419,7 +3402,6 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, context: C
             collect_nested_func_info(child, ctx, context, parent_func_name)?
         }
     }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Emit a struct declaration as a C struct (only mut fields become struct fields)
@@ -3599,7 +3581,7 @@ emit_introspection_metadata := proc(ast: Expr, mut output: Str, _context: Contex
             switch child.node_type {
             case NodeType.Declaration(decl):
                 if child.params.len().gt(0) {
-                    inner := cast(Expr, child.params.get(0)?)
+                    inner := cast(Expr, child.params.get(0)!)
                     switch inner.node_type {
                     case NodeType.StructDef(sd):
                         if not(decl.name.eq("I64")) {
@@ -3635,8 +3617,6 @@ emit_introspection_metadata := proc(ast: Expr, mut output: Str, _context: Contex
     struct_defs.delete()
     enum_names.delete()
     enum_defs.delete()
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Helper: get type kind string for a ValueType
@@ -3672,8 +3652,8 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     output.push_str(TIL_PREFIX)
     output.push_str("Str* type_name) {\n")
     for s1i in 0..struct_names.len() {
-        s1n := cast(Str, struct_names.get(s1i)?)
-        s1d := cast(StructDef, struct_defs.get(s1i)?)
+        s1n := cast(Str, struct_names.get(s1i)!)
+        s1d := cast(StructDef, struct_defs.get(s1i)!)
         output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
         output.push_str(s1n)
         output.push_str("\") == 0) return ")
@@ -3695,8 +3675,8 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     output.push_str(TIL_PREFIX)
     output.push_str("I64* index) {\n")
     for s2i in 0..struct_names.len() {
-        s2n := cast(Str, struct_names.get(s2i)?)
-        s2d := cast(StructDef, struct_defs.get(s2i)?)
+        s2n := cast(Str, struct_names.get(s2i)!)
+        s2d := cast(StructDef, struct_defs.get(s2i)!)
         output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
         output.push_str(s2n)
         output.push_str("\") == 0) {\n")
@@ -3727,8 +3707,8 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     output.push_str(TIL_PREFIX)
     output.push_str("I64* index) {\n")
     for s3i in 0..struct_names.len() {
-        s3n := cast(Str, struct_names.get(s3i)?)
-        s3d := cast(StructDef, struct_defs.get(s3i)?)
+        s3n := cast(Str, struct_names.get(s3i)!)
+        s3d := cast(StructDef, struct_defs.get(s3i)!)
         output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
         output.push_str(s3n)
         output.push_str("\") == 0) {\n")
@@ -3762,8 +3742,8 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     output.push_str(TIL_PREFIX)
     output.push_str("I64* index) {\n")
     for s4i in 0..struct_names.len() {
-        s4n := cast(Str, struct_names.get(s4i)?)
-        s4d := cast(StructDef, struct_defs.get(s4i)?)
+        s4n := cast(Str, struct_names.get(s4i)!)
+        s4d := cast(StructDef, struct_defs.get(s4i)!)
         output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
         output.push_str(s4n)
         output.push_str("\") == 0) {\n")
@@ -3794,8 +3774,8 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     output.push_str(TIL_PREFIX)
     output.push_str("I64* index) {\n")
     for s5i in 0..struct_names.len() {
-        s5n := cast(Str, struct_names.get(s5i)?)
-        s5d := cast(StructDef, struct_defs.get(s5i)?)
+        s5n := cast(Str, struct_names.get(s5i)!)
+        s5d := cast(StructDef, struct_defs.get(s5i)!)
         output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
         output.push_str(s5n)
         output.push_str("\") == 0) {\n")
@@ -4821,7 +4801,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: F
         output.push_str("    return 0;\n")
     } else if not(func_def.sig.return_types.is_empty()).and(not(fcall_uses_out_ret(func_def, context))) {
         // Non-struct/enum-returning functions need fallback return (primitives, FuncSig, etc.)
-        sfb_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
+        sfb_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)!)
         sfb_ret_type := til_type_to_c(sfb_ret_type_vt)?
         output.push_str("    return (")
         output.push_str(sfb_ret_type)
@@ -5100,7 +5080,7 @@ emit_func_signature := proc(func_name: Str, func_def: FuncDef, context: Context,
         output.push_str("void ")
     } else {
         // Non-throwing function with FuncSig return - keep original signature
-        sig_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
+        sig_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)!)
         sig_ret_type := til_type_to_c(sig_ret_type_vt)?
         output.push_str(sig_ret_type)
         output.push_str(" ")
@@ -5113,13 +5093,13 @@ emit_func_signature := proc(func_name: Str, func_def: FuncDef, context: Context,
 
     // _ret pointer for throwing functions (always) and non-throwing with custom return types
     if is_throwing.and(not(func_def.sig.return_types.is_empty())) {
-        ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
+        ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)!)
         ret_type := til_type_to_c(ret_type_vt)?
         output.push_str(ret_type)
         output.push_str("* _ret")
         param_count.inc()
     } else if non_throwing_uses_ret {
-        nt_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
+        nt_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)!)
         nt_ret_type := til_type_to_c(nt_ret_type_vt)?
         output.push_str(nt_ret_type)
         output.push_str("* _ret")
@@ -5346,7 +5326,7 @@ emit_func_sig_typedef := proc(expr: Expr, context: Context, mut output: Str) thr
                 } else if func_def.sig.return_types.is_empty() {
                     output.push_str("void ")
                 } else {
-                    ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
+                    ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)!)
                     ret_type := til_type_to_c(ret_type_vt)?
                     output.push_str(ret_type)
                     output.push_str(" ")
@@ -5361,7 +5341,7 @@ emit_func_sig_typedef := proc(expr: Expr, context: Context, mut output: Str) thr
                 if is_throwing {
                     // Output params first: return value pointer, then error pointers
                     if not(func_def.sig.return_types.is_empty()) {
-                        thr_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
+                        thr_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)!)
                         thr_ret_type := til_type_to_c(thr_ret_type_vt)?
                         output.push_str(thr_ret_type)
                         output.push_str("*")
@@ -5537,7 +5517,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                     output.push_str("    return 0;\n")
                 } else if not(func_def.sig.return_types.is_empty()).and(not(fcall_uses_out_ret(func_def, context))) {
                     // Non-struct/enum-returning functions need fallback return (primitives, FuncSig, etc.)
-                    efd_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
+                    efd_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)!)
                     efd_ret_type := til_type_to_c(efd_ret_type_vt)?
                     output.push_str("    return (")
                     output.push_str(efd_ret_type)
@@ -5611,7 +5591,7 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                         output.push_str(base_str)
                         mut fi := 1
                         while fi.lt(expr.params.len()) {
-                            fp := cast(Expr, expr.params.get(fi)?)
+                            fp := cast(Expr, expr.params.get(fi)!)
                             dont_delete(fp)
                             switch fp.node_type {
                             case NodeType.Identifier(field):
@@ -5631,7 +5611,7 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             // Then emit the field chain
             mut i := 1
             while i.lt(expr.params.len()) {
-                param := cast(Expr, expr.params.get(i)?)
+                param := cast(Expr, expr.params.get(i)!)
                 dont_delete(param)
                 switch param.node_type {
                 case NodeType.Identifier(field):
@@ -5759,7 +5739,6 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         throw expr.lang_error(context.path, "ccodegen", "OwnArg should have been desugared by desugarer phase")
     case:
     }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_body := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
@@ -6262,7 +6241,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             mut param_type := Ptr()
             mut by_ref := false
             if i.lt(func_def_opt.sig.args.len()) {
-                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)?)
+                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)!)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -6294,12 +6273,9 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     if not(decl_name.eq("")).or(not(assign_name.eq(""))) {
         fd2 := get_fcall_func_def(context, fcall)?
         if not(fd2.sig.return_types.is_empty()) {
-            first_ret := cast(ValueType, fd2.sig.return_types.get(0)?)
+            first_ret := cast(ValueType, fd2.sig.return_types.get(0)!)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) {
-                ret_type = "int"
-            }
-            catch (err: IndexOutOfBoundsError) {
                 ret_type = "int"
             }
         }
@@ -6351,7 +6327,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             // Bug #97: Register in scope FIRST so we can get the type-mangled name
             fd3 := get_fcall_func_def(context, fcall)?
             if not(fd3.sig.return_types.is_empty()) {
-                first_type := cast(ValueType, fd3.sig.return_types.get(0)?)
+                first_type := cast(ValueType, fd3.sig.return_types.get(0)!)
                 mut sym_info := SymbolInfo()
                 sym_info.value_type = first_type
                 sym_info.is_mut = true
@@ -6528,14 +6504,14 @@ emit_ret_call := proc(fcall: Expr, func_def: FuncDef, decl_name: Str, assign_nam
     }
 
     // Determine return type
-    erc_ret_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
+    erc_ret_vt := cast(ValueType, func_def.sig.return_types.get(0)!)
     erc_ret_type := til_type_to_c(erc_ret_vt)?
 
     // For declarations: register in scope and declare variable
     if not(decl_name.is_empty()) {
         if not(decl_name.eq("_")) {
             if not(func_def.sig.return_types.is_empty()) {
-                erc_first_type := cast(ValueType, func_def.sig.return_types.get(0)?)
+                erc_first_type := cast(ValueType, func_def.sig.return_types.get(0)!)
                 mut erc_sym := SymbolInfo()
                 erc_sym.value_type = erc_first_type
                 erc_sym.is_mut = true
@@ -6702,7 +6678,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             mut param_type := Ptr()
             mut by_ref := false
             if i.lt(func_def_opt.sig.args.len()) {
-                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)?)
+                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)!)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -6714,21 +6690,19 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Declare local variables for return value and errors
     mut ret_type := "int"
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)?
         if not(fd3.sig.return_types.is_empty()) {
-            first_ret := cast(ValueType, fd3.sig.return_types.get(0)?)
+            first_ret := cast(ValueType, fd3.sig.return_types.get(0)!)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) {
                 ret_type = "int"
             }
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
     }
 
     // For declarations: declare the variable BEFORE the temp so dest_ptr can reference it
@@ -6737,7 +6711,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
         if not(fd4.sig.return_types.is_empty()) {
-            first_type := cast(ValueType, fd4.sig.return_types.get(0)?)
+            first_type := cast(ValueType, fd4.sig.return_types.get(0)!)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
@@ -6746,7 +6720,6 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
         throw_c_var_name := til_var_name_from_context(decl_name, context)
         // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
         // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
@@ -7124,7 +7097,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             mut param_type := Ptr()
             mut by_ref := false
             if have_func_def.and(i.lt(func_def_opt.sig.args.len())) {
-                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)?)
+                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)!)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -7136,19 +7109,17 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Look up the actual return type
     mut ret_type := "int"
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)?
         if not(fd3.sig.return_types.is_empty()) {
-            first_ret := cast(ValueType, fd3.sig.return_types.get(0)?)
+            first_ret := cast(ValueType, fd3.sig.return_types.get(0)!)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) { ret_type = "int" }
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
     }
 
     // For declarations: declare the variable BEFORE the temp so dest_ptr can reference it
@@ -7156,7 +7127,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
         if not(fd4.sig.return_types.is_empty()) {
-            first_type := cast(ValueType, fd4.sig.return_types.get(0)?)
+            first_type := cast(ValueType, fd4.sig.return_types.get(0)!)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
@@ -7165,7 +7136,6 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
         throwing_decl_c_var := til_var_name_from_context(decl_name, context)
         // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
         // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
@@ -7448,7 +7418,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             mut param_type := Ptr()
             mut by_ref := false
             if have_func_def.and(i.lt(func_def_opt.sig.args.len())) {
-                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)?)
+                param_decl := cast(Declaration, func_def_opt.sig.args.get(i)!)
                 param_type.data = to_ptr(param_decl.value_type)
                 if not(is_variadic_arg) {
                     by_ref = param_needs_by_ref(param_decl)
@@ -7460,19 +7430,17 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     // Look up the actual return type
     mut ret_type := "int"
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)?
         if not(fd3.sig.return_types.is_empty()) {
-            first_ret := cast(ValueType, fd3.sig.return_types.get(0)?)
+            first_ret := cast(ValueType, fd3.sig.return_types.get(0)!)
             ret_type = til_type_to_c(first_ret)?
             catch (err: Str) { ret_type = "int" }
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
     }
 
     // For declarations: declare the variable BEFORE the temp so dest_ptr can reference it
@@ -7480,7 +7448,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
         if not(fd4.sig.return_types.is_empty()) {
-            first_type := cast(ValueType, fd4.sig.return_types.get(0)?)
+            first_type := cast(ValueType, fd4.sig.return_types.get(0)!)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type
             sym_info.is_mut = true
@@ -7489,7 +7457,6 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             context.scope_stack.declare_symbol(own decl_name.clone(), own sym_info)?
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
         throwing_decl_c_var := til_var_name_from_context(decl_name, context)
         // Bug #168: Skip emitting declaration when var is ret_var_alias (already _ret pointer)
         // Issue #117: Skip if already declared (hoisted zero-init for catch-safe deletion)
@@ -7868,7 +7835,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     func_output.push_str("    return 0;\n")
                 } else if not(func_def.sig.return_types.is_empty()).and(not(fcall_uses_out_ret(func_def, context))) {
                     // Non-struct/enum-returning functions need fallback return (primitives, FuncSig, etc.)
-                    ed_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)?)
+                    ed_ret_type_vt := cast(ValueType, func_def.sig.return_types.get(0)!)
                     ed_ret_type := til_type_to_c(ed_ret_type_vt)?
                     func_output.push_str("    return (")
                     func_output.push_str(ed_ret_type)
@@ -7914,7 +7881,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
     // cast(Type, ptr_expr) - emit pointer-typed alias variable
     if not(expr.params.is_empty()) {
-        cast_rhs := cast(Expr, expr.params.get(0)?)
+        cast_rhs := cast(Expr, expr.params.get(0)!)
         dont_delete(cast_rhs)
         switch cast_rhs.node_type {
         case NodeType.FCall(_):
@@ -8000,7 +7967,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
     mut rhs_string := ""
     mut has_rhs_string := false
     if not(expr.params.is_empty()) {
-        rhs := cast(Expr, expr.params.get(0)?)
+        rhs := cast(Expr, expr.params.get(0)!)
         dont_delete(rhs)
         switch rhs.node_type {
         case NodeType.FCall(_):
@@ -8176,7 +8143,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 switch named_arg.node_type {
                 case NodeType.NamedArg(field_name):
                     if not(named_arg.params.is_empty()) {
-                        named_value_expr := cast(Expr, named_arg.params.get(0)?)
+                        named_value_expr := cast(Expr, named_arg.params.get(0)!)
                         dont_delete(named_value_expr)
                         named_values.set(own field_name.clone(), own named_value_expr.clone())
                     }
@@ -8489,7 +8456,7 @@ get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
                         only_named_args = true
                         mut i := 1
                         while i.lt(expr.params.len()) {
-                            arg := cast(Expr, expr.params.get(i)?)
+                            arg := cast(Expr, expr.params.get(i)!)
                             dont_delete(arg)
                             switch arg.node_type {
                             case NodeType.NamedArg(_):
@@ -8510,7 +8477,6 @@ get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
     case:
     }
     return ""
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 // Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
@@ -8537,7 +8503,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
                 if enum_def_found {
                     // Check if there's a nested identifier (the variant)
                     if not(first_param.params.is_empty()) {
-                        variant_param := cast(Expr, first_param.params.get(0)?)
+                        variant_param := cast(Expr, first_param.params.get(0)!)
                         dont_delete(variant_param)
                         switch variant_param.node_type {
                         case NodeType.Identifier(variant_name):
@@ -8560,7 +8526,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
             return ""
         }
         if not(expr.params.is_empty()) {
-            ident_variant_param := cast(Expr, expr.params.get(0)?)
+            ident_variant_param := cast(Expr, expr.params.get(0)!)
             dont_delete(ident_variant_param)
             switch ident_variant_param.node_type {
             case NodeType.Identifier(variant_name):
@@ -8574,7 +8540,6 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
     case:
     }
     return ""
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_funcdef := proc(_func_def: FuncDef, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
@@ -8597,7 +8562,7 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
     mut rhs_str := ""
     mut has_rhs := false
     if not(expr.params.is_empty()) {
-        rhs_expr := cast(Expr, expr.params.get(0)?)
+        rhs_expr := cast(Expr, expr.params.get(0)!)
         dont_delete(rhs_expr)
 
         // Check if RHS is a call to a throwing function
@@ -8735,7 +8700,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
     if is_throwing {
         // Throwing function: store value through _ret pointer and return 0 (success)
         if not(expr.params.is_empty()) {
-            thr_return_expr := cast(Expr, expr.params.get(0)?)
+            thr_return_expr := cast(Expr, expr.params.get(0)!)
             dont_delete(thr_return_expr)
 
             // Check if return expression is a call to a throwing function
@@ -8881,7 +8846,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         }
 
         if has_ret.and(not(expr.params.is_empty())) {
-            return_expr := cast(Expr, expr.params.get(0)?)
+            return_expr := cast(Expr, expr.params.get(0)!)
             dont_delete(return_expr)
 
             // Check for throwing call in return expression
@@ -8915,7 +8880,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     defer variadic_args.delete()
                     mut va_idx := add(1, variadic_fcall_info.regular_count)
                     while va_idx.lt(return_expr.params.len()) {
-                        va_arg := cast(Expr, return_expr.params.get(va_idx)?)
+                        va_arg := cast(Expr, return_expr.params.get(va_idx)!)
                         dont_delete(va_arg)
                         variadic_args.push(own va_arg)
                         va_idx.inc()
@@ -8929,7 +8894,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     defer regular_args.delete()
                     mut ra_idx := 1
                     while ra_idx.lt(add(1, variadic_fcall_info.regular_count)).and(ra_idx.lt(return_expr.params.len())) {
-                        ra_arg := cast(Expr, return_expr.params.get(ra_idx)?)
+                        ra_arg := cast(Expr, return_expr.params.get(ra_idx)!)
                         dont_delete(ra_arg)
                         regular_args.push(own ra_arg)
                         ra_idx.inc()
@@ -8944,7 +8909,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                         mut param_type := Ptr()
                         mut by_ref := true
                         if i.lt(var_fd.sig.args.len()) {
-                            param_decl := cast(Declaration, var_fd.sig.args.get(i)?)
+                            param_decl := cast(Declaration, var_fd.sig.args.get(i)!)
                             param_type.data = to_ptr(param_decl.value_type)
                             // Issue #91: Function pointer params are passed by value
                             mut ret_is_fptr := false
@@ -8966,7 +8931,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
 
                     // Issue #175: Emit variadic call writing to _ret
                     output.push_str(indent_str)
-                    var_first_param := cast(Expr, return_expr.params.get(0)?)
+                    var_first_param := cast(Expr, return_expr.params.get(0)!)
                     dont_delete(var_first_param)
                     switch var_first_param.node_type {
                     case NodeType.Identifier(func_name):
@@ -9094,7 +9059,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         } else if not(expr.params.is_empty()) {
             // Return with expression but no _ret (non-struct/enum return types like I64, Bool, Str)
             // Emit normal C return statement
-            void_ret_param := cast(Expr, expr.params.get(0)?)
+            void_ret_param := cast(Expr, expr.params.get(0)!)
             dont_delete(void_ret_param)
             void_return_str := emit_arg_string(void_ret_param, Ptr(), false, output, indent, ctx, context)?
             output.push_str(indent_str)
@@ -9120,7 +9085,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
 
     indent_str := repeat("    ", indent)
-    thrown_expr := cast(Expr, expr.params.get(0)?)
+    thrown_expr := cast(Expr, expr.params.get(0)!)
     dont_delete(thrown_expr)
 
     // Get the thrown type name from the expression (pure AST analysis, no emit)
@@ -9131,7 +9096,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     switch thrown_expr.node_type {
     case NodeType.FCall(_):
         if not(thrown_expr.params.is_empty()) {
-            nh_first_param := cast(Expr, thrown_expr.params.get(0)?)
+            nh_first_param := cast(Expr, thrown_expr.params.get(0)!)
             dont_delete(nh_first_param)
             switch nh_first_param.node_type {
             case NodeType.Identifier(name):
@@ -9147,7 +9112,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 if nh_thrown_type_name.is_empty() {
                     // It's a function - use its return type as the thrown type
                     if not(func_def.sig.return_types.is_empty()) {
-                        nh_ret_type := cast(ValueType, func_def.sig.return_types.get(0)?)
+                        nh_ret_type := cast(ValueType, func_def.sig.return_types.get(0)!)
                         switch nh_ret_type {
                         case ValueType.TCustom(type_name):
                             nh_thrown_type_name = type_name.clone()
@@ -9324,7 +9289,7 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
     // Hoist declarations from both branches to before the if statement
     // (TIL has function-level scoping, not block-level scoping)
     // Bug #97: Use type-mangled names for shadowing support
-    then_body := cast(Expr, expr.params.get(1)?)
+    then_body := cast(Expr, expr.params.get(1)!)
     dont_delete(then_body)
     then_decls := collect_declarations_in_body(then_body, context)?
     for decl: CollectedDeclaration in then_decls {
@@ -9351,7 +9316,7 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
         }
     }
     if expr.params.len().gt(2) {
-        hoist_else_body := cast(Expr, expr.params.get(2)?)
+        hoist_else_body := cast(Expr, expr.params.get(2)!)
         dont_delete(hoist_else_body)
         else_decls := collect_declarations_in_body(hoist_else_body, context)?
         for else_decl: CollectedDeclaration in else_decls {
@@ -9380,7 +9345,7 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
     }
 
     // Bug #143: Use emit_arg_string to handle hoisting in condition
-    condition := cast(Expr, expr.params.get(0)?)
+    condition := cast(Expr, expr.params.get(0)!)
     dont_delete(condition)
     cond_str := emit_arg_string(condition, Ptr(), false, output, indent, ctx, context)?
     output.push_str(indent_str)
@@ -9418,7 +9383,7 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
 
     // Else branch (optional)
     if expr.params.len().gt(2) {
-        emit_else_body := cast(Expr, expr.params.get(2)?)
+        emit_else_body := cast(Expr, expr.params.get(2)!)
         dont_delete(emit_else_body)
         // Check if it's an else-if (nested If) or else block
         switch emit_else_body.node_type {
@@ -9448,7 +9413,6 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
     } else {
         output.push_str("\n")
     }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
@@ -9462,7 +9426,7 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     // Hoist declarations from loop body to before the while statement
     // (TIL has function-level scoping, not block-level scoping)
     // Bug #97: Use type-mangled names for shadowing support
-    body := cast(Expr, expr.params.get(1)?)
+    body := cast(Expr, expr.params.get(1)!)
     dont_delete(body)
     mut body_decls := collect_declarations_in_body(body, context)?
     defer body_decls.delete()
@@ -9493,7 +9457,7 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     // Bug #143: Use emit_arg_string to process condition (handles hoisting for by-ref/throwing)
     // Emit hoisting to a separate buffer first to detect if needed
     mut hoist_buffer := ""
-    condition := cast(Expr, expr.params.get(0)?)
+    condition := cast(Expr, expr.params.get(0)!)
     dont_delete(condition)
     cond_str := emit_arg_string(condition, Ptr(), false, hoist_buffer, indent.add(1), ctx, context)?
 
@@ -9561,7 +9525,6 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     output.push_str(indent_str)
     output.push_str("}\n")
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_break := proc(_expr: Expr, mut output: Str, indent: I64) {
@@ -9668,19 +9631,19 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
     case NodeType.If:
         // Recurse into if branches
         if expr.params.len().gteq(2) {
-            second_param := cast(Expr, expr.params.get(1)?)
+            second_param := cast(Expr, expr.params.get(1)!)
             dont_delete(second_param)
             collect_declarations_recursive(second_param, decls, collected, context)?
         }
         if expr.params.len().gteq(3) {
-            third_param := cast(Expr, expr.params.get(2)?)
+            third_param := cast(Expr, expr.params.get(2)!)
             dont_delete(third_param)
             collect_declarations_recursive(third_param, decls, collected, context)?
         }
     case NodeType.While:
         // Recurse into while body
         if expr.params.len().gteq(2) {
-            while_body := cast(Expr, expr.params.get(1)?)
+            while_body := cast(Expr, expr.params.get(1)!)
             dont_delete(while_body)
             collect_declarations_recursive(while_body, decls, collected, context)?
         }
@@ -9688,14 +9651,13 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         // Recurse into catch body (params[2] is catch body)
         // params[0] = err_var, params[1] = err_type, params[2] = body
         if expr.params.len().gteq(3) {
-            catch_body := cast(Expr, expr.params.get(2)?)
+            catch_body := cast(Expr, expr.params.get(2)!)
             dont_delete(catch_body)
             collect_declarations_recursive(catch_body, decls, collected, context)?
         }
     case:
         // REM: other node types don't contain declarations
     }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
@@ -9733,7 +9695,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     mut has_named_args := false
     mut arg_idx := 1
     while arg_idx.lt(expr.params.len()) {
-        arg := cast(Expr, expr.params.get(arg_idx)?)
+        arg := cast(Expr, expr.params.get(arg_idx)!)
         dont_delete(arg)
         switch arg.node_type {
         case NodeType.NamedArg(_):
@@ -9757,12 +9719,12 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             defer named_values.delete()
             mut na_idx := 1
             while na_idx.lt(expr.params.len()) {
-                na_arg := cast(Expr, expr.params.get(na_idx)?)
+                na_arg := cast(Expr, expr.params.get(na_idx)!)
                 dont_delete(na_arg)
                 switch na_arg.node_type {
                 case NodeType.NamedArg(field_name):
                     if not(na_arg.params.is_empty()) {
-                        na_value_expr := cast(Expr, na_arg.params.get(0)?)
+                        na_value_expr := cast(Expr, na_arg.params.get(0)!)
                         dont_delete(na_value_expr)
                         named_values.set(own field_name.clone(), own na_value_expr.clone())
                     }
@@ -9865,7 +9827,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         mut prep_i := 0
         mut prep_arg_idx := 1
         while prep_arg_idx.lt(expr.params.len()) {
-            prep_arg := cast(Expr, expr.params.get(prep_arg_idx)?)
+            prep_arg := cast(Expr, expr.params.get(prep_arg_idx)!)
             dont_delete(prep_arg)
             // For variadic args (i >= regular_count), use by_ref=false because
             // they get stored in temp vars, not passed directly to the function.
@@ -9895,7 +9857,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         if expr.params.len().lt(2) {
             throw "ccodegen: type_as_str requires 1 argument"
         }
-        type_arg := cast(Expr, expr.params.get(1)?)
+        type_arg := cast(Expr, expr.params.get(1)!)
         dont_delete(type_arg)
         switch type_arg.node_type {
         case NodeType.Identifier(type_name):
@@ -9948,7 +9910,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         if expr.params.len().lt(2) {
             throw "ccodegen: enum_to_str requires 1 argument"
         }
-        enum_arg := cast(Expr, expr.params.get(1)?)
+        enum_arg := cast(Expr, expr.params.get(1)!)
         dont_delete(enum_arg)
         value_type := get_value_type(context, enum_arg)?
         switch value_type {
@@ -9973,11 +9935,11 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         if expr.params.len().lt(4) {
             throw "ccodegen: enum_get_payload requires 3 arguments"
         }
-        payload_enum_arg := cast(Expr, expr.params.get(1)?)
+        payload_enum_arg := cast(Expr, expr.params.get(1)!)
         dont_delete(payload_enum_arg)
-        payload_type_arg := cast(Expr, expr.params.get(2)?)
+        payload_type_arg := cast(Expr, expr.params.get(2)!)
         dont_delete(payload_type_arg)
-        payload_out_arg := cast(Expr, expr.params.get(3)?)
+        payload_out_arg := cast(Expr, expr.params.get(3)!)
         dont_delete(payload_out_arg)
 
         output.push_str(TIL_PREFIX)
@@ -10038,11 +10000,11 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         if expr.params.len().lt(4) {
             throw arg.lang_error(context.path, "ccodegen", "enum_get_payload_type requires 3 arguments")
         }
-        ept_enum_arg := cast(Expr, expr.params.get(1)?)
+        ept_enum_arg := cast(Expr, expr.params.get(1)!)
         dont_delete(ept_enum_arg)
-        variant_arg := cast(Expr, expr.params.get(2)?)
+        variant_arg := cast(Expr, expr.params.get(2)!)
         dont_delete(variant_arg)
-        ept_payload_type_arg := cast(Expr, expr.params.get(3)?)
+        ept_payload_type_arg := cast(Expr, expr.params.get(3)!)
         dont_delete(ept_payload_type_arg)
 
         // Get variant name
@@ -10082,7 +10044,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         }
         output.push_str(TIL_PREFIX)
         output.push_str("size_of(&")
-        size_type_arg := cast(Expr, expr.params.get(1)?)
+        size_type_arg := cast(Expr, expr.params.get(1)!)
         dont_delete(size_type_arg)
         switch size_type_arg.node_type {
         case NodeType.Identifier(type_name):
@@ -10142,7 +10104,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         if expr.params.len().lt(2) {
             throw "ccodegen: to_ptr requires 1 argument"
         }
-        ptr_arg := cast(Expr, expr.params.get(1)?)
+        ptr_arg := cast(Expr, expr.params.get(1)!)
         dont_delete(ptr_arg)
         // Check if ptr_arg is a Dynamic parameter (void*) - just use the pointer directly
         mut is_dynamic_param := false
@@ -10190,7 +10152,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Check for type-qualified call on FCall result: func_name(fcall_result, args...)
     if first_param.params.is_empty().and(expr.params.len().gteq(2)) {
-        second_param := cast(Expr, expr.params.get(1)?)
+        second_param := cast(Expr, expr.params.get(1)!)
         dont_delete(second_param)
         switch second_param.node_type {
         case NodeType.FCall(_):
@@ -10211,7 +10173,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     mut ri := 2
                     while ri.lt(expr.params.len()) {
                         output.push_str(", ")
-                        remaining_arg := cast(Expr, expr.params.get(ri)?)
+                        remaining_arg := cast(Expr, expr.params.get(ri)!)
                         dont_delete(remaining_arg)
                         emit_expr(remaining_arg, output, 0, ctx, context)?
                         ri.inc()
@@ -10388,7 +10350,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         // Use compound literal as discard destination for return value
         mut discard_ret_type := "int"
         if not(fcall_fd.sig.return_types.is_empty()) {
-            discard_ret_vt := cast(ValueType, fcall_fd.sig.return_types.get(0)?)
+            discard_ret_vt := cast(ValueType, fcall_fd.sig.return_types.get(0)!)
             discard_ret_type = til_type_to_c(discard_ret_vt)?
         }
         output.push_str("&((")
@@ -10446,7 +10408,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 if fcall_has_emitted_ret.or(vexpr_arg_i.gt(0)) {
                     output.push_str(", ")
                 }
-                vexpr_arg := cast(Expr, expr.params.get(vexpr_arg_idx)?)
+                vexpr_arg := cast(Expr, expr.params.get(vexpr_arg_idx)!)
                 dont_delete(vexpr_arg)
                 mut vexpr_by_ref := false
                 if vexpr_arg_i.lt(var_param_info.len()) {
@@ -10534,7 +10496,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             mut nexpr_arg_i := 0
             mut nexpr_expr_i := 1
             while nexpr_expr_i.lt(expr.params.len()) {
-                nexpr_arg := cast(Expr, expr.params.get(nexpr_expr_i)?)
+                nexpr_arg := cast(Expr, expr.params.get(nexpr_expr_i)!)
                 dont_delete(nexpr_arg)
                 // Check if nexpr_arg is a type identifier - emit as string literal
                 mut nexpr_type_arg_name := ""
