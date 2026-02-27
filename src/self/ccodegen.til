@@ -17,8 +17,8 @@ sort_enum_variants := proc(mut v: Vec) {
     while gt(n, 1) {
         mut new_n := 0
         for i in 1..n {
-            prev := cast(EnumVariant, v.get(i.sub(1))?)
-            curr := cast(EnumVariant, v.get(i)?)
+            prev := cast(EnumVariant, v.get(i.sub(1))!)
+            curr := cast(EnumVariant, v.get(i)!)
             if gt(prev.name.cmp(curr.name), 0) {
                 tmp := EnumVariant.clone(prev)
                 v.set(i.sub(1), own curr)?
@@ -218,10 +218,7 @@ find_ret_var_for_placement := proc(func_def: FuncDef) returns Str {
     if func_def.sig.return_types.is_empty() {
         return ""
     }
-    first_ret_type := cast(ValueType, func_def.sig.return_types.get(0)?)
-    catch (err: IndexOutOfBoundsError) {
-        return ""
-    }
+    first_ret_type := cast(ValueType, func_def.sig.return_types.get(0)!)
     switch first_ret_type {
     case ValueType.TCustom(_):
         // good - struct/enum return type
