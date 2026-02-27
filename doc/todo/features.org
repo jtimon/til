@@ -17,6 +17,41 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 
 * Open Issues
 
+** Issue #197: Internal pointer representation should be unsigned, not I64
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Correctness, portability -- pointers are not signed integers
+:STATUS: Open
+:RELATED: Issue #195 (U32), Issue #196 (U64)
+:END:
+
+*** Description
+
+TIL internally represents pointers as I64. Pointers are unsigned values --
+using a signed type is semantically wrong and wastes half the address space
+on the sign bit.
+
+The natural replacement is U64, but U32 could serve as a temporary
+optimization worth trying (smaller footprint, sufficient for 32-bit targets).
+
+Eventually the internal pointer size should be target-dependent: U64 on
+64-bit machines, U32 on 32-bit machines. This means the compiler needs an
+internal pointer-sized type that adapts to the target.
+
+*** Naming problem
+
+The obvious name ~Ptr~ is already taken by the existing Ptr type, which is
+a bloated high-level type that does many things. The internal pointer
+representation needs a distinct name -- something like ~UPtr~, ~RawPtr~,
+or ~AddrSize~ -- to avoid collision with the existing Ptr type.
+
+*** Steps
+
+1. Introduce U32 and/or U64 types (Issues #195, #196)
+2. Choose a name for the internal pointer-width type
+3. Replace I64 pointer representation with the new unsigned type
+4. Eventually make pointer width target-dependent
+
 ** Issue #196: U64 native unsigned 64-bit integer type
 :PROPERTIES:
 :DISCOVERED: 2026-02-27
