@@ -144,7 +144,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
 parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str {
     _ := lexer.expect(TokenType.Mode)?  // Add one for mode
 
-    t := lexer.peek()?
+    t := lexer.peek()
     tt := t.token_type
     switch tt {
     case TokenType.Identifier:
@@ -162,9 +162,6 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str {
 
     _ := lexer.expect(TokenType.Identifier)?  // Add one for the identifier of the mode
 
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
 
     return m
 }

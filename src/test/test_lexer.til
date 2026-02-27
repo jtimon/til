@@ -9,16 +9,12 @@ test_newline_escape := proc() {
     mut source := "\"\\n\""
     mut tokens := scan_tokens(source)?
 
-    tok := cast(Token, tokens.get(0)?)
+    tok := cast(Token, tokens.get(0)!)
 
     assert_eq_str(loc(), "\n", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
@@ -31,16 +27,12 @@ test_tab_escape := proc() {
     mut source := "\"\\t\""
     mut tokens := scan_tokens(source)?
 
-    tok := cast(Token, tokens.get(0)?)
+    tok := cast(Token, tokens.get(0)!)
 
     assert_eq_str(loc(), "\t", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
@@ -53,16 +45,12 @@ test_carriage_return_escape := proc() {
     mut source := "\"\\r\""
     mut tokens := scan_tokens(source)?
 
-    tok := cast(Token, tokens.get(0)?)
+    tok := cast(Token, tokens.get(0)!)
 
     assert_eq_str(loc(), "\r", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
@@ -75,16 +63,12 @@ test_null_escape := proc() {
     mut source := "\"\\0\""
     mut tokens := scan_tokens(source)?
 
-    tok := cast(Token, tokens.get(0)?)
+    tok := cast(Token, tokens.get(0)!)
 
     assert_eq_str(loc(), "\0", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
@@ -97,16 +81,12 @@ test_multiple_escapes := proc() {
     mut source := "\"hello\\nworld\\ttab\""
     mut tokens := scan_tokens(source)?
 
-    tok := cast(Token, tokens.get(0)?)
+    tok := cast(Token, tokens.get(0)!)
 
     assert_eq_str(loc(), "hello\nworld\ttab", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
@@ -120,16 +100,12 @@ test_unknown_escape := proc() {
     mut source := "\"\\x\""
     mut tokens := scan_tokens(source)?
 
-    tok := cast(Token, tokens.get(0)?)
+    tok := cast(Token, tokens.get(0)!)
 
     assert_eq_str(loc(), "\\x", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
@@ -145,11 +121,11 @@ test_lexer_peek := proc() {
     mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // Peek at first token (should be "mode")
-    first_token := lexer.peek()?
+    first_token := lexer.peek()
     assert_eq_str(loc(), "mode", first_token.token_str)
 
     // Peek again should return same token
-    first_again := lexer.peek()?
+    first_again := lexer.peek()
     assert_eq_str(loc(), "mode", first_again.token_str)
 
     // Catch unexpected errors at end
@@ -158,11 +134,7 @@ test_lexer_peek := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: ReadError) {
         println("ERROR:", loc(), "ReadError:", err.msg)
         exit(1)
@@ -174,12 +146,12 @@ test_lexer_advance := proc() {
     mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // First token should be "mode"
-    t1 := lexer.peek()?
+    t1 := lexer.peek()
     assert_eq_str(loc(), "mode", t1.token_str)
 
     // Advance and check next token
     lexer.advance(1)?
-    t2 := lexer.peek()?
+    t2 := lexer.peek()
     assert_eq_str(loc(), "script", t2.token_str)
 
     // Catch unexpected errors at end
@@ -188,11 +160,7 @@ test_lexer_advance := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: ReadError) {
         println("ERROR:", loc(), "ReadError:", err.msg)
         exit(1)
@@ -208,7 +176,7 @@ test_lexer_peek_ahead := proc() {
     assert_eq_str(loc(), "script", next_token.token_str)
 
     // Current token should still be "mode"
-    current := lexer.peek()?
+    current := lexer.peek()
     assert_eq_str(loc(), "mode", current.token_str)
 
     // Catch unexpected errors at end
@@ -217,11 +185,7 @@ test_lexer_peek_ahead := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: ReadError) {
         println("ERROR:", loc(), "ReadError:", err.msg)
         exit(1)
@@ -237,7 +201,7 @@ test_lexer_next := proc() {
     assert_eq_str(loc(), "script", t1.token_str)
 
     // Current position hasn't changed (peek_ahead doesn't advance)
-    t2 := lexer.peek()?
+    t2 := lexer.peek()
     assert_eq_str(loc(), "mode", t2.token_str)
 
     // Catch unexpected errors at end
@@ -246,11 +210,7 @@ test_lexer_next := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: ReadError) {
         println("ERROR:", loc(), "ReadError:", err.msg)
         exit(1)
@@ -263,7 +223,7 @@ test_lexer_previous := proc() {
 
     // Advance to "script"
     lexer.advance(1)?
-    current := lexer.peek()?
+    current := lexer.peek()
     assert_eq_str(loc(), "script", current.token_str)
 
     // Get previous token (should be "mode")
@@ -276,11 +236,7 @@ test_lexer_previous := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: ReadError) {
         println("ERROR:", loc(), "ReadError:", err.msg)
         exit(1)
@@ -336,7 +292,7 @@ test_namespace_keyword := proc() {
     mut source := "namespace"
     mut tokens := scan_tokens(source)?
 
-    tok := cast(Token, tokens.get(0)?)
+    tok := cast(Token, tokens.get(0)!)
 
     assert_eq_str(loc(), "namespace", tok.token_str)
     // Verify it's recognized as a keyword, not an identifier
@@ -351,11 +307,7 @@ test_namespace_keyword := proc() {
         exit(1)
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
+
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)

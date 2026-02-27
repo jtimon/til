@@ -4800,6 +4800,23 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #180: Bang operator ~!~ for panic-on-throw -- IMPLEMENTED 2026-02-27
+:PROPERTIES:
+:DISCOVERED: 2026-02-23
+:FIXED: 2026-02-27
+:IMPACT: Ergonomics -- cleaner translation of Rust .unwrap(), less boilerplate catch blocks
+:RELATED: rs2til.org (? and ! operator semantics)
+:END:
+
+~!~ is the TIL equivalent of Rust's ~.unwrap()~. Use ~func()!~ instead of
+~func()?~ when you want a panic on error. The desugarer transforms ~func()!~
+into ~func()?~ followed by catch blocks that call ~panic()~ for each thrown
+error type.
+
+Limitation: only works for direct function calls. Method calls (UFCS) like
+~arr.get(i, val)!~ are not yet supported because the desugarer runs before
+UFCS rewriting.
+
 ** Issue #106: First-Class Enums -- IMPLEMENTED 2026-02-26
 :PROPERTIES:
 :DISCOVERED: 2026-01-12

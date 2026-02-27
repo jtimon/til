@@ -1656,10 +1656,6 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
     }
-    catch (err: IndexOutOfBoundsError) {
-        context.path = original_path.clone()
-        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
-    }
 
     # Parse mode
     mut parsed_mode := parse_mode(path, lexer)?
@@ -1699,11 +1695,6 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         context.mode_def = previous_mode
         context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
-    }
-    catch (err: IndexOutOfBoundsError) {
-        context.mode_def = previous_mode
-        context.path = original_path.clone()
-        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
     }
 
     # Preinit phase: auto-generate delete/clone methods

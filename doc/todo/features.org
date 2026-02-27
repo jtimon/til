@@ -17,6 +17,54 @@ For pre-1.0 work, see pre.org. For post-self-hosting, see post.org.
 
 * Open Issues
 
+** Issue #200: File I/O -- open, read, write, seek, binary and text modes
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Language feature -- proper file handling beyond all-or-nothing readfile/writefile
+:STATUS: Open
+:END:
+
+*** Description
+
+TIL currently only supports all-or-nothing file operations: ~readfile(path)~
+reads an entire file into a string, ~writefile(path, contents)~ writes an
+entire string to a file. There is no way to:
+
+- Open a file and keep a handle
+- Read or write at a cursor position
+- Move the cursor (seek) without reading or writing
+- Read/write in binary mode vs text mode
+- Read/write partial data (lines, bytes, chunks)
+
+This issue covers adding proper file I/O with open/read/write/seek/close
+operations, supporting both binary and text modes.
+
+** Issue #199: Codebase cleanup -- use ~!~ where ~?~ + catch-panic is unnecessary
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Code quality -- remove boilerplate catch blocks, cleaner error handling
+:STATUS: Open
+:RELATED: Issue #180 (bang operator)
+:END:
+
+*** Description
+
+Now that ~!~ (Issue #180) is implemented, audit the codebase for ~?~ calls
+that are immediately followed by a catch block that just panics or re-throws.
+These can be replaced with ~!~, removing boilerplate.
+
+Also applies beyond ~get()~ -- any throwing function where the caller doesn't
+meaningfully handle the error is a candidate for ~!~.
+
+The compiler guides this work: change ~?~ to ~!~, and it reports which catches
+and ~throws~ declarations are now unnecessary.
+
+*** Partial cleanup done
+
+The lexer.til ~get()~ calls were converted to ~!~ as a proof of concept,
+with the cascade fixed through parser.til, mode.til, init.til,
+interpreter.til, builder.til, and test files.
+
 ** Issue #198: Usize -- pointer-sized unsigned type for pointers and indexes
 :PROPERTIES:
 :DISCOVERED: 2026-02-27
@@ -374,92 +422,6 @@ Standalone bare ~{ ... }~ blocks already work (parser, interpreter, and
 ccodegen all handle Body nodes). This issue is about making bodies into
 first-class values, not about block syntax.
 
-** Issue #180: Bang operator ~!~ for panic-on-throw (Rust ~.unwrap()~ equivalent)
-:PROPERTIES:
-:DISCOVERED: 2026-02-23
-:IMPACT: Ergonomics -- cleaner translation of Rust .unwrap(), less boilerplate catch blocks
-:STATUS: In Progress
-:RELATED: rs2til.org (? operator semantics)
-:END:
-
-*** Progress
-
-- [X] Lexer: renamed ~TokenType.Not~ to ~TokenType.ExclamationMark~, removed error for ~!~
-- [X] Parser: ~!~ accepted as synonym for ~?~ at all 3 fcall sites (produces ~FCall(true)~)
-- [X] Parser step 2: changed ~FCall(bool)~ to ~FCall(FCallInfo)~ with ~does_throw~ and ~is_bang~ fields
-- [X] Typer: skip throw tracking for ~is_bang~ calls (FCall, Declaration, Assignment)
-- [X] Desugarer: generate ~catch (err: Type) { panic(loc(), err.msg) }~ for each thrown type
-- [ ] Test: ~src/test/panic_bang.til~ with ~expected_status=1~
-- [ ] Docs: update ~rs2til.org~ with ~!~ / ~.unwrap()~ mapping
-
-Works for direct function calls (e.g. ~might_fail(x)!~). Method calls
-(e.g. ~arr.get(i, val)!~) not yet supported -- desugarer runs before UFCS
-and cannot resolve method signatures via ~lookup_func~.
-
-*** Description
-
-Currently ~?~ marks that a call may throw. There is no concise way to say
-"call this, and if it throws, panic." You must write a full catch block:
-
-#+BEGIN_SRC til
-result := might_fail(x)?
-catch (err: SomeError) { panic(loc(), err.msg) }
-#+END_SRC
-
-Propose ~!~ as an alternative to ~?~ meaning "panic on throw":
-
-#+BEGIN_SRC til
-result := might_fail(x)!   // panics if might_fail throws
-#+END_SRC
-
-This maps directly to Rust's ~.unwrap()~:
-
-#+BEGIN_SRC rust
-// Rust
-let result = might_fail(x).unwrap();
-
-// TIL equivalent
-result := might_fail(x)!
-#+END_SRC
-
-*** Implementation
-
-Desugarer transforms ~func()!~ by inserting a catch block with panic for
-every throwable type immediately after the call:
-
-#+BEGIN_SRC til
-// Before desugaring:
-result := might_fail(x)!
-
-// After desugaring:
-result := might_fail(x)?
-catch (err: SomeError) { panic(loc(), err.msg) }
-#+END_SRC
-
-Steps:
-1. [DONE] Lexer: recognize ~!~ after fcall (new token or reuse existing)
-2. [DONE] Parser: parse ~!~ like ~?~ but store a flag (~FCall(FCallInfo(does_throw=true, is_bang=true))~)
-3. [DONE] Typer: when ~is_bang~ is true, skip adding throw types to ~thrown_types~
-   (in FCall, Declaration, and Assignment handlers of ~check_body_returns_throws~)
-4. [DONE] Desugarer: ~desugar_bang_in_body~ iterates body statements, finds bang FCalls
-   via ~find_bang_func_name~, looks up throw types via ~lookup_func~, generates
-   catch blocks via ~build_bang_catch~, and clears ~is_bang~ flag via ~clear_bang_flag~.
-   Integrated into FuncDef body and Body node handlers.
-
-*** Limitations
-
-- Only works for direct function calls where ~params[0]~ is ~Identifier(name)~
-  and ~lookup_func(name)~ succeeds. Method calls (UFCS) like ~arr.get(i, val)!~
-  are not yet supported because the desugarer runs before UFCS rewriting.
-- To support method calls, either move bang desugaring after UFCS, or add
-  type-aware method resolution to the desugarer.
-
-*** Notes
-
-- The desugarer needs access to function signatures to know which error types
-  to catch. This is already available via ~context.scope_stack.lookup_func~.
-- ~!~ should NOT be allowed on calls that don't throw (typer error).
-- Multiple throw types generate multiple catch blocks, all panicking.
 
 ** Issue #83: No spread/splat operator for variadic argument forwarding
 :PROPERTIES:

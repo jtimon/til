@@ -14,6 +14,43 @@ see features.org. For bugs, see bugs.org.
 
 * Open Issues
 
+** Issue #201: Bang operator catch deduplication -- one catch per function, not per call
+:PROPERTIES:
+:DISCOVERED: 2026-02-27
+:IMPACT: Code size / performance -- reduces generated catch block count
+:STATUS: Open
+:RELATED: Issue #180 (bang operator), Issue #199 (codebase cleanup with !)
+:END:
+
+*** Description
+
+Currently the desugarer generates a catch block for each ~!~ call:
+
+#+BEGIN_SRC til
+// Two ! calls generate two catch blocks each:
+a := foo()!
+b := bar()!
+
+// Desugars to:
+a := foo()?
+catch (_bang_err_0: FooError) { panic(loc(), _bang_err_0.msg) }
+b := bar()?
+catch (_bang_err_1: BarError) { panic(loc(), _bang_err_1.msg) }
+#+END_SRC
+
+Since all bang catches do the same thing (panic), they could be deduplicated
+into a single catch per error type at the end of the function:
+
+#+BEGIN_SRC til
+a := foo()?
+b := bar()?
+// One combined catch block at function end:
+catch (_bang_err: FooError) { panic(loc(), _bang_err.msg) }
+catch (_bang_err: BarError) { panic(loc(), _bang_err.msg) }
+#+END_SRC
+
+This reduces generated code size, especially in functions with many ~!~ calls.
+
 ** Issue #194: make.til flag forwarding to tests
 :PROPERTIES:
 :DISCOVERED: 2026-02-27

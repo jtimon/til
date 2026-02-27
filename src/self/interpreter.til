@@ -3229,9 +3229,6 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
     catch (err: Str) {
         throw format(path, ":", err)
     }
-    catch (err: IndexOutOfBoundsError) {
-        throw format(path, ":", err.msg)
-    }
 
     // Parse mode
     mut parsed_mode := parse_mode(path, lexer)?
@@ -3274,9 +3271,6 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
     mut e := parse_tokens(lexer)?
     catch (err: Str) {
         throw format(path, ":", err)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw format(path, ":", err.msg)
     }
 
     // Preinit phase: auto-generate delete/clone methods

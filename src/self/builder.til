@@ -57,8 +57,6 @@ parse_file := proc(path: Str) returns ParseFileResult throws Str {
     result.ast = ast
     result.mode_def = mode_def
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-
     return result
 }
 
