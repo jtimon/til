@@ -873,4 +873,18 @@ void til_size_of_error(const char* type_name)
     exit(1);
 }
 
+// Error reporting for introspection functions (type-only errors)
+void til_introspect_error(const char* func_name, const char* type_name)
+{
+    fprintf(stderr, "%s: type '%s' not found\n", func_name, type_name);
+    exit(1);
+}
+
+// Error reporting for introspection functions (type+index errors)
+void til_introspect_index_error(const char* func_name, const char* type_name, long long index)
+{
+    fprintf(stderr, "%s: type '%s' index %lld not found\n", func_name, type_name, index);
+    exit(1);
+}
+
 #endif /* TIL_EXT_C */

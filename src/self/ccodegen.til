@@ -2859,7 +2859,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output.push_str(format("extern void ", TIL_PREFIX, "raw_memcpy(void* dest, const void* src, long long n);\n"))
     output.push_str(format("extern long long ", TIL_PREFIX, "raw_strlen(const char* s);\n"))
     output.push_str(format("extern int ", TIL_PREFIX, "raw_strcmp(const char* s1, const char* s2);\n"))
-    output.push_str(format("extern void ", TIL_PREFIX, "size_of_error(const char* type_name);\n\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "size_of_error(const char* type_name);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "introspect_error(const char* func_name, const char* type_name);\n"))
+    output.push_str(format("extern void ", TIL_PREFIX, "introspect_index_error(const char* func_name, const char* type_name, long long index);\n\n"))
 
     // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
     // Also emits size_of constants for each struct
@@ -3632,7 +3634,7 @@ emit_enum_size_of_constant := proc(expr: Expr, mut output: Str, mut ctx: Codegen
 }
 
 // Emit til_size_of function for runtime type size lookup
-emit_size_of_function : proc(mut output: Str, ctx: CodegenContext) = {
+emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
     // Issue #135: non-static so ext.c can call it at link time
     output.push_str("\n")
     output.push_str(TIL_PREFIX)
@@ -3749,14 +3751,13 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     for s1i in 0..struct_names.len() {
         s1n := cast(Str, struct_names.get(s1i)?)
         s1d := cast(StructDef, struct_defs.get(s1i)?)
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(s1n)
         output.push_str("\") == 0) return ")
         output.push_str(s1d.members.len().to_str())
         output.push_str(";\n")
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "introspect_error(\"__struct_field_count\", (char*)type_name->c_string.data);\n"))
     output.push_str("}\n")
 
     // __struct_field_name
@@ -3772,7 +3773,7 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     for s2i in 0..struct_names.len() {
         s2n := cast(Str, struct_names.get(s2i)?)
         s2d := cast(StructDef, struct_defs.get(s2i)?)
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(s2n)
         output.push_str("\") == 0) {\n")
         output.push_str("        switch (*index) {\n")
@@ -3787,8 +3788,7 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
         output.push_str("        }\n")
         output.push_str("    }\n")
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_name: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "introspect_index_error(\"__struct_field_name\", (char*)type_name->c_string.data, (long long)*index);\n"))
     output.push_str("}\n")
 
     // __struct_field_is_mut
@@ -3804,7 +3804,7 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     for s3i in 0..struct_names.len() {
         s3n := cast(Str, struct_names.get(s3i)?)
         s3d := cast(StructDef, struct_defs.get(s3i)?)
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(s3n)
         output.push_str("\") == 0) {\n")
         output.push_str("        switch (*index) {\n")
@@ -3822,8 +3822,7 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
         output.push_str("        }\n")
         output.push_str("    }\n")
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_is_mut: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "introspect_index_error(\"__struct_field_is_mut\", (char*)type_name->c_string.data, (long long)*index);\n"))
     output.push_str("}\n")
 
     // __struct_field_type_kind
@@ -3839,7 +3838,7 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     for s4i in 0..struct_names.len() {
         s4n := cast(Str, struct_names.get(s4i)?)
         s4d := cast(StructDef, struct_defs.get(s4i)?)
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(s4n)
         output.push_str("\") == 0) {\n")
         output.push_str("        switch (*index) {\n")
@@ -3854,8 +3853,7 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
         output.push_str("        }\n")
         output.push_str("    }\n")
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_type_kind: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "introspect_index_error(\"__struct_field_type_kind\", (char*)type_name->c_string.data, (long long)*index);\n"))
     output.push_str("}\n")
 
     // __struct_field_type_arg
@@ -3871,7 +3869,7 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
     for s5i in 0..struct_names.len() {
         s5n := cast(Str, struct_names.get(s5i)?)
         s5d := cast(StructDef, struct_defs.get(s5i)?)
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(s5n)
         output.push_str("\") == 0) {\n")
         output.push_str("        switch (*index) {\n")
@@ -3886,8 +3884,7 @@ emit_introspection_struct_funcs := proc(struct_names: Vec, struct_defs: Vec, mut
         output.push_str("        }\n")
         output.push_str("    }\n")
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_type_arg: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "introspect_index_error(\"__struct_field_type_arg\", (char*)type_name->c_string.data, (long long)*index);\n"))
     output.push_str("}\n")
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -3906,14 +3903,13 @@ emit_introspection_enum_funcs := proc(enum_names: Vec, enum_defs: Vec, mut outpu
     for e1i in 0..enum_names.len() {
         e1n := cast(Str, enum_names.get(e1i)?)
         e1d := cast(EnumDef, enum_defs.get(e1i)?)
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(e1n)
         output.push_str("\") == 0) return ")
         output.push_str(e1d.variants.len().to_str())
         output.push_str(";\n")
     }
-    output.push_str("    fprintf(stderr, \"__enum_variant_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "introspect_error(\"__enum_variant_count\", (char*)type_name->c_string.data);\n"))
     output.push_str("}\n")
 
     // __enum_variant_name
@@ -3929,7 +3925,7 @@ emit_introspection_enum_funcs := proc(enum_names: Vec, enum_defs: Vec, mut outpu
     for e2i in 0..enum_names.len() {
         e2n := cast(Str, enum_names.get(e2i)?)
         e2d := cast(EnumDef, enum_defs.get(e2i)?)
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(e2n)
         output.push_str("\") == 0) {\n")
         output.push_str("        switch (*index) {\n")
@@ -3944,8 +3940,7 @@ emit_introspection_enum_funcs := proc(enum_names: Vec, enum_defs: Vec, mut outpu
         output.push_str("        }\n")
         output.push_str("    }\n")
     }
-    output.push_str("    fprintf(stderr, \"__enum_variant_name: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "introspect_index_error(\"__enum_variant_name\", (char*)type_name->c_string.data, (long long)*index);\n"))
     output.push_str("}\n")
 
     // __enum_variant_has_payload
@@ -3961,7 +3956,7 @@ emit_introspection_enum_funcs := proc(enum_names: Vec, enum_defs: Vec, mut outpu
     for e3i in 0..enum_names.len() {
         e3n := cast(Str, enum_names.get(e3i)?)
         e3d := cast(EnumDef, enum_defs.get(e3i)?)
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(e3n)
         output.push_str("\") == 0) {\n")
         output.push_str("        switch (*index) {\n")
@@ -3979,8 +3974,7 @@ emit_introspection_enum_funcs := proc(enum_names: Vec, enum_defs: Vec, mut outpu
         output.push_str("        }\n")
         output.push_str("    }\n")
     }
-    output.push_str("    fprintf(stderr, \"__enum_variant_has_payload: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "introspect_index_error(\"__enum_variant_has_payload\", (char*)type_name->c_string.data, (long long)*index);\n"))
     output.push_str("}\n")
 
     // __enum_variant_payload_type
@@ -3996,7 +3990,7 @@ emit_introspection_enum_funcs := proc(enum_names: Vec, enum_defs: Vec, mut outpu
     for e4i in 0..enum_names.len() {
         e4n := cast(Str, enum_names.get(e4i)?)
         e4d := cast(EnumDef, enum_defs.get(e4i)?)
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(format("    if (", TIL_PREFIX, "raw_strcmp((char*)type_name->c_string.data, \""))
         output.push_str(e4n)
         output.push_str("\") == 0) {\n")
         output.push_str("        switch (*index) {\n")
@@ -4017,8 +4011,7 @@ emit_introspection_enum_funcs := proc(enum_names: Vec, enum_defs: Vec, mut outpu
         output.push_str("        }\n")
         output.push_str("    }\n")
     }
-    output.push_str("    fprintf(stderr, \"__enum_variant_payload_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
-    output.push_str("    exit(1);\n")
+    output.push_str(format("    ", TIL_PREFIX, "introspect_index_error(\"__enum_variant_payload_type\", (char*)type_name->c_string.data, (long long)*index);\n"))
     output.push_str("}\n")
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }

@@ -2424,7 +2424,9 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     output.push_str(&format!("extern void {p}raw_memcpy(void* dest, const void* src, long long n);\n", p=TIL_PREFIX));
     output.push_str(&format!("extern long long {p}raw_strlen(const char* s);\n", p=TIL_PREFIX));
     output.push_str(&format!("extern int {p}raw_strcmp(const char* s1, const char* s2);\n", p=TIL_PREFIX));
-    output.push_str(&format!("extern void {p}size_of_error(const char* type_name);\n\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}size_of_error(const char* type_name);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}introspect_error(const char* func_name, const char* type_name);\n", p=TIL_PREFIX));
+    output.push_str(&format!("extern void {p}introspect_index_error(const char* func_name, const char* type_name, long long index);\n\n", p=TIL_PREFIX));
 
     // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
     // Also emits size_of constants for each struct
@@ -3494,14 +3496,13 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
     output.push_str(TIL_PREFIX);
     output.push_str("Str* type_name) {\n");
     for (name, sd) in &struct_entries {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(name);
         output.push_str("\") == 0) return ");
         output.push_str(&format!("{}", sd.members.len()));
         output.push_str(";\n");
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}introspect_error(\"__struct_field_count\", (char*)type_name->c_string.data);\n", p=TIL_PREFIX));
     output.push_str("}\n");
 
     // __struct_field_name
@@ -3515,7 +3516,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
     output.push_str(TIL_PREFIX);
     output.push_str("I64* index) {\n");
     for (name, sd) in &struct_entries {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(name);
         output.push_str("\") == 0) {\n");
         output.push_str("        switch (*index) {\n");
@@ -3527,8 +3528,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
         output.push_str("        }\n");
         output.push_str("    }\n");
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_name: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}introspect_index_error(\"__struct_field_name\", (char*)type_name->c_string.data, (long long)*index);\n", p=TIL_PREFIX));
     output.push_str("}\n");
 
     // __struct_field_is_mut
@@ -3542,7 +3542,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
     output.push_str(TIL_PREFIX);
     output.push_str("I64* index) {\n");
     for (name, sd) in &struct_entries {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(name);
         output.push_str("\") == 0) {\n");
         output.push_str("        switch (*index) {\n");
@@ -3552,8 +3552,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
         output.push_str("        }\n");
         output.push_str("    }\n");
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_is_mut: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}introspect_index_error(\"__struct_field_is_mut\", (char*)type_name->c_string.data, (long long)*index);\n", p=TIL_PREFIX));
     output.push_str("}\n");
 
     // __struct_field_type_kind
@@ -3567,7 +3566,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
     output.push_str(TIL_PREFIX);
     output.push_str("I64* index) {\n");
     for (name, sd) in &struct_entries {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(name);
         output.push_str("\") == 0) {\n");
         output.push_str("        switch (*index) {\n");
@@ -3579,8 +3578,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
         output.push_str("        }\n");
         output.push_str("    }\n");
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_type_kind: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}introspect_index_error(\"__struct_field_type_kind\", (char*)type_name->c_string.data, (long long)*index);\n", p=TIL_PREFIX));
     output.push_str("}\n");
 
     // __struct_field_type_arg
@@ -3594,7 +3592,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
     output.push_str(TIL_PREFIX);
     output.push_str("I64* index) {\n");
     for (name, sd) in &struct_entries {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(name);
         output.push_str("\") == 0) {\n");
         output.push_str("        switch (*index) {\n");
@@ -3606,8 +3604,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
         output.push_str("        }\n");
         output.push_str("    }\n");
     }
-    output.push_str("    fprintf(stderr, \"__struct_field_type_arg: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}introspect_index_error(\"__struct_field_type_arg\", (char*)type_name->c_string.data, (long long)*index);\n", p=TIL_PREFIX));
     output.push_str("}\n");
 
     // __enum_variant_count
@@ -3619,14 +3616,13 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
     output.push_str(TIL_PREFIX);
     output.push_str("Str* type_name) {\n");
     for (name, ed) in &enum_entries {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(name);
         output.push_str("\") == 0) return ");
         output.push_str(&format!("{}", ed.variants.len()));
         output.push_str(";\n");
     }
-    output.push_str("    fprintf(stderr, \"__enum_variant_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}introspect_error(\"__enum_variant_count\", (char*)type_name->c_string.data);\n", p=TIL_PREFIX));
     output.push_str("}\n");
 
     // __enum_variant_name
@@ -3640,7 +3636,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
     output.push_str(TIL_PREFIX);
     output.push_str("I64* index) {\n");
     for (name, ed) in &enum_entries {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(name);
         output.push_str("\") == 0) {\n");
         output.push_str("        switch (*index) {\n");
@@ -3652,8 +3648,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
         output.push_str("        }\n");
         output.push_str("    }\n");
     }
-    output.push_str("    fprintf(stderr, \"__enum_variant_name: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}introspect_index_error(\"__enum_variant_name\", (char*)type_name->c_string.data, (long long)*index);\n", p=TIL_PREFIX));
     output.push_str("}\n");
 
     // __enum_variant_has_payload
@@ -3667,7 +3662,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
     output.push_str(TIL_PREFIX);
     output.push_str("I64* index) {\n");
     for (name, ed) in &enum_entries {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(name);
         output.push_str("\") == 0) {\n");
         output.push_str("        switch (*index) {\n");
@@ -3677,8 +3672,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
         output.push_str("        }\n");
         output.push_str("    }\n");
     }
-    output.push_str("    fprintf(stderr, \"__enum_variant_has_payload: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}introspect_index_error(\"__enum_variant_has_payload\", (char*)type_name->c_string.data, (long long)*index);\n", p=TIL_PREFIX));
     output.push_str("}\n");
 
     // __enum_variant_payload_type
@@ -3692,7 +3686,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
     output.push_str(TIL_PREFIX);
     output.push_str("I64* index) {\n");
     for (name, ed) in &enum_entries {
-        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(&format!("    if ({p}raw_strcmp((char*)type_name->c_string.data, \"", p=TIL_PREFIX));
         output.push_str(name);
         output.push_str("\") == 0) {\n");
         output.push_str("        switch (*index) {\n");
@@ -3708,8 +3702,7 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
         output.push_str("        }\n");
         output.push_str("    }\n");
     }
-    output.push_str("    fprintf(stderr, \"__enum_variant_payload_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
-    output.push_str("    exit(1);\n");
+    output.push_str(&format!("    {p}introspect_index_error(\"__enum_variant_payload_type\", (char*)type_name->c_string.data, (long long)*index);\n", p=TIL_PREFIX));
     output.push_str("}\n");
 }
 
