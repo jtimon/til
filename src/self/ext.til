@@ -1343,6 +1343,140 @@ func_enum_variant_payload_type := proc(mut context: Context, e: Expr) returns Ev
     }
 }
 
+// ---------- FuncSig introspection functions (Issue #91)
+
+func_func_sig_param_count := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "__func_sig_param_count", 1, false)?
+
+    e1 := cast(Expr, e.params.get(1)?)
+    result1 := eval_expr(context, e1)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    func_def := context.scope_stack.lookup_func(type_name)?
+    return EvalResult.new(func_def.sig.args.len().to_str())
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__func_sig_param_count: type '", type_name, "' not found"))
+    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+func_func_sig_param_type := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "__func_sig_param_type", 2, false)?
+
+    e1 := cast(Expr, e.params.get(1)?)
+    result1 := eval_expr(context, e1)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    e2 := cast(Expr, e.params.get(2)?)
+    result2 := eval_expr(context, e2)?
+    if result2.is_throw { return result2 }
+    index := I64.from_str(result2.value)
+
+    func_def := context.scope_stack.lookup_func(type_name)?
+    if index.lt(func_def.sig.args.len()) {
+        arg := cast(Declaration, func_def.sig.args.get(index)?)
+        return EvalResult.new(value_type_to_str(arg.value_type))
+    } else {
+        throw e.lang_error(context.path, "eval", format("__func_sig_param_type: index ", index.to_str(), " out of bounds for '", type_name, "' with ", func_def.sig.args.len().to_str(), " params"))
+    }
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__func_sig_param_type: type '", type_name, "' not found"))
+    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+func_func_sig_return_count := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "__func_sig_return_count", 1, false)?
+
+    e1 := cast(Expr, e.params.get(1)?)
+    result1 := eval_expr(context, e1)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    func_def := context.scope_stack.lookup_func(type_name)?
+    return EvalResult.new(func_def.sig.return_types.len().to_str())
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__func_sig_return_count: type '", type_name, "' not found"))
+    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+func_func_sig_return_type := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "__func_sig_return_type", 2, false)?
+
+    e1 := cast(Expr, e.params.get(1)?)
+    result1 := eval_expr(context, e1)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    e2 := cast(Expr, e.params.get(2)?)
+    result2 := eval_expr(context, e2)?
+    if result2.is_throw { return result2 }
+    index := I64.from_str(result2.value)
+
+    func_def := context.scope_stack.lookup_func(type_name)?
+    if index.lt(func_def.sig.return_types.len()) {
+        ret_type := cast(ValueType, func_def.sig.return_types.get(index)?)
+        return EvalResult.new(value_type_to_str(ret_type))
+    } else {
+        throw e.lang_error(context.path, "eval", format("__func_sig_return_type: index ", index.to_str(), " out of bounds for '", type_name, "' with ", func_def.sig.return_types.len().to_str(), " return types"))
+    }
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__func_sig_return_type: type '", type_name, "' not found"))
+    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+func_func_sig_throw_count := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "__func_sig_throw_count", 1, false)?
+
+    e1 := cast(Expr, e.params.get(1)?)
+    result1 := eval_expr(context, e1)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    func_def := context.scope_stack.lookup_func(type_name)?
+    return EvalResult.new(func_def.sig.throw_types.len().to_str())
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__func_sig_throw_count: type '", type_name, "' not found"))
+    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+func_func_sig_throw_type := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "__func_sig_throw_type", 2, false)?
+
+    e1 := cast(Expr, e.params.get(1)?)
+    result1 := eval_expr(context, e1)?
+    if result1.is_throw { return result1 }
+    type_name := result1.value
+
+    e2 := cast(Expr, e.params.get(2)?)
+    result2 := eval_expr(context, e2)?
+    if result2.is_throw { return result2 }
+    index := I64.from_str(result2.value)
+
+    func_def := context.scope_stack.lookup_func(type_name)?
+    if index.lt(func_def.sig.throw_types.len()) {
+        throw_type := cast(ValueType, func_def.sig.throw_types.get(index)?)
+        return EvalResult.new(value_type_to_str(throw_type))
+    } else {
+        throw e.lang_error(context.path, "eval", format("__func_sig_throw_type: index ", index.to_str(), " out of bounds for '", type_name, "' with ", func_def.sig.throw_types.len().to_str(), " throw types"))
+    }
+
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("__func_sig_throw_type: type '", type_name, "' not found"))
+    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
 func_exit := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "exit", 1, false)?
 

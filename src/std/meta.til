@@ -71,6 +71,37 @@ enum_def_of := proc(type_name: Str) returns EnumDef {
     return def
 }
 
+// FuncSig introspection primitives (Issue #91)
+__func_sig_param_count  := ext_func(type_name: Str) returns I64 {}
+__func_sig_param_type   := ext_func(type_name: Str, index: I64) returns Str {}
+__func_sig_return_count := ext_func(type_name: Str) returns I64 {}
+__func_sig_return_type  := ext_func(type_name: Str, index: I64) returns Str {}
+__func_sig_throw_count  := ext_func(type_name: Str) returns I64 {}
+__func_sig_throw_type   := ext_func(type_name: Str, index: I64) returns Str {}
+
+// Build a FuncSig for the named type by querying scope_stack via ext functions
+func_sig_of := proc(type_name: Str) returns FuncSig {
+    mut sig := FuncSig()
+    pn := __func_sig_param_count(type_name)
+    for pi in 0..pn {
+        mut param := Declaration()
+        param_type_str := __func_sig_param_type(type_name, pi)
+        param.value_type = ValueType.TCustom(param_type_str)
+        sig.args.push(own param)
+    }
+    rn := __func_sig_return_count(type_name)
+    for ri in 0..rn {
+        ret_type_str := __func_sig_return_type(type_name, ri)
+        sig.return_types.push(own ValueType.TCustom(ret_type_str))
+    }
+    tn := __func_sig_throw_count(type_name)
+    for ti in 0..tn {
+        throw_type_str := __func_sig_throw_type(type_name, ti)
+        sig.throw_types.push(own ValueType.TCustom(throw_type_str))
+    }
+    return sig
+}
+
 // Introspection - Runtime type information utilities
 //
 // This struct acts as a namespace (has no mutable fields).

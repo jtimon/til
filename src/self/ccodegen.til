@@ -3649,11 +3649,13 @@ emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
 // Generates C implementations of the __struct_field_* and __enum_variant_*
 // ext_funcs so introspection works in compiled mode.
 emit_introspection_metadata := proc(ast: Expr, mut output: Str, _context: Context) {
-    // Collect struct and enum declarations from AST
+    // Collect struct, enum, and func sig declarations from AST
     mut struct_names := Vec.new(Str)
     mut struct_defs := Vec.new(StructDef)
     mut enum_names := Vec.new(Str)
     mut enum_defs := Vec.new(EnumDef)
+    mut func_sig_names := Vec.new(Str)
+    mut func_sig_defs := Vec.new(FuncDef)
 
     switch ast.node_type {
     case NodeType.Body:
@@ -3679,6 +3681,12 @@ emit_introspection_metadata := proc(ast: Expr, mut output: Str, _context: Contex
                     case NodeType.EnumDef(ed):
                         enum_names.push(own decl.name.clone())
                         enum_defs.push(own ed.clone())
+                    case NodeType.FuncDef(fd):
+                        // Issue #91: Collect function signature definitions
+                        if is_function_signature(fd) {
+                            func_sig_names.push(own decl.name.clone())
+                            func_sig_defs.push(own fd.clone())
+                        }
                     case:
                     }
                 }
@@ -3692,11 +3700,14 @@ emit_introspection_metadata := proc(ast: Expr, mut output: Str, _context: Contex
 
     emit_introspection_struct_funcs(struct_names, struct_defs, output)
     emit_introspection_enum_funcs(enum_names, enum_defs, output)
+    emit_introspection_func_sig_funcs(func_sig_names, func_sig_defs, output)
 
     struct_names.delete()
     struct_defs.delete()
     enum_names.delete()
     enum_defs.delete()
+    func_sig_names.delete()
+    func_sig_defs.delete()
 }
 
 // Helper: get type kind string for a ValueType
@@ -4003,6 +4014,173 @@ emit_introspection_enum_funcs := proc(enum_names: Vec, enum_defs: Vec, mut outpu
         output.push_str("    }\n")
     }
     output.push_str("    fprintf(stderr, \"__enum_variant_payload_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+// Issue #91: FuncSig introspection
+emit_introspection_func_sig_funcs := proc(func_sig_names: Vec, func_sig_defs: Vec, mut output: Str) {
+    // __func_sig_param_count
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64 ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__func_sig_param_count(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name) {\n")
+    for f1i in 0..func_sig_names.len() {
+        f1n := cast(Str, func_sig_names.get(f1i)?)
+        f1d := cast(FuncDef, func_sig_defs.get(f1i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(f1n)
+        output.push_str("\") == 0) return ")
+        output.push_str(f1d.sig.args.len().to_str())
+        output.push_str(";\n")
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_param_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __func_sig_param_type
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__func_sig_param_type(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for f2i in 0..func_sig_names.len() {
+        f2n := cast(Str, func_sig_names.get(f2i)?)
+        f2d := cast(FuncDef, func_sig_defs.get(f2i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(f2n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for f2j in 0..f2d.sig.args.len() {
+            f2p := cast(Declaration, f2d.sig.args.get(f2j)?)
+            f2_type_str := value_type_to_str(f2p.value_type)
+            output.push_str("        case ")
+            output.push_str(f2j.to_str())
+            output.push_str(": return ")
+            emit_str_literal(f2_type_str, output)
+            output.push_str(";\n")
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_param_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __func_sig_return_count
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64 ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__func_sig_return_count(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name) {\n")
+    for f3i in 0..func_sig_names.len() {
+        f3n := cast(Str, func_sig_names.get(f3i)?)
+        f3d := cast(FuncDef, func_sig_defs.get(f3i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(f3n)
+        output.push_str("\") == 0) return ")
+        output.push_str(f3d.sig.return_types.len().to_str())
+        output.push_str(";\n")
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_return_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __func_sig_return_type
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__func_sig_return_type(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for f4i in 0..func_sig_names.len() {
+        f4n := cast(Str, func_sig_names.get(f4i)?)
+        f4d := cast(FuncDef, func_sig_defs.get(f4i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(f4n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for f4j in 0..f4d.sig.return_types.len() {
+            f4_rt := cast(ValueType, f4d.sig.return_types.get(f4j)?)
+            f4_type_str := value_type_to_str(f4_rt)
+            output.push_str("        case ")
+            output.push_str(f4j.to_str())
+            output.push_str(": return ")
+            emit_str_literal(f4_type_str, output)
+            output.push_str(";\n")
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_return_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __func_sig_throw_count
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64 ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__func_sig_throw_count(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name) {\n")
+    for f5i in 0..func_sig_names.len() {
+        f5n := cast(Str, func_sig_names.get(f5i)?)
+        f5d := cast(FuncDef, func_sig_defs.get(f5i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(f5n)
+        output.push_str("\") == 0) return ")
+        output.push_str(f5d.sig.throw_types.len().to_str())
+        output.push_str(";\n")
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_throw_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+
+    // __func_sig_throw_type
+    output.push_str("\nstatic inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("__func_sig_throw_type(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name, const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64* index) {\n")
+    for f6i in 0..func_sig_names.len() {
+        f6n := cast(Str, func_sig_names.get(f6i)?)
+        f6d := cast(FuncDef, func_sig_defs.get(f6i)?)
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
+        output.push_str(f6n)
+        output.push_str("\") == 0) {\n")
+        output.push_str("        switch (*index) {\n")
+        for f6j in 0..f6d.sig.throw_types.len() {
+            f6_tt := cast(ValueType, f6d.sig.throw_types.get(f6j)?)
+            f6_type_str := value_type_to_str(f6_tt)
+            output.push_str("        case ")
+            output.push_str(f6j.to_str())
+            output.push_str(": return ")
+            emit_str_literal(f6_type_str, output)
+            output.push_str(";\n")
+        }
+        output.push_str("        }\n")
+        output.push_str("    }\n")
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_throw_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n")
     output.push_str("    exit(1);\n")
     output.push_str("}\n")
 

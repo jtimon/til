@@ -5,6 +5,7 @@ use crate::rs::parser::{Expr, NodeType, Literal, FuncDef, StructDef, EnumDef, Na
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType, PrecomputedHeapValue};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use crate::rs::eval_heap::{EvalHeap, VecContents};
+use crate::rs::utils::is_function_signature;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
@@ -3447,9 +3448,10 @@ fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
 // Generates static metadata tables and C implementations of the __struct_field_*
 // and __enum_variant_* ext_funcs so introspection works in compiled mode.
 fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Context) {
-    // Collect struct and enum declarations from AST
+    // Collect struct, enum, and func sig declarations from AST
     let mut struct_entries: Vec<(String, StructDef)> = Vec::new();
     let mut enum_entries: Vec<(String, EnumDef)> = Vec::new();
+    let mut func_sig_entries: Vec<(String, FuncDef)> = Vec::new();
 
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
@@ -3466,6 +3468,12 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
                         }
                         NodeType::EnumDef(ed) => {
                             enum_entries.push((decl.name.clone(), ed.clone()));
+                        }
+                        NodeType::FuncDef(fd) => {
+                            // Issue #91: Collect function signature definitions
+                            if is_function_signature(fd) {
+                                func_sig_entries.push((decl.name.clone(), fd.clone()));
+                            }
                         }
                         _ => {}
                     }
@@ -3739,6 +3747,149 @@ fn emit_introspection_metadata(ast: &Expr, output: &mut String, _context: &Conte
         output.push_str("    }\n");
     }
     output.push_str("    fprintf(stderr, \"__enum_variant_payload_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // Issue #91: FuncSig introspection
+
+    // __func_sig_param_count
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64 ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__func_sig_param_count(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name) {\n");
+    for (name, fd) in &func_sig_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) return ");
+        output.push_str(&format!("{}", fd.sig.args.len()));
+        output.push_str(";\n");
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_param_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __func_sig_param_type
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__func_sig_param_type(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, fd) in &func_sig_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, param) in fd.sig.args.iter().enumerate() {
+            let type_str = crate::rs::parser::value_type_to_str(&param.value_type);
+            output.push_str(&format!("        case {}: return ", j));
+            emit_borrowed_str(&type_str, output);
+            output.push_str(";\n");
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_param_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __func_sig_return_count
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64 ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__func_sig_return_count(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name) {\n");
+    for (name, fd) in &func_sig_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) return ");
+        output.push_str(&format!("{}", fd.sig.return_types.len()));
+        output.push_str(";\n");
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_return_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __func_sig_return_type
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__func_sig_return_type(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, fd) in &func_sig_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, ret_type) in fd.sig.return_types.iter().enumerate() {
+            let type_str = crate::rs::parser::value_type_to_str(ret_type);
+            output.push_str(&format!("        case {}: return ", j));
+            emit_borrowed_str(&type_str, output);
+            output.push_str(";\n");
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_return_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __func_sig_throw_count
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64 ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__func_sig_throw_count(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name) {\n");
+    for (name, fd) in &func_sig_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) return ");
+        output.push_str(&format!("{}", fd.sig.throw_types.len()));
+        output.push_str(";\n");
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_throw_count: type '%s' not found\\n\", (char*)type_name->c_string.data);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
+
+    // __func_sig_throw_type
+    output.push_str("\nstatic inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("__func_sig_throw_type(const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str* type_name, const ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64* index) {\n");
+    for (name, fd) in &func_sig_entries {
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
+        output.push_str(name);
+        output.push_str("\") == 0) {\n");
+        output.push_str("        switch (*index) {\n");
+        for (j, throw_type) in fd.sig.throw_types.iter().enumerate() {
+            let type_str = crate::rs::parser::value_type_to_str(throw_type);
+            output.push_str(&format!("        case {}: return ", j));
+            emit_borrowed_str(&type_str, output);
+            output.push_str(";\n");
+        }
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+    }
+    output.push_str("    fprintf(stderr, \"__func_sig_throw_type: type '%s' index %lld not found\\n\", (char*)type_name->c_string.data, (long long)*index);\n");
     output.push_str("    exit(1);\n");
     output.push_str("}\n");
 }

@@ -2984,6 +2984,12 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "__enum_variant_name" => ext::func_enum_variant_name(context, &e),
         "__enum_variant_has_payload" => ext::func_enum_variant_has_payload(context, &e),
         "__enum_variant_payload_type" => ext::func_enum_variant_payload_type(context, &e),
+        "__func_sig_param_count" => ext::func_func_sig_param_count(context, &e),
+        "__func_sig_param_type" => ext::func_func_sig_param_type(context, &e),
+        "__func_sig_return_count" => ext::func_func_sig_return_count(context, &e),
+        "__func_sig_return_type" => ext::func_func_sig_return_type(context, &e),
+        "__func_sig_throw_count" => ext::func_func_sig_throw_count(context, &e),
+        "__func_sig_throw_type" => ext::func_func_sig_throw_type(context, &e),
         _ => {
             if is_proc {
                 Err(e.lang_error(&context.path, "eval", &format!("Core procedure '{}' not implemented.", name)))

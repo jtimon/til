@@ -351,13 +351,35 @@ test_vec_func_ptrs := proc() {
 }
 test_vec_func_ptrs()
 
-// TODO: Vec of FuncSig (different signatures stored in same Vec)
-// test_vec_funcsig := proc() {
-//     mut sigs := Vec.new(FuncSig)
-//     // Each element is a different function signature type
-//     sigs.delete()
-// }
-// test_vec_funcsig()
+// FuncSig introspection (Issue #91)
+test_func_sig_introspection := proc() {
+    sig := func_sig_of("BinaryIntOp")
+    assert_eq(loc(), 2, sig.args.len())
+    assert_eq(loc(), 1, sig.return_types.len())
+    assert_eq(loc(), 0, sig.throw_types.len())
+
+    // Check param/return types via low-level ext functions
+    assert_eq_str(loc(), "I64", __func_sig_param_type("BinaryIntOp", 0))
+    assert_eq_str(loc(), "I64", __func_sig_param_type("BinaryIntOp", 1))
+    assert_eq_str(loc(), "I64", __func_sig_return_type("BinaryIntOp", 0))
+
+    sig2 := func_sig_of("UnaryIntOp")
+    assert_eq(loc(), 1, sig2.args.len())
+    assert_eq(loc(), 1, sig2.return_types.len())
+}
+test_func_sig_introspection()
+
+// Vec of FuncSig (different signatures stored in same Vec)
+test_vec_funcsig := proc() {
+    mut sigs := Vec.new(FuncSig)
+    sig1 := func_sig_of("BinaryIntOp")
+    sigs.push(own sig1)
+    sig2 := func_sig_of("UnaryIntOp")
+    sigs.push(own sig2)
+    assert_eq(loc(), 2, sigs.len())
+    sigs.delete()
+}
+test_vec_funcsig()
 
 // TODO: Vec of FuncDef (different function definitions stored in same Vec)
 // test_vec_funcdef := proc() {

@@ -47,7 +47,7 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
                 }
                 // Issue #105/#106: Introspection calls - struct_def_of("TypeName") / enum_def_of("TypeName")
                 // The string literal argument refers to a type that must be kept
-                if (name == "struct_def_of" || name == "enum_def_of") && e.params.len() > 1 {
+                if (name == "struct_def_of" || name == "enum_def_of" || name == "func_sig_of") && e.params.len() > 1 {
                     if let NodeType::LLiteral(Literal::Str(type_name)) = &e.params.get(1).unwrap().node_type {
                         used_types.insert(type_name.clone());
                     }

@@ -3202,6 +3202,18 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_enum_variant_has_payload(context, e)?
     case "__enum_variant_payload_type":
         return func_enum_variant_payload_type(context, e)?
+    case "__func_sig_param_count":
+        return func_func_sig_param_count(context, e)?
+    case "__func_sig_param_type":
+        return func_func_sig_param_type(context, e)?
+    case "__func_sig_return_count":
+        return func_func_sig_return_count(context, e)?
+    case "__func_sig_return_type":
+        return func_func_sig_return_type(context, e)?
+    case "__func_sig_throw_count":
+        return func_func_sig_throw_count(context, e)?
+    case "__func_sig_throw_type":
+        return func_func_sig_throw_type(context, e)?
     case:
         if is_proc {
             throw e.lang_error(context.path, "eval", format("Core procedure '", name, "' not implemented."))

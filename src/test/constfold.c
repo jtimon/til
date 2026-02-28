@@ -1592,6 +1592,36 @@ static inline til_Str til___enum_variant_payload_type(const til_Str* type_name, 
     exit(1);
 }
 
+static inline til_I64 til___func_sig_param_count(const til_Str* type_name) {
+    fprintf(stderr, "__func_sig_param_count: type '%s' not found\n", (char*)type_name->c_string.data);
+    exit(1);
+}
+
+static inline til_Str til___func_sig_param_type(const til_Str* type_name, const til_I64* index) {
+    fprintf(stderr, "__func_sig_param_type: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
+static inline til_I64 til___func_sig_return_count(const til_Str* type_name) {
+    fprintf(stderr, "__func_sig_return_count: type '%s' not found\n", (char*)type_name->c_string.data);
+    exit(1);
+}
+
+static inline til_Str til___func_sig_return_type(const til_Str* type_name, const til_I64* index) {
+    fprintf(stderr, "__func_sig_return_type: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
+static inline til_I64 til___func_sig_throw_count(const til_Str* type_name) {
+    fprintf(stderr, "__func_sig_throw_count: type '%s' not found\n", (char*)type_name->c_string.data);
+    exit(1);
+}
+
+static inline til_Str til___func_sig_throw_type(const til_Str* type_name, const til_I64* index) {
+    fprintf(stderr, "__func_sig_throw_type: type '%s' index %lld not found\n", (char*)type_name->c_string.data, (long long)*index);
+    exit(1);
+}
+
 til_I64 til_memcmp(const til_I64* til_I64_ptr1, const til_I64* til_I64_ptr2, const til_I64* til_I64_size) {
     til_I64 til_I64_i = 0;
     til_U8 til_U8_byte1;

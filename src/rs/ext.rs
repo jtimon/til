@@ -1323,6 +1323,122 @@ pub fn func_enum_variant_payload_type(context: &mut Context, e: &Expr) -> Result
     }
 }
 
+// ---------- FuncSig introspection functions (Issue #91)
+
+pub fn func_func_sig_param_count(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__func_sig_param_count", 1, false)?;
+
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+
+    if let Some(func_def) = context.scope_stack.lookup_func(&type_name) {
+        Ok(EvalResult::new(&format!("{}", func_def.sig.args.len())))
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__func_sig_param_count: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_func_sig_param_type(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__func_sig_param_type", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__func_sig_param_type: invalid index '{}'", index_str)))?;
+
+    if let Some(func_def) = context.scope_stack.lookup_func(&type_name) {
+        if index < func_def.sig.args.len() {
+            Ok(EvalResult::new(&value_type_to_str(&func_def.sig.args[index].value_type)))
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__func_sig_param_type: index {} out of bounds for '{}' with {} params",
+                index, type_name, func_def.sig.args.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__func_sig_param_type: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_func_sig_return_count(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__func_sig_return_count", 1, false)?;
+
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+
+    if let Some(func_def) = context.scope_stack.lookup_func(&type_name) {
+        Ok(EvalResult::new(&format!("{}", func_def.sig.return_types.len())))
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__func_sig_return_count: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_func_sig_return_type(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__func_sig_return_type", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__func_sig_return_type: invalid index '{}'", index_str)))?;
+
+    if let Some(func_def) = context.scope_stack.lookup_func(&type_name) {
+        if index < func_def.sig.return_types.len() {
+            Ok(EvalResult::new(&value_type_to_str(&func_def.sig.return_types[index])))
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__func_sig_return_type: index {} out of bounds for '{}' with {} return types",
+                index, type_name, func_def.sig.return_types.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__func_sig_return_type: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_func_sig_throw_count(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__func_sig_throw_count", 1, false)?;
+
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+
+    if let Some(func_def) = context.scope_stack.lookup_func(&type_name) {
+        Ok(EvalResult::new(&format!("{}", func_def.sig.throw_types.len())))
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__func_sig_throw_count: type '{}' not found", type_name
+        )))
+    }
+}
+
+pub fn func_func_sig_throw_type(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__func_sig_throw_type", 2, false)?;
+
+    let type_name = eval_or_throw!(context, e.params.get(1).unwrap());
+    let index_str = eval_or_throw!(context, e.params.get(2).unwrap());
+    let index: usize = index_str.parse().map_err(|_| e.lang_error(&context.path, "eval",
+        &format!("__func_sig_throw_type: invalid index '{}'", index_str)))?;
+
+    if let Some(func_def) = context.scope_stack.lookup_func(&type_name) {
+        if index < func_def.sig.throw_types.len() {
+            Ok(EvalResult::new(&value_type_to_str(&func_def.sig.throw_types[index])))
+        } else {
+            Err(e.lang_error(&context.path, "eval", &format!(
+                "__func_sig_throw_type: index {} out of bounds for '{}' with {} throw types",
+                index, type_name, func_def.sig.throw_types.len()
+            )))
+        }
+    } else {
+        Err(e.lang_error(&context.path, "eval", &format!(
+            "__func_sig_throw_type: type '{}' not found", type_name
+        )))
+    }
+}
+
 pub fn func_exit(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "exit", 1, false)?;
 

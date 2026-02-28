@@ -41,7 +41,7 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
             }
             // Issue #105/#106: Introspection calls - struct_def_of("TypeName") / enum_def_of("TypeName")
             // The string literal argument refers to a type that must be kept
-            if name.eq("struct_def_of").or(name.eq("enum_def_of")) {
+            if name.eq("struct_def_of").or(name.eq("enum_def_of")).or(name.eq("func_sig_of")) {
                 if e.params.len().gt(1) {
                     e1 := cast(Expr, e.params.get(1)!)
                     switch e1.node_type {
