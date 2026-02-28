@@ -15,6 +15,35 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #204: First-class values not fully usable after retrieval
+:PROPERTIES:
+:DISCOVERED: 2026-02-28
+:IMPACT: Language feature gaps -- stored first-class values can't be called/instantiated
+:RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), doc/first_class.org
+:END:
+
+Issues #91, #105, and #106 allow storing FuncDef, StructDef, and EnumDef
+values in Vecs and struct fields. But the stored values cannot be used
+(called/instantiated) after retrieval. The typer rejects them.
+
+*** Missing from #91 (First-Class Functions)
+- [ ] FuncDef variables are not callable: ~Cannot call 'fn0', it is not a function, it is 'FuncDef'~
+- [ ] FuncDef not assignable from named functions: ~Return value expected to be 'FuncDef', but found 'func'~
+- [ ] FuncDef struct fields reject function defaults: ~field 'callback' declared as 'FuncDef' but default value has type 'func'~
+
+*** Missing from #105 (First-Class Structs)
+- [ ] StructDef variables are not callable as constructors: ~Cannot call 'def0', it is not a function, it is 'StructDef'~
+- [ ] Struct lookup fails for StructDef variable names: ~Struct 'def0' not found~
+
+*** Missing from #106 (First-Class Enums)
+- [ ] EnumDef variables don't have variant access: ~Struct 'EnumDef' has no member 'North'~
+
+*** Additional gaps
+- [ ] ~struct_def_of~ and ~enum_def_of~ are procs, so they can't be called from funcs (limits return-from-function tests)
+
+*** Test coverage
+Commented-out tests added to ~src/test/first_class.til~ documenting each gap.
+
 ** Issue #161: Namespace constants, static mutables, and per-instance immutables
 :PROPERTIES:
 :DISCOVERED: 2026-02-04

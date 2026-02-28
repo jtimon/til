@@ -391,3 +391,134 @@ test_vec_funcdef := proc() {
     defs.delete()
 }
 test_vec_funcdef()
+
+// ============================================================
+// Tests: Calling/instantiating stored first-class values
+// Issue #204: These are ALL BROKEN -- stored FuncDef/StructDef/EnumDef
+// values can be stored but not called/instantiated after retrieval.
+// ============================================================
+
+// BROKEN #204: FuncDef not callable: "Cannot call 'fn0', it is not a function, it is 'FuncDef'"
+// Also: "Return value expected to be 'FuncDef', but found 'func'"
+//
+// test_call_funcdef_from_vec := proc() {
+//     mut defs := Vec.new(FuncDef)
+//     defs.push(own negate)
+//     fn0 := cast(FuncDef, defs.get(0)?)
+//     assert_eq(loc(), I64_MINUS1, fn0(1))
+//     defs.delete()
+//     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+// }
+// test_call_funcdef_from_vec()
+
+// BROKEN #204: FuncDef struct field rejects function default:
+// "field 'callback' declared as 'FuncDef' but default value has type 'func'"
+// Also: "Cannot call 'h.callback', it is not a function, it is 'FuncDef'"
+//
+// FuncHolder := struct { mut callback: FuncDef = negate }
+// test_call_funcdef_from_field := proc() {
+//     h := FuncHolder()
+//     assert_eq(loc(), I64_MINUS1, h.callback(1))
+// }
+// test_call_funcdef_from_field()
+
+// BROKEN #204: Can't return named function as FuncDef:
+// "Return value expected to be 'FuncDef', but found 'func'"
+//
+// get_funcdef := func(which: I64) returns FuncDef {
+//     if which.eq(0) { return negate }
+//     return triple
+// }
+// test_call_returned_funcdef := proc() {
+//     fn0 := get_funcdef(0)
+//     assert_eq(loc(), I64_MINUS1, fn0(1))
+// }
+// test_call_returned_funcdef()
+
+// BROKEN #204: StructDef variable not callable as constructor:
+// "Cannot call 'def0', it is not a function, it is 'StructDef'"
+//
+// test_instantiate_structdef_from_vec := proc() {
+//     mut defs := Vec.new(StructDef)
+//     point_def := struct_def_of("Point")
+//     defs.push(own point_def)
+//     def0 := cast(StructDef, defs.get(0)?)
+//     p := def0(x=10, y=20)
+//     assert_eq(loc(), 10, p.x)
+//     defs.delete()
+//     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+// }
+// test_instantiate_structdef_from_vec()
+
+// BROKEN #204: StructDef from struct field not callable:
+// "Cannot call 'h.def', it is not a function, it is 'StructDef'"
+//
+// test_instantiate_structdef_from_field := proc() {
+//     mut h := struct { mut def: StructDef = StructDef() }()
+//     h.def = struct_def_of("Point")
+//     p := h.def(x=5, y=15)
+//     assert_eq(loc(), 5, p.x)
+// }
+// test_instantiate_structdef_from_field()
+
+// BROKEN #204: func can't call struct_def_of (it's a proc)
+// Also: StructDef variable not callable as constructor
+//
+// get_struct_def := func(which: I64) returns StructDef {
+//     if which.eq(0) { return struct_def_of("Point") }
+//     return struct_def_of("Color")
+// }
+// test_instantiate_returned_structdef := proc() {
+//     def := get_struct_def(0)
+//     p := def(x=7, y=14)
+//     assert_eq(loc(), 7, p.x)
+// }
+// test_instantiate_returned_structdef()
+
+// BROKEN #204: EnumDef variable has no variant access:
+// "Struct 'EnumDef' has no member 'North'"
+//
+// test_instantiate_enumdef_from_vec := proc() {
+//     mut defs := Vec.new(EnumDef)
+//     dir_def := enum_def_of("Direction")
+//     defs.push(own dir_def)
+//     def0 := cast(EnumDef, defs.get(0)?)
+//     d := def0.North
+//     switch d {
+//     case Direction.North: test(loc(), true, "should be North")
+//     case: test(loc(), false, "should be North")
+//     }
+//     defs.delete()
+//     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+// }
+// test_instantiate_enumdef_from_vec()
+
+// BROKEN #204: EnumDef from struct field has no variant access
+//
+// test_instantiate_enumdef_from_field := proc() {
+//     mut h := struct { mut def: EnumDef = EnumDef() }()
+//     h.def = enum_def_of("Direction")
+//     d := h.def.South
+//     switch d {
+//     case Direction.South: test(loc(), true, "should be South")
+//     case: test(loc(), false, "should be South")
+//     }
+// }
+// test_instantiate_enumdef_from_field()
+
+// BROKEN #204: func can't call enum_def_of (it's a proc)
+// Also: EnumDef variable has no variant access
+//
+// get_enum_def := func(which: I64) returns EnumDef {
+//     if which.eq(0) { return enum_def_of("Direction") }
+//     return enum_def_of("Shape")
+// }
+// test_instantiate_returned_enumdef := proc() {
+//     def := get_enum_def(0)
+//     d := def.East
+//     switch d {
+//     case Direction.East: test(loc(), true, "should be East")
+//     case: test(loc(), false, "should be East")
+//     }
+// }
+// test_instantiate_returned_enumdef()
