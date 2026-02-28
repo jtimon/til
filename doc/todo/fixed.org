@@ -4800,6 +4800,26 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #91: First-Class Functions -- IMPLEMENTED 2026-02-28
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:FIXED: 2026-02-28
+:IMPACT: Language feature, polymorphism, higher-order programming
+:RELATED: Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), Issue #182 (Closures), doc/first_class.org
+:END:
+
+Functions are first-class values: pass as arguments, return from functions,
+store in struct fields, store in collections (Vec of func ptrs, Vec of FuncSig,
+Vec of FuncDef). FuncSig (type) and FuncDef (value) parallel StructDef/EnumDef.
+
+Features: function pointers, lambdas, throwing func ptrs, func ptr passthrough,
+struct fields with func ptrs, TFuncDef metatype, FuncSig/FuncDef forms,
+func_sig_of introspection (6 ext functions), Vec of FuncSig/FuncDef.
+
+Final fix: scavenger reachability bug -- namespace methods for types discovered
+by transitive closure (e.g. Map via EnumDef.methods field) were not marked
+reachable, causing Map.new to be eliminated as dead code in compiled mode.
+
 ** Issue #180: Bang operator ~!~ for panic-on-throw -- IMPLEMENTED 2026-02-27
 :PROPERTIES:
 :DISCOVERED: 2026-02-23

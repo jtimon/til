@@ -701,6 +701,50 @@ fn compute_reachable(
         }
     }
 
+    // Issue #91: Mark namespace methods reachable for types discovered by transitive closure
+    // The namespace marking at lines 623-646 runs before the transitive closure, so types
+    // added by the closure (e.g. Map via EnumDef.methods field) miss namespace method marking.
+    for type_name in &used_types {
+        for stmt in &e.params {
+            if let NodeType::Declaration(decl) = &stmt.node_type {
+                if decl.name == *type_name {
+                    if let Some(value_expr) = stmt.params.first() {
+                        let ns_def = match &value_expr.node_type {
+                            NodeType::StructDef(struct_def) => Some(&struct_def.ns),
+                            NodeType::EnumDef(enum_def) => Some(&enum_def.ns),
+                            _ => None,
+                        };
+                        if let Some(ns_def) = ns_def {
+                            for (method_name, default_expr) in &ns_def.default_values {
+                                if let NodeType::FuncDef(_) = &default_expr.node_type {
+                                    let full_name = format!("{}.{}", type_name, method_name);
+                                    mark_reachable(full_name, &mut reachable, &mut worklist);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Process newly added namespace methods and their transitive calls
+    while let Some(func_name) = worklist.pop() {
+        if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
+            collect_used_types_from_func(context, &func_def, &mut used_types)?;
+            if func_def.is_ext() {
+                continue;
+            }
+            let mut called: HashSet<String> = HashSet::new();
+            for stmt in &func_def.body {
+                collect_called_functions(stmt, &mut called)?;
+            }
+            for called_func in called {
+                mark_reachable(called_func, &mut reachable, &mut worklist);
+            }
+        }
+    }
+
     Ok(ComputeReachableResult { reachable, used_types, needs_variadic_support })
 }
 

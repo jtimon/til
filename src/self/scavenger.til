@@ -874,6 +874,72 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         }
     }
 
+    // Issue #91: Mark namespace methods reachable for types discovered by transitive closure
+    // The namespace marking above runs before the transitive closure, so types
+    // added by the closure (e.g. Map via EnumDef.methods field) miss namespace method marking.
+    for ns2_type_name: Str in used_types {
+        for ns2_stmt: Expr in e.params {
+            switch ns2_stmt.node_type {
+            case NodeType.Declaration(ns2_decl):
+                if ns2_decl.name.eq(ns2_type_name) {
+                    if ns2_stmt.params.len().gt(0) {
+                        ns2_value_expr := cast(Expr, ns2_stmt.params.get(0)!)
+                        mut ns2_has_ns := false
+                        mut ns2_ns := NamespaceDef()
+                        switch ns2_value_expr.node_type {
+                        case NodeType.StructDef(ns2_sd):
+                            if ns2_sd.ns.members.len().gt(0) {
+                                ns2_ns = ns2_sd.ns
+                                ns2_has_ns = true
+                            }
+                        case NodeType.EnumDef(ns2_ed):
+                            if ns2_ed.ns.members.len().gt(0) {
+                                ns2_ns = ns2_ed.ns
+                                ns2_has_ns = true
+                            }
+                        case:
+                        }
+                        if ns2_has_ns {
+                            for ns2_method_name: Str in ns2_ns.default_values.keys {
+                                ns2_method_expr := cast(Expr, ns2_ns.default_values.get(ns2_method_name)!)
+                                switch ns2_method_expr.node_type {
+                                case NodeType.FuncDef(_ns2_fd):
+                                    ns2_full_name := format(ns2_type_name, ".", ns2_method_name)
+                                    mark_reachable(ns2_full_name, reachable, worklist)
+                                case:
+                                }
+                            }
+                        }
+                    }
+                }
+            case:
+            }
+        }
+    }
+
+    // Process newly added namespace methods and their transitive calls
+    while worklist.len().gt(0) {
+        mut ns2_func_name := ""
+        worklist.pop(ns2_func_name)?
+        mut ns2_found_func := false
+        ns2_func_def := context.scope_stack.lookup_func(ns2_func_name)?
+        ns2_found_func = true
+        catch (err: KeyNotFoundError) { }
+        if ns2_found_func {
+            collect_used_types_from_func(context, ns2_func_def, used_types)?
+            if not(ns2_func_def.is_ext()) {
+                mut ns2_called := Set.new(Str)
+                for ns2_body_stmt: Expr in ns2_func_def.body {
+                    collect_called_functions(ns2_body_stmt, ns2_called)?
+                }
+                for ns2_called_func: Str in ns2_called {
+                    mark_reachable(ns2_called_func, reachable, worklist)
+                }
+                ns2_called.delete()
+            }
+        }
+    }
+
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return ComputeReachableResult(reachable=reachable, used_types=used_types, needs_variadic_support=needs_variadic_support)
 }

@@ -1,6 +1,7 @@
 mode test
 
 import("core.vec")
+import("std.map")
 
 // ============================================================
 // First-Class Everything (doc/first_class.org)
@@ -381,15 +382,12 @@ test_vec_funcsig := proc() {
 }
 test_vec_funcsig()
 
-// TODO: Vec of FuncDef -- works in interpreted mode but compiled mode fails:
-// FuncDef clone triggers NodeType clone which has Map(MapDef) variant,
-// requiring Map_new to be emitted before node_type_clone in generated C.
-// This is a codegen function ordering issue (Map_new not yet declared).
-// test_vec_funcdef := proc() {
-//     mut defs := Vec.new(FuncDef)
-//     defs.push(own negate)
-//     defs.push(own triple)
-//     assert_eq(loc(), 2, defs.len())
-//     defs.delete()
-// }
-// test_vec_funcdef()
+// Vec of FuncDef (different function definitions stored in same Vec)
+test_vec_funcdef := proc() {
+    mut defs := Vec.new(FuncDef)
+    defs.push(own negate)
+    defs.push(own triple)
+    assert_eq(loc(), 2, defs.len())
+    defs.delete()
+}
+test_vec_funcdef()

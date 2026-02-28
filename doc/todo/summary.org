@@ -13,7 +13,7 @@
 | #99  | Eliminate all C compiler warnings and enable -Werror        | Open             |
 | #94  | gcc warnings cause bug47.til compilation failure            | Blocked by #99   |
 
-* features.org (15 issues)
+* features.org (14 issues)
 
 | #    | Issue                                                    | Status      |
 |------+----------------------------------------------------------+-------------|
@@ -28,7 +28,6 @@
 | #153 | Enable field/method access on Dynamic parameters         | Open        |
 | #151 | Explicit pointer/reference syntax                        | Open        |
 | #111 | Support returns Dynamic                                  | Open        |
-|  #91 | First-Class Functions                                    | In progress |
 |  #88 | Macro Support (Compile-Time Evaluation)                  | Partial     |
 |  #83 | No spread/splat operator for variadic forwarding         | Open        |
 |  #64 | Custom main args in mode cli don't work                  | Deferred    |

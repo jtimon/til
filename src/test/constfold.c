@@ -498,6 +498,10 @@ void til_Bool_from_i64(til_Bool* _ret, const til_I64* til_I64_i);
 til_I64 til_Bool_size(void);
 void til_Bool_delete(til_Bool* _self);
 void til_Bool_clone(til_Bool* _ret, const til_Bool* til_Bool_self);
+void til_I64_Overflow_delete(til_I64_Overflow* til_I64_Overflow_self);
+void til_I64_Overflow_clone(til_I64_Overflow* _ret, const til_I64_Overflow* til_I64_Overflow_self);
+void til_DivideByZero_delete(til_DivideByZero* _self);
+til_DivideByZero til_DivideByZero_clone(const til_DivideByZero* _self);
 int til_I64_safe_div(til_I64* _ret, const til_I64* til_I64_a, const til_I64* til_I64_b);
 int til_I64_safe_add(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_I64_a, const til_I64* til_I64_b);
 int til_I64_safe_sub(til_I64* _ret, til_I64_Overflow* _err1, const til_I64* til_I64_a, const til_I64* til_I64_b);
@@ -571,6 +575,8 @@ void til_Str_replacen(til_Str* _ret, const til_Str* til_Str_self, const til_Str*
 int til_Str_split(til_Vec* _ret, til_IndexOutOfBoundsError* _err1, const til_Str* til_Str_self, const til_Str* til_Str_delimiter);
 void til_Str_repeat(til_Str* _ret, const til_Str* til_Str_self, const til_I64* til_I64_n);
 til_I64 til_Str_hash(const til_Str* til_Str_self);
+void til_U8_Overflow_delete(til_U8_Overflow* til_U8_Overflow_self);
+void til_U8_Overflow_clone(til_U8_Overflow* _ret, const til_U8_Overflow* til_U8_Overflow_self);
 til_I64 til_U8_len(const til_U8* _self);
 void til_U8_lt(til_Bool* _ret, const til_U8* til_U8_self, const til_U8* til_U8_other);
 void til_U8_gt(til_Bool* _ret, const til_U8* til_U8_self, const til_U8* til_U8_other);
@@ -2672,6 +2678,28 @@ void til_Bool_clone(til_Bool* _ret, const til_Bool* til_Bool_self) {
     (void)_ret;
     *_ret = (til_Bool){.data = til_U8_clone(&til_Bool_self->data)};
     return;
+}
+
+void til_I64_Overflow_delete(til_I64_Overflow* til_I64_Overflow_self) {
+    til_Str_delete(&til_I64_Overflow_self->msg);
+}
+
+void til_I64_Overflow_clone(til_I64_Overflow* _ret, const til_I64_Overflow* til_I64_Overflow_self) {
+    (void)_ret;
+    til_Str _tmp_til_I64_Overflow_clone_0;
+    til_Str_clone(&_tmp_til_I64_Overflow_clone_0, &til_I64_Overflow_self->msg);
+    *_ret = (til_I64_Overflow){.msg = _tmp_til_I64_Overflow_clone_0};
+    return;
+}
+
+void til_DivideByZero_delete(til_DivideByZero* _self) {
+    (void)_self;
+}
+
+til_DivideByZero til_DivideByZero_clone(const til_DivideByZero* _self) {
+    (void)_self;
+    return (til_DivideByZero){};
+    return (til_DivideByZero){};
 }
 
 int til_I64_safe_div(til_I64* _ret, const til_I64* til_I64_a, const til_I64* til_I64_b) {
@@ -5274,6 +5302,18 @@ til_I64 til_Str_hash(const til_Str* til_Str_self) {
     }
     return til_I64_h;
     return (til_I64){};
+}
+
+void til_U8_Overflow_delete(til_U8_Overflow* til_U8_Overflow_self) {
+    til_Str_delete(&til_U8_Overflow_self->msg);
+}
+
+void til_U8_Overflow_clone(til_U8_Overflow* _ret, const til_U8_Overflow* til_U8_Overflow_self) {
+    (void)_ret;
+    til_Str _tmp_til_U8_Overflow_clone_0;
+    til_Str_clone(&_tmp_til_U8_Overflow_clone_0, &til_U8_Overflow_self->msg);
+    *_ret = (til_U8_Overflow){.msg = _tmp_til_U8_Overflow_clone_0};
+    return;
 }
 
 til_I64 til_U8_len(const til_U8* _self) {
