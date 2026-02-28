@@ -594,7 +594,7 @@ run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
 :IMPACT: Language feature, polymorphism, higher-order programming
-:STATUS: Nearly complete - func ptrs, lambdas, return, struct fields, throws, Vec of func ptrs, TFuncDef all done (2026-02-26). Vec of FuncSig/FuncDef and closures remaining.
+:STATUS: Nearly complete -- Vec of FuncDef remaining.
 :RELATED: Bug #90 (semicolon/body syntax), Bug #159 (needs func ptrs for deep clone/delete), Issue #105 (First-Class Structs), Issue #106 (First-Class Enums), Issue #182 (Closures -- explicit captures), src/test/function_pointers.til, doc/first_class.org
 :END:
 
@@ -742,10 +742,21 @@ copies the pointer value, not machine code bytes.
 Added ~TFuncDef~ to ~TTypeDef~ enum for symmetry with TStructDef/TEnumDef/TFuncSig.
 Allows ~MyFunc : FuncDef = func(...) returns ... = { ... }~ explicit metatype annotations.
 
+**** is_function_signature shared helper (DONE - bb45c784, 2026-02-27)
+Extracted duplicated FuncSig detection pattern from precomp, typer, init,
+interpreter (6 Rust + 5 TIL occurrences) into shared utils.rs/utils.til.
+
+**** func_sig_of introspection (DONE - 8b63f79a, 2026-02-28)
+6 ext functions for FuncSig introspection (__func_sig_param_count/type,
+return_count/type, throw_count/type), high-level ~func_sig_of~ wrapper in
+meta.til, C codegen emission, scavenger recognition. Parallel to
+struct_def_of/enum_def_of.
+
+**** Vec of FuncSig (DONE - 8b63f79a, 2026-02-28)
+Store different function signature types in the same Vec via func_sig_of.
+
 *** What is missing
-- Vec of FuncSig (different signatures stored in same Vec)
-- Vec of FuncDef (different definitions stored in same Vec)
-- Closures (Issue #182 -- explicit capture lists)
+- Vec of FuncDef (different definitions stored in same Vec -- body serialization unclear)
 
 *** Key Files
 - src/rs/parser.rs / src/self/parser.til (function type parsing)
