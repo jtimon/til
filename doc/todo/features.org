@@ -756,7 +756,10 @@ struct_def_of/enum_def_of.
 Store different function signature types in the same Vec via func_sig_of.
 
 *** What is missing
-- Vec of FuncDef (different definitions stored in same Vec -- body serialization unclear)
+- Vec of FuncDef: works in interpreted mode, fails in compiled mode.
+  FuncDef clone triggers NodeType clone which has a Map(MapDef) variant,
+  requiring ~Map_new~ to be declared before ~node_type_clone~ in generated C.
+  Blocked by codegen function ordering (forward declaration issue).
 
 *** Key Files
 - src/rs/parser.rs / src/self/parser.til (function type parsing)

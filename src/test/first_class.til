@@ -381,10 +381,15 @@ test_vec_funcsig := proc() {
 }
 test_vec_funcsig()
 
-// TODO: Vec of FuncDef (different function definitions stored in same Vec)
+// TODO: Vec of FuncDef -- works in interpreted mode but compiled mode fails:
+// FuncDef clone triggers NodeType clone which has Map(MapDef) variant,
+// requiring Map_new to be emitted before node_type_clone in generated C.
+// This is a codegen function ordering issue (Map_new not yet declared).
 // test_vec_funcdef := proc() {
 //     mut defs := Vec.new(FuncDef)
-//     // Each element is a different function definition (any signature)
+//     defs.push(own negate)
+//     defs.push(own triple)
+//     assert_eq(loc(), 2, defs.len())
 //     defs.delete()
 // }
 // test_vec_funcdef()
