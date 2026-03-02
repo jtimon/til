@@ -1,0 +1,15 @@
+* til2
+
+Reimplementation of the til language, bootstrapped in C.
+
+** Build
+
+#+begin_src sh
+make
+#+end_src
+
+** Run
+
+#+begin_src sh
+bin/ctil
+#+end_src
