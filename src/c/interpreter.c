@@ -11,17 +11,30 @@ typedef enum {
     VAL_STR,
     VAL_BOOL,
     VAL_FUNC,   // pointer to a func/proc AST node
+    VAL_STRUCT, // struct instance
 } ValType;
 
-typedef struct {
+typedef struct StructInstance StructInstance;
+typedef struct Value Value;
+
+struct StructInstance {
+    const char *struct_name;
+    const char **field_names;
+    int *field_muts;
+    int nfields;
+    Value *field_values;
+};
+
+struct Value {
     ValType type;
     union {
         long long i64;
         const char *str;
         int boolean;
         Expr *func;
+        StructInstance *instance;
     };
-} Value;
+};
 
 static Value val_none(void) {
     return (Value){.type = VAL_NONE};
@@ -102,8 +115,9 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             case VAL_STR:  printf("%s", arg.str); break;
             case VAL_I64:  printf("%lld", arg.i64); break;
             case VAL_BOOL: printf("%s", arg.boolean ? "true" : "false"); break;
-            case VAL_NONE: printf("(none)"); break;
-            case VAL_FUNC: printf("(func)"); break;
+            case VAL_NONE:   printf("(none)"); break;
+            case VAL_FUNC:   printf("(func)"); break;
+            case VAL_STRUCT: printf("(%s)", arg.instance->struct_name); break;
             }
         }
         printf("\n");
@@ -118,8 +132,9 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             case VAL_STR:  printf("%s", arg.str); break;
             case VAL_I64:  printf("%lld", arg.i64); break;
             case VAL_BOOL: printf("%s", arg.boolean ? "true" : "false"); break;
-            case VAL_NONE: printf("(none)"); break;
-            case VAL_FUNC: printf("(func)"); break;
+            case VAL_NONE:   printf("(none)"); break;
+            case VAL_FUNC:   printf("(func)"); break;
+            case VAL_STRUCT: printf("(%s)", arg.instance->struct_name); break;
             }
         }
         return val_none();
@@ -221,13 +236,34 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_BOOL, .boolean = !a.boolean};
     }
 
-    // User-defined function
+    // User-defined function or struct instantiation
     Value *fn = scope_get(scope, name);
     if (!fn) {
         fprintf(stderr, "%s:%d:%d: runtime error: undefined function '%s'\n",
                 path, e->line, e->col, name);
         exit(1);
     }
+
+    // Struct instantiation: Point()
+    if (fn->type == VAL_FUNC && fn->func->type == NODE_STRUCT_DEF) {
+        Expr *sdef = fn->func;
+        Expr *body = sdef->children[0];
+        int nfields = body->nchildren;
+        StructInstance *inst = malloc(sizeof(StructInstance));
+        inst->struct_name = name;
+        inst->nfields = nfields;
+        inst->field_names = malloc(nfields * sizeof(char *));
+        inst->field_muts = malloc(nfields * sizeof(int));
+        inst->field_values = malloc(nfields * sizeof(Value));
+        for (int i = 0; i < nfields; i++) {
+            Expr *field = body->children[i];
+            inst->field_names[i] = field->data.decl.name;
+            inst->field_muts[i] = field->data.decl.is_mut;
+            inst->field_values[i] = eval_expr(scope, field->children[0], path);
+        }
+        return (Value){.type = VAL_STRUCT, .instance = inst};
+    }
+
     if (fn->type != VAL_FUNC) {
         fprintf(stderr, "%s:%d:%d: runtime error: '%s' is not a function\n",
                 path, e->line, e->col, name);
@@ -277,6 +313,25 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
         return eval_call(scope, e, path);
     case NODE_FUNC_DEF:
         return (Value){.type = VAL_FUNC, .func = e};
+    case NODE_STRUCT_DEF:
+        return (Value){.type = VAL_FUNC, .func = e};
+    case NODE_FIELD_ACCESS: {
+        Value obj = eval_expr(scope, e->children[0], path);
+        if (obj.type != VAL_STRUCT) {
+            fprintf(stderr, "%s:%d:%d: runtime error: field access on non-struct\n",
+                    path, e->line, e->col);
+            exit(1);
+        }
+        const char *fname = e->data.str_val;
+        for (int i = 0; i < obj.instance->nfields; i++) {
+            if (strcmp(obj.instance->field_names[i], fname) == 0) {
+                return obj.instance->field_values[i];
+            }
+        }
+        fprintf(stderr, "%s:%d:%d: runtime error: no field '%s'\n",
+                path, e->line, e->col, fname);
+        exit(1);
+    }
     default:
         fprintf(stderr, "%s:%d:%d: runtime error: cannot evaluate node type %d as expression\n",
                 path, e->line, e->col, e->type);

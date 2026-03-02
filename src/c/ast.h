@@ -13,6 +13,8 @@ typedef enum {
     NODE_ASSIGN,        // assignment =    (data.str_val = name, children[0] = value)
     NODE_FCALL,         // function call   (children[0] = callee ident, children[1..] = args)
     NODE_FUNC_DEF,      // func/proc def   (data.func_def, children[0] = body)
+    NODE_STRUCT_DEF,    // struct def       (children[0] = body of NODE_DECL fields)
+    NODE_FIELD_ACCESS,  // field access     (children[0] = object expr, data.str_val = field name)
     NODE_RETURN,        // return           (children[0] = value, if any)
     NODE_IF,            // if               (children[0] = cond, [1] = then body, [2] = else body)
     NODE_WHILE,         // while            (children[0] = cond, [1] = body)
@@ -36,6 +38,7 @@ typedef enum {
     TIL_TYPE_I64,
     TIL_TYPE_STR,
     TIL_TYPE_BOOL,
+    TIL_TYPE_STRUCT,
 } TilType;
 
 const char *til_type_name(TilType t);
@@ -60,6 +63,7 @@ struct Expr {
             const char *return_type;  // NULL if none (proc)
         } func_def;
     } data;
+    const char *struct_name;        // for TIL_TYPE_STRUCT: which struct type
     Expr **children;                // malloc'd array of child pointers
     int nchildren;
     int line;

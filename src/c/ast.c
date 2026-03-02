@@ -9,6 +9,7 @@ const char *til_type_name(TilType t) {
     case TIL_TYPE_I64:     return "I64";
     case TIL_TYPE_STR:     return "Str";
     case TIL_TYPE_BOOL:    return "Bool";
+    case TIL_TYPE_STRUCT:  return "Struct";
     }
     return "?";
 }
@@ -47,6 +48,8 @@ static const char *node_name(NodeType type) {
     case NODE_ASSIGN:      return "assign";
     case NODE_FCALL:       return "fcall";
     case NODE_FUNC_DEF:    return "func_def";
+    case NODE_STRUCT_DEF:  return "struct_def";
+    case NODE_FIELD_ACCESS: return "field_access";
     case NODE_RETURN:      return "return";
     case NODE_IF:          return "if";
     case NODE_WHILE:       return "while";

@@ -84,3 +84,11 @@ while lt(i, 5) {
     i = add(i, 1)
 }
 println("")
+
+Point := struct {
+    mut x := 0
+    mut y := 0
+}
+p := Point()
+println(to_str(p.x))
+println(to_str(p.y))

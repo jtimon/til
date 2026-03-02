@@ -151,6 +151,9 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             // and let the printf format handle it. For a proper to_str
             // we'd need snprintf into a buffer, but this works for now.
             emit_expr(f, e->children[1], depth);
+        } else if (e->struct_name) {
+            // Struct instantiation: emit default initializer
+            fprintf(f, "til_%s_default()", name);
         } else {
             // User-defined function call
             fprintf(f, "til_%s(", name);
@@ -162,6 +165,10 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         }
         break;
     }
+    case NODE_FIELD_ACCESS:
+        emit_expr(f, e->children[0], depth);
+        fprintf(f, ".%s", e->data.str_val);
+        break;
     default:
         fprintf(f, "/* TODO: expr type %d */", e->type);
         break;
@@ -188,6 +195,12 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
     case NODE_DECL:
         if (e->children[0]->type == NODE_FUNC_DEF) {
             fprintf(f, "/* TODO: nested func %s */\n", e->data.decl.name);
+        } else if (e->children[0]->type == NODE_STRUCT_DEF) {
+            fprintf(f, "/* struct %s defined above */\n", e->data.decl.name);
+        } else if (e->til_type == TIL_TYPE_STRUCT && e->children[0]->struct_name) {
+            fprintf(f, "til_%s %s = ", e->children[0]->struct_name, e->data.decl.name);
+            emit_expr(f, e->children[0], depth);
+            fprintf(f, ";\n");
         } else {
             fprintf(f, "%s %s = ", til_type_to_c(e->til_type), e->data.decl.name);
             emit_expr(f, e->children[0], depth);
@@ -297,6 +310,27 @@ static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char 
     }
 }
 
+static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
+    Expr *body = struct_def->children[0];
+    // Emit typedef struct
+    fprintf(f, "typedef struct {\n");
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *field = body->children[i];
+        fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.decl.name);
+    }
+    fprintf(f, "} til_%s;\n\n", name);
+    // Emit default constructor
+    fprintf(f, "til_%s til_%s_default(void) {\n", name, name);
+    fprintf(f, "    return (til_%s){", name);
+    for (int i = 0; i < body->nchildren; i++) {
+        if (i > 0) fprintf(f, ", ");
+        fprintf(f, ".%s = ", body->children[i]->data.decl.name);
+        emit_expr(f, body->children[i]->children[0], 0);
+    }
+    fprintf(f, "};\n");
+    fprintf(f, "}\n");
+}
+
 int codegen_c(Expr *program, const char *mode, const char *path, const char *c_output_path) {
     (void)path;
     FILE *f = fopen(c_output_path, "w");
@@ -309,7 +343,16 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
 
     int is_script = mode && strcmp(mode, "script") == 0;
 
-    // First pass: emit func/proc definitions
+    // First pass: emit struct definitions
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
+            emit_struct_def(f, stmt->data.decl.name, stmt->children[0]);
+            fprintf(f, "\n");
+        }
+    }
+
+    // Second pass: emit func/proc definitions
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
@@ -323,8 +366,10 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
         fprintf(f, "int main(void) {\n");
         for (int i = 0; i < program->nchildren; i++) {
             Expr *stmt = program->children[i];
-            // Skip func/proc defs (already emitted above)
-            if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF)
+            // Skip func/proc/struct defs (already emitted above)
+            if (stmt->type == NODE_DECL &&
+                (stmt->children[0]->type == NODE_FUNC_DEF ||
+                 stmt->children[0]->type == NODE_STRUCT_DEF))
                 continue;
             emit_stmt(f, stmt, 1);
         }

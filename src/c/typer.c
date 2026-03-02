@@ -13,6 +13,8 @@ typedef struct {
     int line;
     int col;
     int is_param; // 1 if this is a function parameter
+    Expr *struct_def; // non-NULL if this is a struct type definition
+    const char *struct_name; // for variables of struct type: which struct
 } TypeBinding;
 
 typedef struct TypeScope TypeScope;
@@ -50,7 +52,7 @@ static void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc
         s->cap = s->cap ? s->cap * 2 : 8;
         s->bindings = realloc(s->bindings, s->cap * sizeof(TypeBinding));
     }
-    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param};
+    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, NULL, NULL};
 }
 
 static TilType tscope_get(TypeScope *s, const char *name) {
@@ -80,6 +82,17 @@ static TypeBinding *tscope_find(TypeScope *s, const char *name) {
         for (int i = 0; i < cur->len; i++) {
             if (strcmp(cur->bindings[i].name, name) == 0) {
                 return &cur->bindings[i];
+            }
+        }
+    }
+    return NULL;
+}
+
+static Expr *tscope_get_struct(TypeScope *s, const char *name) {
+    for (TypeScope *cur = s; cur; cur = cur->parent) {
+        for (int i = 0; i < cur->len; i++) {
+            if (strcmp(cur->bindings[i].name, name) == 0) {
+                return cur->bindings[i].struct_def;
             }
         }
     }
@@ -175,6 +188,10 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             type_error(path, e, buf);
         }
         e->til_type = t;
+        if (t == TIL_TYPE_STRUCT) {
+            TypeBinding *b = tscope_find(scope, e->data.str_val);
+            if (b) e->struct_name = b->struct_name;
+        }
         break;
     }
     case NODE_FUNC_DEF:
@@ -201,6 +218,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             tscope_free(func_scope);
         }
         break;
+    case NODE_STRUCT_DEF:
+        e->til_type = TIL_TYPE_NONE;
+        // Type-check field declarations
+        infer_body(scope, e->children[0], path, 0);
+        break;
     case NODE_FCALL: {
         // Infer types of all arguments first
         for (int i = 1; i < e->nchildren; i++) {
@@ -208,6 +230,13 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         }
         // Resolve callee
         const char *name = e->children[0]->data.str_val;
+        // Struct instantiation: Point()
+        Expr *sdef = tscope_get_struct(scope, name);
+        if (sdef) {
+            e->til_type = TIL_TYPE_STRUCT;
+            e->struct_name = name;
+            break;
+        }
         TilType ret = builtin_return_type(name);
         if (ret != TIL_TYPE_UNKNOWN) {
             e->til_type = ret;
@@ -235,6 +264,38 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         }
         break;
     }
+    case NODE_FIELD_ACCESS: {
+        infer_expr(scope, e->children[0], path, in_func);
+        Expr *obj = e->children[0];
+        if (obj->til_type == TIL_TYPE_STRUCT && obj->struct_name) {
+            Expr *sdef = tscope_get_struct(scope, obj->struct_name);
+            if (sdef) {
+                Expr *body = sdef->children[0];
+                const char *fname = e->data.str_val;
+                int found = 0;
+                for (int i = 0; i < body->nchildren; i++) {
+                    Expr *field = body->children[i];
+                    if (strcmp(field->data.decl.name, fname) == 0) {
+                        e->til_type = field->til_type;
+                        e->struct_name = obj->struct_name;
+                        found = 1;
+                        break;
+                    }
+                }
+                if (!found) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'",
+                             obj->struct_name, fname);
+                    type_error(path, e, buf);
+                    e->til_type = TIL_TYPE_UNKNOWN;
+                }
+            }
+        } else {
+            type_error(path, e, "field access on non-struct value");
+            e->til_type = TIL_TYPE_UNKNOWN;
+        }
+        break;
+    }
     default:
         e->til_type = TIL_TYPE_UNKNOWN;
         break;
@@ -248,6 +309,15 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
         switch (stmt->type) {
         case NODE_DECL:
             infer_expr(scope, stmt->children[0], path, in_func);
+            // For struct defs, register struct type in scope
+            if (stmt->children[0]->type == NODE_STRUCT_DEF) {
+                stmt->til_type = TIL_TYPE_NONE;
+                tscope_set(scope, stmt->data.decl.name, TIL_TYPE_STRUCT, -1, 0, stmt->line, stmt->col, 0);
+                // Store struct def pointer in the binding
+                TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
+                b->struct_def = stmt->children[0];
+                break;
+            }
             // For func/proc defs, store return type and func/proc-ness in scope
             if (stmt->children[0]->type == NODE_FUNC_DEF) {
                 int callee_is_proc = (stmt->children[0]->data.func_def.func_type != FUNC_FUNC);
@@ -277,6 +347,10 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 stmt->til_type = stmt->children[0]->til_type;
             }
             tscope_set(scope, stmt->data.decl.name, stmt->til_type, -1, stmt->data.decl.is_mut, stmt->line, stmt->col, 0);
+            if (stmt->til_type == TIL_TYPE_STRUCT && stmt->children[0]->struct_name) {
+                TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
+                if (b) b->struct_name = stmt->children[0]->struct_name;
+            }
             break;
         case NODE_ASSIGN: {
             infer_expr(scope, stmt->children[0], path, in_func);

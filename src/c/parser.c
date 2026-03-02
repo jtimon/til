@@ -121,6 +121,15 @@ static Expr *parse_func_def(Parser *p) {
     return def;
 }
 
+// parse_struct_def: current token is 'struct'
+static Expr *parse_struct_def(Parser *p) {
+    Token *kw = advance(p); // consume 'struct'
+    Expr *def = expr_new(NODE_STRUCT_DEF, kw->line, kw->col);
+    expect(p, TOK_LBRACE);
+    expr_add_child(def, parse_block(p)); // body of declarations
+    return def;
+}
+
 // parse_call: identifier already consumed, current token is '('
 static Expr *parse_call(Parser *p, const char *name, int line, int col) {
     advance(p); // consume '('
@@ -171,13 +180,24 @@ static Expr *parse_expression(Parser *p) {
         advance(p);
         const char *name = tok_str(t);
 
+        Expr *e;
         // function call?
         if (check(p, TOK_LPAREN)) {
-            return parse_call(p, name, t->line, t->col);
+            e = parse_call(p, name, t->line, t->col);
+        } else {
+            e = expr_new(NODE_IDENT, t->line, t->col);
+            e->data.str_val = name;
         }
 
-        Expr *e = expr_new(NODE_IDENT, t->line, t->col);
-        e->data.str_val = name;
+        // field access chain: expr.field.field...
+        while (check(p, TOK_DOT)) {
+            advance(p); // consume '.'
+            Token *field = expect(p, TOK_IDENT);
+            Expr *access = expr_new(NODE_FIELD_ACCESS, field->line, field->col);
+            access->data.str_val = tok_str(field);
+            expr_add_child(access, e);
+            e = access;
+        }
         return e;
     }
 
@@ -185,6 +205,11 @@ static Expr *parse_expression(Parser *p) {
     if (t->type == TOK_FUNC || t->type == TOK_PROC || t->type == TOK_MACRO ||
         t->type == TOK_EXT_FUNC || t->type == TOK_EXT_PROC) {
         return parse_func_def(p);
+    }
+
+    // struct literal (e.g. as RHS of :=)
+    if (t->type == TOK_STRUCT) {
+        return parse_struct_def(p);
     }
 
     fprintf(stderr, "%s:%d:%d: parse error: unexpected token '%.*s'\n",
