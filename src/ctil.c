@@ -3,6 +3,7 @@
 #include <string.h>
 #include "c/lexer.h"
 #include "c/parser.h"
+#include "c/interpreter.h"
 
 static char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
@@ -65,12 +66,27 @@ int main(int argc, char **argv) {
     const char *mode = NULL;
     Expr *ast = parse(tokens, count, path, &mode);
 
-    printf("mode: %s\n", mode ? mode : "(none)");
-    printf("AST:\n");
-    ast_print(ast, 0);
+    int result = 0;
+
+    if (strcmp(command, "interpret") == 0) {
+        result = interpret(ast, mode, path);
+    } else if (strcmp(command, "build") == 0) {
+        fprintf(stderr, "error: 'build' not yet implemented\n");
+        result = 1;
+    } else if (strcmp(command, "run") == 0) {
+        fprintf(stderr, "error: 'run' not yet implemented\n");
+        result = 1;
+    } else if (strcmp(command, "ast") == 0) {
+        printf("mode: %s\n", mode ? mode : "(none)");
+        ast_print(ast, 0);
+    } else {
+        fprintf(stderr, "error: unknown command '%s'\n", command);
+        usage();
+        result = 1;
+    }
 
     expr_free(ast);
     free(tokens);
     free(source);
-    return 0;
+    return result;
 }
