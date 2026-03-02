@@ -144,14 +144,29 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
 
     fprintf(f, "#include <stdio.h>\n\n");
 
-    // Emit top-level declarations
+    int is_script = mode && strcmp(mode, "script") == 0;
+
+    // First pass: emit func/proc definitions
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
             emit_func_def(f, stmt->data.decl.name, stmt->children[0], mode);
             fprintf(f, "\n");
         }
-        // TODO: other top-level declarations
+    }
+
+    // Script mode: wrap top-level statements in main()
+    if (is_script) {
+        fprintf(f, "int main(void) {\n");
+        for (int i = 0; i < program->nchildren; i++) {
+            Expr *stmt = program->children[i];
+            // Skip func/proc defs (already emitted above)
+            if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF)
+                continue;
+            emit_stmt(f, stmt, 1);
+        }
+        fprintf(f, "    return 0;\n");
+        fprintf(f, "}\n");
     }
 
     fclose(f);

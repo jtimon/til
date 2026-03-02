@@ -1,0 +1,4 @@
+#!/usr/bin/env til
+mode script
+
+println("Hello World!")
