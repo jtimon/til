@@ -131,6 +131,13 @@ static Expr *parse_expression(Parser *p) {
         return e;
     }
 
+    if (t->type == TOK_TRUE || t->type == TOK_FALSE) {
+        advance(p);
+        Expr *e = expr_new(NODE_LITERAL_BOOL, t->line, t->col);
+        e->data.str_val = tok_str(t);
+        return e;
+    }
+
     if (t->type == TOK_IDENT) {
         advance(p);
         const char *name = tok_str(t);

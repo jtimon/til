@@ -64,6 +64,8 @@ static TilType builtin_return_type(const char *name) {
     if (strcmp(name, "to_str") == 0) return TIL_TYPE_STR;
     if (strcmp(name, "println") == 0) return TIL_TYPE_NONE;
     if (strcmp(name, "print") == 0)   return TIL_TYPE_NONE;
+    if (strcmp(name, "and") == 0)  return TIL_TYPE_BOOL;
+    if (strcmp(name, "or") == 0)   return TIL_TYPE_BOOL;
     return TIL_TYPE_UNKNOWN;
 }
 
@@ -80,6 +82,7 @@ static void type_error(const char *path, Expr *e, const char *msg) {
 static TilType type_from_name(const char *name) {
     if (strcmp(name, "I64") == 0)  return TIL_TYPE_I64;
     if (strcmp(name, "Str") == 0)  return TIL_TYPE_STR;
+    if (strcmp(name, "Bool") == 0) return TIL_TYPE_BOOL;
     return TIL_TYPE_UNKNOWN;
 }
 
@@ -93,6 +96,9 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path) {
         break;
     case NODE_LITERAL_NUM:
         e->til_type = TIL_TYPE_I64;
+        break;
+    case NODE_LITERAL_BOOL:
+        e->til_type = TIL_TYPE_BOOL;
         break;
     case NODE_IDENT: {
         TilType t = tscope_get(scope, e->data.str_val);

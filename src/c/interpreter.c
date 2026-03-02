@@ -9,6 +9,7 @@ typedef enum {
     VAL_NONE,
     VAL_I64,
     VAL_STR,
+    VAL_BOOL,
     VAL_FUNC,   // pointer to a func/proc AST node
 } ValType;
 
@@ -17,6 +18,7 @@ typedef struct {
     union {
         long long i64;
         const char *str;
+        int boolean;
         Expr *func;
     };
 } Value;
@@ -95,6 +97,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             switch (arg.type) {
             case VAL_STR:  printf("%s", arg.str); break;
             case VAL_I64:  printf("%lld", arg.i64); break;
+            case VAL_BOOL: printf("%s", arg.boolean ? "true" : "false"); break;
             case VAL_NONE: printf("(none)"); break;
             case VAL_FUNC: printf("(func)"); break;
             }
@@ -110,6 +113,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             switch (arg.type) {
             case VAL_STR:  printf("%s", arg.str); break;
             case VAL_I64:  printf("%lld", arg.i64); break;
+            case VAL_BOOL: printf("%s", arg.boolean ? "true" : "false"); break;
             case VAL_NONE: printf("(none)"); break;
             case VAL_FUNC: printf("(func)"); break;
             }
@@ -154,9 +158,24 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (strcmp(name, "to_str") == 0) {
         Value v = eval_expr(scope, e->children[1], path);
         if (v.type == VAL_STR) return v;
+        if (v.type == VAL_BOOL) return (Value){.type = VAL_STR, .str = v.boolean ? "true" : "false"};
         char *buf = malloc(32);
         snprintf(buf, 32, "%lld", v.i64);
         return (Value){.type = VAL_STR, .str = buf};
+    }
+
+    // Built-in: and(a, b)
+    if (strcmp(name, "and") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_BOOL, .boolean = a.boolean && b.boolean};
+    }
+
+    // Built-in: or(a, b)
+    if (strcmp(name, "or") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_BOOL, .boolean = a.boolean || b.boolean};
     }
 
     // User-defined function
@@ -189,6 +208,8 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_STR, .str = e->data.str_val};
     case NODE_LITERAL_NUM:
         return (Value){.type = VAL_I64, .i64 = atoll(e->data.str_val)};
+    case NODE_LITERAL_BOOL:
+        return (Value){.type = VAL_BOOL, .boolean = strcmp(e->data.str_val, "true") == 0};
     case NODE_IDENT: {
         Value *v = scope_get(scope, e->data.str_val);
         if (!v) {

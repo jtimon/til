@@ -8,6 +8,7 @@ const char *til_type_name(TilType t) {
     case TIL_TYPE_NONE:    return "None";
     case TIL_TYPE_I64:     return "I64";
     case TIL_TYPE_STR:     return "Str";
+    case TIL_TYPE_BOOL:    return "Bool";
     }
     return "?";
 }
@@ -40,6 +41,7 @@ static const char *node_name(NodeType type) {
     case NODE_BODY:        return "body";
     case NODE_LITERAL_STR: return "str";
     case NODE_LITERAL_NUM: return "num";
+    case NODE_LITERAL_BOOL: return "bool";
     case NODE_IDENT:       return "ident";
     case NODE_DECL:        return "decl";
     case NODE_ASSIGN:      return "assign";
@@ -77,6 +79,7 @@ void ast_print(Expr *e, int indent) {
     case NODE_IDENT:
     case NODE_LITERAL_STR:
     case NODE_LITERAL_NUM:
+    case NODE_LITERAL_BOOL:
     case NODE_FOR_IN:
         printf(" \"%s\"", e->data.str_val);
         break;

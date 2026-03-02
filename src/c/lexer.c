@@ -62,6 +62,8 @@ const char *tok_name(TokenType type) {
     case TOK_BREAK:     return "break";
     case TOK_CONTINUE:  return "continue";
     case TOK_DEFER:     return "defer";
+    case TOK_TRUE:      return "true";
+    case TOK_FALSE:     return "false";
     case TOK_ERROR:     return "error";
     }
     return "?";
@@ -103,6 +105,8 @@ static const Keyword keywords[] = {
     {"break",     TOK_BREAK},
     {"continue",  TOK_CONTINUE},
     {"defer",     TOK_DEFER},
+    {"true",      TOK_TRUE},
+    {"false",     TOK_FALSE},
     {NULL, TOK_EOF},
 };
 

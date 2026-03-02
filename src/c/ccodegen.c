@@ -35,6 +35,9 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
     case NODE_LITERAL_NUM:
         fprintf(f, "%s", e->data.str_val);
         break;
+    case NODE_LITERAL_BOOL:
+        fprintf(f, "%d", strcmp(e->data.str_val, "true") == 0 ? 1 : 0);
+        break;
     case NODE_IDENT:
         fprintf(f, "%s", e->data.str_val);
         break;
@@ -49,9 +52,13 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                 int last = is_println && i == e->nchildren - 1;
                 const char *nl = last ? "\\n" : "";
 
-                // Unwrap to_str(x) — print x directly with %lld
+                // Unwrap to_str(x) — print x directly
                 Expr *inner = unwrap_to_str(arg);
-                if (inner) {
+                if (inner && inner->til_type == TIL_TYPE_BOOL) {
+                    fprintf(f, "printf(\"%%s%s\", ", nl);
+                    emit_expr(f, inner, depth);
+                    fprintf(f, " ? \"true\" : \"false\")");
+                } else if (inner) {
                     fprintf(f, "printf(\"%%lld%s\", (long long)", nl);
                     emit_expr(f, inner, depth);
                     fprintf(f, ")");
@@ -61,6 +68,10 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                     fprintf(f, "printf(\"%%lld%s\", (long long)", nl);
                     emit_expr(f, arg, depth);
                     fprintf(f, ")");
+                } else if (arg->til_type == TIL_TYPE_BOOL) {
+                    fprintf(f, "printf(\"%%s%s\", ", nl);
+                    emit_expr(f, arg, depth);
+                    fprintf(f, " ? \"true\" : \"false\")");
                 } else {
                     fprintf(f, "printf(\"%%s%s\", ", nl);
                     emit_expr(f, arg, depth);
@@ -95,6 +106,18 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " / ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
+        } else if (strcmp(name, "and") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " && ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "or") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " || ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
         } else if (strcmp(name, "to_str") == 0) {
             // For I64 args in printf context, just pass the integer
             // and let the printf format handle it. For a proper to_str
@@ -123,6 +146,7 @@ static const char *til_type_to_c(TilType t) {
     switch (t) {
     case TIL_TYPE_I64:  return "long long";
     case TIL_TYPE_STR:  return "const char *";
+    case TIL_TYPE_BOOL: return "int";
     case TIL_TYPE_NONE: return "void";
     default:            return "long long"; // fallback
     }

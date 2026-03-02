@@ -7,6 +7,7 @@ typedef enum {
     NODE_BODY,          // list of statements (children = statements)
     NODE_LITERAL_STR,   // string literal (data.str_val)
     NODE_LITERAL_NUM,   // number literal (data.str_val)
+    NODE_LITERAL_BOOL,  // bool literal (data.str_val = "true"/"false")
     NODE_IDENT,         // identifier (data.str_val)
     NODE_DECL,          // declaration :=  (data.decl, children[0] = value)
     NODE_ASSIGN,        // assignment =    (data.str_val = name, children[0] = value)
@@ -34,6 +35,7 @@ typedef enum {
     TIL_TYPE_NONE,      // void / no value
     TIL_TYPE_I64,
     TIL_TYPE_STR,
+    TIL_TYPE_BOOL,
 } TilType;
 
 const char *til_type_name(TilType t);

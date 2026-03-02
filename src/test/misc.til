@@ -12,3 +12,12 @@ println(to_str(x))
 
 greeting : Str = "Hi there"
 println(greeting)
+
+t := true
+f := false
+println(to_str(t))
+println(to_str(f))
+println(to_str(and(true, true)))
+println(to_str(and(true, false)))
+println(to_str(or(false, false)))
+println(to_str(or(false, true)))
