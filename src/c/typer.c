@@ -97,7 +97,9 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path) {
     case NODE_IDENT: {
         TilType t = tscope_get(scope, e->data.str_val);
         if (t == TIL_TYPE_UNKNOWN) {
-            type_error(path, e, "undefined variable");
+            char buf[128];
+            snprintf(buf, sizeof(buf), "undefined symbol '%s'", e->data.str_val);
+            type_error(path, e, buf);
         }
         e->til_type = t;
         break;
@@ -126,7 +128,9 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path) {
             // User-defined function — look up in scope
             TilType fn_type = tscope_get(scope, name);
             if (fn_type == TIL_TYPE_UNKNOWN) {
-                type_error(path, e, "undefined function");
+                char buf[128];
+                snprintf(buf, sizeof(buf), "undefined function '%s'", name);
+                type_error(path, e, buf);
             }
             // TODO: track return types of user-defined functions
             e->til_type = TIL_TYPE_NONE;
@@ -150,12 +154,13 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path) {
                 TilType declared = type_from_name(stmt->data.decl.explicit_type);
                 if (declared == TIL_TYPE_UNKNOWN) {
                     char buf[128];
-                    snprintf(buf, sizeof(buf), "unknown type '%s'", stmt->data.decl.explicit_type);
+                    snprintf(buf, sizeof(buf), "undefined type '%s'", stmt->data.decl.explicit_type);
                     type_error(path, stmt, buf);
                 } else if (stmt->children[0]->til_type != declared) {
                     char buf[128];
-                    snprintf(buf, sizeof(buf), "type mismatch: declared '%s' but got '%s'",
-                             til_type_name(declared), til_type_name(stmt->children[0]->til_type));
+                    snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
+                             stmt->data.decl.name, til_type_name(declared),
+                             til_type_name(stmt->children[0]->til_type));
                     type_error(path, stmt, buf);
                 }
                 stmt->til_type = declared;
@@ -163,17 +168,6 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path) {
                 stmt->til_type = stmt->children[0]->til_type;
             }
             tscope_set(scope, stmt->data.decl.name, stmt->til_type);
-            break;
-        case NODE_ASSIGN:
-            infer_expr(scope, stmt->children[0], path);
-            stmt->til_type = stmt->children[0]->til_type;
-            // Check that variable exists
-            {
-                TilType existing = tscope_get(scope, stmt->data.str_val);
-                if (existing == TIL_TYPE_UNKNOWN) {
-                    type_error(path, stmt, "assignment to undefined variable");
-                }
-            }
             break;
         case NODE_FCALL:
             infer_expr(scope, stmt, path);

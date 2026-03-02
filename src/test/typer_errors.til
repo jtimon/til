@@ -1,0 +1,13 @@
+mode script
+
+// undefined symbol
+println(to_str(x))
+
+// undefined function
+foo(1)
+
+// undefined type in explicit declaration
+y : Blah = 35
+
+// type mismatch: declared Str but value is I64
+z : Str = 35

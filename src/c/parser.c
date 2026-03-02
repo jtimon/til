@@ -189,29 +189,12 @@ static Expr *parse_statement_ident(Parser *p) {
         return decl;
     }
 
-    // Assignment: name = value
-    if (check(p, TOK_EQ)) {
-        advance(p); // consume =
-        Expr *assign = expr_new(NODE_ASSIGN, t->line, t->col);
-        assign->data.str_val = name;
-        expr_add_child(assign, parse_expression(p));
-        return assign;
-    }
-
     // Function call: name(...)
     if (check(p, TOK_LPAREN)) {
         return parse_call(p, name, t->line, t->col);
     }
 
-    // UFCS dot call: name.method(...)
-    if (check(p, TOK_DOT)) {
-        // TODO: handle UFCS chains
-        fprintf(stderr, "%s:%d:%d: parse error: UFCS not yet implemented\n",
-                p->path, t->line, t->col);
-        exit(1);
-    }
-
-    fprintf(stderr, "%s:%d:%d: parse error: expected ':=', '=', '(' or '.' after identifier '%s'\n",
+    fprintf(stderr, "%s:%d:%d: parse error: expected ':=', ':' or '(' after identifier '%s'\n",
             p->path, t->line, t->col, name);
     exit(1);
 }
