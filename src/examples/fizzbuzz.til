@@ -11,7 +11,7 @@ while lte(i, 100) {
             if eq(mod(i, 5), 0) {
                 println("Buzz")
             } else {
-                println(to_str(i))
+                println(i64_to_str(i))
             }
         }
     }

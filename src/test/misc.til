@@ -2,25 +2,25 @@ mode script
 
 a := 34
 b := 35
-println(to_str(add(a, b)))
+println(i64_to_str(add(a, b)))
 
 s := "Hello"
 println(s)
 
 x : I64 = 35
-println(to_str(x))
+println(i64_to_str(x))
 
 greeting : Str = "Hi there"
 println(greeting)
 
 t := true
 f := false
-println(to_str(t))
-println(to_str(f))
-println(to_str(and(true, true)))
-println(to_str(and(true, false)))
-println(to_str(or(false, false)))
-println(to_str(or(false, true)))
+println(bool_to_str(t))
+println(bool_to_str(f))
+println(bool_to_str(and(true, true)))
+println(bool_to_str(and(true, false)))
+println(bool_to_str(or(false, false)))
+println(bool_to_str(or(false, true)))
 
 if true {
     println("if true works")
@@ -47,9 +47,9 @@ while false {
 }
 println("while false skipped")
 
-println(to_str(eq(1, 1)))
-println(to_str(lt(1, 2)))
-println(to_str(gt(2, 1)))
+println(bool_to_str(eq(1, 1)))
+println(bool_to_str(lt(1, 2)))
+println(bool_to_str(gt(2, 1)))
 
 {
     inner := "scoped"
@@ -57,22 +57,22 @@ println(to_str(gt(2, 1)))
 }
 println("after block")
 
-println(to_str(lte(1, 2)))
-println(to_str(lte(2, 2)))
-println(to_str(lte(3, 2)))
-println(to_str(gte(3, 2)))
-println(to_str(gte(2, 2)))
-println(to_str(gte(1, 2)))
-println(to_str(neq(1, 2)))
-println(to_str(neq(2, 2)))
-println(to_str(mod(10, 3)))
-println(to_str(mod(10, 5)))
-println(to_str(neg(42)))
+println(bool_to_str(lte(1, 2)))
+println(bool_to_str(lte(2, 2)))
+println(bool_to_str(lte(3, 2)))
+println(bool_to_str(gte(3, 2)))
+println(bool_to_str(gte(2, 2)))
+println(bool_to_str(gte(1, 2)))
+println(bool_to_str(neq(1, 2)))
+println(bool_to_str(neq(2, 2)))
+println(i64_to_str(mod(10, 3)))
+println(i64_to_str(mod(10, 5)))
+println(i64_to_str(neg(42)))
 
 mut counter := 0
 counter = 1
 counter = add(counter, 1)
-println(to_str(counter))
+println(i64_to_str(counter))
 
 mut msg : Str = "hello"
 msg = "world"
@@ -80,7 +80,7 @@ println(msg)
 
 mut i := 0
 while lt(i, 5) {
-    print(to_str(i), " ")
+    print(i64_to_str(i), " ")
     i = add(i, 1)
 }
 println("")
@@ -101,12 +101,12 @@ Point : StructDef = struct {
     mut y := 0
 }
 p := Point()
-println(to_str(p.x))
-println(to_str(p.y))
+println(i64_to_str(p.x))
+println(i64_to_str(p.y))
 p.x = 5
 p.y = 10
-println(to_str(p.x))
-println(to_str(p.y))
+println(i64_to_str(p.x))
+println(i64_to_str(p.y))
 println(loc())
 assert(loc(), true)
 assert(loc(), eq(1, 1))

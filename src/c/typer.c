@@ -12,7 +12,8 @@ static TilType builtin_return_type(const char *name) {
     if (strcmp(name, "mul") == 0)    return TIL_TYPE_I64;
     if (strcmp(name, "div") == 0)    return TIL_TYPE_I64;
     if (strcmp(name, "mod") == 0)    return TIL_TYPE_I64;
-    if (strcmp(name, "to_str") == 0) return TIL_TYPE_STR;
+    if (strcmp(name, "i64_to_str") == 0) return TIL_TYPE_STR;
+    if (strcmp(name, "bool_to_str") == 0) return TIL_TYPE_STR;
     if (strcmp(name, "println") == 0) return TIL_TYPE_NONE;
     if (strcmp(name, "print") == 0)   return TIL_TYPE_NONE;
     if (strcmp(name, "and") == 0)  return TIL_TYPE_BOOL;
@@ -36,7 +37,8 @@ static int builtin_is_proc(const char *name) {
     if (strcmp(name, "mul") == 0)  return 0;
     if (strcmp(name, "div") == 0)  return 0;
     if (strcmp(name, "mod") == 0)  return 0;
-    if (strcmp(name, "to_str") == 0) return 0;
+    if (strcmp(name, "i64_to_str") == 0) return 0;
+    if (strcmp(name, "bool_to_str") == 0) return 0;
     if (strcmp(name, "and") == 0)  return 0;
     if (strcmp(name, "or") == 0)   return 0;
     if (strcmp(name, "eq") == 0)   return 0;

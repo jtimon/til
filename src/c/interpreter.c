@@ -217,14 +217,18 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_I64, .i64 = a.i64 % b.i64};
     }
 
-    // Built-in: to_str(val)
-    if (strcmp(name, "to_str") == 0) {
+    // Built-in: i64_to_str(val)
+    if (strcmp(name, "i64_to_str") == 0) {
         Value v = eval_expr(scope, e->children[1], path);
-        if (v.type == VAL_STR) return v;
-        if (v.type == VAL_BOOL) return (Value){.type = VAL_STR, .str = v.boolean ? "true" : "false"};
         char *buf = malloc(32);
         snprintf(buf, 32, "%lld", v.i64);
         return (Value){.type = VAL_STR, .str = buf};
+    }
+
+    // Built-in: bool_to_str(val)
+    if (strcmp(name, "bool_to_str") == 0) {
+        Value v = eval_expr(scope, e->children[1], path);
+        return (Value){.type = VAL_STR, .str = v.boolean ? "true" : "false"};
     }
 
     // Built-in: eq(a, b)

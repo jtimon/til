@@ -17,7 +17,7 @@ greet := proc() {
 // recursion: countdown
 countdown := proc(n: I64) {
     if gt(n, 0) {
-        print(to_str(n), " ")
+        print(i64_to_str(n), " ")
         countdown(sub(n, 1))
     }
 }

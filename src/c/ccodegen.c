@@ -36,11 +36,12 @@ static int is_ns_field(const char *struct_name, const char *field_name) {
     return 0;
 }
 
-// Check if an expr is a to_str(x) call, return the inner expr if so
+// Check if an expr is an i64_to_str(x) or bool_to_str(x) call, return the inner expr if so
 static Expr *unwrap_to_str(Expr *e) {
     if (e->type == NODE_FCALL && e->nchildren >= 2) {
         const char *name = e->children[0]->data.str_val;
-        if (strcmp(name, "to_str") == 0) return e->children[1];
+        if (strcmp(name, "i64_to_str") == 0 || strcmp(name, "bool_to_str") == 0)
+            return e->children[1];
     }
     return NULL;
 }
@@ -190,10 +191,8 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, "(!");
             emit_expr(f, e->children[1], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "to_str") == 0) {
-            // For I64 args in printf context, just pass the integer
-            // and let the printf format handle it. For a proper to_str
-            // we'd need snprintf into a buffer, but this works for now.
+        } else if (strcmp(name, "i64_to_str") == 0 || strcmp(name, "bool_to_str") == 0) {
+            // In printf context these get unwrapped; standalone just pass through
             emit_expr(f, e->children[1], depth);
         } else if (e->struct_name) {
             // Struct instantiation
