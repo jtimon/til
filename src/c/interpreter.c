@@ -463,6 +463,17 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
 int interpret(Expr *program, const char *mode, const char *path) {
     Scope *global = scope_new(NULL);
 
+    // Pre-register all top-level func/proc/struct definitions for forward references
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type == NODE_DECL &&
+            (stmt->children[0]->type == NODE_FUNC_DEF ||
+             stmt->children[0]->type == NODE_STRUCT_DEF)) {
+            Value val = {.type = VAL_FUNC, .func = stmt->children[0]};
+            scope_set(global, stmt->data.decl.name, val);
+        }
+    }
+
     // Evaluate top-level declarations
     eval_body(global, program, path);
 

@@ -365,7 +365,7 @@ static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char 
 static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
     Expr *body = struct_def->children[0];
     // Emit typedef struct
-    fprintf(f, "typedef struct {\n");
+    fprintf(f, "typedef struct til_%s {\n", name);
     for (int i = 0; i < body->nchildren; i++) {
         Expr *field = body->children[i];
         fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.decl.name);
@@ -406,6 +406,15 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
 
     int is_script = mode && strcmp(mode, "script") == 0;
 
+    // Forward-declare all structs
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
+            fprintf(f, "typedef struct til_%s til_%s;\n", stmt->data.decl.name, stmt->data.decl.name);
+        }
+    }
+    fprintf(f, "\n");
+
     // First pass: emit struct definitions
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
@@ -414,6 +423,34 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
             fprintf(f, "\n");
         }
     }
+
+    // Forward-declare all functions
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
+            Expr *func_def = stmt->children[0];
+            const char *name = stmt->data.decl.name;
+            int is_main = mode && strcmp(mode, "cli") == 0 && strcmp(name, "main") == 0;
+            if (is_main) continue;
+            const char *ret = "void";
+            if (func_def->data.func_def.return_type) {
+                ret = type_name_to_c(func_def->data.func_def.return_type);
+            }
+            fprintf(f, "%s til_%s(", ret, name);
+            int np = func_def->data.func_def.nparam;
+            if (np == 0) {
+                fprintf(f, "void");
+            } else {
+                for (int j = 0; j < np; j++) {
+                    if (j > 0) fprintf(f, ", ");
+                    fprintf(f, "%s %s", type_name_to_c(func_def->data.func_def.param_types[j]),
+                            func_def->data.func_def.param_names[j]);
+                }
+            }
+            fprintf(f, ");\n");
+        }
+    }
+    fprintf(f, "\n");
 
     // Second pass: emit func/proc definitions
     for (int i = 0; i < program->nchildren; i++) {

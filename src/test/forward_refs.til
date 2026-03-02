@@ -1,0 +1,69 @@
+mode script
+
+// forward reference: call a function defined later
+assert_eq(loc(), double(5), 10)
+
+double := func(n: I64) returns I64 {
+    return mul(n, 2)
+}
+
+// forward reference: call a proc defined later
+greet()
+
+greet := proc() {
+    println("hello from greet")
+}
+
+// recursion: countdown
+countdown := proc(n: I64) {
+    if gt(n, 0) {
+        print(to_str(n), " ")
+        countdown(sub(n, 1))
+    }
+}
+countdown(5)
+println("")
+
+// recursion: factorial
+factorial := func(n: I64) returns I64 {
+    if lte(n, 1) {
+        return 1
+    }
+    return mul(n, factorial(sub(n, 1)))
+}
+assert_eq(loc(), factorial(5), 120)
+assert_eq(loc(), factorial(1), 1)
+assert_eq(loc(), factorial(0), 1)
+
+// mutual recursion
+is_even := func(n: I64) returns Bool {
+    if eq(n, 0) { return true }
+    return is_odd(sub(n, 1))
+}
+
+is_odd := func(n: I64) returns Bool {
+    if eq(n, 0) { return false }
+    return is_even(sub(n, 1))
+}
+
+assert(loc(), is_even(0))
+assert(loc(), not(is_odd(0)))
+assert(loc(), is_odd(1))
+assert(loc(), is_even(4))
+assert(loc(), is_odd(7))
+
+// forward reference to struct type
+make_point := func(x: I64, y: I64) returns Point {
+    return Point(x=x, y=y)
+}
+
+Point := struct {
+    mut x := 0
+    mut y := 0
+}
+
+p := make_point(3, 7)
+assert_eq(loc(), p.x, 3)
+assert_eq(loc(), p.y, 7)
+
+println("all forward ref tests passed")

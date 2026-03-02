@@ -3,8 +3,9 @@
 #include <string.h>
 #include "c/lexer.h"
 #include "c/parser.h"
-#include "c/interpreter.h"
+#include "c/initer.h"
 #include "c/typer.h"
+#include "c/interpreter.h"
 #include "c/ccodegen.h"
 
 static char *read_file(const char *path) {
@@ -96,8 +97,13 @@ int main(int argc, char **argv) {
         ast->nchildren = total;
     }
 
+    // Init phase: pre-scan declarations for forward references
+    TypeScope *scope = tscope_new(NULL);
+    init_declarations(ast, scope, path);
+
     // Type checking and inference
-    int type_errors = type_check(ast, path);
+    int type_errors = type_check(ast, path, scope);
+    tscope_free(scope);
     if (type_errors > 0) {
         fprintf(stderr, "%d type error(s) found\n", type_errors);
         expr_free(ast);

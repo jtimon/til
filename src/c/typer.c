@@ -1,116 +1,8 @@
 #include "typer.h"
+#include "initer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// --- Type scope (tracks variable types) ---
-
-typedef struct {
-    const char *name;
-    TilType type;
-    int is_proc; // -1 = not a function, 0 = func, 1 = proc
-    int is_mut;
-    int line;
-    int col;
-    int is_param; // 1 if this is a function parameter
-    Expr *struct_def; // non-NULL if this is a struct type definition
-    Expr *func_def;   // non-NULL if this is a func/proc definition
-    int is_builtin;   // 1 if this is a builtin type (I64, Str, Bool, etc.)
-    const char *struct_name; // for variables of struct type: which struct
-} TypeBinding;
-
-typedef struct TypeScope TypeScope;
-struct TypeScope {
-    TypeBinding *bindings;
-    int len;
-    int cap;
-    TypeScope *parent;
-};
-
-static TypeScope *tscope_new(TypeScope *parent) {
-    TypeScope *s = calloc(1, sizeof(TypeScope));
-    s->parent = parent;
-    return s;
-}
-
-static void tscope_free(TypeScope *s) {
-    free(s->bindings);
-    free(s);
-}
-
-static void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc, int is_mut, int line, int col, int is_param) {
-    for (int i = 0; i < s->len; i++) {
-        if (strcmp(s->bindings[i].name, name) == 0) {
-            s->bindings[i].type = type;
-            s->bindings[i].is_proc = is_proc;
-            s->bindings[i].is_mut = is_mut;
-            s->bindings[i].line = line;
-            s->bindings[i].col = col;
-            s->bindings[i].is_param = is_param;
-            return;
-        }
-    }
-    if (s->len >= s->cap) {
-        s->cap = s->cap ? s->cap * 2 : 8;
-        s->bindings = realloc(s->bindings, s->cap * sizeof(TypeBinding));
-    }
-    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, NULL, NULL, 0, NULL};
-}
-
-static TilType tscope_get(TypeScope *s, const char *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
-                return cur->bindings[i].type;
-            }
-        }
-    }
-    return TIL_TYPE_UNKNOWN;
-}
-
-static int tscope_is_proc(TypeScope *s, const char *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
-                return cur->bindings[i].is_proc;
-            }
-        }
-    }
-    return -1;
-}
-
-static TypeBinding *tscope_find(TypeScope *s, const char *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
-                return &cur->bindings[i];
-            }
-        }
-    }
-    return NULL;
-}
-
-static Expr *tscope_get_struct(TypeScope *s, const char *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
-                return cur->bindings[i].struct_def;
-            }
-        }
-    }
-    return NULL;
-}
-
-static int tscope_is_mut(TypeScope *s, const char *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
-                return cur->bindings[i].is_mut;
-            }
-        }
-    }
-    return 0;
-}
 
 // --- Built-in function return types ---
 
@@ -407,6 +299,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 type_error(path, e, buf);
             }
             e->til_type = fn_type;
+            // Propagate struct_name for struct-returning functions
+            if (fn_type == TIL_TYPE_STRUCT && callee_bind && callee_bind->func_def &&
+                callee_bind->func_def->data.func_def.return_type) {
+                e->struct_name = callee_bind->func_def->data.func_def.return_type;
+            }
             // Check: func cannot call a user-defined proc (panic is exempt)
             if (in_func && tscope_is_proc(scope, name) == 1 && strcmp(name, "panic") != 0) {
                 char buf[128];
@@ -674,10 +571,8 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
     }
 }
 
-int type_check(Expr *program, const char *path) {
+int type_check(Expr *program, const char *path, TypeScope *scope) {
     errors = 0;
-    TypeScope *global = tscope_new(NULL);
-    infer_body(global, program, path, 0);
-    tscope_free(global);
+    infer_body(scope, program, path, 0);
     return errors;
 }
