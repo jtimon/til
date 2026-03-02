@@ -142,6 +142,12 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " || ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
+        } else if (strcmp(name, "eq_str") == 0) {
+            fprintf(f, "(strcmp(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, ", ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ") == 0)");
         } else if (strcmp(name, "format") == 0) {
             fprintf(f, "til_format(%d", e->nchildren - 1);
             for (int i = 1; i < e->nchildren; i++) {

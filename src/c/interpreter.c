@@ -230,6 +230,13 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_BOOL, .boolean = a.boolean || b.boolean};
     }
 
+    // Built-in: eq_str(a, b)
+    if (strcmp(name, "eq_str") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_BOOL, .boolean = strcmp(a.str, b.str) == 0};
+    }
+
     // Built-in: format(..Str) -> Str (variadic)
     if (strcmp(name, "format") == 0) {
         // First pass: compute total length
