@@ -4,6 +4,7 @@
 #include "c/lexer.h"
 #include "c/parser.h"
 #include "c/interpreter.h"
+#include "c/ccodegen.h"
 
 static char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
@@ -70,12 +71,28 @@ int main(int argc, char **argv) {
 
     if (strcmp(command, "interpret") == 0) {
         result = interpret(ast, mode, path);
-    } else if (strcmp(command, "build") == 0) {
-        fprintf(stderr, "error: 'build' not yet implemented\n");
-        result = 1;
-    } else if (strcmp(command, "run") == 0) {
-        fprintf(stderr, "error: 'run' not yet implemented\n");
-        result = 1;
+    } else if (strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
+        // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
+        // For now, use gen/c/ for generated C and bin/c/ for binaries
+        const char *basename = strrchr(path, '/');
+        basename = basename ? basename + 1 : path;
+        int name_len = (int)(strlen(basename) - 4); // strip .til
+        if (name_len <= 0) name_len = (int)strlen(basename);
+
+        char c_path[256], bin_path[256];
+        snprintf(c_path, sizeof(c_path), "gen/c/%.*s.c", name_len, basename);
+        snprintf(bin_path, sizeof(bin_path), "bin/c/%.*s", name_len, basename);
+
+        // Ensure output dirs exist
+        system("mkdir -p gen/c bin/c");
+
+        result = codegen_c(ast, mode, path, c_path);
+        if (result == 0) {
+            result = compile_c(c_path, bin_path);
+        }
+        if (result == 0 && strcmp(command, "run") == 0) {
+            result = system(bin_path);
+        }
     } else if (strcmp(command, "ast") == 0) {
         printf("mode: %s\n", mode ? mode : "(none)");
         ast_print(ast, 0);
