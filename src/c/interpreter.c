@@ -92,7 +92,6 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (strcmp(name, "println") == 0) {
         for (int i = 1; i < e->nchildren; i++) {
             Value arg = eval_expr(scope, e->children[i], path);
-            if (i > 1) printf(", ");
             switch (arg.type) {
             case VAL_STR:  printf("%s", arg.str); break;
             case VAL_I64:  printf("%lld", arg.i64); break;
@@ -108,7 +107,6 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (strcmp(name, "print") == 0) {
         for (int i = 1; i < e->nchildren; i++) {
             Value arg = eval_expr(scope, e->children[i], path);
-            if (i > 1) printf(", ");
             switch (arg.type) {
             case VAL_STR:  printf("%s", arg.str); break;
             case VAL_I64:  printf("%lld", arg.i64); break;

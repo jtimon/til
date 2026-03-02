@@ -31,28 +31,30 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         break;
     case NODE_FCALL: {
         const char *name = e->children[0]->data.str_val;
-        // Built-in: println → printf with \n
-        if (strcmp(name, "println") == 0) {
-            // Single string arg: append \n directly
-            if (e->nchildren == 2 && e->children[1]->type == NODE_LITERAL_STR) {
-                fprintf(f, "printf(\"%s\\n\")", e->children[1]->data.str_val);
-            } else {
-                fprintf(f, "printf(");
-                for (int i = 1; i < e->nchildren; i++) {
-                    if (i > 1) fprintf(f, ", ");
-                    emit_expr(f, e->children[i], depth);
+        // Built-in: println → one printf per arg, then \n
+        if (strcmp(name, "println") == 0 || strcmp(name, "print") == 0) {
+            int is_println = strcmp(name, "println") == 0;
+            for (int i = 1; i < e->nchildren; i++) {
+                if (i > 1) { fprintf(f, ";\n"); emit_indent(f, depth); }
+                Expr *arg = e->children[i];
+                if (arg->type == NODE_LITERAL_STR) {
+                    // Last arg of println: append \n to the string
+                    if (is_println && i == e->nchildren - 1) {
+                        fprintf(f, "printf(\"%s\\n\")", arg->data.str_val);
+                    } else {
+                        fprintf(f, "printf(\"%s\")", arg->data.str_val);
+                    }
+                } else {
+                    // Non-string: use %s/%lld format — TODO: proper type dispatch
+                    fprintf(f, "printf(\"%%s\", ");
+                    emit_expr(f, arg, depth);
+                    fprintf(f, ")");
                 }
-                fprintf(f, ");\n");
-                emit_indent(f, depth);
+            }
+            if (is_println && e->nchildren <= 1) {
+                // println() with no args: just a newline
                 fprintf(f, "printf(\"\\n\")");
             }
-        } else if (strcmp(name, "print") == 0) {
-            fprintf(f, "printf(");
-            for (int i = 1; i < e->nchildren; i++) {
-                if (i > 1) fprintf(f, ", ");
-                emit_expr(f, e->children[i], depth);
-            }
-            fprintf(f, ")");
         } else {
             // User-defined function call
             fprintf(f, "til_%s(", name);
