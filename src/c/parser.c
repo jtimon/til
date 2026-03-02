@@ -161,11 +161,29 @@ static Expr *parse_statement_ident(Parser *p) {
     Token *t = advance(p); // consume identifier
     const char *name = tok_str(t);
 
-    // Declaration: name := value
+    // Declaration: name := value (inferred type)
     if (check(p, TOK_COLONEQ)) {
         advance(p); // consume :=
         Expr *decl = expr_new(NODE_DECL, t->line, t->col);
         decl->data.decl.name = name;
+        decl->data.decl.explicit_type = NULL;
+        decl->data.decl.is_mut = false;
+        expr_add_child(decl, parse_expression(p));
+        return decl;
+    }
+
+    // Declaration with explicit type: name : Type = value
+    // Or func/proc def: name : proc(...) { ... }
+    if (check(p, TOK_COLON)) {
+        advance(p); // consume :
+        // name : Type = value
+        Token *type_tok = peek(p);
+        const char *type_name = tok_str(type_tok);
+        advance(p); // consume type name
+        expect(p, TOK_EQ); // consume =
+        Expr *decl = expr_new(NODE_DECL, t->line, t->col);
+        decl->data.decl.name = name;
+        decl->data.decl.explicit_type = type_name;
         decl->data.decl.is_mut = false;
         expr_add_child(decl, parse_expression(p));
         return decl;

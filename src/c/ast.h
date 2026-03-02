@@ -34,8 +34,6 @@ typedef enum {
     TIL_TYPE_NONE,      // void / no value
     TIL_TYPE_I64,
     TIL_TYPE_STR,
-    TIL_TYPE_BOOL,
-    TIL_TYPE_FUNC,      // function/proc value
 } TilType;
 
 const char *til_type_name(TilType t);
@@ -49,6 +47,7 @@ struct Expr {
         const char *str_val;        // for IDENT, LITERAL_STR, LITERAL_NUM, ASSIGN, FOR_IN
         struct {                    // for DECL
             const char *name;
+            const char *explicit_type; // NULL if inferred (:=), e.g. "I64", "Str"
             bool is_mut;
         } decl;
         struct {                    // for FUNC_DEF

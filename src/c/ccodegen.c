@@ -123,7 +123,6 @@ static const char *til_type_to_c(TilType t) {
     switch (t) {
     case TIL_TYPE_I64:  return "long long";
     case TIL_TYPE_STR:  return "const char *";
-    case TIL_TYPE_BOOL: return "int";
     case TIL_TYPE_NONE: return "void";
     default:            return "long long"; // fallback
     }

@@ -6,3 +6,9 @@ println(to_str(add(a, b)))
 
 s := "Hello"
 println(s)
+
+x : I64 = 35
+println(to_str(x))
+
+greeting : Str = "Hi there"
+println(greeting)

@@ -76,6 +76,13 @@ static void type_error(const char *path, Expr *e, const char *msg) {
     errors++;
 }
 
+// Parse a type name string to TilType
+static TilType type_from_name(const char *name) {
+    if (strcmp(name, "I64") == 0)  return TIL_TYPE_I64;
+    if (strcmp(name, "Str") == 0)  return TIL_TYPE_STR;
+    return TIL_TYPE_UNKNOWN;
+}
+
 static void infer_expr(TypeScope *scope, Expr *e, const char *path);
 static void infer_body(TypeScope *scope, Expr *body, const char *path);
 
@@ -96,7 +103,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path) {
         break;
     }
     case NODE_FUNC_DEF:
-        e->til_type = TIL_TYPE_FUNC;
+        e->til_type = TIL_TYPE_NONE;
         // Type the body
         {
             TypeScope *func_scope = tscope_new(scope);
@@ -139,7 +146,22 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path) {
         switch (stmt->type) {
         case NODE_DECL:
             infer_expr(scope, stmt->children[0], path);
-            stmt->til_type = stmt->children[0]->til_type;
+            if (stmt->data.decl.explicit_type) {
+                TilType declared = type_from_name(stmt->data.decl.explicit_type);
+                if (declared == TIL_TYPE_UNKNOWN) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "unknown type '%s'", stmt->data.decl.explicit_type);
+                    type_error(path, stmt, buf);
+                } else if (stmt->children[0]->til_type != declared) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "type mismatch: declared '%s' but got '%s'",
+                             til_type_name(declared), til_type_name(stmt->children[0]->til_type));
+                    type_error(path, stmt, buf);
+                }
+                stmt->til_type = declared;
+            } else {
+                stmt->til_type = stmt->children[0]->til_type;
+            }
             tscope_set(scope, stmt->data.decl.name, stmt->til_type);
             break;
         case NODE_ASSIGN:
