@@ -7,7 +7,7 @@ HDRS := $(wildcard src/c/*.h)
 
 bin/ctil: $(SRCS) $(HDRS)
 	@mkdir -p bin
-	cc -Wall -Wextra -g -std=c11 -Isrc $(SRCS) -o bin/ctil
+	cc -Wall -Wextra -g -Isrc $(SRCS) -o bin/ctil
 
 clean:
 	rm -rf bin/*
