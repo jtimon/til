@@ -1,0 +1,8 @@
+mode script
+
+a := 34
+b := 35
+println(to_str(add(a, b)))
+
+s := "Hello"
+println(s)

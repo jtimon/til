@@ -2,6 +2,18 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+const char *til_type_name(TilType t) {
+    switch (t) {
+    case TIL_TYPE_UNKNOWN: return "unknown";
+    case TIL_TYPE_NONE:    return "None";
+    case TIL_TYPE_I64:     return "I64";
+    case TIL_TYPE_STR:     return "Str";
+    case TIL_TYPE_BOOL:    return "Bool";
+    case TIL_TYPE_FUNC:    return "Func";
+    }
+    return "?";
+}
+
 Expr *expr_new(NodeType type, int line, int col) {
     Expr *e = calloc(1, sizeof(Expr));
     e->type = type;
@@ -60,6 +72,9 @@ void ast_print(Expr *e, int indent) {
     if (!e) return;
     for (int i = 0; i < indent; i++) printf("  ");
     printf("(%s", node_name(e->type));
+    if (e->til_type != TIL_TYPE_UNKNOWN) {
+        printf(":%s", til_type_name(e->til_type));
+    }
     switch (e->type) {
     case NODE_IDENT:
     case NODE_LITERAL_STR:

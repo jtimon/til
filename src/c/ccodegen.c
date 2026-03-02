@@ -9,6 +9,15 @@ static void emit_indent(FILE *f, int depth) {
     for (int i = 0; i < depth; i++) fprintf(f, "    ");
 }
 
+// Check if an expr is a to_str(x) call, return the inner expr if so
+static Expr *unwrap_to_str(Expr *e) {
+    if (e->type == NODE_FCALL && e->nchildren >= 2) {
+        const char *name = e->children[0]->data.str_val;
+        if (strcmp(name, "to_str") == 0) return e->children[1];
+    }
+    return NULL;
+}
+
 // --- Forward declarations ---
 
 static void emit_expr(FILE *f, Expr *e, int depth);
@@ -37,34 +46,30 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             for (int i = 1; i < e->nchildren; i++) {
                 if (i > 1) { fprintf(f, ";\n"); emit_indent(f, depth); }
                 Expr *arg = e->children[i];
-                if (arg->type == NODE_LITERAL_STR) {
-                    // Last arg of println: append \n to the string
-                    if (is_println && i == e->nchildren - 1) {
-                        fprintf(f, "printf(\"%s\\n\")", arg->data.str_val);
-                    } else {
-                        fprintf(f, "printf(\"%s\")", arg->data.str_val);
-                    }
+                int last = is_println && i == e->nchildren - 1;
+                const char *nl = last ? "\\n" : "";
+
+                // Unwrap to_str(x) — print x directly with %lld
+                Expr *inner = unwrap_to_str(arg);
+                if (inner) {
+                    fprintf(f, "printf(\"%%lld%s\", (long long)", nl);
+                    emit_expr(f, inner, depth);
+                    fprintf(f, ")");
+                } else if (arg->type == NODE_LITERAL_STR) {
+                    fprintf(f, "printf(\"%s%s\")", arg->data.str_val, nl);
+                } else if (arg->til_type == TIL_TYPE_I64) {
+                    fprintf(f, "printf(\"%%lld%s\", (long long)", nl);
+                    emit_expr(f, arg, depth);
+                    fprintf(f, ")");
                 } else {
-                    // Non-string arg: assume integer for now
-                    fprintf(f, "printf(\"%%lld\", (long long)");
+                    fprintf(f, "printf(\"%%s%s\", ", nl);
                     emit_expr(f, arg, depth);
                     fprintf(f, ")");
                 }
             }
-            // Emit trailing newline for println
-            if (is_println) {
-                if (e->nchildren <= 1) {
-                    fprintf(f, "printf(\"\\n\")");
-                } else {
-                    // If last arg was a string literal, \n was already appended above.
-                    // Otherwise, emit a separate printf.
-                    Expr *last = e->children[e->nchildren - 1];
-                    if (last->type != NODE_LITERAL_STR) {
-                        fprintf(f, ";\n");
-                        emit_indent(f, depth);
-                        fprintf(f, "printf(\"\\n\")");
-                    }
-                }
+            // println() with no args: just a newline
+            if (is_println && e->nchildren <= 1) {
+                fprintf(f, "printf(\"\\n\")");
             }
         } else if (strcmp(name, "add") == 0) {
             fprintf(f, "(");
@@ -91,10 +96,9 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "to_str") == 0) {
-            // to_str in codegen: use snprintf into a stack buffer
-            // For now, emit inline — works as a printf arg via %lld
-            // TODO: proper to_str with buffer allocation
-            fprintf(f, "/* to_str */ ");
+            // For I64 args in printf context, just pass the integer
+            // and let the printf format handle it. For a proper to_str
+            // we'd need snprintf into a buffer, but this works for now.
             emit_expr(f, e->children[1], depth);
         } else {
             // User-defined function call
@@ -113,19 +117,30 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
     }
 }
 
+// --- Type to C type string ---
+
+static const char *til_type_to_c(TilType t) {
+    switch (t) {
+    case TIL_TYPE_I64:  return "long long";
+    case TIL_TYPE_STR:  return "const char *";
+    case TIL_TYPE_BOOL: return "int";
+    case TIL_TYPE_NONE: return "void";
+    default:            return "long long"; // fallback
+    }
+}
+
 // --- Statement emission ---
 
 static void emit_stmt(FILE *f, Expr *e, int depth) {
     emit_indent(f, depth);
     switch (e->type) {
     case NODE_DECL:
-        // TODO: proper type emission; for now skip func defs at statement level
         if (e->children[0]->type == NODE_FUNC_DEF) {
-            // Nested function — not emitted inline for now
             fprintf(f, "/* TODO: nested func %s */\n", e->data.decl.name);
         } else {
-            // Variable declaration — TODO: proper types
-            fprintf(f, "/* TODO: decl %s */\n", e->data.decl.name);
+            fprintf(f, "%s %s = ", til_type_to_c(e->til_type), e->data.decl.name);
+            emit_expr(f, e->children[0], depth);
+            fprintf(f, ";\n");
         }
         break;
     case NODE_FCALL:

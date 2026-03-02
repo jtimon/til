@@ -4,6 +4,7 @@
 #include "c/lexer.h"
 #include "c/parser.h"
 #include "c/interpreter.h"
+#include "c/typer.h"
 #include "c/ccodegen.h"
 
 static char *read_file(const char *path) {
@@ -67,6 +68,16 @@ int main(int argc, char **argv) {
 
     const char *mode = NULL;
     Expr *ast = parse(tokens, count, path, &mode);
+
+    // Type checking and inference
+    int type_errors = type_check(ast, path);
+    if (type_errors > 0) {
+        fprintf(stderr, "%d type error(s) found\n", type_errors);
+        expr_free(ast);
+        free(tokens);
+        free(source);
+        return 1;
+    }
 
     int result = 0;
 

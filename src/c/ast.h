@@ -28,10 +28,23 @@ typedef enum {
     FUNC_EXT_PROC,
 } FuncType;
 
+// Resolved type annotation (filled in by typer pass)
+typedef enum {
+    TIL_TYPE_UNKNOWN,   // not yet resolved
+    TIL_TYPE_NONE,      // void / no value
+    TIL_TYPE_I64,
+    TIL_TYPE_STR,
+    TIL_TYPE_BOOL,
+    TIL_TYPE_FUNC,      // function/proc value
+} TilType;
+
+const char *til_type_name(TilType t);
+
 typedef struct Expr Expr;
 
 struct Expr {
     NodeType type;
+    TilType til_type;               // resolved type (set by typer)
     union {
         const char *str_val;        // for IDENT, LITERAL_STR, LITERAL_NUM, ASSIGN, FOR_IN
         struct {                    // for DECL
