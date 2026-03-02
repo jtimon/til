@@ -238,7 +238,7 @@ static void emit_body(FILE *f, Expr *body, int depth) {
 // --- Top-level emission ---
 
 static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char *mode) {
-    FuncType ft = func_def->data.func_def.func_type;
+    (void)func_def->data.func_def.func_type;
     Expr *body = func_def->children[0];
 
     // In cli mode, main proc becomes C main()
@@ -250,9 +250,33 @@ static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char 
         fprintf(f, "    return 0;\n");
         fprintf(f, "}\n");
     } else {
-        // TODO: proper return type and args
-        const char *ret = (ft == FUNC_FUNC) ? "/* TODO */ void" : "void";
-        fprintf(f, "%s til_%s(void) {\n", ret, name);
+        // Return type
+        const char *ret = "void";
+        if (func_def->data.func_def.return_type) {
+            TilType rt = TIL_TYPE_NONE;
+            const char *rtn = func_def->data.func_def.return_type;
+            if (strcmp(rtn, "I64") == 0) rt = TIL_TYPE_I64;
+            else if (strcmp(rtn, "Str") == 0) rt = TIL_TYPE_STR;
+            else if (strcmp(rtn, "Bool") == 0) rt = TIL_TYPE_BOOL;
+            ret = til_type_to_c(rt);
+        }
+        // Signature
+        fprintf(f, "%s til_%s(", ret, name);
+        int np = func_def->data.func_def.nparam;
+        if (np == 0) {
+            fprintf(f, "void");
+        } else {
+            for (int i = 0; i < np; i++) {
+                if (i > 0) fprintf(f, ", ");
+                TilType pt = TIL_TYPE_I64; // fallback
+                const char *ptn = func_def->data.func_def.param_types[i];
+                if (strcmp(ptn, "I64") == 0) pt = TIL_TYPE_I64;
+                else if (strcmp(ptn, "Str") == 0) pt = TIL_TYPE_STR;
+                else if (strcmp(ptn, "Bool") == 0) pt = TIL_TYPE_BOOL;
+                fprintf(f, "%s %s", til_type_to_c(pt), func_def->data.func_def.param_names[i]);
+            }
+        }
+        fprintf(f, ") {\n");
         emit_body(f, body, 1);
         fprintf(f, "}\n");
     }

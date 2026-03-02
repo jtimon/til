@@ -56,3 +56,10 @@ println(to_str(gt(2, 1)))
     println(inner)
 }
 println("after block")
+
+lteq := proc(a: I64, b: I64) returns Bool {
+    return or(lt(a, b), eq(a, b))
+}
+println(to_str(lteq(1, 2)))
+println(to_str(lteq(2, 2)))
+println(to_str(lteq(3, 2)))

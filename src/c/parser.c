@@ -78,13 +78,42 @@ static Expr *parse_func_def(Parser *p) {
     }
 
     expect(p, TOK_LPAREN);
-    // TODO: parse arguments
+
+    // Parse parameters: name: Type, name: Type, ...
+    int param_cap = 4;
+    const char **param_names = malloc(param_cap * sizeof(char *));
+    const char **param_types = malloc(param_cap * sizeof(char *));
+    int nparam = 0;
+    while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+        Token *pname = expect(p, TOK_IDENT);
+        expect(p, TOK_COLON);
+        Token *ptype = expect(p, TOK_IDENT);
+        if (nparam >= param_cap) {
+            param_cap *= 2;
+            param_names = realloc(param_names, param_cap * sizeof(char *));
+            param_types = realloc(param_types, param_cap * sizeof(char *));
+        }
+        param_names[nparam] = tok_str(pname);
+        param_types[nparam] = tok_str(ptype);
+        nparam++;
+        if (check(p, TOK_COMMA)) advance(p);
+    }
     expect(p, TOK_RPAREN);
 
-    // TODO: parse 'returns' and 'throws' clauses
+    // Parse optional 'returns Type'
+    const char *return_type = NULL;
+    if (check(p, TOK_RETURNS)) {
+        advance(p);
+        Token *rt = expect(p, TOK_IDENT);
+        return_type = tok_str(rt);
+    }
 
     Expr *def = expr_new(NODE_FUNC_DEF, kw->line, kw->col);
     def->data.func_def.func_type = ft;
+    def->data.func_def.param_names = param_names;
+    def->data.func_def.param_types = param_types;
+    def->data.func_def.nparam = nparam;
+    def->data.func_def.return_type = return_type;
 
     expect(p, TOK_LBRACE);
     expr_add_child(def, parse_block(p));

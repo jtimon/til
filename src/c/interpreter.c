@@ -27,6 +27,10 @@ static Value val_none(void) {
     return (Value){.type = VAL_NONE};
 }
 
+// --- Return value mechanism ---
+static int has_return;
+static Value return_value;
+
 // --- Scope / environment ---
 
 typedef struct {
@@ -215,12 +219,23 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     Expr *func_def = fn->func;
     Expr *body = func_def->children[0];
 
-    // TODO: bind arguments when we support func params
     Scope *call_scope = scope_new(scope);
+    // Bind arguments to parameters
+    for (int i = 0; i < func_def->data.func_def.nparam; i++) {
+        Value arg = eval_expr(scope, e->children[i + 1], path);
+        scope_set(call_scope, func_def->data.func_def.param_names[i], arg);
+    }
+
+    has_return = 0;
     eval_body(call_scope, body, path);
     scope_free(call_scope);
 
-    return val_none();
+    Value result = val_none();
+    if (has_return) {
+        result = return_value;
+        has_return = 0;
+    }
+    return result;
 }
 
 static Value eval_expr(Scope *scope, Expr *e, const char *path) {
@@ -253,6 +268,7 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
 
 static void eval_body(Scope *scope, Expr *body, const char *path) {
     for (int i = 0; i < body->nchildren; i++) {
+        if (has_return) return;
         Expr *stmt = body->children[i];
         switch (stmt->type) {
         case NODE_DECL: {
@@ -292,12 +308,21 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
         }
         case NODE_WHILE: {
             while (1) {
+                if (has_return) break;
                 Value cond = eval_expr(scope, stmt->children[0], path);
                 if (!cond.boolean) break;
                 eval_body(scope, stmt->children[1], path);
             }
             break;
         }
+        case NODE_RETURN:
+            if (stmt->nchildren > 0) {
+                return_value = eval_expr(scope, stmt->children[0], path);
+            } else {
+                return_value = val_none();
+            }
+            has_return = 1;
+            return;
         default:
             fprintf(stderr, "%s:%d:%d: runtime error: unexpected statement type %d\n",
                     path, stmt->line, stmt->col, stmt->type);

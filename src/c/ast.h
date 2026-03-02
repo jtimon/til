@@ -54,6 +54,10 @@ struct Expr {
         } decl;
         struct {                    // for FUNC_DEF
             FuncType func_type;
+            const char **param_names;
+            const char **param_types; // type name strings: "I64", "Str", etc.
+            int nparam;
+            const char *return_type;  // NULL if none (proc)
         } func_def;
     } data;
     Expr **children;                // malloc'd array of child pointers

@@ -118,7 +118,16 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path) {
         // Type the body
         {
             TypeScope *func_scope = tscope_new(scope);
-            // TODO: bind parameter types when we support func args
+            // Bind parameters
+            for (int i = 0; i < e->data.func_def.nparam; i++) {
+                TilType pt = type_from_name(e->data.func_def.param_types[i]);
+                if (pt == TIL_TYPE_UNKNOWN) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "undefined type '%s'", e->data.func_def.param_types[i]);
+                    type_error(path, e, buf);
+                }
+                tscope_set(func_scope, e->data.func_def.param_names[i], pt);
+            }
             infer_body(func_scope, e->children[0], path);
             tscope_free(func_scope);
         }
@@ -141,8 +150,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path) {
                 snprintf(buf, sizeof(buf), "undefined function '%s'", name);
                 type_error(path, e, buf);
             }
-            // TODO: track return types of user-defined functions
-            e->til_type = TIL_TYPE_NONE;
+            e->til_type = fn_type;
         }
         break;
     }
@@ -159,6 +167,14 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path) {
         switch (stmt->type) {
         case NODE_DECL:
             infer_expr(scope, stmt->children[0], path);
+            // For func/proc defs, store return type in scope so callers can resolve it
+            if (stmt->children[0]->type == NODE_FUNC_DEF &&
+                stmt->children[0]->data.func_def.return_type) {
+                TilType rt = type_from_name(stmt->children[0]->data.func_def.return_type);
+                stmt->til_type = rt;
+                tscope_set(scope, stmt->data.decl.name, rt);
+                break;
+            }
             if (stmt->data.decl.explicit_type) {
                 TilType declared = type_from_name(stmt->data.decl.explicit_type);
                 if (declared == TIL_TYPE_UNKNOWN) {
