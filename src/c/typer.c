@@ -233,9 +233,59 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
     case NODE_FCALL: {
         // Resolve callee
         const char *name = e->children[0]->data.str_val;
-        // Struct instantiation: Point()
+        // Struct instantiation: Point() or Point(x=1, y=2)
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) {
+            Expr *body = sdef->children[0];
+            int nfields = body->nchildren;
+            // Desugar named args into positional (one per field)
+            Expr **field_vals = calloc(nfields, sizeof(Expr *));
+            for (int i = 1; i < e->nchildren; i++) {
+                Expr *arg = e->children[i];
+                if (arg->type != NODE_NAMED_ARG) {
+                    type_error(path, arg, "struct instantiation requires named arguments");
+                    continue;
+                }
+                const char *aname = arg->data.str_val;
+                int slot = -1;
+                for (int j = 0; j < nfields; j++) {
+                    if (strcmp(body->children[j]->data.decl.name, aname) == 0) {
+                        slot = j;
+                        break;
+                    }
+                }
+                if (slot < 0) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'", name, aname);
+                    type_error(path, arg, buf);
+                } else if (field_vals[slot]) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "duplicate argument for field '%s'", aname);
+                    type_error(path, arg, buf);
+                } else {
+                    field_vals[slot] = arg->children[0]; // unwrap NODE_NAMED_ARG
+                }
+            }
+            // Fill remaining from struct field defaults
+            for (int i = 0; i < nfields; i++) {
+                if (!field_vals[i]) {
+                    field_vals[i] = body->children[i]->children[0];
+                }
+            }
+            // Rebuild children: callee + field values
+            Expr **new_children = malloc((nfields + 1) * sizeof(Expr *));
+            new_children[0] = e->children[0]; // callee
+            for (int i = 0; i < nfields; i++) {
+                new_children[i + 1] = field_vals[i];
+            }
+            free(e->children);
+            e->children = new_children;
+            e->nchildren = nfields + 1;
+            free(field_vals);
+            // Type-check args
+            for (int i = 1; i < e->nchildren; i++) {
+                infer_expr(scope, e->children[i], path, in_func);
+            }
             e->til_type = TIL_TYPE_STRUCT;
             e->struct_name = name;
             break;

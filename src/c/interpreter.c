@@ -277,7 +277,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         exit(1);
     }
 
-    // Struct instantiation: Point()
+    // Struct instantiation: Point() or Point(x=1)
     if (fn->type == VAL_FUNC && fn->func->type == NODE_STRUCT_DEF) {
         Expr *sdef = fn->func;
         Expr *body = sdef->children[0];
@@ -292,7 +292,12 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             Expr *field = body->children[i];
             inst->field_names[i] = field->data.decl.name;
             inst->field_muts[i] = field->data.decl.is_mut;
-            inst->field_values[i] = eval_expr(scope, field->children[0], path);
+            // Use desugared args if present, otherwise field defaults
+            if (e->nchildren > 1) {
+                inst->field_values[i] = eval_expr(scope, e->children[i + 1], path);
+            } else {
+                inst->field_values[i] = eval_expr(scope, field->children[0], path);
+            }
         }
         return (Value){.type = VAL_STRUCT, .instance = inst};
     }

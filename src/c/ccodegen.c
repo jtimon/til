@@ -3,6 +3,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+static Expr *codegen_program; // set during codegen for struct lookups
+
+// Find a struct definition by name in the program
+static Expr *find_struct_def(const char *name) {
+    for (int i = 0; i < codegen_program->nchildren; i++) {
+        Expr *stmt = codegen_program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF &&
+            strcmp(stmt->data.decl.name, name) == 0) {
+            return stmt->children[0];
+        }
+    }
+    return NULL;
+}
+
 // --- Emitter helpers ---
 
 static void emit_indent(FILE *f, int depth) {
@@ -169,8 +183,21 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             // we'd need snprintf into a buffer, but this works for now.
             emit_expr(f, e->children[1], depth);
         } else if (e->struct_name) {
-            // Struct instantiation: emit default initializer
-            fprintf(f, "til_%s_default()", name);
+            // Struct instantiation
+            if (e->nchildren > 1) {
+                // Desugared args: emit compound literal
+                Expr *sd = find_struct_def(e->struct_name);
+                Expr *body = sd->children[0];
+                fprintf(f, "(til_%s){", e->struct_name);
+                for (int i = 0; i < body->nchildren; i++) {
+                    if (i > 0) fprintf(f, ", ");
+                    fprintf(f, ".%s = ", body->children[i]->data.decl.name);
+                    emit_expr(f, e->children[i + 1], depth);
+                }
+                fprintf(f, "}");
+            } else {
+                fprintf(f, "til_%s_default()", name);
+            }
         } else {
             // User-defined function call
             fprintf(f, "til_%s(", name);
@@ -356,6 +383,7 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
 
 int codegen_c(Expr *program, const char *mode, const char *path, const char *c_output_path) {
     (void)path;
+    codegen_program = program;
     FILE *f = fopen(c_output_path, "w");
     if (!f) {
         fprintf(stderr, "error: could not open '%s' for writing\n", c_output_path);

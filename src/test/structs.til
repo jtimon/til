@@ -43,6 +43,23 @@ assert(loc(), f.visible)
 f.active = true
 assert(loc(), f.active)
 
+// struct instantiation with named args
+p2 := Point(x=5)
+assert_eq(loc(), p2.x, 5)
+assert_eq(loc(), p2.y, 0)
+
+p3 := Point(y=10)
+assert_eq(loc(), p3.x, 0)
+assert_eq(loc(), p3.y, 10)
+
+p4 := Point(x=3, y=7)
+assert_eq(loc(), p4.x, 3)
+assert_eq(loc(), p4.y, 7)
+
+alice := Person(name="Alice", age=25)
+assert_eq_str(loc(), alice.name, "Alice")
+assert_eq(loc(), alice.age, 25)
+
 // multiple instances are independent
 a := Point()
 b := Point()
