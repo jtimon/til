@@ -1,0 +1,53 @@
+mode script
+
+// basic struct definition and instantiation
+Point := struct {
+    mut x := 0
+    mut y := 0
+}
+
+p := Point()
+assert_eq(loc(), p.x, 0)
+assert_eq(loc(), p.y, 0)
+
+// field assignment
+p.x = 5
+p.y = 10
+assert_eq(loc(), p.x, 5)
+assert_eq(loc(), p.y, 10)
+
+// struct with mixed types
+Person := struct {
+    mut name := "unknown"
+    mut age := 0
+}
+
+bob := Person()
+assert_eq_str(loc(), bob.name, "unknown")
+assert_eq(loc(), bob.age, 0)
+
+bob.name = "Bob"
+bob.age = 30
+assert_eq_str(loc(), bob.name, "Bob")
+assert_eq(loc(), bob.age, 30)
+
+// struct with bool fields
+Flags := struct {
+    mut active := false
+    mut visible := true
+}
+
+f := Flags()
+assert(loc(), not(f.active))
+assert(loc(), f.visible)
+f.active = true
+assert(loc(), f.active)
+
+// multiple instances are independent
+a := Point()
+b := Point()
+a.x = 1
+assert_eq(loc(), a.x, 1)
+assert_eq(loc(), b.x, 0)
+
+println("all struct tests passed")
