@@ -180,10 +180,10 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     field_vals[slot] = arg->children[0]; // unwrap NODE_NAMED_ARG
                 }
             }
-            // Fill remaining from struct field defaults
+            // Fill remaining from struct field defaults (clone to avoid shared ownership)
             for (int i = 0; i < nfields; i++) {
                 if (!field_vals[i]) {
-                    field_vals[i] = body->children[i]->children[0];
+                    field_vals[i] = expr_clone(body->children[i]->children[0]);
                 }
             }
             // Rebuild children: callee + field values
@@ -196,9 +196,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             e->children = new_children;
             e->nchildren = nfields + 1;
             free(field_vals);
-            // Type-check args
+            // Type-check args (skip already-inferred defaults)
             for (int i = 1; i < e->nchildren; i++) {
-                infer_expr(scope, e->children[i], path, in_func);
+                if (e->children[i]->til_type == TIL_TYPE_UNKNOWN) {
+                    infer_expr(scope, e->children[i], path, in_func);
+                }
             }
             e->til_type = TIL_TYPE_STRUCT;
             e->struct_name = name;
@@ -251,7 +253,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 if (!new_args[i]) {
                     if (fdef->data.func_def.param_defaults &&
                         fdef->data.func_def.param_defaults[i]) {
-                        new_args[i] = fdef->data.func_def.param_defaults[i];
+                        new_args[i] = expr_clone(fdef->data.func_def.param_defaults[i]);
                     } else {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
@@ -326,7 +328,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     Expr *field = body->children[i];
                     if (strcmp(field->data.decl.name, fname) == 0) {
                         e->til_type = field->til_type;
-                        e->struct_name = obj->struct_name;
+                        if (field->til_type == TIL_TYPE_STRUCT) {
+                            e->struct_name = field->children[0]->struct_name;
+                        } else {
+                            e->struct_name = obj->struct_name;
+                        }
                         found = 1;
                         break;
                     }

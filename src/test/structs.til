@@ -102,4 +102,34 @@ a.x = 1
 assert_eq(loc(), a.x, 1)
 assert_eq(loc(), b.x, 0)
 
+// nested structs: struct fields that are struct instances
+Line := struct {
+    mut start := Point()
+    mut end := Point()
+}
+
+l1 := Line()
+assert_eq(loc(), l1.start.x, 0)
+assert_eq(loc(), l1.start.y, 0)
+assert_eq(loc(), l1.end.x, 0)
+assert_eq(loc(), l1.end.y, 0)
+
+// nested struct with named args
+l2 := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+assert_eq(loc(), l2.start.x, 1)
+assert_eq(loc(), l2.start.y, 2)
+assert_eq(loc(), l2.end.x, 3)
+assert_eq(loc(), l2.end.y, 4)
+
+// partial override of nested struct
+l3 := Line(end=Point(x=10))
+assert_eq(loc(), l3.start.x, 0)
+assert_eq(loc(), l3.start.y, 0)
+assert_eq(loc(), l3.end.x, 10)
+assert_eq(loc(), l3.end.y, 0)
+
+// nested struct instances are independent
+l4 := Line()
+assert_eq(loc(), l4.start.x, 0)
+
 println("all struct tests passed")

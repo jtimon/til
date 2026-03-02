@@ -81,6 +81,9 @@ Expr *expr_new(NodeType type, int line, int col);
 // Add a child to an Expr
 void expr_add_child(Expr *parent, Expr *child);
 
+// Deep-clone an Expr tree
+Expr *expr_clone(Expr *e);
+
 // Free an Expr tree recursively
 void expr_free(Expr *e);
 

@@ -30,6 +30,21 @@ void expr_add_child(Expr *parent, Expr *child) {
     parent->children[parent->nchildren - 1] = child;
 }
 
+Expr *expr_clone(Expr *e) {
+    if (!e) return NULL;
+    Expr *c = calloc(1, sizeof(Expr));
+    *c = *e;
+    if (e->nchildren > 0) {
+        c->children = malloc(e->nchildren * sizeof(Expr *));
+        for (int i = 0; i < e->nchildren; i++) {
+            c->children[i] = expr_clone(e->children[i]);
+        }
+    } else {
+        c->children = NULL;
+    }
+    return c;
+}
+
 void expr_free(Expr *e) {
     if (!e) return;
     for (int i = 0; i < e->nchildren; i++) {

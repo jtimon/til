@@ -368,7 +368,11 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
     fprintf(f, "typedef struct til_%s {\n", name);
     for (int i = 0; i < body->nchildren; i++) {
         Expr *field = body->children[i];
-        fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.decl.name);
+        if (field->til_type == TIL_TYPE_STRUCT && field->children[0]->struct_name) {
+            fprintf(f, "    til_%s %s;\n", field->children[0]->struct_name, field->data.decl.name);
+        } else {
+            fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.decl.name);
+        }
     }
     fprintf(f, "} til_%s;\n\n", name);
     // Emit default constructor
