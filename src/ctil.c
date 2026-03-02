@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "lexer.h"
-#include "parser.h"
+#include "c/lexer.h"
+#include "c/parser.h"
 
 static char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
