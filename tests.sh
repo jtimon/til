@@ -17,10 +17,10 @@ for t in $TESTS; do
     fi
 done
 
-# typer_errors: should fail with exactly 19 errors
+# typer_errors: should fail with exactly 21 errors
 errors=$($CTIL interpret src/test/typer_errors.til 2>&1 | grep -c "type error:" || true)
-if [ "$errors" -ne 19 ]; then
-    echo "FAIL: typer_errors expected 19 errors, got $errors"
+if [ "$errors" -ne 21 ]; then
+    echo "FAIL: typer_errors expected 21 errors, got $errors"
     FAIL=1
 fi
 

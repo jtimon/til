@@ -78,3 +78,15 @@ bad_fn : Str = func(n: I64) returns I64 { return n }
 
 // wrong explicit type on struct def
 bad_st : I64 = struct { mut x := 0 }
+
+// cannot assign to immutable namespace field
+NsStruct := struct {
+    mut x := 0
+    namespace:
+    mut count := 0
+    label := "fixed"
+}
+NsStruct.label = "oops"
+
+// struct instantiation should not accept namespace field as named arg
+bad_ns := NsStruct(count=5)
