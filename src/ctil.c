@@ -26,6 +26,7 @@ static void usage(void) {
     printf("Usage: ctil <command> <path>\n\n");
     printf("Commands:\n");
     printf("  interpret  Read and interpret a .til file\n");
+    printf("  translate  Generate C source (no compilation)\n");
     printf("  build      Compile a .til file to a binary\n");
     printf("  run        Compile and run a .til file\n");
     printf("  help       Print this message\n");
@@ -71,9 +72,8 @@ int main(int argc, char **argv) {
 
     if (strcmp(command, "interpret") == 0) {
         result = interpret(ast, mode, path);
-    } else if (strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
+    } else if (strcmp(command, "translate") == 0 || strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
-        // For now, use gen/c/ for generated C and bin/c/ for binaries
         const char *basename = strrchr(path, '/');
         basename = basename ? basename + 1 : path;
         int name_len = (int)(strlen(basename) - 4); // strip .til
@@ -83,11 +83,13 @@ int main(int argc, char **argv) {
         snprintf(c_path, sizeof(c_path), "gen/c/%.*s.c", name_len, basename);
         snprintf(bin_path, sizeof(bin_path), "bin/c/%.*s", name_len, basename);
 
-        // Ensure output dirs exist
         system("mkdir -p gen/c bin/c");
 
         result = codegen_c(ast, mode, path, c_path);
-        if (result == 0) {
+        if (result == 0 && strcmp(command, "translate") == 0) {
+            printf("Generated: %s\n", c_path);
+        }
+        if (result == 0 && strcmp(command, "translate") != 0) {
             result = compile_c(c_path, bin_path);
         }
         if (result == 0 && strcmp(command, "run") == 0) {
