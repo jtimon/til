@@ -83,6 +83,7 @@ static Expr *parse_func_def(Parser *p) {
     int param_cap = 4;
     const char **param_names = malloc(param_cap * sizeof(char *));
     const char **param_types = malloc(param_cap * sizeof(char *));
+    Expr **param_defaults = malloc(param_cap * sizeof(Expr *));
     int nparam = 0;
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
         Token *pname = expect(p, TOK_IDENT);
@@ -92,9 +93,17 @@ static Expr *parse_func_def(Parser *p) {
             param_cap *= 2;
             param_names = realloc(param_names, param_cap * sizeof(char *));
             param_types = realloc(param_types, param_cap * sizeof(char *));
+            param_defaults = realloc(param_defaults, param_cap * sizeof(Expr *));
         }
         param_names[nparam] = tok_str(pname);
         param_types[nparam] = tok_str(ptype);
+        // Optional default value: name: Type = expr
+        if (check(p, TOK_EQ)) {
+            advance(p); // consume '='
+            param_defaults[nparam] = parse_expression(p);
+        } else {
+            param_defaults[nparam] = NULL;
+        }
         nparam++;
         if (check(p, TOK_COMMA)) advance(p);
     }
@@ -112,6 +121,7 @@ static Expr *parse_func_def(Parser *p) {
     def->data.func_def.func_type = ft;
     def->data.func_def.param_names = param_names;
     def->data.func_def.param_types = param_types;
+    def->data.func_def.param_defaults = param_defaults;
     def->data.func_def.nparam = nparam;
     def->data.func_def.return_type = return_type;
 
@@ -153,9 +163,20 @@ static Expr *parse_call(Parser *p, const char *name, int line, int col) {
     callee->data.str_val = name;
     expr_add_child(call, callee);
 
-    // parse arguments
+    // parse arguments (positional or named: name=expr)
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
-        expr_add_child(call, parse_expression(p));
+        // Check for named arg: IDENT '=' expr (peek ahead)
+        if (check(p, TOK_IDENT) && p->pos + 1 < p->count &&
+            p->tokens[p->pos + 1].type == TOK_EQ) {
+            Token *aname = advance(p); // consume ident
+            advance(p); // consume '='
+            Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col);
+            na->data.str_val = tok_str(aname);
+            expr_add_child(na, parse_expression(p));
+            expr_add_child(call, na);
+        } else {
+            expr_add_child(call, parse_expression(p));
+        }
         if (check(p, TOK_COMMA)) advance(p); // skip comma between args
     }
     expect(p, TOK_RPAREN);

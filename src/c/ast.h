@@ -20,6 +20,7 @@ typedef enum {
     NODE_IF,            // if               (children[0] = cond, [1] = then body, [2] = else body)
     NODE_WHILE,         // while            (children[0] = cond, [1] = body)
     NODE_FOR_IN,        // for x in ...     (data.str_val = var name, children[0] = iter, [1] = body)
+    NODE_NAMED_ARG,     // named argument   (data.str_val = param name, children[0] = value)
     NODE_BREAK,
     NODE_CONTINUE,
 } NodeType;
@@ -61,6 +62,7 @@ struct Expr {
             const char **param_names;
             const char **param_types; // type name strings: "I64", "Str", etc.
             int nparam;
+            Expr **param_defaults;    // array[nparam], NULL entries for required params
             const char *return_type;  // NULL if none (proc)
         } func_def;
     } data;

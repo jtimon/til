@@ -55,6 +55,7 @@ static const char *node_name(NodeType type) {
     case NODE_IF:          return "if";
     case NODE_WHILE:       return "while";
     case NODE_FOR_IN:      return "for_in";
+    case NODE_NAMED_ARG:   return "named_arg";
     case NODE_BREAK:       return "break";
     case NODE_CONTINUE:    return "continue";
     }
@@ -91,6 +92,7 @@ void ast_print(Expr *e, int indent) {
         printf(" %s%s", e->data.decl.is_mut ? "mut " : "", e->data.decl.name);
         break;
     case NODE_ASSIGN:
+    case NODE_NAMED_ARG:
         printf(" %s", e->data.str_val);
         break;
     case NODE_FUNC_DEF:

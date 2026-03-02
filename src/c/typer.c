@@ -14,6 +14,7 @@ typedef struct {
     int col;
     int is_param; // 1 if this is a function parameter
     Expr *struct_def; // non-NULL if this is a struct type definition
+    Expr *func_def;   // non-NULL if this is a func/proc definition
     const char *struct_name; // for variables of struct type: which struct
 } TypeBinding;
 
@@ -52,7 +53,7 @@ static void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc
         s->cap = s->cap ? s->cap * 2 : 8;
         s->bindings = realloc(s->bindings, s->cap * sizeof(TypeBinding));
     }
-    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, NULL, NULL};
+    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, NULL, NULL, NULL};
 }
 
 static TilType tscope_get(TypeScope *s, const char *name) {
@@ -230,10 +231,6 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         infer_body(scope, e->children[0], path, 0);
         break;
     case NODE_FCALL: {
-        // Infer types of all arguments first
-        for (int i = 1; i < e->nchildren; i++) {
-            infer_expr(scope, e->children[i], path, in_func);
-        }
         // Resolve callee
         const char *name = e->children[0]->data.str_val;
         // Struct instantiation: Point()
@@ -242,6 +239,83 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             e->til_type = TIL_TYPE_STRUCT;
             e->struct_name = name;
             break;
+        }
+        // Desugar named/optional args for user-defined functions
+        TypeBinding *callee_bind = tscope_find(scope, name);
+        if (callee_bind && callee_bind->func_def) {
+            Expr *fdef = callee_bind->func_def;
+            int nparam = fdef->data.func_def.nparam;
+            // Build new args array (slot per param)
+            Expr **new_args = calloc(nparam, sizeof(Expr *));
+            int pos_idx = 0;
+            int seen_named = 0;
+            for (int i = 1; i < e->nchildren; i++) {
+                Expr *arg = e->children[i];
+                if (arg->type == NODE_NAMED_ARG) {
+                    seen_named = 1;
+                    const char *aname = arg->data.str_val;
+                    int slot = -1;
+                    for (int j = 0; j < nparam; j++) {
+                        if (strcmp(fdef->data.func_def.param_names[j], aname) == 0) {
+                            slot = j;
+                            break;
+                        }
+                    }
+                    if (slot < 0) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "'%s' has no parameter '%s'", name, aname);
+                        type_error(path, arg, buf);
+                    } else if (new_args[slot]) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname);
+                        type_error(path, arg, buf);
+                    } else {
+                        new_args[slot] = arg->children[0]; // unwrap NODE_NAMED_ARG
+                    }
+                } else {
+                    if (seen_named) {
+                        type_error(path, arg, "positional argument after named argument");
+                    }
+                    if (pos_idx < nparam) {
+                        new_args[pos_idx] = arg;
+                    }
+                    pos_idx++;
+                }
+            }
+            // Fill defaults for missing args
+            for (int i = 0; i < nparam; i++) {
+                if (!new_args[i]) {
+                    if (fdef->data.func_def.param_defaults &&
+                        fdef->data.func_def.param_defaults[i]) {
+                        new_args[i] = fdef->data.func_def.param_defaults[i];
+                    } else {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
+                                 fdef->data.func_def.param_names[i]);
+                        type_error(path, e, buf);
+                    }
+                }
+            }
+            if (pos_idx > nparam) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d",
+                         nparam, pos_idx);
+                type_error(path, e, buf);
+            }
+            // Rebuild children: callee + desugared args
+            Expr **new_children = malloc((nparam + 1) * sizeof(Expr *));
+            new_children[0] = e->children[0]; // callee
+            for (int i = 0; i < nparam; i++) {
+                new_children[i + 1] = new_args[i];
+            }
+            free(e->children);
+            e->children = new_children;
+            e->nchildren = nparam + 1;
+            free(new_args);
+        }
+        // Infer types of all arguments
+        for (int i = 1; i < e->nchildren; i++) {
+            infer_expr(scope, e->children[i], path, in_func);
         }
         TilType ret = builtin_return_type(name);
         if (ret != TIL_TYPE_UNKNOWN) {
@@ -333,6 +407,9 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 }
                 stmt->til_type = rt;
                 tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0);
+                // Store func_def pointer for named/optional arg desugaring
+                TypeBinding *fb = tscope_find(scope, stmt->data.decl.name);
+                if (fb) fb->func_def = stmt->children[0];
                 break;
             }
             if (stmt->data.decl.explicit_type) {
