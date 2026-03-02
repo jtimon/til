@@ -281,15 +281,26 @@ static Expr *parse_statement_ident(Parser *p, int is_mut) {
         return decl;
     }
 
-    // Field assignment: name.field = value
+    // Field assignment: name.field = value  or  name.a.b.c = value
     if (check(p, TOK_DOT)) {
-        advance(p); // consume '.'
-        Token *field = expect(p, TOK_IDENT);
-        expect(p, TOK_EQ);
-        Expr *fa = expr_new(NODE_FIELD_ASSIGN, t->line, t->col);
-        fa->data.str_val = tok_str(field);
+        // Build the field access chain
         Expr *obj = expr_new(NODE_IDENT, t->line, t->col);
         obj->data.str_val = name;
+        Token *last_field = NULL;
+        while (check(p, TOK_DOT)) {
+            advance(p); // consume '.'
+            last_field = expect(p, TOK_IDENT);
+            if (check(p, TOK_DOT)) {
+                // More dots coming — this is an intermediate access
+                Expr *access = expr_new(NODE_FIELD_ACCESS, last_field->line, last_field->col);
+                access->data.str_val = tok_str(last_field);
+                expr_add_child(access, obj);
+                obj = access;
+            }
+        }
+        expect(p, TOK_EQ);
+        Expr *fa = expr_new(NODE_FIELD_ASSIGN, t->line, t->col);
+        fa->data.str_val = tok_str(last_field);
         expr_add_child(fa, obj);
         expr_add_child(fa, parse_expression(p));
         return fa;

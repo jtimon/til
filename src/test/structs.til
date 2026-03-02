@@ -128,6 +128,12 @@ assert_eq(loc(), l3.start.y, 0)
 assert_eq(loc(), l3.end.x, 10)
 assert_eq(loc(), l3.end.y, 0)
 
+// chained field assignment
+l1.start.x = 42
+assert_eq(loc(), l1.start.x, 42)
+l1.end.y = 99
+assert_eq(loc(), l1.end.y, 99)
+
 // nested struct instances are independent
 l4 := Line()
 assert_eq(loc(), l4.start.x, 0)
