@@ -23,6 +23,19 @@ static void emit_indent(FILE *f, int depth) {
     for (int i = 0; i < depth; i++) fprintf(f, "    ");
 }
 
+// Check if a field is a namespace field in a struct
+static int is_ns_field(const char *struct_name, const char *field_name) {
+    Expr *sdef = find_struct_def(struct_name);
+    if (!sdef) return 0;
+    Expr *body = sdef->children[0];
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *f = body->children[i];
+        if (strcmp(f->data.decl.name, field_name) == 0)
+            return f->data.decl.is_namespace;
+    }
+    return 0;
+}
+
 // Check if an expr is a to_str(x) call, return the inner expr if so
 static Expr *unwrap_to_str(Expr *e) {
     if (e->type == NODE_FCALL && e->nchildren >= 2) {
@@ -185,14 +198,18 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         } else if (e->struct_name) {
             // Struct instantiation
             if (e->nchildren > 1) {
-                // Desugared args: emit compound literal
+                // Desugared args: emit compound literal (instance fields only)
                 Expr *sd = find_struct_def(e->struct_name);
                 Expr *body = sd->children[0];
                 fprintf(f, "(til_%s){", e->struct_name);
+                int first = 1;
+                int arg_idx = 1;
                 for (int i = 0; i < body->nchildren; i++) {
-                    if (i > 0) fprintf(f, ", ");
+                    if (body->children[i]->data.decl.is_namespace) continue;
+                    if (!first) fprintf(f, ", ");
+                    first = 0;
                     fprintf(f, ".%s = ", body->children[i]->data.decl.name);
-                    emit_expr(f, e->children[i + 1], depth);
+                    emit_expr(f, e->children[arg_idx++], depth);
                 }
                 fprintf(f, "}");
             } else {
@@ -209,10 +226,19 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         }
         break;
     }
-    case NODE_FIELD_ACCESS:
-        emit_expr(f, e->children[0], depth);
-        fprintf(f, ".%s", e->data.str_val);
+    case NODE_FIELD_ACCESS: {
+        // Check if this is a namespace field access
+        Expr *obj = e->children[0];
+        const char *fname = e->data.str_val;
+        const char *sname = obj->struct_name;
+        if (sname && is_ns_field(sname, fname)) {
+            fprintf(f, "til_%s_%s", sname, fname);
+        } else {
+            emit_expr(f, obj, depth);
+            fprintf(f, ".%s", fname);
+        }
         break;
+    }
     default:
         fprintf(f, "/* TODO: expr type %d */", e->type);
         break;
@@ -267,12 +293,20 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         emit_expr(f, e->children[0], depth);
         fprintf(f, ";\n");
         break;
-    case NODE_FIELD_ASSIGN:
-        emit_expr(f, e->children[0], depth);
-        fprintf(f, ".%s = ", e->data.str_val);
+    case NODE_FIELD_ASSIGN: {
+        Expr *obj = e->children[0];
+        const char *fname = e->data.str_val;
+        const char *sname = obj->struct_name;
+        if (sname && is_ns_field(sname, fname)) {
+            fprintf(f, "til_%s_%s = ", sname, fname);
+        } else {
+            emit_expr(f, obj, depth);
+            fprintf(f, ".%s = ", fname);
+        }
         emit_expr(f, e->children[1], depth);
         fprintf(f, ";\n");
         break;
+    }
     case NODE_FCALL:
         emit_expr(f, e, depth);
         fprintf(f, ";\n");
@@ -326,6 +360,25 @@ static void emit_body(FILE *f, Expr *body, int depth) {
 
 // --- Top-level emission ---
 
+// Emit namespace field initializations for all structs in the program
+static void emit_ns_inits(FILE *f, int depth) {
+    for (int i = 0; i < codegen_program->nchildren; i++) {
+        Expr *stmt = codegen_program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
+            const char *sname = stmt->data.decl.name;
+            Expr *body = stmt->children[0]->children[0];
+            for (int j = 0; j < body->nchildren; j++) {
+                Expr *field = body->children[j];
+                if (!field->data.decl.is_namespace) continue;
+                emit_indent(f, depth);
+                fprintf(f, "til_%s_%s = ", sname, field->data.decl.name);
+                emit_expr(f, field->children[0], depth);
+                fprintf(f, ";\n");
+            }
+        }
+    }
+}
+
 static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char *mode) {
     (void)func_def->data.func_def.func_type;
     Expr *body = func_def->children[0];
@@ -335,6 +388,7 @@ static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char 
 
     if (is_main) {
         fprintf(f, "int main(void) {\n");
+        emit_ns_inits(f, 1);
         emit_body(f, body, 1);
         fprintf(f, "    return 0;\n");
         fprintf(f, "}\n");
@@ -364,10 +418,11 @@ static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char 
 
 static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
     Expr *body = struct_def->children[0];
-    // Emit typedef struct
+    // Emit typedef struct (skip namespace fields)
     fprintf(f, "typedef struct til_%s {\n", name);
     for (int i = 0; i < body->nchildren; i++) {
         Expr *field = body->children[i];
+        if (field->data.decl.is_namespace) continue;
         if (field->til_type == TIL_TYPE_STRUCT && field->children[0]->struct_name) {
             fprintf(f, "    til_%s %s;\n", field->children[0]->struct_name, field->data.decl.name);
         } else {
@@ -375,11 +430,25 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
         }
     }
     fprintf(f, "} til_%s;\n\n", name);
-    // Emit default constructor
+    // Emit namespace fields as globals
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *field = body->children[i];
+        if (!field->data.decl.is_namespace) continue;
+        if (field->til_type == TIL_TYPE_STRUCT && field->children[0]->struct_name) {
+            fprintf(f, "til_%s til_%s_%s;\n", field->children[0]->struct_name, name, field->data.decl.name);
+        } else {
+            fprintf(f, "%s til_%s_%s;\n", til_type_to_c(field->til_type), name, field->data.decl.name);
+        }
+    }
+    fprintf(f, "\n");
+    // Emit default constructor (instance fields only)
     fprintf(f, "til_%s til_%s_default(void) {\n", name, name);
     fprintf(f, "    return (til_%s){", name);
+    int first = 1;
     for (int i = 0; i < body->nchildren; i++) {
-        if (i > 0) fprintf(f, ", ");
+        if (body->children[i]->data.decl.is_namespace) continue;
+        if (!first) fprintf(f, ", ");
+        first = 0;
         fprintf(f, ".%s = ", body->children[i]->data.decl.name);
         emit_expr(f, body->children[i]->children[0], 0);
     }
@@ -468,6 +537,7 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     // Script mode: wrap top-level statements in main()
     if (is_script) {
         fprintf(f, "int main(void) {\n");
+        emit_ns_inits(f, 1);
         for (int i = 0; i < program->nchildren; i++) {
             Expr *stmt = program->children[i];
             // Skip func/proc/struct defs (already emitted above)

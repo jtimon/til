@@ -99,6 +99,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             TypeBinding *b = tscope_find(scope, e->data.str_val);
             if (b) e->struct_name = b->struct_name;
         }
+        // Struct type names: allow field access for namespace fields
+        TypeBinding *ib = tscope_find(scope, e->data.str_val);
+        if (ib && ib->struct_def && !ib->is_builtin) {
+            e->struct_name = e->data.str_val;
+        }
         break;
     }
     case NODE_FUNC_DEF:
@@ -151,9 +156,20 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 break;
             }
             Expr *body = sdef->children[0];
-            int nfields = body->nchildren;
-            // Desugar named args into positional (one per field)
+            // Count instance fields (skip namespace)
+            int nfields = 0;
+            for (int i = 0; i < body->nchildren; i++) {
+                if (!body->children[i]->data.decl.is_namespace) nfields++;
+            }
+            // Desugar named args into positional (one per instance field)
             Expr **field_vals = calloc(nfields, sizeof(Expr *));
+            // Map: field_idx[k] = index into body->children for k-th instance field
+            int *field_idx = malloc(nfields * sizeof(int));
+            { int k = 0;
+              for (int i = 0; i < body->nchildren; i++) {
+                  if (!body->children[i]->data.decl.is_namespace) field_idx[k++] = i;
+              }
+            }
             for (int i = 1; i < e->nchildren; i++) {
                 Expr *arg = e->children[i];
                 if (arg->type != NODE_NAMED_ARG) {
@@ -163,7 +179,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 const char *aname = arg->data.str_val;
                 int slot = -1;
                 for (int j = 0; j < nfields; j++) {
-                    if (strcmp(body->children[j]->data.decl.name, aname) == 0) {
+                    if (strcmp(body->children[field_idx[j]]->data.decl.name, aname) == 0) {
                         slot = j;
                         break;
                     }
@@ -183,10 +199,10 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             // Fill remaining from struct field defaults (clone to avoid shared ownership)
             for (int i = 0; i < nfields; i++) {
                 if (!field_vals[i]) {
-                    field_vals[i] = expr_clone(body->children[i]->children[0]);
+                    field_vals[i] = expr_clone(body->children[field_idx[i]]->children[0]);
                 }
             }
-            // Rebuild children: callee + field values
+            // Rebuild children: callee + instance field values
             Expr **new_children = malloc((nfields + 1) * sizeof(Expr *));
             new_children[0] = e->children[0]; // callee
             for (int i = 0; i < nfields; i++) {
@@ -196,6 +212,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             e->children = new_children;
             e->nchildren = nfields + 1;
             free(field_vals);
+            free(field_idx);
             // Type-check args (skip already-inferred defaults)
             for (int i = 1; i < e->nchildren; i++) {
                 if (e->children[i]->til_type == TIL_TYPE_UNKNOWN) {

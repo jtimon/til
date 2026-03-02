@@ -44,6 +44,38 @@ static Value val_none(void) {
 static int has_return;
 static Value return_value;
 
+// --- Namespace fields (static struct fields) ---
+
+typedef struct {
+    const char *struct_name;
+    const char *field_name;
+    Value val;
+} NsField;
+
+static NsField *ns_fields;
+static int ns_count;
+static int ns_cap;
+
+static Value *ns_get(const char *sname, const char *fname) {
+    for (int i = 0; i < ns_count; i++) {
+        if (strcmp(ns_fields[i].struct_name, sname) == 0 &&
+            strcmp(ns_fields[i].field_name, fname) == 0) {
+            return &ns_fields[i].val;
+        }
+    }
+    return NULL;
+}
+
+static void ns_set(const char *sname, const char *fname, Value val) {
+    Value *existing = ns_get(sname, fname);
+    if (existing) { *existing = val; return; }
+    if (ns_count >= ns_cap) {
+        ns_cap = ns_cap ? ns_cap * 2 : 8;
+        ns_fields = realloc(ns_fields, ns_cap * sizeof(NsField));
+    }
+    ns_fields[ns_count++] = (NsField){sname, fname, val};
+}
+
 // --- Scope / environment ---
 
 typedef struct {
@@ -281,23 +313,30 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (fn->type == VAL_FUNC && fn->func->type == NODE_STRUCT_DEF) {
         Expr *sdef = fn->func;
         Expr *body = sdef->children[0];
-        int nfields = body->nchildren;
+        // Count instance fields (skip namespace)
+        int nfields = 0;
+        for (int i = 0; i < body->nchildren; i++) {
+            if (!body->children[i]->data.decl.is_namespace) nfields++;
+        }
         StructInstance *inst = malloc(sizeof(StructInstance));
         inst->struct_name = name;
         inst->nfields = nfields;
         inst->field_names = malloc(nfields * sizeof(char *));
         inst->field_muts = malloc(nfields * sizeof(int));
         inst->field_values = malloc(nfields * sizeof(Value));
-        for (int i = 0; i < nfields; i++) {
+        int arg_idx = 1; // index into desugared args
+        int fi = 0;      // index into instance fields
+        for (int i = 0; i < body->nchildren; i++) {
             Expr *field = body->children[i];
-            inst->field_names[i] = field->data.decl.name;
-            inst->field_muts[i] = field->data.decl.is_mut;
-            // Use desugared args if present, otherwise field defaults
+            if (field->data.decl.is_namespace) continue;
+            inst->field_names[fi] = field->data.decl.name;
+            inst->field_muts[fi] = field->data.decl.is_mut;
             if (e->nchildren > 1) {
-                inst->field_values[i] = eval_expr(scope, e->children[i + 1], path);
+                inst->field_values[fi] = eval_expr(scope, e->children[arg_idx++], path);
             } else {
-                inst->field_values[i] = eval_expr(scope, field->children[0], path);
+                inst->field_values[fi] = eval_expr(scope, field->children[0], path);
             }
+            fi++;
         }
         return (Value){.type = VAL_STRUCT, .instance = inst};
     }
@@ -355,17 +394,30 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_FUNC, .func = e};
     case NODE_FIELD_ACCESS: {
         Value obj = eval_expr(scope, e->children[0], path);
+        const char *fname = e->data.str_val;
+        // StructName.field — access namespace fields on the struct type itself
+        if (obj.type == VAL_FUNC && obj.func->type == NODE_STRUCT_DEF) {
+            const char *sname = e->children[0]->data.str_val;
+            Value *nsv = ns_get(sname, fname);
+            if (nsv) return *nsv;
+            fprintf(stderr, "%s:%d:%d: runtime error: struct '%s' has no namespace field '%s'\n",
+                    path, e->line, e->col, sname, fname);
+            exit(1);
+        }
         if (obj.type != VAL_STRUCT) {
             fprintf(stderr, "%s:%d:%d: runtime error: field access on non-struct\n",
                     path, e->line, e->col);
             exit(1);
         }
-        const char *fname = e->data.str_val;
+        // Instance field lookup
         for (int i = 0; i < obj.instance->nfields; i++) {
             if (strcmp(obj.instance->field_names[i], fname) == 0) {
                 return obj.instance->field_values[i];
             }
         }
+        // Fall back to namespace fields
+        Value *nsv = ns_get(obj.instance->struct_name, fname);
+        if (nsv) return *nsv;
         fprintf(stderr, "%s:%d:%d: runtime error: no field '%s'\n",
                 path, e->line, e->col, fname);
         exit(1);
@@ -403,17 +455,30 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             // children[0] = object, children[1] = value
             Value obj = eval_expr(scope, stmt->children[0], path);
             Value val = eval_expr(scope, stmt->children[1], path);
+            const char *fname = stmt->data.str_val;
+            // StructName.field = value — namespace field assignment
+            if (obj.type == VAL_FUNC && obj.func->type == NODE_STRUCT_DEF) {
+                const char *sname = stmt->children[0]->data.str_val;
+                ns_set(sname, fname, val);
+                break;
+            }
             if (obj.type != VAL_STRUCT) {
                 fprintf(stderr, "%s:%d:%d: runtime error: field assign on non-struct\n",
                         path, stmt->line, stmt->col);
                 exit(1);
             }
-            const char *fname = stmt->data.str_val;
+            // Try instance field first
+            int found = 0;
             for (int i = 0; i < obj.instance->nfields; i++) {
                 if (strcmp(obj.instance->field_names[i], fname) == 0) {
                     obj.instance->field_values[i] = val;
+                    found = 1;
                     break;
                 }
+            }
+            // Fall back to namespace field
+            if (!found) {
+                ns_set(obj.instance->struct_name, fname, val);
             }
             break;
         }
@@ -464,6 +529,7 @@ int interpret(Expr *program, const char *mode, const char *path) {
     Scope *global = scope_new(NULL);
 
     // Pre-register all top-level func/proc/struct definitions for forward references
+    ns_fields = NULL; ns_count = 0; ns_cap = 0;
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL &&
@@ -471,6 +537,22 @@ int interpret(Expr *program, const char *mode, const char *path) {
              stmt->children[0]->type == NODE_STRUCT_DEF)) {
             Value val = {.type = VAL_FUNC, .func = stmt->children[0]};
             scope_set(global, stmt->data.decl.name, val);
+        }
+    }
+
+    // Initialize namespace fields for all structs
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
+            const char *sname = stmt->data.decl.name;
+            Expr *body = stmt->children[0]->children[0];
+            for (int j = 0; j < body->nchildren; j++) {
+                Expr *field = body->children[j];
+                if (field->data.decl.is_namespace) {
+                    Value fval = eval_expr(global, field->children[0], path);
+                    ns_set(sname, field->data.decl.name, fval);
+                }
+            }
         }
     }
 

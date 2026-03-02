@@ -138,4 +138,37 @@ assert_eq(loc(), l1.end.y, 99)
 l4 := Line()
 assert_eq(loc(), l4.start.x, 0)
 
+// namespace fields
+Counter := struct {
+    mut value := 0
+    namespace:
+    mut instance_count := 0
+    default_name := "Counter"
+}
+
+// access namespace fields via struct name
+assert_eq(loc(), Counter.instance_count, 0)
+assert_eq_str(loc(), Counter.default_name, "Counter")
+
+// mutate namespace field via struct name
+Counter.instance_count = 42
+assert_eq(loc(), Counter.instance_count, 42)
+
+// access namespace fields via instance
+c1 := Counter()
+assert_eq(loc(), c1.instance_count, 42)
+assert_eq_str(loc(), c1.default_name, "Counter")
+
+// namespace field is shared (not per-instance)
+Counter.instance_count = 100
+c2 := Counter()
+assert_eq(loc(), c2.instance_count, 100)
+assert_eq(loc(), c1.instance_count, 100)
+
+// instance fields still work independently
+c1.value = 5
+c2.value = 10
+assert_eq(loc(), c1.value, 5)
+assert_eq(loc(), c2.value, 10)
+
 println("all struct tests passed")

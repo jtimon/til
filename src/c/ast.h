@@ -58,6 +58,7 @@ struct Expr {
             const char *name;
             const char *explicit_type; // NULL if inferred (:=), e.g. "I64", "Str"
             bool is_mut;
+            bool is_namespace;     // true for fields after namespace: in a struct
         } decl;
         struct {                    // for FUNC_DEF
             FuncType func_type;

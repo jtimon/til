@@ -136,7 +136,24 @@ static Expr *parse_struct_def(Parser *p) {
     Token *kw = advance(p); // consume 'struct'
     Expr *def = expr_new(NODE_STRUCT_DEF, kw->line, kw->col);
     expect(p, TOK_LBRACE);
-    expr_add_child(def, parse_block(p)); // body of declarations
+    // Parse struct body with namespace: support
+    Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col);
+    int in_namespace = 0;
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+        if (check(p, TOK_NAMESPACE)) {
+            advance(p); // consume 'namespace'
+            expect(p, TOK_COLON);
+            in_namespace = 1;
+            continue;
+        }
+        Expr *stmt = parse_statement(p);
+        if (in_namespace && stmt->type == NODE_DECL) {
+            stmt->data.decl.is_namespace = true;
+        }
+        expr_add_child(body, stmt);
+    }
+    expect(p, TOK_RBRACE);
+    expr_add_child(def, body);
     return def;
 }
 
