@@ -1,0 +1,7 @@
+lte := proc(a: I64, b: I64) returns Bool {
+    return or(lt(a, b), eq(a, b))
+}
+
+gte := proc(a: I64, b: I64) returns Bool {
+    return or(gt(a, b), eq(a, b))
+}

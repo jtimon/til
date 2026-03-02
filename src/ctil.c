@@ -60,6 +60,22 @@ int main(int argc, char **argv) {
         return 0;
     }
 
+    // Load core library relative to binary location
+    char core_path[256];
+    {
+        const char *slash = strrchr(argv[0], '/');
+        if (slash) {
+            int dir_len = (int)(slash - argv[0]);
+            snprintf(core_path, sizeof(core_path), "%.*s/../src/core/core.til", dir_len, argv[0]);
+        } else {
+            snprintf(core_path, sizeof(core_path), "../src/core/core.til");
+        }
+    }
+    char *core_source = read_file(core_path);
+    int core_count;
+    Token *core_tokens = core_source ? tokenize(core_source, core_path, &core_count) : NULL;
+    Expr *core_ast = core_tokens ? parse(core_tokens, core_count, core_path, NULL) : NULL;
+
     char *source = read_file(path);
     if (!source) return 1;
 
@@ -68,6 +84,17 @@ int main(int argc, char **argv) {
 
     const char *mode = NULL;
     Expr *ast = parse(tokens, count, path, &mode);
+
+    // Prepend core declarations to program AST
+    if (core_ast && core_ast->nchildren > 0) {
+        int total = core_ast->nchildren + ast->nchildren;
+        Expr **merged = malloc(total * sizeof(Expr *));
+        memcpy(merged, core_ast->children, core_ast->nchildren * sizeof(Expr *));
+        memcpy(merged + core_ast->nchildren, ast->children, ast->nchildren * sizeof(Expr *));
+        free(ast->children);
+        ast->children = merged;
+        ast->nchildren = total;
+    }
 
     // Type checking and inference
     int type_errors = type_check(ast, path);

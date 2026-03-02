@@ -57,9 +57,9 @@ println(to_str(gt(2, 1)))
 }
 println("after block")
 
-lteq := proc(a: I64, b: I64) returns Bool {
-    return or(lt(a, b), eq(a, b))
-}
-println(to_str(lteq(1, 2)))
-println(to_str(lteq(2, 2)))
-println(to_str(lteq(3, 2)))
+println(to_str(lte(1, 2)))
+println(to_str(lte(2, 2)))
+println(to_str(lte(3, 2)))
+println(to_str(gte(3, 2)))
+println(to_str(gte(2, 2)))
+println(to_str(gte(1, 2)))
