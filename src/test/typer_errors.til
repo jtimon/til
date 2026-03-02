@@ -55,3 +55,17 @@ assign_param := proc(a: I64) {
 // assignment type mismatch
 mut m := 42
 m = "oops"
+
+// cannot assign to immutable struct field
+ImmutStruct := struct {
+    id := 0
+    mut name := "x"
+}
+is := ImmutStruct()
+is.id = 5
+
+// struct instantiation: unknown field
+bad1 := ImmutStruct(bogus=1)
+
+// struct instantiation: positional arg not allowed
+bad2 := ImmutStruct(42)

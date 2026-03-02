@@ -60,6 +60,32 @@ alice := Person(name="Alice", age=25)
 assert_eq_str(loc(), alice.name, "Alice")
 assert_eq(loc(), alice.age, 25)
 
+// immutable fields: set at construction, cannot reassign
+Entity := struct {
+    id := 0
+    mut name := "unnamed"
+}
+
+e1 := Entity(id=1, name="hero")
+assert_eq(loc(), e1.id, 1)
+assert_eq_str(loc(), e1.name, "hero")
+
+// can reassign mut field
+e1.name = "villain"
+assert_eq_str(loc(), e1.name, "villain")
+
+// id stays as initialized
+assert_eq(loc(), e1.id, 1)
+
+// default immutable field
+e2 := Entity()
+assert_eq(loc(), e2.id, 0)
+assert_eq_str(loc(), e2.name, "unnamed")
+
+// override immutable field at construction
+e3 := Entity(id=99)
+assert_eq(loc(), e3.id, 99)
+
 // multiple instances are independent
 a := Point()
 b := Point()
