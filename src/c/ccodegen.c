@@ -142,6 +142,10 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " || ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
+        } else if (strcmp(name, "exit") == 0) {
+            fprintf(f, "exit(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, ")");
         } else if (strcmp(name, "not") == 0) {
             fprintf(f, "(!");
             emit_expr(f, e->children[1], depth);
@@ -345,7 +349,7 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
         return 1;
     }
 
-    fprintf(f, "#include <stdio.h>\n\n");
+    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n\n");
 
     int is_script = mode && strcmp(mode, "script") == 0;
 
