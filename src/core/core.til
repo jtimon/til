@@ -6,6 +6,10 @@ gte := func(a: I64, b: I64) returns Bool {
     return or(gt(a, b), eq(a, b))
 }
 
+neg := func(a: I64) returns I64 {
+    return sub(0, a)
+}
+
 neq := func(a: I64, b: I64) returns Bool {
     return not(eq(a, b))
 }
