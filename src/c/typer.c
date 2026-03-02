@@ -242,8 +242,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         TilType ret = builtin_return_type(name);
         if (ret != TIL_TYPE_UNKNOWN) {
             e->til_type = ret;
-            // Check: func cannot call a builtin proc
-            if (in_func && builtin_is_proc(name) == 1) {
+            // Check: func cannot call a builtin proc (panic is exempt)
+            if (in_func && builtin_is_proc(name) == 1 && strcmp(name, "panic") != 0) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name);
                 type_error(path, e, buf);
@@ -257,8 +257,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 type_error(path, e, buf);
             }
             e->til_type = fn_type;
-            // Check: func cannot call a user-defined proc
-            if (in_func && tscope_is_proc(scope, name) == 1) {
+            // Check: func cannot call a user-defined proc (panic is exempt)
+            if (in_func && tscope_is_proc(scope, name) == 1 && strcmp(name, "panic") != 0) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name);
                 type_error(path, e, buf);

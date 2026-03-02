@@ -97,3 +97,5 @@ p.y = 10
 println(to_str(p.x))
 println(to_str(p.y))
 println(loc())
+assert(loc(), true)
+assert(loc(), eq(1, 1))

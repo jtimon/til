@@ -13,3 +13,19 @@ neg := func(a: I64) returns I64 {
 neq := func(a: I64, b: I64) returns Bool {
     return not(eq(a, b))
 }
+
+panic := proc(loc_str: Str, msg: Str) {
+    println(loc_str, ": panic: ", msg)
+    exit(1)
+}
+
+assertm := func(loc_str: Str, cond: Bool, msg: Str) returns Bool {
+    if not(cond) {
+        panic(loc_str, msg)
+    }
+    return true
+}
+
+assert := func(loc_str: Str, cond: Bool) returns Bool {
+    return assertm(loc_str, cond, "assert failed")
+}
