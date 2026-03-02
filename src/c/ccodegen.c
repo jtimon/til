@@ -36,12 +36,22 @@ static int is_ns_field(const char *struct_name, const char *field_name) {
     return 0;
 }
 
-// Check if an expr is an i64_to_str(x) or bool_to_str(x) call, return the inner expr if so
+// Check if an expr is a to_str call (builtin or namespace method), return the inner expr if so
 static Expr *unwrap_to_str(Expr *e) {
     if (e->type == NODE_FCALL && e->nchildren >= 2) {
-        const char *name = e->children[0]->data.str_val;
-        if (strcmp(name, "i64_to_str") == 0 || strcmp(name, "bool_to_str") == 0)
-            return e->children[1];
+        if (e->children[0]->type == NODE_IDENT) {
+            const char *name = e->children[0]->data.str_val;
+            if (strcmp(name, "i64_to_str") == 0 || strcmp(name, "bool_to_str") == 0)
+                return e->children[1];
+        }
+        // I64.to_str(x) or Bool.to_str(x)
+        if (e->children[0]->type == NODE_FIELD_ACCESS &&
+            strcmp(e->children[0]->data.str_val, "to_str") == 0) {
+            Expr *obj = e->children[0]->children[0];
+            if (obj->struct_name &&
+                (strcmp(obj->struct_name, "I64") == 0 || strcmp(obj->struct_name, "Bool") == 0))
+                return e->children[1];
+        }
     }
     return NULL;
 }
@@ -70,6 +80,18 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         fprintf(f, "%s", e->data.str_val);
         break;
     case NODE_FCALL: {
+        // Namespace method call: Struct.method(args)
+        if (e->children[0]->type == NODE_FIELD_ACCESS) {
+            const char *sname = e->children[0]->children[0]->struct_name;
+            const char *mname = e->children[0]->data.str_val;
+            fprintf(f, "til_%s_%s(", sname, mname);
+            for (int i = 1; i < e->nchildren; i++) {
+                if (i > 1) fprintf(f, ", ");
+                emit_expr(f, e->children[i], depth);
+            }
+            fprintf(f, ")");
+            break;
+        }
         const char *name = e->children[0]->data.str_val;
         // Built-in: println → one printf per arg, then \n
         if (strcmp(name, "println") == 0 || strcmp(name, "print") == 0) {
@@ -191,9 +213,14 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, "(!");
             emit_expr(f, e->children[1], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "i64_to_str") == 0 || strcmp(name, "bool_to_str") == 0) {
-            // In printf context these get unwrapped; standalone just pass through
+        } else if (strcmp(name, "i64_to_str") == 0) {
+            fprintf(f, "til_i64_to_str(");
             emit_expr(f, e->children[1], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "bool_to_str") == 0) {
+            fprintf(f, "til_bool_to_str(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, ")");
         } else if (e->struct_name) {
             // Struct instantiation
             if (e->nchildren > 1) {
@@ -369,6 +396,7 @@ static void emit_ns_inits(FILE *f, int depth) {
             for (int j = 0; j < body->nchildren; j++) {
                 Expr *field = body->children[j];
                 if (!field->data.decl.is_namespace) continue;
+                if (field->children[0]->type == NODE_FUNC_DEF) continue;
                 emit_indent(f, depth);
                 fprintf(f, "til_%s_%s = ", sname, field->data.decl.name);
                 emit_expr(f, field->children[0], depth);
@@ -429,15 +457,27 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
         }
     }
     fprintf(f, "} til_%s;\n\n", name);
-    // Emit namespace fields as globals
+    // Emit namespace fields as globals (skip func defs — emitted separately)
     for (int i = 0; i < body->nchildren; i++) {
         Expr *field = body->children[i];
         if (!field->data.decl.is_namespace) continue;
+        if (field->children[0]->type == NODE_FUNC_DEF) continue;
         if (field->til_type == TIL_TYPE_STRUCT && field->children[0]->struct_name) {
             fprintf(f, "til_%s til_%s_%s;\n", field->children[0]->struct_name, name, field->data.decl.name);
         } else {
             fprintf(f, "%s til_%s_%s;\n", til_type_to_c(field->til_type), name, field->data.decl.name);
         }
+    }
+    // Emit namespace functions as C functions
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *field = body->children[i];
+        if (!field->data.decl.is_namespace) continue;
+        if (field->children[0]->type != NODE_FUNC_DEF) continue;
+        Expr *fdef = field->children[0];
+        char full_name[256];
+        snprintf(full_name, sizeof(full_name), "%s_%s", name, field->data.decl.name);
+        emit_func_def(f, full_name, fdef, NULL);
+        fprintf(f, "\n");
     }
     fprintf(f, "\n");
     // Emit default constructor (instance fields only)
@@ -474,6 +514,12 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     fprintf(f, "    char *r = malloc(total + 1); int off = 0;\n");
     fprintf(f, "    for (int i = 0; i < n; i++) { int l = strlen(strs[i]); memcpy(r + off, strs[i], l); off += l; }\n");
     fprintf(f, "    r[off] = '\\0'; return r;\n");
+    fprintf(f, "}\n\n");
+    fprintf(f, "static const char *til_i64_to_str(long long v) {\n");
+    fprintf(f, "    char *buf = malloc(32); snprintf(buf, 32, \"%%lld\", v); return buf;\n");
+    fprintf(f, "}\n\n");
+    fprintf(f, "static const char *til_bool_to_str(int v) {\n");
+    fprintf(f, "    return v ? \"true\" : \"false\";\n");
     fprintf(f, "}\n\n");
 
     int is_script = mode && strcmp(mode, "script") == 0;

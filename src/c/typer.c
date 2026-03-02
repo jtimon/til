@@ -103,7 +103,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         }
         // Struct type names: allow field access for namespace fields
         TypeBinding *ib = tscope_find(scope, e->data.str_val);
-        if (ib && ib->struct_def && !ib->is_builtin) {
+        if (ib && ib->struct_def) {
             e->struct_name = e->data.str_val;
         }
         break;
@@ -144,6 +144,46 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         infer_body(scope, e->children[0], path, 0);
         break;
     case NODE_FCALL: {
+        // Namespace method call: Struct.method(args)
+        if (e->children[0]->type == NODE_FIELD_ACCESS) {
+            infer_expr(scope, e->children[0], path, in_func);
+            Expr *fa = e->children[0];
+            Expr *obj = fa->children[0];
+            const char *method = fa->data.str_val;
+            // Look up the func def in the struct body
+            Expr *sdef = obj->struct_name ? tscope_get_struct(scope, obj->struct_name) : NULL;
+            Expr *ns_func = NULL;
+            if (sdef) {
+                Expr *body = sdef->children[0];
+                for (int i = 0; i < body->nchildren; i++) {
+                    Expr *field = body->children[i];
+                    if (field->data.decl.is_namespace &&
+                        strcmp(field->data.decl.name, method) == 0 &&
+                        field->children[0]->type == NODE_FUNC_DEF) {
+                        ns_func = field->children[0];
+                        break;
+                    }
+                }
+            }
+            if (!ns_func) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "no namespace function '%s'", method);
+                type_error(path, e, buf);
+                e->til_type = TIL_TYPE_UNKNOWN;
+                break;
+            }
+            // Infer arg types
+            for (int i = 1; i < e->nchildren; i++) {
+                infer_expr(scope, e->children[i], path, in_func);
+            }
+            // Set return type
+            TilType rt = TIL_TYPE_NONE;
+            if (ns_func->data.func_def.return_type) {
+                rt = type_from_name(ns_func->data.func_def.return_type, scope);
+            }
+            e->til_type = rt;
+            break;
+        }
         // Resolve callee
         const char *name = e->children[0]->data.str_val;
         // Struct instantiation: Point() or Point(x=1, y=2)
@@ -337,7 +377,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
     case NODE_FIELD_ACCESS: {
         infer_expr(scope, e->children[0], path, in_func);
         Expr *obj = e->children[0];
-        if (obj->til_type == TIL_TYPE_STRUCT && obj->struct_name) {
+        if (obj->struct_name) {
             Expr *sdef = tscope_get_struct(scope, obj->struct_name);
             if (sdef) {
                 Expr *body = sdef->children[0];
@@ -507,7 +547,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             infer_expr(scope, stmt->children[1], path, in_func); // value
             Expr *obj = stmt->children[0];
             const char *fname = stmt->data.str_val;
-            if (obj->til_type == TIL_TYPE_STRUCT && obj->struct_name) {
+            if (obj->struct_name) {
                 Expr *sdef = tscope_get_struct(scope, obj->struct_name);
                 if (sdef) {
                     Expr *body = sdef->children[0];

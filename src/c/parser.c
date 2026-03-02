@@ -239,14 +239,40 @@ static Expr *parse_expression(Parser *p) {
             e->data.str_val = name;
         }
 
-        // field access chain: expr.field.field...
+        // field access chain: expr.field.field... or expr.method(args)
         while (check(p, TOK_DOT)) {
             advance(p); // consume '.'
             Token *field = expect(p, TOK_IDENT);
-            Expr *access = expr_new(NODE_FIELD_ACCESS, field->line, field->col);
-            access->data.str_val = tok_str(field);
-            expr_add_child(access, e);
-            e = access;
+            if (check(p, TOK_LPAREN)) {
+                // Method call: expr.method(args)
+                advance(p); // consume '('
+                Expr *callee = expr_new(NODE_FIELD_ACCESS, field->line, field->col);
+                callee->data.str_val = tok_str(field);
+                expr_add_child(callee, e);
+                Expr *call = expr_new(NODE_FCALL, field->line, field->col);
+                expr_add_child(call, callee);
+                while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+                    if (check(p, TOK_IDENT) && p->pos + 1 < p->count &&
+                        p->tokens[p->pos + 1].type == TOK_EQ) {
+                        Token *aname = advance(p);
+                        advance(p);
+                        Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col);
+                        na->data.str_val = tok_str(aname);
+                        expr_add_child(na, parse_expression(p));
+                        expr_add_child(call, na);
+                    } else {
+                        expr_add_child(call, parse_expression(p));
+                    }
+                    if (check(p, TOK_COMMA)) advance(p);
+                }
+                expect(p, TOK_RPAREN);
+                e = call;
+            } else {
+                Expr *access = expr_new(NODE_FIELD_ACCESS, field->line, field->col);
+                access->data.str_val = tok_str(field);
+                expr_add_child(access, e);
+                e = access;
+            }
         }
         return e;
     }
@@ -298,7 +324,7 @@ static Expr *parse_statement_ident(Parser *p, int is_mut) {
         return decl;
     }
 
-    // Field assignment: name.field = value  or  name.a.b.c = value
+    // Field assignment or method call: name.field = value  or  name.method(args)
     if (check(p, TOK_DOT)) {
         // Build the field access chain
         Expr *obj = expr_new(NODE_IDENT, t->line, t->col);
@@ -315,6 +341,32 @@ static Expr *parse_statement_ident(Parser *p, int is_mut) {
                 obj = access;
             }
         }
+        // Method call: name.method(args)
+        if (check(p, TOK_LPAREN)) {
+            advance(p); // consume '('
+            Expr *callee = expr_new(NODE_FIELD_ACCESS, last_field->line, last_field->col);
+            callee->data.str_val = tok_str(last_field);
+            expr_add_child(callee, obj);
+            Expr *call = expr_new(NODE_FCALL, last_field->line, last_field->col);
+            expr_add_child(call, callee);
+            while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+                if (check(p, TOK_IDENT) && p->pos + 1 < p->count &&
+                    p->tokens[p->pos + 1].type == TOK_EQ) {
+                    Token *aname = advance(p);
+                    advance(p);
+                    Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col);
+                    na->data.str_val = tok_str(aname);
+                    expr_add_child(na, parse_expression(p));
+                    expr_add_child(call, na);
+                } else {
+                    expr_add_child(call, parse_expression(p));
+                }
+                if (check(p, TOK_COMMA)) advance(p);
+            }
+            expect(p, TOK_RPAREN);
+            return call;
+        }
+        // Field assignment
         expect(p, TOK_EQ);
         Expr *fa = expr_new(NODE_FIELD_ASSIGN, t->line, t->col);
         fa->data.str_val = tok_str(last_field);

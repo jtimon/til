@@ -1,9 +1,19 @@
 // builtin types (empty structs for future namespace support)
 StructDef : StructDef = struct {}
 FunctionDef : StructDef = struct {}
-I64 : StructDef = struct {}
+I64 : StructDef = struct {
+    namespace:
+    to_str := func(val: I64) returns Str {
+        return i64_to_str(val)
+    }
+}
 Str : StructDef = struct {}
-Bool : StructDef = struct {}
+Bool : StructDef = struct {
+    namespace:
+    to_str := func(val: Bool) returns Str {
+        return bool_to_str(val)
+    }
+}
 
 lte := func(a: I64, b: I64) returns Bool {
     return or(lt(a, b), eq(a, b))

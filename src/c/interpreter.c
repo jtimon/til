@@ -135,8 +135,35 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path);
 static void eval_body(Scope *scope, Expr *body, const char *path);
 
 static Value eval_call(Scope *scope, Expr *e, const char *path) {
-    // children[0] = callee ident, children[1..] = args
+    // children[0] = callee ident or field access, children[1..] = args
     Expr *callee_expr = e->children[0];
+
+    // Namespace method call: Struct.method(args)
+    if (callee_expr->type == NODE_FIELD_ACCESS) {
+        Value fn_val = eval_expr(scope, callee_expr, path);
+        if (fn_val.type != VAL_FUNC) {
+            fprintf(stderr, "%s:%d:%d: runtime error: namespace field is not a function\n",
+                    path, e->line, e->col);
+            exit(1);
+        }
+        Expr *func_def = fn_val.func;
+        Expr *body = func_def->children[0];
+        Scope *call_scope = scope_new(scope);
+        for (int i = 0; i < func_def->data.func_def.nparam; i++) {
+            Value arg = eval_expr(scope, e->children[i + 1], path);
+            scope_set(call_scope, func_def->data.func_def.param_names[i], arg);
+        }
+        has_return = 0;
+        eval_body(call_scope, body, path);
+        scope_free(call_scope);
+        Value result = val_none();
+        if (has_return) {
+            result = return_value;
+            has_return = 0;
+        }
+        return result;
+    }
+
     const char *name = callee_expr->data.str_val;
 
     // Built-in: println

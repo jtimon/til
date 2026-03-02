@@ -171,4 +171,19 @@ c2.value = 10
 assert_eq(loc(), c1.value, 5)
 assert_eq(loc(), c2.value, 10)
 
+// namespace functions on builtin types
+assert_eq_str(loc(), I64.to_str(42), "42")
+assert_eq_str(loc(), I64.to_str(0), "0")
+assert_eq_str(loc(), Bool.to_str(true), "true")
+assert_eq_str(loc(), Bool.to_str(false), "false")
+
+// namespace function on user-defined struct
+Greeter := struct {
+    namespace:
+    greet := func(name: Str) returns Str {
+        return format("hello, ", name)
+    }
+}
+assert_eq_str(loc(), Greeter.greet("world"), "hello, world")
+
 println("all struct tests passed")
