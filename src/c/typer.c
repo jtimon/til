@@ -112,6 +112,7 @@ static TilType builtin_return_type(const char *name) {
     if (strcmp(name, "eq") == 0)   return TIL_TYPE_BOOL;
     if (strcmp(name, "lt") == 0)   return TIL_TYPE_BOOL;
     if (strcmp(name, "gt") == 0)   return TIL_TYPE_BOOL;
+    if (strcmp(name, "not") == 0)  return TIL_TYPE_BOOL;
     return TIL_TYPE_UNKNOWN;
 }
 
@@ -129,6 +130,7 @@ static int builtin_is_proc(const char *name) {
     if (strcmp(name, "eq") == 0)   return 0;
     if (strcmp(name, "lt") == 0)   return 0;
     if (strcmp(name, "gt") == 0)   return 0;
+    if (strcmp(name, "not") == 0)  return 0;
     return -1;
 }
 

@@ -5,3 +5,7 @@ lte := func(a: I64, b: I64) returns Bool {
 gte := func(a: I64, b: I64) returns Bool {
     return or(gt(a, b), eq(a, b))
 }
+
+neq := func(a: I64, b: I64) returns Bool {
+    return not(eq(a, b))
+}

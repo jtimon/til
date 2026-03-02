@@ -203,6 +203,12 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_BOOL, .boolean = a.boolean || b.boolean};
     }
 
+    // Built-in: not(a)
+    if (strcmp(name, "not") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        return (Value){.type = VAL_BOOL, .boolean = !a.boolean};
+    }
+
     // User-defined function
     Value *fn = scope_get(scope, name);
     if (!fn) {

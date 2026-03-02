@@ -136,6 +136,10 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " || ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
+        } else if (strcmp(name, "not") == 0) {
+            fprintf(f, "(!");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, ")");
         } else if (strcmp(name, "to_str") == 0) {
             // For I64 args in printf context, just pass the integer
             // and let the printf format handle it. For a proper to_str
