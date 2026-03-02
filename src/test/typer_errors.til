@@ -31,3 +31,14 @@ while 1 {
     inner := "scoped"
 }
 println(inner)
+
+// func cannot call proc
+bad_func := func(x: I64) returns I64 {
+    println("side effect!")
+    return x
+}
+
+// func must declare a return type
+no_ret := func(x: I64) {
+    return x
+}
