@@ -234,6 +234,10 @@ static Expr *parse_statement(Parser *p) {
         }
         return node;
     }
+    case TOK_LBRACE: {
+        advance(p); // consume '{'
+        return parse_block(p);
+    }
     case TOK_WHILE: {
         advance(p); // consume 'while'
         Expr *node = expr_new(NODE_WHILE, t->line, t->col);

@@ -275,6 +275,12 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
         case NODE_FCALL:
             eval_call(scope, stmt, path);
             break;
+        case NODE_BODY: {
+            Scope *block_scope = scope_new(scope);
+            eval_body(block_scope, stmt, path);
+            scope_free(block_scope);
+            break;
+        }
         case NODE_IF: {
             Value cond = eval_expr(scope, stmt->children[0], path);
             if (cond.boolean) {

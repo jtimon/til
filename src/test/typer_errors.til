@@ -25,3 +25,9 @@ if "hello" {
 while 1 {
     println("FAIL")
 }
+
+// variable not visible outside block scope
+{
+    inner := "scoped"
+}
+println(inner)

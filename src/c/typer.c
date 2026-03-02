@@ -204,6 +204,12 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path) {
             }
             stmt->til_type = TIL_TYPE_NONE;
             break;
+        case NODE_BODY: {
+            TypeScope *block_scope = tscope_new(scope);
+            infer_body(block_scope, stmt, path);
+            tscope_free(block_scope);
+            break;
+        }
         case NODE_WHILE:
             infer_expr(scope, stmt->children[0], path); // condition
             if (stmt->children[0]->til_type != TIL_TYPE_BOOL &&

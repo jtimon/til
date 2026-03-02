@@ -196,6 +196,12 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         }
         fprintf(f, ";\n");
         break;
+    case NODE_BODY:
+        fprintf(f, "{\n");
+        emit_body(f, e, depth + 1);
+        emit_indent(f, depth);
+        fprintf(f, "}\n");
+        break;
     case NODE_IF:
         fprintf(f, "if (");
         emit_expr(f, e->children[0], depth);
