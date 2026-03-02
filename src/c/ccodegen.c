@@ -231,6 +231,17 @@ static const char *til_type_to_c(TilType t) {
     }
 }
 
+// Convert a type name string to C type string (handles struct types)
+static const char *type_name_to_c(const char *name) {
+    if (strcmp(name, "I64") == 0)  return "long long";
+    if (strcmp(name, "Str") == 0)  return "const char *";
+    if (strcmp(name, "Bool") == 0) return "int";
+    // User-defined struct type
+    static char buf[128];
+    snprintf(buf, sizeof(buf), "til_%s", name);
+    return buf;
+}
+
 // --- Statement emission ---
 
 static void emit_stmt(FILE *f, Expr *e, int depth) {
@@ -331,12 +342,7 @@ static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char 
         // Return type
         const char *ret = "void";
         if (func_def->data.func_def.return_type) {
-            TilType rt = TIL_TYPE_NONE;
-            const char *rtn = func_def->data.func_def.return_type;
-            if (strcmp(rtn, "I64") == 0) rt = TIL_TYPE_I64;
-            else if (strcmp(rtn, "Str") == 0) rt = TIL_TYPE_STR;
-            else if (strcmp(rtn, "Bool") == 0) rt = TIL_TYPE_BOOL;
-            ret = til_type_to_c(rt);
+            ret = type_name_to_c(func_def->data.func_def.return_type);
         }
         // Signature
         fprintf(f, "%s til_%s(", ret, name);
@@ -346,12 +352,8 @@ static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char 
         } else {
             for (int i = 0; i < np; i++) {
                 if (i > 0) fprintf(f, ", ");
-                TilType pt = TIL_TYPE_I64; // fallback
-                const char *ptn = func_def->data.func_def.param_types[i];
-                if (strcmp(ptn, "I64") == 0) pt = TIL_TYPE_I64;
-                else if (strcmp(ptn, "Str") == 0) pt = TIL_TYPE_STR;
-                else if (strcmp(ptn, "Bool") == 0) pt = TIL_TYPE_BOOL;
-                fprintf(f, "%s %s", til_type_to_c(pt), func_def->data.func_def.param_names[i]);
+                fprintf(f, "%s %s", type_name_to_c(func_def->data.func_def.param_types[i]),
+                        func_def->data.func_def.param_names[i]);
             }
         }
         fprintf(f, ") {\n");

@@ -1,3 +1,10 @@
+// builtin types (empty structs for future namespace support)
+StructDef : StructDef = struct {}
+FunctionDef : StructDef = struct {}
+I64 : StructDef = struct {}
+Str : StructDef = struct {}
+Bool : StructDef = struct {}
+
 lte := func(a: I64, b: I64) returns Bool {
     return or(lt(a, b), eq(a, b))
 }

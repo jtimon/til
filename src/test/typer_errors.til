@@ -69,3 +69,6 @@ bad1 := ImmutStruct(bogus=1)
 
 // struct instantiation: positional arg not allowed
 bad2 := ImmutStruct(42)
+
+// cannot instantiate builtin type
+bad3 := I64()
