@@ -117,6 +117,48 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return val_none();
     }
 
+    // Built-in: add(a, b)
+    if (strcmp(name, "add") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_I64, .i64 = a.i64 + b.i64};
+    }
+
+    // Built-in: sub(a, b)
+    if (strcmp(name, "sub") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_I64, .i64 = a.i64 - b.i64};
+    }
+
+    // Built-in: mul(a, b)
+    if (strcmp(name, "mul") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_I64, .i64 = a.i64 * b.i64};
+    }
+
+    // Built-in: div(a, b)
+    if (strcmp(name, "div") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        if (b.i64 == 0) {
+            fprintf(stderr, "%s:%d:%d: runtime error: division by zero\n",
+                    path, e->line, e->col);
+            exit(1);
+        }
+        return (Value){.type = VAL_I64, .i64 = a.i64 / b.i64};
+    }
+
+    // Built-in: to_str(val)
+    if (strcmp(name, "to_str") == 0) {
+        Value v = eval_expr(scope, e->children[1], path);
+        if (v.type == VAL_STR) return v;
+        char *buf = malloc(32);
+        snprintf(buf, 32, "%lld", v.i64);
+        return (Value){.type = VAL_STR, .str = buf};
+    }
+
     // User-defined function
     Value *fn = scope_get(scope, name);
     if (!fn) {

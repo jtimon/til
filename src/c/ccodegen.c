@@ -45,16 +45,57 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                         fprintf(f, "printf(\"%s\")", arg->data.str_val);
                     }
                 } else {
-                    // Non-string: use %s/%lld format — TODO: proper type dispatch
-                    fprintf(f, "printf(\"%%s\", ");
+                    // Non-string arg: assume integer for now
+                    fprintf(f, "printf(\"%%lld\", (long long)");
                     emit_expr(f, arg, depth);
                     fprintf(f, ")");
                 }
             }
-            if (is_println && e->nchildren <= 1) {
-                // println() with no args: just a newline
-                fprintf(f, "printf(\"\\n\")");
+            // Emit trailing newline for println
+            if (is_println) {
+                if (e->nchildren <= 1) {
+                    fprintf(f, "printf(\"\\n\")");
+                } else {
+                    // If last arg was a string literal, \n was already appended above.
+                    // Otherwise, emit a separate printf.
+                    Expr *last = e->children[e->nchildren - 1];
+                    if (last->type != NODE_LITERAL_STR) {
+                        fprintf(f, ";\n");
+                        emit_indent(f, depth);
+                        fprintf(f, "printf(\"\\n\")");
+                    }
+                }
             }
+        } else if (strcmp(name, "add") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " + ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "sub") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " - ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "mul") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " * ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "div") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " / ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "to_str") == 0) {
+            // to_str in codegen: use snprintf into a stack buffer
+            // For now, emit inline — works as a printf arg via %lld
+            // TODO: proper to_str with buffer allocation
+            fprintf(f, "/* to_str */ ");
+            emit_expr(f, e->children[1], depth);
         } else {
             // User-defined function call
             fprintf(f, "til_%s(", name);

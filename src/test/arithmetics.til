@@ -1,0 +1,3 @@
+mode script
+
+println(to_str(add(34, 35)))
