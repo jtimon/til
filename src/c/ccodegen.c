@@ -106,6 +106,12 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " / ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
+        } else if (strcmp(name, "mod") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " %% ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
         } else if (strcmp(name, "eq") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);

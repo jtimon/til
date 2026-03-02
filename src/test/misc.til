@@ -65,6 +65,8 @@ println(to_str(gte(2, 2)))
 println(to_str(gte(1, 2)))
 println(to_str(neq(1, 2)))
 println(to_str(neq(2, 2)))
+println(to_str(mod(10, 3)))
+println(to_str(mod(10, 5)))
 
 mut counter := 0
 counter = 1

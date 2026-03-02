@@ -158,6 +158,18 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_I64, .i64 = a.i64 / b.i64};
     }
 
+    // Built-in: mod(a, b)
+    if (strcmp(name, "mod") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        if (b.i64 == 0) {
+            fprintf(stderr, "%s:%d:%d: runtime error: division by zero\n",
+                    path, e->line, e->col);
+            exit(1);
+        }
+        return (Value){.type = VAL_I64, .i64 = a.i64 % b.i64};
+    }
+
     // Built-in: to_str(val)
     if (strcmp(name, "to_str") == 0) {
         Value v = eval_expr(scope, e->children[1], path);
