@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "lexer.h"
+#include "parser.h"
 
 static char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
@@ -17,10 +18,6 @@ static char *read_file(const char *path) {
     buf[size] = '\0';
     fclose(f);
     return buf;
-}
-
-static void print_token(Token *t) {
-    printf("  %3d:%2d  %-12s  '%.*s'\n", t->line, t->col, tok_name(t->type), t->len, t->start);
 }
 
 static void usage(void) {
@@ -65,12 +62,14 @@ int main(int argc, char **argv) {
     int count;
     Token *tokens = tokenize(source, path, &count);
 
-    // For now, just print tokens
-    printf("Tokens (%d):\n", count);
-    for (int i = 0; i < count; i++) {
-        print_token(&tokens[i]);
-    }
+    const char *mode = NULL;
+    Expr *ast = parse(tokens, count, path, &mode);
 
+    printf("mode: %s\n", mode ? mode : "(none)");
+    printf("AST:\n");
+    ast_print(ast, 0);
+
+    expr_free(ast);
     free(tokens);
     free(source);
     return 0;
