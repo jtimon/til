@@ -254,6 +254,15 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
         case NODE_FCALL:
             eval_call(scope, stmt, path);
             break;
+        case NODE_IF: {
+            Value cond = eval_expr(scope, stmt->children[0], path);
+            if (cond.boolean) {
+                eval_body(scope, stmt->children[1], path);
+            } else if (stmt->nchildren > 2) {
+                eval_body(scope, stmt->children[2], path);
+            }
+            break;
+        }
         default:
             fprintf(stderr, "%s:%d:%d: runtime error: unexpected statement type %d\n",
                     path, stmt->line, stmt->col, stmt->type);

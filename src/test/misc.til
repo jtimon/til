@@ -21,3 +21,23 @@ println(to_str(and(true, true)))
 println(to_str(and(true, false)))
 println(to_str(or(false, false)))
 println(to_str(or(false, true)))
+
+if true {
+    println("if true works")
+}
+
+if false {
+    println("FAIL")
+} else {
+    println("else works")
+}
+
+if and(true, true) {
+    println("and(true, true) is truthy")
+}
+
+if and(true, false) {
+    println("FAIL")
+} else {
+    println("and(true, false) is falsy")
+}

@@ -178,6 +178,19 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         }
         fprintf(f, ";\n");
         break;
+    case NODE_IF:
+        fprintf(f, "if (");
+        emit_expr(f, e->children[0], depth);
+        fprintf(f, ") {\n");
+        emit_body(f, e->children[1], depth + 1);
+        emit_indent(f, depth);
+        if (e->nchildren > 2) {
+            fprintf(f, "} else {\n");
+            emit_body(f, e->children[2], depth + 1);
+            emit_indent(f, depth);
+        }
+        fprintf(f, "}\n");
+        break;
     default:
         fprintf(f, "/* TODO: stmt type %d */\n", e->type);
         break;
