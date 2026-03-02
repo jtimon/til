@@ -134,6 +134,18 @@ static Expr *parse_struct_def(Parser *p) {
 static Expr *parse_call(Parser *p, const char *name, int line, int col) {
     advance(p); // consume '('
 
+    // loc() — replaced with "path:line:col" string literal
+    if (strcmp(name, "loc") == 0) {
+        expect(p, TOK_RPAREN);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "%s:%d:%d", p->path, line, col);
+        Expr *e = expr_new(NODE_LITERAL_STR, line, col);
+        char *s = malloc(strlen(buf) + 1);
+        strcpy(s, buf);
+        e->data.str_val = s;
+        return e;
+    }
+
     Expr *call = expr_new(NODE_FCALL, line, col);
 
     // first child is the callee identifier

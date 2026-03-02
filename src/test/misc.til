@@ -96,3 +96,4 @@ p.x = 5
 p.y = 10
 println(to_str(p.x))
 println(to_str(p.y))
+println(loc())
