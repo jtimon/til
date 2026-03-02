@@ -15,6 +15,7 @@ typedef enum {
     NODE_FUNC_DEF,      // func/proc def   (data.func_def, children[0] = body)
     NODE_STRUCT_DEF,    // struct def       (children[0] = body of NODE_DECL fields)
     NODE_FIELD_ACCESS,  // field access     (children[0] = object expr, data.str_val = field name)
+    NODE_FIELD_ASSIGN,  // field assign     (children[0] = object expr, children[1] = value, data.str_val = field name)
     NODE_RETURN,        // return           (children[0] = value, if any)
     NODE_IF,            // if               (children[0] = cond, [1] = then body, [2] = else body)
     NODE_WHILE,         // while            (children[0] = cond, [1] = body)

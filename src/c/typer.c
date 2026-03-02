@@ -383,6 +383,49 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             }
             break;
         }
+        case NODE_FIELD_ASSIGN: {
+            infer_expr(scope, stmt->children[0], path, in_func); // object
+            infer_expr(scope, stmt->children[1], path, in_func); // value
+            Expr *obj = stmt->children[0];
+            const char *fname = stmt->data.str_val;
+            if (obj->til_type == TIL_TYPE_STRUCT && obj->struct_name) {
+                Expr *sdef = tscope_get_struct(scope, obj->struct_name);
+                if (sdef) {
+                    Expr *body = sdef->children[0];
+                    int found = 0;
+                    for (int i = 0; i < body->nchildren; i++) {
+                        Expr *field = body->children[i];
+                        if (strcmp(field->data.decl.name, fname) == 0) {
+                            found = 1;
+                            if (!field->data.decl.is_mut) {
+                                char buf[128];
+                                snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname);
+                                type_error(path, stmt, buf);
+                            }
+                            if (stmt->children[1]->til_type != field->til_type &&
+                                stmt->children[1]->til_type != TIL_TYPE_UNKNOWN) {
+                                char buf[128];
+                                snprintf(buf, sizeof(buf), "field '%s' is %s but assigned %s",
+                                         fname, til_type_name(field->til_type),
+                                         til_type_name(stmt->children[1]->til_type));
+                                type_error(path, stmt, buf);
+                            }
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'",
+                                 obj->struct_name, fname);
+                        type_error(path, stmt, buf);
+                    }
+                }
+            } else {
+                type_error(path, stmt, "field assignment on non-struct value");
+            }
+            stmt->til_type = TIL_TYPE_NONE;
+            break;
+        }
         case NODE_FCALL:
             infer_expr(scope, stmt, path, in_func);
             break;

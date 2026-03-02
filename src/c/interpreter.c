@@ -361,6 +361,24 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             *existing = val;
             break;
         }
+        case NODE_FIELD_ASSIGN: {
+            // children[0] = object, children[1] = value
+            Value obj = eval_expr(scope, stmt->children[0], path);
+            Value val = eval_expr(scope, stmt->children[1], path);
+            if (obj.type != VAL_STRUCT) {
+                fprintf(stderr, "%s:%d:%d: runtime error: field assign on non-struct\n",
+                        path, stmt->line, stmt->col);
+                exit(1);
+            }
+            const char *fname = stmt->data.str_val;
+            for (int i = 0; i < obj.instance->nfields; i++) {
+                if (strcmp(obj.instance->field_names[i], fname) == 0) {
+                    obj.instance->field_values[i] = val;
+                    break;
+                }
+            }
+            break;
+        }
         case NODE_FCALL:
             eval_call(scope, stmt, path);
             break;

@@ -248,6 +248,20 @@ static Expr *parse_statement_ident(Parser *p, int is_mut) {
         return decl;
     }
 
+    // Field assignment: name.field = value
+    if (check(p, TOK_DOT)) {
+        advance(p); // consume '.'
+        Token *field = expect(p, TOK_IDENT);
+        expect(p, TOK_EQ);
+        Expr *fa = expr_new(NODE_FIELD_ASSIGN, t->line, t->col);
+        fa->data.str_val = tok_str(field);
+        Expr *obj = expr_new(NODE_IDENT, t->line, t->col);
+        obj->data.str_val = name;
+        expr_add_child(fa, obj);
+        expr_add_child(fa, parse_expression(p));
+        return fa;
+    }
+
     // Assignment: name = value
     if (check(p, TOK_EQ)) {
         advance(p); // consume =

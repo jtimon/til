@@ -50,6 +50,7 @@ static const char *node_name(NodeType type) {
     case NODE_FUNC_DEF:    return "func_def";
     case NODE_STRUCT_DEF:  return "struct_def";
     case NODE_FIELD_ACCESS: return "field_access";
+    case NODE_FIELD_ASSIGN: return "field_assign";
     case NODE_RETURN:      return "return";
     case NODE_IF:          return "if";
     case NODE_WHILE:       return "while";

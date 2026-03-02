@@ -212,6 +212,12 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         emit_expr(f, e->children[0], depth);
         fprintf(f, ";\n");
         break;
+    case NODE_FIELD_ASSIGN:
+        emit_expr(f, e->children[0], depth);
+        fprintf(f, ".%s = ", e->data.str_val);
+        emit_expr(f, e->children[1], depth);
+        fprintf(f, ";\n");
+        break;
     case NODE_FCALL:
         emit_expr(f, e, depth);
         fprintf(f, ";\n");
