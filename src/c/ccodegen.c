@@ -142,6 +142,13 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " || ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
+        } else if (strcmp(name, "format") == 0) {
+            fprintf(f, "til_format(%d", e->nchildren - 1);
+            for (int i = 1; i < e->nchildren; i++) {
+                fprintf(f, ", ");
+                emit_expr(f, e->children[i], depth);
+            }
+            fprintf(f, ")");
         } else if (strcmp(name, "exit") == 0) {
             fprintf(f, "exit(");
             emit_expr(f, e->children[1], depth);
@@ -349,7 +356,17 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
         return 1;
     }
 
-    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n\n");
+    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n\n");
+    fprintf(f, "static const char *til_format(int n, ...) {\n");
+    fprintf(f, "    va_list ap; va_start(ap, n);\n");
+    fprintf(f, "    int total = 0;\n");
+    fprintf(f, "    const char *strs[64];\n");
+    fprintf(f, "    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, const char *); total += strlen(strs[i]); }\n");
+    fprintf(f, "    va_end(ap);\n");
+    fprintf(f, "    char *r = malloc(total + 1); int off = 0;\n");
+    fprintf(f, "    for (int i = 0; i < n; i++) { int l = strlen(strs[i]); memcpy(r + off, strs[i], l); off += l; }\n");
+    fprintf(f, "    r[off] = '\\0'; return r;\n");
+    fprintf(f, "}\n\n");
 
     int is_script = mode && strcmp(mode, "script") == 0;
 

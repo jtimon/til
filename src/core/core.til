@@ -19,13 +19,17 @@ panic := proc(loc_str: Str, msg: Str) {
     exit(1)
 }
 
+concat := func(a: Str, b: Str) returns Str {
+    return format(a, b)
+}
+
 assertm := func(loc_str: Str, cond: Bool, msg: Str) returns Bool {
     if not(cond) {
-        panic(loc_str, msg)
+        panic(loc_str, format("assert failed: ", msg))
     }
     return true
 }
 
 assert := func(loc_str: Str, cond: Bool) returns Bool {
-    return assertm(loc_str, cond, "assert failed")
+    return assertm(loc_str, cond, "")
 }

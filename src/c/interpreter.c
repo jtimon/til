@@ -230,6 +230,26 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_BOOL, .boolean = a.boolean || b.boolean};
     }
 
+    // Built-in: format(..Str) -> Str (variadic)
+    if (strcmp(name, "format") == 0) {
+        // First pass: compute total length
+        int total = 0;
+        for (int i = 1; i < e->nchildren; i++) {
+            Value v = eval_expr(scope, e->children[i], path);
+            total += (int)strlen(v.str);
+        }
+        char *buf = malloc(total + 1);
+        int off = 0;
+        for (int i = 1; i < e->nchildren; i++) {
+            Value v = eval_expr(scope, e->children[i], path);
+            int len = (int)strlen(v.str);
+            memcpy(buf + off, v.str, len);
+            off += len;
+        }
+        buf[off] = '\0';
+        return (Value){.type = VAL_STR, .str = buf};
+    }
+
     // Built-in: exit(code)
     if (strcmp(name, "exit") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
