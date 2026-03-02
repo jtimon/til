@@ -72,3 +72,9 @@ bad2 := ImmutStruct(42)
 
 // cannot instantiate builtin type
 bad3 := I64()
+
+// wrong explicit type on func def
+bad_fn : Str = func(n: I64) returns I64 { return n }
+
+// wrong explicit type on struct def
+bad_st : I64 = struct { mut x := 0 }

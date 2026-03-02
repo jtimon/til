@@ -60,6 +60,15 @@ alice := Person(name="Alice", age=25)
 assert_eq_str(loc(), alice.name, "Alice")
 assert_eq(loc(), alice.age, 25)
 
+// explicit struct type annotation
+p5 : Point = Point()
+assert_eq(loc(), p5.x, 0)
+assert_eq(loc(), p5.y, 0)
+
+p6 : Point = Point(x=42, y=99)
+assert_eq(loc(), p6.x, 42)
+assert_eq(loc(), p6.y, 99)
+
 // immutable fields: set at construction, cannot reassign
 Entity := struct {
     id := 0

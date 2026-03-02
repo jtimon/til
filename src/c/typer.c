@@ -463,6 +463,16 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             infer_expr(scope, stmt->children[0], path, in_func);
             // For struct defs, register struct type in scope
             if (stmt->children[0]->type == NODE_STRUCT_DEF) {
+                // Check explicit type annotation if present
+                if (stmt->data.decl.explicit_type) {
+                    TilType declared = type_from_name(stmt->data.decl.explicit_type, scope);
+                    if (declared != TIL_TYPE_STRUCT_DEF) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "'%s' declared as %s but value is StructDef",
+                                 stmt->data.decl.name, stmt->data.decl.explicit_type);
+                        type_error(path, stmt, buf);
+                    }
+                }
                 stmt->til_type = TIL_TYPE_NONE;
                 const char *sname = stmt->data.decl.name;
                 // Check if this is a builtin type
@@ -482,6 +492,16 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             }
             // For func/proc defs, store return type and func/proc-ness in scope
             if (stmt->children[0]->type == NODE_FUNC_DEF) {
+                // Check explicit type annotation if present
+                if (stmt->data.decl.explicit_type) {
+                    TilType declared = type_from_name(stmt->data.decl.explicit_type, scope);
+                    if (declared != TIL_TYPE_FUNC_DEF) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "'%s' declared as %s but value is FunctionDef",
+                                 stmt->data.decl.name, stmt->data.decl.explicit_type);
+                        type_error(path, stmt, buf);
+                    }
+                }
                 int callee_is_proc = (stmt->children[0]->data.func_def.func_type != FUNC_FUNC);
                 TilType rt = TIL_TYPE_NONE;
                 if (stmt->children[0]->data.func_def.return_type) {

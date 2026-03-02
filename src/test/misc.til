@@ -85,7 +85,18 @@ while lt(i, 5) {
 }
 println("")
 
-Point := struct {
+// explicit FunctionDef type annotation
+double : FunctionDef = func(n: I64) returns I64 {
+    return mul(n, 2)
+}
+assert_eq(loc(), double(5), 10)
+
+greet_person : FunctionDef = proc(name: Str) {
+    println("hello, ", name)
+}
+greet_person("world")
+
+Point : StructDef = struct {
     mut x := 0
     mut y := 0
 }
