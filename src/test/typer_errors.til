@@ -42,3 +42,16 @@ bad_func := func(x: I64) returns I64 {
 no_ret := func(x: I64) {
     return x
 }
+
+// cannot assign to immutable variable
+immut := 42
+immut = 43
+
+// cannot assign to function parameter
+assign_param := proc(a: I64) {
+    a = 99
+}
+
+// assignment type mismatch
+mut m := 42
+m = "oops"

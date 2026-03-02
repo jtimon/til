@@ -193,7 +193,7 @@ static Expr *parse_expression(Parser *p) {
 }
 
 // parse_statement_ident: identifier is current token
-static Expr *parse_statement_ident(Parser *p) {
+static Expr *parse_statement_ident(Parser *p, int is_mut) {
     Token *t = advance(p); // consume identifier
     const char *name = tok_str(t);
 
@@ -203,16 +203,14 @@ static Expr *parse_statement_ident(Parser *p) {
         Expr *decl = expr_new(NODE_DECL, t->line, t->col);
         decl->data.decl.name = name;
         decl->data.decl.explicit_type = NULL;
-        decl->data.decl.is_mut = false;
+        decl->data.decl.is_mut = is_mut;
         expr_add_child(decl, parse_expression(p));
         return decl;
     }
 
     // Declaration with explicit type: name : Type = value
-    // Or func/proc def: name : proc(...) { ... }
     if (check(p, TOK_COLON)) {
         advance(p); // consume :
-        // name : Type = value
         Token *type_tok = peek(p);
         const char *type_name = tok_str(type_tok);
         advance(p); // consume type name
@@ -220,9 +218,18 @@ static Expr *parse_statement_ident(Parser *p) {
         Expr *decl = expr_new(NODE_DECL, t->line, t->col);
         decl->data.decl.name = name;
         decl->data.decl.explicit_type = type_name;
-        decl->data.decl.is_mut = false;
+        decl->data.decl.is_mut = is_mut;
         expr_add_child(decl, parse_expression(p));
         return decl;
+    }
+
+    // Assignment: name = value
+    if (check(p, TOK_EQ)) {
+        advance(p); // consume =
+        Expr *assign = expr_new(NODE_ASSIGN, t->line, t->col);
+        assign->data.str_val = name;
+        expr_add_child(assign, parse_expression(p));
+        return assign;
     }
 
     // Function call: name(...)
@@ -230,7 +237,7 @@ static Expr *parse_statement_ident(Parser *p) {
         return parse_call(p, name, t->line, t->col);
     }
 
-    fprintf(stderr, "%s:%d:%d: parse error: expected ':=', ':' or '(' after identifier '%s'\n",
+    fprintf(stderr, "%s:%d:%d: parse error: expected ':=', ':', '=' or '(' after identifier '%s'\n",
             p->path, t->line, t->col, name);
     exit(1);
 }
@@ -240,7 +247,11 @@ static Expr *parse_statement(Parser *p) {
 
     switch (t->type) {
     case TOK_IDENT:
-        return parse_statement_ident(p);
+        return parse_statement_ident(p, 0);
+    case TOK_MUT: {
+        advance(p); // consume 'mut'
+        return parse_statement_ident(p, 1);
+    }
     case TOK_RETURN: {
         advance(p);
         Expr *ret = expr_new(NODE_RETURN, t->line, t->col);

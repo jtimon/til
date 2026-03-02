@@ -9,6 +9,10 @@ typedef struct {
     const char *name;
     TilType type;
     int is_proc; // -1 = not a function, 0 = func, 1 = proc
+    int is_mut;
+    int line;
+    int col;
+    int is_param; // 1 if this is a function parameter
 } TypeBinding;
 
 typedef struct TypeScope TypeScope;
@@ -30,11 +34,15 @@ static void tscope_free(TypeScope *s) {
     free(s);
 }
 
-static void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc) {
+static void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc, int is_mut, int line, int col, int is_param) {
     for (int i = 0; i < s->len; i++) {
         if (strcmp(s->bindings[i].name, name) == 0) {
             s->bindings[i].type = type;
             s->bindings[i].is_proc = is_proc;
+            s->bindings[i].is_mut = is_mut;
+            s->bindings[i].line = line;
+            s->bindings[i].col = col;
+            s->bindings[i].is_param = is_param;
             return;
         }
     }
@@ -42,7 +50,7 @@ static void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc
         s->cap = s->cap ? s->cap * 2 : 8;
         s->bindings = realloc(s->bindings, s->cap * sizeof(TypeBinding));
     }
-    s->bindings[s->len++] = (TypeBinding){name, type, is_proc};
+    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param};
 }
 
 static TilType tscope_get(TypeScope *s, const char *name) {
@@ -65,6 +73,28 @@ static int tscope_is_proc(TypeScope *s, const char *name) {
         }
     }
     return -1;
+}
+
+static TypeBinding *tscope_find(TypeScope *s, const char *name) {
+    for (TypeScope *cur = s; cur; cur = cur->parent) {
+        for (int i = 0; i < cur->len; i++) {
+            if (strcmp(cur->bindings[i].name, name) == 0) {
+                return &cur->bindings[i];
+            }
+        }
+    }
+    return NULL;
+}
+
+static int tscope_is_mut(TypeScope *s, const char *name) {
+    for (TypeScope *cur = s; cur; cur = cur->parent) {
+        for (int i = 0; i < cur->len; i++) {
+            if (strcmp(cur->bindings[i].name, name) == 0) {
+                return cur->bindings[i].is_mut;
+            }
+        }
+    }
+    return 0;
 }
 
 // --- Built-in function return types ---
@@ -157,7 +187,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     snprintf(buf, sizeof(buf), "undefined type '%s'", e->data.func_def.param_types[i]);
                     type_error(path, e, buf);
                 }
-                tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1);
+                tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1, 0, e->line, e->col, 1);
             }
             infer_body(func_scope, e->children[0], path, is_func);
             // Check: func must have a return type
@@ -222,7 +252,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                     rt = type_from_name(stmt->children[0]->data.func_def.return_type);
                 }
                 stmt->til_type = rt;
-                tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc);
+                tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0);
                 break;
             }
             if (stmt->data.decl.explicit_type) {
@@ -242,8 +272,39 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             } else {
                 stmt->til_type = stmt->children[0]->til_type;
             }
-            tscope_set(scope, stmt->data.decl.name, stmt->til_type, -1);
+            tscope_set(scope, stmt->data.decl.name, stmt->til_type, -1, stmt->data.decl.is_mut, stmt->line, stmt->col, 0);
             break;
+        case NODE_ASSIGN: {
+            infer_expr(scope, stmt->children[0], path, in_func);
+            stmt->til_type = stmt->children[0]->til_type;
+            const char *aname = stmt->data.str_val;
+            TilType existing = tscope_get(scope, aname);
+            if (existing == TIL_TYPE_UNKNOWN) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "undefined symbol '%s'", aname);
+                type_error(path, stmt, buf);
+            } else if (!tscope_is_mut(scope, aname)) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "cannot assign to immutable variable '%s'", aname);
+                type_error(path, stmt, buf);
+                TypeBinding *b = tscope_find(scope, aname);
+                if (b && b->is_param) {
+                    fprintf(stderr, "%s:%d:%d: note: '%s' is a function parameter\n",
+                            path, b->line, b->col, aname);
+                } else if (b) {
+                    fprintf(stderr, "%s:%d:%d: note: '%s' declared here, consider adding 'mut'\n",
+                            path, b->line, b->col, aname);
+                }
+            } else if (stmt->children[0]->til_type != existing &&
+                       stmt->children[0]->til_type != TIL_TYPE_UNKNOWN) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "'%s' is %s but assigned %s",
+                         aname, til_type_name(existing),
+                         til_type_name(stmt->children[0]->til_type));
+                type_error(path, stmt, buf);
+            }
+            break;
+        }
         case NODE_FCALL:
             infer_expr(scope, stmt, path, in_func);
             break;

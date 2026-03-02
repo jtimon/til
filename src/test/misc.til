@@ -63,3 +63,19 @@ println(to_str(lte(3, 2)))
 println(to_str(gte(3, 2)))
 println(to_str(gte(2, 2)))
 println(to_str(gte(1, 2)))
+
+mut counter := 0
+counter = 1
+counter = add(counter, 1)
+println(to_str(counter))
+
+mut msg : Str = "hello"
+msg = "world"
+println(msg)
+
+mut i := 0
+while lt(i, 5) {
+    print(to_str(i), " ")
+    i = add(i, 1)
+}
+println("")
