@@ -66,6 +66,9 @@ static TilType builtin_return_type(const char *name) {
     if (strcmp(name, "print") == 0)   return TIL_TYPE_NONE;
     if (strcmp(name, "and") == 0)  return TIL_TYPE_BOOL;
     if (strcmp(name, "or") == 0)   return TIL_TYPE_BOOL;
+    if (strcmp(name, "eq") == 0)   return TIL_TYPE_BOOL;
+    if (strcmp(name, "lt") == 0)   return TIL_TYPE_BOOL;
+    if (strcmp(name, "gt") == 0)   return TIL_TYPE_BOOL;
     return TIL_TYPE_UNKNOWN;
 }
 
@@ -199,6 +202,18 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path) {
             if (stmt->nchildren > 2) {
                 infer_body(scope, stmt->children[2], path); // else
             }
+            stmt->til_type = TIL_TYPE_NONE;
+            break;
+        case NODE_WHILE:
+            infer_expr(scope, stmt->children[0], path); // condition
+            if (stmt->children[0]->til_type != TIL_TYPE_BOOL &&
+                stmt->children[0]->til_type != TIL_TYPE_UNKNOWN) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "while condition must be Bool, got %s",
+                         til_type_name(stmt->children[0]->til_type));
+                type_error(path, stmt, buf);
+            }
+            infer_body(scope, stmt->children[1], path); // body
             stmt->til_type = TIL_TYPE_NONE;
             break;
         default:

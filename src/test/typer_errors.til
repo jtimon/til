@@ -20,3 +20,8 @@ if 69 {
 if "hello" {
     println("FAIL")
 }
+
+// while condition must be Bool
+while 1 {
+    println("FAIL")
+}

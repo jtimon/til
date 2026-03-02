@@ -164,6 +164,27 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_STR, .str = buf};
     }
 
+    // Built-in: eq(a, b)
+    if (strcmp(name, "eq") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_BOOL, .boolean = a.i64 == b.i64};
+    }
+
+    // Built-in: lt(a, b)
+    if (strcmp(name, "lt") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_BOOL, .boolean = a.i64 < b.i64};
+    }
+
+    // Built-in: gt(a, b)
+    if (strcmp(name, "gt") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_BOOL, .boolean = a.i64 > b.i64};
+    }
+
     // Built-in: and(a, b)
     if (strcmp(name, "and") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
@@ -260,6 +281,14 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                 eval_body(scope, stmt->children[1], path);
             } else if (stmt->nchildren > 2) {
                 eval_body(scope, stmt->children[2], path);
+            }
+            break;
+        }
+        case NODE_WHILE: {
+            while (1) {
+                Value cond = eval_expr(scope, stmt->children[0], path);
+                if (!cond.boolean) break;
+                eval_body(scope, stmt->children[1], path);
             }
             break;
         }

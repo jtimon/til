@@ -106,6 +106,24 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " / ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
+        } else if (strcmp(name, "eq") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " == ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "lt") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " < ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "gt") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " > ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
         } else if (strcmp(name, "and") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
@@ -189,6 +207,14 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             emit_body(f, e->children[2], depth + 1);
             emit_indent(f, depth);
         }
+        fprintf(f, "}\n");
+        break;
+    case NODE_WHILE:
+        fprintf(f, "while (");
+        emit_expr(f, e->children[0], depth);
+        fprintf(f, ") {\n");
+        emit_body(f, e->children[1], depth + 1);
+        emit_indent(f, depth);
         fprintf(f, "}\n");
         break;
     default:

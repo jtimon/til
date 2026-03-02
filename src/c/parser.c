@@ -234,6 +234,14 @@ static Expr *parse_statement(Parser *p) {
         }
         return node;
     }
+    case TOK_WHILE: {
+        advance(p); // consume 'while'
+        Expr *node = expr_new(NODE_WHILE, t->line, t->col);
+        expr_add_child(node, parse_expression(p)); // condition
+        expect(p, TOK_LBRACE);
+        expr_add_child(node, parse_block(p));       // body
+        return node;
+    }
     default:
         fprintf(stderr, "%s:%d:%d: parse error: expected statement, found '%.*s'\n",
                 p->path, t->line, t->col, t->len, t->start);

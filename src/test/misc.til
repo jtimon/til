@@ -41,3 +41,12 @@ if and(true, false) {
 } else {
     println("and(true, false) is falsy")
 }
+
+while false {
+    println("FAIL")
+}
+println("while false skipped")
+
+println(to_str(eq(1, 1)))
+println(to_str(lt(1, 2)))
+println(to_str(gt(2, 1)))
