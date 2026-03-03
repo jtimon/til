@@ -85,9 +85,14 @@ static Expr *parse_func_def(Parser *p) {
     const char **param_types = malloc(param_cap * sizeof(char *));
     Expr **param_defaults = malloc(param_cap * sizeof(Expr *));
     int nparam = 0;
+    int has_variadic = 0;
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
         Token *pname = expect(p, TOK_IDENT);
         expect(p, TOK_COLON);
+        if (check(p, TOK_DOTDOT)) {
+            advance(p); // consume '..'
+            has_variadic = 1;
+        }
         Token *ptype = expect(p, TOK_IDENT);
         if (nparam >= param_cap) {
             param_cap *= 2;
@@ -124,6 +129,7 @@ static Expr *parse_func_def(Parser *p) {
     def->data.func_def.param_defaults = param_defaults;
     def->data.func_def.nparam = nparam;
     def->data.func_def.return_type = return_type;
+    def->data.func_def.is_variadic = has_variadic;
 
     expect(p, TOK_LBRACE);
     expr_add_child(def, parse_block(p));

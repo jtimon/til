@@ -4,53 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// --- Built-in function return types ---
-
-static TilType builtin_return_type(const char *name) {
-    if (strcmp(name, "add") == 0)    return TIL_TYPE_I64;
-    if (strcmp(name, "sub") == 0)    return TIL_TYPE_I64;
-    if (strcmp(name, "mul") == 0)    return TIL_TYPE_I64;
-    if (strcmp(name, "div") == 0)    return TIL_TYPE_I64;
-    if (strcmp(name, "mod") == 0)    return TIL_TYPE_I64;
-    if (strcmp(name, "i64_to_str") == 0) return TIL_TYPE_STR;
-    if (strcmp(name, "bool_to_str") == 0) return TIL_TYPE_STR;
-    if (strcmp(name, "println") == 0) return TIL_TYPE_NONE;
-    if (strcmp(name, "print") == 0)   return TIL_TYPE_NONE;
-    if (strcmp(name, "and") == 0)  return TIL_TYPE_BOOL;
-    if (strcmp(name, "or") == 0)   return TIL_TYPE_BOOL;
-    if (strcmp(name, "eq") == 0)   return TIL_TYPE_BOOL;
-    if (strcmp(name, "lt") == 0)   return TIL_TYPE_BOOL;
-    if (strcmp(name, "gt") == 0)   return TIL_TYPE_BOOL;
-    if (strcmp(name, "not") == 0)  return TIL_TYPE_BOOL;
-    if (strcmp(name, "exit") == 0) return TIL_TYPE_NONE;
-    if (strcmp(name, "eq_str") == 0) return TIL_TYPE_BOOL;
-    if (strcmp(name, "format") == 0) return TIL_TYPE_STR;
-    return TIL_TYPE_UNKNOWN;
-}
-
-// Returns: 0 = func, 1 = proc, -1 = not a builtin
-static int builtin_is_proc(const char *name) {
-    if (strcmp(name, "println") == 0) return 1;
-    if (strcmp(name, "print") == 0)   return 1;
-    if (strcmp(name, "add") == 0)  return 0;
-    if (strcmp(name, "sub") == 0)  return 0;
-    if (strcmp(name, "mul") == 0)  return 0;
-    if (strcmp(name, "div") == 0)  return 0;
-    if (strcmp(name, "mod") == 0)  return 0;
-    if (strcmp(name, "i64_to_str") == 0) return 0;
-    if (strcmp(name, "bool_to_str") == 0) return 0;
-    if (strcmp(name, "and") == 0)  return 0;
-    if (strcmp(name, "or") == 0)   return 0;
-    if (strcmp(name, "eq") == 0)   return 0;
-    if (strcmp(name, "lt") == 0)   return 0;
-    if (strcmp(name, "gt") == 0)   return 0;
-    if (strcmp(name, "not") == 0)  return 0;
-    if (strcmp(name, "exit") == 0) return 0;
-    if (strcmp(name, "eq_str") == 0) return 0;
-    if (strcmp(name, "format") == 0) return 0;
-    return -1;
-}
-
 // --- Type inference/checking pass ---
 
 static int errors;
@@ -321,9 +274,9 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             e->struct_name = name;
             break;
         }
-        // Desugar named/optional args for user-defined functions
+        // Desugar named/optional args for user-defined functions (skip builtins)
         TypeBinding *callee_bind = tscope_find(scope, name);
-        if (callee_bind && callee_bind->func_def) {
+        if (callee_bind && callee_bind->func_def && !callee_bind->is_builtin) {
             Expr *fdef = callee_bind->func_def;
             int nparam = fdef->data.func_def.nparam;
             // Build new args array (slot per param)
@@ -398,35 +351,24 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         for (int i = 1; i < e->nchildren; i++) {
             infer_expr(scope, e->children[i], path, in_func);
         }
-        TilType ret = builtin_return_type(name);
-        if (ret != TIL_TYPE_UNKNOWN) {
-            e->til_type = ret;
-            // Check: func cannot call a builtin proc (panic is exempt)
-            if (in_func && builtin_is_proc(name) == 1 && strcmp(name, "panic") != 0) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name);
-                type_error(path, e, buf);
-            }
-        } else {
-            // User-defined function — look up in scope
-            TilType fn_type = tscope_get(scope, name);
-            if (fn_type == TIL_TYPE_UNKNOWN) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "undefined function '%s'", name);
-                type_error(path, e, buf);
-            }
-            e->til_type = fn_type;
-            // Propagate struct_name for struct-returning functions
-            if (fn_type == TIL_TYPE_STRUCT && callee_bind && callee_bind->func_def &&
-                callee_bind->func_def->data.func_def.return_type) {
-                e->struct_name = callee_bind->func_def->data.func_def.return_type;
-            }
-            // Check: func cannot call a user-defined proc (panic is exempt)
-            if (in_func && tscope_is_proc(scope, name) == 1 && strcmp(name, "panic") != 0) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name);
-                type_error(path, e, buf);
-            }
+        // Resolve return type from scope (covers builtins and user-defined)
+        TilType fn_type = tscope_get(scope, name);
+        if (fn_type == TIL_TYPE_UNKNOWN) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "undefined function '%s'", name);
+            type_error(path, e, buf);
+        }
+        e->til_type = fn_type;
+        // Propagate struct_name for struct-returning functions
+        if (fn_type == TIL_TYPE_STRUCT && callee_bind && callee_bind->func_def &&
+            callee_bind->func_def->data.func_def.return_type) {
+            e->struct_name = callee_bind->func_def->data.func_def.return_type;
+        }
+        // Check: func cannot call proc (panic is exempt)
+        if (in_func && tscope_is_proc(scope, name) == 1 && strcmp(name, "panic") != 0) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name);
+            type_error(path, e, buf);
         }
         break;
     }
@@ -520,16 +462,21 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                         type_error(path, stmt, buf);
                     }
                 }
-                int callee_is_proc = (stmt->children[0]->data.func_def.func_type != FUNC_FUNC);
+                FuncType ft = stmt->children[0]->data.func_def.func_type;
+                int callee_is_proc = (ft == FUNC_PROC || ft == FUNC_EXT_PROC);
                 TilType rt = TIL_TYPE_NONE;
                 if (stmt->children[0]->data.func_def.return_type) {
                     rt = type_from_name(stmt->children[0]->data.func_def.return_type, scope);
                 }
                 stmt->til_type = rt;
                 tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0);
-                // Store func_def pointer for named/optional arg desugaring
+                // Store func_def pointer and builtin flag
                 TypeBinding *fb = tscope_find(scope, stmt->data.decl.name);
-                if (fb) fb->func_def = stmt->children[0];
+                if (fb) {
+                    fb->func_def = stmt->children[0];
+                    if (ft == FUNC_EXT_FUNC || ft == FUNC_EXT_PROC)
+                        fb->is_builtin = 1;
+                }
                 break;
             }
             if (stmt->data.decl.explicit_type) {

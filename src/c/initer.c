@@ -136,14 +136,19 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         if (stmt->type != NODE_DECL) continue;
         if (stmt->children[0]->type != NODE_FUNC_DEF) continue;
 
-        int callee_is_proc = (stmt->children[0]->data.func_def.func_type != FUNC_FUNC);
+        FuncType ft = stmt->children[0]->data.func_def.func_type;
+        int callee_is_proc = (ft == FUNC_PROC || ft == FUNC_EXT_PROC);
         TilType rt = TIL_TYPE_NONE;
         if (stmt->children[0]->data.func_def.return_type) {
             rt = type_from_name_init(stmt->children[0]->data.func_def.return_type, scope);
         }
         tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0);
         TypeBinding *fb = tscope_find(scope, stmt->data.decl.name);
-        if (fb) fb->func_def = stmt->children[0];
+        if (fb) {
+            fb->func_def = stmt->children[0];
+            if (ft == FUNC_EXT_FUNC || ft == FUNC_EXT_PROC)
+                fb->is_builtin = 1;
+        }
     }
 
     return 0;

@@ -67,6 +67,7 @@ struct Expr {
             int nparam;
             Expr **param_defaults;    // array[nparam], NULL entries for required params
             const char *return_type;  // NULL if none (proc)
+            bool is_variadic;         // true if last param is variadic (..Type)
         } func_def;
     } data;
     const char *struct_name;        // for TIL_TYPE_STRUCT: which struct type

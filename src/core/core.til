@@ -15,6 +15,26 @@ Bool : StructDef = struct {
     }
 }
 
+// builtin functions and procs
+add := ext_func(a: I64, b: I64) returns I64 {}
+sub := ext_func(a: I64, b: I64) returns I64 {}
+mul := ext_func(a: I64, b: I64) returns I64 {}
+div := ext_func(a: I64, b: I64) returns I64 {}
+mod := ext_func(a: I64, b: I64) returns I64 {}
+eq := ext_func(a: I64, b: I64) returns Bool {}
+lt := ext_func(a: I64, b: I64) returns Bool {}
+gt := ext_func(a: I64, b: I64) returns Bool {}
+and := ext_func(a: Bool, b: Bool) returns Bool {}
+or := ext_func(a: Bool, b: Bool) returns Bool {}
+not := ext_func(a: Bool) returns Bool {}
+eq_str := ext_func(a: Str, b: Str) returns Bool {}
+i64_to_str := ext_func(val: I64) returns Str {}
+bool_to_str := ext_func(val: Bool) returns Str {}
+format := ext_func(parts: ..Str) returns Str {}
+println := ext_proc(args: ..Str) {}
+print := ext_proc(args: ..Str) {}
+exit := ext_func(code: I64) {}
+
 lte := func(a: I64, b: I64) returns Bool {
     return or(lt(a, b), eq(a, b))
 }

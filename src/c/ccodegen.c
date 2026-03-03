@@ -542,11 +542,13 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
         }
     }
 
-    // Forward-declare all functions
+    // Forward-declare all functions (skip ext_func/ext_proc builtins)
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
             Expr *func_def = stmt->children[0];
+            FuncType fft = func_def->data.func_def.func_type;
+            if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
             const char *name = stmt->data.decl.name;
             int is_main = mode && strcmp(mode, "cli") == 0 && strcmp(name, "main") == 0;
             if (is_main) continue;
@@ -570,10 +572,12 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     }
     fprintf(f, "\n");
 
-    // Second pass: emit func/proc definitions
+    // Second pass: emit func/proc definitions (skip ext_func/ext_proc builtins)
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
+            FuncType fft2 = stmt->children[0]->data.func_def.func_type;
+            if (fft2 == FUNC_EXT_FUNC || fft2 == FUNC_EXT_PROC) continue;
             emit_func_def(f, stmt->data.decl.name, stmt->children[0], mode);
             fprintf(f, "\n");
         }
