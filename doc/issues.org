@@ -1,0 +1,81 @@
+# Issue tracker for til2.
+# New issues go at the top (below the header), numbered from NEXT_ISSUE.
+# NEXT_ISSUE: 2
+# Fixed issues are moved to fixed.org, cancelled to cancelled.org.
+#+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #1 ccodegen/interpreter consistency: eliminate unnecessary special cases
+  The ccodegen and interpreter should be as similar and minimal as possible.
+  The typer/initer should do more AST rewriting so backends can be dumb and uniform.
+
+** ccodegen: free() special case
+   ccodegen strcmp-checks for "free" and emits C's free() directly (ccodegen.c:127-130).
+   Now that ASAP uses Type.delete() instead of free(), the only caller of free is
+   inside auto-generated delete bodies. free could be a regular ext_proc that falls
+   through to til_free() — a trivial C wrapper around C's free(). No more strcmp.
+
+** ccodegen: println/print special case (45 lines of type-aware printf)
+   ccodegen has ~45 lines (ccodegen.c:81-126) of type-specific printf optimization:
+   unwraps to_str() calls, emits bool ternaries, format specifiers per type, etc.
+   The interpreter has its own ~30-line version (interpreter.c:231-263).
+   The typer could desugar println so both backends handle it uniformly — e.g.
+   ensure all args are Str before reaching the backends, or desugar to per-arg
+   print calls.
+
+** ccodegen: println/print unwrap_to_str optimization
+   The unwrap_to_str() helper (ccodegen.c:17-36) detects to_str() calls inside
+   println/print args and bypasses the string conversion to print values directly.
+   This is an optimization that adds complexity. If println is desugared in the
+   typer to always receive Str args, this optimization becomes unnecessary.
+
+** ccodegen: format() special case
+   ccodegen special-cases format() to prepend the arg count (ccodegen.c:131-137):
+   format(a, b) -> til_format(2, a, b). The typer could insert the count as a
+   literal first arg during desugaring, eliminating the special case.
+
+** ccodegen: exit() special case
+   ccodegen special-cases exit() just to deref the arg (ccodegen.c:138-141).
+   Could use a trivial C wrapper til_exit(long long *code) { exit(*code); }
+   and let it fall through to the generic call path.
+
+** ccodegen: struct constructors (til_new_X functions)
+   ccodegen emits per-struct til_X_new() constructor functions (ccodegen.c:412-470)
+   and special-cases struct instantiation calls to route to them (ccodegen.c:142-149).
+   These could be replaced with C99 compound literals at the call site:
+   &(til_Point){.x = *x, .y = *y} instead of til_Point_new(x, y).
+   This eliminates both the constructor functions and the special-case dispatch.
+
+** ccodegen: literal return values need heap allocation
+   When a function returns a literal (ccodegen.c:290-306), the codegen must
+   malloc+copy because literals aren't heap-allocated. The hoisting pass could
+   convert all return-value literals into temporaries beforehand, making return
+   emission uniform.
+
+** ccodegen: declaration emission branches on RHS type
+   Declaration emission (ccodegen.c:250-266) branches: if RHS is NODE_FCALL,
+   just assign (already a pointer); otherwise malloc+copy. The hoisting pass
+   could normalize this so all RHS values are either fcalls or idents, making
+   declaration emission uniform.
+
+** interpreter: 36 strcmp checks for ext_func/ext_proc builtins
+   The interpreter has ~36 strcmp(name, ...) checks in eval_call
+   (interpreter.c:231-524) for every ext_func/ext_proc: i64_add, i64_sub, u8_eq,
+   bool_not, etc. These are unavoidable for the interpreter (it must implement
+   them in C), but could be organized better — e.g. a dispatch table instead of
+   a linear strcmp chain.
+
+** interpreter: free() accesses variable cell directly
+   The interpreter's free() handler (interpreter.c:508-524) assumes the argument
+   is always a NODE_IDENT and directly accesses the variable's Cell via scope_get.
+   This is the only builtin that reaches into the scope like this. It would crash
+   on free(some_expr()). Now that ASAP uses delete() instead, user code rarely
+   calls free directly — it lives inside auto-generated delete bodies where the
+   arg is always "self" (an ident). Still fragile.
+
+** namespace call path: no named arg resolution
+   The typer's namespace call path (typer.c:193-228) doesn't resolve named args
+   into positional — it only fills defaults for missing trailing args (added in
+   commit 2eb2601). If a namespace method is called with named args, they pass
+   through unresolved and the interpreter crashes (NODE_NAMED_ARG not handled
+   in eval_expr). Currently works because auto-generated calls use positional args,
+   but would break for user code like Point.delete(call_free=false).

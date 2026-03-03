@@ -1,4 +1,0 @@
-
-* TODO ccodegen: remove til_new_X constructor functions, use compound literals instead
-  Struct literals in til should always be translated to C compound literals.
-  The til_new_Point etc. functions should not be emitted.
