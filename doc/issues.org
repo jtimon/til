@@ -1,8 +1,39 @@
 # Issue tracker for til2.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 2
+# NEXT_ISSUE: 3
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #2 ref keyword: non-owning references for returns, declarations, and struct fields
+  Currently all returns are owned by the caller (heap-allocated, caller must
+  delete). This breaks when a function wants to return one of its args:
+
+    min := func(a: I64, b: I64) returns I64 {
+        if a.lt(b) { return a } else { return b }
+    }
+
+  Either a or b would be owned twice and deleted twice (double-free).
+
+** ref returns
+   returns ref I64 — the caller does NOT own the returned value and must
+   not delete it. ASAP destruction skips ref return values.
+
+    min := func(a: I64, b: I64) returns ref I64 {
+        if a.lt(b) { return a } else { return b }
+    }
+
+** ref declarations
+   Required when binding the result of a ref-returning function:
+   ref my_min := min(34, 35). ASAP destruction skips ref variables.
+
+** ref struct fields
+   A ref field stores a pointer to an existing value (not inline).
+   clone does not deep-copy it, delete does not recurse into it —
+   just copies/ignores the pointer.
+
+** args are already ref by default
+   Function args are borrowed (ref) unless explicitly marked own.
+   No change needed for args.
 
 * OPEN #1 ccodegen/interpreter consistency: eliminate unnecessary special cases
   The ccodegen and interpreter should be as similar and minimal as possible.
