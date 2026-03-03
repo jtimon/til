@@ -11,7 +11,7 @@ while i.lte(100) {
             if i.mod(5).eq(0) {
                 println("Buzz")
             } else {
-                println(i64_to_str(i))
+                println(i.to_str())
             }
         }
     }

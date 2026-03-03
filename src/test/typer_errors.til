@@ -1,7 +1,7 @@
 mode script
 
 // undefined symbol
-println(i64_to_str(x))
+println(x)
 
 // undefined function
 foo(1)

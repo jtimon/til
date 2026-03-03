@@ -4,6 +4,7 @@ FunctionDef : StructDef = struct {}
 I64 : StructDef = struct {
     namespace:
     to_str := func(val: I64) returns Str {
+        i64_to_str := ext_func(val: I64) returns Str {}
         return i64_to_str(val)
     }
     add := func(a: I64, b: I64) returns I64 {
@@ -55,6 +56,7 @@ Str : StructDef = struct {}
 Bool : StructDef = struct {
     namespace:
     to_str := func(val: Bool) returns Str {
+        bool_to_str := ext_func(val: Bool) returns Str {}
         return bool_to_str(val)
     }
 }
@@ -64,8 +66,6 @@ and := ext_func(a: Bool, b: Bool) returns Bool {}
 or := ext_func(a: Bool, b: Bool) returns Bool {}
 not := ext_func(a: Bool) returns Bool {}
 eq_str := ext_func(a: Str, b: Str) returns Bool {}
-i64_to_str := ext_func(val: I64) returns Str {}
-bool_to_str := ext_func(val: Bool) returns Str {}
 format := ext_func(parts: ..Str) returns Str {}
 println := ext_proc(args: ..Str) {}
 print := ext_proc(args: ..Str) {}
@@ -97,7 +97,7 @@ test := proc(loc_str: Str, cond: Bool, msg: Str) {
 
 assert_eq := proc(loc_str: Str, a: I64, b: I64) {
     if a.neq(b) {
-        println(loc_str, ": assert_eq failed: expected '", i64_to_str(a), "', found '", i64_to_str(b), "'")
+        println(loc_str, ": assert_eq failed: expected '", a.to_str(), "', found '", b.to_str(), "'")
         exit(1)
     }
 }

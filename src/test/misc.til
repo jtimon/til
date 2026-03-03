@@ -8,19 +8,19 @@ s := "Hello"
 println(s)
 
 x : I64 = 35
-println(i64_to_str(x))
+println(x.to_str())
 
 greeting : Str = "Hi there"
 println(greeting)
 
 t := true
 f := false
-println(bool_to_str(t))
-println(bool_to_str(f))
-println(bool_to_str(and(true, true)))
-println(bool_to_str(and(true, false)))
-println(bool_to_str(or(false, false)))
-println(bool_to_str(or(false, true)))
+println(t.to_str())
+println(f.to_str())
+println(and(true, true).to_str())
+println(and(true, false).to_str())
+println(or(false, false).to_str())
+println(or(false, true).to_str())
 
 if true {
     println("if true works")
@@ -72,7 +72,7 @@ println(42.neg().to_str())
 mut counter := 0
 counter = 1
 counter = counter.add(1)
-println(i64_to_str(counter))
+println(counter.to_str())
 
 mut msg : Str = "hello"
 msg = "world"
@@ -80,7 +80,7 @@ println(msg)
 
 mut i := 0
 while i.lt(5) {
-    print(i64_to_str(i), " ")
+    print(i.to_str(), " ")
     i = i.add(1)
 }
 println("")
@@ -101,12 +101,12 @@ Point : StructDef = struct {
     mut y := 0
 }
 p := Point()
-println(i64_to_str(p.x))
-println(i64_to_str(p.y))
+println(p.x.to_str())
+println(p.y.to_str())
 p.x = 5
 p.y = 10
-println(i64_to_str(p.x))
-println(i64_to_str(p.y))
+println(p.x.to_str())
+println(p.y.to_str())
 println(loc())
 assert(loc(), true)
 assert(loc(), 1.eq(1))

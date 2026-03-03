@@ -201,7 +201,7 @@ Describable := struct {
     mut val := 0
     namespace:
     describe := func(d: Describable) returns Str {
-        return format("val=", i64_to_str(d.val))
+        return format("val=", d.val.to_str())
     }
 }
 d := Describable(val=42)
