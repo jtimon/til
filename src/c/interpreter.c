@@ -279,22 +279,22 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_BOOL, .boolean = a.i64 > b.i64};
     }
 
-    // Built-in: and(a, b)
-    if (strcmp(name, "and") == 0) {
+    // Built-in: bool_and(a, b)
+    if (strcmp(name, "bool_and") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
         return (Value){.type = VAL_BOOL, .boolean = a.boolean && b.boolean};
     }
 
-    // Built-in: or(a, b)
-    if (strcmp(name, "or") == 0) {
+    // Built-in: bool_or(a, b)
+    if (strcmp(name, "bool_or") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
         return (Value){.type = VAL_BOOL, .boolean = a.boolean || b.boolean};
     }
 
-    // Built-in: eq_str(a, b)
-    if (strcmp(name, "eq_str") == 0) {
+    // Built-in: str_eq(a, b)
+    if (strcmp(name, "str_eq") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
         return (Value){.type = VAL_BOOL, .boolean = strcmp(a.str, b.str) == 0};
@@ -326,8 +326,8 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         exit((int)a.i64);
     }
 
-    // Built-in: not(a)
-    if (strcmp(name, "not") == 0) {
+    // Built-in: bool_not(a)
+    if (strcmp(name, "bool_not") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         return (Value){.type = VAL_BOOL, .boolean = !a.boolean};
     }

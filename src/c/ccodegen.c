@@ -180,19 +180,19 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " > ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "and") == 0) {
+        } else if (strcmp(name, "bool_and") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " && ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "or") == 0) {
+        } else if (strcmp(name, "bool_or") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " || ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "eq_str") == 0) {
+        } else if (strcmp(name, "str_eq") == 0) {
             fprintf(f, "(strcmp(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, ", ");
@@ -209,7 +209,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, "exit(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "not") == 0) {
+        } else if (strcmp(name, "bool_not") == 0) {
             fprintf(f, "(!");
             emit_expr(f, e->children[1], depth);
             fprintf(f, ")");

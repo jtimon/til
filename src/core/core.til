@@ -40,32 +40,46 @@ I64 : StructDef = struct {
         return i64_gt(a, b)
     }
     lte := func(a: I64, b: I64) returns Bool {
-        return or(a.lt(b), a.eq(b))
+        return a.lt(b).or(a.eq(b))
     }
     gte := func(a: I64, b: I64) returns Bool {
-        return or(a.gt(b), a.eq(b))
+        return a.gt(b).or(a.eq(b))
     }
     neg := func(a: I64) returns I64 {
         return 0.sub(a)
     }
     neq := func(a: I64, b: I64) returns Bool {
-        return not(a.eq(b))
+        return a.eq(b).not()
     }
 }
-Str : StructDef = struct {}
+Str : StructDef = struct {
+    namespace:
+    eq := func(a: Str, b: Str) returns Bool {
+        str_eq := ext_func(a: Str, b: Str) returns Bool {}
+        return str_eq(a, b)
+    }
+}
 Bool : StructDef = struct {
     namespace:
     to_str := func(val: Bool) returns Str {
         bool_to_str := ext_func(val: Bool) returns Str {}
         return bool_to_str(val)
     }
+    and := func(a: Bool, b: Bool) returns Bool {
+        bool_and := ext_func(a: Bool, b: Bool) returns Bool {}
+        return bool_and(a, b)
+    }
+    or := func(a: Bool, b: Bool) returns Bool {
+        bool_or := ext_func(a: Bool, b: Bool) returns Bool {}
+        return bool_or(a, b)
+    }
+    not := func(a: Bool) returns Bool {
+        bool_not := ext_func(a: Bool) returns Bool {}
+        return bool_not(a)
+    }
 }
 
 // builtin functions and procs
-and := ext_func(a: Bool, b: Bool) returns Bool {}
-or := ext_func(a: Bool, b: Bool) returns Bool {}
-not := ext_func(a: Bool) returns Bool {}
-eq_str := ext_func(a: Str, b: Str) returns Bool {}
 format := ext_func(parts: ..Str) returns Str {}
 println := ext_proc(args: ..Str) {}
 print := ext_proc(args: ..Str) {}
@@ -81,7 +95,7 @@ concat := func(a: Str, b: Str) returns Str {
 }
 
 assertm := func(loc_str: Str, cond: Bool, msg: Str) returns Bool {
-    if not(cond) {
+    if cond.not() {
         panic(loc_str, format("assert failed: ", msg))
     }
     return true
@@ -103,7 +117,7 @@ assert_eq := proc(loc_str: Str, a: I64, b: I64) {
 }
 
 assert_eq_str := proc(loc_str: Str, a: Str, b: Str) {
-    if not(eq_str(a, b)) {
+    if a.eq(b).not() {
         println(loc_str, ": assert_eq_str failed: expected '", a, "', found '", b, "'")
         exit(1)
     }

@@ -38,7 +38,7 @@ Flags := struct {
 }
 
 f := Flags()
-assert(loc(), not(f.active))
+assert(loc(), f.active.not())
 assert(loc(), f.visible)
 f.active = true
 assert(loc(), f.active)
