@@ -13,3 +13,36 @@
   Declarations malloc+copy, function returns malloc, builtins malloc results.
   interpreter: val_i64(), val_bool(), val_str() all malloc. Struct instances
   and their fields are malloc'd. Cells containing values are malloc'd.
+
+* TRUE The typer rewrites the AST, not just type-checks it
+  Desugars UFCS (instance.method) to namespace calls (Type.method), resolves
+  named args to positional, fills default args, and inserts ASAP delete calls.
+  Goal: backends can be simpler and more uniform.
+
+* TRUE Struct fields are stored inline, not as separate heap pointers
+  Fields are contiguous in the parent struct's allocation. That's why
+  field deletes pass call_free=false — only the top-level struct is freed.
+
+* TRUE func and proc are distinct
+  funcs are pure: must return a value, can't call procs (except panic).
+  procs can have side effects and don't return values.
+
+* TRUE ext_func and ext_proc declare builtins with C implementations
+  Declared in core.til with signatures only. Implementations live in C:
+  interpreter handles them as strcmp cases in eval_call, ccodegen emits
+  C wrapper functions (til_i64_add, til_println, etc.).
+
+* TRUE Everything is immutable by default, mut opts in to mutation
+  Applies to variable declarations (mut x := 5), struct fields (mut x := 0),
+  and function/proc parameters (mut self: Point). The typer enforces this —
+  assignments to non-mut bindings are type errors.
+
+* TRUE The own keyword marks ownership transfer
+  At call sites, own marks that the caller gives up ownership: own p.delete().
+  On func/proc param defs, param_owns marks which params take ownership.
+  ASAP destruction skips variables after an own transfer — the callee is
+  now responsible for cleanup.
+
+* TRUE All returns are by reference and owned by the caller
+  Functions return heap-allocated pointers. The caller owns the returned
+  value and is responsible for its cleanup (ASAP destruction handles this).
