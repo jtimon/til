@@ -120,3 +120,15 @@ assert_eq_str(loc(), "a".concat("b"), "ab")
 assert_eq(loc(), 6.and(3), 2)
 assert_eq(loc(), 6.or(3), 7)
 assert_eq(loc(), 6.xor(3), 5)
+
+// U8 tests
+a_u8 : U8 = 200
+b_u8 : U8 = 55
+assert_eq_str(loc(), a_u8.add(b_u8).to_str(), "255")
+assert_eq_str(loc(), a_u8.add(b_u8).add(b_u8).to_str(), "54")
+assert_eq_str(loc(), a_u8.sub(b_u8).to_str(), "145")
+assert_eq_str(loc(), a_u8.to_i64().to_str(), "200")
+assert(loc(), a_u8.gt(b_u8))
+assert(loc(), a_u8.eq(a_u8))
+c_u8 : U8 = U8.from_i64(42)
+assert_eq_str(loc(), c_u8.to_str(), "42")

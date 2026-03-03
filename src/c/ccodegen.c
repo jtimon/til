@@ -41,7 +41,8 @@ static Expr *unwrap_to_str(Expr *e) {
     if (e->type == NODE_FCALL && e->nchildren >= 2) {
         if (e->children[0]->type == NODE_IDENT) {
             const char *name = e->children[0]->data.str_val;
-            if (strcmp(name, "i64_to_str") == 0 || strcmp(name, "bool_to_str") == 0)
+            if (strcmp(name, "i64_to_str") == 0 || strcmp(name, "bool_to_str") == 0 ||
+                strcmp(name, "u8_to_str") == 0)
                 return e->children[1];
         }
         // I64.to_str(x) or Bool.to_str(x)
@@ -49,7 +50,8 @@ static Expr *unwrap_to_str(Expr *e) {
             strcmp(e->children[0]->data.str_val, "to_str") == 0) {
             Expr *obj = e->children[0]->children[0];
             if (obj->struct_name &&
-                (strcmp(obj->struct_name, "I64") == 0 || strcmp(obj->struct_name, "Bool") == 0))
+                (strcmp(obj->struct_name, "I64") == 0 || strcmp(obj->struct_name, "U8") == 0 ||
+                 strcmp(obj->struct_name, "Bool") == 0))
                 return e->children[1];
         }
     }
@@ -108,6 +110,10 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                     fprintf(f, "printf(\"%%s%s\", ", nl);
                     emit_expr(f, inner, depth);
                     fprintf(f, " ? \"true\" : \"false\")");
+                } else if (inner && inner->til_type == TIL_TYPE_U8) {
+                    fprintf(f, "printf(\"%%u%s\", (unsigned)", nl);
+                    emit_expr(f, inner, depth);
+                    fprintf(f, ")");
                 } else if (inner) {
                     fprintf(f, "printf(\"%%lld%s\", (long long)", nl);
                     emit_expr(f, inner, depth);
@@ -116,6 +122,10 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                     fprintf(f, "printf(\"%s%s\")", arg->data.str_val, nl);
                 } else if (arg->til_type == TIL_TYPE_I64) {
                     fprintf(f, "printf(\"%%lld%s\", (long long)", nl);
+                    emit_expr(f, arg, depth);
+                    fprintf(f, ")");
+                } else if (arg->til_type == TIL_TYPE_U8) {
+                    fprintf(f, "printf(\"%%u%s\", (unsigned)", nl);
                     emit_expr(f, arg, depth);
                     fprintf(f, ")");
                 } else if (arg->til_type == TIL_TYPE_BOOL) {
@@ -197,6 +207,84 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             emit_expr(f, e->children[1], depth);
             fprintf(f, " ^ ");
             emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_add") == 0) {
+            fprintf(f, "(unsigned char)(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " + ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_sub") == 0) {
+            fprintf(f, "(unsigned char)(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " - ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_mul") == 0) {
+            fprintf(f, "(unsigned char)(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " * ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_div") == 0) {
+            fprintf(f, "(unsigned char)(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " / ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_mod") == 0) {
+            fprintf(f, "(unsigned char)(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " %% ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_eq") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " == ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_lt") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " < ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_gt") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " > ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_and") == 0) {
+            fprintf(f, "(unsigned char)(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " & ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_or") == 0) {
+            fprintf(f, "(unsigned char)(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " | ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_xor") == 0) {
+            fprintf(f, "(unsigned char)(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " ^ ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_to_str") == 0) {
+            fprintf(f, "til_u8_to_str(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_to_i64") == 0) {
+            fprintf(f, "(long long)(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "u8_from_i64") == 0) {
+            fprintf(f, "(unsigned char)(");
+            emit_expr(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "bool_and") == 0) {
             fprintf(f, "(");
@@ -294,6 +382,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
 static const char *til_type_to_c(TilType t) {
     switch (t) {
     case TIL_TYPE_I64:  return "long long";
+    case TIL_TYPE_U8:   return "unsigned char";
     case TIL_TYPE_STR:  return "const char *";
     case TIL_TYPE_BOOL: return "int";
     case TIL_TYPE_NONE: return "void";
@@ -304,6 +393,7 @@ static const char *til_type_to_c(TilType t) {
 // Convert a type name string to C type string (handles struct types)
 static const char *type_name_to_c(const char *name) {
     if (strcmp(name, "I64") == 0)  return "long long";
+    if (strcmp(name, "U8") == 0)   return "unsigned char";
     if (strcmp(name, "Str") == 0)  return "const char *";
     if (strcmp(name, "Bool") == 0) return "int";
     // User-defined struct type
@@ -538,6 +628,9 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     fprintf(f, "}\n\n");
     fprintf(f, "static const char *til_bool_to_str(int v) {\n");
     fprintf(f, "    return v ? \"true\" : \"false\";\n");
+    fprintf(f, "}\n\n");
+    fprintf(f, "static const char *til_u8_to_str(unsigned char v) {\n");
+    fprintf(f, "    char *buf = malloc(4); snprintf(buf, 4, \"%%u\", (unsigned)v); return buf;\n");
     fprintf(f, "}\n\n");
 
     int is_script = mode && strcmp(mode, "script") == 0;

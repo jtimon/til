@@ -94,6 +94,7 @@ int tscope_is_mut(TypeScope *s, const char *name) {
 
 static TilType type_from_name_init(const char *name, TypeScope *scope) {
     if (strcmp(name, "I64") == 0)  return TIL_TYPE_I64;
+    if (strcmp(name, "U8") == 0)   return TIL_TYPE_U8;
     if (strcmp(name, "Str") == 0)  return TIL_TYPE_STR;
     if (strcmp(name, "Bool") == 0) return TIL_TYPE_BOOL;
     if (strcmp(name, "StructDef") == 0)    return TIL_TYPE_STRUCT_DEF;
@@ -119,6 +120,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         TilType builtin_type = TIL_TYPE_STRUCT;
         int is_builtin = 0;
         if (strcmp(sname, "I64") == 0)             { builtin_type = TIL_TYPE_I64;        is_builtin = 1; }
+        else if (strcmp(sname, "U8") == 0)         { builtin_type = TIL_TYPE_U8;         is_builtin = 1; }
         else if (strcmp(sname, "Str") == 0)        { builtin_type = TIL_TYPE_STR;        is_builtin = 1; }
         else if (strcmp(sname, "Bool") == 0)       { builtin_type = TIL_TYPE_BOOL;       is_builtin = 1; }
         else if (strcmp(sname, "StructDef") == 0)  { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }

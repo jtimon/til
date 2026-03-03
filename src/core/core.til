@@ -1,6 +1,77 @@
 // builtin types (empty structs for future namespace support)
 StructDef : StructDef = struct {}
 FunctionDef : StructDef = struct {}
+U8 : StructDef = struct {
+    namespace:
+    to_str := func(val: U8) returns Str {
+        u8_to_str := ext_func(val: U8) returns Str {}
+        return u8_to_str(val)
+    }
+    to_i64 := func(val: U8) returns I64 {
+        u8_to_i64 := ext_func(val: U8) returns I64 {}
+        return u8_to_i64(val)
+    }
+    from_i64 := func(val: I64) returns U8 {
+        if val.lt(0).or(val.gt(255)) {
+            panic("U8.from_i64", "value out of range (0-255)")
+        }
+        u8_from_i64 := ext_func(val: I64) returns U8 {}
+        return u8_from_i64(val)
+    }
+    add := func(a: U8, b: U8) returns U8 {
+        u8_add := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_add(a, b)
+    }
+    sub := func(a: U8, b: U8) returns U8 {
+        u8_sub := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_sub(a, b)
+    }
+    mul := func(a: U8, b: U8) returns U8 {
+        u8_mul := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_mul(a, b)
+    }
+    div := func(a: U8, b: U8) returns U8 {
+        u8_div := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_div(a, b)
+    }
+    mod := func(a: U8, b: U8) returns U8 {
+        u8_mod := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_mod(a, b)
+    }
+    eq := func(a: U8, b: U8) returns Bool {
+        u8_eq := ext_func(a: U8, b: U8) returns Bool {}
+        return u8_eq(a, b)
+    }
+    lt := func(a: U8, b: U8) returns Bool {
+        u8_lt := ext_func(a: U8, b: U8) returns Bool {}
+        return u8_lt(a, b)
+    }
+    gt := func(a: U8, b: U8) returns Bool {
+        u8_gt := ext_func(a: U8, b: U8) returns Bool {}
+        return u8_gt(a, b)
+    }
+    lte := func(a: U8, b: U8) returns Bool {
+        return a.lt(b).or(a.eq(b))
+    }
+    gte := func(a: U8, b: U8) returns Bool {
+        return a.gt(b).or(a.eq(b))
+    }
+    neq := func(a: U8, b: U8) returns Bool {
+        return a.eq(b).not()
+    }
+    and := func(a: U8, b: U8) returns U8 {
+        u8_and := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_and(a, b)
+    }
+    or := func(a: U8, b: U8) returns U8 {
+        u8_or := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_or(a, b)
+    }
+    xor := func(a: U8, b: U8) returns U8 {
+        u8_xor := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_xor(a, b)
+    }
+}
 I64 : StructDef = struct {
     namespace:
     to_str := func(val: I64) returns Str {

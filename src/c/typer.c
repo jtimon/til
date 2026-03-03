@@ -16,6 +16,7 @@ static void type_error(const char *path, Expr *e, const char *msg) {
 // Parse a type name string to TilType (scope-aware for user-defined struct types)
 static TilType type_from_name(const char *name, TypeScope *scope) {
     if (strcmp(name, "I64") == 0)  return TIL_TYPE_I64;
+    if (strcmp(name, "U8") == 0)   return TIL_TYPE_U8;
     if (strcmp(name, "Str") == 0)  return TIL_TYPE_STR;
     if (strcmp(name, "Bool") == 0) return TIL_TYPE_BOOL;
     if (strcmp(name, "StructDef") == 0)    return TIL_TYPE_STRUCT_DEF;
@@ -115,6 +116,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 // UFCS: instance.method(args) → Type.method(instance, args)
                 const char *type_name = NULL;
                 if (obj->til_type == TIL_TYPE_I64)  type_name = "I64";
+                else if (obj->til_type == TIL_TYPE_U8)   type_name = "U8";
                 else if (obj->til_type == TIL_TYPE_BOOL) type_name = "Bool";
                 else if (obj->til_type == TIL_TYPE_STR)  type_name = "Str";
                 else if (obj->til_type == TIL_TYPE_STRUCT && obj->struct_name)
@@ -486,6 +488,10 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", etn);
                     type_error(path, stmt, buf);
+                } else if (stmt->children[0]->type == NODE_LITERAL_NUM &&
+                           (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8)) {
+                    // Numeric literals can be used with any numeric type
+                    stmt->children[0]->til_type = declared;
                 } else if (stmt->children[0]->til_type != declared) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",

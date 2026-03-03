@@ -8,6 +8,7 @@
 typedef enum {
     VAL_NONE,
     VAL_I64,
+    VAL_U8,
     VAL_STR,
     VAL_BOOL,
     VAL_FUNC,   // pointer to a func/proc AST node
@@ -173,6 +174,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             switch (arg.type) {
             case VAL_STR:  printf("%s", arg.str); break;
             case VAL_I64:  printf("%lld", arg.i64); break;
+            case VAL_U8:   printf("%lld", arg.i64); break;
             case VAL_BOOL: printf("%s", arg.boolean ? "true" : "false"); break;
             case VAL_NONE:   printf("(none)"); break;
             case VAL_FUNC:   printf("(func)"); break;
@@ -190,6 +192,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             switch (arg.type) {
             case VAL_STR:  printf("%s", arg.str); break;
             case VAL_I64:  printf("%lld", arg.i64); break;
+            case VAL_U8:   printf("%lld", arg.i64); break;
             case VAL_BOOL: printf("%s", arg.boolean ? "true" : "false"); break;
             case VAL_NONE:   printf("(none)"); break;
             case VAL_FUNC:   printf("(func)"); break;
@@ -298,6 +301,113 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
         return (Value){.type = VAL_I64, .i64 = a.i64 ^ b.i64};
+    }
+
+    // Built-in: u8_add(a, b)
+    if (strcmp(name, "u8_add") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_U8, .i64 = (a.i64 + b.i64) & 0xFF};
+    }
+
+    // Built-in: u8_sub(a, b)
+    if (strcmp(name, "u8_sub") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_U8, .i64 = (a.i64 - b.i64 + 256) & 0xFF};
+    }
+
+    // Built-in: u8_mul(a, b)
+    if (strcmp(name, "u8_mul") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_U8, .i64 = (a.i64 * b.i64) & 0xFF};
+    }
+
+    // Built-in: u8_div(a, b)
+    if (strcmp(name, "u8_div") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        if (b.i64 == 0) {
+            fprintf(stderr, "%s:%d:%d: runtime error: division by zero\n",
+                    path, e->line, e->col);
+            exit(1);
+        }
+        return (Value){.type = VAL_U8, .i64 = (a.i64 / b.i64) & 0xFF};
+    }
+
+    // Built-in: u8_mod(a, b)
+    if (strcmp(name, "u8_mod") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        if (b.i64 == 0) {
+            fprintf(stderr, "%s:%d:%d: runtime error: division by zero\n",
+                    path, e->line, e->col);
+            exit(1);
+        }
+        return (Value){.type = VAL_U8, .i64 = (a.i64 % b.i64) & 0xFF};
+    }
+
+    // Built-in: u8_eq(a, b)
+    if (strcmp(name, "u8_eq") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_BOOL, .boolean = a.i64 == b.i64};
+    }
+
+    // Built-in: u8_lt(a, b)
+    if (strcmp(name, "u8_lt") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_BOOL, .boolean = a.i64 < b.i64};
+    }
+
+    // Built-in: u8_gt(a, b)
+    if (strcmp(name, "u8_gt") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_BOOL, .boolean = a.i64 > b.i64};
+    }
+
+    // Built-in: u8_and(a, b)
+    if (strcmp(name, "u8_and") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_U8, .i64 = (a.i64 & b.i64) & 0xFF};
+    }
+
+    // Built-in: u8_or(a, b)
+    if (strcmp(name, "u8_or") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_U8, .i64 = (a.i64 | b.i64) & 0xFF};
+    }
+
+    // Built-in: u8_xor(a, b)
+    if (strcmp(name, "u8_xor") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_U8, .i64 = (a.i64 ^ b.i64) & 0xFF};
+    }
+
+    // Built-in: u8_to_str(val)
+    if (strcmp(name, "u8_to_str") == 0) {
+        Value v = eval_expr(scope, e->children[1], path);
+        char *buf = malloc(4);
+        snprintf(buf, 4, "%lld", v.i64);
+        return (Value){.type = VAL_STR, .str = buf};
+    }
+
+    // Built-in: u8_to_i64(val)
+    if (strcmp(name, "u8_to_i64") == 0) {
+        Value v = eval_expr(scope, e->children[1], path);
+        return (Value){.type = VAL_I64, .i64 = v.i64};
+    }
+
+    // Built-in: u8_from_i64(val)
+    if (strcmp(name, "u8_from_i64") == 0) {
+        Value v = eval_expr(scope, e->children[1], path);
+        return (Value){.type = VAL_U8, .i64 = v.i64 & 0xFF};
     }
 
     // Built-in: bool_and(a, b)
@@ -426,6 +536,8 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
     case NODE_LITERAL_STR:
         return (Value){.type = VAL_STR, .str = e->data.str_val};
     case NODE_LITERAL_NUM:
+        if (e->til_type == TIL_TYPE_U8)
+            return (Value){.type = VAL_U8, .i64 = atoll(e->data.str_val) & 0xFF};
         return (Value){.type = VAL_I64, .i64 = atoll(e->data.str_val)};
     case NODE_LITERAL_BOOL:
         return (Value){.type = VAL_BOOL, .boolean = strcmp(e->data.str_val, "true") == 0};
