@@ -1,0 +1,15 @@
+# Short factual statements about the current implementation.
+# Both user and assistant must agree before adding a fact.
+# Update or remove facts when the implementation changes.
+#+TODO: NOT_YET NOT_ANYMORE | TRUE
+
+* NOT_YET All arguments are passed by reference, both semantically and in both backends (not yet because of #1)
+  ccodegen: all params are C pointers, call sites use emit_as_ptr(). TRUE.
+  interpreter: identifier args use scope_set_borrowed (shared Cell), but every
+  NODE_IDENT access goes through value_deep_copy(), so reads are copies. NOT YET.
+
+* TRUE All values are heap-allocated in both backends
+  ccodegen: all types map to C pointers (long long *, int *, til_Point *, etc.).
+  Declarations malloc+copy, function returns malloc, builtins malloc results.
+  interpreter: val_i64(), val_bool(), val_str() all malloc. Struct instances
+  and their fields are malloc'd. Cells containing values are malloc'd.

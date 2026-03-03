@@ -72,6 +72,13 @@
    calls free directly — it lives inside auto-generated delete bodies where the
    arg is always "self" (an ident). Still fragile.
 
+** interpreter: value_deep_copy on NODE_IDENT breaks pass-by-reference semantics
+   The interpreter's eval_expr for NODE_IDENT (interpreter.c:617) calls
+   value_deep_copy(cell->val), so every variable read produces a copy. Arguments
+   passed via scope_set_borrowed share the Cell, but the deep copy on read means
+   mutations to the read value don't affect the original. ccodegen passes all args
+   as C pointers (true by-reference). The interpreter should match.
+
 ** namespace call path: no named arg resolution
    The typer's namespace call path (typer.c:193-228) doesn't resolve named args
    into positional — it only fills defaults for missing trailing args (added in
