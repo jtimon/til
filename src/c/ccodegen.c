@@ -223,7 +223,7 @@ static void emit_deref(FILE *f, Expr *e, int depth) {
 // Emit expression as a pointer — after hoisting, args are NODE_IDENT (already pointer)
 // or NODE_FIELD_ACCESS (value needing compound literal wrapping).
 static void emit_as_ptr(FILE *f, Expr *e, int depth) {
-    if (e->type == NODE_IDENT) {
+    if (e->type == NODE_IDENT || e->type == NODE_FCALL) {
         emit_expr(f, e, depth);
     } else {
         const char *ctype = c_type_name(e->til_type, e->struct_name);
@@ -245,9 +245,20 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             fprintf(f, "/* struct %s defined above */\n", e->data.decl.name);
         } else {
             const char *ctype = c_type_name(e->til_type, e->children[0]->struct_name);
-            fprintf(f, "%s *%s = ", ctype, e->data.decl.name);
-            emit_expr(f, e->children[0], depth);
-            fprintf(f, ";\n");
+            Expr *rhs = e->children[0];
+            if (rhs->type == NODE_FCALL) {
+                // Function calls already return a fresh heap pointer
+                fprintf(f, "%s *%s = ", ctype, e->data.decl.name);
+                emit_expr(f, rhs, depth);
+                fprintf(f, ";\n");
+            } else {
+                // Literals and idents: allocate new memory and copy the value
+                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name, ctype);
+                emit_indent(f, depth);
+                fprintf(f, "*%s = ", e->data.decl.name);
+                emit_deref(f, rhs, depth);
+                fprintf(f, ";\n");
+            }
         }
         break;
     case NODE_ASSIGN:
@@ -276,9 +287,18 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         if (e->nchildren == 0) {
             fprintf(f, "return;\n");
         } else {
-            fprintf(f, "return ");
-            emit_expr(f, e->children[0], depth);
-            fprintf(f, ";\n");
+            Expr *rv = e->children[0];
+            if (rv->type == NODE_LITERAL_STR || rv->type == NODE_LITERAL_NUM ||
+                rv->type == NODE_LITERAL_BOOL) {
+                const char *ctype = c_type_name(rv->til_type, rv->struct_name);
+                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
+                emit_expr(f, rv, depth);
+                fprintf(f, "; return _r; }\n");
+            } else {
+                fprintf(f, "return ");
+                emit_expr(f, rv, depth);
+                fprintf(f, ";\n");
+            }
         }
         break;
     case NODE_BODY:
@@ -477,17 +497,21 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
 
     // --- Ext_func wrapper functions (all take pointer args, return pointer) ---
     // I64 arithmetic and bitwise ops
-    const char *i64_arith[][2] = {{"add","+"}, {"sub","-"}, {"mul","*"}, {"div","/"}, {"mod","%"}, {"and","&"}, {"or","|"}, {"xor","^"}};
-    for (int i = 0; i < 8; i++)
+    const char *i64_arith[][2] = {{"add","+"}, {"sub","-"}, {"mul","*"}, {"and","&"}, {"or","|"}, {"xor","^"}};
+    for (int i = 0; i < 6; i++)
         fprintf(f, "static long long *til_i64_%s(long long *a, long long *b) { long long *_r = malloc(sizeof(long long)); *_r = (*a) %s (*b); return _r; }\n", i64_arith[i][0], i64_arith[i][1]);
+    fprintf(f, "static long long *til_i64_div(long long *a, long long *b) { long long *_r = malloc(sizeof(long long)); *_r = (*b == 0) ? 0 : (*a) / (*b); return _r; }\n");
+    fprintf(f, "static long long *til_i64_mod(long long *a, long long *b) { long long *_r = malloc(sizeof(long long)); *_r = (*b == 0) ? 0 : (*a) %% (*b); return _r; }\n");
     // I64 comparisons (return Bool/int *)
     const char *i64_cmp[][2] = {{"eq","=="}, {"lt","<"}, {"gt",">"}};
     for (int i = 0; i < 3; i++)
         fprintf(f, "static int *til_i64_%s(long long *a, long long *b) { int *_r = malloc(sizeof(int)); *_r = (*a) %s (*b); return _r; }\n", i64_cmp[i][0], i64_cmp[i][1]);
     // U8 arithmetic and bitwise ops
-    const char *u8_arith[][2] = {{"add","+"}, {"sub","-"}, {"mul","*"}, {"div","/"}, {"mod","%"}, {"and","&"}, {"or","|"}, {"xor","^"}};
-    for (int i = 0; i < 8; i++)
+    const char *u8_arith[][2] = {{"add","+"}, {"sub","-"}, {"mul","*"}, {"and","&"}, {"or","|"}, {"xor","^"}};
+    for (int i = 0; i < 6; i++)
         fprintf(f, "static unsigned char *til_u8_%s(unsigned char *a, unsigned char *b) { unsigned char *_r = malloc(1); *_r = (unsigned char)((*a) %s (*b)); return _r; }\n", u8_arith[i][0], u8_arith[i][1]);
+    fprintf(f, "static unsigned char *til_u8_div(unsigned char *a, unsigned char *b) { unsigned char *_r = malloc(1); *_r = (*b == 0) ? 0 : (unsigned char)((*a) / (*b)); return _r; }\n");
+    fprintf(f, "static unsigned char *til_u8_mod(unsigned char *a, unsigned char *b) { unsigned char *_r = malloc(1); *_r = (*b == 0) ? 0 : (unsigned char)((*a) %% (*b)); return _r; }\n");
     // U8 comparisons
     const char *u8_cmp[][2] = {{"eq","=="}, {"lt","<"}, {"gt",">"}};
     for (int i = 0; i < 3; i++)
