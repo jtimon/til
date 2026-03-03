@@ -624,13 +624,13 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
     case NODE_FIELD_ACCESS: {
         Value obj = eval_expr(scope, e->children[0], path);
         const char *fname = e->data.str_val;
-        // StructName.field — access namespace fields on the struct type itself
-        if (obj.type == VAL_FUNC && obj.func->type == NODE_STRUCT_DEF) {
-            const char *sname = e->children[0]->data.str_val;
+        if (e->is_ns_field) {
+            const char *sname = obj.type == VAL_STRUCT
+                ? obj.instance->struct_name : e->children[0]->data.str_val;
             Value *nsv = ns_get(sname, fname);
             if (nsv) return *nsv;
-            fprintf(stderr, "%s:%d:%d: runtime error: struct '%s' has no namespace field '%s'\n",
-                    path, e->line, e->col, sname, fname);
+            fprintf(stderr, "%s:%d:%d: runtime error: no namespace field '%s'\n",
+                    path, e->line, e->col, fname);
             exit(1);
         }
         if (obj.type != VAL_STRUCT) {
@@ -638,15 +638,11 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
                     path, e->line, e->col);
             exit(1);
         }
-        // Instance field lookup
         for (int i = 0; i < obj.instance->nfields; i++) {
             if (strcmp(obj.instance->field_names[i], fname) == 0) {
                 return obj.instance->field_values[i];
             }
         }
-        // Fall back to namespace fields
-        Value *nsv = ns_get(obj.instance->struct_name, fname);
-        if (nsv) return *nsv;
         fprintf(stderr, "%s:%d:%d: runtime error: no field '%s'\n",
                 path, e->line, e->col, fname);
         exit(1);
@@ -680,33 +676,25 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             break;
         }
         case NODE_FIELD_ASSIGN: {
-            // children[0] = object, children[1] = value
             Value obj = eval_expr(scope, stmt->children[0], path);
             Value val = eval_expr(scope, stmt->children[1], path);
             const char *fname = stmt->data.str_val;
-            // StructName.field = value — namespace field assignment
-            if (obj.type == VAL_FUNC && obj.func->type == NODE_STRUCT_DEF) {
-                const char *sname = stmt->children[0]->data.str_val;
+            if (stmt->is_ns_field) {
+                const char *sname = obj.type == VAL_STRUCT
+                    ? obj.instance->struct_name : stmt->children[0]->data.str_val;
                 ns_set(sname, fname, val);
-                break;
-            }
-            if (obj.type != VAL_STRUCT) {
-                fprintf(stderr, "%s:%d:%d: runtime error: field assign on non-struct\n",
-                        path, stmt->line, stmt->col);
-                exit(1);
-            }
-            // Try instance field first
-            int found = 0;
-            for (int i = 0; i < obj.instance->nfields; i++) {
-                if (strcmp(obj.instance->field_names[i], fname) == 0) {
-                    obj.instance->field_values[i] = val;
-                    found = 1;
-                    break;
+            } else {
+                if (obj.type != VAL_STRUCT) {
+                    fprintf(stderr, "%s:%d:%d: runtime error: field assign on non-struct\n",
+                            path, stmt->line, stmt->col);
+                    exit(1);
                 }
-            }
-            // Fall back to namespace field
-            if (!found) {
-                ns_set(obj.instance->struct_name, fname, val);
+                for (int i = 0; i < obj.instance->nfields; i++) {
+                    if (strcmp(obj.instance->field_names[i], fname) == 0) {
+                        obj.instance->field_values[i] = val;
+                        break;
+                    }
+                }
             }
             break;
         }

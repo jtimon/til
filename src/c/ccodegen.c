@@ -23,18 +23,6 @@ static void emit_indent(FILE *f, int depth) {
     for (int i = 0; i < depth; i++) fprintf(f, "    ");
 }
 
-// Check if a field is a namespace field in a struct
-static int is_ns_field(const char *struct_name, const char *field_name) {
-    Expr *sdef = find_struct_def(struct_name);
-    if (!sdef) return 0;
-    Expr *body = sdef->children[0];
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *f = body->children[i];
-        if (strcmp(f->data.decl.name, field_name) == 0)
-            return f->data.decl.is_namespace;
-    }
-    return 0;
-}
 
 // Check if an expr is a to_str call (builtin or namespace method), return the inner expr if so
 static Expr *unwrap_to_str(Expr *e) {
@@ -62,29 +50,6 @@ static Expr *unwrap_to_str(Expr *e) {
 static void emit_deref(FILE *f, Expr *e, int depth);
 // Emit expression as a pointer: wraps values in &(type){val}
 static void emit_as_ptr(FILE *f, Expr *e, int depth);
-
-// Check if an FCALL returns a pointer (user func/proc or default constructor)
-// vs a value (inline builtin like i64_add, literal cast, etc.)
-static int fcall_returns_ptr(Expr *e) {
-    if (e->type != NODE_FCALL) return 0;
-    // Namespace method call — real C function, returns pointer
-    if (e->children[0]->type == NODE_FIELD_ACCESS) return 1;
-    // Struct default constructor — returns pointer
-    if (e->struct_name && e->nchildren <= 1) return 1;
-    // Struct constructor with args — compound literal, value
-    if (e->struct_name && e->nchildren > 1) return 0;
-    // Look up: user func/proc returns pointer, ext_func/ext_proc is inline (value)
-    const char *name = e->children[0]->data.str_val;
-    for (int i = 0; i < codegen_program->nchildren; i++) {
-        Expr *stmt = codegen_program->children[i];
-        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF &&
-            strcmp(stmt->data.decl.name, name) == 0) {
-            FuncType ft = stmt->children[0]->data.func_def.func_type;
-            return ft == FUNC_FUNC || ft == FUNC_PROC;
-        }
-    }
-    return 0; // unknown — assume value
-}
 
 // --- Forward declarations ---
 
@@ -359,7 +324,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, "til_bool_to_str(");
             emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
-        } else if (e->struct_name) {
+        } else if (e->struct_name && !e->returns_ptr) {
             // Struct instantiation — compound literal (used with malloc in stmt context)
             if (e->nchildren > 1) {
                 Expr *sd = find_struct_def(e->struct_name);
@@ -390,15 +355,12 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         break;
     }
     case NODE_FIELD_ACCESS: {
-        // Check if this is a namespace field access
         Expr *obj = e->children[0];
         const char *fname = e->data.str_val;
-        const char *sname = obj->struct_name;
-        if (sname && is_ns_field(sname, fname)) {
-            fprintf(f, "til_%s_%s", sname, fname);
+        if (e->is_ns_field) {
+            fprintf(f, "til_%s_%s", obj->struct_name, fname);
         } else {
             emit_expr(f, obj, depth);
-            // -> for pointer (IDENT/FCALL), . for inline nested (FIELD_ACCESS)
             fprintf(f, "%s%s", obj->type == NODE_FIELD_ACCESS ? "." : "->", fname);
         }
         break;
@@ -480,7 +442,7 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         } else {
             const char *ctype = c_type_name(e->til_type, e->children[0]->struct_name);
             Expr *rhs = e->children[0];
-            if (fcall_returns_ptr(rhs)) {
+            if (rhs->returns_ptr) {
                 fprintf(f, "%s *%s = ", ctype, e->data.decl.name);
                 emit_expr(f, rhs, depth);
                 fprintf(f, ";\n");
@@ -501,9 +463,8 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
     case NODE_FIELD_ASSIGN: {
         Expr *obj = e->children[0];
         const char *fname = e->data.str_val;
-        const char *sname = obj->struct_name;
-        if (sname && is_ns_field(sname, fname)) {
-            fprintf(f, "til_%s_%s = ", sname, fname);
+        if (e->is_ns_field) {
+            fprintf(f, "til_%s_%s = ", obj->struct_name, fname);
         } else {
             emit_expr(f, obj, depth);
             fprintf(f, "%s%s = ", obj->type == NODE_FIELD_ACCESS ? "." : "->", fname);

@@ -190,6 +190,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 e->til_type = TIL_TYPE_UNKNOWN;
                 break;
             }
+            fa->is_ns_field = true;
             // Infer arg types
             for (int i = 1; i < e->nchildren; i++) {
                 infer_expr(scope, e->children[i], path, in_func);
@@ -200,6 +201,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 rt = type_from_name(ns_func->data.func_def.return_type, scope);
             }
             e->til_type = rt;
+            e->returns_ptr = true;
             break;
         }
         // Resolve callee
@@ -392,6 +394,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             callee_bind->func_def->data.func_def.return_type) {
             e->struct_name = callee_bind->func_def->data.func_def.return_type;
         }
+        // User func/proc returns a pointer; ext_func/ext_proc and constructors don't
+        if (callee_bind && callee_bind->func_def) {
+            FuncType ft = callee_bind->func_def->data.func_def.func_type;
+            e->returns_ptr = (ft == FUNC_FUNC || ft == FUNC_PROC);
+        }
         // Check: func cannot call proc (panic is exempt)
         if (in_func && tscope_is_proc(scope, name) == 1 && strcmp(name, "panic") != 0) {
             char buf[128];
@@ -413,6 +420,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     Expr *field = body->children[i];
                     if (strcmp(field->data.decl.name, fname) == 0) {
                         e->til_type = field->til_type;
+                        e->is_ns_field = field->data.decl.is_namespace;
                         if (field->til_type == TIL_TYPE_STRUCT) {
                             e->struct_name = field->children[0]->struct_name;
                         } else {
@@ -909,6 +917,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                         Expr *field = body->children[i];
                         if (strcmp(field->data.decl.name, fname) == 0) {
                             found = 1;
+                            stmt->is_ns_field = field->data.decl.is_namespace;
                             if (!field->data.decl.is_mut) {
                                 char buf[128];
                                 snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname);

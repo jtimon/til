@@ -76,6 +76,8 @@ struct Expr {
     } data;
     const char *struct_name;        // for TIL_TYPE_STRUCT: which struct type
     bool is_own_arg;                // true if this arg was marked 'own' at call site
+    bool returns_ptr;               // NODE_FCALL: compiled to a C function returning a pointer
+    bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
     Expr **children;                // malloc'd array of child pointers
     int nchildren;
     int line;
