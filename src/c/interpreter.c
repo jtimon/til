@@ -721,9 +721,13 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
         case NODE_IF: {
             Value cond = eval_expr(scope, stmt->children[0], path);
             if (cond.boolean) {
-                eval_body(scope, stmt->children[1], path);
+                Scope *then_scope = scope_new(scope);
+                eval_body(then_scope, stmt->children[1], path);
+                scope_free(then_scope);
             } else if (stmt->nchildren > 2) {
-                eval_body(scope, stmt->children[2], path);
+                Scope *else_scope = scope_new(scope);
+                eval_body(else_scope, stmt->children[2], path);
+                scope_free(else_scope);
             }
             break;
         }
@@ -732,7 +736,9 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                 if (has_return) break;
                 Value cond = eval_expr(scope, stmt->children[0], path);
                 if (!cond.boolean) break;
-                eval_body(scope, stmt->children[1], path);
+                Scope *while_scope = scope_new(scope);
+                eval_body(while_scope, stmt->children[1], path);
+                scope_free(while_scope);
             }
             break;
         }

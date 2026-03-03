@@ -929,9 +929,15 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                          til_type_name(stmt->children[0]->til_type));
                 type_error(path, stmt, buf);
             }
-            infer_body(scope, stmt->children[1], path, in_func, 0); // then
+            {
+                TypeScope *then_scope = tscope_new(scope);
+                infer_body(then_scope, stmt->children[1], path, in_func, 1);
+                tscope_free(then_scope);
+            }
             if (stmt->nchildren > 2) {
-                infer_body(scope, stmt->children[2], path, in_func, 0); // else
+                TypeScope *else_scope = tscope_new(scope);
+                infer_body(else_scope, stmt->children[2], path, in_func, 1);
+                tscope_free(else_scope);
             }
             stmt->til_type = TIL_TYPE_NONE;
             break;
@@ -950,7 +956,11 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                          til_type_name(stmt->children[0]->til_type));
                 type_error(path, stmt, buf);
             }
-            infer_body(scope, stmt->children[1], path, in_func, 0); // body
+            {
+                TypeScope *while_scope = tscope_new(scope);
+                infer_body(while_scope, stmt->children[1], path, in_func, 1);
+                tscope_free(while_scope);
+            }
             stmt->til_type = TIL_TYPE_NONE;
             break;
         default:
