@@ -132,3 +132,22 @@ assert(loc(), a_u8.gt(b_u8))
 assert(loc(), a_u8.eq(a_u8))
 c_u8 : U8 = U8.from_i64(42)
 assert_eq_str(loc(), c_u8.to_str(), "42")
+
+// mut param tests
+inc := proc(mut x: I64) {
+    x = I64.add(x, 1)
+}
+mut_val := 42
+inc(mut_val)
+assert_eq(loc(), mut_val, 43)
+
+swap := proc(mut a: I64, mut b: I64) {
+    tmp := a
+    a = b
+    b = tmp
+}
+mut_a := 10
+mut_b := 20
+swap(mut_a, mut_b)
+assert_eq(loc(), mut_a, 20)
+assert_eq(loc(), mut_b, 10)

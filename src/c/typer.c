@@ -78,7 +78,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     snprintf(buf, sizeof(buf), "undefined type '%s'", ptn);
                     type_error(path, e, buf);
                 }
-                tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1, 0, e->line, e->col, 1);
+                int pmut = e->data.func_def.param_muts ? e->data.func_def.param_muts[i] : 0;
+                tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1, pmut, e->line, e->col, 1);
                 // For struct-typed params, store struct_name
                 if (pt == TIL_TYPE_STRUCT) {
                     TypeBinding *pb = tscope_find(func_scope, e->data.func_def.param_names[i]);

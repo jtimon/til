@@ -66,6 +66,7 @@ struct Expr {
             FuncType func_type;
             const char **param_names;
             const char **param_types; // type name strings: "I64", "Str", etc.
+            bool *param_muts;        // true for mut params
             int nparam;
             Expr **param_defaults;    // array[nparam], NULL entries for required params
             const char *return_type;  // NULL if none (proc)

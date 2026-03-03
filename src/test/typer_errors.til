@@ -101,3 +101,9 @@ s.nonexistent()
 
 // ufcs: method call on literal
 "hello".nonexistent()
+
+// cannot assign to non-mut parameter (mut keyword exists)
+assign_nonmut := proc(mut a: I64, b: I64) {
+    a = 1
+    b = 2
+}
