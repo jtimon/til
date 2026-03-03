@@ -419,10 +419,10 @@ static void emit_deref(FILE *f, Expr *e, int depth) {
     }
 }
 
-// Emit expression as a pointer — for passing to functions that expect pointer args
+// Emit expression as a pointer — literals are hoisted to temps by the typer,
+// but field accesses and other value expressions still need compound literal wrapping.
 static void emit_as_ptr(FILE *f, Expr *e, int depth) {
     if (e->type == NODE_IDENT || fcall_returns_ptr(e)) {
-        // Already a pointer
         emit_expr(f, e, depth);
     } else if (e->til_type == TIL_TYPE_I64) {
         fprintf(f, "&(long long){");
