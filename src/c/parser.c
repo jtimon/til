@@ -410,6 +410,11 @@ static Expr *parse_statement(Parser *p) {
         }
         return node;
     }
+    case TOK_STRING:
+    case TOK_NUMBER:
+    case TOK_TRUE:
+    case TOK_FALSE:
+        return parse_expression(p);
     case TOK_LBRACE: {
         advance(p); // consume '{'
         return parse_block(p);

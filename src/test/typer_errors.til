@@ -90,3 +90,14 @@ NsStruct.label = "oops"
 
 // struct instantiation should not accept namespace field as named arg
 bad_ns := NsStruct(count=5)
+
+// ufcs: no such method on type
+x := 42
+x.nonexistent()
+
+// ufcs: method call on type with no namespace
+s := "hello"
+s.nonexistent()
+
+// ufcs: method call on literal
+"hello".nonexistent()
