@@ -200,6 +200,21 @@ test_clone := proc() {
     assert(loc(), true.clone())
 }
 
+test_delete := proc() {
+    p := Point(x=3, y=7)
+    p.delete()
+
+    l := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    l.delete()
+
+    x := 42
+    x.delete()
+    s := "hello"
+    s.delete()
+    b := true
+    b.delete()
+}
+
 test_basic_struct()
 test_mixed_types()
 test_bool_fields()
@@ -211,3 +226,4 @@ test_nested_structs()
 test_namespace()
 test_ufcs()
 test_clone()
+test_delete()

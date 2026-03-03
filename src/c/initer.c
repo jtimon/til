@@ -258,6 +258,107 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         free(field_names);
     }
 
+    // Pass 1.7: auto-generate delete methods for all structs
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type != NODE_DECL) continue;
+        if (stmt->children[0]->type != NODE_STRUCT_DEF) continue;
+
+        const char *sname = stmt->data.decl.name;
+
+        // Skip meta-types (not actual data types)
+        if (strcmp(sname, "StructDef") == 0 ||
+            strcmp(sname, "FunctionDef") == 0 ||
+            strcmp(sname, "Dynamic") == 0) continue;
+
+        Expr *sdef = stmt->children[0];
+        Expr *body = sdef->children[0]; // NODE_BODY
+
+        // Check if delete already exists in namespace
+        int has_delete = 0;
+        for (int j = 0; j < body->nchildren; j++) {
+            Expr *field = body->children[j];
+            if (field->type == NODE_DECL && field->data.decl.is_namespace &&
+                strcmp(field->data.decl.name, "delete") == 0) {
+                has_delete = 1;
+                break;
+            }
+        }
+        if (has_delete) continue;
+
+        // Collect instance field names
+        int nfields = 0;
+        const char **field_names = NULL;
+        for (int j = 0; j < body->nchildren; j++) {
+            Expr *field = body->children[j];
+            if (field->type == NODE_DECL && !field->data.decl.is_namespace) {
+                nfields++;
+                field_names = realloc(field_names, nfields * sizeof(const char *));
+                field_names[nfields - 1] = field->data.decl.name;
+            }
+        }
+
+        int line = stmt->line;
+        int col = stmt->col;
+        Expr *proc_body = expr_new(NODE_BODY, line, col);
+
+        // For each field: self.field.delete()
+        for (int j = 0; j < nfields; j++) {
+            Expr *self_id = expr_new(NODE_IDENT, line, col);
+            self_id->data.str_val = "self";
+            Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+            field_acc->data.str_val = field_names[j];
+            expr_add_child(field_acc, self_id);
+
+            Expr *del_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+            del_acc->data.str_val = "delete";
+            expr_add_child(del_acc, field_acc);
+            Expr *del_call = expr_new(NODE_FCALL, line, col);
+            expr_add_child(del_call, del_acc);
+
+            expr_add_child(proc_body, del_call);
+        }
+
+        // free(own self)
+        Expr *free_call = expr_new(NODE_FCALL, line, col);
+        Expr *free_id = expr_new(NODE_IDENT, line, col);
+        free_id->data.str_val = "free";
+        expr_add_child(free_call, free_id);
+        Expr *self_arg = expr_new(NODE_IDENT, line, col);
+        self_arg->data.str_val = "self";
+        self_arg->is_own_arg = true;
+        expr_add_child(free_call, self_arg);
+        expr_add_child(proc_body, free_call);
+
+        // proc def
+        Expr *proc_def = expr_new(NODE_FUNC_DEF, line, col);
+        proc_def->data.func_def.func_type = FUNC_PROC;
+        proc_def->data.func_def.nparam = 1;
+        proc_def->data.func_def.param_names = malloc(sizeof(const char *));
+        proc_def->data.func_def.param_names[0] = "self";
+        proc_def->data.func_def.param_types = malloc(sizeof(const char *));
+        proc_def->data.func_def.param_types[0] = sname;
+        proc_def->data.func_def.param_muts = calloc(1, sizeof(bool));
+        proc_def->data.func_def.param_owns = malloc(sizeof(bool));
+        proc_def->data.func_def.param_owns[0] = true;
+        proc_def->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
+        proc_def->data.func_def.return_type = NULL;
+        proc_def->data.func_def.is_variadic = false;
+        expr_add_child(proc_def, proc_body);
+
+        // delete := proc(...)  (namespace decl)
+        Expr *decl = expr_new(NODE_DECL, line, col);
+        decl->data.decl.name = "delete";
+        decl->data.decl.is_namespace = true;
+        decl->data.decl.is_mut = false;
+        decl->data.decl.explicit_type = NULL;
+        expr_add_child(decl, proc_def);
+
+        // Add to struct body
+        expr_add_child(body, decl);
+        free(field_names);
+    }
+
     // Pass 2: register all func/proc definitions
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
