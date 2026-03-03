@@ -67,6 +67,7 @@ struct Expr {
             const char **param_names;
             const char **param_types; // type name strings: "I64", "Str", etc.
             bool *param_muts;        // true for mut params
+            bool *param_owns;        // true for own params
             int nparam;
             Expr **param_defaults;    // array[nparam], NULL entries for required params
             const char *return_type;  // NULL if none (proc)
@@ -74,6 +75,7 @@ struct Expr {
         } func_def;
     } data;
     const char *struct_name;        // for TIL_TYPE_STRUCT: which struct type
+    bool is_own_arg;                // true if this arg was marked 'own' at call site
     Expr **children;                // malloc'd array of child pointers
     int nchildren;
     int line;

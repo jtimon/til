@@ -107,3 +107,24 @@ assign_nonmut := proc(mut a: I64, b: I64) {
     a = 1
     b = 2
 }
+
+// own: missing 'own' at call site
+take := proc(own x: I64) {
+    println(x.to_str())
+}
+take(42)
+
+// own: 'own' at call site but param is not own
+regular := proc(x: I64) {
+    println(x.to_str())
+}
+ov := 1
+regular(own ov)
+
+// own: use after ownership transfer
+eat := proc(own v: I64) {
+    println(v.to_str())
+}
+doomed := 99
+eat(own doomed)
+println(doomed.to_str())

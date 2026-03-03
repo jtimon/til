@@ -151,3 +151,16 @@ mut_b := 20
 swap(mut_a, mut_b)
 assert_eq(loc(), mut_a, 20)
 assert_eq(loc(), mut_b, 10)
+
+// own param tests
+consume := proc(own x: I64) {
+    println(x.to_str())
+}
+owned_val := 42
+consume(own owned_val)
+
+// own param returned (ownership passes through)
+identity := func(own x: I64) returns I64 {
+    return x
+}
+assert_eq(loc(), identity(own 100), 100)

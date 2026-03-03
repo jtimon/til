@@ -79,7 +79,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     type_error(path, e, buf);
                 }
                 int pmut = e->data.func_def.param_muts ? e->data.func_def.param_muts[i] : 0;
-                tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1, pmut, e->line, e->col, 1);
+                int pown = e->data.func_def.param_owns ? e->data.func_def.param_owns[i] : 0;
+                tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1, pmut, e->line, e->col, 1, pown);
                 // For struct-typed params, store struct_name
                 if (pt == TIL_TYPE_STRUCT) {
                     TypeBinding *pb = tscope_find(func_scope, e->data.func_def.param_names[i]);
@@ -359,6 +360,25 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         for (int i = 1; i < e->nchildren; i++) {
             infer_expr(scope, e->children[i], path, in_func);
         }
+        // Validate 'own' markers on arguments
+        if (callee_bind && callee_bind->func_def) {
+            Expr *fdef = callee_bind->func_def;
+            bool *po = fdef->data.func_def.param_owns;
+            for (int i = 1; i < e->nchildren && i - 1 < fdef->data.func_def.nparam; i++) {
+                int pown = po ? po[i - 1] : 0;
+                if (pown && !e->children[i]->is_own_arg) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
+                             fdef->data.func_def.param_names[i - 1]);
+                    type_error(path, e->children[i], buf);
+                } else if (!pown && e->children[i]->is_own_arg) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
+                             fdef->data.func_def.param_names[i - 1]);
+                    type_error(path, e->children[i], buf);
+                }
+            }
+        }
         // Resolve return type from scope (covers builtins and user-defined)
         TilType fn_type = tscope_get(scope, name);
         if (fn_type == TIL_TYPE_UNKNOWN) {
@@ -456,23 +476,51 @@ static int expr_contains_decl(Expr *e, const char *name) {
     return 0;
 }
 
+static int fcall_has_own_arg(Expr *fcall, const char *var_name, TypeScope *scope) {
+    if (fcall->type != NODE_FCALL || fcall->nchildren < 2) return 0;
+    if (fcall->children[0]->type != NODE_IDENT) return 0;
+    const char *fn_name = fcall->children[0]->data.str_val;
+    TypeBinding *fb = tscope_find(scope, fn_name);
+    if (!fb || !fb->func_def) return 0;
+    bool *po = fb->func_def->data.func_def.param_owns;
+    if (!po) return 0;
+    int np = fb->func_def->data.func_def.nparam;
+    for (int i = 0; i < np && i + 1 < fcall->nchildren; i++) {
+        if (po[i] && fcall->children[i + 1]->type == NODE_IDENT &&
+            strcmp(fcall->children[i + 1]->data.str_val, var_name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int expr_transfers_own(Expr *e, const char *var_name, TypeScope *scope) {
+    if (fcall_has_own_arg(e, var_name, scope)) return 1;
+    for (int i = 0; i < e->nchildren; i++) {
+        if (expr_transfers_own(e->children[i], var_name, scope)) return 1;
+    }
+    return 0;
+}
+
 typedef struct {
     const char *name;
     TilType type;
     const char *struct_name;
     int decl_index;
     int last_use;
+    int own_transfer;  // index of stmt that transfers ownership, -1 if none
 } LocalInfo;
 
-static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, int scope_exit) {
+static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, const char *path) {
     if (!scope_exit) return;
 
     // Phase 1: collect locals with lifetime info
+    // Start from 0 (not locals_start) to include own params, which are added before the body
     int n_locals = 0;
     LocalInfo *locals = NULL;
-    for (int i = locals_start; i < scope->len; i++) {
+    for (int i = 0; i < scope->len; i++) {
         TypeBinding *b = &scope->bindings[i];
-        if (b->is_param || b->struct_def || b->func_def) continue;
+        if ((b->is_param && !b->is_own) || b->struct_def || b->func_def) continue;
 
         // Find decl_index: direct child first, then nested
         int decl_idx = -1;
@@ -492,22 +540,36 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
             }
         }
 
-        // Find last_use
+        // Find last_use and own_transfer
         int last_use = -1;
-        if (decl_idx >= 0) {
-            for (int j = decl_idx + 1; j < body->nchildren; j++) {
-                if (expr_uses_var(body->children[j], b->name)) {
-                    last_use = j;
-                }
+        int own_transfer = -1;
+        int scan_from = decl_idx >= 0 ? decl_idx + 1 : 0;
+        for (int j = scan_from; j < body->nchildren; j++) {
+            if (expr_uses_var(body->children[j], b->name)) {
+                last_use = j;
+            }
+            if (own_transfer == -1 && expr_transfers_own(body->children[j], b->name, scope)) {
+                own_transfer = j;
             }
         }
 
         n_locals++;
         locals = realloc(locals, n_locals * sizeof(LocalInfo));
-        locals[n_locals - 1] = (LocalInfo){b->name, b->type, b->struct_name, decl_idx, last_use};
+        locals[n_locals - 1] = (LocalInfo){b->name, b->type, b->struct_name, decl_idx, last_use, own_transfer};
     }
 
     if (n_locals == 0) return;
+
+    // Check for use after ownership transfer
+    for (int j = 0; j < n_locals; j++) {
+        if (locals[j].own_transfer >= 0 && locals[j].last_use > locals[j].own_transfer) {
+            // Find the statement for error location
+            Expr *stmt = body->children[locals[j].last_use];
+            char buf[128];
+            snprintf(buf, sizeof(buf), "use of '%s' after ownership transfer", locals[j].name);
+            type_error(path, stmt, buf);
+        }
+    }
 
     // Phase 2: rebuild body with ASAP frees
     Expr **new_ch = NULL;
@@ -524,7 +586,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
             }
             for (int j = 0; j < n_locals; j++) {
                 if (ret_name && strcmp(locals[j].name, ret_name) == 0) continue;
-                if (locals[j].decl_index >= 0 && locals[j].decl_index < i &&
+                if (locals[j].own_transfer >= 0) continue; // callee frees
+                if (locals[j].decl_index < i &&
                     (locals[j].last_use >= i || locals[j].last_use == -1)) {
                     new_n++;
                     new_ch = realloc(new_ch, new_n * sizeof(Expr *));
@@ -541,6 +604,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
         // After non-return statements: free locals whose last use is this statement
         if (stmt->type != NODE_RETURN) {
             for (int j = 0; j < n_locals; j++) {
+                if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == i) {
                     new_n++;
                     new_ch = realloc(new_ch, new_n * sizeof(Expr *));
@@ -563,7 +627,6 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
 }
 
 static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope) {
-    int locals_start = scope->len;
     body->til_type = TIL_TYPE_NONE;
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
@@ -594,7 +657,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 else if (strcmp(sname, "StructDef") == 0)    { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
                 else if (strcmp(sname, "FunctionDef") == 0)  { builtin_type = TIL_TYPE_FUNC_DEF;   is_builtin = 1; }
                 else if (strcmp(sname, "Dynamic") == 0)      { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
-                tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0);
+                tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
                 // Store struct def pointer and builtin flag in the binding
                 TypeBinding *b = tscope_find(scope, sname);
                 b->struct_def = stmt->children[0];
@@ -620,7 +683,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                     rt = type_from_name(stmt->children[0]->data.func_def.return_type, scope);
                 }
                 stmt->til_type = rt;
-                tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0);
+                tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
                 // Store func_def pointer and builtin flag
                 TypeBinding *fb = tscope_find(scope, stmt->data.decl.name);
                 if (fb) {
@@ -663,7 +726,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             } else {
                 stmt->til_type = stmt->children[0]->til_type;
             }
-            tscope_set(scope, stmt->data.decl.name, stmt->til_type, -1, stmt->data.decl.is_mut, stmt->line, stmt->col, 0);
+            tscope_set(scope, stmt->data.decl.name, stmt->til_type, -1, stmt->data.decl.is_mut, stmt->line, stmt->col, 0, 0);
             if (stmt->til_type == TIL_TYPE_STRUCT && stmt->children[0]->struct_name) {
                 TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
                 if (b) b->struct_name = stmt->children[0]->struct_name;
@@ -792,7 +855,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             break;
         }
     }
-    insert_free_calls(body, scope, locals_start, owns_scope);
+    insert_free_calls(body, scope, owns_scope, path);
 }
 
 int type_check(Expr *program, const char *path, TypeScope *scope) {

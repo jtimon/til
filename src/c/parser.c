@@ -84,10 +84,16 @@ static Expr *parse_func_def(Parser *p) {
     const char **param_names = malloc(param_cap * sizeof(char *));
     const char **param_types = malloc(param_cap * sizeof(char *));
     bool *param_muts = malloc(param_cap * sizeof(bool));
+    bool *param_owns = malloc(param_cap * sizeof(bool));
     Expr **param_defaults = malloc(param_cap * sizeof(Expr *));
     int nparam = 0;
     int has_variadic = 0;
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+        bool is_own = false;
+        if (check(p, TOK_OWN)) {
+            advance(p);
+            is_own = true;
+        }
         bool is_mut = false;
         if (check(p, TOK_MUT)) {
             advance(p);
@@ -105,11 +111,13 @@ static Expr *parse_func_def(Parser *p) {
             param_names = realloc(param_names, param_cap * sizeof(char *));
             param_types = realloc(param_types, param_cap * sizeof(char *));
             param_muts = realloc(param_muts, param_cap * sizeof(bool));
+            param_owns = realloc(param_owns, param_cap * sizeof(bool));
             param_defaults = realloc(param_defaults, param_cap * sizeof(Expr *));
         }
         param_names[nparam] = tok_str(pname);
         param_types[nparam] = tok_str(ptype);
         param_muts[nparam] = is_mut;
+        param_owns[nparam] = is_own;
         // Optional default value: name: Type = expr
         if (check(p, TOK_EQ)) {
             advance(p); // consume '='
@@ -135,6 +143,7 @@ static Expr *parse_func_def(Parser *p) {
     def->data.func_def.param_names = param_names;
     def->data.func_def.param_types = param_types;
     def->data.func_def.param_muts = param_muts;
+    def->data.func_def.param_owns = param_owns;
     def->data.func_def.param_defaults = param_defaults;
     def->data.func_def.nparam = nparam;
     def->data.func_def.return_type = return_type;
@@ -207,7 +216,14 @@ static Expr *parse_call(Parser *p, const char *name, int line, int col) {
             expr_add_child(na, parse_expression(p));
             expr_add_child(call, na);
         } else {
-            expr_add_child(call, parse_expression(p));
+            bool is_own_arg = false;
+            if (check(p, TOK_OWN)) {
+                advance(p);
+                is_own_arg = true;
+            }
+            Expr *arg = parse_expression(p);
+            arg->is_own_arg = is_own_arg;
+            expr_add_child(call, arg);
         }
         if (check(p, TOK_COMMA)) advance(p); // skip comma between args
     }
@@ -276,7 +292,14 @@ static Expr *parse_expression(Parser *p) {
                     expr_add_child(na, parse_expression(p));
                     expr_add_child(call, na);
                 } else {
-                    expr_add_child(call, parse_expression(p));
+                    bool is_own_arg = false;
+                    if (check(p, TOK_OWN)) {
+                        advance(p);
+                        is_own_arg = true;
+                    }
+                    Expr *arg = parse_expression(p);
+                    arg->is_own_arg = is_own_arg;
+                    expr_add_child(call, arg);
                 }
                 if (check(p, TOK_COMMA)) advance(p);
             }
@@ -358,7 +381,14 @@ static Expr *parse_statement_ident(Parser *p, int is_mut) {
                     expr_add_child(na, parse_expression(p));
                     expr_add_child(call, na);
                 } else {
-                    expr_add_child(call, parse_expression(p));
+                    bool is_own_arg = false;
+                    if (check(p, TOK_OWN)) {
+                        advance(p);
+                        is_own_arg = true;
+                    }
+                    Expr *arg = parse_expression(p);
+                    arg->is_own_arg = is_own_arg;
+                    expr_add_child(call, arg);
                 }
                 if (check(p, TOK_COMMA)) advance(p);
             }

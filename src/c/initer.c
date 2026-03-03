@@ -16,7 +16,7 @@ void tscope_free(TypeScope *s) {
     free(s);
 }
 
-void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc, int is_mut, int line, int col, int is_param) {
+void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc, int is_mut, int line, int col, int is_param, int is_own) {
     for (int i = 0; i < s->len; i++) {
         if (strcmp(s->bindings[i].name, name) == 0) {
             s->bindings[i].type = type;
@@ -25,6 +25,7 @@ void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc, int i
             s->bindings[i].line = line;
             s->bindings[i].col = col;
             s->bindings[i].is_param = is_param;
+            s->bindings[i].is_own = is_own;
             return;
         }
     }
@@ -32,7 +33,7 @@ void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc, int i
         s->cap = s->cap ? s->cap * 2 : 8;
         s->bindings = realloc(s->bindings, s->cap * sizeof(TypeBinding));
     }
-    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, NULL, NULL, 0, NULL};
+    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, is_own, NULL, NULL, 0, NULL};
 }
 
 TilType tscope_get(TypeScope *s, const char *name) {
@@ -128,7 +129,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         else if (strcmp(sname, "FunctionDef") == 0){ builtin_type = TIL_TYPE_FUNC_DEF;   is_builtin = 1; }
         else if (strcmp(sname, "Dynamic") == 0)   { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
 
-        tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0);
+        tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *b = tscope_find(scope, sname);
         b->struct_def = stmt->children[0];
         b->is_builtin = is_builtin;
@@ -146,7 +147,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         if (stmt->children[0]->data.func_def.return_type) {
             rt = type_from_name_init(stmt->children[0]->data.func_def.return_type, scope);
         }
-        tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0);
+        tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *fb = tscope_find(scope, stmt->data.decl.name);
         if (fb) {
             fb->func_def = stmt->children[0];
