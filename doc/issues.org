@@ -1,8 +1,20 @@
 # Issue tracker for til2.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 6
+# NEXT_ISSUE: 7
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #6 Scavenger phase: remove unused declarations from the AST
+  A post-typer pass that walks the AST and removes declarations not reachable
+  from the program's entry point. Saves work for both interpreter and ccodegen
+  — no need to process unused structs, functions, or core library methods.
+
+  In mode cli, main is the entry point: only what main calls (transitively) is
+  kept. In mode script, all top-level statements are entry points.
+
+  Currently the full core library is prepended to every program, so most
+  programs carry dozens of unused namespace methods, type definitions, and
+  builtins. The scavenger would trim this down to only what's actually used.
 
 * OPEN #5 Pointers and arrays: unlock C-level memory access
   :DEPENDENCIES: #0 #2 #3
