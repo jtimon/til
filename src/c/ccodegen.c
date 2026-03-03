@@ -132,7 +132,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             if (is_println && e->nchildren <= 1) {
                 fprintf(f, "printf(\"\\n\")");
             }
-        } else if (strcmp(name, "add") == 0) {
+        } else if (strcmp(name, "i64_add") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " + ");

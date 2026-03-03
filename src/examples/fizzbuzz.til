@@ -15,5 +15,5 @@ while lte(i, 100) {
             }
         }
     }
-    i = add(i, 1)
+    i = i.add(1)
 }

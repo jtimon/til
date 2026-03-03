@@ -35,7 +35,7 @@ assert_eq_str(loc(), "Hey, World!", greet("World", greeting="Hey"))
 
 // Function with all optional arguments
 make_point := func(x: I64 = 0, y: I64 = 0) returns I64 {
-    return add(x, y)
+    return x.add(y)
 }
 
 // All defaults
@@ -55,7 +55,7 @@ assert_eq(loc(), 15, make_point(y=10, x=5))
 
 // Function with mixed required and optional
 compute := func(a: I64, b: I64, c: I64 = 10) returns I64 {
-    return add(add(a, b), c)
+    return a.add(b).add(c)
 }
 
 // Required args only, use default for c

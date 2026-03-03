@@ -2,7 +2,7 @@ mode script
 
 a := 34
 b := 35
-println(i64_to_str(add(a, b)))
+println(a.add(b).to_str())
 
 s := "Hello"
 println(s)
@@ -71,7 +71,7 @@ println(i64_to_str(neg(42)))
 
 mut counter := 0
 counter = 1
-counter = add(counter, 1)
+counter = counter.add(1)
 println(i64_to_str(counter))
 
 mut msg : Str = "hello"
@@ -81,7 +81,7 @@ println(msg)
 mut i := 0
 while lt(i, 5) {
     print(i64_to_str(i), " ")
-    i = add(i, 1)
+    i = i.add(1)
 }
 println("")
 
@@ -113,5 +113,5 @@ assert(loc(), eq(1, 1))
 println(concat("hello", " world"))
 println(format("a", "b", "c"))
 test(loc(), eq(2, 2), "2 should equal 2")
-assert_eq(loc(), add(1, 1), 2)
+assert_eq(loc(), 1.add(1), 2)
 assert_eq_str(loc(), concat("a", "b"), "ab")

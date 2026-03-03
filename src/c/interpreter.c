@@ -199,8 +199,8 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return val_none();
     }
 
-    // Built-in: add(a, b)
-    if (strcmp(name, "add") == 0) {
+    // Built-in: i64_add(a, b)
+    if (strcmp(name, "i64_add") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
         return (Value){.type = VAL_I64, .i64 = a.i64 + b.i64};
