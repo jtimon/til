@@ -1,8 +1,27 @@
 # Issue tracker for til2.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 3
+# NEXT_ISSUE: 4
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #3 own keyword for struct fields: heap-allocated owned pointers
+  Struct fields currently are always inline (contiguous in parent allocation).
+  An own field stores a heap pointer instead. Unlike ref (#2), own implies
+  ownership: clone recursively clones it, delete recursively deletes it.
+
+  Three modes for struct fields:
+  - inline (default): value stored in the struct. Clone deep-copies, delete recurses.
+  - own: heap pointer. Clone recursively clones, delete recursively deletes. Owned.
+  - ref (#2): heap pointer. Clone copies the pointer, delete skips. Borrowed.
+
+  own and ref replace C's * syntax with explicit ownership semantics.
+
+    Node := struct {
+        value := 0
+        own left: Node     # owned heap pointer, recursively managed
+        own right: Node    # owned heap pointer, recursively managed
+        ref parent: Node   # borrowed pointer, not managed
+    }
 
 * OPEN #2 ref keyword: non-owning references for returns, declarations, and struct fields
   Currently all returns are owned by the caller (heap-allocated, caller must
