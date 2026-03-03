@@ -201,7 +201,6 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 rt = type_from_name(ns_func->data.func_def.return_type, scope);
             }
             e->til_type = rt;
-            e->returns_ptr = true;
             break;
         }
         // Resolve callee
@@ -393,11 +392,6 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         if (fn_type == TIL_TYPE_STRUCT && callee_bind && callee_bind->func_def &&
             callee_bind->func_def->data.func_def.return_type) {
             e->struct_name = callee_bind->func_def->data.func_def.return_type;
-        }
-        // User func/proc returns a pointer; ext_func/ext_proc and constructors don't
-        if (callee_bind && callee_bind->func_def) {
-            FuncType ft = callee_bind->func_def->data.func_def.func_type;
-            e->returns_ptr = (ft == FUNC_FUNC || ft == FUNC_PROC);
         }
         // Check: func cannot call proc (panic is exempt)
         if (in_func && tscope_is_proc(scope, name) == 1 && strcmp(name, "panic") != 0) {

@@ -5,17 +5,6 @@
 
 static Expr *codegen_program; // set during codegen for struct lookups
 
-// Find a struct definition by name in the program
-static Expr *find_struct_def(const char *name) {
-    for (int i = 0; i < codegen_program->nchildren; i++) {
-        Expr *stmt = codegen_program->children[i];
-        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF &&
-            strcmp(stmt->data.decl.name, name) == 0) {
-            return stmt->children[0];
-        }
-    }
-    return NULL;
-}
 
 // --- Emitter helpers ---
 
@@ -135,168 +124,6 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             if (is_println && e->nchildren <= 1) {
                 fprintf(f, "printf(\"\\n\")");
             }
-        } else if (strcmp(name, "i64_add") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " + ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_sub") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " - ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_mul") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " * ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_div") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " / ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_mod") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " %% ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_eq") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " == ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_lt") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " < ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_gt") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " > ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_and") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " & ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_or") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " | ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_xor") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " ^ ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_add") == 0) {
-            fprintf(f, "(unsigned char)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " + ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_sub") == 0) {
-            fprintf(f, "(unsigned char)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " - ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_mul") == 0) {
-            fprintf(f, "(unsigned char)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " * ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_div") == 0) {
-            fprintf(f, "(unsigned char)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " / ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_mod") == 0) {
-            fprintf(f, "(unsigned char)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " %% ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_eq") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " == ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_lt") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " < ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_gt") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " > ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_and") == 0) {
-            fprintf(f, "(unsigned char)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " & ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_or") == 0) {
-            fprintf(f, "(unsigned char)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " | ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_xor") == 0) {
-            fprintf(f, "(unsigned char)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " ^ ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_to_str") == 0) {
-            fprintf(f, "til_u8_to_str(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_to_i64") == 0) {
-            fprintf(f, "(long long)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "u8_from_i64") == 0) {
-            fprintf(f, "(unsigned char)(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "bool_and") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " && ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "bool_or") == 0) {
-            fprintf(f, "(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, " || ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "str_eq") == 0) {
-            fprintf(f, "(strcmp(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, ", ");
-            emit_deref(f, e->children[2], depth);
-            fprintf(f, ") == 0)");
         } else if (strcmp(name, "free") == 0) {
             fprintf(f, "free(");
             emit_expr(f, e->children[1], depth);
@@ -312,37 +139,14 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, "exit(");
             emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "bool_not") == 0) {
-            fprintf(f, "(!");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "i64_to_str") == 0) {
-            fprintf(f, "til_i64_to_str(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, ")");
-        } else if (strcmp(name, "bool_to_str") == 0) {
-            fprintf(f, "til_bool_to_str(");
-            emit_deref(f, e->children[1], depth);
-            fprintf(f, ")");
-        } else if (e->struct_name && !e->returns_ptr) {
-            // Struct instantiation — compound literal (used with malloc in stmt context)
-            if (e->nchildren > 1) {
-                Expr *sd = find_struct_def(e->struct_name);
-                Expr *sbody = sd->children[0];
-                fprintf(f, "(til_%s){", e->struct_name);
-                int first2 = 1;
-                int arg_idx = 1;
-                for (int i = 0; i < sbody->nchildren; i++) {
-                    if (sbody->children[i]->data.decl.is_namespace) continue;
-                    if (!first2) fprintf(f, ", ");
-                    first2 = 0;
-                    fprintf(f, ".%s = ", sbody->children[i]->data.decl.name);
-                    emit_deref(f, e->children[arg_idx++], depth);
-                }
-                fprintf(f, "}");
-            } else {
-                fprintf(f, "(til_%s){}", e->struct_name);
+        } else if (e->struct_name && strcmp(name, e->struct_name) == 0) {
+            // Struct constructor — call generated _new function
+            fprintf(f, "til_%s_new(", e->struct_name);
+            for (int i = 1; i < e->nchildren; i++) {
+                if (i > 1) fprintf(f, ", ");
+                emit_as_ptr(f, e->children[i], depth);
             }
+            fprintf(f, ")");
         } else {
             // User-defined function call
             fprintf(f, "til_%s(", name);
@@ -441,18 +245,9 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             fprintf(f, "/* struct %s defined above */\n", e->data.decl.name);
         } else {
             const char *ctype = c_type_name(e->til_type, e->children[0]->struct_name);
-            Expr *rhs = e->children[0];
-            if (rhs->returns_ptr) {
-                fprintf(f, "%s *%s = ", ctype, e->data.decl.name);
-                emit_expr(f, rhs, depth);
-                fprintf(f, ";\n");
-            } else {
-                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name, ctype);
-                emit_indent(f, depth);
-                fprintf(f, "*%s = ", e->data.decl.name);
-                emit_deref(f, rhs, depth);
-                fprintf(f, ";\n");
-            }
+            fprintf(f, "%s *%s = ", ctype, e->data.decl.name);
+            emit_expr(f, e->children[0], depth);
+            fprintf(f, ";\n");
         }
         break;
     case NODE_ASSIGN:
@@ -480,15 +275,10 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
     case NODE_RETURN:
         if (e->nchildren == 0) {
             fprintf(f, "return;\n");
-        } else if (e->children[0]->type == NODE_IDENT) {
+        } else {
             fprintf(f, "return ");
             emit_expr(f, e->children[0], depth);
             fprintf(f, ";\n");
-        } else {
-            const char *ctype = c_type_name(e->children[0]->til_type, e->children[0]->struct_name);
-            fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
-            emit_expr(f, e->children[0], depth);
-            fprintf(f, "; return _r; }\n");
         }
         break;
     case NODE_BODY:
@@ -628,7 +418,28 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
         emit_func_def(f, full_name, fdef, NULL);
         fprintf(f, "\n");
     }
-    fprintf(f, "\n");
+    // Emit constructor _new function (skip for namespace-only structs)
+    int has_instance_fields = 0;
+    for (int i = 0; i < body->nchildren; i++)
+        if (!body->children[i]->data.decl.is_namespace) { has_instance_fields = 1; break; }
+    if (!has_instance_fields) return;
+    fprintf(f, "static til_%s *til_%s_new(", name, name);
+    int first = 1;
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *field = body->children[i];
+        if (field->data.decl.is_namespace) continue;
+        if (!first) fprintf(f, ", ");
+        first = 0;
+        fprintf(f, "%s *%s", c_type_name(field->til_type, field->children[0]->struct_name), field->data.decl.name);
+    }
+    fprintf(f, ") {\n");
+    fprintf(f, "    til_%s *_r = malloc(sizeof(til_%s));\n", name, name);
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *field = body->children[i];
+        if (field->data.decl.is_namespace) continue;
+        fprintf(f, "    _r->%s = *%s;\n", field->data.decl.name, field->data.decl.name);
+    }
+    fprintf(f, "    return _r;\n}\n\n");
 }
 
 int codegen_c(Expr *program, const char *mode, const char *path, const char *c_output_path) {
@@ -641,7 +452,7 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     }
 
     fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n\n");
-    fprintf(f, "static const char *til_format(int n, ...) {\n");
+    fprintf(f, "static const char **til_format(int n, ...) {\n");
     fprintf(f, "    va_list ap; va_start(ap, n);\n");
     fprintf(f, "    int total = 0;\n");
     fprintf(f, "    const char *strs[64];\n");
@@ -649,17 +460,48 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     fprintf(f, "    va_end(ap);\n");
     fprintf(f, "    char *r = malloc(total + 1); int off = 0;\n");
     fprintf(f, "    for (int i = 0; i < n; i++) { int l = strlen(strs[i]); memcpy(r + off, strs[i], l); off += l; }\n");
-    fprintf(f, "    r[off] = '\\0'; return r;\n");
+    fprintf(f, "    r[off] = '\\0';\n");
+    fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = r; return _r;\n");
     fprintf(f, "}\n\n");
-    fprintf(f, "static const char *til_i64_to_str(long long v) {\n");
-    fprintf(f, "    char *buf = malloc(32); snprintf(buf, 32, \"%%lld\", v); return buf;\n");
+    fprintf(f, "static const char **til_i64_to_str(long long *v) {\n");
+    fprintf(f, "    char *buf = malloc(32); snprintf(buf, 32, \"%%lld\", *v);\n");
+    fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = buf; return _r;\n");
     fprintf(f, "}\n\n");
-    fprintf(f, "static const char *til_bool_to_str(int v) {\n");
-    fprintf(f, "    return v ? \"true\" : \"false\";\n");
+    fprintf(f, "static const char **til_bool_to_str(int *v) {\n");
+    fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = *v ? \"true\" : \"false\"; return _r;\n");
     fprintf(f, "}\n\n");
-    fprintf(f, "static const char *til_u8_to_str(unsigned char v) {\n");
-    fprintf(f, "    char *buf = malloc(4); snprintf(buf, 4, \"%%u\", (unsigned)v); return buf;\n");
+    fprintf(f, "static const char **til_u8_to_str(unsigned char *v) {\n");
+    fprintf(f, "    char *buf = malloc(4); snprintf(buf, 4, \"%%u\", (unsigned)*v);\n");
+    fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = buf; return _r;\n");
     fprintf(f, "}\n\n");
+
+    // --- Ext_func wrapper functions (all take pointer args, return pointer) ---
+    // I64 arithmetic and bitwise ops
+    const char *i64_arith[][2] = {{"add","+"}, {"sub","-"}, {"mul","*"}, {"div","/"}, {"mod","%"}, {"and","&"}, {"or","|"}, {"xor","^"}};
+    for (int i = 0; i < 8; i++)
+        fprintf(f, "static long long *til_i64_%s(long long *a, long long *b) { long long *_r = malloc(sizeof(long long)); *_r = (*a) %s (*b); return _r; }\n", i64_arith[i][0], i64_arith[i][1]);
+    // I64 comparisons (return Bool/int *)
+    const char *i64_cmp[][2] = {{"eq","=="}, {"lt","<"}, {"gt",">"}};
+    for (int i = 0; i < 3; i++)
+        fprintf(f, "static int *til_i64_%s(long long *a, long long *b) { int *_r = malloc(sizeof(int)); *_r = (*a) %s (*b); return _r; }\n", i64_cmp[i][0], i64_cmp[i][1]);
+    // U8 arithmetic and bitwise ops
+    const char *u8_arith[][2] = {{"add","+"}, {"sub","-"}, {"mul","*"}, {"div","/"}, {"mod","%"}, {"and","&"}, {"or","|"}, {"xor","^"}};
+    for (int i = 0; i < 8; i++)
+        fprintf(f, "static unsigned char *til_u8_%s(unsigned char *a, unsigned char *b) { unsigned char *_r = malloc(1); *_r = (unsigned char)((*a) %s (*b)); return _r; }\n", u8_arith[i][0], u8_arith[i][1]);
+    // U8 comparisons
+    const char *u8_cmp[][2] = {{"eq","=="}, {"lt","<"}, {"gt",">"}};
+    for (int i = 0; i < 3; i++)
+        fprintf(f, "static int *til_u8_%s(unsigned char *a, unsigned char *b) { int *_r = malloc(sizeof(int)); *_r = (*a) %s (*b); return _r; }\n", u8_cmp[i][0], u8_cmp[i][1]);
+    // U8 conversions
+    fprintf(f, "static long long *til_u8_to_i64(unsigned char *a) { long long *_r = malloc(sizeof(long long)); *_r = (long long)(*a); return _r; }\n");
+    fprintf(f, "static unsigned char *til_u8_from_i64(long long *a) { unsigned char *_r = malloc(1); *_r = (unsigned char)(*a); return _r; }\n");
+    // Bool ops
+    fprintf(f, "static int *til_bool_and(int *a, int *b) { int *_r = malloc(sizeof(int)); *_r = (*a) && (*b); return _r; }\n");
+    fprintf(f, "static int *til_bool_or(int *a, int *b) { int *_r = malloc(sizeof(int)); *_r = (*a) || (*b); return _r; }\n");
+    fprintf(f, "static int *til_bool_not(int *a) { int *_r = malloc(sizeof(int)); *_r = !(*a); return _r; }\n");
+    // String comparison
+    fprintf(f, "static int *til_str_eq(const char **a, const char **b) { int *_r = malloc(sizeof(int)); *_r = (strcmp(*a, *b) == 0); return _r; }\n");
+    fprintf(f, "\n");
 
     int is_script = mode && strcmp(mode, "script") == 0;
 
