@@ -446,6 +446,35 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
 
 static int hoist_counter = 0;
 
+// Create a temp decl for an expression, register in scope, return the replacement ident.
+// Adds the decl to the hoisted list.
+static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, int *nhoisted, int *cap, TypeScope *scope) {
+    char name_buf[32];
+    snprintf(name_buf, sizeof(name_buf), "_t%d", hoist_counter++);
+    const char *tname = strdup(name_buf);
+    Expr *decl = expr_new(NODE_DECL, val->line, val->col);
+    decl->data.decl.name = tname;
+    decl->data.decl.explicit_type = NULL;
+    decl->data.decl.is_mut = false;
+    decl->data.decl.is_namespace = false;
+    decl->til_type = val->til_type;
+    expr_add_child(decl, val);
+    Expr *ident = expr_new(NODE_IDENT, val->line, val->col);
+    ident->data.str_val = tname;
+    ident->til_type = val->til_type;
+    ident->struct_name = val->struct_name;
+    ident->is_own_arg = val->is_own_arg;
+    tscope_set(scope, tname, val->til_type, -1, 0, val->line, val->col, 0, 0);
+    TypeBinding *tb = tscope_find(scope, tname);
+    if (tb) tb->struct_name = val->struct_name;
+    if (*nhoisted >= *cap) {
+        *cap = *cap ? *cap * 2 : 8;
+        *hoisted = realloc(*hoisted, *cap * sizeof(Expr *));
+    }
+    (*hoisted)[(*nhoisted)++] = decl;
+    return ident;
+}
+
 // Walk expression tree depth-first. For each NODE_FCALL, hoist any arg that is itself a NODE_FCALL.
 // Does NOT recurse into scope boundaries (func/struct defs, bodies).
 static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeScope *scope) {
@@ -458,37 +487,8 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
     if (e->type != NODE_FCALL) return;
     // Check each argument (children[1..n])
     for (int i = 1; i < e->nchildren; i++) {
-        Expr *arg = e->children[i];
-        if (arg->type != NODE_FCALL) continue;
-        // Generate temp name
-        char name_buf[32];
-        snprintf(name_buf, sizeof(name_buf), "_t%d", hoist_counter++);
-        const char *tname = strdup(name_buf);
-        // Create NODE_DECL: _t0 := <arg>
-        Expr *decl = expr_new(NODE_DECL, arg->line, arg->col);
-        decl->data.decl.name = tname;
-        decl->data.decl.explicit_type = NULL;
-        decl->data.decl.is_mut = false;
-        decl->data.decl.is_namespace = false;
-        decl->til_type = arg->til_type;
-        expr_add_child(decl, arg);
-        // Create NODE_IDENT to replace the arg
-        Expr *ident = expr_new(NODE_IDENT, arg->line, arg->col);
-        ident->data.str_val = tname;
-        ident->til_type = arg->til_type;
-        ident->struct_name = arg->struct_name;
-        ident->is_own_arg = arg->is_own_arg;
-        e->children[i] = ident;
-        // Register temp in scope
-        tscope_set(scope, tname, arg->til_type, -1, 0, arg->line, arg->col, 0, 0);
-        TypeBinding *tb = tscope_find(scope, tname);
-        if (tb) tb->struct_name = arg->struct_name;
-        // Collect hoisted decl
-        if (*nhoisted >= *cap) {
-            *cap = *cap ? *cap * 2 : 8;
-            *hoisted = realloc(*hoisted, *cap * sizeof(Expr *));
-        }
-        (*hoisted)[(*nhoisted)++] = decl;
+        if (e->children[i]->type != NODE_FCALL) continue;
+        e->children[i] = hoist_to_temp(e->children[i], hoisted, nhoisted, cap, scope);
     }
 }
 
@@ -520,6 +520,9 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             break;
         case NODE_IF:
             hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            if (stmt->children[0]->type == NODE_FCALL) {
+                stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            }
             break;
         // NODE_WHILE: skip condition — hoisting changes loop semantics
         default: break;
