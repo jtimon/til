@@ -2,7 +2,7 @@
 set -e
 
 CTIL=bin/ctil
-TESTS="src/test/misc.til src/test/structs.til src/test/optional_args.til src/test/forward_refs.til src/test/arithmetics.til src/test/flow.til"
+TESTS="src/test/types.til src/test/operators.til src/test/functions.til src/test/structs.til src/test/optional_args.til src/test/forward_refs.til src/test/flow.til"
 FAIL=0
 
 for t in $TESTS; do

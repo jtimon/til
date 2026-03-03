@@ -1,144 +1,125 @@
 mode script
 
-// basic struct definition and instantiation
 Point := struct {
     mut x := 0
     mut y := 0
 }
 
-p := Point()
-assert_eq(loc(), p.x, 0)
-assert_eq(loc(), p.y, 0)
-
-// field assignment
-p.x = 5
-p.y = 10
-assert_eq(loc(), p.x, 5)
-assert_eq(loc(), p.y, 10)
-
-// struct with mixed types
 Person := struct {
     mut name := "unknown"
     mut age := 0
 }
 
-bob := Person()
-assert_eq_str(loc(), bob.name, "unknown")
-assert_eq(loc(), bob.age, 0)
-
-bob.name = "Bob"
-bob.age = 30
-assert_eq_str(loc(), bob.name, "Bob")
-assert_eq(loc(), bob.age, 30)
-
-// struct with bool fields
 Flags := struct {
     mut active := false
     mut visible := true
 }
 
-f := Flags()
-assert(loc(), f.active.not())
-assert(loc(), f.visible)
-f.active = true
-assert(loc(), f.active)
-
-// struct instantiation with named args
-p2 := Point(x=5)
-assert_eq(loc(), p2.x, 5)
-assert_eq(loc(), p2.y, 0)
-
-p3 := Point(y=10)
-assert_eq(loc(), p3.x, 0)
-assert_eq(loc(), p3.y, 10)
-
-p4 := Point(x=3, y=7)
-assert_eq(loc(), p4.x, 3)
-assert_eq(loc(), p4.y, 7)
-
-alice := Person(name="Alice", age=25)
-assert_eq_str(loc(), alice.name, "Alice")
-assert_eq(loc(), alice.age, 25)
-
-// explicit struct type annotation
-p5 : Point = Point()
-assert_eq(loc(), p5.x, 0)
-assert_eq(loc(), p5.y, 0)
-
-p6 : Point = Point(x=42, y=99)
-assert_eq(loc(), p6.x, 42)
-assert_eq(loc(), p6.y, 99)
-
-// immutable fields: set at construction, cannot reassign
 Entity := struct {
     id := 0
     mut name := "unnamed"
 }
 
-e1 := Entity(id=1, name="hero")
-assert_eq(loc(), e1.id, 1)
-assert_eq_str(loc(), e1.name, "hero")
+test_basic_struct := proc() {
+    p := Point()
+    assert_eq(loc(), p.x, 0)
+    assert_eq(loc(), p.y, 0)
+    p.x = 5
+    p.y = 10
+    assert_eq(loc(), p.x, 5)
+    assert_eq(loc(), p.y, 10)
+}
 
-// can reassign mut field
-e1.name = "villain"
-assert_eq_str(loc(), e1.name, "villain")
+test_mixed_types := proc() {
+    bob := Person()
+    assert_eq_str(loc(), bob.name, "unknown")
+    assert_eq(loc(), bob.age, 0)
+    bob.name = "Bob"
+    bob.age = 30
+    assert_eq_str(loc(), bob.name, "Bob")
+    assert_eq(loc(), bob.age, 30)
+}
 
-// id stays as initialized
-assert_eq(loc(), e1.id, 1)
+test_bool_fields := proc() {
+    f := Flags()
+    assert(loc(), f.active.not())
+    assert(loc(), f.visible)
+    f.active = true
+    assert(loc(), f.active)
+}
 
-// default immutable field
-e2 := Entity()
-assert_eq(loc(), e2.id, 0)
-assert_eq_str(loc(), e2.name, "unnamed")
+test_named_args := proc() {
+    p2 := Point(x=5)
+    assert_eq(loc(), p2.x, 5)
+    assert_eq(loc(), p2.y, 0)
+    p3 := Point(y=10)
+    assert_eq(loc(), p3.x, 0)
+    assert_eq(loc(), p3.y, 10)
+    p4 := Point(x=3, y=7)
+    assert_eq(loc(), p4.x, 3)
+    assert_eq(loc(), p4.y, 7)
+    alice := Person(name="Alice", age=25)
+    assert_eq_str(loc(), alice.name, "Alice")
+    assert_eq(loc(), alice.age, 25)
+}
 
-// override immutable field at construction
-e3 := Entity(id=99)
-assert_eq(loc(), e3.id, 99)
+test_explicit_annotation := proc() {
+    p5 : Point = Point()
+    assert_eq(loc(), p5.x, 0)
+    p6 : Point = Point(x=42, y=99)
+    assert_eq(loc(), p6.x, 42)
+    assert_eq(loc(), p6.y, 99)
+}
 
-// multiple instances are independent
-a := Point()
-b := Point()
-a.x = 1
-assert_eq(loc(), a.x, 1)
-assert_eq(loc(), b.x, 0)
+test_immutable_fields := proc() {
+    e1 := Entity(id=1, name="hero")
+    assert_eq(loc(), e1.id, 1)
+    assert_eq_str(loc(), e1.name, "hero")
+    e1.name = "villain"
+    assert_eq_str(loc(), e1.name, "villain")
+    assert_eq(loc(), e1.id, 1)
+    e2 := Entity()
+    assert_eq(loc(), e2.id, 0)
+    assert_eq_str(loc(), e2.name, "unnamed")
+    e3 := Entity(id=99)
+    assert_eq(loc(), e3.id, 99)
+}
 
-// nested structs: struct fields that are struct instances
+test_independence := proc() {
+    a := Point()
+    b := Point()
+    a.x = 1
+    assert_eq(loc(), a.x, 1)
+    assert_eq(loc(), b.x, 0)
+}
+
 Line := struct {
     mut start := Point()
     mut end := Point()
 }
 
-l1 := Line()
-assert_eq(loc(), l1.start.x, 0)
-assert_eq(loc(), l1.start.y, 0)
-assert_eq(loc(), l1.end.x, 0)
-assert_eq(loc(), l1.end.y, 0)
+test_nested_structs := proc() {
+    l1 := Line()
+    assert_eq(loc(), l1.start.x, 0)
+    assert_eq(loc(), l1.start.y, 0)
+    assert_eq(loc(), l1.end.x, 0)
+    assert_eq(loc(), l1.end.y, 0)
+    l2 := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    assert_eq(loc(), l2.start.x, 1)
+    assert_eq(loc(), l2.start.y, 2)
+    assert_eq(loc(), l2.end.x, 3)
+    assert_eq(loc(), l2.end.y, 4)
+    l3 := Line(end=Point(x=10))
+    assert_eq(loc(), l3.start.x, 0)
+    assert_eq(loc(), l3.end.x, 10)
+    l1.start.x = 42
+    assert_eq(loc(), l1.start.x, 42)
+    l1.end.y = 99
+    assert_eq(loc(), l1.end.y, 99)
+    l4 := Line()
+    assert_eq(loc(), l4.start.x, 0)
+}
 
-// nested struct with named args
-l2 := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
-assert_eq(loc(), l2.start.x, 1)
-assert_eq(loc(), l2.start.y, 2)
-assert_eq(loc(), l2.end.x, 3)
-assert_eq(loc(), l2.end.y, 4)
-
-// partial override of nested struct
-l3 := Line(end=Point(x=10))
-assert_eq(loc(), l3.start.x, 0)
-assert_eq(loc(), l3.start.y, 0)
-assert_eq(loc(), l3.end.x, 10)
-assert_eq(loc(), l3.end.y, 0)
-
-// chained field assignment
-l1.start.x = 42
-assert_eq(loc(), l1.start.x, 42)
-l1.end.y = 99
-assert_eq(loc(), l1.end.y, 99)
-
-// nested struct instances are independent
-l4 := Line()
-assert_eq(loc(), l4.start.x, 0)
-
-// namespace fields
 Counter := struct {
     mut value := 0
     namespace:
@@ -146,57 +127,33 @@ Counter := struct {
     default_name := "Counter"
 }
 
-// access namespace fields via struct name
-assert_eq(loc(), Counter.instance_count, 0)
-assert_eq_str(loc(), Counter.default_name, "Counter")
+test_namespace := proc() {
+    assert_eq(loc(), Counter.instance_count, 0)
+    assert_eq_str(loc(), Counter.default_name, "Counter")
+    Counter.instance_count = 42
+    assert_eq(loc(), Counter.instance_count, 42)
+    c1 := Counter()
+    assert_eq(loc(), c1.instance_count, 42)
+    assert_eq_str(loc(), c1.default_name, "Counter")
+    Counter.instance_count = 100
+    c2 := Counter()
+    assert_eq(loc(), c2.instance_count, 100)
+    assert_eq(loc(), c1.instance_count, 100)
+    c1.value = 5
+    c2.value = 10
+    assert_eq(loc(), c1.value, 5)
+    assert_eq(loc(), c2.value, 10)
+    assert_eq_str(loc(), I64.to_str(42), "42")
+    assert_eq_str(loc(), Bool.to_str(true), "true")
+}
 
-// mutate namespace field via struct name
-Counter.instance_count = 42
-assert_eq(loc(), Counter.instance_count, 42)
-
-// access namespace fields via instance
-c1 := Counter()
-assert_eq(loc(), c1.instance_count, 42)
-assert_eq_str(loc(), c1.default_name, "Counter")
-
-// namespace field is shared (not per-instance)
-Counter.instance_count = 100
-c2 := Counter()
-assert_eq(loc(), c2.instance_count, 100)
-assert_eq(loc(), c1.instance_count, 100)
-
-// instance fields still work independently
-c1.value = 5
-c2.value = 10
-assert_eq(loc(), c1.value, 5)
-assert_eq(loc(), c2.value, 10)
-
-// namespace functions on builtin types
-assert_eq_str(loc(), I64.to_str(42), "42")
-assert_eq_str(loc(), I64.to_str(0), "0")
-assert_eq_str(loc(), Bool.to_str(true), "true")
-assert_eq_str(loc(), Bool.to_str(false), "false")
-
-// namespace function on user-defined struct
 Greeter := struct {
     namespace:
     greet := func(name: Str) returns Str {
         return format("hello, ", name)
     }
 }
-assert_eq_str(loc(), Greeter.greet("world"), "hello, world")
 
-// ufcs: instance.method() desugars to Type.method(instance)
-x := 42
-assert_eq_str(loc(), x.to_str(), "42")
-assert_eq_str(loc(), 0.to_str(), "0")
-
-y := true
-assert_eq_str(loc(), y.to_str(), "true")
-z := false
-assert_eq_str(loc(), z.to_str(), "false")
-
-// ufcs on user-defined struct
 Describable := struct {
     mut val := 0
     namespace:
@@ -204,10 +161,27 @@ Describable := struct {
         return format("val=", d.val.to_str())
     }
 }
-d := Describable(val=42)
-assert_eq_str(loc(), d.describe(), "val=42")
 
-// direct namespace call still works
-assert_eq_str(loc(), Describable.describe(d), "val=42")
+test_ufcs := proc() {
+    x := 42
+    assert_eq_str(loc(), x.to_str(), "42")
+    assert_eq_str(loc(), 0.to_str(), "0")
+    y := true
+    assert_eq_str(loc(), y.to_str(), "true")
+    assert_eq_str(loc(), false.to_str(), "false")
+    assert_eq_str(loc(), Greeter.greet("world"), "hello, world")
+    d := Describable(val=42)
+    assert_eq_str(loc(), d.describe(), "val=42")
+    assert_eq_str(loc(), Describable.describe(d), "val=42")
+}
 
-println("all struct tests passed")
+test_basic_struct()
+test_mixed_types()
+test_bool_fields()
+test_named_args()
+test_explicit_annotation()
+test_immutable_fields()
+test_independence()
+test_nested_structs()
+test_namespace()
+test_ufcs()

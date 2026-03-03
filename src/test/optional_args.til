@@ -1,70 +1,47 @@
 mode script
 
-// helper
 minus := func(a: I64, b: I64) returns I64 { return a.sub(b) }
 
-// === Named Arguments Tests ===
+test_named_args := proc() {
+    assert_eq(loc(), minus(10, 3), 7)
+    assert_eq(loc(), minus(a=10, b=3), 7)
+    assert_eq(loc(), minus(b=3, a=10), 7)
+    assert_eq(loc(), minus(10, b=3), 7)
+}
 
-// Positional (existing behavior)
-assert_eq(loc(), 7, minus(10, 3))
-
-// Named args - all named
-assert_eq(loc(), 7, minus(a=10, b=3))
-
-// Named args - reversed order
-assert_eq(loc(), 7, minus(b=3, a=10))
-
-// Mixed positional and named
-assert_eq(loc(), 7, minus(10, b=3))
-
-// === Optional Arguments Tests ===
-
-// Function with one optional argument
-greet := func(name: Str, greeting: Str = "Hello") returns Str {
+opt_greet := func(name: Str, greeting: Str = "Hello") returns Str {
     return format(greeting, ", ", name, "!")
 }
 
-// Use default value
-assert_eq_str(loc(), "Hello, World!", greet("World"))
+test_optional_args := proc() {
+    assert_eq_str(loc(), opt_greet("World"), "Hello, World!")
+    assert_eq_str(loc(), opt_greet("World", "Hi"), "Hi, World!")
+    assert_eq_str(loc(), opt_greet("World", greeting="Hey"), "Hey, World!")
+}
 
-// Override default with positional
-assert_eq_str(loc(), "Hi, World!", greet("World", "Hi"))
-
-// Override default with named arg
-assert_eq_str(loc(), "Hey, World!", greet("World", greeting="Hey"))
-
-// Function with all optional arguments
-make_point := func(x: I64 = 0, y: I64 = 0) returns I64 {
+opt_make_point := func(x: I64 = 0, y: I64 = 0) returns I64 {
     return x.add(y)
 }
 
-// All defaults
-assert_eq(loc(), 0, make_point())
+test_all_optional := proc() {
+    assert_eq(loc(), opt_make_point(), 0)
+    assert_eq(loc(), opt_make_point(5), 5)
+    assert_eq(loc(), opt_make_point(y=7), 7)
+    assert_eq(loc(), opt_make_point(5, 10), 15)
+    assert_eq(loc(), opt_make_point(y=10, x=5), 15)
+}
 
-// Override first
-assert_eq(loc(), 5, make_point(5))
-
-// Override second with named
-assert_eq(loc(), 7, make_point(y=7))
-
-// Override both
-assert_eq(loc(), 15, make_point(5, 10))
-
-// Override both with named, reversed
-assert_eq(loc(), 15, make_point(y=10, x=5))
-
-// Function with mixed required and optional
-compute := func(a: I64, b: I64, c: I64 = 10) returns I64 {
+opt_compute := func(a: I64, b: I64, c: I64 = 10) returns I64 {
     return a.add(b).add(c)
 }
 
-// Required args only, use default for c
-assert_eq(loc(), 13, compute(1, 2))
+test_mixed_required_optional := proc() {
+    assert_eq(loc(), opt_compute(1, 2), 13)
+    assert_eq(loc(), opt_compute(1, 2, 3), 6)
+    assert_eq(loc(), opt_compute(1, 2, c=20), 23)
+}
 
-// All args positional
-assert_eq(loc(), 6, compute(1, 2, 3))
-
-// Override c with named
-assert_eq(loc(), 23, compute(1, 2, c=20))
-
-println("all optional args tests passed")
+test_named_args()
+test_optional_args()
+test_all_optional()
+test_mixed_required_optional()

@@ -1,69 +1,59 @@
 mode script
 
 // forward reference: call a function defined later
-assert_eq(loc(), double(5), 10)
+test_forward_func := proc() {
+    assert_eq(loc(), fwd_double(5), 10)
+}
 
-double := func(n: I64) returns I64 {
+fwd_double := func(n: I64) returns I64 {
     return n.mul(2)
 }
 
-// forward reference: call a proc defined later
-greet()
-
-greet := proc() {
-    println("hello from greet")
+fwd_factorial := func(n: I64) returns I64 {
+    if n.lte(1) { return 1 }
+    return n.mul(fwd_factorial(n.sub(1)))
 }
 
-// recursion: countdown
-countdown := proc(n: I64) {
-    if n.gt(0) {
-        print(n.to_str(), " ")
-        countdown(n.sub(1))
-    }
+test_recursion := proc() {
+    assert_eq(loc(), fwd_factorial(5), 120)
+    assert_eq(loc(), fwd_factorial(1), 1)
+    assert_eq(loc(), fwd_factorial(0), 1)
 }
-countdown(5)
-println("")
 
-// recursion: factorial
-factorial := func(n: I64) returns I64 {
-    if n.lte(1) {
-        return 1
-    }
-    return n.mul(factorial(n.sub(1)))
-}
-assert_eq(loc(), factorial(5), 120)
-assert_eq(loc(), factorial(1), 1)
-assert_eq(loc(), factorial(0), 1)
-
-// mutual recursion
-is_even := func(n: I64) returns Bool {
+fwd_is_even := func(n: I64) returns Bool {
     if n.eq(0) { return true }
-    return is_odd(n.sub(1))
+    return fwd_is_odd(n.sub(1))
 }
 
-is_odd := func(n: I64) returns Bool {
+fwd_is_odd := func(n: I64) returns Bool {
     if n.eq(0) { return false }
-    return is_even(n.sub(1))
+    return fwd_is_even(n.sub(1))
 }
 
-assert(loc(), is_even(0))
-assert(loc(), is_odd(0).not())
-assert(loc(), is_odd(1))
-assert(loc(), is_even(4))
-assert(loc(), is_odd(7))
-
-// forward reference to struct type
-make_point := func(x: I64, y: I64) returns Point {
-    return Point(x=x, y=y)
+test_mutual_recursion := proc() {
+    assert(loc(), fwd_is_even(0))
+    assert(loc(), fwd_is_odd(0).not())
+    assert(loc(), fwd_is_odd(1))
+    assert(loc(), fwd_is_even(4))
+    assert(loc(), fwd_is_odd(7))
 }
 
-Point := struct {
+fwd_make_point := func(x: I64, y: I64) returns FwdPoint {
+    return FwdPoint(x=x, y=y)
+}
+
+FwdPoint := struct {
     mut x := 0
     mut y := 0
 }
 
-p := make_point(3, 7)
-assert_eq(loc(), p.x, 3)
-assert_eq(loc(), p.y, 7)
+test_forward_struct := proc() {
+    p := fwd_make_point(3, 7)
+    assert_eq(loc(), p.x, 3)
+    assert_eq(loc(), p.y, 7)
+}
 
-println("all forward ref tests passed")
+test_forward_func()
+test_recursion()
+test_mutual_recursion()
+test_forward_struct()

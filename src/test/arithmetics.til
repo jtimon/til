@@ -1,3 +1,0 @@
-mode script
-
-println(34.add(35).to_str())

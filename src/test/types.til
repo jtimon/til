@@ -1,0 +1,62 @@
+mode script
+
+test_i64_basics := proc() {
+    a := 34
+    b := 35
+    assert_eq(loc(), a.add(b), 69)
+    assert_eq(loc(), a, 34)
+    assert_eq(loc(), b, 35)
+}
+
+test_str_basics := proc() {
+    s := "Hello"
+    assert_eq_str(loc(), s, "Hello")
+    greeting := "Hi there"
+    assert_eq_str(loc(), greeting, "Hi there")
+}
+
+test_bool_basics := proc() {
+    t := true
+    f := false
+    assert(loc(), t)
+    assert(loc(), f.not())
+    assert_eq_str(loc(), t.to_str(), "true")
+    assert_eq_str(loc(), f.to_str(), "false")
+}
+
+test_u8 := proc() {
+    a : U8 = 200
+    b : U8 = 55
+    assert_eq_str(loc(), a.add(b).to_str(), "255")
+    assert_eq_str(loc(), a.add(b).add(b).to_str(), "54")
+    assert_eq_str(loc(), a.sub(b).to_str(), "145")
+    assert_eq_str(loc(), a.to_i64().to_str(), "200")
+    assert(loc(), a.gt(b))
+    assert(loc(), a.eq(a))
+    c : U8 = U8.from_i64(42)
+    assert_eq_str(loc(), c.to_str(), "42")
+}
+
+types_double := func(n: I64) returns I64 {
+    return n.mul(2)
+}
+
+test_explicit_types := proc() {
+    x : I64 = 35
+    assert_eq(loc(), x, 35)
+    greeting : Str = "Hi there"
+    assert_eq_str(loc(), greeting, "Hi there")
+    assert_eq(loc(), types_double(5), 10)
+}
+
+test_format := proc() {
+    assert_eq_str(loc(), "hello".concat(" world"), "hello world")
+    assert_eq_str(loc(), format("a", "b", "c"), "abc")
+}
+
+test_i64_basics()
+test_str_basics()
+test_bool_basics()
+test_u8()
+test_explicit_types()
+test_format()

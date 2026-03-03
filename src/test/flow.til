@@ -1,51 +1,92 @@
 mode script
 
-// break exits while loop
-mut i := 0
-while true {
-    if i.eq(3) { break }
-    i = i.add(1)
+test_if_else := proc() {
+    if true {
+        assert(loc(), true)
+    }
+    if false {
+        panic(loc(), "unreachable")
+    } else {
+        assert(loc(), true)
+    }
+    if true.and(true) {
+        assert(loc(), true)
+    }
+    if true.and(false) {
+        panic(loc(), "unreachable")
+    } else {
+        assert(loc(), true)
+    }
 }
-println(i.to_str())
 
-// break with code after loop
-mut sum := 0
-mut j := 0
-while true {
-    if j.eq(5) { break }
-    sum = sum.add(j)
-    j = j.add(1)
+test_while_loop := proc() {
+    while false {
+        panic(loc(), "unreachable")
+    }
+    mut i := 0
+    while i.lt(5) {
+        i = i.add(1)
+    }
+    assert_eq(loc(), i, 5)
 }
-println(sum.to_str())
 
-// return inside if frees locals
-early_ret := func(x: Bool) returns I64 {
+test_break := proc() {
+    mut i := 0
+    while true {
+        if i.eq(3) { break }
+        i = i.add(1)
+    }
+    assert_eq(loc(), i, 3)
+    mut sum := 0
+    mut j := 0
+    while true {
+        if j.eq(5) { break }
+        sum = sum.add(j)
+        j = j.add(1)
+    }
+    assert_eq(loc(), sum, 10)
+}
+
+test_continue := proc() {
+    mut k := 0
+    mut total := 0
+    while k.lt(5) {
+        k = k.add(1)
+        if k.eq(3) { continue }
+        total = total.add(k)
+    }
+    assert_eq(loc(), total, 12)
+}
+
+flow_early_ret := func(x: Bool) returns I64 {
     a := 10
     b := 20
     if x { return a }
     return b
 }
-println(early_ret(true).to_str())
-println(early_ret(false).to_str())
 
-// continue skips iteration
-mut k := 0
-mut total := 0
-while k.lt(5) {
-    k = k.add(1)
-    if k.eq(3) { continue }
-    total = total.add(k)
+test_early_return := proc() {
+    assert_eq(loc(), flow_early_ret(true), 10)
+    assert_eq(loc(), flow_early_ret(false), 20)
 }
-println(total.to_str())
 
-// else if chains
-check := func(n: I64) returns I64 {
+flow_check := func(n: I64) returns I64 {
     if n.eq(1) { return 10 }
     else if n.eq(2) { return 20 }
     else if n.eq(3) { return 30 }
     else { return 0 }
 }
-println(check(1).to_str())
-println(check(2).to_str())
-println(check(3).to_str())
-println(check(99).to_str())
+
+test_else_if := proc() {
+    assert_eq(loc(), flow_check(1), 10)
+    assert_eq(loc(), flow_check(2), 20)
+    assert_eq(loc(), flow_check(3), 30)
+    assert_eq(loc(), flow_check(99), 0)
+}
+
+test_if_else()
+test_while_loop()
+test_break()
+test_continue()
+test_early_return()
+test_else_if()
