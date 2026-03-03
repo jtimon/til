@@ -423,7 +423,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
 
 // --- Free call insertion ---
 
-static Expr *make_free_call(const char *var_name, int line, int col) {
+static Expr *make_free_call(const char *var_name, TilType type, const char *struct_name, int line, int col) {
     Expr *call = expr_new(NODE_FCALL, line, col);
     call->til_type = TIL_TYPE_NONE;
     Expr *callee = expr_new(NODE_IDENT, line, col);
@@ -432,14 +432,22 @@ static Expr *make_free_call(const char *var_name, int line, int col) {
     expr_add_child(call, callee);
     Expr *arg = expr_new(NODE_IDENT, line, col);
     arg->data.str_val = var_name;
+    arg->til_type = type;
+    arg->struct_name = struct_name;
     expr_add_child(call, arg);
     return call;
 }
 
+typedef struct {
+    const char *name;
+    TilType type;
+    const char *struct_name;
+} LocalInfo;
+
 static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, int scope_exit) {
     // Collect owned local variables (for scope exit frees)
     int n_locals = 0;
-    const char **local_names = NULL;
+    LocalInfo *locals = NULL;
     if (scope_exit) {
         for (int i = locals_start; i < scope->len; i++) {
             TypeBinding *b = &scope->bindings[i];
@@ -447,8 +455,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
             if (b->struct_def) continue;
             if (b->func_def) continue;
             n_locals++;
-            local_names = realloc(local_names, n_locals * sizeof(const char *));
-            local_names[n_locals - 1] = b->name;
+            locals = realloc(locals, n_locals * sizeof(LocalInfo));
+            locals[n_locals - 1] = (LocalInfo){b->name, b->type, b->struct_name};
         }
     }
 
@@ -457,7 +465,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
     for (int i = 0; i < body->nchildren; i++) {
         if (body->children[i]->type == NODE_ASSIGN) { has_assigns = 1; break; }
     }
-    if (!has_assigns && n_locals == 0) { free(local_names); return; }
+    if (!has_assigns && n_locals == 0) { free(locals); return; }
 
     // Build new children array with free calls inserted
     Expr **new_ch = NULL;
@@ -468,9 +476,13 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
 
         // Before NODE_ASSIGN: free the old value
         if (stmt->type == NODE_ASSIGN) {
+            // Look up the variable's type
+            TypeBinding *b = tscope_find(scope, stmt->data.str_val);
+            TilType vtype = b ? b->type : TIL_TYPE_UNKNOWN;
+            const char *vsname = b ? b->struct_name : NULL;
             new_n++;
             new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-            new_ch[new_n - 1] = make_free_call(stmt->data.str_val, stmt->line, stmt->col);
+            new_ch[new_n - 1] = make_free_call(stmt->data.str_val, vtype, vsname, stmt->line, stmt->col);
         }
 
         // Before NODE_RETURN: free all locals except returned var
@@ -480,10 +492,10 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
                 ret_name = stmt->children[0]->data.str_val;
             }
             for (int j = 0; j < n_locals; j++) {
-                if (ret_name && strcmp(local_names[j], ret_name) == 0) continue;
+                if (ret_name && strcmp(locals[j].name, ret_name) == 0) continue;
                 new_n++;
                 new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                new_ch[new_n - 1] = make_free_call(local_names[j], stmt->line, stmt->col);
+                new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
             }
         }
 
@@ -501,7 +513,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
             for (int j = 0; j < n_locals; j++) {
                 new_n++;
                 new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                new_ch[new_n - 1] = make_free_call(local_names[j], 0, 0);
+                new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, 0, 0);
             }
         }
     }
@@ -509,7 +521,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
     free(body->children);
     body->children = new_ch;
     body->nchildren = new_n;
-    free(local_names);
+    free(locals);
 }
 
 static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope) {

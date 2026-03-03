@@ -305,7 +305,13 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             emit_expr(f, e->children[2], depth);
             fprintf(f, ") == 0)");
         } else if (strcmp(name, "free") == 0) {
-            fprintf(f, "(void)0 /* free: no-op for now */");
+            if (e->children[1]->til_type == TIL_TYPE_STRUCT) {
+                fprintf(f, "free(");
+                emit_expr(f, e->children[1], depth);
+                fprintf(f, ")");
+            } else {
+                fprintf(f, "(void)0 /* free */");
+            }
         } else if (strcmp(name, "format") == 0) {
             fprintf(f, "til_format(%d", e->nchildren - 1);
             for (int i = 1; i < e->nchildren; i++) {
@@ -330,19 +336,18 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             emit_expr(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (e->struct_name) {
-            // Struct instantiation
+            // Struct instantiation — compound literal (used with malloc in stmt context)
             if (e->nchildren > 1) {
-                // Desugared args: emit compound literal (instance fields only)
                 Expr *sd = find_struct_def(e->struct_name);
-                Expr *body = sd->children[0];
+                Expr *sbody = sd->children[0];
                 fprintf(f, "(til_%s){", e->struct_name);
-                int first = 1;
+                int first2 = 1;
                 int arg_idx = 1;
-                for (int i = 0; i < body->nchildren; i++) {
-                    if (body->children[i]->data.decl.is_namespace) continue;
-                    if (!first) fprintf(f, ", ");
-                    first = 0;
-                    fprintf(f, ".%s = ", body->children[i]->data.decl.name);
+                for (int i = 0; i < sbody->nchildren; i++) {
+                    if (sbody->children[i]->data.decl.is_namespace) continue;
+                    if (!first2) fprintf(f, ", ");
+                    first2 = 0;
+                    fprintf(f, ".%s = ", sbody->children[i]->data.decl.name);
                     emit_expr(f, e->children[arg_idx++], depth);
                 }
                 fprintf(f, "}");
@@ -369,7 +374,8 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, "til_%s_%s", sname, fname);
         } else {
             emit_expr(f, obj, depth);
-            fprintf(f, ".%s", fname);
+            // -> for pointer (IDENT/FCALL), . for inline nested (FIELD_ACCESS)
+            fprintf(f, "%s%s", obj->type == NODE_FIELD_ACCESS ? "." : "->", fname);
         }
         break;
     }
@@ -398,9 +404,9 @@ static const char *type_name_to_c(const char *name) {
     if (strcmp(name, "U8") == 0)   return "unsigned char";
     if (strcmp(name, "Str") == 0)  return "const char *";
     if (strcmp(name, "Bool") == 0) return "int";
-    // User-defined struct type
+    // User-defined struct type — pointer
     static char buf[128];
-    snprintf(buf, sizeof(buf), "til_%s", name);
+    snprintf(buf, sizeof(buf), "til_%s *", name);
     return buf;
 }
 
@@ -415,9 +421,35 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         } else if (e->children[0]->type == NODE_STRUCT_DEF) {
             fprintf(f, "/* struct %s defined above */\n", e->data.decl.name);
         } else if (e->til_type == TIL_TYPE_STRUCT && e->children[0]->struct_name) {
-            fprintf(f, "til_%s %s = ", e->children[0]->struct_name, e->data.decl.name);
-            emit_expr(f, e->children[0], depth);
-            fprintf(f, ";\n");
+            const char *sname = e->children[0]->struct_name;
+            Expr *rhs = e->children[0];
+            if (rhs->type == NODE_FCALL && rhs->struct_name && rhs->nchildren > 1) {
+                // Constructor with args — compound literal, needs malloc + assign
+                fprintf(f, "til_%s *%s = malloc(sizeof(til_%s));\n", sname, e->data.decl.name, sname);
+                emit_indent(f, depth);
+                fprintf(f, "*%s = ", e->data.decl.name);
+                emit_expr(f, rhs, depth);
+                fprintf(f, ";\n");
+            } else if (rhs->type == NODE_FCALL) {
+                // Default constructor or function call — already returns pointer
+                fprintf(f, "til_%s *%s = ", sname, e->data.decl.name);
+                emit_expr(f, rhs, depth);
+                fprintf(f, ";\n");
+            } else if (rhs->type == NODE_IDENT) {
+                // Copy from struct variable (pointer) — deref copy
+                fprintf(f, "til_%s *%s = malloc(sizeof(til_%s));\n", sname, e->data.decl.name, sname);
+                emit_indent(f, depth);
+                fprintf(f, "*%s = *", e->data.decl.name);
+                emit_expr(f, rhs, depth);
+                fprintf(f, ";\n");
+            } else {
+                // Field access or other — value, just copy
+                fprintf(f, "til_%s *%s = malloc(sizeof(til_%s));\n", sname, e->data.decl.name, sname);
+                emit_indent(f, depth);
+                fprintf(f, "*%s = ", e->data.decl.name);
+                emit_expr(f, rhs, depth);
+                fprintf(f, ";\n");
+            }
         } else {
             fprintf(f, "%s %s = ", til_type_to_c(e->til_type), e->data.decl.name);
             emit_expr(f, e->children[0], depth);
@@ -437,7 +469,7 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             fprintf(f, "til_%s_%s = ", sname, fname);
         } else {
             emit_expr(f, obj, depth);
-            fprintf(f, ".%s = ", fname);
+            fprintf(f, "%s%s = ", obj->type == NODE_FIELD_ACCESS ? "." : "->", fname);
         }
         emit_expr(f, e->children[1], depth);
         fprintf(f, ";\n");
@@ -448,12 +480,22 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         fprintf(f, ";\n");
         break;
     case NODE_RETURN:
-        fprintf(f, "return");
-        if (e->nchildren > 0) {
-            fprintf(f, " ");
+        if (e->nchildren > 0 && e->children[0]->til_type == TIL_TYPE_STRUCT &&
+            e->children[0]->type == NODE_FCALL && e->children[0]->struct_name &&
+            e->children[0]->nchildren > 1) {
+            // Return struct constructor with args — need malloc + assign
+            const char *sname = e->children[0]->struct_name;
+            fprintf(f, "{ til_%s *_r = malloc(sizeof(til_%s)); *_r = ", sname, sname);
             emit_expr(f, e->children[0], depth);
+            fprintf(f, "; return _r; }\n");
+        } else {
+            fprintf(f, "return");
+            if (e->nchildren > 0) {
+                fprintf(f, " ");
+                emit_expr(f, e->children[0], depth);
+            }
+            fprintf(f, ";\n");
         }
-        fprintf(f, ";\n");
         break;
     case NODE_BODY:
         fprintf(f, "{\n");
@@ -555,7 +597,7 @@ static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char 
 
 static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
     Expr *body = struct_def->children[0];
-    // Emit typedef struct (skip namespace fields)
+    // Emit typedef struct (skip namespace fields, nested structs are inline)
     fprintf(f, "typedef struct til_%s {\n", name);
     for (int i = 0; i < body->nchildren; i++) {
         Expr *field = body->children[i];
@@ -590,9 +632,10 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
         fprintf(f, "\n");
     }
     fprintf(f, "\n");
-    // Emit default constructor (instance fields only)
-    fprintf(f, "til_%s til_%s_default(void) {\n", name, name);
-    fprintf(f, "    return (til_%s){", name);
+    // Emit default constructor — returns heap-allocated pointer
+    fprintf(f, "til_%s *til_%s_default(void) {\n", name, name);
+    fprintf(f, "    til_%s *_t = malloc(sizeof(til_%s));\n", name, name);
+    fprintf(f, "    *_t = (til_%s){", name);
     int first = 1;
     for (int i = 0; i < body->nchildren; i++) {
         if (body->children[i]->data.decl.is_namespace) continue;
@@ -602,6 +645,7 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
         emit_expr(f, body->children[i]->children[0], 0);
     }
     fprintf(f, "};\n");
+    fprintf(f, "    return _t;\n");
     fprintf(f, "}\n");
 }
 
