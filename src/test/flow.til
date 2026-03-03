@@ -17,3 +17,13 @@ while true {
     j = j.add(1)
 }
 println(sum.to_str())
+
+// return inside if frees locals
+early_ret := func(x: Bool) returns I64 {
+    a := 10
+    b := 20
+    if x { return a }
+    return b
+}
+println(early_ret(true).to_str())
+println(early_ret(false).to_str())

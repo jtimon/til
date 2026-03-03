@@ -3,10 +3,6 @@
   typer validation (error outside loop), interpreter handling (has_continue flag +
   while loop check), and codegen (emit "continue;"). Same pattern as break.
 
-* TODO Free parent-scope locals before return inside nested if/else
-  insert_free_calls only frees locals for NODE_RETURN when it's a direct child of
-  the body. A return nested inside an if/else branch skips frees for the enclosing
-  scope's locals. Adapt the insert_break_frees approach for return.
 
 * TODO Desugar else-if chains in parser
   Desugar "else if" to nested if/else in the parser so the rest of the pipeline

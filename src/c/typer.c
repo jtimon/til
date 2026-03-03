@@ -649,18 +649,20 @@ typedef struct {
     int own_transfer;  // index of stmt that transfers ownership, -1 if none
 } LocalInfo;
 
-// Insert frees for live parent-scope locals before any NODE_BREAK in body
-static void insert_break_frees(Expr *body, LocalInfo *live, int n_live) {
+// Insert frees for live parent-scope locals before any NODE_BREAK/NODE_RETURN in body
+static void insert_exit_frees(Expr *body, LocalInfo *live, int n_live) {
     Expr **new_ch = NULL;
     int new_n = 0;
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
         if (stmt->type == NODE_IF) {
             for (int c = 1; c < stmt->nchildren; c++)
-                insert_break_frees(stmt->children[c], live, n_live);
+                insert_exit_frees(stmt->children[c], live, n_live);
         }
-        if (stmt->type == NODE_BREAK) {
+        if (stmt->type == NODE_BREAK || stmt->type == NODE_RETURN) {
             for (int j = 0; j < n_live; j++) {
+                if (stmt->nchildren > 0 &&
+                    expr_uses_var(stmt->children[0], live[j].name)) continue;
                 new_n++;
                 new_ch = realloc(new_ch, new_n * sizeof(Expr *));
                 new_ch[new_n - 1] = make_free_call(
@@ -762,7 +764,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
             }
         }
 
-        // For NODE_IF: insert frees before any nested NODE_BREAK in branches
+        // For NODE_IF: insert frees before any nested NODE_BREAK/NODE_RETURN in branches
         if (stmt->type == NODE_IF) {
             LocalInfo *live = NULL;
             int n_live = 0;
@@ -777,7 +779,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
             }
             if (n_live > 0) {
                 for (int c = 1; c < stmt->nchildren; c++)
-                    insert_break_frees(stmt->children[c], live, n_live);
+                    insert_exit_frees(stmt->children[c], live, n_live);
                 free(live);
             }
         }
