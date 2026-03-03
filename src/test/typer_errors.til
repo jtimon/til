@@ -131,3 +131,6 @@ println(doomed.to_str())
 
 // break outside loop
 break
+
+// continue outside loop
+continue

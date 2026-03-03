@@ -1,9 +1,3 @@
-* TODO Add continue support
-  NODE_CONTINUE and TOK_CONTINUE already exist in AST and lexer. Need parser case,
-  typer validation (error outside loop), interpreter handling (has_continue flag +
-  while loop check), and codegen (emit "continue;"). Same pattern as break.
-
-
 * TODO Desugar else-if chains in parser
   Desugar "else if" to nested if/else in the parser so the rest of the pipeline
   doesn't need special support. Currently requires explicit nesting:

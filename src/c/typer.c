@@ -659,7 +659,7 @@ static void insert_exit_frees(Expr *body, LocalInfo *live, int n_live) {
             for (int c = 1; c < stmt->nchildren; c++)
                 insert_exit_frees(stmt->children[c], live, n_live);
         }
-        if (stmt->type == NODE_BREAK || stmt->type == NODE_RETURN) {
+        if (stmt->type == NODE_BREAK || stmt->type == NODE_RETURN || stmt->type == NODE_CONTINUE) {
             for (int j = 0; j < n_live; j++) {
                 if (stmt->nchildren > 0 &&
                     expr_uses_var(stmt->children[0], live[j].name)) continue;
@@ -750,8 +750,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
 
-        // Before NODE_RETURN/NODE_BREAK: free locals not yet freed (skip those used in return expr)
-        if (stmt->type == NODE_RETURN || stmt->type == NODE_BREAK) {
+        // Before NODE_RETURN/NODE_BREAK/NODE_CONTINUE: free locals not yet freed
+        if (stmt->type == NODE_RETURN || stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE) {
             for (int j = 0; j < n_locals; j++) {
                 if (stmt->nchildren > 0 && expr_uses_var(stmt->children[0], locals[j].name)) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
@@ -789,8 +789,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
         new_ch = realloc(new_ch, new_n * sizeof(Expr *));
         new_ch[new_n - 1] = stmt;
 
-        // After non-return/break statements: free locals whose last use is this statement
-        if (stmt->type != NODE_RETURN && stmt->type != NODE_BREAK) {
+        // After non-exit statements: free locals whose last use is this statement
+        if (stmt->type != NODE_RETURN && stmt->type != NODE_BREAK && stmt->type != NODE_CONTINUE) {
             for (int j = 0; j < n_locals; j++) {
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == i) {
@@ -1009,6 +1009,12 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
         case NODE_BREAK:
             if (!in_loop) {
                 type_error(path, stmt, "break outside loop");
+            }
+            stmt->til_type = TIL_TYPE_NONE;
+            break;
+        case NODE_CONTINUE:
+            if (!in_loop) {
+                type_error(path, stmt, "continue outside loop");
             }
             stmt->til_type = TIL_TYPE_NONE;
             break;

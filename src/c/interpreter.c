@@ -80,6 +80,7 @@ static Value value_deep_copy(Value v) {
 // --- Return value mechanism ---
 static int has_return;
 static int has_break;
+static int has_continue;
 static Value return_value;
 
 // --- Namespace fields (static struct fields) ---
@@ -656,7 +657,7 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
 
 static void eval_body(Scope *scope, Expr *body, const char *path) {
     for (int i = 0; i < body->nchildren; i++) {
-        if (has_return || has_break) return;
+        if (has_return || has_break || has_continue) return;
         Expr *stmt = body->children[i];
         switch (stmt->type) {
         case NODE_DECL: {
@@ -762,11 +763,15 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                 eval_body(while_scope, stmt->children[1], path);
                 scope_free(while_scope);
                 if (has_break) { has_break = 0; break; }
+                if (has_continue) { has_continue = 0; }
             }
             break;
         }
         case NODE_BREAK:
             has_break = 1;
+            return;
+        case NODE_CONTINUE:
+            has_continue = 1;
             return;
         case NODE_RETURN:
             if (stmt->nchildren > 0) {

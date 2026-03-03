@@ -331,6 +331,9 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
     case NODE_BREAK:
         fprintf(f, "break;\n");
         break;
+    case NODE_CONTINUE:
+        fprintf(f, "continue;\n");
+        break;
     default:
         fprintf(f, "/* TODO: stmt type %d */\n", e->type);
         break;

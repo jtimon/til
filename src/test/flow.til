@@ -27,3 +27,13 @@ early_ret := func(x: Bool) returns I64 {
 }
 println(early_ret(true).to_str())
 println(early_ret(false).to_str())
+
+// continue skips iteration
+mut k := 0
+mut total := 0
+while k.lt(5) {
+    k = k.add(1)
+    if k.eq(3) { continue }
+    total = total.add(k)
+}
+println(total.to_str())
