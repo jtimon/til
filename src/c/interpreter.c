@@ -258,22 +258,22 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_STR, .str = v.boolean ? "true" : "false"};
     }
 
-    // Built-in: eq(a, b)
-    if (strcmp(name, "eq") == 0) {
+    // Built-in: i64_eq(a, b)
+    if (strcmp(name, "i64_eq") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
         return (Value){.type = VAL_BOOL, .boolean = a.i64 == b.i64};
     }
 
-    // Built-in: lt(a, b)
-    if (strcmp(name, "lt") == 0) {
+    // Built-in: i64_lt(a, b)
+    if (strcmp(name, "i64_lt") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
         return (Value){.type = VAL_BOOL, .boolean = a.i64 < b.i64};
     }
 
-    // Built-in: gt(a, b)
-    if (strcmp(name, "gt") == 0) {
+    // Built-in: i64_gt(a, b)
+    if (strcmp(name, "i64_gt") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
         return (Value){.type = VAL_BOOL, .boolean = a.i64 > b.i64};

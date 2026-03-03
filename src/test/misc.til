@@ -47,9 +47,9 @@ while false {
 }
 println("while false skipped")
 
-println(bool_to_str(eq(1, 1)))
-println(bool_to_str(lt(1, 2)))
-println(bool_to_str(gt(2, 1)))
+println(1.eq(1).to_str())
+println(1.lt(2).to_str())
+println(2.gt(1).to_str())
 
 {
     inner := "scoped"
@@ -57,17 +57,17 @@ println(bool_to_str(gt(2, 1)))
 }
 println("after block")
 
-println(bool_to_str(lte(1, 2)))
-println(bool_to_str(lte(2, 2)))
-println(bool_to_str(lte(3, 2)))
-println(bool_to_str(gte(3, 2)))
-println(bool_to_str(gte(2, 2)))
-println(bool_to_str(gte(1, 2)))
-println(bool_to_str(neq(1, 2)))
-println(bool_to_str(neq(2, 2)))
+println(1.lte(2).to_str())
+println(2.lte(2).to_str())
+println(3.lte(2).to_str())
+println(3.gte(2).to_str())
+println(2.gte(2).to_str())
+println(1.gte(2).to_str())
+println(1.neq(2).to_str())
+println(2.neq(2).to_str())
 println(10.mod(3).to_str())
 println(10.mod(5).to_str())
-println(i64_to_str(neg(42)))
+println(42.neg().to_str())
 
 mut counter := 0
 counter = 1
@@ -79,7 +79,7 @@ msg = "world"
 println(msg)
 
 mut i := 0
-while lt(i, 5) {
+while i.lt(5) {
     print(i64_to_str(i), " ")
     i = i.add(1)
 }
@@ -109,9 +109,9 @@ println(i64_to_str(p.x))
 println(i64_to_str(p.y))
 println(loc())
 assert(loc(), true)
-assert(loc(), eq(1, 1))
+assert(loc(), 1.eq(1))
 println(concat("hello", " world"))
 println(format("a", "b", "c"))
-test(loc(), eq(2, 2), "2 should equal 2")
+test(loc(), 2.eq(2), "2 should equal 2")
 assert_eq(loc(), 1.add(1), 2)
 assert_eq_str(loc(), concat("a", "b"), "ab")

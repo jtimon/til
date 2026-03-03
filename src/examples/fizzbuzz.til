@@ -1,14 +1,14 @@
 mode script
 
 mut i := 1
-while lte(i, 100) {
-    if eq(i.mod(15), 0) {
+while i.lte(100) {
+    if i.mod(15).eq(0) {
         println("FizzBuzz")
     } else {
-        if eq(i.mod(3), 0) {
+        if i.mod(3).eq(0) {
             println("Fizz")
         } else {
-            if eq(i.mod(5), 0) {
+            if i.mod(5).eq(0) {
                 println("Buzz")
             } else {
                 println(i64_to_str(i))

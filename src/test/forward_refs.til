@@ -16,7 +16,7 @@ greet := proc() {
 
 // recursion: countdown
 countdown := proc(n: I64) {
-    if gt(n, 0) {
+    if n.gt(0) {
         print(i64_to_str(n), " ")
         countdown(n.sub(1))
     }
@@ -26,7 +26,7 @@ println("")
 
 // recursion: factorial
 factorial := func(n: I64) returns I64 {
-    if lte(n, 1) {
+    if n.lte(1) {
         return 1
     }
     return n.mul(factorial(n.sub(1)))
@@ -37,12 +37,12 @@ assert_eq(loc(), factorial(0), 1)
 
 // mutual recursion
 is_even := func(n: I64) returns Bool {
-    if eq(n, 0) { return true }
+    if n.eq(0) { return true }
     return is_odd(n.sub(1))
 }
 
 is_odd := func(n: I64) returns Bool {
-    if eq(n, 0) { return false }
+    if n.eq(0) { return false }
     return is_even(n.sub(1))
 }
 

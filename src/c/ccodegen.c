@@ -162,19 +162,19 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " %% ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "eq") == 0) {
+        } else if (strcmp(name, "i64_eq") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " == ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "lt") == 0) {
+        } else if (strcmp(name, "i64_lt") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " < ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "gt") == 0) {
+        } else if (strcmp(name, "i64_gt") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " > ");

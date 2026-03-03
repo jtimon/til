@@ -26,6 +26,30 @@ I64 : StructDef = struct {
         i64_mod := ext_func(a: I64, b: I64) returns I64 {}
         return i64_mod(a, b)
     }
+    eq := func(a: I64, b: I64) returns Bool {
+        i64_eq := ext_func(a: I64, b: I64) returns Bool {}
+        return i64_eq(a, b)
+    }
+    lt := func(a: I64, b: I64) returns Bool {
+        i64_lt := ext_func(a: I64, b: I64) returns Bool {}
+        return i64_lt(a, b)
+    }
+    gt := func(a: I64, b: I64) returns Bool {
+        i64_gt := ext_func(a: I64, b: I64) returns Bool {}
+        return i64_gt(a, b)
+    }
+    lte := func(a: I64, b: I64) returns Bool {
+        return or(a.lt(b), a.eq(b))
+    }
+    gte := func(a: I64, b: I64) returns Bool {
+        return or(a.gt(b), a.eq(b))
+    }
+    neg := func(a: I64) returns I64 {
+        return 0.sub(a)
+    }
+    neq := func(a: I64, b: I64) returns Bool {
+        return not(a.eq(b))
+    }
 }
 Str : StructDef = struct {}
 Bool : StructDef = struct {
@@ -36,9 +60,6 @@ Bool : StructDef = struct {
 }
 
 // builtin functions and procs
-eq := ext_func(a: I64, b: I64) returns Bool {}
-lt := ext_func(a: I64, b: I64) returns Bool {}
-gt := ext_func(a: I64, b: I64) returns Bool {}
 and := ext_func(a: Bool, b: Bool) returns Bool {}
 or := ext_func(a: Bool, b: Bool) returns Bool {}
 not := ext_func(a: Bool) returns Bool {}
@@ -49,22 +70,6 @@ format := ext_func(parts: ..Str) returns Str {}
 println := ext_proc(args: ..Str) {}
 print := ext_proc(args: ..Str) {}
 exit := ext_func(code: I64) {}
-
-lte := func(a: I64, b: I64) returns Bool {
-    return or(lt(a, b), eq(a, b))
-}
-
-gte := func(a: I64, b: I64) returns Bool {
-    return or(gt(a, b), eq(a, b))
-}
-
-neg := func(a: I64) returns I64 {
-    return 0.sub(a)
-}
-
-neq := func(a: I64, b: I64) returns Bool {
-    return not(eq(a, b))
-}
 
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str, ": panic: ", msg)
@@ -91,7 +96,7 @@ test := proc(loc_str: Str, cond: Bool, msg: Str) {
 }
 
 assert_eq := proc(loc_str: Str, a: I64, b: I64) {
-    if neq(a, b) {
+    if a.neq(b) {
         println(loc_str, ": assert_eq failed: expected '", i64_to_str(a), "', found '", i64_to_str(b), "'")
         exit(1)
     }
