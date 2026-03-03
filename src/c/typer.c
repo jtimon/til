@@ -439,54 +439,97 @@ static Expr *make_free_call(const char *var_name, TilType type, const char *stru
     return call;
 }
 
+static int expr_uses_var(Expr *e, const char *name) {
+    if (e->type == NODE_IDENT && strcmp(e->data.str_val, name) == 0) return 1;
+    if (e->type == NODE_ASSIGN && strcmp(e->data.str_val, name) == 0) return 1;
+    for (int i = 0; i < e->nchildren; i++) {
+        if (expr_uses_var(e->children[i], name)) return 1;
+    }
+    return 0;
+}
+
+static int expr_contains_decl(Expr *e, const char *name) {
+    if (e->type == NODE_DECL && strcmp(e->data.decl.name, name) == 0) return 1;
+    for (int i = 0; i < e->nchildren; i++) {
+        if (expr_contains_decl(e->children[i], name)) return 1;
+    }
+    return 0;
+}
+
 typedef struct {
     const char *name;
     TilType type;
     const char *struct_name;
+    int decl_index;
+    int last_use;
 } LocalInfo;
 
 static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, int scope_exit) {
-    // Collect owned local variables (for scope exit frees)
+    if (!scope_exit) return;
+
+    // Phase 1: collect locals with lifetime info
     int n_locals = 0;
     LocalInfo *locals = NULL;
-    if (scope_exit) {
-        for (int i = locals_start; i < scope->len; i++) {
-            TypeBinding *b = &scope->bindings[i];
-            if (b->is_param) continue;
-            if (b->struct_def) continue;
-            if (b->func_def) continue;
-            n_locals++;
-            locals = realloc(locals, n_locals * sizeof(LocalInfo));
-            locals[n_locals - 1] = (LocalInfo){b->name, b->type, b->struct_name};
+    for (int i = locals_start; i < scope->len; i++) {
+        TypeBinding *b = &scope->bindings[i];
+        if (b->is_param || b->struct_def || b->func_def) continue;
+
+        // Find decl_index: direct child first, then nested
+        int decl_idx = -1;
+        for (int j = 0; j < body->nchildren; j++) {
+            Expr *s = body->children[j];
+            if (s->type == NODE_DECL && strcmp(s->data.decl.name, b->name) == 0) {
+                decl_idx = j;
+                break;
+            }
         }
+        if (decl_idx == -1) {
+            for (int j = 0; j < body->nchildren; j++) {
+                if (expr_contains_decl(body->children[j], b->name)) {
+                    decl_idx = j;
+                    break;
+                }
+            }
+        }
+
+        // Find last_use
+        int last_use = -1;
+        if (decl_idx >= 0) {
+            for (int j = decl_idx + 1; j < body->nchildren; j++) {
+                if (expr_uses_var(body->children[j], b->name)) {
+                    last_use = j;
+                }
+            }
+        }
+
+        n_locals++;
+        locals = realloc(locals, n_locals * sizeof(LocalInfo));
+        locals[n_locals - 1] = (LocalInfo){b->name, b->type, b->struct_name, decl_idx, last_use};
     }
 
-    // Check if any insertions are needed
-    int has_assigns = 0;
-    for (int i = 0; i < body->nchildren; i++) {
-        if (body->children[i]->type == NODE_ASSIGN) { has_assigns = 1; break; }
-    }
-    if (!has_assigns && n_locals == 0) { free(locals); return; }
+    if (n_locals == 0) return;
 
-    // Build new children array with free calls inserted
+    // Phase 2: rebuild body with ASAP frees
     Expr **new_ch = NULL;
     int new_n = 0;
 
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
 
-
-        // Before NODE_RETURN: free all locals except returned var
-        if (scope_exit && stmt->type == NODE_RETURN) {
+        // Before NODE_RETURN: free locals not yet freed
+        if (stmt->type == NODE_RETURN) {
             const char *ret_name = NULL;
             if (stmt->nchildren > 0 && stmt->children[0]->type == NODE_IDENT) {
                 ret_name = stmt->children[0]->data.str_val;
             }
             for (int j = 0; j < n_locals; j++) {
                 if (ret_name && strcmp(locals[j].name, ret_name) == 0) continue;
-                new_n++;
-                new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                if (locals[j].decl_index >= 0 && locals[j].decl_index < i &&
+                    (locals[j].last_use >= i || locals[j].last_use == -1)) {
+                    new_n++;
+                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
+                    new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                }
             }
         }
 
@@ -494,17 +537,21 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
         new_n++;
         new_ch = realloc(new_ch, new_n * sizeof(Expr *));
         new_ch[new_n - 1] = stmt;
-    }
 
-    // At end of scope-owning body: free all locals (if doesn't end with return)
-    if (scope_exit && n_locals > 0) {
-        int ends_with_return = body->nchildren > 0 &&
-            body->children[body->nchildren - 1]->type == NODE_RETURN;
-        if (!ends_with_return) {
+        // After non-return statements: free locals whose last use is this statement
+        if (stmt->type != NODE_RETURN) {
             for (int j = 0; j < n_locals; j++) {
-                new_n++;
-                new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, 0, 0);
+                if (locals[j].last_use == i) {
+                    new_n++;
+                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
+                    new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                }
+                // Never used after declaration: free immediately
+                if (locals[j].last_use == -1 && locals[j].decl_index == i) {
+                    new_n++;
+                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
+                    new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                }
             }
         }
     }
