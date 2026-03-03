@@ -201,6 +201,9 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 rt = type_from_name(ns_func->data.func_def.return_type, scope);
             }
             e->til_type = rt;
+            if (rt == TIL_TYPE_STRUCT && ns_func->data.func_def.return_type) {
+                e->struct_name = ns_func->data.func_def.return_type;
+            }
             break;
         }
         // Resolve callee

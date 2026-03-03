@@ -225,6 +225,10 @@ static void emit_deref(FILE *f, Expr *e, int depth) {
 static void emit_as_ptr(FILE *f, Expr *e, int depth) {
     if (e->type == NODE_IDENT || e->type == NODE_FCALL) {
         emit_expr(f, e, depth);
+    } else if (e->til_type == TIL_TYPE_STRUCT && e->type == NODE_FIELD_ACCESS) {
+        // Struct field: take address directly
+        fprintf(f, "&");
+        emit_expr(f, e, depth);
     } else {
         const char *ctype = c_type_name(e->til_type, e->struct_name);
         fprintf(f, "&(%s){", ctype);
@@ -567,6 +571,22 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
                         fprintf(f, "%s %s", type_name_to_c(fdef->data.func_def.param_types[k]),
                                 fdef->data.func_def.param_names[k]);
                     }
+                }
+                fprintf(f, ");\n");
+            }
+            // Forward-declare constructor _new
+            int has_inst = 0;
+            for (int j = 0; j < body->nchildren; j++)
+                if (!body->children[j]->data.decl.is_namespace) { has_inst = 1; break; }
+            if (has_inst) {
+                fprintf(f, "static til_%s *til_%s_new(", sname, sname);
+                int first = 1;
+                for (int j = 0; j < body->nchildren; j++) {
+                    Expr *field = body->children[j];
+                    if (field->data.decl.is_namespace) continue;
+                    if (!first) fprintf(f, ", ");
+                    first = 0;
+                    fprintf(f, "%s *%s", c_type_name(field->til_type, field->children[0]->struct_name), field->data.decl.name);
                 }
                 fprintf(f, ");\n");
             }

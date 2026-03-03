@@ -135,6 +135,129 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         b->is_builtin = is_builtin;
     }
 
+    // Pass 1.5: auto-generate clone methods for all structs
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type != NODE_DECL) continue;
+        if (stmt->children[0]->type != NODE_STRUCT_DEF) continue;
+
+        const char *sname = stmt->data.decl.name;
+
+        // Skip meta-types (not actual data types)
+        if (strcmp(sname, "StructDef") == 0 ||
+            strcmp(sname, "FunctionDef") == 0 ||
+            strcmp(sname, "Dynamic") == 0) continue;
+
+        Expr *sdef = stmt->children[0];
+        Expr *body = sdef->children[0]; // NODE_BODY
+
+        // Check if clone already exists in namespace
+        int has_clone = 0;
+        for (int j = 0; j < body->nchildren; j++) {
+            Expr *field = body->children[j];
+            if (field->type == NODE_DECL && field->data.decl.is_namespace &&
+                strcmp(field->data.decl.name, "clone") == 0) {
+                has_clone = 1;
+                break;
+            }
+        }
+        if (has_clone) continue;
+
+        // Collect instance field names
+        int nfields = 0;
+        const char **field_names = NULL;
+        for (int j = 0; j < body->nchildren; j++) {
+            Expr *field = body->children[j];
+            if (field->type == NODE_DECL && !field->data.decl.is_namespace) {
+                nfields++;
+                field_names = realloc(field_names, nfields * sizeof(const char *));
+                field_names[nfields - 1] = field->data.decl.name;
+            }
+        }
+
+        int line = stmt->line;
+        int col = stmt->col;
+        Expr *func_body = expr_new(NODE_BODY, line, col);
+
+        if (nfields == 0) {
+            // No instance fields: other := self; return other
+            Expr *self_ref = expr_new(NODE_IDENT, line, col);
+            self_ref->data.str_val = "self";
+            Expr *other_decl = expr_new(NODE_DECL, line, col);
+            other_decl->data.decl.name = "other";
+            other_decl->data.decl.is_mut = false;
+            other_decl->data.decl.is_namespace = false;
+            other_decl->data.decl.explicit_type = NULL;
+            expr_add_child(other_decl, self_ref);
+            expr_add_child(func_body, other_decl);
+
+            Expr *other_ref = expr_new(NODE_IDENT, line, col);
+            other_ref->data.str_val = "other";
+            Expr *ret = expr_new(NODE_RETURN, line, col);
+            expr_add_child(ret, other_ref);
+            expr_add_child(func_body, ret);
+        } else {
+            // With fields: return StructName(f1=self.f1.clone(), ...)
+            Expr *ctor = expr_new(NODE_FCALL, line, col);
+            Expr *ctor_name = expr_new(NODE_IDENT, line, col);
+            ctor_name->data.str_val = sname;
+            expr_add_child(ctor, ctor_name);
+
+            for (int j = 0; j < nfields; j++) {
+                // self.field_name
+                Expr *self_id = expr_new(NODE_IDENT, line, col);
+                self_id->data.str_val = "self";
+                Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                field_acc->data.str_val = field_names[j];
+                expr_add_child(field_acc, self_id);
+
+                // self.field_name.clone()
+                Expr *clone_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                clone_acc->data.str_val = "clone";
+                expr_add_child(clone_acc, field_acc);
+                Expr *clone_call = expr_new(NODE_FCALL, line, col);
+                expr_add_child(clone_call, clone_acc);
+
+                // Named arg: field_name=self.field_name.clone()
+                Expr *named = expr_new(NODE_NAMED_ARG, line, col);
+                named->data.str_val = field_names[j];
+                expr_add_child(named, clone_call);
+                expr_add_child(ctor, named);
+            }
+
+            Expr *ret = expr_new(NODE_RETURN, line, col);
+            expr_add_child(ret, ctor);
+            expr_add_child(func_body, ret);
+        }
+
+        // func def
+        Expr *func_def = expr_new(NODE_FUNC_DEF, line, col);
+        func_def->data.func_def.func_type = FUNC_FUNC;
+        func_def->data.func_def.nparam = 1;
+        func_def->data.func_def.param_names = malloc(sizeof(const char *));
+        func_def->data.func_def.param_names[0] = "self";
+        func_def->data.func_def.param_types = malloc(sizeof(const char *));
+        func_def->data.func_def.param_types[0] = sname;
+        func_def->data.func_def.param_muts = calloc(1, sizeof(bool));
+        func_def->data.func_def.param_owns = calloc(1, sizeof(bool));
+        func_def->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
+        func_def->data.func_def.return_type = sname;
+        func_def->data.func_def.is_variadic = false;
+        expr_add_child(func_def, func_body);
+
+        // clone := func(...)  (namespace decl)
+        Expr *decl = expr_new(NODE_DECL, line, col);
+        decl->data.decl.name = "clone";
+        decl->data.decl.is_namespace = true;
+        decl->data.decl.is_mut = false;
+        decl->data.decl.explicit_type = NULL;
+        expr_add_child(decl, func_def);
+
+        // Add to struct body
+        expr_add_child(body, decl);
+        free(field_names);
+    }
+
     // Pass 2: register all func/proc definitions
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];

@@ -175,6 +175,31 @@ test_ufcs := proc() {
     assert_eq_str(loc(), Describable.describe(d), "val=42")
 }
 
+test_clone := proc() {
+    // Clone a simple struct
+    p := Point(x=3, y=7)
+    p2 := p.clone()
+    assert_eq(loc(), p2.x, 3)
+    assert_eq(loc(), p2.y, 7)
+    // Mutating original doesn't affect clone
+    p.x = 99
+    assert_eq(loc(), p2.x, 3)
+    assert_eq(loc(), p.x, 99)
+
+    // Clone a nested struct (Line has Point fields)
+    l := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    l2 := l.clone()
+    assert_eq(loc(), l2.start.x, 1)
+    assert_eq(loc(), l2.end.y, 4)
+    l.start.x = 99
+    assert_eq(loc(), l2.start.x, 1)
+
+    // Clone builtins
+    assert_eq(loc(), 42.clone(), 42)
+    assert_eq_str(loc(), "hello".clone(), "hello")
+    assert(loc(), true.clone())
+}
+
 test_basic_struct()
 test_mixed_types()
 test_bool_fields()
@@ -185,3 +210,4 @@ test_independence()
 test_nested_structs()
 test_namespace()
 test_ufcs()
+test_clone()
