@@ -472,6 +472,10 @@ static Expr *parse_statement(Parser *p) {
         expr_add_child(node, parse_block(p));       // body
         return node;
     }
+    case TOK_BREAK: {
+        advance(p);
+        return expr_new(NODE_BREAK, t->line, t->col);
+    }
     default:
         fprintf(stderr, "%s:%d:%d: parse error: expected statement, found '%.*s'\n",
                 p->path, t->line, t->col, t->len, t->start);

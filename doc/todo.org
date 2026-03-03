@@ -1,16 +1,8 @@
-* TODO Interpreter/codegen consistency
-  The interpreter uses stack Values for primitives (I64, Bool, Str, U8) and only
-  heap-allocates struct instances. The codegen heap-allocates everything (long long *, int *, etc.).
+* DONE Interpreter/codegen consistency
+  The interpreter now heap-allocates all values (I64, Bool, Str, U8) just like
+  codegen. free() semantics are identical in both modes.
 
-  This means the typer's free() calls are no-ops for primitives in the interpreter,
-  so use-after-free bugs in ASAP destruction pass silently in interpret mode but
-  crash in compiled mode.
-
-  Choose either the interpreter or codegen approach and make both consistent.
-  free() semantics should be identical in both modes.
-
-* TODO Eliminate manual free(_wcond) in while-true transform
-  The while-true transformation manually inserts free(_wcond) in the else-branch
-  before break, bypassing insert_free_calls. Teach insert_free_calls to handle
-  break the same way it handles return (insert frees before the statement).
-  Then remove the manual free from the while-true transform.
+* DONE Eliminate manual free(_wcond) in while-true transform
+  insert_free_calls now handles NODE_BREAK: direct-child breaks get frees like
+  NODE_RETURN, and nested breaks inside if/else branches get frees via
+  insert_break_frees helper. Manual free removed from while-true transform.

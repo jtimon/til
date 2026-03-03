@@ -31,7 +31,7 @@ static TilType type_from_name(const char *name, TypeScope *scope) {
 }
 
 static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func);
-static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope);
+static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope, int in_loop);
 
 static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func) {
     switch (e->type) {
@@ -87,7 +87,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     if (pb) pb->struct_name = ptn;
                 }
             }
-            infer_body(func_scope, e->children[0], path, is_func, 1);
+            infer_body(func_scope, e->children[0], path, is_func, 1, 0);
             // Check: func must have a return type
             if (is_func && !e->data.func_def.return_type) {
                 type_error(path, e, "func must declare a return type");
@@ -100,7 +100,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         // Type-check field declarations (save/restore scope len so fields
         // don't leak into outer scope's locals for free-call insertion)
         int saved_len = scope->len;
-        infer_body(scope, e->children[0], path, 0, 0);
+        infer_body(scope, e->children[0], path, 0, 0, 0);
         scope->len = saved_len;
         break;
     }
@@ -649,6 +649,38 @@ typedef struct {
     int own_transfer;  // index of stmt that transfers ownership, -1 if none
 } LocalInfo;
 
+// Insert frees for live parent-scope locals before any NODE_BREAK in body
+static void insert_break_frees(Expr *body, LocalInfo *live, int n_live) {
+    Expr **new_ch = NULL;
+    int new_n = 0;
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *stmt = body->children[i];
+        if (stmt->type == NODE_IF) {
+            for (int c = 1; c < stmt->nchildren; c++)
+                insert_break_frees(stmt->children[c], live, n_live);
+        }
+        if (stmt->type == NODE_BREAK) {
+            for (int j = 0; j < n_live; j++) {
+                new_n++;
+                new_ch = realloc(new_ch, new_n * sizeof(Expr *));
+                new_ch[new_n - 1] = make_free_call(
+                    live[j].name, live[j].type, live[j].struct_name,
+                    stmt->line, stmt->col);
+            }
+        }
+        new_n++;
+        new_ch = realloc(new_ch, new_n * sizeof(Expr *));
+        new_ch[new_n - 1] = stmt;
+    }
+    if (new_n != body->nchildren) {
+        free(body->children);
+        body->children = new_ch;
+        body->nchildren = new_n;
+    } else {
+        free(new_ch);
+    }
+}
+
 static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, const char *path) {
     if (!scope_exit) return;
 
@@ -716,8 +748,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
 
-        // Before NODE_RETURN: free locals not yet freed (skip those used in return expr)
-        if (stmt->type == NODE_RETURN) {
+        // Before NODE_RETURN/NODE_BREAK: free locals not yet freed (skip those used in return expr)
+        if (stmt->type == NODE_RETURN || stmt->type == NODE_BREAK) {
             for (int j = 0; j < n_locals; j++) {
                 if (stmt->nchildren > 0 && expr_uses_var(stmt->children[0], locals[j].name)) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
@@ -730,13 +762,33 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
             }
         }
 
+        // For NODE_IF: insert frees before any nested NODE_BREAK in branches
+        if (stmt->type == NODE_IF) {
+            LocalInfo *live = NULL;
+            int n_live = 0;
+            for (int j = 0; j < n_locals; j++) {
+                if (locals[j].own_transfer >= 0) continue;
+                if (locals[j].decl_index < i &&
+                    (locals[j].last_use >= i || locals[j].last_use == -1)) {
+                    n_live++;
+                    live = realloc(live, n_live * sizeof(LocalInfo));
+                    live[n_live - 1] = locals[j];
+                }
+            }
+            if (n_live > 0) {
+                for (int c = 1; c < stmt->nchildren; c++)
+                    insert_break_frees(stmt->children[c], live, n_live);
+                free(live);
+            }
+        }
+
         // Add original statement
         new_n++;
         new_ch = realloc(new_ch, new_n * sizeof(Expr *));
         new_ch[new_n - 1] = stmt;
 
-        // After non-return statements: free locals whose last use is this statement
-        if (stmt->type != NODE_RETURN) {
+        // After non-return/break statements: free locals whose last use is this statement
+        if (stmt->type != NODE_RETURN && stmt->type != NODE_BREAK) {
             for (int j = 0; j < n_locals; j++) {
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == i) {
@@ -760,7 +812,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     free(locals);
 }
 
-static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope) {
+static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope, int in_loop) {
     body->til_type = TIL_TYPE_NONE;
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
@@ -952,6 +1004,12 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 stmt->til_type = TIL_TYPE_NONE;
             }
             break;
+        case NODE_BREAK:
+            if (!in_loop) {
+                type_error(path, stmt, "break outside loop");
+            }
+            stmt->til_type = TIL_TYPE_NONE;
+            break;
         case NODE_IF:
             infer_expr(scope, stmt->children[0], path, in_func); // condition
             if (stmt->children[0]->til_type != TIL_TYPE_BOOL &&
@@ -963,19 +1021,19 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             }
             {
                 TypeScope *then_scope = tscope_new(scope);
-                infer_body(then_scope, stmt->children[1], path, in_func, 1);
+                infer_body(then_scope, stmt->children[1], path, in_func, 1, in_loop);
                 tscope_free(then_scope);
             }
             if (stmt->nchildren > 2) {
                 TypeScope *else_scope = tscope_new(scope);
-                infer_body(else_scope, stmt->children[2], path, in_func, 1);
+                infer_body(else_scope, stmt->children[2], path, in_func, 1, in_loop);
                 tscope_free(else_scope);
             }
             stmt->til_type = TIL_TYPE_NONE;
             break;
         case NODE_BODY: {
             TypeScope *block_scope = tscope_new(scope);
-            infer_body(block_scope, stmt, path, in_func, 1);
+            infer_body(block_scope, stmt, path, in_func, 1, in_loop);
             tscope_free(block_scope);
             break;
         }
@@ -1018,8 +1076,6 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 expr_add_child(if_node, then_body);
                 Expr *else_body = expr_new(NODE_BODY, line, col);
                 else_body->til_type = TIL_TYPE_NONE;
-                Expr *free_wcond = make_free_call(wname, TIL_TYPE_BOOL, NULL, line, col);
-                expr_add_child(else_body, free_wcond);
                 Expr *brk = expr_new(NODE_BREAK, line, col);
                 brk->til_type = TIL_TYPE_NONE;
                 expr_add_child(else_body, brk);
@@ -1042,7 +1098,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             }
             {
                 TypeScope *while_scope = tscope_new(scope);
-                infer_body(while_scope, stmt->children[1], path, in_func, 1);
+                infer_body(while_scope, stmt->children[1], path, in_func, 1, 1);
                 tscope_free(while_scope);
             }
             stmt->til_type = TIL_TYPE_NONE;
@@ -1058,6 +1114,6 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
 
 int type_check(Expr *program, const char *path, TypeScope *scope) {
     errors = 0;
-    infer_body(scope, program, path, 0, 1);
+    infer_body(scope, program, path, 0, 1, 0);
     return errors;
 }

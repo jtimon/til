@@ -128,3 +128,6 @@ eat := proc(own v: I64) {
 doomed := 99
 eat(own doomed)
 println(doomed.to_str())
+
+// break outside loop
+break

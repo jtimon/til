@@ -2,7 +2,7 @@
 set -e
 
 CTIL=bin/ctil
-TESTS="src/test/misc.til src/test/structs.til src/test/optional_args.til src/test/forward_refs.til src/test/arithmetics.til"
+TESTS="src/test/misc.til src/test/structs.til src/test/optional_args.til src/test/forward_refs.til src/test/arithmetics.til src/test/flow.til"
 FAIL=0
 
 for t in $TESTS; do
@@ -19,8 +19,8 @@ done
 
 # typer_errors: should fail with exactly 25 errors
 errors=$($CTIL interpret src/test/typer_errors.til 2>&1 | grep -c "type error:" || true)
-if [ "$errors" -ne 28 ]; then
-    echo "FAIL: typer_errors expected 28 errors, got $errors"
+if [ "$errors" -ne 29 ]; then
+    echo "FAIL: typer_errors expected 29 errors, got $errors"
     FAIL=1
 fi
 

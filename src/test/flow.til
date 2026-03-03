@@ -1,0 +1,19 @@
+mode script
+
+// break exits while loop
+mut i := 0
+while true {
+    if i.eq(3) { break }
+    i = i.add(1)
+}
+println(i.to_str())
+
+// break with code after loop
+mut sum := 0
+mut j := 0
+while true {
+    if j.eq(5) { break }
+    sum = sum.add(j)
+    j = j.add(1)
+}
+println(sum.to_str())
