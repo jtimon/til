@@ -301,9 +301,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     // Built-in: i64_to_str(val)
     if (strcmp(name, "i64_to_str") == 0) {
         Value v = eval_expr(scope, e->children[1], path);
-        char *buf = malloc(32);
-        snprintf(buf, 32, "%lld", *v.i64);
-        return val_str(buf);
+        return (Value){.type = VAL_STR, .str = til_i64_to_str(v.i64)};
     }
 
     // Built-in: i64_eq(a, b)
@@ -428,9 +426,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     // Built-in: u8_to_str(val)
     if (strcmp(name, "u8_to_str") == 0) {
         Value v = eval_expr(scope, e->children[1], path);
-        char *buf = malloc(4);
-        snprintf(buf, 4, "%u", (unsigned)*v.i64);
-        return val_str(buf);
+        return (Value){.type = VAL_STR, .str = til_u8_to_str((unsigned char *)v.i64)};
     }
 
     // Built-in: u8_to_i64(val)
@@ -463,7 +459,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (strcmp(name, "str_eq") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_bool(strcmp(*a.str, *b.str) == 0);
+        return (Value){.type = VAL_BOOL, .boolean = til_str_eq(a.str, b.str)};
     }
 
     // Built-in: format(..Str) -> Str (variadic)

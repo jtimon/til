@@ -58,11 +58,21 @@
   The ccodegen and interpreter should be as similar and minimal as possible.
   The typer/initer should do more AST rewriting so backends can be dumb and uniform.
 
-** ccodegen: free() special case
-   ccodegen strcmp-checks for "free" and emits C's free() directly (ccodegen.c:127-130).
-   Now that ASAP uses Type.delete() instead of free(), the only caller of free is
-   inside auto-generated delete bodies. free could be a regular ext_proc that falls
-   through to til_free() — a trivial C wrapper around C's free(). No more strcmp.
+** FIXED ccodegen: free() special case
+   Moved to ext.c as til_free(). ccodegen generic call path handles it.
+   Interpreter also uses til_free() from ext.c.
+
+** FIXED ccodegen: exit() special case
+   Moved to ext.c as til_exit(). ccodegen generic call path handles it.
+   Interpreter also uses til_exit() from ext.c.
+
+** FIXED ccodegen: i64_to_str, u8_to_str, str_eq emitted inline
+   Moved to ext.c. Both backends now share the same C implementations.
+   Interpreter calls ext.c functions directly instead of reimplementing.
+
+** FIXED bool_to_str was a needless builtin
+   Replaced with pure til: if b { return "true" } else { return "false" }.
+   Removed ext_func, C wrapper from ccodegen, and strcmp case from interpreter.
 
 ** ccodegen: println/print special case (45 lines of type-aware printf)
    ccodegen has ~45 lines (ccodegen.c:81-126) of type-specific printf optimization:
@@ -83,11 +93,6 @@
    format(a, b) -> til_format(2, a, b). The typer could insert the count as a
    literal first arg during desugaring, eliminating the special case.
 
-** ccodegen: exit() special case
-   ccodegen special-cases exit() just to deref the arg (ccodegen.c:138-141).
-   Could use a trivial C wrapper til_exit(long long *code) { exit(*code); }
-   and let it fall through to the generic call path.
-
 ** ccodegen: struct constructors (til_new_X functions)
    ccodegen emits per-struct til_X_new() constructor functions (ccodegen.c:412-470)
    and special-cases struct instantiation calls to route to them (ccodegen.c:142-149).
@@ -107,12 +112,12 @@
    could normalize this so all RHS values are either fcalls or idents, making
    declaration emission uniform.
 
-** interpreter: 36 strcmp checks for ext_func/ext_proc builtins
-   The interpreter has ~36 strcmp(name, ...) checks in eval_call
-   (interpreter.c:231-524) for every ext_func/ext_proc: i64_add, i64_sub, u8_eq,
-   bool_not, etc. These are unavoidable for the interpreter (it must implement
-   them in C), but could be organized better — e.g. a dispatch table instead of
-   a linear strcmp chain.
+** interpreter: ~30 remaining strcmp checks for ext_func/ext_proc builtins
+   The interpreter still has ~30 strcmp(name, ...) checks in eval_call for
+   builtins: i64_add, i64_sub, u8_eq, bool_not, etc. Some now delegate to
+   ext.c (i64_to_str, u8_to_str, str_eq, exit, free), but the strcmp dispatch
+   remains. Could be organized better — e.g. a dispatch table, or move more
+   arithmetic/comparison builtins to ext.c.
 
 ** interpreter: free() accesses variable cell directly
    The interpreter's free() handler (interpreter.c:508-524) assumes the argument

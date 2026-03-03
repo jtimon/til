@@ -481,14 +481,6 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     fprintf(f, "    r[off] = '\\0';\n");
     fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = r; return _r;\n");
     fprintf(f, "}\n\n");
-    fprintf(f, "static const char **til_i64_to_str(long long *v) {\n");
-    fprintf(f, "    char *buf = malloc(32); snprintf(buf, 32, \"%%lld\", *v);\n");
-    fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = buf; return _r;\n");
-    fprintf(f, "}\n\n");
-    fprintf(f, "static const char **til_u8_to_str(unsigned char *v) {\n");
-    fprintf(f, "    char *buf = malloc(4); snprintf(buf, 4, \"%%u\", (unsigned)*v);\n");
-    fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = buf; return _r;\n");
-    fprintf(f, "}\n\n");
 
     // --- Ext_func wrapper functions (all take pointer args, return pointer) ---
     // I64 arithmetic and bitwise ops
@@ -518,8 +510,7 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     fprintf(f, "static int *til_bool_and(int *a, int *b) { int *_r = malloc(sizeof(int)); *_r = (*a) && (*b); return _r; }\n");
     fprintf(f, "static int *til_bool_or(int *a, int *b) { int *_r = malloc(sizeof(int)); *_r = (*a) || (*b); return _r; }\n");
     fprintf(f, "static int *til_bool_not(int *a) { int *_r = malloc(sizeof(int)); *_r = !(*a); return _r; }\n");
-    // String comparison
-    fprintf(f, "static int *til_str_eq(const char **a, const char **b) { int *_r = malloc(sizeof(int)); *_r = (strcmp(*a, *b) == 0); return _r; }\n");
+    // (str_eq, i64_to_str, u8_to_str moved to ext.c)
     fprintf(f, "\n");
 
     int is_script = mode && strcmp(mode, "script") == 0;
