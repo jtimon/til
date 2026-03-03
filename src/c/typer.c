@@ -593,11 +593,13 @@ static Expr *make_free_call(const char *var_name, TilType type, const char *stru
     arg->data.str_val = var_name;
     arg->til_type = type;
     arg->struct_name = struct_name;
+    arg->is_own_arg = true;
     expr_add_child(call, arg);
     return call;
 }
 
 static int expr_uses_var(Expr *e, const char *name) {
+    if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_IDENT && strcmp(e->data.str_val, name) == 0) return 1;
     if (e->type == NODE_ASSIGN && strcmp(e->data.str_val, name) == 0) return 1;
     for (int i = 0; i < e->nchildren; i++) {
@@ -607,6 +609,7 @@ static int expr_uses_var(Expr *e, const char *name) {
 }
 
 static int expr_contains_decl(Expr *e, const char *name) {
+    if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_DECL && strcmp(e->data.decl.name, name) == 0) return 1;
     for (int i = 0; i < e->nchildren; i++) {
         if (expr_contains_decl(e->children[i], name)) return 1;
@@ -633,6 +636,7 @@ static int fcall_has_own_arg(Expr *fcall, const char *var_name, TypeScope *scope
 }
 
 static int expr_transfers_own(Expr *e, const char *var_name, TypeScope *scope) {
+    if (e->type == NODE_FUNC_DEF) return 0;
     if (fcall_has_own_arg(e, var_name, scope)) return 1;
     for (int i = 0; i < e->nchildren; i++) {
         if (expr_transfers_own(e->children[i], var_name, scope)) return 1;
