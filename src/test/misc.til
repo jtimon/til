@@ -115,3 +115,8 @@ println(format("a", "b", "c"))
 test(loc(), 2.eq(2), "2 should equal 2")
 assert_eq(loc(), 1.add(1), 2)
 assert_eq_str(loc(), "a".concat("b"), "ab")
+
+// bitwise I64 operations
+assert_eq(loc(), 6.and(3), 2)
+assert_eq(loc(), 6.or(3), 7)
+assert_eq(loc(), 6.xor(3), 5)

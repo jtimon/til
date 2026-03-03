@@ -180,6 +180,24 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " > ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
+        } else if (strcmp(name, "i64_and") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " & ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "i64_or") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " | ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
+        } else if (strcmp(name, "i64_xor") == 0) {
+            fprintf(f, "(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, " ^ ");
+            emit_expr(f, e->children[2], depth);
+            fprintf(f, ")");
         } else if (strcmp(name, "bool_and") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);

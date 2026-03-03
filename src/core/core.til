@@ -51,6 +51,18 @@ I64 : StructDef = struct {
     neq := func(a: I64, b: I64) returns Bool {
         return a.eq(b).not()
     }
+    and := func(a: I64, b: I64) returns I64 {
+        i64_and := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_and(a, b)
+    }
+    or := func(a: I64, b: I64) returns I64 {
+        i64_or := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_or(a, b)
+    }
+    xor := func(a: I64, b: I64) returns I64 {
+        i64_xor := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_xor(a, b)
+    }
 }
 Str : StructDef = struct {
     namespace:

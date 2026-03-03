@@ -279,6 +279,27 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_BOOL, .boolean = a.i64 > b.i64};
     }
 
+    // Built-in: i64_and(a, b)
+    if (strcmp(name, "i64_and") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_I64, .i64 = a.i64 & b.i64};
+    }
+
+    // Built-in: i64_or(a, b)
+    if (strcmp(name, "i64_or") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_I64, .i64 = a.i64 | b.i64};
+    }
+
+    // Built-in: i64_xor(a, b)
+    if (strcmp(name, "i64_xor") == 0) {
+        Value a = eval_expr(scope, e->children[1], path);
+        Value b = eval_expr(scope, e->children[2], path);
+        return (Value){.type = VAL_I64, .i64 = a.i64 ^ b.i64};
+    }
+
     // Built-in: bool_and(a, b)
     if (strcmp(name, "bool_and") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
