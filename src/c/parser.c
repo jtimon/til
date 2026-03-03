@@ -450,8 +450,15 @@ static Expr *parse_statement(Parser *p) {
         expr_add_child(node, parse_block(p));       // then body
         if (check(p, TOK_ELSE)) {
             advance(p); // consume 'else'
-            expect(p, TOK_LBRACE);
-            expr_add_child(node, parse_block(p));   // else body
+            if (check(p, TOK_IF)) {
+                // else if → else { if ... }
+                Expr *else_body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col);
+                expr_add_child(else_body, parse_statement(p));
+                expr_add_child(node, else_body);
+            } else {
+                expect(p, TOK_LBRACE);
+                expr_add_child(node, parse_block(p));
+            }
         }
         return node;
     }

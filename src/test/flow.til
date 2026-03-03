@@ -37,3 +37,15 @@ while k.lt(5) {
     total = total.add(k)
 }
 println(total.to_str())
+
+// else if chains
+check := func(n: I64) returns I64 {
+    if n.eq(1) { return 10 }
+    else if n.eq(2) { return 20 }
+    else if n.eq(3) { return 30 }
+    else { return 0 }
+}
+println(check(1).to_str())
+println(check(2).to_str())
+println(check(3).to_str())
+println(check(99).to_str())

@@ -1,4 +1,1 @@
-* TODO Desugar else-if chains in parser
-  Desugar "else if" to nested if/else in the parser so the rest of the pipeline
-  doesn't need special support. Currently requires explicit nesting:
-  if x {} else { if y {} }.
+
