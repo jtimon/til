@@ -144,13 +144,69 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         infer_body(scope, e->children[0], path, 0);
         break;
     case NODE_FCALL: {
-        // Namespace method call: Struct.method(args)
+        // Namespace method call or UFCS: Type.method(args) or instance.method(args)
         if (e->children[0]->type == NODE_FIELD_ACCESS) {
-            infer_expr(scope, e->children[0], path, in_func);
             Expr *fa = e->children[0];
             Expr *obj = fa->children[0];
             const char *method = fa->data.str_val;
-            // Look up the func def in the struct body
+
+            // Type just the object first (not the full field access)
+            infer_expr(scope, obj, path, in_func);
+
+            // Check: is obj a type name (has struct_def) or an instance/value?
+            TypeBinding *tb = (obj->type == NODE_IDENT)
+                ? tscope_find(scope, obj->data.str_val) : NULL;
+            int obj_is_type = (tb && tb->struct_def);
+
+            if (!obj_is_type) {
+                // UFCS: instance.method(args) → Type.method(instance, args)
+                const char *type_name = NULL;
+                if (obj->til_type == TIL_TYPE_I64)  type_name = "I64";
+                else if (obj->til_type == TIL_TYPE_BOOL) type_name = "Bool";
+                else if (obj->til_type == TIL_TYPE_STR)  type_name = "Str";
+                else if (obj->til_type == TIL_TYPE_STRUCT && obj->struct_name)
+                    type_name = obj->struct_name;
+
+                Expr *sdef = type_name ? tscope_get_struct(scope, type_name) : NULL;
+                Expr *ns_func = NULL;
+                if (sdef) {
+                    Expr *body = sdef->children[0];
+                    for (int i = 0; i < body->nchildren; i++) {
+                        Expr *field = body->children[i];
+                        if (field->data.decl.is_namespace &&
+                            strcmp(field->data.decl.name, method) == 0 &&
+                            field->children[0]->type == NODE_FUNC_DEF) {
+                            ns_func = field->children[0];
+                            break;
+                        }
+                    }
+                }
+                if (!ns_func) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "no method '%s' for type '%s'",
+                             method, type_name ? type_name : "unknown");
+                    type_error(path, e, buf);
+                    e->til_type = TIL_TYPE_UNKNOWN;
+                    break;
+                }
+                // Desugar: rewrite AST to Type.method(instance, args)
+                Expr *instance = obj;
+                Expr *type_ident = expr_new(NODE_IDENT, obj->line, obj->col);
+                type_ident->data.str_val = type_name;
+                fa->children[0] = type_ident;
+                // Insert instance as first arg
+                e->children = realloc(e->children, (e->nchildren + 1) * sizeof(Expr *));
+                memmove(&e->children[2], &e->children[1], (e->nchildren - 1) * sizeof(Expr *));
+                e->children[1] = instance;
+                e->nchildren++;
+                // Fall through — existing code below handles Type.method(instance, args)
+            }
+
+            // Type the (possibly new) object and look up namespace func
+            obj = fa->children[0];
+            if (obj->til_type == TIL_TYPE_UNKNOWN) {
+                infer_expr(scope, obj, path, in_func);
+            }
             Expr *sdef = obj->struct_name ? tscope_get_struct(scope, obj->struct_name) : NULL;
             Expr *ns_func = NULL;
             if (sdef) {

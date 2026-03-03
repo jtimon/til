@@ -186,4 +186,28 @@ Greeter := struct {
 }
 assert_eq_str(loc(), Greeter.greet("world"), "hello, world")
 
+// ufcs: instance.method() desugars to Type.method(instance)
+x := 42
+assert_eq_str(loc(), x.to_str(), "42")
+assert_eq_str(loc(), 0.to_str(), "0")
+
+y := true
+assert_eq_str(loc(), y.to_str(), "true")
+z := false
+assert_eq_str(loc(), z.to_str(), "false")
+
+// ufcs on user-defined struct
+Describable := struct {
+    mut val := 0
+    namespace:
+    describe := func(d: Describable) returns Str {
+        return format("val=", i64_to_str(d.val))
+    }
+}
+d := Describable(val=42)
+assert_eq_str(loc(), d.describe(), "val=42")
+
+// direct namespace call still works
+assert_eq_str(loc(), Describable.describe(d), "val=42")
+
 println("all struct tests passed")

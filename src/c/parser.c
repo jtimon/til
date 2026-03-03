@@ -204,33 +204,23 @@ static Expr *parse_call(Parser *p, const char *name, int line, int col) {
 // parse_expression: for now handles literals, identifiers, and calls
 static Expr *parse_expression(Parser *p) {
     Token *t = peek(p);
+    Expr *e = NULL;
 
     if (t->type == TOK_STRING) {
         advance(p);
-        Expr *e = expr_new(NODE_LITERAL_STR, t->line, t->col);
+        e = expr_new(NODE_LITERAL_STR, t->line, t->col);
         e->data.str_val = tok_str(t);
-        return e;
-    }
-
-    if (t->type == TOK_NUMBER) {
+    } else if (t->type == TOK_NUMBER) {
         advance(p);
-        Expr *e = expr_new(NODE_LITERAL_NUM, t->line, t->col);
+        e = expr_new(NODE_LITERAL_NUM, t->line, t->col);
         e->data.str_val = tok_str(t);
-        return e;
-    }
-
-    if (t->type == TOK_TRUE || t->type == TOK_FALSE) {
+    } else if (t->type == TOK_TRUE || t->type == TOK_FALSE) {
         advance(p);
-        Expr *e = expr_new(NODE_LITERAL_BOOL, t->line, t->col);
+        e = expr_new(NODE_LITERAL_BOOL, t->line, t->col);
         e->data.str_val = tok_str(t);
-        return e;
-    }
-
-    if (t->type == TOK_IDENT) {
+    } else if (t->type == TOK_IDENT) {
         advance(p);
         const char *name = tok_str(t);
-
-        Expr *e;
         // function call?
         if (check(p, TOK_LPAREN)) {
             e = parse_call(p, name, t->line, t->col);
@@ -238,59 +228,53 @@ static Expr *parse_expression(Parser *p) {
             e = expr_new(NODE_IDENT, t->line, t->col);
             e->data.str_val = name;
         }
-
-        // field access chain: expr.field.field... or expr.method(args)
-        while (check(p, TOK_DOT)) {
-            advance(p); // consume '.'
-            Token *field = expect(p, TOK_IDENT);
-            if (check(p, TOK_LPAREN)) {
-                // Method call: expr.method(args)
-                advance(p); // consume '('
-                Expr *callee = expr_new(NODE_FIELD_ACCESS, field->line, field->col);
-                callee->data.str_val = tok_str(field);
-                expr_add_child(callee, e);
-                Expr *call = expr_new(NODE_FCALL, field->line, field->col);
-                expr_add_child(call, callee);
-                while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
-                    if (check(p, TOK_IDENT) && p->pos + 1 < p->count &&
-                        p->tokens[p->pos + 1].type == TOK_EQ) {
-                        Token *aname = advance(p);
-                        advance(p);
-                        Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col);
-                        na->data.str_val = tok_str(aname);
-                        expr_add_child(na, parse_expression(p));
-                        expr_add_child(call, na);
-                    } else {
-                        expr_add_child(call, parse_expression(p));
-                    }
-                    if (check(p, TOK_COMMA)) advance(p);
-                }
-                expect(p, TOK_RPAREN);
-                e = call;
-            } else {
-                Expr *access = expr_new(NODE_FIELD_ACCESS, field->line, field->col);
-                access->data.str_val = tok_str(field);
-                expr_add_child(access, e);
-                e = access;
-            }
-        }
-        return e;
-    }
-
-    // func/proc literal (e.g. as RHS of :=)
-    if (t->type == TOK_FUNC || t->type == TOK_PROC || t->type == TOK_MACRO ||
-        t->type == TOK_EXT_FUNC || t->type == TOK_EXT_PROC) {
+    } else if (t->type == TOK_FUNC || t->type == TOK_PROC || t->type == TOK_MACRO ||
+               t->type == TOK_EXT_FUNC || t->type == TOK_EXT_PROC) {
         return parse_func_def(p);
-    }
-
-    // struct literal (e.g. as RHS of :=)
-    if (t->type == TOK_STRUCT) {
+    } else if (t->type == TOK_STRUCT) {
         return parse_struct_def(p);
+    } else {
+        fprintf(stderr, "%s:%d:%d: parse error: unexpected token '%.*s'\n",
+                p->path, t->line, t->col, t->len, t->start);
+        exit(1);
     }
 
-    fprintf(stderr, "%s:%d:%d: parse error: unexpected token '%.*s'\n",
-            p->path, t->line, t->col, t->len, t->start);
-    exit(1);
+    // field access chain: expr.field.field... or expr.method(args)
+    while (check(p, TOK_DOT)) {
+        advance(p); // consume '.'
+        Token *field = expect(p, TOK_IDENT);
+        if (check(p, TOK_LPAREN)) {
+            // Method call: expr.method(args)
+            advance(p); // consume '('
+            Expr *callee = expr_new(NODE_FIELD_ACCESS, field->line, field->col);
+            callee->data.str_val = tok_str(field);
+            expr_add_child(callee, e);
+            Expr *call = expr_new(NODE_FCALL, field->line, field->col);
+            expr_add_child(call, callee);
+            while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+                if (check(p, TOK_IDENT) && p->pos + 1 < p->count &&
+                    p->tokens[p->pos + 1].type == TOK_EQ) {
+                    Token *aname = advance(p);
+                    advance(p);
+                    Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col);
+                    na->data.str_val = tok_str(aname);
+                    expr_add_child(na, parse_expression(p));
+                    expr_add_child(call, na);
+                } else {
+                    expr_add_child(call, parse_expression(p));
+                }
+                if (check(p, TOK_COMMA)) advance(p);
+            }
+            expect(p, TOK_RPAREN);
+            e = call;
+        } else {
+            Expr *access = expr_new(NODE_FIELD_ACCESS, field->line, field->col);
+            access->data.str_val = tok_str(field);
+            expr_add_child(access, e);
+            e = access;
+        }
+    }
+    return e;
 }
 
 // parse_statement_ident: identifier is current token
