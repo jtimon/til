@@ -1,10 +1,62 @@
 # Issue tracker for til2.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 4
+# NEXT_ISSUE: 6
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
+* OPEN #5 Pointers and arrays: unlock C-level memory access
+  :DEPENDENCIES: #0 #2 #3
+  After #2 (ref) and #3 (own fields), til will have single-pointer semantics
+  for structs, args, and returns — but still no way to work with multi-element
+  allocations. C has malloc(sizeof(Elem)*n), pointer[i] indexing, pointer
+  arithmetic, and dereference. Some of this is needed for self-hosting since
+  the current C implementation uses these features (e.g. Expr.children, field
+  arrays).
+
+  own and ref will replace C's raw * for single pointers, giving the typer
+  enough information for compile-time garbage collection (no explicit free).
+  Arrays need the same treatment: the user gets power without the responsibility
+  of manual free — ASAP and auto-generated delete handle cleanup.
+
+  What's needed:
+  - Array type: own arr: [I64] or similar — contiguous heap allocation of N elements
+  - Indexed access: arr[i] or arr.get(i)
+  - Length: arr.len()
+  - Construction: [1, 2, 3] or Array(I64, size=10)
+  - Ownership: arrays are owned by default, clone deep-copies, delete frees
+
+  What's probably NOT needed (at least initially):
+  - Raw pointer arithmetic (arrays with bounds checking are safer)
+  - Manual dereference (* operator)
+  - Void pointers
+
+* OPEN #4 FFI: call external C functions from til
+  The ext_func/ext_proc syntax already works for builtins. Extend it so users
+  can call arbitrary C functions by providing a .c file alongside their .til
+  program. The user declares signatures in til, implements them in C following
+  the til pointer convention, and the compiler links them.
+
+  First milestone — user-provided ext file:
+
+    # square.c
+    #include <stdlib.h>
+    long long *til_square(long long *x) {
+        long long *r = malloc(sizeof(long long));
+        *r = (*x) * (*x);
+        return r;
+    }
+
+    # program.til
+    square := ext_func(x: I64) returns I64 {}
+    assert_eq(square(5), 25)
+
+  Later — mode-specific imports:
+  A mode like "gui" could auto-link a library (e.g. raylib) and auto-import
+  a .til file with ext_func/ext_proc signatures and wrapper structs, so the
+  user just writes `mode gui` and gets access to the API.
+
 * OPEN #3 own keyword for struct fields: heap-allocated owned pointers
+  :DEPENDENCIES: #0
   Struct fields currently are always inline (contiguous in parent allocation).
   An own field stores a heap pointer instead. Unlike ref (#2), own implies
   ownership: clone recursively clones it, delete recursively deletes it.
@@ -24,6 +76,7 @@
     }
 
 * OPEN #2 ref keyword: non-owning references for returns, declarations, and struct fields
+  :DEPENDENCIES: #0
   Currently all returns are owned by the caller (heap-allocated, caller must
   delete). This breaks when a function wants to return one of its args:
 
@@ -141,3 +194,41 @@
    through unresolved and the interpreter crashes (NODE_NAMED_ARG not handled
    in eval_expr). Currently works because auto-generated calls use positional args,
    but would break for user code like Point.delete(call_free=false).
+
+* OPEN #0 Complete basic memory management before extending pointer semantics
+  Before #2 (ref), #3 (own fields), and #5 (arrays), the existing memory
+  management needs to be solid. The user should never need to call free or
+  delete explicitly — ASAP handles it. But there are gaps.
+
+  Current state:
+  - ASAP inserts Type.delete(own var) after last use of each local. Works.
+  - Auto-generated delete calls field deletes then free(own self). Works.
+  - Auto-generated clone deep-copies fields. Works.
+  - own at call sites transfers ownership, ASAP skips cleanup. Works.
+
+  What's missing or fragile:
+
+** Custom delete: user-defined override for auto-generated delete
+   Sometimes the auto-generated delete isn't enough — e.g. a struct that holds
+   a file handle needs to close it before freeing. The user should be able to
+   define their own delete proc for a struct, and the initer should skip
+   auto-generating one when a user-defined delete already exists.
+
+** Use-after-own error: catch transferred variables at compile time
+   After `own p.delete()` or `foo(own p)`, p is no longer owned by the current
+   scope. Using p after that is a bug. The typer should emit an error, ideally
+   suggesting clone: "p was transferred via own — did you mean to clone it first?"
+
+** Clone responsibility: clarify when the user must clone explicitly
+   ASAP handles deletion automatically, but cloning is the user's responsibility
+   in some cases. If a function needs to keep a value that was passed by ref,
+   it must clone it. The rules should be clear and enforced:
+   - Passing by ref (default): caller keeps ownership, callee borrows
+   - Passing with own: caller gives up ownership
+   - If callee wants to store a ref arg beyond its scope, it must clone
+
+** ASAP edge cases
+   ASAP works for straightforward code but may have edge cases:
+   - Variables used in both branches of if/else
+   - Variables captured in closures (not yet supported, but eventually)
+   - Variables returned from deeply nested scopes
