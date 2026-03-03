@@ -376,7 +376,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                 }
                 fprintf(f, "}");
             } else {
-                fprintf(f, "til_%s_default()", name);
+                fprintf(f, "(til_%s){}", e->struct_name);
             }
         } else {
             // User-defined function call
@@ -717,21 +717,6 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
         fprintf(f, "\n");
     }
     fprintf(f, "\n");
-    // Emit default constructor — returns heap-allocated pointer
-    fprintf(f, "til_%s *til_%s_default(void) {\n", name, name);
-    fprintf(f, "    til_%s *_t = malloc(sizeof(til_%s));\n", name, name);
-    fprintf(f, "    *_t = (til_%s){", name);
-    int first = 1;
-    for (int i = 0; i < body->nchildren; i++) {
-        if (body->children[i]->data.decl.is_namespace) continue;
-        if (!first) fprintf(f, ", ");
-        first = 0;
-        fprintf(f, ".%s = ", body->children[i]->data.decl.name);
-        emit_expr(f, body->children[i]->children[0], 0);
-    }
-    fprintf(f, "};\n");
-    fprintf(f, "    return _t;\n");
-    fprintf(f, "}\n");
 }
 
 int codegen_c(Expr *program, const char *mode, const char *path, const char *c_output_path) {
