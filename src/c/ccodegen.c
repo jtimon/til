@@ -372,7 +372,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                     if (!first2) fprintf(f, ", ");
                     first2 = 0;
                     fprintf(f, ".%s = ", sbody->children[i]->data.decl.name);
-                    emit_expr(f, e->children[arg_idx++], depth);
+                    emit_deref(f, e->children[arg_idx++], depth);
                 }
                 fprintf(f, "}");
             } else {
@@ -409,42 +409,6 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
     }
 }
 
-static void emit_deref(FILE *f, Expr *e, int depth) {
-    if (e->type == NODE_IDENT || fcall_returns_ptr(e)) {
-        fprintf(f, "(*");
-        emit_expr(f, e, depth);
-        fprintf(f, ")");
-    } else {
-        emit_expr(f, e, depth);
-    }
-}
-
-// Emit expression as a pointer — literals are hoisted to temps by the typer,
-// but field accesses and other value expressions still need compound literal wrapping.
-static void emit_as_ptr(FILE *f, Expr *e, int depth) {
-    if (e->type == NODE_IDENT || fcall_returns_ptr(e)) {
-        emit_expr(f, e, depth);
-    } else if (e->til_type == TIL_TYPE_I64) {
-        fprintf(f, "&(long long){");
-        emit_expr(f, e, depth);
-        fprintf(f, "}");
-    } else if (e->til_type == TIL_TYPE_U8) {
-        fprintf(f, "&(unsigned char){");
-        emit_expr(f, e, depth);
-        fprintf(f, "}");
-    } else if (e->til_type == TIL_TYPE_BOOL) {
-        fprintf(f, "&(int){");
-        emit_expr(f, e, depth);
-        fprintf(f, "}");
-    } else if (e->til_type == TIL_TYPE_STR) {
-        fprintf(f, "&(const char *){");
-        emit_expr(f, e, depth);
-        fprintf(f, "}");
-    } else {
-        emit_expr(f, e, depth);
-    }
-}
-
 // --- Type to C type string ---
 
 static const char *til_type_to_c(TilType t) {
@@ -456,6 +420,16 @@ static const char *til_type_to_c(TilType t) {
     case TIL_TYPE_NONE: return "void";
     default:            return "long long"; // fallback
     }
+}
+
+// C type name without pointer — "til_Point" for structs, "long long" for I64, etc.
+static const char *c_type_name(TilType t, const char *struct_name) {
+    if (t == TIL_TYPE_STRUCT && struct_name) {
+        static char buf[128];
+        snprintf(buf, sizeof(buf), "til_%s", struct_name);
+        return buf;
+    }
+    return til_type_to_c(t);
 }
 
 // Convert a type name string to C type string (handles struct types)
@@ -470,6 +444,29 @@ static const char *type_name_to_c(const char *name) {
     return buf;
 }
 
+static void emit_deref(FILE *f, Expr *e, int depth) {
+    if (e->type == NODE_IDENT) {
+        fprintf(f, "(*");
+        emit_expr(f, e, depth);
+        fprintf(f, ")");
+    } else {
+        emit_expr(f, e, depth);
+    }
+}
+
+// Emit expression as a pointer — after hoisting, args are NODE_IDENT (already pointer)
+// or NODE_FIELD_ACCESS (value needing compound literal wrapping).
+static void emit_as_ptr(FILE *f, Expr *e, int depth) {
+    if (e->type == NODE_IDENT) {
+        emit_expr(f, e, depth);
+    } else {
+        const char *ctype = c_type_name(e->til_type, e->struct_name);
+        fprintf(f, "&(%s){", ctype);
+        emit_expr(f, e, depth);
+        fprintf(f, "}");
+    }
+}
+
 // --- Statement emission ---
 
 static void emit_stmt(FILE *f, Expr *e, int depth) {
@@ -480,68 +477,25 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             fprintf(f, "/* TODO: nested func %s */\n", e->data.decl.name);
         } else if (e->children[0]->type == NODE_STRUCT_DEF) {
             fprintf(f, "/* struct %s defined above */\n", e->data.decl.name);
-        } else if (e->til_type == TIL_TYPE_STRUCT && e->children[0]->struct_name) {
-            const char *sname = e->children[0]->struct_name;
-            Expr *rhs = e->children[0];
-            if (rhs->type == NODE_FCALL && rhs->struct_name && rhs->nchildren > 1) {
-                // Constructor with args — compound literal, needs malloc + assign
-                fprintf(f, "til_%s *%s = malloc(sizeof(til_%s));\n", sname, e->data.decl.name, sname);
-                emit_indent(f, depth);
-                fprintf(f, "*%s = ", e->data.decl.name);
-                emit_expr(f, rhs, depth);
-                fprintf(f, ";\n");
-            } else if (rhs->type == NODE_FCALL) {
-                // Default constructor or function call — already returns pointer
-                fprintf(f, "til_%s *%s = ", sname, e->data.decl.name);
-                emit_expr(f, rhs, depth);
-                fprintf(f, ";\n");
-            } else if (rhs->type == NODE_IDENT) {
-                // Copy from struct variable (pointer) — deref copy
-                fprintf(f, "til_%s *%s = malloc(sizeof(til_%s));\n", sname, e->data.decl.name, sname);
-                emit_indent(f, depth);
-                fprintf(f, "*%s = *", e->data.decl.name);
-                emit_expr(f, rhs, depth);
-                fprintf(f, ";\n");
-            } else {
-                // Field access or other — value, just copy
-                fprintf(f, "til_%s *%s = malloc(sizeof(til_%s));\n", sname, e->data.decl.name, sname);
-                emit_indent(f, depth);
-                fprintf(f, "*%s = ", e->data.decl.name);
-                emit_expr(f, rhs, depth);
-                fprintf(f, ";\n");
-            }
         } else {
-            const char *ctype = til_type_to_c(e->til_type);
+            const char *ctype = c_type_name(e->til_type, e->children[0]->struct_name);
             Expr *rhs = e->children[0];
             if (fcall_returns_ptr(rhs)) {
-                // User/namespace func call — already returns pointer
                 fprintf(f, "%s *%s = ", ctype, e->data.decl.name);
                 emit_expr(f, rhs, depth);
                 fprintf(f, ";\n");
-            } else if (rhs->type == NODE_IDENT) {
-                // Copy from variable — deref copy
-                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name, ctype);
-                emit_indent(f, depth);
-                fprintf(f, "*%s = *", e->data.decl.name);
-                emit_expr(f, rhs, depth);
-                fprintf(f, ";\n");
             } else {
-                // Literal, builtin result, etc. — value
                 fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name, ctype);
                 emit_indent(f, depth);
                 fprintf(f, "*%s = ", e->data.decl.name);
-                emit_expr(f, rhs, depth);
+                emit_deref(f, rhs, depth);
                 fprintf(f, ";\n");
             }
         }
         break;
     case NODE_ASSIGN:
-        if (e->children[0]->type == NODE_IDENT || fcall_returns_ptr(e->children[0])) {
-            fprintf(f, "*%s = *", e->data.str_val);
-        } else {
-            fprintf(f, "*%s = ", e->data.str_val);
-        }
-        emit_expr(f, e->children[0], depth);
+        fprintf(f, "*%s = ", e->data.str_val);
+        emit_deref(f, e->children[0], depth);
         fprintf(f, ";\n");
         break;
     case NODE_FIELD_ASSIGN: {
@@ -565,18 +519,12 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
     case NODE_RETURN:
         if (e->nchildren == 0) {
             fprintf(f, "return;\n");
-        } else if (e->children[0]->type == NODE_IDENT || fcall_returns_ptr(e->children[0])) {
-            // Already a pointer — return as-is
+        } else if (e->children[0]->type == NODE_IDENT) {
             fprintf(f, "return ");
             emit_expr(f, e->children[0], depth);
             fprintf(f, ";\n");
-        } else if (e->children[0]->til_type == TIL_TYPE_STRUCT) {
-            const char *sname = e->children[0]->struct_name;
-            fprintf(f, "{ til_%s *_r = malloc(sizeof(til_%s)); *_r = ", sname, sname);
-            emit_expr(f, e->children[0], depth);
-            fprintf(f, "; return _r; }\n");
         } else {
-            const char *ctype = til_type_to_c(e->children[0]->til_type);
+            const char *ctype = c_type_name(e->children[0]->til_type, e->children[0]->struct_name);
             fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
             emit_expr(f, e->children[0], depth);
             fprintf(f, "; return _r; }\n");

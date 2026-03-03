@@ -492,7 +492,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
     for (int i = 0; i < e->nchildren; i++) {
         hoist_expr(e->children[i], hoisted, nhoisted, cap, scope);
     }
-    if (e->type != NODE_FCALL || e->struct_name) return;
+    if (e->type != NODE_FCALL) return;
     // Check each argument (children[1..n])
     for (int i = 1; i < e->nchildren; i++) {
         if (e->children[i]->type != NODE_FCALL &&
