@@ -10,6 +10,22 @@ I64 : StructDef = struct {
         i64_add := ext_func(a: I64, b: I64) returns I64 {}
         return i64_add(a, b)
     }
+    sub := func(a: I64, b: I64) returns I64 {
+        i64_sub := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_sub(a, b)
+    }
+    mul := func(a: I64, b: I64) returns I64 {
+        i64_mul := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_mul(a, b)
+    }
+    div := func(a: I64, b: I64) returns I64 {
+        i64_div := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_div(a, b)
+    }
+    mod := func(a: I64, b: I64) returns I64 {
+        i64_mod := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_mod(a, b)
+    }
 }
 Str : StructDef = struct {}
 Bool : StructDef = struct {
@@ -20,10 +36,6 @@ Bool : StructDef = struct {
 }
 
 // builtin functions and procs
-sub := ext_func(a: I64, b: I64) returns I64 {}
-mul := ext_func(a: I64, b: I64) returns I64 {}
-div := ext_func(a: I64, b: I64) returns I64 {}
-mod := ext_func(a: I64, b: I64) returns I64 {}
 eq := ext_func(a: I64, b: I64) returns Bool {}
 lt := ext_func(a: I64, b: I64) returns Bool {}
 gt := ext_func(a: I64, b: I64) returns Bool {}
@@ -47,7 +59,7 @@ gte := func(a: I64, b: I64) returns Bool {
 }
 
 neg := func(a: I64) returns I64 {
-    return sub(0, a)
+    return 0.sub(a)
 }
 
 neq := func(a: I64, b: I64) returns Bool {

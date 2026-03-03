@@ -2,13 +2,13 @@ mode script
 
 mut i := 1
 while lte(i, 100) {
-    if eq(mod(i, 15), 0) {
+    if eq(i.mod(15), 0) {
         println("FizzBuzz")
     } else {
-        if eq(mod(i, 3), 0) {
+        if eq(i.mod(3), 0) {
             println("Fizz")
         } else {
-            if eq(mod(i, 5), 0) {
+            if eq(i.mod(5), 0) {
                 println("Buzz")
             } else {
                 println(i64_to_str(i))

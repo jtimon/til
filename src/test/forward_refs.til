@@ -4,7 +4,7 @@ mode script
 assert_eq(loc(), double(5), 10)
 
 double := func(n: I64) returns I64 {
-    return mul(n, 2)
+    return n.mul(2)
 }
 
 // forward reference: call a proc defined later
@@ -18,7 +18,7 @@ greet := proc() {
 countdown := proc(n: I64) {
     if gt(n, 0) {
         print(i64_to_str(n), " ")
-        countdown(sub(n, 1))
+        countdown(n.sub(1))
     }
 }
 countdown(5)
@@ -29,7 +29,7 @@ factorial := func(n: I64) returns I64 {
     if lte(n, 1) {
         return 1
     }
-    return mul(n, factorial(sub(n, 1)))
+    return n.mul(factorial(n.sub(1)))
 }
 assert_eq(loc(), factorial(5), 120)
 assert_eq(loc(), factorial(1), 1)
@@ -38,12 +38,12 @@ assert_eq(loc(), factorial(0), 1)
 // mutual recursion
 is_even := func(n: I64) returns Bool {
     if eq(n, 0) { return true }
-    return is_odd(sub(n, 1))
+    return is_odd(n.sub(1))
 }
 
 is_odd := func(n: I64) returns Bool {
     if eq(n, 0) { return false }
-    return is_even(sub(n, 1))
+    return is_even(n.sub(1))
 }
 
 assert(loc(), is_even(0))

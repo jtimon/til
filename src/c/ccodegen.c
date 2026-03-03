@@ -138,25 +138,25 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, " + ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "sub") == 0) {
+        } else if (strcmp(name, "i64_sub") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " - ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "mul") == 0) {
+        } else if (strcmp(name, "i64_mul") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " * ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "div") == 0) {
+        } else if (strcmp(name, "i64_div") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " / ");
             emit_expr(f, e->children[2], depth);
             fprintf(f, ")");
-        } else if (strcmp(name, "mod") == 0) {
+        } else if (strcmp(name, "i64_mod") == 0) {
             fprintf(f, "(");
             emit_expr(f, e->children[1], depth);
             fprintf(f, " %% ");

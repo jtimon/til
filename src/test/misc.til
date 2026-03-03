@@ -65,8 +65,8 @@ println(bool_to_str(gte(2, 2)))
 println(bool_to_str(gte(1, 2)))
 println(bool_to_str(neq(1, 2)))
 println(bool_to_str(neq(2, 2)))
-println(i64_to_str(mod(10, 3)))
-println(i64_to_str(mod(10, 5)))
+println(10.mod(3).to_str())
+println(10.mod(5).to_str())
 println(i64_to_str(neg(42)))
 
 mut counter := 0
@@ -87,7 +87,7 @@ println("")
 
 // explicit FunctionDef type annotation
 double : FunctionDef = func(n: I64) returns I64 {
-    return mul(n, 2)
+    return n.mul(2)
 }
 assert_eq(loc(), double(5), 10)
 

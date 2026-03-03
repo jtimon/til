@@ -1,7 +1,7 @@
 mode script
 
 // helper
-minus := func(a: I64, b: I64) returns I64 { return sub(a, b) }
+minus := func(a: I64, b: I64) returns I64 { return a.sub(b) }
 
 // === Named Arguments Tests ===
 
