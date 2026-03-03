@@ -515,16 +515,31 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             break;
         case NODE_FCALL:
             hoist_expr(stmt, &hoisted, &nhoisted, &hcap, scope);
+            if (stmt->til_type != TIL_TYPE_NONE) {
+                hoist_to_temp(stmt, &hoisted, &nhoisted, &hcap, scope);
+                stmt = hoisted[--nhoisted];
+                body->children[i] = stmt;
+            }
             break;
         case NODE_RETURN:
-            if (stmt->nchildren > 0)
+            if (stmt->nchildren > 0) {
                 hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+                if (stmt->children[0]->type == NODE_FCALL) {
+                    stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+                }
+            }
             break;
         case NODE_ASSIGN:
             hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            if (stmt->children[0]->type == NODE_FCALL) {
+                stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            }
             break;
         case NODE_FIELD_ASSIGN:
             hoist_expr(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
+            if (stmt->children[1]->type == NODE_FCALL) {
+                stmt->children[1] = hoist_to_temp(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
+            }
             break;
         case NODE_IF:
             hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
