@@ -18,8 +18,7 @@ static Expr *unwrap_to_str(Expr *e) {
     if (e->type == NODE_FCALL && e->nchildren >= 2) {
         if (e->children[0]->type == NODE_IDENT) {
             const char *name = e->children[0]->data.str_val;
-            if (strcmp(name, "i64_to_str") == 0 || strcmp(name, "bool_to_str") == 0 ||
-                strcmp(name, "u8_to_str") == 0)
+            if (strcmp(name, "i64_to_str") == 0 || strcmp(name, "u8_to_str") == 0)
                 return e->children[1];
         }
         // I64.to_str(x) or Bool.to_str(x)
@@ -485,9 +484,6 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     fprintf(f, "static const char **til_i64_to_str(long long *v) {\n");
     fprintf(f, "    char *buf = malloc(32); snprintf(buf, 32, \"%%lld\", *v);\n");
     fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = buf; return _r;\n");
-    fprintf(f, "}\n\n");
-    fprintf(f, "static const char **til_bool_to_str(int *v) {\n");
-    fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = *v ? \"true\" : \"false\"; return _r;\n");
     fprintf(f, "}\n\n");
     fprintf(f, "static const char **til_u8_to_str(unsigned char *v) {\n");
     fprintf(f, "    char *buf = malloc(4); snprintf(buf, 4, \"%%u\", (unsigned)*v);\n");

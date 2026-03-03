@@ -148,9 +148,8 @@ Str : StructDef = struct {
 }
 Bool : StructDef = struct {
     namespace:
-    to_str := func(val: Bool) returns Str {
-        bool_to_str := ext_func(val: Bool) returns Str {}
-        return bool_to_str(val)
+    to_str := func(b: Bool) returns Str {
+        if b { return "true" } else { return "false" }
     }
     and := func(a: Bool, b: Bool) returns Bool {
         bool_and := ext_func(a: Bool, b: Bool) returns Bool {}

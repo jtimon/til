@@ -306,12 +306,6 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return val_str(buf);
     }
 
-    // Built-in: bool_to_str(val)
-    if (strcmp(name, "bool_to_str") == 0) {
-        Value v = eval_expr(scope, e->children[1], path);
-        return val_str(*v.boolean ? "true" : "false");
-    }
-
     // Built-in: i64_eq(a, b)
     if (strcmp(name, "i64_eq") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
