@@ -58,6 +58,34 @@ static Expr *unwrap_to_str(Expr *e) {
     return NULL;
 }
 
+// Emit expression dereferenced to a value: (*x) for IDENT, plain for literals/builtins
+static void emit_deref(FILE *f, Expr *e, int depth);
+// Emit expression as a pointer: wraps values in &(type){val}
+static void emit_as_ptr(FILE *f, Expr *e, int depth);
+
+// Check if an FCALL returns a pointer (user func/proc or default constructor)
+// vs a value (inline builtin like i64_add, literal cast, etc.)
+static int fcall_returns_ptr(Expr *e) {
+    if (e->type != NODE_FCALL) return 0;
+    // Namespace method call — real C function, returns pointer
+    if (e->children[0]->type == NODE_FIELD_ACCESS) return 1;
+    // Struct default constructor — returns pointer
+    if (e->struct_name && e->nchildren <= 1) return 1;
+    // Struct constructor with args — compound literal, value
+    if (e->struct_name && e->nchildren > 1) return 0;
+    // Look up: user func/proc returns pointer, ext_func/ext_proc is inline (value)
+    const char *name = e->children[0]->data.str_val;
+    for (int i = 0; i < codegen_program->nchildren; i++) {
+        Expr *stmt = codegen_program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF &&
+            strcmp(stmt->data.decl.name, name) == 0) {
+            FuncType ft = stmt->children[0]->data.func_def.func_type;
+            return ft == FUNC_FUNC || ft == FUNC_PROC;
+        }
+    }
+    return 0; // unknown — assume value
+}
+
 // --- Forward declarations ---
 
 static void emit_expr(FILE *f, Expr *e, int depth);
@@ -89,7 +117,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, "til_%s_%s(", sname, mname);
             for (int i = 1; i < e->nchildren; i++) {
                 if (i > 1) fprintf(f, ", ");
-                emit_expr(f, e->children[i], depth);
+                emit_as_ptr(f, e->children[i], depth);
             }
             fprintf(f, ")");
             break;
@@ -108,33 +136,33 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                 Expr *inner = unwrap_to_str(arg);
                 if (inner && inner->til_type == TIL_TYPE_BOOL) {
                     fprintf(f, "printf(\"%%s%s\", ", nl);
-                    emit_expr(f, inner, depth);
+                    emit_deref(f, inner, depth);
                     fprintf(f, " ? \"true\" : \"false\")");
                 } else if (inner && inner->til_type == TIL_TYPE_U8) {
                     fprintf(f, "printf(\"%%u%s\", (unsigned)", nl);
-                    emit_expr(f, inner, depth);
+                    emit_deref(f, inner, depth);
                     fprintf(f, ")");
                 } else if (inner) {
                     fprintf(f, "printf(\"%%lld%s\", (long long)", nl);
-                    emit_expr(f, inner, depth);
+                    emit_deref(f, inner, depth);
                     fprintf(f, ")");
                 } else if (arg->type == NODE_LITERAL_STR) {
                     fprintf(f, "printf(\"%s%s\")", arg->data.str_val, nl);
                 } else if (arg->til_type == TIL_TYPE_I64) {
                     fprintf(f, "printf(\"%%lld%s\", (long long)", nl);
-                    emit_expr(f, arg, depth);
+                    emit_deref(f, arg, depth);
                     fprintf(f, ")");
                 } else if (arg->til_type == TIL_TYPE_U8) {
                     fprintf(f, "printf(\"%%u%s\", (unsigned)", nl);
-                    emit_expr(f, arg, depth);
+                    emit_deref(f, arg, depth);
                     fprintf(f, ")");
                 } else if (arg->til_type == TIL_TYPE_BOOL) {
                     fprintf(f, "printf(\"%%s%s\", ", nl);
-                    emit_expr(f, arg, depth);
+                    emit_deref(f, arg, depth);
                     fprintf(f, " ? \"true\" : \"false\")");
                 } else {
                     fprintf(f, "printf(\"%%s%s\", ", nl);
-                    emit_expr(f, arg, depth);
+                    emit_deref(f, arg, depth);
                     fprintf(f, ")");
                 }
             }
@@ -144,196 +172,192 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             }
         } else if (strcmp(name, "i64_add") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " + ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_sub") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " - ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_mul") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " * ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_div") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " / ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_mod") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " %% ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_eq") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " == ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_lt") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " < ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_gt") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " > ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_and") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " & ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_or") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " | ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_xor") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " ^ ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_add") == 0) {
             fprintf(f, "(unsigned char)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " + ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_sub") == 0) {
             fprintf(f, "(unsigned char)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " - ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_mul") == 0) {
             fprintf(f, "(unsigned char)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " * ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_div") == 0) {
             fprintf(f, "(unsigned char)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " / ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_mod") == 0) {
             fprintf(f, "(unsigned char)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " %% ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_eq") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " == ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_lt") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " < ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_gt") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " > ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_and") == 0) {
             fprintf(f, "(unsigned char)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " & ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_or") == 0) {
             fprintf(f, "(unsigned char)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " | ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_xor") == 0) {
             fprintf(f, "(unsigned char)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " ^ ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_to_str") == 0) {
             fprintf(f, "til_u8_to_str(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_to_i64") == 0) {
             fprintf(f, "(long long)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "u8_from_i64") == 0) {
             fprintf(f, "(unsigned char)(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "bool_and") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " && ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "bool_or") == 0) {
             fprintf(f, "(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, " || ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "str_eq") == 0) {
             fprintf(f, "(strcmp(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, ", ");
-            emit_expr(f, e->children[2], depth);
+            emit_deref(f, e->children[2], depth);
             fprintf(f, ") == 0)");
         } else if (strcmp(name, "free") == 0) {
-            if (e->children[1]->til_type == TIL_TYPE_STRUCT) {
-                fprintf(f, "free(");
-                emit_expr(f, e->children[1], depth);
-                fprintf(f, ")");
-            } else {
-                fprintf(f, "(void)0 /* free */");
-            }
+            fprintf(f, "free(");
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, ")");
         } else if (strcmp(name, "format") == 0) {
             fprintf(f, "til_format(%d", e->nchildren - 1);
             for (int i = 1; i < e->nchildren; i++) {
                 fprintf(f, ", ");
-                emit_expr(f, e->children[i], depth);
+                emit_deref(f, e->children[i], depth);
             }
             fprintf(f, ")");
         } else if (strcmp(name, "exit") == 0) {
             fprintf(f, "exit(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "bool_not") == 0) {
             fprintf(f, "(!");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "i64_to_str") == 0) {
             fprintf(f, "til_i64_to_str(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (strcmp(name, "bool_to_str") == 0) {
             fprintf(f, "til_bool_to_str(");
-            emit_expr(f, e->children[1], depth);
+            emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (e->struct_name) {
             // Struct instantiation — compound literal (used with malloc in stmt context)
@@ -359,7 +383,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, "til_%s(", name);
             for (int i = 1; i < e->nchildren; i++) {
                 if (i > 1) fprintf(f, ", ");
-                emit_expr(f, e->children[i], depth);
+                emit_as_ptr(f, e->children[i], depth);
             }
             fprintf(f, ")");
         }
@@ -385,6 +409,42 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
     }
 }
 
+static void emit_deref(FILE *f, Expr *e, int depth) {
+    if (e->type == NODE_IDENT || fcall_returns_ptr(e)) {
+        fprintf(f, "(*");
+        emit_expr(f, e, depth);
+        fprintf(f, ")");
+    } else {
+        emit_expr(f, e, depth);
+    }
+}
+
+// Emit expression as a pointer — for passing to functions that expect pointer args
+static void emit_as_ptr(FILE *f, Expr *e, int depth) {
+    if (e->type == NODE_IDENT || fcall_returns_ptr(e)) {
+        // Already a pointer
+        emit_expr(f, e, depth);
+    } else if (e->til_type == TIL_TYPE_I64) {
+        fprintf(f, "&(long long){");
+        emit_expr(f, e, depth);
+        fprintf(f, "}");
+    } else if (e->til_type == TIL_TYPE_U8) {
+        fprintf(f, "&(unsigned char){");
+        emit_expr(f, e, depth);
+        fprintf(f, "}");
+    } else if (e->til_type == TIL_TYPE_BOOL) {
+        fprintf(f, "&(int){");
+        emit_expr(f, e, depth);
+        fprintf(f, "}");
+    } else if (e->til_type == TIL_TYPE_STR) {
+        fprintf(f, "&(const char *){");
+        emit_expr(f, e, depth);
+        fprintf(f, "}");
+    } else {
+        emit_expr(f, e, depth);
+    }
+}
+
 // --- Type to C type string ---
 
 static const char *til_type_to_c(TilType t) {
@@ -400,10 +460,10 @@ static const char *til_type_to_c(TilType t) {
 
 // Convert a type name string to C type string (handles struct types)
 static const char *type_name_to_c(const char *name) {
-    if (strcmp(name, "I64") == 0)  return "long long";
-    if (strcmp(name, "U8") == 0)   return "unsigned char";
-    if (strcmp(name, "Str") == 0)  return "const char *";
-    if (strcmp(name, "Bool") == 0) return "int";
+    if (strcmp(name, "I64") == 0)  return "long long *";
+    if (strcmp(name, "U8") == 0)   return "unsigned char *";
+    if (strcmp(name, "Str") == 0)  return "const char **";
+    if (strcmp(name, "Bool") == 0) return "int *";
     // User-defined struct type — pointer
     static char buf[128];
     snprintf(buf, sizeof(buf), "til_%s *", name);
@@ -451,13 +511,36 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
                 fprintf(f, ";\n");
             }
         } else {
-            fprintf(f, "%s %s = ", til_type_to_c(e->til_type), e->data.decl.name);
-            emit_expr(f, e->children[0], depth);
-            fprintf(f, ";\n");
+            const char *ctype = til_type_to_c(e->til_type);
+            Expr *rhs = e->children[0];
+            if (fcall_returns_ptr(rhs)) {
+                // User/namespace func call — already returns pointer
+                fprintf(f, "%s *%s = ", ctype, e->data.decl.name);
+                emit_expr(f, rhs, depth);
+                fprintf(f, ";\n");
+            } else if (rhs->type == NODE_IDENT) {
+                // Copy from variable — deref copy
+                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name, ctype);
+                emit_indent(f, depth);
+                fprintf(f, "*%s = *", e->data.decl.name);
+                emit_expr(f, rhs, depth);
+                fprintf(f, ";\n");
+            } else {
+                // Literal, builtin result, etc. — value
+                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name, ctype);
+                emit_indent(f, depth);
+                fprintf(f, "*%s = ", e->data.decl.name);
+                emit_expr(f, rhs, depth);
+                fprintf(f, ";\n");
+            }
         }
         break;
     case NODE_ASSIGN:
-        fprintf(f, "%s = ", e->data.str_val);
+        if (e->children[0]->type == NODE_IDENT || fcall_returns_ptr(e->children[0])) {
+            fprintf(f, "*%s = *", e->data.str_val);
+        } else {
+            fprintf(f, "*%s = ", e->data.str_val);
+        }
         emit_expr(f, e->children[0], depth);
         fprintf(f, ";\n");
         break;
@@ -471,7 +554,7 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             emit_expr(f, obj, depth);
             fprintf(f, "%s%s = ", obj->type == NODE_FIELD_ACCESS ? "." : "->", fname);
         }
-        emit_expr(f, e->children[1], depth);
+        emit_deref(f, e->children[1], depth);
         fprintf(f, ";\n");
         break;
     }
@@ -480,21 +563,23 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         fprintf(f, ";\n");
         break;
     case NODE_RETURN:
-        if (e->nchildren > 0 && e->children[0]->til_type == TIL_TYPE_STRUCT &&
-            e->children[0]->type == NODE_FCALL && e->children[0]->struct_name &&
-            e->children[0]->nchildren > 1) {
-            // Return struct constructor with args — need malloc + assign
+        if (e->nchildren == 0) {
+            fprintf(f, "return;\n");
+        } else if (e->children[0]->type == NODE_IDENT || fcall_returns_ptr(e->children[0])) {
+            // Already a pointer — return as-is
+            fprintf(f, "return ");
+            emit_expr(f, e->children[0], depth);
+            fprintf(f, ";\n");
+        } else if (e->children[0]->til_type == TIL_TYPE_STRUCT) {
             const char *sname = e->children[0]->struct_name;
             fprintf(f, "{ til_%s *_r = malloc(sizeof(til_%s)); *_r = ", sname, sname);
             emit_expr(f, e->children[0], depth);
             fprintf(f, "; return _r; }\n");
         } else {
-            fprintf(f, "return");
-            if (e->nchildren > 0) {
-                fprintf(f, " ");
-                emit_expr(f, e->children[0], depth);
-            }
-            fprintf(f, ";\n");
+            const char *ctype = til_type_to_c(e->children[0]->til_type);
+            fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
+            emit_expr(f, e->children[0], depth);
+            fprintf(f, "; return _r; }\n");
         }
         break;
     case NODE_BODY:
@@ -505,7 +590,7 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         break;
     case NODE_IF:
         fprintf(f, "if (");
-        emit_expr(f, e->children[0], depth);
+        emit_deref(f, e->children[0], depth);
         fprintf(f, ") {\n");
         emit_body(f, e->children[1], depth + 1);
         emit_indent(f, depth);
@@ -518,7 +603,7 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         break;
     case NODE_WHILE:
         fprintf(f, "while (");
-        emit_expr(f, e->children[0], depth);
+        emit_deref(f, e->children[0], depth);
         fprintf(f, ") {\n");
         emit_body(f, e->children[1], depth + 1);
         emit_indent(f, depth);
@@ -690,19 +775,36 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     }
     fprintf(f, "\n");
 
-    // First pass: emit struct definitions
+    // Forward-declare all functions (namespace methods + top-level)
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
-            emit_struct_def(f, stmt->data.decl.name, stmt->children[0]);
-            fprintf(f, "\n");
-        }
-    }
-
-    // Forward-declare all functions (skip ext_func/ext_proc builtins)
-    for (int i = 0; i < program->nchildren; i++) {
-        Expr *stmt = program->children[i];
-        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
+            const char *sname = stmt->data.decl.name;
+            Expr *body = stmt->children[0]->children[0];
+            for (int j = 0; j < body->nchildren; j++) {
+                Expr *field = body->children[j];
+                if (!field->data.decl.is_namespace) continue;
+                if (field->children[0]->type != NODE_FUNC_DEF) continue;
+                Expr *fdef = field->children[0];
+                FuncType fft = fdef->data.func_def.func_type;
+                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+                const char *ret = "void";
+                if (fdef->data.func_def.return_type)
+                    ret = type_name_to_c(fdef->data.func_def.return_type);
+                fprintf(f, "%s til_%s_%s(", ret, sname, field->data.decl.name);
+                int np = fdef->data.func_def.nparam;
+                if (np == 0) {
+                    fprintf(f, "void");
+                } else {
+                    for (int k = 0; k < np; k++) {
+                        if (k > 0) fprintf(f, ", ");
+                        fprintf(f, "%s %s", type_name_to_c(fdef->data.func_def.param_types[k]),
+                                fdef->data.func_def.param_names[k]);
+                    }
+                }
+                fprintf(f, ");\n");
+            }
+        } else if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
             Expr *func_def = stmt->children[0];
             FuncType fft = func_def->data.func_def.func_type;
             if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
@@ -710,9 +812,8 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
             int is_main = mode && strcmp(mode, "cli") == 0 && strcmp(name, "main") == 0;
             if (is_main) continue;
             const char *ret = "void";
-            if (func_def->data.func_def.return_type) {
+            if (func_def->data.func_def.return_type)
                 ret = type_name_to_c(func_def->data.func_def.return_type);
-            }
             fprintf(f, "%s til_%s(", ret, name);
             int np = func_def->data.func_def.nparam;
             if (np == 0) {
@@ -727,6 +828,17 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
             fprintf(f, ");\n");
         }
     }
+    fprintf(f, "\n");
+
+    // First pass: emit struct definitions
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
+            emit_struct_def(f, stmt->data.decl.name, stmt->children[0]);
+            fprintf(f, "\n");
+        }
+    }
+
     fprintf(f, "\n");
 
     // Second pass: emit func/proc definitions (skip ext_func/ext_proc builtins)

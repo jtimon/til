@@ -474,16 +474,6 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int locals_start, in
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
 
-        // Before NODE_ASSIGN: free the old value
-        if (stmt->type == NODE_ASSIGN) {
-            // Look up the variable's type
-            TypeBinding *b = tscope_find(scope, stmt->data.str_val);
-            TilType vtype = b ? b->type : TIL_TYPE_UNKNOWN;
-            const char *vsname = b ? b->struct_name : NULL;
-            new_n++;
-            new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-            new_ch[new_n - 1] = make_free_call(stmt->data.str_val, vtype, vsname, stmt->line, stmt->col);
-        }
 
         // Before NODE_RETURN: free all locals except returned var
         if (scope_exit && stmt->type == NODE_RETURN) {
