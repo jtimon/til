@@ -195,6 +195,24 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             for (int i = 1; i < e->nchildren; i++) {
                 infer_expr(scope, e->children[i], path, in_func);
             }
+            // Fill defaults for missing args
+            {
+                int np = ns_func->data.func_def.nparam;
+                int nargs = e->nchildren - 1; // args start at children[1]
+                for (int i = nargs; i < np; i++) {
+                    if (ns_func->data.func_def.param_defaults &&
+                        ns_func->data.func_def.param_defaults[i]) {
+                        Expr *def = expr_clone(ns_func->data.func_def.param_defaults[i]);
+                        infer_expr(scope, def, path, in_func);
+                        expr_add_child(e, def);
+                    } else {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
+                                 ns_func->data.func_def.param_names[i]);
+                        type_error(path, e, buf);
+                    }
+                }
+            }
             // Validate 'own' markers on arguments
             {
                 bool *po = ns_func->data.func_def.param_owns;
@@ -604,21 +622,49 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
     }
 }
 
-// --- Free call insertion ---
+// --- Delete call insertion ---
 
-static Expr *make_free_call(const char *var_name, TilType type, const char *struct_name, int line, int col) {
+static const char *type_to_name(TilType type, const char *struct_name) {
+    if (struct_name) return struct_name;
+    switch (type) {
+        case TIL_TYPE_I64:  return "I64";
+        case TIL_TYPE_U8:   return "U8";
+        case TIL_TYPE_STR:  return "Str";
+        case TIL_TYPE_BOOL: return "Bool";
+        default: return NULL;
+    }
+}
+
+static Expr *make_delete_call(const char *var_name, TilType type, const char *struct_name, int line, int col) {
+    const char *tname = type_to_name(type, struct_name);
+    if (!tname) return NULL;
+
     Expr *call = expr_new(NODE_FCALL, line, col);
     call->til_type = TIL_TYPE_NONE;
-    Expr *callee = expr_new(NODE_IDENT, line, col);
-    callee->data.str_val = "free";
-    callee->til_type = TIL_TYPE_NONE;
-    expr_add_child(call, callee);
+
+    Expr *type_id = expr_new(NODE_IDENT, line, col);
+    type_id->data.str_val = tname;
+    type_id->struct_name = tname;
+
+    Expr *fa = expr_new(NODE_FIELD_ACCESS, line, col);
+    fa->data.str_val = "delete";
+    fa->is_ns_field = true;
+    expr_add_child(fa, type_id);
+    expr_add_child(call, fa);
+
     Expr *arg = expr_new(NODE_IDENT, line, col);
     arg->data.str_val = var_name;
     arg->til_type = type;
     arg->struct_name = struct_name;
     arg->is_own_arg = true;
     expr_add_child(call, arg);
+
+    // call_free=true (ASAP delete should free the top-level allocation)
+    Expr *true_lit = expr_new(NODE_LITERAL_BOOL, line, col);
+    true_lit->data.str_val = "true";
+    true_lit->til_type = TIL_TYPE_BOOL;
+    expr_add_child(call, true_lit);
+
     return call;
 }
 
@@ -702,15 +748,15 @@ typedef struct {
     int own_transfer;  // index of stmt that transfers ownership, -1 if none
 } LocalInfo;
 
-// Insert frees for live parent-scope locals before any NODE_BREAK/NODE_RETURN in body
-static void insert_exit_frees(Expr *body, LocalInfo *live, int n_live) {
+// Insert deletes for live parent-scope locals before any NODE_BREAK/NODE_RETURN in body
+static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live) {
     Expr **new_ch = NULL;
     int new_n = 0;
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
         if (stmt->type == NODE_IF) {
             for (int c = 1; c < stmt->nchildren; c++)
-                insert_exit_frees(stmt->children[c], live, n_live);
+                insert_exit_deletes(stmt->children[c], live, n_live);
         }
         if (stmt->type == NODE_BREAK || stmt->type == NODE_RETURN || stmt->type == NODE_CONTINUE) {
             for (int j = 0; j < n_live; j++) {
@@ -718,7 +764,7 @@ static void insert_exit_frees(Expr *body, LocalInfo *live, int n_live) {
                     expr_uses_var(stmt->children[0], live[j].name)) continue;
                 new_n++;
                 new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                new_ch[new_n - 1] = make_free_call(
+                new_ch[new_n - 1] = make_delete_call(
                     live[j].name, live[j].type, live[j].struct_name,
                     stmt->line, stmt->col);
             }
@@ -812,7 +858,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                     (locals[j].last_use >= i || locals[j].last_use == -1)) {
                     new_n++;
                     new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                    new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    new_ch[new_n - 1] = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
                 }
             }
         }
@@ -832,7 +878,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
             }
             if (n_live > 0) {
                 for (int c = 1; c < stmt->nchildren; c++)
-                    insert_exit_frees(stmt->children[c], live, n_live);
+                    insert_exit_deletes(stmt->children[c], live, n_live);
                 free(live);
             }
         }
@@ -849,13 +895,13 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                 if (locals[j].last_use == i) {
                     new_n++;
                     new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                    new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    new_ch[new_n - 1] = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
                 }
                 // Never used after declaration: free immediately
                 if (locals[j].last_use == -1 && locals[j].decl_index == i) {
                     new_n++;
                     new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                    new_ch[new_n - 1] = make_free_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    new_ch[new_n - 1] = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
                 }
             }
         }

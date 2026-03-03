@@ -302,7 +302,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         int col = stmt->col;
         Expr *proc_body = expr_new(NODE_BODY, line, col);
 
-        // For each field: self.field.delete()
+        // For each field: self.field.delete(call_free=false)
         for (int j = 0; j < nfields; j++) {
             Expr *self_id = expr_new(NODE_IDENT, line, col);
             self_id->data.str_val = "self";
@@ -317,10 +317,18 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             Expr *del_call = expr_new(NODE_FCALL, line, col);
             expr_add_child(del_call, del_acc);
 
+            // call_free=false (inline field, don't free individually)
+            Expr *false_lit = expr_new(NODE_LITERAL_BOOL, line, col);
+            false_lit->data.str_val = "false";
+            expr_add_child(del_call, false_lit);
+
             expr_add_child(proc_body, del_call);
         }
 
-        // free(own self)
+        // if call_free { free(own self) }
+        Expr *cond = expr_new(NODE_IDENT, line, col);
+        cond->data.str_val = "call_free";
+        Expr *then_body = expr_new(NODE_BODY, line, col);
         Expr *free_call = expr_new(NODE_FCALL, line, col);
         Expr *free_id = expr_new(NODE_IDENT, line, col);
         free_id->data.str_val = "free";
@@ -329,20 +337,30 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         self_arg->data.str_val = "self";
         self_arg->is_own_arg = true;
         expr_add_child(free_call, self_arg);
-        expr_add_child(proc_body, free_call);
+        expr_add_child(then_body, free_call);
+        Expr *if_node = expr_new(NODE_IF, line, col);
+        expr_add_child(if_node, cond);
+        expr_add_child(if_node, then_body);
+        expr_add_child(proc_body, if_node);
 
-        // proc def
+        // proc def: delete(own self: Type, call_free: Bool = true)
+        Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col);
+        default_true->data.str_val = "true";
+
         Expr *proc_def = expr_new(NODE_FUNC_DEF, line, col);
         proc_def->data.func_def.func_type = FUNC_PROC;
-        proc_def->data.func_def.nparam = 1;
-        proc_def->data.func_def.param_names = malloc(sizeof(const char *));
+        proc_def->data.func_def.nparam = 2;
+        proc_def->data.func_def.param_names = malloc(2 * sizeof(const char *));
         proc_def->data.func_def.param_names[0] = "self";
-        proc_def->data.func_def.param_types = malloc(sizeof(const char *));
+        proc_def->data.func_def.param_names[1] = "call_free";
+        proc_def->data.func_def.param_types = malloc(2 * sizeof(const char *));
         proc_def->data.func_def.param_types[0] = sname;
-        proc_def->data.func_def.param_muts = calloc(1, sizeof(bool));
-        proc_def->data.func_def.param_owns = malloc(sizeof(bool));
+        proc_def->data.func_def.param_types[1] = "Bool";
+        proc_def->data.func_def.param_muts = calloc(2, sizeof(bool));
+        proc_def->data.func_def.param_owns = calloc(2, sizeof(bool));
         proc_def->data.func_def.param_owns[0] = true;
-        proc_def->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
+        proc_def->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
+        proc_def->data.func_def.param_defaults[1] = default_true;
         proc_def->data.func_def.return_type = NULL;
         proc_def->data.func_def.is_variadic = false;
         expr_add_child(proc_def, proc_body);
