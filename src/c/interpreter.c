@@ -463,6 +463,11 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_BOOL, .boolean = !a.boolean};
     }
 
+    // Built-in: free(val) — no-op for now
+    if (strcmp(name, "free") == 0) {
+        return val_none();
+    }
+
     // User-defined function or struct instantiation
     Value *fn = scope_get(scope, name);
     if (!fn) {

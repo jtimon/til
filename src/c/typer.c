@@ -21,6 +21,7 @@ static TilType type_from_name(const char *name, TypeScope *scope) {
     if (strcmp(name, "Bool") == 0) return TIL_TYPE_BOOL;
     if (strcmp(name, "StructDef") == 0)    return TIL_TYPE_STRUCT_DEF;
     if (strcmp(name, "FunctionDef") == 0)  return TIL_TYPE_FUNC_DEF;
+    if (strcmp(name, "Dynamic") == 0)     return TIL_TYPE_DYNAMIC;
     // Check scope for user-defined struct types
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
@@ -441,10 +442,12 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 TilType builtin_type = TIL_TYPE_STRUCT;
                 int is_builtin = 0;
                 if (strcmp(sname, "I64") == 0)  { builtin_type = TIL_TYPE_I64;  is_builtin = 1; }
+                else if (strcmp(sname, "U8") == 0)   { builtin_type = TIL_TYPE_U8;   is_builtin = 1; }
                 else if (strcmp(sname, "Str") == 0)  { builtin_type = TIL_TYPE_STR;  is_builtin = 1; }
                 else if (strcmp(sname, "Bool") == 0) { builtin_type = TIL_TYPE_BOOL; is_builtin = 1; }
                 else if (strcmp(sname, "StructDef") == 0)    { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
                 else if (strcmp(sname, "FunctionDef") == 0)  { builtin_type = TIL_TYPE_FUNC_DEF;   is_builtin = 1; }
+                else if (strcmp(sname, "Dynamic") == 0)      { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
                 tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0);
                 // Store struct def pointer and builtin flag in the binding
                 TypeBinding *b = tscope_find(scope, sname);

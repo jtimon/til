@@ -1,6 +1,7 @@
 // builtin types (empty structs for future namespace support)
 StructDef : StructDef = struct {}
 FunctionDef : StructDef = struct {}
+Dynamic : StructDef = struct {}
 U8 : StructDef = struct {
     namespace:
     to_str := func(val: U8) returns Str {
@@ -170,6 +171,7 @@ format := ext_func(parts: ..Str) returns Str {}
 println := ext_proc(args: ..Str) {}
 print := ext_proc(args: ..Str) {}
 exit := ext_func(code: I64) {}
+free := ext_proc(elem: Dynamic) {}
 
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str, ": panic: ", msg)

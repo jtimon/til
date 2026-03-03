@@ -44,6 +44,7 @@ typedef enum {
     TIL_TYPE_STRUCT,
     TIL_TYPE_STRUCT_DEF,
     TIL_TYPE_FUNC_DEF,
+    TIL_TYPE_DYNAMIC,
 } TilType;
 
 const char *til_type_name(TilType t);

@@ -99,6 +99,7 @@ static TilType type_from_name_init(const char *name, TypeScope *scope) {
     if (strcmp(name, "Bool") == 0) return TIL_TYPE_BOOL;
     if (strcmp(name, "StructDef") == 0)    return TIL_TYPE_STRUCT_DEF;
     if (strcmp(name, "FunctionDef") == 0)  return TIL_TYPE_FUNC_DEF;
+    if (strcmp(name, "Dynamic") == 0)     return TIL_TYPE_DYNAMIC;
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) return TIL_TYPE_STRUCT;
@@ -125,6 +126,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         else if (strcmp(sname, "Bool") == 0)       { builtin_type = TIL_TYPE_BOOL;       is_builtin = 1; }
         else if (strcmp(sname, "StructDef") == 0)  { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
         else if (strcmp(sname, "FunctionDef") == 0){ builtin_type = TIL_TYPE_FUNC_DEF;   is_builtin = 1; }
+        else if (strcmp(sname, "Dynamic") == 0)   { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
 
         tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0);
         TypeBinding *b = tscope_find(scope, sname);

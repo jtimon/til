@@ -13,6 +13,7 @@ const char *til_type_name(TilType t) {
     case TIL_TYPE_STRUCT:      return "Struct";
     case TIL_TYPE_STRUCT_DEF:  return "StructDef";
     case TIL_TYPE_FUNC_DEF:    return "FunctionDef";
+    case TIL_TYPE_DYNAMIC:     return "Dynamic";
     }
     return "?";
 }
