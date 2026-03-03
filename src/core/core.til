@@ -58,6 +58,9 @@ Str : StructDef = struct {
         str_eq := ext_func(a: Str, b: Str) returns Bool {}
         return str_eq(a, b)
     }
+    concat := func(a: Str, b: Str) returns Str {
+        return format(a, b)
+    }
 }
 Bool : StructDef = struct {
     namespace:
@@ -88,10 +91,6 @@ exit := ext_func(code: I64) {}
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str, ": panic: ", msg)
     exit(1)
-}
-
-concat := func(a: Str, b: Str) returns Str {
-    return format(a, b)
 }
 
 assertm := func(loc_str: Str, cond: Bool, msg: Str) returns Bool {
