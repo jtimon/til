@@ -442,6 +442,113 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
     }
 }
 
+// --- Argument hoisting ---
+
+static int hoist_counter = 0;
+
+// Walk expression tree depth-first. For each NODE_FCALL, hoist any arg that is itself a NODE_FCALL.
+// Does NOT recurse into scope boundaries (func/struct defs, bodies).
+static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeScope *scope) {
+    // Don't recurse into scope boundaries — those have their own infer_body calls
+    if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF || e->type == NODE_BODY) return;
+    // Recurse into children first (depth-first: inner fcalls hoisted before outer)
+    for (int i = 0; i < e->nchildren; i++) {
+        hoist_expr(e->children[i], hoisted, nhoisted, cap, scope);
+    }
+    if (e->type != NODE_FCALL) return;
+    // Check each argument (children[1..n])
+    for (int i = 1; i < e->nchildren; i++) {
+        Expr *arg = e->children[i];
+        if (arg->type != NODE_FCALL) continue;
+        // Generate temp name
+        char name_buf[32];
+        snprintf(name_buf, sizeof(name_buf), "_t%d", hoist_counter++);
+        const char *tname = strdup(name_buf);
+        // Create NODE_DECL: _t0 := <arg>
+        Expr *decl = expr_new(NODE_DECL, arg->line, arg->col);
+        decl->data.decl.name = tname;
+        decl->data.decl.explicit_type = NULL;
+        decl->data.decl.is_mut = false;
+        decl->data.decl.is_namespace = false;
+        decl->til_type = arg->til_type;
+        expr_add_child(decl, arg);
+        // Create NODE_IDENT to replace the arg
+        Expr *ident = expr_new(NODE_IDENT, arg->line, arg->col);
+        ident->data.str_val = tname;
+        ident->til_type = arg->til_type;
+        ident->struct_name = arg->struct_name;
+        ident->is_own_arg = arg->is_own_arg;
+        e->children[i] = ident;
+        // Register temp in scope
+        tscope_set(scope, tname, arg->til_type, -1, 0, arg->line, arg->col, 0, 0);
+        TypeBinding *tb = tscope_find(scope, tname);
+        if (tb) tb->struct_name = arg->struct_name;
+        // Collect hoisted decl
+        if (*nhoisted >= *cap) {
+            *cap = *cap ? *cap * 2 : 8;
+            *hoisted = realloc(*hoisted, *cap * sizeof(Expr *));
+        }
+        (*hoisted)[(*nhoisted)++] = decl;
+    }
+}
+
+static void hoist_fcall_args(Expr *body, TypeScope *scope) {
+    Expr **new_ch = NULL;
+    int new_n = 0, new_cap = 0;
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *stmt = body->children[i];
+        // Collect hoisted decls from this statement
+        Expr **hoisted = NULL;
+        int nhoisted = 0, hcap = 0;
+        // Walk the appropriate expression tree based on statement type
+        switch (stmt->type) {
+        case NODE_DECL:
+            hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            break;
+        case NODE_FCALL:
+            hoist_expr(stmt, &hoisted, &nhoisted, &hcap, scope);
+            break;
+        case NODE_RETURN:
+            if (stmt->nchildren > 0)
+                hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            break;
+        case NODE_ASSIGN:
+            hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            break;
+        case NODE_FIELD_ASSIGN:
+            hoist_expr(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
+            break;
+        case NODE_IF:
+            hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            break;
+        // NODE_WHILE: skip condition — hoisting changes loop semantics
+        default: break;
+        }
+        // Insert hoisted decls before the statement
+        for (int j = 0; j < nhoisted; j++) {
+            if (new_n >= new_cap) {
+                new_cap = new_cap ? new_cap * 2 : body->nchildren * 2;
+                new_ch = realloc(new_ch, new_cap * sizeof(Expr *));
+            }
+            new_ch[new_n++] = hoisted[j];
+        }
+        free(hoisted);
+        // Add original statement
+        if (new_n >= new_cap) {
+            new_cap = new_cap ? new_cap * 2 : body->nchildren * 2;
+            new_ch = realloc(new_ch, new_cap * sizeof(Expr *));
+        }
+        new_ch[new_n++] = stmt;
+    }
+    if (new_n != body->nchildren) {
+        free(body->children);
+        body->children = new_ch;
+        body->nchildren = new_n;
+    } else {
+        free(new_ch);
+    }
+}
+
 // --- Free call insertion ---
 
 static Expr *make_free_call(const char *var_name, TilType type, const char *struct_name, int line, int col) {
@@ -578,14 +685,10 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
 
-        // Before NODE_RETURN: free locals not yet freed
+        // Before NODE_RETURN: free locals not yet freed (skip those used in return expr)
         if (stmt->type == NODE_RETURN) {
-            const char *ret_name = NULL;
-            if (stmt->nchildren > 0 && stmt->children[0]->type == NODE_IDENT) {
-                ret_name = stmt->children[0]->data.str_val;
-            }
             for (int j = 0; j < n_locals; j++) {
-                if (ret_name && strcmp(locals[j].name, ret_name) == 0) continue;
+                if (stmt->nchildren > 0 && expr_uses_var(stmt->children[0], locals[j].name)) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < i &&
                     (locals[j].last_use >= i || locals[j].last_use == -1)) {
@@ -855,6 +958,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             break;
         }
     }
+    if (owns_scope) hoist_fcall_args(body, scope);
     insert_free_calls(body, scope, owns_scope, path);
 }
 
