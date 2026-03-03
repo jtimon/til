@@ -609,6 +609,9 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         emit_indent(f, depth);
         fprintf(f, "}\n");
         break;
+    case NODE_BREAK:
+        fprintf(f, "break;\n");
+        break;
     default:
         fprintf(f, "/* TODO: stmt type %d */\n", e->type);
         break;

@@ -444,6 +444,14 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
 
 // --- Argument hoisting ---
 
+static int expr_contains_fcall(Expr *e) {
+    if (e->type == NODE_FCALL) return 1;
+    for (int i = 0; i < e->nchildren; i++) {
+        if (expr_contains_fcall(e->children[i])) return 1;
+    }
+    return 0;
+}
+
 static int hoist_counter = 0;
 
 // Create a temp decl for an expression, register in scope, return the replacement ident.
@@ -958,6 +966,58 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 snprintf(buf, sizeof(buf), "while condition must be Bool, got %s",
                          til_type_name(stmt->children[0]->til_type));
                 type_error(path, stmt, buf);
+            }
+            // Transform: while COND { BODY } → while true { _wcond := COND; if _wcond {} else { break }; BODY }
+            // This lets ASAP destruction free the condition result each iteration.
+            if (expr_contains_fcall(stmt->children[0])) {
+                int line = stmt->children[0]->line;
+                int col = stmt->children[0]->col;
+                Expr *cond = stmt->children[0];
+                Expr *body = stmt->children[1];
+                // _wcondN := COND
+                char name_buf[32];
+                snprintf(name_buf, sizeof(name_buf), "_wcond%d", hoist_counter++);
+                const char *wname = strdup(name_buf);
+                Expr *decl = expr_new(NODE_DECL, line, col);
+                decl->data.decl.name = wname;
+                decl->data.decl.explicit_type = NULL;
+                decl->data.decl.is_mut = false;
+                decl->data.decl.is_namespace = false;
+                decl->til_type = cond->til_type;
+                expr_add_child(decl, cond);
+                // if _wcondN {} else { break }
+                Expr *ident = expr_new(NODE_IDENT, line, col);
+                ident->data.str_val = wname;
+                ident->til_type = TIL_TYPE_BOOL;
+                Expr *if_node = expr_new(NODE_IF, line, col);
+                if_node->til_type = TIL_TYPE_NONE;
+                expr_add_child(if_node, ident);
+                Expr *then_body = expr_new(NODE_BODY, line, col);
+                then_body->til_type = TIL_TYPE_NONE;
+                expr_add_child(if_node, then_body);
+                Expr *else_body = expr_new(NODE_BODY, line, col);
+                else_body->til_type = TIL_TYPE_NONE;
+                Expr *free_wcond = make_free_call(wname, TIL_TYPE_BOOL, NULL, line, col);
+                expr_add_child(else_body, free_wcond);
+                Expr *brk = expr_new(NODE_BREAK, line, col);
+                brk->til_type = TIL_TYPE_NONE;
+                expr_add_child(else_body, brk);
+                expr_add_child(if_node, else_body);
+                // Prepend decl + if to body
+                int old_n = body->nchildren;
+                int new_n = old_n + 2;
+                Expr **new_ch = malloc(new_n * sizeof(Expr *));
+                new_ch[0] = decl;
+                new_ch[1] = if_node;
+                for (int j = 0; j < old_n; j++) new_ch[j + 2] = body->children[j];
+                free(body->children);
+                body->children = new_ch;
+                body->nchildren = new_n;
+                // Replace condition with true
+                Expr *true_lit = expr_new(NODE_LITERAL_BOOL, line, col);
+                true_lit->data.str_val = "true";
+                true_lit->til_type = TIL_TYPE_BOOL;
+                stmt->children[0] = true_lit;
             }
             {
                 TypeScope *while_scope = tscope_new(scope);
