@@ -124,20 +124,12 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             if (is_println && e->nchildren <= 1) {
                 fprintf(f, "printf(\"\\n\")");
             }
-        } else if (strcmp(name, "free") == 0) {
-            fprintf(f, "free(");
-            emit_expr(f, e->children[1], depth);
-            fprintf(f, ")");
         } else if (strcmp(name, "format") == 0) {
             fprintf(f, "til_format(%d", e->nchildren - 1);
             for (int i = 1; i < e->nchildren; i++) {
                 fprintf(f, ", ");
                 emit_deref(f, e->children[i], depth);
             }
-            fprintf(f, ")");
-        } else if (strcmp(name, "exit") == 0) {
-            fprintf(f, "exit(");
-            emit_deref(f, e->children[1], depth);
             fprintf(f, ")");
         } else if (e->struct_name && strcmp(name, e->struct_name) == 0) {
             // Struct constructor — call generated _new function
@@ -478,7 +470,7 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
         return 1;
     }
 
-    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n\n");
+    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include \"ext.h\"\n\n");
     fprintf(f, "static const char **til_format(int n, ...) {\n");
     fprintf(f, "    va_list ap; va_start(ap, n);\n");
     fprintf(f, "    int total = 0;\n");
@@ -659,11 +651,23 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     return 0;
 }
 
-int compile_c(const char *c_path, const char *bin_path) {
+int compile_c(const char *c_path, const char *bin_path, const char *ext_c_path) {
+    // Extract directory from ext_c_path for -I flag
+    char ext_dir[256];
+    const char *last_slash = strrchr(ext_c_path, '/');
+    if (last_slash) {
+        int dlen = (int)(last_slash - ext_c_path);
+        snprintf(ext_dir, sizeof(ext_dir), "%.*s", dlen, ext_c_path);
+    } else {
+        snprintf(ext_dir, sizeof(ext_dir), ".");
+    }
+
     // Build the cc command
-    int len = snprintf(NULL, 0, "cc -Wall -Wextra -o %s %s", bin_path, c_path);
+    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s",
+                       ext_dir, bin_path, c_path, ext_c_path);
     char *cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -Wall -Wextra -o %s %s", bin_path, c_path);
+    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s",
+             ext_dir, bin_path, c_path, ext_c_path);
 
     int result = system(cmd);
     free(cmd);

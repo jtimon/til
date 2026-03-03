@@ -61,15 +61,17 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    // Load core library relative to binary location
-    char core_path[256];
+    // Resolve paths relative to binary location
+    char core_path[256], ext_c_path[256];
     {
         const char *slash = strrchr(argv[0], '/');
         if (slash) {
             int dir_len = (int)(slash - argv[0]);
             snprintf(core_path, sizeof(core_path), "%.*s/../src/core/core.til", dir_len, argv[0]);
+            snprintf(ext_c_path, sizeof(ext_c_path), "%.*s/../src/c/ext.c", dir_len, argv[0]);
         } else {
             snprintf(core_path, sizeof(core_path), "../src/core/core.til");
+            snprintf(ext_c_path, sizeof(ext_c_path), "../src/c/ext.c");
         }
     }
     char *core_source = read_file(core_path);
@@ -134,7 +136,7 @@ int main(int argc, char **argv) {
             printf("Generated: %s\n", c_path);
         }
         if (result == 0 && strcmp(command, "translate") != 0) {
-            result = compile_c(c_path, bin_path);
+            result = compile_c(c_path, bin_path, ext_c_path);
         }
         if (result == 0 && strcmp(command, "run") == 0) {
             result = system(bin_path);

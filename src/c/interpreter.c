@@ -1,4 +1,5 @@
 #include "interpreter.h"
+#include "ext.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -495,7 +496,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     // Built-in: exit(code)
     if (strcmp(name, "exit") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
-        exit((int)*a.i64);
+        til_exit(a.i64);
     }
 
     // Built-in: bool_not(a)
@@ -508,16 +509,16 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (strcmp(name, "free") == 0) {
         Cell *cell = scope_get(scope, e->children[1]->data.str_val);
         if (cell->val.type == VAL_STRUCT && cell->val.instance) {
-            free(cell->val.instance->field_names);
-            free(cell->val.instance->field_muts);
-            free(cell->val.instance->field_values);
-            free(cell->val.instance);
+            til_free(cell->val.instance->field_names);
+            til_free(cell->val.instance->field_muts);
+            til_free(cell->val.instance->field_values);
+            til_free(cell->val.instance);
         } else if (cell->val.type == VAL_I64 || cell->val.type == VAL_U8) {
-            free(cell->val.i64);
+            til_free(cell->val.i64);
         } else if (cell->val.type == VAL_BOOL) {
-            free(cell->val.boolean);
+            til_free(cell->val.boolean);
         } else if (cell->val.type == VAL_STR) {
-            free(cell->val.str);
+            til_free(cell->val.str);
         }
         cell->val = val_none();
         return val_none();
