@@ -41,6 +41,30 @@ static Value val_none(void) {
     return (Value){.type = VAL_NONE};
 }
 
+// --- Cells (heap-allocated value containers) ---
+
+typedef struct Cell Cell;
+struct Cell {
+    Value val;
+};
+
+static Value value_deep_copy(Value v) {
+    if (v.type != VAL_STRUCT || !v.instance) return v;
+    StructInstance *old = v.instance;
+    StructInstance *inst = malloc(sizeof(StructInstance));
+    inst->struct_name = old->struct_name;
+    inst->nfields = old->nfields;
+    inst->field_names = malloc(inst->nfields * sizeof(char *));
+    inst->field_muts = malloc(inst->nfields * sizeof(int));
+    inst->field_values = malloc(inst->nfields * sizeof(Value));
+    for (int i = 0; i < inst->nfields; i++) {
+        inst->field_names[i] = old->field_names[i];
+        inst->field_muts[i] = old->field_muts[i];
+        inst->field_values[i] = value_deep_copy(old->field_values[i]);
+    }
+    return (Value){.type = VAL_STRUCT, .instance = inst};
+}
+
 // --- Return value mechanism ---
 static int has_return;
 static Value return_value;
@@ -81,7 +105,8 @@ static void ns_set(const char *sname, const char *fname, Value val) {
 
 typedef struct {
     const char *name;
-    Value val;
+    Cell *cell;
+    int cell_is_local; // 1 = cell malloc'd by this scope, 0 = shared from caller
 } Binding;
 
 typedef struct Scope Scope;
@@ -99,31 +124,46 @@ static Scope *scope_new(Scope *parent) {
 }
 
 static void scope_free(Scope *s) {
+    for (int i = 0; i < s->len; i++) {
+        if (s->bindings[i].cell_is_local) {
+            free(s->bindings[i].cell);
+        }
+    }
     free(s->bindings);
     free(s);
 }
 
-static void scope_set(Scope *s, const char *name, Value val) {
+static void scope_set_owned(Scope *s, const char *name, Value val) {
     // Check if already exists in this scope
     for (int i = 0; i < s->len; i++) {
         if (strcmp(s->bindings[i].name, name) == 0) {
-            s->bindings[i].val = val;
+            s->bindings[i].cell->val = val;
             return;
         }
     }
-    // Add new binding
+    // Add new binding with a locally allocated cell
+    Cell *cell = malloc(sizeof(Cell));
+    cell->val = val;
     if (s->len >= s->cap) {
         s->cap = s->cap ? s->cap * 2 : 8;
         s->bindings = realloc(s->bindings, s->cap * sizeof(Binding));
     }
-    s->bindings[s->len++] = (Binding){name, val};
+    s->bindings[s->len++] = (Binding){name, cell, 1};
 }
 
-static Value *scope_get(Scope *s, const char *name) {
+static void scope_set_borrowed(Scope *s, const char *name, Cell *cell) {
+    if (s->len >= s->cap) {
+        s->cap = s->cap ? s->cap * 2 : 8;
+        s->bindings = realloc(s->bindings, s->cap * sizeof(Binding));
+    }
+    s->bindings[s->len++] = (Binding){name, cell, 0};
+}
+
+static Cell *scope_get(Scope *s, const char *name) {
     for (Scope *cur = s; cur; cur = cur->parent) {
         for (int i = 0; i < cur->len; i++) {
             if (strcmp(cur->bindings[i].name, name) == 0) {
-                return &cur->bindings[i].val;
+                return cur->bindings[i].cell;
             }
         }
     }
@@ -151,8 +191,14 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         Expr *body = func_def->children[0];
         Scope *call_scope = scope_new(scope);
         for (int i = 0; i < func_def->data.func_def.nparam; i++) {
-            Value arg = eval_expr(scope, e->children[i + 1], path);
-            scope_set(call_scope, func_def->data.func_def.param_names[i], arg);
+            Expr *arg_expr = e->children[i + 1];
+            if (arg_expr->type == NODE_IDENT) {
+                Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
+                scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
+            } else {
+                Value arg = eval_expr(scope, arg_expr, path);
+                scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
+            }
         }
         has_return = 0;
         eval_body(call_scope, body, path);
@@ -463,22 +509,29 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_BOOL, .boolean = !a.boolean};
     }
 
-    // Built-in: free(val) — no-op for now
+    // Built-in: free(val)
     if (strcmp(name, "free") == 0) {
+        Value v = eval_expr(scope, e->children[1], path);
+        if (v.type == VAL_STRUCT && v.instance) {
+            free(v.instance->field_names);
+            free(v.instance->field_muts);
+            free(v.instance->field_values);
+            free(v.instance);
+        }
         return val_none();
     }
 
     // User-defined function or struct instantiation
-    Value *fn = scope_get(scope, name);
-    if (!fn) {
+    Cell *fn_cell = scope_get(scope, name);
+    if (!fn_cell) {
         fprintf(stderr, "%s:%d:%d: runtime error: undefined function '%s'\n",
                 path, e->line, e->col, name);
         exit(1);
     }
 
     // Struct instantiation: Point() or Point(x=1)
-    if (fn->type == VAL_FUNC && fn->func->type == NODE_STRUCT_DEF) {
-        Expr *sdef = fn->func;
+    if (fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type == NODE_STRUCT_DEF) {
+        Expr *sdef = fn_cell->val.func;
         Expr *body = sdef->children[0];
         // Count instance fields (skip namespace)
         int nfields = 0;
@@ -508,20 +561,26 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_STRUCT, .instance = inst};
     }
 
-    if (fn->type != VAL_FUNC) {
+    if (fn_cell->val.type != VAL_FUNC) {
         fprintf(stderr, "%s:%d:%d: runtime error: '%s' is not a function\n",
                 path, e->line, e->col, name);
         exit(1);
     }
 
-    Expr *func_def = fn->func;
+    Expr *func_def = fn_cell->val.func;
     Expr *body = func_def->children[0];
 
     Scope *call_scope = scope_new(scope);
-    // Bind arguments to parameters
+    // Bind arguments to parameters (borrowed refs for idents, owned for expressions)
     for (int i = 0; i < func_def->data.func_def.nparam; i++) {
-        Value arg = eval_expr(scope, e->children[i + 1], path);
-        scope_set(call_scope, func_def->data.func_def.param_names[i], arg);
+        Expr *arg_expr = e->children[i + 1];
+        if (arg_expr->type == NODE_IDENT) {
+            Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
+            scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
+        } else {
+            Value arg = eval_expr(scope, arg_expr, path);
+            scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
+        }
     }
 
     has_return = 0;
@@ -547,13 +606,13 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
     case NODE_LITERAL_BOOL:
         return (Value){.type = VAL_BOOL, .boolean = strcmp(e->data.str_val, "true") == 0};
     case NODE_IDENT: {
-        Value *v = scope_get(scope, e->data.str_val);
-        if (!v) {
+        Cell *cell = scope_get(scope, e->data.str_val);
+        if (!cell) {
             fprintf(stderr, "%s:%d:%d: runtime error: undefined variable '%s'\n",
                     path, e->line, e->col, e->data.str_val);
             exit(1);
         }
-        return *v;
+        return cell->val;
     }
     case NODE_FCALL:
         return eval_call(scope, e, path);
@@ -605,19 +664,18 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
         switch (stmt->type) {
         case NODE_DECL: {
             Value val = eval_expr(scope, stmt->children[0], path);
-            scope_set(scope, stmt->data.decl.name, val);
+            scope_set_owned(scope, stmt->data.decl.name, value_deep_copy(val));
             break;
         }
         case NODE_ASSIGN: {
             Value val = eval_expr(scope, stmt->children[0], path);
-            // Find in current or parent scope
-            Value *existing = scope_get(scope, stmt->data.str_val);
-            if (!existing) {
+            Cell *cell = scope_get(scope, stmt->data.str_val);
+            if (!cell) {
                 fprintf(stderr, "%s:%d:%d: runtime error: undefined variable '%s'\n",
                         path, stmt->line, stmt->col, stmt->data.str_val);
                 exit(1);
             }
-            *existing = val;
+            cell->val = val;
             break;
         }
         case NODE_FIELD_ASSIGN: {
@@ -705,7 +763,7 @@ int interpret(Expr *program, const char *mode, const char *path) {
             (stmt->children[0]->type == NODE_FUNC_DEF ||
              stmt->children[0]->type == NODE_STRUCT_DEF)) {
             Value val = {.type = VAL_FUNC, .func = stmt->children[0]};
-            scope_set(global, stmt->data.decl.name, val);
+            scope_set_owned(global, stmt->data.decl.name, val);
         }
     }
 
@@ -730,13 +788,13 @@ int interpret(Expr *program, const char *mode, const char *path) {
 
     // In cli mode, call main()
     if (mode && strcmp(mode, "cli") == 0) {
-        Value *main_fn = scope_get(global, "main");
-        if (!main_fn || main_fn->type != VAL_FUNC) {
+        Cell *main_cell = scope_get(global, "main");
+        if (!main_cell || main_cell->val.type != VAL_FUNC) {
             fprintf(stderr, "%s: error: mode 'cli' requires a 'main' proc\n", path);
             scope_free(global);
             return 1;
         }
-        Expr *func_def = main_fn->func;
+        Expr *func_def = main_cell->val.func;
         Expr *body = func_def->children[0];
         Scope *main_scope = scope_new(global);
         eval_body(main_scope, body, path);

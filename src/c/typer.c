@@ -93,11 +93,15 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             tscope_free(func_scope);
         }
         break;
-    case NODE_STRUCT_DEF:
+    case NODE_STRUCT_DEF: {
         e->til_type = TIL_TYPE_NONE;
-        // Type-check field declarations
+        // Type-check field declarations (save/restore scope len so fields
+        // don't leak into outer scope's locals for free-call insertion)
+        int saved_len = scope->len;
         infer_body(scope, e->children[0], path, 0, 0);
+        scope->len = saved_len;
         break;
+    }
     case NODE_FCALL: {
         // Namespace method call or UFCS: Type.method(args) or instance.method(args)
         if (e->children[0]->type == NODE_FIELD_ACCESS) {
