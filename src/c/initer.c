@@ -308,6 +308,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             self_id->data.str_val = "self";
             Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col);
             field_acc->data.str_val = field_names[j];
+            field_acc->is_own_arg = true; // delete takes own self
             expr_add_child(field_acc, self_id);
 
             Expr *del_acc = expr_new(NODE_FIELD_ACCESS, line, col);

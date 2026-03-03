@@ -195,6 +195,27 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             for (int i = 1; i < e->nchildren; i++) {
                 infer_expr(scope, e->children[i], path, in_func);
             }
+            // Validate 'own' markers on arguments
+            {
+                bool *po = ns_func->data.func_def.param_owns;
+                if (po) {
+                    int np = ns_func->data.func_def.nparam;
+                    for (int i = 1; i < e->nchildren && i - 1 < np; i++) {
+                        int pown = po[i - 1];
+                        if (pown && !e->children[i]->is_own_arg) {
+                            char buf[128];
+                            snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
+                                     ns_func->data.func_def.param_names[i - 1]);
+                            type_error(path, e->children[i], buf);
+                        } else if (!pown && e->children[i]->is_own_arg) {
+                            char buf[128];
+                            snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
+                                     ns_func->data.func_def.param_names[i - 1]);
+                            type_error(path, e->children[i], buf);
+                        }
+                    }
+                }
+            }
             // Set return type
             TilType rt = TIL_TYPE_NONE;
             if (ns_func->data.func_def.return_type) {
@@ -620,19 +641,44 @@ static int expr_contains_decl(Expr *e, const char *name) {
     return 0;
 }
 
-static int fcall_has_own_arg(Expr *fcall, const char *var_name, TypeScope *scope) {
-    if (fcall->type != NODE_FCALL || fcall->nchildren < 2) return 0;
-    if (fcall->children[0]->type != NODE_IDENT) return 0;
-    const char *fn_name = fcall->children[0]->data.str_val;
-    TypeBinding *fb = tscope_find(scope, fn_name);
-    if (!fb || !fb->func_def) return 0;
-    bool *po = fb->func_def->data.func_def.param_owns;
+// Helper: given a func_def, check if var_name is passed to an own param
+static int check_own_args(Expr *fdef, Expr *fcall, const char *var_name) {
+    bool *po = fdef->data.func_def.param_owns;
     if (!po) return 0;
-    int np = fb->func_def->data.func_def.nparam;
+    int np = fdef->data.func_def.nparam;
     for (int i = 0; i < np && i + 1 < fcall->nchildren; i++) {
         if (po[i] && fcall->children[i + 1]->type == NODE_IDENT &&
             strcmp(fcall->children[i + 1]->data.str_val, var_name) == 0) {
             return 1;
+        }
+    }
+    return 0;
+}
+
+static int fcall_has_own_arg(Expr *fcall, const char *var_name, TypeScope *scope) {
+    if (fcall->type != NODE_FCALL || fcall->nchildren < 2) return 0;
+    // Direct call: look up func def in scope
+    if (fcall->children[0]->type == NODE_IDENT) {
+        const char *fn_name = fcall->children[0]->data.str_val;
+        TypeBinding *fb = tscope_find(scope, fn_name);
+        if (!fb || !fb->func_def) return 0;
+        return check_own_args(fb->func_def, fcall, var_name);
+    }
+    // Namespace method call: look up in struct definition
+    if (fcall->children[0]->type == NODE_FIELD_ACCESS && fcall->children[0]->is_ns_field) {
+        const char *method = fcall->children[0]->data.str_val;
+        Expr *type_node = fcall->children[0]->children[0];
+        if (type_node->type != NODE_IDENT) return 0;
+        Expr *sdef = tscope_get_struct(scope, type_node->data.str_val);
+        if (!sdef) return 0;
+        Expr *body = sdef->children[0];
+        for (int i = 0; i < body->nchildren; i++) {
+            Expr *field = body->children[i];
+            if (field->type == NODE_DECL && field->data.decl.is_namespace &&
+                strcmp(field->data.decl.name, method) == 0 &&
+                field->children[0]->type == NODE_FUNC_DEF) {
+                return check_own_args(field->children[0], fcall, var_name);
+            }
         }
     }
     return 0;

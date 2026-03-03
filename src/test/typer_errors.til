@@ -129,6 +129,17 @@ doomed := 99
 eat(own doomed)
 println(doomed.to_str())
 
+// own: missing 'own' on UFCS call to own-taking method
+OwnTest := struct {
+    mut val := 0
+}
+ot1 := OwnTest(val=1)
+ot1.delete()
+
+// own: missing 'own' on direct namespace call to own-taking method
+ot2 := OwnTest(val=2)
+OwnTest.delete(ot2)
+
 // break outside loop
 break
 

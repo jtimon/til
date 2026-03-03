@@ -479,6 +479,18 @@ static Expr *parse_statement(Parser *p) {
         expr_add_child(node, parse_block(p));       // body
         return node;
     }
+    case TOK_OWN: {
+        advance(p); // consume 'own'
+        Expr *expr = parse_expression(p);
+        // Walk to leftmost primary and mark as own
+        Expr *primary = expr;
+        while (primary->nchildren > 0 &&
+               (primary->type == NODE_FCALL || primary->type == NODE_FIELD_ACCESS)) {
+            primary = primary->children[0];
+        }
+        primary->is_own_arg = true;
+        return expr;
+    }
     case TOK_BREAK: {
         advance(p);
         return expr_new(NODE_BREAK, t->line, t->col);

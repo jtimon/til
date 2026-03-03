@@ -202,17 +202,17 @@ test_clone := proc() {
 
 test_delete := proc() {
     p := Point(x=3, y=7)
-    p.delete()
+    own p.delete()
 
     l := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
-    l.delete()
+    Line.delete(own l)
 
     x := 42
-    x.delete()
+    own x.delete()
     s := "hello"
-    s.delete()
+    own s.delete()
     b := true
-    b.delete()
+    own b.delete()
 }
 
 test_basic_struct()
