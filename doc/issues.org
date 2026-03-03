@@ -1,8 +1,59 @@
 # Issue tracker for til2.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 7
+# NEXT_ISSUE: 8
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #7 Precomp phase: compile-time macro evaluation
+  A new function kind, macro, that executes at compile time. Macros look like
+  procs but run during a precomp phase (between typer and scavenger) using the
+  interpreter. The macro call is replaced in the AST with its result — a numeric
+  literal, string literal, or struct literal with all fields explicitly provided.
+
+  Macros can be called inside funcs (unlike procs). Internally, macros can call
+  both funcs and procs. The key constraint: all arguments to a macro call must
+  be known at precomp time (literals or constants). If a runtime variable is
+  passed, the typer (or precomp phase) emits an error — we can't run the whole
+  program just to resolve one macro argument.
+
+  The precomp phase uses the interpreter itself to evaluate macro bodies. This
+  creates a circular dependency (interpreter is part of the compiler, and is
+  also used during compilation), but C header forward declarations handle this.
+
+  Example:
+
+    macro_add := macro(a: I64, b: I64) returns I64 {
+        return a.add(b)
+    }
+
+    # OK — both args are literals, known at precomp time
+    x := macro_add(3, 4)    # replaced with: x := 7
+
+    # OK — constants are known at precomp time
+    N := 10
+    y := macro_add(N, 5)    # replaced with: y := 15
+
+    # ERROR — v is a runtime variable, not known at precomp time
+    v := read_input()
+    z := macro_add(v, 1)    # error: macro arg must be known at precomp time
+
+  Pipeline after this: lex → parse → type check → precomp → scavenge → interpret/codegen
+
+** Phase 2: constant folding for pure funcs
+   Once macro evaluation works, extend precomp to also evaluate func calls
+   (not procs — they're not pure) when all arguments are known at precomp time.
+   Same mechanism: the interpreter evaluates the call and replaces it with a
+   literal in the AST.
+
+     double := func(x: I64) returns I64 { return x.add(x) }
+
+     a := double(5)          # folded to: a := 10
+     b := double(double(3))  # folded to: b := 12
+     c := double(v)          # v is runtime — left as a call
+
+   The scavenger then cleans up anything no longer referenced after precomp:
+   macros are always removed (they can't be called at runtime), and funcs are
+   removed if all their call sites were folded away.
 
 * OPEN #6 Scavenger phase: remove unused declarations from the AST
   A post-typer pass that walks the AST and removes declarations not reachable
