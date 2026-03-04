@@ -51,4 +51,9 @@ til_Bool *til_Bool_and(til_Bool *a, til_Bool *b);
 til_Bool *til_Bool_or(til_Bool *a, til_Bool *b);
 til_Bool *til_Bool_not(til_Bool *a);
 
+// Variadic builtins
+c_str *til_format(int n, ...);
+void til_println(int n, ...);
+void til_print(int n, ...);
+
 #endif

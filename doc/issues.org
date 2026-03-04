@@ -192,8 +192,9 @@
   Pattern emerging: ext.c is the shared runtime, ext.h is the shared type system.
   Builtins move from inline backend code → ext.c with PascalCase names matching
   ccodegen's namespace convention. core.til uses direct ext_func namespace fields
-  instead of func-wrapping-ext_func. Three blockers remain for full convergence:
-  variadics (#8) block println/print/format desugaring, value_deep_copy removal
+  instead of func-wrapping-ext_func. println/print/format now live in ext.c as
+  simple variadic C functions — the ..Str contract means all args are strings,
+  no type-switching needed. Remaining convergence work: value_deep_copy removal
   needs all 4 clone sites (#0), and hoisting could normalize declarations/returns.
 
 ** FIXED ccodegen: free() special case
@@ -227,28 +228,19 @@
    call sites go straight to ext.c. Eliminates ~50 lines of boilerplate in
    core.til and removes the double-call overhead.
 
-** ccodegen: println/print special case (45 lines of type-aware printf)
-   ccodegen has ~45 lines (ccodegen.c:81-126) of type-specific printf optimization:
-   unwraps to_str() calls, emits bool ternaries, format specifiers per type, etc.
-   The interpreter has its own ~30-line version (interpreter.c:231-263).
-   The typer could desugar println so both backends handle it uniformly — e.g.
-   ensure all args are Str before reaching the backends, or desugar to per-arg
-   print calls. Blocked by #8 (variadic) — println/print are ext_proc(..Str),
-   desugaring would need to handle variadic calls.
+** FIXED println/print moved to ext.c
+   Both backends had type-aware special cases (~45 lines in ccodegen, ~30 in
+   interpreter) switching on I64/U8/Bool/Str. But println/print are declared
+   ext_proc(..Str) — all args are already strings. Moved to ext.c as simple
+   til_println(int n, ...) / til_print(int n, ...) variadic C functions.
+   ccodegen emits til_println(n, args...) like format. Interpreter simplified
+   to printf("%s", *arg.str) loop. Removed unwrap_to_str() optimization hack.
 
-** ccodegen: println/print unwrap_to_str optimization
-   The unwrap_to_str() helper (ccodegen.c:17-36) detects to_str() calls inside
-   println/print args and bypasses the string conversion to print values directly.
-   This is an optimization that adds complexity. If println is desugared in the
-   typer to always receive Str args, this optimization becomes unnecessary.
-   Also blocked by #8 — once variadics work in regular funcs, println could
-   become a til proc that calls a single-arg ext_proc for each element.
-
-** ccodegen: format() special case
-   ccodegen special-cases format() to prepend the arg count (ccodegen.c:131-137):
-   format(a, b) -> til_format(2, a, b). The typer could insert the count as a
-   literal first arg during desugaring, eliminating the special case. Also
-   blocked by #8 — format is ext_func(..Str).
+** FIXED format() moved to ext.c
+   Was generated inline in ccodegen output (~10 lines of fprintf'd C code).
+   Now lives in ext.c as til_format(int n, ...). ccodegen call emission unchanged
+   (already emitted til_format(n, args...)). Interpreter handler unchanged
+   (already Str-only). Generated C no longer needs <stdarg.h>.
 
 ** ccodegen: struct constructors (til_X_new functions)
    ccodegen emits per-struct til_X_new() constructor functions and special-cases
@@ -286,8 +278,9 @@
    same dispatch. Could be replaced with a function pointer table keyed by the
    flat name, mapping directly to ext.c symbols. The PascalCase naming makes
    this natural: the table key matches the ext.c function name after til_ prefix.
-   Remaining special cases that can't use the table: println, print (variadic,
-   type-aware), format (variadic, inserts arg count), free (accesses scope).
+   Remaining special cases that can't use the table: free (accesses scope).
+   println, print, and format are now in ext.c but still special-cased in
+   ccodegen (variadic arg count prepended) and interpreter (direct handling).
 
 ** interpreter: free() accesses variable cell directly
    The interpreter's free() handler (interpreter.c:508-524) assumes the argument

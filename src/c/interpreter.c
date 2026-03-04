@@ -246,37 +246,21 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
 
     const char *name = callee_expr->data.str_val;
 
-    // Built-in: println
+    // Built-in: println(..Str)
     if (strcmp(name, "println") == 0) {
         for (int i = 1; i < e->nchildren; i++) {
             Value arg = eval_expr(scope, e->children[i], path);
-            switch (arg.type) {
-            case VAL_STR:  printf("%s", *arg.str); break;
-            case VAL_I64:  printf("%lld", *arg.i64); break;
-            case VAL_U8:   printf("%u", (unsigned)*arg.u8); break;
-            case VAL_BOOL: printf("%s", *arg.boolean ? "true" : "false"); break;
-            case VAL_NONE:   printf("(none)"); break;
-            case VAL_FUNC:   printf("(func)"); break;
-            case VAL_STRUCT: printf("(%s)", arg.instance->struct_name); break;
-            }
+            printf("%s", *arg.str);
         }
         printf("\n");
         return val_none();
     }
 
-    // Built-in: print (same but no newline)
+    // Built-in: print(..Str)
     if (strcmp(name, "print") == 0) {
         for (int i = 1; i < e->nchildren; i++) {
             Value arg = eval_expr(scope, e->children[i], path);
-            switch (arg.type) {
-            case VAL_STR:  printf("%s", *arg.str); break;
-            case VAL_I64:  printf("%lld", *arg.i64); break;
-            case VAL_U8:   printf("%u", (unsigned)*arg.u8); break;
-            case VAL_BOOL: printf("%s", *arg.boolean ? "true" : "false"); break;
-            case VAL_NONE:   printf("(none)"); break;
-            case VAL_FUNC:   printf("(func)"); break;
-            case VAL_STRUCT: printf("(%s)", arg.instance->struct_name); break;
-            }
+            printf("%s", *arg.str);
         }
         return val_none();
     }

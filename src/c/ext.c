@@ -1,4 +1,5 @@
 #include "ext.h"
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,3 +67,29 @@ til_U8 *til_U8_from_i64_ext(til_I64 *a) { til_U8 *r = malloc(sizeof(til_U8)); *r
 til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a && *b; return r; }
 til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a || *b; return r; }
 til_Bool *til_Bool_not(til_Bool *a) { til_Bool *r = malloc(sizeof(til_Bool)); *r = !*a; return r; }
+
+// Variadic builtins
+c_str *til_format(int n, ...) {
+    va_list ap; va_start(ap, n);
+    int total = 0;
+    const char *strs[64];
+    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, const char *); total += strlen(strs[i]); }
+    va_end(ap);
+    char *r = malloc(total + 1); int off = 0;
+    for (int i = 0; i < n; i++) { int l = strlen(strs[i]); memcpy(r + off, strs[i], l); off += l; }
+    r[off] = '\0';
+    c_str *_r = malloc(sizeof(c_str)); *_r = r; return _r;
+}
+
+void til_println(int n, ...) {
+    va_list ap; va_start(ap, n);
+    for (int i = 0; i < n; i++) printf("%s", va_arg(ap, const char *));
+    va_end(ap);
+    printf("\n");
+}
+
+void til_print(int n, ...) {
+    va_list ap; va_start(ap, n);
+    for (int i = 0; i < n; i++) printf("%s", va_arg(ap, const char *));
+    va_end(ap);
+}

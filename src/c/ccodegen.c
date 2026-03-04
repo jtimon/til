@@ -17,28 +17,6 @@ static void emit_indent(FILE *f, int depth) {
     for (int i = 0; i < depth; i++) fprintf(f, "    ");
 }
 
-
-// Check if an expr is a to_str call (builtin or namespace method), return the inner expr if so
-static Expr *unwrap_to_str(Expr *e) {
-    if (e->type == NODE_FCALL && e->nchildren >= 2) {
-        if (e->children[0]->type == NODE_IDENT) {
-            const char *name = e->children[0]->data.str_val;
-            if (strcmp(name, "I64_to_str") == 0 || strcmp(name, "U8_to_str") == 0)
-                return e->children[1];
-        }
-        // I64.to_str(x) or Bool.to_str(x)
-        if (e->children[0]->type == NODE_FIELD_ACCESS &&
-            strcmp(e->children[0]->data.str_val, "to_str") == 0) {
-            Expr *obj = e->children[0]->children[0];
-            if (obj->struct_name &&
-                (strcmp(obj->struct_name, "I64") == 0 || strcmp(obj->struct_name, "U8") == 0 ||
-                 strcmp(obj->struct_name, "Bool") == 0))
-                return e->children[1];
-        }
-    }
-    return NULL;
-}
-
 // Emit expression dereferenced to a value: (*x) for IDENT, plain for literals/builtins
 static void emit_deref(FILE *f, Expr *e, int depth);
 // Emit expression as a pointer: wraps values in &(type){val}
@@ -81,53 +59,20 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             break;
         }
         const char *name = e->children[0]->data.str_val;
-        // Built-in: println → one printf per arg, then \n
-        if (strcmp(name, "println") == 0 || strcmp(name, "print") == 0) {
-            int is_println = strcmp(name, "println") == 0;
+        if (strcmp(name, "println") == 0) {
+            fprintf(f, "til_println(%d", e->nchildren - 1);
             for (int i = 1; i < e->nchildren; i++) {
-                if (i > 1) { fprintf(f, ";\n"); emit_indent(f, depth); }
-                Expr *arg = e->children[i];
-                int last = is_println && i == e->nchildren - 1;
-                const char *nl = last ? "\\n" : "";
-
-                // Unwrap to_str(x) — print x directly
-                Expr *inner = unwrap_to_str(arg);
-                if (inner && inner->til_type == TIL_TYPE_BOOL) {
-                    fprintf(f, "printf(\"%%s%s\", ", nl);
-                    emit_deref(f, inner, depth);
-                    fprintf(f, " ? \"true\" : \"false\")");
-                } else if (inner && inner->til_type == TIL_TYPE_U8) {
-                    fprintf(f, "printf(\"%%u%s\", (unsigned)", nl);
-                    emit_deref(f, inner, depth);
-                    fprintf(f, ")");
-                } else if (inner) {
-                    fprintf(f, "printf(\"%%lld%s\", (til_I64)", nl);
-                    emit_deref(f, inner, depth);
-                    fprintf(f, ")");
-                } else if (arg->type == NODE_LITERAL_STR) {
-                    fprintf(f, "printf(\"%s%s\")", arg->data.str_val, nl);
-                } else if (arg->til_type == TIL_TYPE_I64) {
-                    fprintf(f, "printf(\"%%lld%s\", (til_I64)", nl);
-                    emit_deref(f, arg, depth);
-                    fprintf(f, ")");
-                } else if (arg->til_type == TIL_TYPE_U8) {
-                    fprintf(f, "printf(\"%%u%s\", (unsigned)", nl);
-                    emit_deref(f, arg, depth);
-                    fprintf(f, ")");
-                } else if (arg->til_type == TIL_TYPE_BOOL) {
-                    fprintf(f, "printf(\"%%s%s\", ", nl);
-                    emit_deref(f, arg, depth);
-                    fprintf(f, " ? \"true\" : \"false\")");
-                } else {
-                    fprintf(f, "printf(\"%%s%s\", ", nl);
-                    emit_deref(f, arg, depth);
-                    fprintf(f, ")");
-                }
+                fprintf(f, ", ");
+                emit_deref(f, e->children[i], depth);
             }
-            // println() with no args: just a newline
-            if (is_println && e->nchildren <= 1) {
-                fprintf(f, "printf(\"\\n\")");
+            fprintf(f, ")");
+        } else if (strcmp(name, "print") == 0) {
+            fprintf(f, "til_print(%d", e->nchildren - 1);
+            for (int i = 1; i < e->nchildren; i++) {
+                fprintf(f, ", ");
+                emit_deref(f, e->children[i], depth);
             }
+            fprintf(f, ")");
         } else if (strcmp(name, "format") == 0) {
             fprintf(f, "til_format(%d", e->nchildren - 1);
             for (int i = 1; i < e->nchildren; i++) {
@@ -492,18 +437,7 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
         return 1;
     }
 
-    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include \"ext.h\"\n\n");
-    fprintf(f, "static const char **til_format(int n, ...) {\n");
-    fprintf(f, "    va_list ap; va_start(ap, n);\n");
-    fprintf(f, "    int total = 0;\n");
-    fprintf(f, "    const char *strs[64];\n");
-    fprintf(f, "    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, const char *); total += strlen(strs[i]); }\n");
-    fprintf(f, "    va_end(ap);\n");
-    fprintf(f, "    char *r = malloc(total + 1); int off = 0;\n");
-    fprintf(f, "    for (int i = 0; i < n; i++) { int l = strlen(strs[i]); memcpy(r + off, strs[i], l); off += l; }\n");
-    fprintf(f, "    r[off] = '\\0';\n");
-    fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = r; return _r;\n");
-    fprintf(f, "}\n\n");
+    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"ext.h\"\n\n");
 
     // All ext_func implementations are in ext.c, declared via ext.h
     fprintf(f, "\n");
