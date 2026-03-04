@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "scavenger.h"
+#include "map.h"
 
 // Simple string set (dynamic array with linear lookup)
 typedef struct {
@@ -33,36 +34,9 @@ static void strset_free(StrSet *s) {
 }
 
 // Name-to-Expr map (for top-level decls and namespace methods)
-typedef struct {
-    Str **keys;
-    Expr **vals;
-    int len, cap;
-} DeclMap;
-
-static DeclMap declmap_new(void) {
-    return (DeclMap){NULL, NULL, 0, 0};
-}
-
-static void declmap_put(DeclMap *m, Str *key, Expr *val) {
-    if (m->len == m->cap) {
-        m->cap = m->cap ? m->cap * 2 : 16;
-        m->keys = realloc(m->keys, m->cap * sizeof(Str *));
-        m->vals = realloc(m->vals, m->cap * sizeof(Expr *));
-    }
-    m->keys[m->len] = key;
-    m->vals[m->len] = val;
-    m->len++;
-}
-
-static Expr *declmap_get(DeclMap *m, Str *key) {
-    for (int i = 0; i < m->len; i++)
-        if (Str_eq(m->keys[i], key)) return m->vals[i];
-    return NULL;
-}
-
-static void declmap_free(DeclMap *m) {
-    free(m->keys);
-    free(m->vals);
+static Expr *map_get_expr(Map *m, Str *key) {
+    Expr **p = Map_get(m, key);
+    return p ? *p : NULL;
 }
 
 // Garbage collector for Str* allocated during scavenging
@@ -167,17 +141,17 @@ void scavenge(Expr *program, Str *mode) {
     int is_cli = mode && strcmp(mode->c_str, "cli") == 0;
 
     // 1. Build top-level declaration map
-    DeclMap top = declmap_new();
+    Map top = Map_new(sizeof(Expr *));
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL)
-            declmap_put(&top, stmt->data.decl.name, stmt);
+            Map_set(&top, stmt->data.decl.name, &stmt);
     }
 
     // 2. Build namespace method map: "Type.method" → method decl node
-    DeclMap methods = declmap_new();
+    Map methods = Map_new(sizeof(Expr *));
     for (int i = 0; i < top.len; i++) {
-        Expr *decl = top.vals[i];
+        Expr *decl = ((Expr **)top.vals)[i];
         if (decl->children[0]->type != NODE_STRUCT_DEF &&
             decl->children[0]->type != NODE_ENUM_DEF) continue;
         Str *sname = top.keys[i];
@@ -185,7 +159,7 @@ void scavenge(Expr *program, Str *mode) {
         for (int j = 0; j < body->nchildren; j++) {
             Expr *field = body->children[j];
             if (!field->data.decl.is_namespace) continue;
-            declmap_put(&methods, qualified_name(sname, field->data.decl.name), field);
+            Map_set(&methods, qualified_name(sname, field->data.decl.name), &field);
         }
     }
 
@@ -215,7 +189,7 @@ void scavenge(Expr *program, Str *mode) {
         strset_add(&visited, name);
 
         // Top-level declaration?
-        Expr *decl = declmap_get(&top, name);
+        Expr *decl = map_get_expr(&top, name);
         if (decl) {
             if (decl->children[0]->type == NODE_STRUCT_DEF ||
                 decl->children[0]->type == NODE_ENUM_DEF) {
@@ -232,7 +206,7 @@ void scavenge(Expr *program, Str *mode) {
         }
 
         // Namespace method?
-        Expr *method = declmap_get(&methods, name);
+        Expr *method = map_get_expr(&methods, name);
         if (method && method->children[0]->type == NODE_FUNC_DEF) {
             collect_refs(method->children[0], &worklist);
         }
@@ -275,7 +249,7 @@ void scavenge(Expr *program, Str *mode) {
     // Cleanup
     strset_free(&worklist);
     strset_free(&visited);
-    declmap_free(&top);
-    declmap_free(&methods);
+    Map_free(&top);
+    Map_free(&methods);
     gc_free_all();
 }
