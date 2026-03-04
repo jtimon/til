@@ -21,7 +21,7 @@
   - Variadic macros for compile-time code generation
 
 * OPEN #5 Pointers and arrays: unlock C-level memory access
-  :DEPENDENCIES: #0 #2 #3
+  :DEPENDENCIES: #2 #3
   After #2 (ref) and #3 (own fields), til will have single-pointer semantics
   for structs, args, and returns — but still no way to work with multi-element
   allocations. C has malloc(sizeof(Elem)*n), pointer[i] indexing, pointer
@@ -72,7 +72,6 @@
   user just writes `mode gui` and gets access to the API.
 
 * WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
-  :DEPENDENCIES: #0
   Currently all returns are owned by the caller (heap-allocated, caller must
   delete). This breaks when a function wants to return one of its args:
 
@@ -264,77 +263,3 @@
    duplicate detection, default filling) from the regular fcall path into the
    namespace call path. User code like Point.delete(call_free=false) now works.
 
-* OPEN #0 Complete basic memory management before extending pointer semantics
-  :DEPENDENCIES: #1
-  Before #2 (ref), #3 (own fields), and #5 (arrays), the existing memory
-  management needs to be solid. The user should never need to call free or
-  delete explicitly — ASAP handles it. But there are gaps.
-
-  Current state:
-  - ASAP inserts Type.delete(own var) after last use of each local. Works.
-  - Auto-generated delete calls field deletes then free(own self). Works.
-  - Auto-generated clone deep-copies fields. Works.
-  - own at call sites transfers ownership, ASAP skips cleanup. Works.
-
-  What's missing or fragile:
-
-** Eliminate shallow copies: typer-inserted clone calls
-   Both backends have shallow copies in the same 4 places — the typer should
-   insert explicit Type.clone(x) calls so backends never need copy logic:
-
-   | Operation              | ccodegen             | interpreter                  | Status |
-   | Declaration (y := x)   | *dest = *src         | scope_set_owned copies Value | FIXED  |
-   | Assignment (y = x)     | *dest = *src         | cell->val = val              | FIXED  |
-   | Field assign (o.f = x) | field = deref(val)   | field_values[i] = val        | FIXED  |
-   | Struct construction    | compound literal val  | field_values[fi] = eval(arg) | FIXED  |
-
-   All 4 sites: the typer inserts Type.clone(x) when the value is a
-   NODE_IDENT. Works for ALL types — primitives (I64, U8, Bool, Str)
-   and user-defined structs (with or without instance fields). Primitive clone
-   is defined in pure til in core.til (e.g. I64.clone via val.add(0)), so no
-   new C special cases were added. The initer's has_clone check skips
-   auto-generation when a user-defined or core.til clone already exists.
-
-   Fieldless struct clone: the initer now generates `return Type()` instead of
-   `other := self; return other`, avoiding infinite recursion from clone
-   insertion. ccodegen now supports fieldless struct constructors (compound
-   literals, empty struct typedef with char padding).
-
-   FIXED — value_deep_copy removed via move semantics in interpreter.
-   Instead of merging clone insertion and hoisting, the interpreter now
-   transfers ownership when assigning from NODE_IDENT (copies value, nulls
-   source cell). ASAP deletes of moved values are no-ops. See #1 for details.
-
-** FIXED Custom clone/delete: user-defined override for auto-generated
-   The initer checks for existing clone/delete in the struct namespace before
-   auto-generating. If the user defines their own, the initer skips generation.
-   Works for both clone (func) and delete (proc). Tested in structs.til.
-
-** FIXED Use-after-own error: catch transferred variables at compile time
-   The typer detects use of a variable after ownership transfer via `own` and
-   emits three lines: the error at the use site, a note at the transfer site,
-   and a help line showing the fix pattern (own var.clone()).
-
-** FIXED Clone responsibility: clarify when the user must clone explicitly
-   The use-after-own error message now explains the fix concretely:
-     error: use of 'x' after ownership transfer
-     note: ownership transferred here
-     help: pass a clone instead: own x.clone()
-   Rules are enforced by the typer:
-   - Passing by ref (default): caller keeps ownership, callee borrows
-   - Passing with own: caller gives up ownership, use after is a type error
-   - To keep using after own: pass own x.clone() instead
-
-** ASAP edge cases
-   - VERIFIED: Variables used in both branches of if/else — works correctly.
-     expr_uses_var recurses into all NODE_IF children, so last_use is set
-     to the if statement index and delete is inserted after it. Tests:
-     asap_if_both_branches, asap_if_one_branch, asap_if_return_branch
-     in flow.til.
-   - Variables captured in closures — deferred (closures not yet supported).
-   - FIXED: Return from inside while leaks parent-scope locals.
-     insert_exit_deletes and insert_free_calls only handled NODE_IF, not
-     NODE_WHILE. Added NODE_WHILE support with a return_only flag — only
-     return triggers parent-scope cleanup (break/continue stay in scope).
-     Tests: asap_return_from_while, asap_return_nested, asap_break_no_leak
-     in flow.til.

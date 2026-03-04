@@ -88,17 +88,15 @@
   Covers: declarations (y := x), assignments (y = x), field assignments
   (obj.f = x), and struct constructor args (Point(x=val)).
 
-* NOT_YET There are no shallow copies in til — all copies are deep
+* TRUE There are no shallow copies in til — all copies are deep
   The typer inserts Type.clone() at all 4 copy sites (decl, assign, field
   assign, struct constructor). Clone is always a deep copy — auto-generated
   clones recurse into fields, primitive clones produce new values.
   The interpreter uses move semantics (transfer ownership, null source cell)
   for identifier RHS — no copying without an explicit clone call.
-  ccodegen: declarations work (clone returns fresh pointer, pointer-assigned).
-  BUT assignments and field assignments use deref-copy (*dest = (*src)) after
-  hoisting turns the clone fcall into a temp. This creates a shallow copy —
-  both dest and temp share internal pointers, and ASAP deletes the temp,
-  leaving dest dangling (use-after-free on compound types like Str/structs).
+  ccodegen uses pointer-assign for compound types (clone returns fresh pointer),
+  deref-assign for scalars. Struct constructors use field-by-field assignment
+  with deref + free-wrapper for inline compound fields.
 
 * TRUE Memory management is fully automatic via ASAP destruction
   The typer inserts Type.delete() calls after the last use of each local
@@ -106,8 +104,9 @@
   delete explicitly. Works across all control flow: if/else branches,
   while loops, early returns, break, and continue. Auto-generated delete
   recurses into fields then frees the struct. Own-parameter transfer skips
-  ASAP cleanup (callee is responsible).
-  Caveat: mut variable reassignment doesn't free the old value (see #0).
+  ASAP cleanup (callee is responsible). Mut variable reassignment frees the
+  old value: typer inserts delete before compound-type reassignment,
+  interpreter calls free_value for scalars.
 
 * TRUE The hoisting pass lifts fcall args into temporaries
   Prevents memory leaks from intermediate results and simplifies evaluation

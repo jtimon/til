@@ -137,6 +137,53 @@
     println. Removes I64, U8, StructDef, FunctionDef, Dynamic, and all
     unused methods from kept types.
 
+* FIXED #0 Complete basic memory management before extending pointer semantics
+  Memory management is now fully automatic. The user never calls free or
+  delete explicitly — ASAP destruction and typer-inserted clone/delete handle
+  everything. No shallow copies, no leaks, in both interpreter and ccodegen.
+
+  What was done:
+
+** FIXED Eliminate shallow copies: typer-inserted clone calls
+   The typer inserts Type.clone(x) at all 4 copy sites when the value is
+   a NODE_IDENT:
+
+   | Operation              | Status |
+   | Declaration (y := x)   | FIXED  |
+   | Assignment (y = x)     | FIXED  |
+   | Field assign (o.f = x) | FIXED  |
+   | Struct construction    | FIXED  |
+
+   Works for all types — primitives via core.til clone, user structs via
+   auto-generated clone. Interpreter uses move semantics (transfer ownership,
+   null source cell) instead of deep copy. ccodegen uses pointer-assign for
+   compound types, deref-assign for scalars.
+
+   Struct constructors use field-by-field assignment (emit_ctor_fields)
+   instead of compound literals. Inline compound fields use deref + free-wrapper
+   to avoid sharing internal pointers with hoisted temps.
+
+** FIXED Reassignment frees old value
+   Typer inserts Type.delete(own var) before compound-type variable reassignment.
+   Typer inserts Type.delete(obj.field, call_free) before field reassignment:
+   call_free=true for own fields, call_free=false for inline compound fields.
+   Interpreter also calls free_value before overwriting (handles scalars).
+   ccodegen evaluates RHS before freeing old value to prevent reading freed
+   memory when RHS references the same variable (e.g. counter = counter.add(1)).
+
+** FIXED Custom clone/delete: user-defined override for auto-generated
+   The initer checks for existing clone/delete in the struct namespace before
+   auto-generating. If the user defines their own, the initer skips generation.
+
+** FIXED Use-after-own error: catch transferred variables at compile time
+   The typer detects use of a variable after ownership transfer via `own` and
+   suggests the fix: own x.clone().
+
+** FIXED ASAP edge cases
+   - if/else branches: works correctly (last_use set to if statement index).
+   - while loops: return triggers parent-scope cleanup, break/continue don't.
+   - Closures: deferred (not yet supported).
+
 * FIXED #3 own keyword for struct fields: heap-allocated owned pointers
   :DEPENDENCIES: #0
   Struct fields are normally inline (contiguous in parent allocation).
