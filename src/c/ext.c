@@ -7,11 +7,7 @@
 void til_free(void *ptr) { free(ptr); }
 void til_exit(til_I64 *code) { exit((int)*code); }
 
-Str *til_I64_to_str(til_I64 *v) {
-    char buf[32];
-    snprintf(buf, 32, "%lld", *v);
-    return Str_new(buf);
-}
+Str *til_I64_to_str(til_I64 *v) { return I64_to_str(*v); }
 
 Str *til_U8_to_str(til_U8 *v) {
     char buf[4];
@@ -38,23 +34,23 @@ til_Bool *til_Str_starts_with(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_
 til_Bool *til_Str_ends_with(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = Str_ends_with(a, b); return r; }
 
 // I64 clone/delete
-til_I64 *til_I64_clone(til_I64 *v) { til_I64 *r = malloc(sizeof(til_I64)); *r = *v; return r; }
-void til_I64_delete(til_I64 *v, til_Bool *call_free) { if (*call_free) free(v); }
+til_I64 *til_I64_clone(til_I64 *v) { return I64_clone(v); }
+void til_I64_delete(til_I64 *v, til_Bool *call_free) { if (*call_free) I64_delete(v); }
 
 // I64 arithmetic
-til_I64 *til_I64_add(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a + *b; return r; }
-til_I64 *til_I64_sub(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a - *b; return r; }
-til_I64 *til_I64_mul(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a * *b; return r; }
-til_I64 *til_I64_div(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = (*b == 0) ? 0 : *a / *b; return r; }
-til_I64 *til_I64_mod(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = (*b == 0) ? 0 : *a % *b; return r; }
-til_I64 *til_I64_and(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a & *b; return r; }
-til_I64 *til_I64_or(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a | *b; return r; }
-til_I64 *til_I64_xor(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a ^ *b; return r; }
+til_I64 *til_I64_add(til_I64 *a, til_I64 *b) { return I64_new(I64_add(*a, *b)); }
+til_I64 *til_I64_sub(til_I64 *a, til_I64 *b) { return I64_new(I64_sub(*a, *b)); }
+til_I64 *til_I64_mul(til_I64 *a, til_I64 *b) { return I64_new(I64_mul(*a, *b)); }
+til_I64 *til_I64_div(til_I64 *a, til_I64 *b) { return I64_new(I64_div(*a, *b)); }
+til_I64 *til_I64_mod(til_I64 *a, til_I64 *b) { return I64_new(I64_mod(*a, *b)); }
+til_I64 *til_I64_and(til_I64 *a, til_I64 *b) { return I64_new(I64_and(*a, *b)); }
+til_I64 *til_I64_or(til_I64 *a, til_I64 *b) { return I64_new(I64_or(*a, *b)); }
+til_I64 *til_I64_xor(til_I64 *a, til_I64 *b) { return I64_new(I64_xor(*a, *b)); }
 
 // I64 comparisons
-til_Bool *til_I64_eq(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a == *b; return r; }
-til_Bool *til_I64_lt(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a < *b; return r; }
-til_Bool *til_I64_gt(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a > *b; return r; }
+til_Bool *til_I64_eq(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I64_eq(*a, *b); return r; }
+til_Bool *til_I64_lt(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I64_lt(*a, *b); return r; }
+til_Bool *til_I64_gt(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I64_gt(*a, *b); return r; }
 
 // U8 arithmetic
 til_U8 *til_U8_add(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)(*a + *b); return r; }

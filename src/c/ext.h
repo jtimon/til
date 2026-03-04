@@ -2,8 +2,9 @@
 #define TIL_EXT_H
 
 #include "str.h"
+#include "i64.h"
 
-typedef long long til_I64;
+typedef I64 til_I64;
 typedef unsigned char til_U8;
 typedef int til_Bool;
 

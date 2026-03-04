@@ -236,24 +236,24 @@ static int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *p
     }
 
     // I64 arithmetic
-    if (Str_eq_c(name, "I64_add")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_add(a.i64, b.i64)}; return 1; }
-    if (Str_eq_c(name, "I64_sub")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_sub(a.i64, b.i64)}; return 1; }
-    if (Str_eq_c(name, "I64_mul")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_mul(a.i64, b.i64)}; return 1; }
-    if (Str_eq_c(name, "I64_div")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_div(a.i64, b.i64)}; return 1; }
-    if (Str_eq_c(name, "I64_mod")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_mod(a.i64, b.i64)}; return 1; }
-    if (Str_eq_c(name, "I64_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_and(a.i64, b.i64)}; return 1; }
-    if (Str_eq_c(name, "I64_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_or(a.i64, b.i64)}; return 1; }
-    if (Str_eq_c(name, "I64_xor")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_xor(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_add")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_i64(I64_add(*a.i64, *b.i64)); return 1; }
+    if (Str_eq_c(name, "I64_sub")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_i64(I64_sub(*a.i64, *b.i64)); return 1; }
+    if (Str_eq_c(name, "I64_mul")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_i64(I64_mul(*a.i64, *b.i64)); return 1; }
+    if (Str_eq_c(name, "I64_div")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_i64(I64_div(*a.i64, *b.i64)); return 1; }
+    if (Str_eq_c(name, "I64_mod")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_i64(I64_mod(*a.i64, *b.i64)); return 1; }
+    if (Str_eq_c(name, "I64_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_i64(I64_and(*a.i64, *b.i64)); return 1; }
+    if (Str_eq_c(name, "I64_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_i64(I64_or(*a.i64, *b.i64)); return 1; }
+    if (Str_eq_c(name, "I64_xor")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_i64(I64_xor(*a.i64, *b.i64)); return 1; }
 
     // I64 comparisons
-    if (Str_eq_c(name, "I64_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_I64_eq(a.i64, b.i64)}; return 1; }
-    if (Str_eq_c(name, "I64_lt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_I64_lt(a.i64, b.i64)}; return 1; }
-    if (Str_eq_c(name, "I64_gt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_I64_gt(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(I64_eq(*a.i64, *b.i64)); return 1; }
+    if (Str_eq_c(name, "I64_lt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(I64_lt(*a.i64, *b.i64)); return 1; }
+    if (Str_eq_c(name, "I64_gt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(I64_gt(*a.i64, *b.i64)); return 1; }
 
     // I64 conversion
-    if (Str_eq_c(name, "I64_to_str")) { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_STR, .str = til_I64_to_str(v.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_to_str")) { Value v = eval_expr(scope, e->children[1], path); *result = val_str(I64_to_str(*v.i64)); return 1; }
     if (Str_eq_c(name, "I64_clone")) { Value v = eval_expr(scope, e->children[1], path); *result = val_i64(*v.i64); return 1; }
-    if (Str_eq_c(name, "I64_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) free(v.i64); *result = val_none(); return 1; }
+    if (Str_eq_c(name, "I64_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) I64_delete(v.i64); *result = val_none(); return 1; }
 
     // U8 arithmetic
     if (Str_eq_c(name, "U8_add")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_add(a.u8, b.u8)}; return 1; }
