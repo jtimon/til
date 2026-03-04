@@ -39,3 +39,24 @@ macro_is_big := macro(x: I64) returns Bool {
 }
 test(loc(), macro_is_big(200), "200 is big")
 test(loc(), macro_is_big(50).not(), "50 is not big")
+
+# --- constant folding for pure funcs ---
+
+# basic func folding
+double := func(x: I64) returns I64 {
+    return x.mul(2)
+}
+assert_eq(loc(), double(5), 10)
+
+# nested folding: double(double(3)) → 12
+assert_eq(loc(), double(double(3)), 12)
+
+# func with constant arg
+K := 7
+assert_eq(loc(), double(K), 14)
+
+# func returning Str
+greet := func(name: Str) returns Str {
+    return "hi ".concat(name)
+}
+assert_eq_str(loc(), greet("til"), "hi til")

@@ -1,5 +1,35 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #7 Precomp phase: compile-time macro evaluation and constant folding
+  A precomp phase (between typer and scavenger) that evaluates macros and
+  pure func calls at compile time, replacing them with literal results.
+  Pipeline: lex → parse → type check → precomp → scavenge → interpret/codegen.
+
+  Phase 1 — macro definition and evaluation:
+  - typer.c: macros must declare a return type (like funcs). Macro bodies
+    type-checked with in_func=0 (can call procs). Calls to macros from funcs
+    allowed (is_proc=0 in initer).
+  - precomp.h/c (new): post-typer pass that walks all bodies, finds macro
+    calls, evaluates them via the interpreter, and replaces them with literal
+    results. Tracks compile-time known values (literals, constants, hoisted
+    temps) to validate macro arguments. Supports I64, U8, Str, Bool returns.
+  - interpreter.h/c: exported scope_new, scope_set_owned, scope_free.
+    Extracted interpreter_init_ns() helper for namespace field initialization
+    (used by both interpret() and precomp).
+  - ctil.c: calls precomp(ast, path) after type_check, before scavenge.
+
+  Phase 2 — constant folding for pure funcs:
+  - precomp.c: extended to also fold user-defined FUNC_FUNC calls when all
+    args are compile-time known. Same mechanism as macros — interpreter
+    evaluates, result replaces call with literal. Added func_names set
+    alongside macro_names, generalized try_eval_macro → try_eval_call with
+    require_known param (macros error on unknown args, funcs silently skip).
+  - Scavenger naturally removes macro defs (all calls folded) and func defs
+    where all call sites were folded away. No scavenger changes needed.
+  - Tests: src/test/macros.til (macros: I64 arithmetic, constants, Str concat,
+    proc calls in macro body, macro in func, Bool return; constant folding:
+    basic func folding, nested folding, constant arg, Str-returning func).
+
 * FIXED #6 Scavenger phase: remove unused declarations from the AST
   A post-typer pass that walks the AST and removes declarations not reachable
   from the program's entry points. CLI mode uses main as entry point; script

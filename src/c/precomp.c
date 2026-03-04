@@ -4,14 +4,23 @@
 #include "precomp.h"
 #include "interpreter.h"
 
-// --- Macro name set ---
+// --- Macro and pure func name sets ---
 
 static Str **macro_names = NULL;
 static int macro_count = 0, macro_cap = 0;
 
+static Str **func_names = NULL;
+static int func_count = 0, func_cap = 0;
+
 static int is_macro(Str *name) {
     for (int i = 0; i < macro_count; i++)
         if (Str_eq(macro_names[i], name)) return 1;
+    return 0;
+}
+
+static int is_pure_func(Str *name) {
+    for (int i = 0; i < func_count; i++)
+        if (Str_eq(func_names[i], name)) return 1;
     return 0;
 }
 
@@ -132,9 +141,18 @@ static int is_macro_call(Expr *e) {
            is_macro(e->children[0]->data.str_val);
 }
 
-// Try to evaluate a macro call. Returns the result Expr or NULL on failure.
-static Expr *try_eval_macro(Scope *scope, Expr *fcall, KnownMap *known,
-                            const char *path) {
+// Check if a NODE_FCALL is a pure func call
+static int is_func_call(Expr *e) {
+    return e->type == NODE_FCALL &&
+           e->nchildren > 0 &&
+           e->children[0]->type == NODE_IDENT &&
+           is_pure_func(e->children[0]->data.str_val);
+}
+
+// Try to evaluate a call at compile time.
+// require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
+static Expr *try_eval_call(Scope *scope, Expr *fcall, KnownMap *known,
+                           const char *path, int require_known) {
     // Build a call with literal args for the interpreter
     int nargs = fcall->nchildren - 1;
     Expr *eval_call = expr_new(NODE_FCALL, fcall->line, fcall->col);
@@ -146,8 +164,10 @@ static Expr *try_eval_macro(Scope *scope, Expr *fcall, KnownMap *known,
         Expr *arg = fcall->children[i + 1];
         Value arg_val;
         if (!is_known(arg, known, &arg_val)) {
-            fprintf(stderr, "%s:%d:%d: error: macro argument must be known at compile time\n",
-                    path, arg->line, arg->col);
+            if (require_known) {
+                fprintf(stderr, "%s:%d:%d: error: macro argument must be known at compile time\n",
+                        path, arg->line, arg->col);
+            }
             // Clean up: detach callee so it's not double-freed
             eval_call->children[0] = NULL;
             eval_call->nchildren = 0;
@@ -159,7 +179,7 @@ static Expr *try_eval_macro(Scope *scope, Expr *fcall, KnownMap *known,
         expr_add_child(eval_call, lit);
     }
 
-    // Evaluate the macro call using the interpreter
+    // Evaluate the call using the interpreter
     Value result = eval_expr(scope, eval_call, path);
 
     // Clean up eval_call (detach callee ident first — it's shared with original)
@@ -172,8 +192,10 @@ static Expr *try_eval_macro(Scope *scope, Expr *fcall, KnownMap *known,
     // Convert result to AST
     Expr *lit = value_to_expr(result, fcall->line, fcall->col);
     if (!lit) {
-        fprintf(stderr, "%s:%d:%d: error: macro returned non-primitive type\n",
-                path, fcall->line, fcall->col);
+        if (require_known) {
+            fprintf(stderr, "%s:%d:%d: error: macro returned non-primitive type\n",
+                    path, fcall->line, fcall->col);
+        }
     }
     return lit;
 }
@@ -203,13 +225,22 @@ static void process_body(Scope *scope, Expr *body, KnownMap *known,
                 }
                 break;
             }
-            // Check if RHS is a macro call
+            // Check if RHS is a macro or pure func call
             if (is_macro_call(stmt->children[0])) {
-                Expr *lit = try_eval_macro(scope, stmt->children[0], known, path);
+                Expr *lit = try_eval_call(scope, stmt->children[0], known, path, 1);
                 if (lit) {
                     expr_free(stmt->children[0]);
                     stmt->children[0] = lit;
                     track_literal(known, stmt->data.decl.name, lit);
+                }
+            } else if (is_func_call(stmt->children[0])) {
+                Expr *lit = try_eval_call(scope, stmt->children[0], known, path, 0);
+                if (lit) {
+                    expr_free(stmt->children[0]);
+                    stmt->children[0] = lit;
+                    track_literal(known, stmt->data.decl.name, lit);
+                } else {
+                    track_literal(known, stmt->data.decl.name, stmt->children[0]);
                 }
             } else {
                 // Track compile-time known value
@@ -230,9 +261,15 @@ static void process_body(Scope *scope, Expr *body, KnownMap *known,
             break;
 
         case NODE_FCALL:
-            // Bare macro call (not in a declaration)
+            // Bare macro or pure func call (not in a declaration)
             if (is_macro_call(stmt)) {
-                Expr *lit = try_eval_macro(scope, stmt, known, path);
+                Expr *lit = try_eval_call(scope, stmt, known, path, 1);
+                if (lit) {
+                    expr_free(stmt);
+                    body->children[i] = lit;
+                }
+            } else if (is_func_call(stmt)) {
+                Expr *lit = try_eval_call(scope, stmt, known, path, 0);
                 if (lit) {
                     expr_free(stmt);
                     body->children[i] = lit;
@@ -247,24 +284,33 @@ static void process_body(Scope *scope, Expr *body, KnownMap *known,
 }
 
 void precomp(Expr *program, const char *path) {
-    // 1. Collect macro names
+    // 1. Collect macro and pure func names
     macro_names = NULL; macro_count = 0; macro_cap = 0;
+    func_names = NULL; func_count = 0; func_cap = 0;
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
-        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF &&
-            stmt->children[0]->data.func_def.func_type == FUNC_MACRO) {
-            if (macro_count == macro_cap) {
-                macro_cap = macro_cap ? macro_cap * 2 : 8;
-                macro_names = realloc(macro_names, macro_cap * sizeof(Str *));
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
+            FuncType ft = stmt->children[0]->data.func_def.func_type;
+            if (ft == FUNC_MACRO) {
+                if (macro_count == macro_cap) {
+                    macro_cap = macro_cap ? macro_cap * 2 : 8;
+                    macro_names = realloc(macro_names, macro_cap * sizeof(Str *));
+                }
+                macro_names[macro_count++] = stmt->data.decl.name;
+            } else if (ft == FUNC_FUNC) {
+                if (func_count == func_cap) {
+                    func_cap = func_cap ? func_cap * 2 : 8;
+                    func_names = realloc(func_names, func_cap * sizeof(Str *));
+                }
+                func_names[func_count++] = stmt->data.decl.name;
             }
-            macro_names[macro_count++] = stmt->data.decl.name;
         }
     }
 
-    // No macros? Nothing to do.
-    if (macro_count == 0) {
-        free(macro_names);
-        macro_names = NULL;
+    // Nothing to fold?
+    if (macro_count == 0 && func_count == 0) {
+        free(macro_names); macro_names = NULL;
+        free(func_names); func_names = NULL;
         return;
     }
 
@@ -288,7 +334,6 @@ void precomp(Expr *program, const char *path) {
     // Cleanup
     known_free(&known);
     scope_free(global);
-    free(macro_names);
-    macro_names = NULL;
-    macro_count = 0;
+    free(macro_names); macro_names = NULL; macro_count = 0;
+    free(func_names); func_names = NULL; func_count = 0;
 }
