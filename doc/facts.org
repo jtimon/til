@@ -3,10 +3,10 @@
 # Update or remove facts when the implementation changes.
 #+TODO: NOT_YET NOT_ANYMORE | TRUE
 
-* NOT_YET All arguments are passed by reference, both semantically and in both backends
-  ccodegen: all params are C pointers, call sites use emit_as_ptr(). TRUE.
-  interpreter: identifier args use scope_set_borrowed (shared Cell), but every
-  NODE_IDENT access goes through value_deep_copy(), so reads are copies. NOT YET.
+* TRUE All arguments are passed by reference, both semantically and in both backends
+  ccodegen: all params are C pointers, call sites use emit_as_ptr().
+  interpreter: identifier args use scope_set_borrowed (shared Cell).
+  No value_deep_copy — removed via move semantics.
 
 * TRUE All values are heap-allocated in both backends
   ccodegen: all types map to C pointers (til_I64 *, til_U8 *, til_Point *, etc.).
@@ -16,20 +16,21 @@
   and their fields are malloc'd. Cells containing values are malloc'd.
 
 * TRUE ext.h defines type aliases shared by both backends
-  typedef long long til_I64; typedef unsigned char til_U8; typedef int til_Bool;
-  typedef const char *c_str. Used in ext.c, interpreter.c (directly), and
-  ccodegen output (via #include "ext.h"). c_str not til_Str — reserved for
-  a future fat string struct with len/cap.
+  typedef I64 til_I64; typedef U8 til_U8; typedef Bool til_Bool.
+  Used in ext.c, interpreter.c (directly), and ccodegen output
+  (via #include "ext.h").
 
 * TRUE The typer rewrites the AST, not just type-checks it
   Desugars UFCS (instance.method) to namespace calls (Type.method), resolves
   named args to positional, fills default args, inserts ASAP delete calls,
-  and inserts Type.clone() for declarations and assignments from identifiers.
+  hoists fcall args into temporaries, and inserts Type.clone() at all 4 copy
+  sites (decl, assign, field assign, struct constructor).
   Goal: backends can be simpler and more uniform.
 
-* TRUE Struct fields are stored inline, not as separate heap pointers
-  Fields are contiguous in the parent struct's allocation. That's why
-  field deletes pass call_free=false — only the top-level struct is freed.
+* TRUE Struct fields are stored inline by default
+  Non-own fields are contiguous in the parent struct's allocation. That's
+  why field deletes pass call_free=false — only the top-level struct is
+  freed. Own fields are pointers (separately heap-allocated).
 
 * TRUE func and proc are distinct
   funcs are pure: must return a value, can't call procs (except panic).
@@ -58,18 +59,18 @@
   ASAP destruction skips variables after an own transfer — the callee is
   now responsible for cleanup.
 
-* TRUE All returns are owned by the caller (no ref returns until #2)
+* TRUE Returns are owned by the caller unless declared ref
   Functions return heap-allocated pointers. The caller owns the returned
-  value and is responsible for its cleanup (ASAP destruction handles this).
-  This means a function can't return one of its args without copying it —
-  e.g. min(a, b) must clone the result, otherwise the same value is owned
-  twice and deleted twice (double-free). Ref returns (#2) will fix this.
+  value and ASAP handles cleanup. Functions can declare returns ref to
+  return a borrowed reference — the caller must not delete it. ASAP
+  skips cleanup for ref return values and ref declarations.
+  Ref returns allow returning args without copying (e.g. min(a, b)).
 
-* TRUE The only meta-types are StructDef, FunctionDef, and Dynamic
+* TRUE The only meta-types are StructDef, EnumDef, FunctionDef, and Dynamic
   Meta-types are type-system scaffolding, not data types. You never
   instantiate them as values. The initer skips clone/delete generation
-  for these three. Everything else (I64, U8, Bool, Str, user-defined
-  structs) gets auto-generated clone and delete.
+  for these. Everything else (I64, U8, Bool, Str, user-defined structs
+  and enums) gets auto-generated clone and delete.
 
 * TRUE Primitive clone is defined in pure til in core.til
   I64.clone via val.add(0), U8.clone via U8.from_i64(val.to_i64()),
@@ -82,19 +83,32 @@
   Skipped if the user defines their own clone or delete in the struct namespace.
   Fieldless struct clone generates return Type() to avoid recursion.
 
-* TRUE The typer inserts clone for declarations and assignments from identifiers
-  When RHS is NODE_IDENT, the typer wraps it: y := x becomes y := Type.clone(x).
-  Covers declarations (y := x) and assignments (y = x). Does NOT yet cover
-  field assignments (obj.f = x) or struct constructor args (Point(x=val)).
+* TRUE The typer inserts clone for all 4 copy sites
+  When RHS/arg is NODE_IDENT, the typer wraps it in Type.clone(x).
+  Covers: declarations (y := x), assignments (y = x), field assignments
+  (obj.f = x), and struct constructor args (Point(x=val)).
 
-* NOT_YET interpreter and ccodegen handle declarations and assignments identically
-  The typer-inserted clone makes the RHS a fcall for ident-to-ident copies.
-  But interpreter still deep-copies on every NODE_IDENT read (value_deep_copy),
-  making the clone redundant there. ccodegen still has a malloc+copy path for
-  ident RHS in declarations. Both should simplify once all 4 copy sites have
-  clone insertion — then value_deep_copy can be removed and ccodegen's ident
-  branch becomes dead code.
+* NOT_YET There are no shallow copies in til — all copies are deep
+  The typer inserts Type.clone() at all 4 copy sites (decl, assign, field
+  assign, struct constructor). Clone is always a deep copy — auto-generated
+  clones recurse into fields, primitive clones produce new values.
+  The interpreter uses move semantics (transfer ownership, null source cell)
+  for identifier RHS — no copying without an explicit clone call.
+  ccodegen: declarations work (clone returns fresh pointer, pointer-assigned).
+  BUT assignments and field assignments use deref-copy (*dest = (*src)) after
+  hoisting turns the clone fcall into a temp. This creates a shallow copy —
+  both dest and temp share internal pointers, and ASAP deletes the temp,
+  leaving dest dangling (use-after-free on compound types like Str/structs).
+
+* TRUE Memory management is fully automatic via ASAP destruction
+  The typer inserts Type.delete() calls after the last use of each local
+  variable, before interpretation or codegen. The user never calls free or
+  delete explicitly. Works across all control flow: if/else branches,
+  while loops, early returns, break, and continue. Auto-generated delete
+  recurses into fields then frees the struct. Own-parameter transfer skips
+  ASAP cleanup (callee is responsible).
+  Caveat: mut variable reassignment doesn't free the old value (see #0).
 
 * TRUE The hoisting pass lifts fcall args into temporaries
   Prevents memory leaks from intermediate results and simplifies evaluation
-  order. Runs after the typer, before interpretation/codegen.
+  order. Runs inside the typer pass (in infer_body), before ASAP insertion.

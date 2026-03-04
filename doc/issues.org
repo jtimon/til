@@ -197,28 +197,26 @@
    generation and forward declarations. Interpreter simplified to always use
    positional args (typer desugaring fills all fields with defaults).
 
-** ccodegen: mixed pointer-assignment and deref-copy semantics
-   ccodegen mixes two assignment styles:
-   - Declarations with fcall RHS: `dest = fcall()` (pointer assignment)
-   - Assignments: `*dest = deref(src)` (value copy into existing allocation)
-   - Field assignments: `field = deref(src)` (value copy)
+** ccodegen: deref-copy in assignments causes use-after-free
+   BUG: The typer inserts clone for assignments (s = Str.clone(x)), but
+   hoisting turns the clone fcall into a temp (_t := Str.clone(x); s = _t).
+   ccodegen then emits *s = (*_t) — a deref-copy that shares internal
+   pointers between s and _t. ASAP then deletes _t, freeing the internal
+   data that s still points to. Use-after-free.
 
-   If the typer guarantees RHS is always fcall (never bare ident) after
-   desugaring — which it does when clone insertion works properly — then
-   assignments could also use pointer assignment: `dest = fcall()`. The old
-   allocation needs freeing before reassignment, but ASAP or explicit delete
-   can handle that.
+   Same issue affects field assignments (obj.f = x) via emit_deref.
 
-   This change would:
-   1. Unify assignment semantics (all become pointer assignment)
-   2. Remove emit_deref from assignment/field-assign paths
-   3. Allow clone insertion during hoisting without leaking (the clone
-      result pointer IS the new dest — no deref discards it)
-   4. Unblock value_deep_copy removal (see sub-issue below)
+   Fix: NODE_ASSIGN should free the old value and use pointer assignment
+   (s = _t) instead of deref-copy (*s = (*_t)). Or: don't hoist clone
+   calls in assignment RHS (skip hoisting when RHS is already a clone
+   fcall, letting ccodegen emit *s = til_Str_clone(x) directly).
 
-   Related sub-issues: literal return values and declaration branching are
-   symptoms of the same inconsistency. If all values are pointer-assigned
-   (never deref-copied), these branches collapse.
+** interpreter: reassignment leaks old value
+   BUG: NODE_ASSIGN does cell->val = src->val without freeing the old
+   cell->val first. For mut s := "hello"; s = "world", the old Str
+   ("hello") leaks. No use-after-free (move nulls source), just a leak.
+   Same issue for NODE_FIELD_ASSIGN overwriting existing field values.
+   Fix: free old value before overwriting (call delete on cell->val).
 
 ** FIXED ccodegen: literal return values need heap allocation
    Hoisting now converts bare literals in return statements to temporaries.
