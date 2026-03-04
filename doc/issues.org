@@ -123,33 +123,89 @@
   The ccodegen and interpreter should be as similar and minimal as possible.
   The typer/initer should do more AST rewriting so backends can be dumb and uniform.
 
-  Architecture now has 3 layers:
-  - ccore.h/c: raw C types (Str, I64, U8, Bool) + raw functions with natural
-    C semantics (value params for scalars, raw int returns for comparisons)
-  - ext.h/c: til_* typedefs + pointer-boxing wrappers for ccodegen's calling
-    convention (all args/returns are heap pointers)
-  - dispatch.h/c: interpreter's ext_function_dispatch, calls ccore directly
+  Architecture has 3 layers:
+  - ccore.h/c (168 lines): raw C types (Str, I64, U8, Bool) + raw functions
+    with natural C semantics (value params, raw int returns)
+  - ext.h/c (131 lines): til_* typedefs + pointer-boxing wrappers for
+    ccodegen's calling convention (all args/returns are heap pointers)
+  - dispatch.h/c (157 lines): interpreter's ext_function_dispatch, calls
+    ccore directly via strcmp chain (47 functions)
 
-  ccodegen links ext.c + ccore.c and emits calls to til_* wrappers.
-  The interpreter calls raw ccore functions via dispatch.c's strcmp chain.
-  core.til uses direct ext_func namespace fields instead of func-wrapping-ext_func.
-  println/print/format live in ext.c as variadic C functions. Struct constructors
-  use compound literals instead of per-struct _new functions.
+  ccodegen (959 lines) links ext.c + ccore.c and emits calls to til_* wrappers.
+  The interpreter (725 lines) calls raw ccore functions via dispatch.c.
+  core.til uses direct ext_func namespace fields. println/print/format live in
+  ext.c as variadic C functions.
 
-  All 4 clone sites in #0 are FIXED. value_deep_copy removed from interpreter
-  via move semantics: NODE_IDENT RHS in decl/assign/field-assign/struct-constructor
-  transfers ownership (copies value, nulls source cell). ASAP deletes of moved
-  values are no-ops (val_none guards in dispatch.c + own-param guard in eval_call).
-  Literal hoisting expanded to cover bare literals in return/assign/field-assign,
-  removing ccodegen's literal return and literal assignment branches.
+  The typer (1650 lines) does all type-aware AST rewriting: clone insertion at
+  4 copy sites, ASAP delete insertion, hoisting, delete before reassignment.
+  The initer (766 lines) auto-generates clone/delete/enum methods as AST.
+  Both backends are largely "dumb" — they execute/emit the pre-rewritten AST.
 
-** FIXED ccodegen: free() special case
-   Moved to ext.c as til_free(). ccodegen generic call path handles it.
-   Interpreter also uses til_free() from ext.c.
+  Remaining differences fall into 3 categories: actionable, low-priority, and
+  acceptable (inherent to having an interpreter vs a C emitter).
 
-** FIXED ccodegen: exit() special case
-   Moved to ext.c as til_exit(). ccodegen generic call path handles it.
-   Interpreter also uses til_exit() from ext.c.
+** Payload enum methods duplicated in eval_call and emit_enum_def
+   The biggest remaining inconsistency. Both backends independently implement
+   the same 6 payload enum methods: constructor, eq, clone, delete,
+   is_Variant, get_Variant.
+
+   Interpreter (eval_call lines 236-280): ~45 lines of hard-coded dispatch
+   in the namespace call path, using interpreter-specific Value types
+   (val_enum, clone_value, free_value, values_equal).
+
+   ccodegen (emit_enum_def lines 595-717): ~120 lines generating per-enum C
+   functions. Type-switches on payload type (I64/U8/Bool/Str/other) for
+   clone/eq/delete patterns.
+
+   Simple enums (no payloads) are cleaner — the initer generates ext_func
+   stubs, dispatch.c handles eq/clone/delete via flat name, ccodegen generates
+   trivial C functions. Payload enums bypass this clean path.
+
+   Fix: move interpreter payload enum logic from eval_call to dispatch.c,
+   consistent with how simple enum methods and all other ext methods work.
+   Would need enum_has_payloads, enum_variant_tag, enum_variant_type
+   available in dispatch.c (currently static in interpreter.c).
+
+** enum_has_payloads duplicated
+   Identical function in interpreter.c (line 105) and ccodegen.c (line 9,
+   named cg_enum_has_payloads). Both scan non-namespace fields for
+   explicit_type. Easy fix: move to ast.c or ast.h as shared utility.
+   Also move enum_variant_tag and enum_variant_type if fixing the payload
+   enum duplication above.
+
+** interpreter: dispatch.c still uses strcmp chain
+   Linear scan of 47 string comparisons. Could be a sorted array + binary
+   search, or a function pointer hash table. Special cases that don't fit
+   a simple table: free (accesses scope), println/print/format (variadic).
+   Low priority — interpreter perf isn't critical. Could revisit if
+   self-hosting makes dispatch a hot path.
+
+** ccodegen: declaration emission branches on RHS type
+   3 branches: struct constructor (malloc + fields), fcall/str (pointer-assign),
+   literal/ident (malloc + deref-copy). After hoisting, most RHS are NODE_IDENT
+   or NODE_FCALL, so branching is minimal. Accepted.
+
+** Acceptable: struct constructor emission
+   Interpreter (eval_call 352-384) allocates StructInstance, iterates fields,
+   move semantics for ident args. ccodegen (emit_ctor_fields 203-259) emits
+   malloc + field-by-field C assignment with own/inline/nested handling.
+   Logic is isomorphic but inherently different — one runs, one emits C.
+
+** Acceptable: ownership tracking
+   Interpreter manually tracks ownership via Value types, scope_set_borrowed
+   vs scope_set_owned, free_value on reassignment, val_none guards. ccodegen
+   delegates to C calling conventions — pointer-assign for compound types,
+   deref-assign for scalars, typer-inserted delete calls handle cleanup.
+   Fundamentally different execution models.
+
+** Acceptable: namespace field initialization
+   Both scan struct/enum defs for non-func namespace fields (interpreter:
+   interpreter_init_ns → ns_fields[] array; ccodegen: emit_ns_inits → C
+   globals). Could extract shared field iterator but minimal benefit.
+
+** FIXED ccodegen: free() and exit() special cases
+   Moved to ext.c as til_free() and til_exit(). Both backends use generic
+   call paths — no special-cased emission or dispatch.
 
 ** FIXED ccodegen: i64_to_str, u8_to_str, str_eq emitted inline
    Raw implementations in ccore.c. ccodegen links via ext.c wrappers.
@@ -160,106 +216,41 @@
    Removed ext_func, C wrapper from ccodegen, and strcmp case from interpreter.
 
 ** FIXED type aliases and PascalCase ext naming
-   Added typedefs in ext.h: til_I64, til_U8, til_Bool, c_str. Used everywhere
-   instead of raw C types. PascalCase function names (til_I64_add, til_U8_eq)
-   match what ccodegen naturally emits for namespace methods.
+   Added typedefs in ext.h: til_I64, til_U8, til_Bool. PascalCase function
+   names (til_I64_add, til_U8_eq) match ccodegen's natural emission.
 
 ** FIXED U8 stored as I64 in interpreter
-   Interpreter Value union now has a .u8 field (til_U8 *). No more storing
-   U8 values in .i64 with casts. All U8 handlers are clean one-liners.
+   Interpreter Value union now has a .u8 field (til_U8 *). Clean one-liners.
 
 ** FIXED trivial ext_func wrappers in core.til
-   Namespace methods that just wrapped an ext_func call (e.g. I64.add calling
-   i64_add) are now direct ext_func declarations. No wrapper generated in C,
-   call sites go straight to ext.c. Eliminates ~50 lines of boilerplate in
-   core.til and removes the double-call overhead.
+   Direct ext_func namespace declarations. No wrapper generated in C,
+   call sites go straight to ext.c. Eliminated ~50 lines of core.til boilerplate.
 
-** FIXED println/print moved to ext.c
-   Both backends had type-aware special cases (~45 lines in ccodegen, ~30 in
-   interpreter) switching on I64/U8/Bool/Str. But println/print are declared
-   ext_proc(..Str) — all args are already strings. Moved to ext.c as simple
-   til_println(int n, ...) / til_print(int n, ...) variadic C functions.
-   ccodegen emits til_println(n, args...) like format. Interpreter simplified
-   to printf("%s", *arg.str) loop. Removed unwrap_to_str() optimization hack.
+** FIXED println/print/format moved to ext.c
+   Was type-aware special cases in both backends. Now variadic C functions
+   in ext.c. ccodegen emits til_println(n, args...). Interpreter simplified
+   to printf loop.
 
-** FIXED format() moved to ext.c
-   Was generated inline in ccodegen output (~10 lines of fprintf'd C code).
-   Now lives in ext.c as til_format(int n, ...). ccodegen call emission unchanged
-   (already emitted til_format(n, args...)). Interpreter handler unchanged
-   (already Str-only). Generated C no longer needs <stdarg.h>.
+** FIXED ccodegen: struct constructors
+   Replaced per-struct til_X_new() constructor functions with malloc +
+   field-by-field assignment via emit_ctor_fields(). Handles own fields
+   (pointer-assign), inline compound fields (deref + free wrapper), and
+   nested constructors (recursive). Fieldless structs just malloc.
+   Interpreter uses positional args (typer fills all fields with defaults).
 
-** FIXED ccodegen: struct constructors (til_X_new functions)
-   Replaced per-struct til_X_new() constructor functions with inline malloc +
-   C99 compound literals. ccodegen now emits `*var = (til_Type){f1, f2, ...}`
-   at statement level (NODE_DECL, NODE_RETURN, bare NODE_FCALL). Fieldless
-   structs just malloc without assignment. Removed ~47 lines of _new function
-   generation and forward declarations. Interpreter simplified to always use
-   positional args (typer desugaring fills all fields with defaults).
+** FIXED ccodegen: deref-copy and reassignment
+   Typer inserts Type.delete() before compound-type variable and field
+   reassignment. ccodegen uses pointer-assign for compound NODE_ASSIGN,
+   deref + free-wrapper for inline NODE_FIELD_ASSIGN. Hoisting skips
+   compound-type locals and inline compound constructor/field-assign args.
+   Interpreter: free_value before overwriting, ext dispatch nulls own-arg
+   cells, evaluates RHS before freeing old value.
 
-** FIXED ccodegen: deref-copy in assignments causes use-after-free
-   Was: hoisting turned clone fcalls into temps, ccodegen emitted *s = (*_t)
-   (deref-copy sharing internal pointers), ASAP deleted _t → use-after-free.
-   Fix: three changes working together:
-   1. Typer inserts Type.delete(own var) before compound-type reassignment
-      in insert_free_calls (frees old value before overwriting).
-   2. Hoisting no longer lifts top-level RHS for NODE_ASSIGN — the clone
-      fcall stays as RHS, no intermediate temp.
-   3. ccodegen uses pointer-assign (var = expr) for NODE_FCALL/NODE_LITERAL_STR
-      RHS instead of deref-copy. Scalars still use deref-assign (*var = val).
-   Interpreter fix: ext_function_dispatch now nulls own-arg ident cells
-   (ext dispatch evaluates by value, wasn't nulling cells like user-defined
-   funcs do via borrowed cells). Also evaluates RHS before freeing old value
-   to prevent reading freed memory when RHS references the same variable.
-   NODE_FIELD_ASSIGN to inline compound fields: typer now inserts
-   Type.delete(obj.field, call_free=false) before inline compound field
-   reassignment. ccodegen emits &(obj->field) via emit_as_ptr, freeing
-   only internals (not the inline slot). Interpreter uses free_value.
+** FIXED interpreter: value_deep_copy removed
+   Move semantics: NODE_IDENT RHS transfers ownership (copies value, nulls
+   source cell). ASAP deletes of moved values are no-ops. Function args
+   use scope_set_borrowed (shared cell), matching ccodegen pointer-passing.
 
-** FIXED interpreter: reassignment leaks old value
-   Was: NODE_ASSIGN did cell->val = src->val without freeing old value.
-   Fix: free_value(cell->val) before overwriting for scalars/Str/enum.
-   For compound types (Str, struct, enum), the typer-inserted delete
-   handles cleanup before the assignment reaches the interpreter.
-   NODE_FIELD_ASSIGN also frees old inline field values.
-
-** FIXED ccodegen: literal return values need heap allocation
-   Hoisting now converts bare literals in return statements to temporaries.
-   Return emission is uniform: either NODE_IDENT (return var) or struct
-   constructor. Removed the literal-specific malloc+copy branch from ccodegen.
-
-** ccodegen: declaration emission branches on RHS type
-   Declaration emission branches: if RHS is NODE_FCALL or NODE_LITERAL_STR,
-   assign pointer directly; otherwise malloc+copy. After literal hoisting,
-   the NODE_LITERAL_STR branch was removed from NODE_ASSIGN. NODE_DECL still
-   needs branching for hoisted temp decls (_t := 5) vs fcall decls (_t := foo()).
-   Accepted — minimal remaining complexity.
-
-** interpreter: dispatch.c still uses strcmp chain
-   Dispatch extracted to dispatch.c — calls raw ccore functions (I64_add,
-   Bool_not, etc.) instead of ext.c wrappers. But still a linear strcmp chain.
-   Could be replaced with a function pointer table keyed by flat name.
-   Remaining special cases that can't use the table: free (accesses scope).
-   println, print, and format are variadic (special arg count handling).
-
-** FIXED interpreter: free() accesses variable cell directly
-   Added assertion that free() arg is NODE_IDENT. The handler accesses the
-   variable's Cell via scope_get — the only builtin that reaches into the scope.
-   Now guarded: crashes with clear error on non-ident args. Acceptable since
-   free() is only called inside auto-generated delete bodies where the arg is
-   always "self" (an ident).
-
-** FIXED interpreter: value_deep_copy on NODE_IDENT
-   Removed value_deep_copy. eval_expr NODE_IDENT now returns cell->val directly.
-   Move semantics in NODE_DECL, NODE_ASSIGN, NODE_FIELD_ASSIGN, and struct
-   constructor: when RHS is NODE_IDENT, copy value and null source cell.
-   ASAP deletes of moved (val_none) values are no-ops via:
-   - dispatch.c: val_none guards on all primitive _delete handlers
-   - eval_call: skip call when first own param's arg is val_none
-   Function args with NODE_IDENT use scope_set_borrowed (shared cell), matching
-   ccodegen's pointer-passing semantics.
-
-** FIXED namespace call path: no named arg resolution
-   Ported full named-arg resolution (slot array, positional-after-named error,
-   duplicate detection, default filling) from the regular fcall path into the
-   namespace call path. User code like Point.delete(call_free=false) now works.
+** FIXED namespace call path
+   Full named-arg resolution in both namespace and regular call paths.
 
