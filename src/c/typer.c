@@ -668,6 +668,25 @@ static Expr *make_delete_call(const char *var_name, TilType type, const char *st
     return call;
 }
 
+static Expr *make_clone_call(const char *struct_name, Expr *arg, int line, int col) {
+    Expr *call = expr_new(NODE_FCALL, line, col);
+    call->til_type = TIL_TYPE_STRUCT;
+    call->struct_name = struct_name;
+
+    Expr *type_id = expr_new(NODE_IDENT, line, col);
+    type_id->data.str_val = struct_name;
+    type_id->struct_name = struct_name;
+
+    Expr *fa = expr_new(NODE_FIELD_ACCESS, line, col);
+    fa->data.str_val = "clone";
+    fa->is_ns_field = true;
+    expr_add_child(fa, type_id);
+    expr_add_child(call, fa);
+
+    expr_add_child(call, arg);
+    return call;
+}
+
 static int expr_uses_var(Expr *e, const char *name) {
     if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_IDENT && strcmp(e->data.str_val, name) == 0) return 1;
@@ -1018,6 +1037,15 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
                 if (b) b->struct_name = stmt->children[0]->struct_name;
             }
+            // Auto-insert clone for struct-typed declarations from identifiers
+            if (stmt->til_type == TIL_TYPE_STRUCT &&
+                stmt->children[0]->type == NODE_IDENT &&
+                stmt->children[0]->struct_name) {
+                stmt->children[0] = make_clone_call(
+                    stmt->children[0]->struct_name,
+                    stmt->children[0],
+                    stmt->line, stmt->col);
+            }
             break;
         case NODE_ASSIGN: {
             infer_expr(scope, stmt->children[0], path, in_func);
@@ -1047,6 +1075,15 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                          aname, til_type_name(existing),
                          til_type_name(stmt->children[0]->til_type));
                 type_error(path, stmt, buf);
+            }
+            // Auto-insert clone for struct-typed assignments from identifiers
+            if (stmt->children[0]->til_type == TIL_TYPE_STRUCT &&
+                stmt->children[0]->type == NODE_IDENT &&
+                stmt->children[0]->struct_name) {
+                stmt->children[0] = make_clone_call(
+                    stmt->children[0]->struct_name,
+                    stmt->children[0],
+                    stmt->line, stmt->col);
             }
             break;
         }
