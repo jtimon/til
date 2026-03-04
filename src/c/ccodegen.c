@@ -107,6 +107,8 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         Str *fname = e->data.str_val;
         if (e->is_ns_field) {
             fprintf(f, "til_%s_%s", obj->struct_name->c_str, fname->c_str);
+            // Auto-call enum variant constructors (Color.Red → til_Color_Red())
+            if (e->til_type == TIL_TYPE_ENUM) fprintf(f, "()");
         } else {
             emit_expr(f, obj, depth);
             int use_dot = (obj->type == NODE_FIELD_ACCESS && !obj->is_own_field);
@@ -163,6 +165,11 @@ static void emit_deref(FILE *f, Expr *e, int depth) {
     } else if (e->type == NODE_LITERAL_STR) {
         // Str_new returns Str *, but we need a Str value here; use Str_val
         fprintf(f, "Str_val(\"%s\")", e->data.str_val->c_str);
+    } else if (e->type == NODE_FIELD_ACCESS && e->is_ns_field && e->til_type == TIL_TYPE_ENUM) {
+        // Auto-called constructor returns pointer; dereference it
+        fprintf(f, "(*");
+        emit_expr(f, e, depth);
+        fprintf(f, ")");
     } else {
         emit_expr(f, e, depth);
     }
@@ -174,8 +181,8 @@ static void emit_as_ptr(FILE *f, Expr *e, int depth) {
     if (e->type == NODE_IDENT || e->type == NODE_FCALL || e->type == NODE_LITERAL_STR) {
         emit_expr(f, e, depth);
     } else if (e->type == NODE_FIELD_ACCESS) {
-        // Own field is already a pointer; inline field needs address-of
-        if (e->is_own_field) {
+        // Own field is already a pointer; enum ns_field constructor returns pointer; inline field needs address-of
+        if (e->is_own_field || (e->is_ns_field && e->til_type == TIL_TYPE_ENUM)) {
             emit_expr(f, e, depth);
         } else {
             fprintf(f, "&");
@@ -277,8 +284,9 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
                 const char *var = e->data.decl.name->c_str;
                 fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
                 emit_ctor_fields(f, var, rhs, depth);
-            } else if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR) {
-                // Function calls already return a fresh heap pointer
+            } else if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR ||
+                       (rhs->type == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
+                // Function calls / enum constructors already return a fresh heap pointer
                 fprintf(f, "%s *%s = ", ctype, e->data.decl.name->c_str);
                 emit_expr(f, rhs, depth);
                 fprintf(f, ";\n");
@@ -294,7 +302,8 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         break;
     case NODE_ASSIGN: {
         Expr *rhs = e->children[0];
-        if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR) {
+        if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR ||
+            (rhs->type == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
             fprintf(f, "%s = ", e->data.str_val->c_str);
             emit_expr(f, rhs, depth);
         } else {
@@ -416,23 +425,17 @@ static void emit_ns_inits(FILE *f, int depth) {
                                         stmt->children[0]->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
             Expr *edef = stmt->children[0];
-            int hp = (edef->type == NODE_ENUM_DEF) ? enum_has_payloads(edef) : 0;
             Expr *body = edef->children[0];
             for (int j = 0; j < body->nchildren; j++) {
                 Expr *field = body->children[j];
                 if (!field->data.decl.is_namespace) continue;
                 if (field->children[0]->type == NODE_FUNC_DEF) continue;
+                // Skip enum variant literals — handled by constructor functions
+                if (edef->type == NODE_ENUM_DEF) continue;
                 emit_indent(f, depth);
-                if (hp) {
-                    // Payload enum no-payload variant: compound literal init
-                    fprintf(f, "til_%s_%s = (til_%s){ .tag = til_%s_TAG_%s };\n",
-                            sname->c_str, field->data.decl.name->c_str,
-                            sname->c_str, sname->c_str, field->data.decl.name->c_str);
-                } else {
-                    fprintf(f, "til_%s_%s = ", sname->c_str, field->data.decl.name->c_str);
-                    emit_deref(f, field->children[0], depth);
-                    fprintf(f, ";\n");
-                }
+                fprintf(f, "til_%s_%s = ", sname->c_str, field->data.decl.name->c_str);
+                emit_deref(f, field->children[0], depth);
+                fprintf(f, ";\n");
             }
         }
     }
@@ -535,29 +538,32 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
     if (!hp) {
         // === SIMPLE ENUM ===
 
-        // Variant constants as globals
+        // Collect variant names from non-namespace entries
+        int nvariants = 0;
+        Str **vnames = NULL;
         for (int i = 0; i < body->nchildren; i++) {
-            Expr *field = body->children[i];
-            if (!field->data.decl.is_namespace) continue;
-            if (field->children[0]->type == NODE_FUNC_DEF) continue;
-            fprintf(f, "til_%s til_%s_%s;\n", name->c_str, name->c_str, field->data.decl.name->c_str);
+            Expr *v = body->children[i];
+            if (v->data.decl.is_namespace) continue;
+            nvariants++;
+            vnames = realloc(vnames, nvariants * sizeof(Str *));
+            vnames[nvariants - 1] = v->data.decl.name;
         }
-        fprintf(f, "\n");
+
+        // Zero-arg constructors
+        for (int i = 0; i < nvariants; i++) {
+            fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vnames[i]->c_str);
+            fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
+            fprintf(f, "    *r = (til_%s){ .tag = til_%s_TAG_%s };\n", name->c_str, name->c_str, vnames[i]->c_str);
+            fprintf(f, "    return r;\n");
+            fprintf(f, "}\n");
+        }
 
         // eq
         fprintf(f, "til_Bool *til_%s_eq(til_%s *a, til_%s *b) {\n", name->c_str, name->c_str, name->c_str);
-        fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = (*a == *b); return r;\n");
+        fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = (a->tag == b->tag); return r;\n");
         fprintf(f, "}\n");
 
-        // clone
-        fprintf(f, "til_%s *til_%s_clone(til_%s *a) {\n", name->c_str, name->c_str, name->c_str);
-        fprintf(f, "    til_%s *r = malloc(sizeof(til_%s)); *r = *a; return r;\n", name->c_str, name->c_str);
-        fprintf(f, "}\n");
-
-        // delete
-        fprintf(f, "void til_%s_delete(til_%s *self, til_Bool *call_free) {\n", name->c_str, name->c_str);
-        fprintf(f, "    if (*call_free) free(self);\n");
-        fprintf(f, "}\n");
+        free(vnames);
     } else {
         // === PAYLOAD ENUM ===
 
@@ -575,17 +581,17 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             vtypes[nvariants - 1] = v->data.decl.explicit_type;
         }
 
-        // No-payload variant globals
+        // Constructor functions for all variants
         for (int i = 0; i < nvariants; i++) {
             if (!vtypes[i]) {
-                fprintf(f, "til_%s til_%s_%s;\n", name->c_str, name->c_str, vnames[i]->c_str);
+                // Zero-arg constructor for no-payload variant
+                fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vnames[i]->c_str);
+                fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
+                fprintf(f, "    r->tag = til_%s_TAG_%s;\n", name->c_str, vnames[i]->c_str);
+                fprintf(f, "    return r;\n");
+                fprintf(f, "}\n");
+                continue;
             }
-        }
-        fprintf(f, "\n");
-
-        // Constructor functions for payload variants (clone the value)
-        for (int i = 0; i < nvariants; i++) {
-            if (!vtypes[i]) continue;
             const char *ptype = type_name_to_c(vtypes[i]);
             fprintf(f, "til_%s *til_%s_%s(%s val) {\n", name->c_str, name->c_str, vnames[i]->c_str, ptype);
             fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
@@ -659,54 +665,6 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         fprintf(f, "    return r;\n");
         fprintf(f, "}\n");
 
-        // clone: copy tag + clone payload
-        fprintf(f, "til_%s *til_%s_clone(til_%s *a) {\n", name->c_str, name->c_str, name->c_str);
-        fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
-        fprintf(f, "    r->tag = a->tag;\n");
-        fprintf(f, "    switch (a->tag) {\n");
-        for (int i = 0; i < nvariants; i++) {
-            fprintf(f, "    case til_%s_TAG_%s:\n", name->c_str, vnames[i]->c_str);
-            if (vtypes[i]) {
-                if (Str_eq_c(vtypes[i], "I64")) {
-                    fprintf(f, "        { til_I64 *p = malloc(sizeof(til_I64)); *p = *a->data.%s; r->data.%s = p; break; }\n", vnames[i]->c_str, vnames[i]->c_str);
-                } else if (Str_eq_c(vtypes[i], "U8")) {
-                    fprintf(f, "        { til_U8 *p = malloc(sizeof(til_U8)); *p = *a->data.%s; r->data.%s = p; break; }\n", vnames[i]->c_str, vnames[i]->c_str);
-                } else if (Str_eq_c(vtypes[i], "Bool")) {
-                    fprintf(f, "        { til_Bool *p = malloc(sizeof(til_Bool)); *p = *a->data.%s; r->data.%s = p; break; }\n", vnames[i]->c_str, vnames[i]->c_str);
-                } else if (Str_eq_c(vtypes[i], "Str")) {
-                    fprintf(f, "        r->data.%s = Str_clone(a->data.%s); break;\n", vnames[i]->c_str, vnames[i]->c_str);
-                } else {
-                    fprintf(f, "        r->data.%s = til_%s_clone(a->data.%s); break;\n", vnames[i]->c_str, vtypes[i]->c_str, vnames[i]->c_str);
-                }
-            } else {
-                fprintf(f, "        break;\n");
-            }
-        }
-        fprintf(f, "    }\n");
-        fprintf(f, "    return r;\n");
-        fprintf(f, "}\n");
-
-        // delete: free payload + free self
-        fprintf(f, "void til_%s_delete(til_%s *self, til_Bool *call_free) {\n", name->c_str, name->c_str);
-        fprintf(f, "    switch (self->tag) {\n");
-        for (int i = 0; i < nvariants; i++) {
-            fprintf(f, "    case til_%s_TAG_%s:\n", name->c_str, vnames[i]->c_str);
-            if (vtypes[i]) {
-                if (Str_eq_c(vtypes[i], "I64") || Str_eq_c(vtypes[i], "U8") || Str_eq_c(vtypes[i], "Bool")) {
-                    fprintf(f, "        free(self->data.%s); break;\n", vnames[i]->c_str);
-                } else if (Str_eq_c(vtypes[i], "Str")) {
-                    fprintf(f, "        til_Str_delete(self->data.%s, &(til_Bool){1}); break;\n", vnames[i]->c_str);
-                } else {
-                    fprintf(f, "        til_%s_delete(self->data.%s, &(til_Bool){1}); break;\n", vtypes[i]->c_str, vnames[i]->c_str);
-                }
-            } else {
-                fprintf(f, "        break;\n");
-            }
-        }
-        fprintf(f, "    }\n");
-        fprintf(f, "    if (*call_free) free(self);\n");
-        fprintf(f, "}\n");
-
         free(vnames);
         free(vtypes);
     }
@@ -753,9 +711,10 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         }
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_ENUM_DEF) {
             Str *ename = stmt->data.decl.name;
-            if (enum_has_payloads(stmt->children[0])) {
-                // Payload enum: tag enum + struct with union
+            {
+                // All enums: tag enum + struct
                 Expr *ebody = stmt->children[0]->children[0];
+                int hp = enum_has_payloads(stmt->children[0]);
                 fprintf(f, "typedef enum {\n");
                 int tag = 0;
                 for (int j = 0; j < ebody->nchildren; j++) {
@@ -768,20 +727,20 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                 fprintf(f, "\n} til_%s_tag;\n", ename->c_str);
                 fprintf(f, "typedef struct til_%s {\n", ename->c_str);
                 fprintf(f, "    til_%s_tag tag;\n", ename->c_str);
-                fprintf(f, "    union {\n");
-                for (int j = 0; j < ebody->nchildren; j++) {
-                    Expr *v = ebody->children[j];
-                    if (v->data.decl.is_namespace) continue;
-                    if (v->data.decl.explicit_type) {
-                        fprintf(f, "        %s %s;\n",
-                                type_name_to_c(v->data.decl.explicit_type),
-                                v->data.decl.name->c_str);
+                if (hp) {
+                    fprintf(f, "    union {\n");
+                    for (int j = 0; j < ebody->nchildren; j++) {
+                        Expr *v = ebody->children[j];
+                        if (v->data.decl.is_namespace) continue;
+                        if (v->data.decl.explicit_type) {
+                            fprintf(f, "        %s %s;\n",
+                                    type_name_to_c(v->data.decl.explicit_type),
+                                    v->data.decl.name->c_str);
+                        }
                     }
+                    fprintf(f, "    } data;\n");
                 }
-                fprintf(f, "    } data;\n");
                 fprintf(f, "} til_%s;\n", ename->c_str);
-            } else {
-                fprintf(f, "typedef long long til_%s;\n", ename->c_str);
             }
         }
     }
@@ -841,30 +800,33 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             fprintf(f, ");\n");
         }
     }
-    // Forward-declare enum ext methods (eq, clone, delete + payload methods)
+    // Forward-declare enum ext methods (eq, constructors + payload methods)
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_ENUM_DEF) {
             Str *sname = stmt->data.decl.name;
+            int hp = enum_has_payloads(stmt->children[0]);
             fprintf(f, "til_Bool *til_%s_eq(til_%s *, til_%s *);\n", sname->c_str, sname->c_str, sname->c_str);
-            fprintf(f, "til_%s *til_%s_clone(til_%s *);\n", sname->c_str, sname->c_str, sname->c_str);
-            fprintf(f, "void til_%s_delete(til_%s *, til_Bool *);\n", sname->c_str, sname->c_str);
-            if (enum_has_payloads(stmt->children[0])) {
-                Expr *ebody = stmt->children[0]->children[0];
-                for (int j = 0; j < ebody->nchildren; j++) {
-                    Expr *v = ebody->children[j];
-                    if (v->data.decl.is_namespace) continue;
+            Expr *ebody = stmt->children[0]->children[0];
+            for (int j = 0; j < ebody->nchildren; j++) {
+                Expr *v = ebody->children[j];
+                if (v->data.decl.is_namespace) continue;
+                if (hp) {
                     // is_Variant
                     fprintf(f, "til_Bool *til_%s_is_%s(til_%s *);\n", sname->c_str, v->data.decl.name->c_str, sname->c_str);
-                    if (v->data.decl.explicit_type) {
-                        // Constructor
-                        fprintf(f, "til_%s *til_%s_%s(%s);\n", sname->c_str, sname->c_str,
-                                v->data.decl.name->c_str, type_name_to_c(v->data.decl.explicit_type));
-                        // get_Variant
-                        fprintf(f, "%s til_%s_get_%s(til_%s *);\n",
-                                type_name_to_c(v->data.decl.explicit_type),
-                                sname->c_str, v->data.decl.name->c_str, sname->c_str);
-                    }
+                }
+                if (v->data.decl.explicit_type) {
+                    // Payload constructor
+                    fprintf(f, "til_%s *til_%s_%s(%s);\n", sname->c_str, sname->c_str,
+                            v->data.decl.name->c_str, type_name_to_c(v->data.decl.explicit_type));
+                    // get_Variant
+                    fprintf(f, "%s til_%s_get_%s(til_%s *);\n",
+                            type_name_to_c(v->data.decl.explicit_type),
+                            sname->c_str, v->data.decl.name->c_str, sname->c_str);
+                } else {
+                    // Zero-arg constructor
+                    fprintf(f, "til_%s *til_%s_%s();\n", sname->c_str, sname->c_str,
+                            v->data.decl.name->c_str);
                 }
             }
         }

@@ -560,13 +560,25 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                         } else {
                             e->struct_name = obj->struct_name;
                         }
-                        // Enum variant access: override I64 literal type to enum type
+                        // Enum variant access: override type to enum for:
+                        // 1. I64 literal variants (simple enums)
+                        // 2. Zero-arg ext_func constructors (no-payload in payload enums)
                         if (sdef->type == NODE_ENUM_DEF &&
                             field->data.decl.is_namespace &&
-                            field->nchildren > 0 &&
-                            field->children[0]->type != NODE_FUNC_DEF) {
-                            e->til_type = TIL_TYPE_ENUM;
-                            e->struct_name = obj->struct_name;
+                            field->nchildren > 0) {
+                            Expr *fc = field->children[0];
+                            if (fc->type != NODE_FUNC_DEF) {
+                                // I64 literal variant
+                                e->til_type = TIL_TYPE_ENUM;
+                                e->struct_name = obj->struct_name;
+                            } else if (fc->data.func_def.func_type == FUNC_EXT_FUNC &&
+                                       fc->data.func_def.nparam == 0 &&
+                                       fc->data.func_def.return_type &&
+                                       Str_eq(fc->data.func_def.return_type, obj->struct_name)) {
+                                // Zero-arg ext_func constructor (auto-callable)
+                                e->til_type = TIL_TYPE_ENUM;
+                                e->struct_name = obj->struct_name;
+                            }
                         }
                         found = 1;
                         break;

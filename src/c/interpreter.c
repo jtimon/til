@@ -174,8 +174,16 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
                 if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_ENUM_DEF) {
                     Value eresult;
                     if (enum_method_dispatch(callee_expr->data.str_val, scope,
-                            tc->val.func, parent_sname, e, path, &eresult))
+                            tc->val.func, parent_sname, e, path, &eresult)) {
+                        // Null cells of own-arg idents
+                        for (int i = 1; i < e->nchildren; i++) {
+                            if (e->children[i]->type == NODE_IDENT && e->children[i]->is_own_arg) {
+                                Cell *c = scope_get(scope, e->children[i]->data.str_val);
+                                if (c) c->val = val_none();
+                            }
+                        }
                         return eresult;
+                    }
                 }
             }
             static char flat_name_buf[256];
@@ -357,7 +365,27 @@ Value eval_expr(Scope *scope, Expr *e, const char *path) {
             Str *sname = obj.type == VAL_STRUCT
                 ? obj.instance->struct_name : e->children[0]->data.str_val;
             Value *nsv = ns_get(sname, fname);
-            if (nsv) return *nsv;
+            if (nsv) {
+                // Fresh copy of scalar values (simple enum variant safety)
+                if (nsv->type == VAL_I64) return val_i64(*nsv->i64);
+                // Auto-call zero-arg enum constructors (Token.Eof without parens)
+                if (nsv->type == VAL_FUNC && nsv->func &&
+                    nsv->func->type == NODE_FUNC_DEF &&
+                    nsv->func->data.func_def.func_type == FUNC_EXT_FUNC &&
+                    nsv->func->data.func_def.nparam == 0) {
+                    Cell *tc = scope_get(scope, sname);
+                    if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_ENUM_DEF) {
+                        int tag = enum_variant_tag(tc->val.func, fname);
+                        if (tag >= 0) {
+                            if (enum_has_payloads(tc->val.func))
+                                return val_enum(sname, tag, val_none());
+                            else
+                                return val_i64(tag);
+                        }
+                    }
+                }
+                return *nsv;
+            }
             fprintf(stderr, "%s:%d:%d: runtime error: no namespace field '%s'\n",
                     path, e->line, e->col, fname->c_str);
             exit(1);
@@ -561,19 +589,11 @@ void interpreter_init_ns(Scope *global, Expr *program, const char *path) {
         if (stmt->type == NODE_DECL && (stmt->children[0]->type == NODE_STRUCT_DEF ||
                                         stmt->children[0]->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
-            Expr *edef = stmt->children[0];
-            int hp = (edef->type == NODE_ENUM_DEF) ? enum_has_payloads(edef) : 0;
-            Expr *body = edef->children[0];
+            Expr *body = stmt->children[0]->children[0];
             for (int j = 0; j < body->nchildren; j++) {
                 Expr *field = body->children[j];
                 if (field->data.decl.is_namespace) {
                     Value fval = eval_expr(global, field->children[0], path);
-                    // For payload enums, convert no-payload variant I64 to VAL_ENUM
-                    if (hp && fval.type == VAL_I64) {
-                        int tag = (int)*fval.i64;
-                        free(fval.i64);
-                        fval = val_enum(sname, tag, val_none());
-                    }
                     ns_set(sname, field->data.decl.name, fval);
                 }
             }

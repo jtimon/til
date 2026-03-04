@@ -163,6 +163,7 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
 
     if (!hp) {
         // Simple enum: stored as I64
+        // Variant access handled by interpreter field_access (copy-on-access)
         if (Str_eq_c(method, "eq")) {
             Value a = eval_expr(scope, e->children[1], path);
             Value b = eval_expr(scope, e->children[2], path);
@@ -185,28 +186,21 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
     } else {
         // Payload enum: constructor, eq, clone, delete, is_Variant, get_Variant
         int ctor_tag = enum_variant_tag(enum_def, method);
-        if (ctor_tag >= 0 && enum_variant_type(enum_def, ctor_tag)) {
-            Value payload = eval_expr(scope, e->children[1], path);
-            *result = val_enum(enum_name, ctor_tag, clone_value(payload));
+        if (ctor_tag >= 0) {
+            if (enum_variant_type(enum_def, ctor_tag)) {
+                // Payload constructor: Token.Num(val)
+                Value payload = eval_expr(scope, e->children[1], path);
+                *result = val_enum(enum_name, ctor_tag, clone_value(payload));
+            } else {
+                // Zero-arg constructor: Token.Eof()
+                *result = val_enum(enum_name, ctor_tag, val_none());
+            }
             return 1;
         }
         if (Str_eq_c(method, "eq")) {
             Value a = eval_expr(scope, e->children[1], path);
             Value b = eval_expr(scope, e->children[2], path);
             *result = val_bool(values_equal(a, b));
-            return 1;
-        }
-        if (Str_eq_c(method, "clone")) {
-            Value v = eval_expr(scope, e->children[1], path);
-            *result = clone_value(v);
-            return 1;
-        }
-        if (Str_eq_c(method, "delete")) {
-            Value v = eval_expr(scope, e->children[1], path);
-            if (v.type == VAL_NONE) { *result = val_none(); return 1; }
-            Value cf = eval_expr(scope, e->children[2], path);
-            if (*cf.boolean) free_value(v);
-            *result = val_none();
             return 1;
         }
         if (method->len > 3 && memcmp(method->c_str, "is_", 3) == 0) {
