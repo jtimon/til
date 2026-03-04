@@ -64,7 +64,7 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
     // I64 conversion
     if (Str_eq_c(name, "I64_to_str")) { Value v = eval_expr(scope, e->children[1], path); *result = val_str(I64_to_str(*v.i64)); return 1; }
     if (Str_eq_c(name, "I64_clone")) { Value v = eval_expr(scope, e->children[1], path); *result = val_i64(*v.i64); return 1; }
-    if (Str_eq_c(name, "I64_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) I64_delete(v.i64); *result = val_none(); return 1; }
+    if (Str_eq_c(name, "I64_delete")) { Value v = eval_expr(scope, e->children[1], path); if (v.type == VAL_NONE) { *result = val_none(); return 1; } Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) I64_delete(v.i64); *result = val_none(); return 1; }
 
     // U8 arithmetic
     if (Str_eq_c(name, "U8_add")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_u8(U8_add(*a.u8, *b.u8)); return 1; }
@@ -90,14 +90,14 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
         return 1;
     }
     if (Str_eq_c(name, "U8_clone")) { Value v = eval_expr(scope, e->children[1], path); *result = val_u8(*v.u8); return 1; }
-    if (Str_eq_c(name, "U8_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) U8_delete(v.u8); *result = val_none(); return 1; }
+    if (Str_eq_c(name, "U8_delete")) { Value v = eval_expr(scope, e->children[1], path); if (v.type == VAL_NONE) { *result = val_none(); return 1; } Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) U8_delete(v.u8); *result = val_none(); return 1; }
 
     // Bool ops
     if (Str_eq_c(name, "Bool_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Bool_and(*a.boolean, *b.boolean)); return 1; }
     if (Str_eq_c(name, "Bool_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Bool_or(*a.boolean, *b.boolean)); return 1; }
     if (Str_eq_c(name, "Bool_not")) { Value a = eval_expr(scope, e->children[1], path); *result = val_bool(Bool_not(*a.boolean)); return 1; }
     if (Str_eq_c(name, "Bool_clone")) { Value v = eval_expr(scope, e->children[1], path); *result = val_bool(*v.boolean); return 1; }
-    if (Str_eq_c(name, "Bool_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) Bool_delete(v.boolean); *result = val_none(); return 1; }
+    if (Str_eq_c(name, "Bool_delete")) { Value v = eval_expr(scope, e->children[1], path); if (v.type == VAL_NONE) { *result = val_none(); return 1; } Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) Bool_delete(v.boolean); *result = val_none(); return 1; }
 
     // Str ops
     if (Str_eq_c(name, "Str_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Str_eq(a.str, b.str)); return 1; }
@@ -105,8 +105,9 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
     if (Str_eq_c(name, "Str_clone")) { Value a = eval_expr(scope, e->children[1], path); *result = val_str(Str_clone(a.str)); return 1; }
     if (Str_eq_c(name, "Str_delete")) {
         Value s = eval_expr(scope, e->children[1], path);
+        if (s.type == VAL_NONE) { *result = val_none(); return 1; }
         Value cf = eval_expr(scope, e->children[2], path);
-        if (cf.boolean) Str_delete(s.str);
+        if (*cf.boolean) Str_delete(s.str);
         *result = val_none(); return 1;
     }
     if (Str_eq_c(name, "Str_to_str")) { Value a = eval_expr(scope, e->children[1], path); *result = val_str(Str_clone(a.str)); return 1; }
@@ -119,8 +120,11 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
     // Misc
     if (Str_eq_c(name, "exit")) { Value a = eval_expr(scope, e->children[1], path); til_exit(a.i64); *result = val_none(); return 1; }
 
-    // free — accesses scope directly (fragile, see #1)
+    // free — accesses scope directly; requires identifier argument
     if (Str_eq_c(name, "free")) {
+        if (e->children[1]->type != NODE_IDENT) {
+            fprintf(stderr, "free() requires identifier argument\n"); exit(1);
+        }
         Cell *cell = scope_get(scope, e->children[1]->data.str_val);
         if (cell->val.type == VAL_STRUCT && cell->val.instance) {
             til_free(cell->val.instance->field_names);

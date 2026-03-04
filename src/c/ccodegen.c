@@ -213,14 +213,8 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         }
         break;
     case NODE_ASSIGN:
-        if (e->children[0]->type == NODE_LITERAL_STR) {
-            // Str_new returns Str * — assign pointer directly
-            fprintf(f, "%s = ", e->data.str_val->c_str);
-            emit_expr(f, e->children[0], depth);
-        } else {
-            fprintf(f, "*%s = ", e->data.str_val->c_str);
-            emit_deref(f, e->children[0], depth);
-        }
+        fprintf(f, "*%s = ", e->data.str_val->c_str);
+        emit_deref(f, e->children[0], depth);
         fprintf(f, ";\n");
         break;
     case NODE_FIELD_ASSIGN: {
@@ -264,11 +258,6 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
                     fprintf(f, "};");
                 }
                 fprintf(f, " return _r; }\n");
-            } else if (rv->type == NODE_LITERAL_NUM || rv->type == NODE_LITERAL_BOOL) {
-                const char *ctype = c_type_name(rv->til_type, rv->struct_name);
-                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
-                emit_expr(f, rv, depth);
-                fprintf(f, "; return _r; }\n");
             } else {
                 fprintf(f, "return ");
                 emit_expr(f, rv, depth);

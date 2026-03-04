@@ -5,30 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static Value value_deep_copy(Value v) {
-    switch (v.type) {
-    case VAL_I64: return val_i64(*v.i64);
-    case VAL_U8: return val_u8(*v.u8);
-    case VAL_BOOL: return val_bool(*v.boolean);
-    case VAL_STR: return val_str(Str_clone(v.str));
-    case VAL_STRUCT: {
-        StructInstance *old = v.instance;
-        StructInstance *inst = malloc(sizeof(StructInstance));
-        inst->struct_name = old->struct_name;
-        inst->nfields = old->nfields;
-        inst->field_names = malloc(inst->nfields * sizeof(Str *));
-        inst->field_muts = malloc(inst->nfields * sizeof(int));
-        inst->field_values = malloc(inst->nfields * sizeof(Value));
-        for (int i = 0; i < inst->nfields; i++) {
-            inst->field_names[i] = old->field_names[i];
-            inst->field_muts[i] = old->field_muts[i];
-            inst->field_values[i] = value_deep_copy(old->field_values[i]);
-        }
-        return (Value){.type = VAL_STRUCT, .instance = inst};
-    }
-    default: return v;
-    }
-}
 
 // --- Return value mechanism ---
 static int has_return;
@@ -159,6 +135,16 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             return result;
         }
         Expr *body = func_def->children[0];
+
+        // Guard: skip call if first 'own' param is val_none (already moved/deleted)
+        if (func_def->data.func_def.nparam > 0 &&
+            func_def->data.func_def.param_owns &&
+            func_def->data.func_def.param_owns[0] &&
+            e->nchildren > 1 && e->children[1]->type == NODE_IDENT) {
+            Cell *fc = scope_get(scope, e->children[1]->data.str_val);
+            if (fc && fc->val.type == VAL_NONE) return val_none();
+        }
+
         Scope *call_scope = scope_new(scope);
         for (int i = 0; i < func_def->data.func_def.nparam; i++) {
             Expr *arg_expr = e->children[i + 1];
@@ -216,7 +202,15 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             if (field->data.decl.is_namespace) continue;
             inst->field_names[fi] = field->data.decl.name;
             inst->field_muts[fi] = field->data.decl.is_mut;
-            inst->field_values[fi] = eval_expr(scope, e->children[arg_idx++], path);
+            Expr *arg = e->children[arg_idx++];
+            if (arg->type == NODE_IDENT) {
+                // Move semantics: struct takes ownership of ident's value
+                Cell *src = scope_get(scope, arg->data.str_val);
+                inst->field_values[fi] = src->val;
+                src->val = val_none();
+            } else {
+                inst->field_values[fi] = eval_expr(scope, arg, path);
+            }
             fi++;
         }
         return (Value){.type = VAL_STRUCT, .instance = inst};
@@ -230,6 +224,15 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
 
     Expr *func_def = fn_cell->val.func;
     Expr *body = func_def->children[0];
+
+    // Guard: skip call if first 'own' param is val_none (already moved/deleted)
+    if (func_def->data.func_def.nparam > 0 &&
+        func_def->data.func_def.param_owns &&
+        func_def->data.func_def.param_owns[0] &&
+        e->nchildren > 1 && e->children[1]->type == NODE_IDENT) {
+        Cell *fc = scope_get(scope, e->children[1]->data.str_val);
+        if (fc && fc->val.type == VAL_NONE) return val_none();
+    }
 
     Scope *call_scope = scope_new(scope);
     // Bind arguments to parameters (borrowed refs for idents, owned for expressions)
@@ -273,7 +276,7 @@ Value eval_expr(Scope *scope, Expr *e, const char *path) {
                     path, e->line, e->col, e->data.str_val->c_str);
             exit(1);
         }
-        return value_deep_copy(cell->val);
+        return cell->val;
     }
     case NODE_FCALL:
         return eval_call(scope, e, path);
@@ -320,29 +323,55 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
         Expr *stmt = body->children[i];
         switch (stmt->type) {
         case NODE_DECL: {
-            Value val = eval_expr(scope, stmt->children[0], path);
+            Expr *rhs = stmt->children[0];
+            Value val;
+            if (rhs->type == NODE_IDENT) {
+                // Move semantics: transfer value from source, null source
+                Cell *src = scope_get(scope, rhs->data.str_val);
+                val = src->val;
+                src->val = val_none();
+            } else {
+                val = eval_expr(scope, rhs, path);
+            }
             scope_set_owned(scope, stmt->data.decl.name, val);
             break;
         }
         case NODE_ASSIGN: {
-            Value val = eval_expr(scope, stmt->children[0], path);
+            Expr *rhs = stmt->children[0];
             Cell *cell = scope_get(scope, stmt->data.str_val);
             if (!cell) {
                 fprintf(stderr, "%s:%d:%d: runtime error: undefined variable '%s'\n",
                         path, stmt->line, stmt->col, stmt->data.str_val->c_str);
                 exit(1);
             }
-            cell->val = val;
+            if (rhs->type == NODE_IDENT) {
+                // Move semantics: transfer value from source, null source
+                Cell *src = scope_get(scope, rhs->data.str_val);
+                cell->val = src->val;
+                src->val = val_none();
+            } else {
+                cell->val = eval_expr(scope, rhs, path);
+            }
             break;
         }
         case NODE_FIELD_ASSIGN: {
-            Value val = eval_expr(scope, stmt->children[1], path);
+            Expr *val_expr = stmt->children[1];
+            Value val;
+            Cell *move_src = NULL;
+            if (val_expr->type == NODE_IDENT) {
+                // Move semantics: transfer value from source
+                move_src = scope_get(scope, val_expr->data.str_val);
+                val = move_src->val;
+            } else {
+                val = eval_expr(scope, val_expr, path);
+            }
             Str *fname = stmt->data.str_val;
             if (stmt->is_ns_field) {
                 Value obj = eval_expr(scope, stmt->children[0], path);
                 Str *sname = obj.type == VAL_STRUCT
                     ? obj.instance->struct_name : stmt->children[0]->data.str_val;
                 ns_set(sname, fname, val);
+                if (move_src) move_src->val = val_none();
             } else {
                 // Resolve the object to a mutable StructInstance without copying
                 StructInstance *inst = NULL;
@@ -385,6 +414,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                 for (int i = 0; i < inst->nfields; i++) {
                     if (Str_eq(inst->field_names[i], fname)) {
                         inst->field_values[i] = val;
+                        if (move_src) move_src->val = val_none();
                         break;
                     }
                 }

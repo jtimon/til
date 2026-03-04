@@ -193,27 +193,78 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 break;
             }
             fa->is_ns_field = true;
+            // Desugar named/optional args for namespace methods
+            {
+                int np = ns_func->data.func_def.nparam;
+                Expr **new_args = calloc(np, sizeof(Expr *));
+                int pos_idx = 0;
+                int seen_named = 0;
+                for (int i = 1; i < e->nchildren; i++) {
+                    Expr *arg = e->children[i];
+                    if (arg->type == NODE_NAMED_ARG) {
+                        seen_named = 1;
+                        Str *aname = arg->data.str_val;
+                        int slot = -1;
+                        for (int j = 0; j < np; j++) {
+                            if (Str_eq(ns_func->data.func_def.param_names[j], aname)) {
+                                slot = j;
+                                break;
+                            }
+                        }
+                        if (slot < 0) {
+                            char buf[128];
+                            snprintf(buf, sizeof(buf), "no parameter '%s'", aname->c_str);
+                            type_error(path, arg, buf);
+                        } else if (new_args[slot]) {
+                            char buf[128];
+                            snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
+                            type_error(path, arg, buf);
+                        } else {
+                            new_args[slot] = arg->children[0]; // unwrap NODE_NAMED_ARG
+                        }
+                    } else {
+                        if (seen_named) {
+                            type_error(path, arg, "positional argument after named argument");
+                        }
+                        if (pos_idx < np) {
+                            new_args[pos_idx] = arg;
+                        }
+                        pos_idx++;
+                    }
+                }
+                // Fill defaults for missing args
+                for (int i = 0; i < np; i++) {
+                    if (!new_args[i]) {
+                        if (ns_func->data.func_def.param_defaults &&
+                            ns_func->data.func_def.param_defaults[i]) {
+                            new_args[i] = expr_clone(ns_func->data.func_def.param_defaults[i]);
+                        } else {
+                            char buf[128];
+                            snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
+                                     ns_func->data.func_def.param_names[i]->c_str);
+                            type_error(path, e, buf);
+                        }
+                    }
+                }
+                if (pos_idx > np) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d", np, pos_idx);
+                    type_error(path, e, buf);
+                }
+                // Rebuild children: callee + desugared args
+                Expr **new_children = malloc((np + 1) * sizeof(Expr *));
+                new_children[0] = e->children[0]; // callee (field access)
+                for (int i = 0; i < np; i++) {
+                    new_children[i + 1] = new_args[i];
+                }
+                free(e->children);
+                e->children = new_children;
+                e->nchildren = np + 1;
+                free(new_args);
+            }
             // Infer arg types
             for (int i = 1; i < e->nchildren; i++) {
                 infer_expr(scope, e->children[i], path, in_func);
-            }
-            // Fill defaults for missing args
-            {
-                int np = ns_func->data.func_def.nparam;
-                int nargs = e->nchildren - 1; // args start at children[1]
-                for (int i = nargs; i < np; i++) {
-                    if (ns_func->data.func_def.param_defaults &&
-                        ns_func->data.func_def.param_defaults[i]) {
-                        Expr *def = expr_clone(ns_func->data.func_def.param_defaults[i]);
-                        infer_expr(scope, def, path, in_func);
-                        expr_add_child(e, def);
-                    } else {
-                        char buf[128];
-                        snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
-                                 ns_func->data.func_def.param_names[i]->c_str);
-                        type_error(path, e, buf);
-                    }
-                }
             }
             // Validate 'own' markers on arguments
             {
@@ -585,20 +636,29 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
         case NODE_RETURN:
             if (stmt->nchildren > 0) {
                 hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
-                if (stmt->children[0]->type == NODE_FCALL) {
+                if (stmt->children[0]->type == NODE_FCALL ||
+                    stmt->children[0]->type == NODE_LITERAL_NUM ||
+                    stmt->children[0]->type == NODE_LITERAL_STR ||
+                    stmt->children[0]->type == NODE_LITERAL_BOOL) {
                     stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
                 }
             }
             break;
         case NODE_ASSIGN:
             hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
-            if (stmt->children[0]->type == NODE_FCALL) {
+            if (stmt->children[0]->type == NODE_FCALL ||
+                stmt->children[0]->type == NODE_LITERAL_NUM ||
+                stmt->children[0]->type == NODE_LITERAL_STR ||
+                stmt->children[0]->type == NODE_LITERAL_BOOL) {
                 stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         case NODE_FIELD_ASSIGN:
             hoist_expr(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
-            if (stmt->children[1]->type == NODE_FCALL) {
+            if (stmt->children[1]->type == NODE_FCALL ||
+                stmt->children[1]->type == NODE_LITERAL_NUM ||
+                stmt->children[1]->type == NODE_LITERAL_STR ||
+                stmt->children[1]->type == NODE_LITERAL_BOOL) {
                 stmt->children[1] = hoist_to_temp(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
             }
             break;
