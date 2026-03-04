@@ -1,5 +1,28 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #6 Scavenger phase: remove unused declarations from the AST
+  A post-typer pass that walks the AST and removes declarations not reachable
+  from the program's entry points. CLI mode uses main as entry point; script
+  mode uses all top-level executable statements.
+
+  Two levels of trimming:
+  1. Unused top-level declarations (structs, functions, procs) removed entirely
+  2. Unused namespace methods within kept structs removed individually
+
+  What was done:
+  - scavenger.h/c (new): BFS reachability from entry points. Collects
+    references via recursive AST walk: NODE_IDENT names, namespace calls
+    (qualified "Type.method" names), namespace field access/assign, type
+    annotations (param_types, return_type, explicit_type). For structs,
+    only instance field defaults are walked when the struct is visited —
+    namespace methods are walked individually via their qualified name.
+    Filters program->children and struct body->children in place.
+  - ctil.c: calls scavenge(ast, mode) after type_check, before
+    interpret/codegen.
+  - Example: println("hello") keeps only Str (delete), Bool (empty),
+    println. Removes I64, U8, StructDef, FunctionDef, Dynamic, and all
+    unused methods from kept types.
+
 * FIXED #3 own keyword for struct fields: heap-allocated owned pointers
   :DEPENDENCIES: #0
   Struct fields are normally inline (contiguous in parent allocation).

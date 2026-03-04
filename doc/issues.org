@@ -70,18 +70,6 @@
    macros are always removed (they can't be called at runtime), and funcs are
    removed if all their call sites were folded away.
 
-* OPEN #6 Scavenger phase: remove unused declarations from the AST
-  A post-typer pass that walks the AST and removes declarations not reachable
-  from the program's entry point. Saves work for both interpreter and ccodegen
-  — no need to process unused structs, functions, or core library methods.
-
-  In mode cli, main is the entry point: only what main calls (transitively) is
-  kept. In mode script, all top-level statements are entry points.
-
-  Currently the full core library is prepended to every program, so most
-  programs carry dozens of unused namespace methods, type definitions, and
-  builtins. The scavenger would trim this down to only what's actually used.
-
 * OPEN #5 Pointers and arrays: unlock C-level memory access
   :DEPENDENCIES: #0 #2 #3
   After #2 (ref) and #3 (own fields), til will have single-pointer semantics

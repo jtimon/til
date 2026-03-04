@@ -7,6 +7,7 @@
 #include "c/typer.h"
 #include "c/interpreter.h"
 #include "c/ccodegen.h"
+#include "c/scavenger.h"
 
 static char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
@@ -113,6 +114,8 @@ int main(int argc, char **argv) {
         free(source);
         return 1;
     }
+
+    scavenge(ast, mode);
 
     int result = 0;
 
