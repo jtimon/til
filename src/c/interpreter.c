@@ -282,11 +282,11 @@ static int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *p
     if (Str_eq_c(name, "U8_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) U8_delete(v.u8); *result = val_none(); return 1; }
 
     // Bool ops
-    if (Str_eq_c(name, "Bool_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_and(a.boolean, b.boolean)}; return 1; }
-    if (Str_eq_c(name, "Bool_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_or(a.boolean, b.boolean)}; return 1; }
-    if (Str_eq_c(name, "Bool_not")) { Value a = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_not(a.boolean)}; return 1; }
+    if (Str_eq_c(name, "Bool_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Bool_and(*a.boolean, *b.boolean)); return 1; }
+    if (Str_eq_c(name, "Bool_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Bool_or(*a.boolean, *b.boolean)); return 1; }
+    if (Str_eq_c(name, "Bool_not")) { Value a = eval_expr(scope, e->children[1], path); *result = val_bool(Bool_not(*a.boolean)); return 1; }
     if (Str_eq_c(name, "Bool_clone")) { Value v = eval_expr(scope, e->children[1], path); *result = val_bool(*v.boolean); return 1; }
-    if (Str_eq_c(name, "Bool_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) free(v.boolean); *result = val_none(); return 1; }
+    if (Str_eq_c(name, "Bool_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) Bool_delete(v.boolean); *result = val_none(); return 1; }
 
     // Str ops
     if (Str_eq_c(name, "Str_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Str_eq(a.str, b.str)); return 1; }

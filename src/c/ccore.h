@@ -69,4 +69,11 @@ void U8_delete(U8 *v);
 
 typedef int Bool;
 
+Bool Bool_and(Bool a, Bool b);
+Bool Bool_or(Bool a, Bool b);
+Bool Bool_not(Bool a);
+Bool *Bool_new(Bool val);
+Bool *Bool_clone(Bool *v);
+void Bool_delete(Bool *v);
+
 #endif

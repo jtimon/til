@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// --- Str (str.h) ---
+// --- Str ---
 
 Str Str_val(const char *data) {
     int len = (int)strlen(data);
@@ -89,7 +89,7 @@ int Str_ends_with(Str *a, Str *b) {
     return memcmp(a->c_str + a->len - b->len, b->c_str, b->len) == 0;
 }
 
-// --- I64 (i64.h) ---
+// --- I64 ---
 
 I64 I64_add(I64 a, I64 b) { return a + b; }
 I64 I64_sub(I64 a, I64 b) { return a - b; }
@@ -119,7 +119,7 @@ I64 *I64_new(I64 val) {
 I64 *I64_clone(I64 *v) { return I64_new(*v); }
 void I64_delete(I64 *v) { free(v); }
 
-// --- U8 (ccore.h) ---
+// --- U8 ---
 
 U8 U8_add(U8 a, U8 b) { return (U8)(a + b); }
 U8 U8_sub(U8 a, U8 b) { return (U8)(a - b); }
@@ -151,3 +151,18 @@ U8 *U8_new(U8 val) {
 
 U8 *U8_clone(U8 *v) { return U8_new(*v); }
 void U8_delete(U8 *v) { free(v); }
+
+// --- Bool ---
+
+Bool Bool_and(Bool a, Bool b) { return a && b; }
+Bool Bool_or(Bool a, Bool b) { return a || b; }
+Bool Bool_not(Bool a) { return !a; }
+
+Bool *Bool_new(Bool val) {
+    Bool *p = malloc(sizeof(Bool));
+    *p = val;
+    return p;
+}
+
+Bool *Bool_clone(Bool *v) { return Bool_new(*v); }
+void Bool_delete(Bool *v) { free(v); }

@@ -72,13 +72,13 @@ til_U8 *til_U8_clone(til_U8 *v) { return U8_clone(v); }
 void til_U8_delete(til_U8 *v, til_Bool *call_free) { if (*call_free) U8_delete(v); }
 
 // Bool ops
-til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a && *b; return r; }
-til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a || *b; return r; }
-til_Bool *til_Bool_not(til_Bool *a) { til_Bool *r = malloc(sizeof(til_Bool)); *r = !*a; return r; }
+til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { return Bool_new(Bool_and(*a, *b)); }
+til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { return Bool_new(Bool_or(*a, *b)); }
+til_Bool *til_Bool_not(til_Bool *a) { return Bool_new(Bool_not(*a)); }
 
 // Bool clone/delete
-til_Bool *til_Bool_clone(til_Bool *v) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *v; return r; }
-void til_Bool_delete(til_Bool *v, til_Bool *call_free) { if (*call_free) free(v); }
+til_Bool *til_Bool_clone(til_Bool *v) { return Bool_clone(v); }
+void til_Bool_delete(til_Bool *v, til_Bool *call_free) { if (*call_free) Bool_delete(v); }
 
 // ext_struct: Pair (test)
 til_I64 *til_Pair_sum(til_Pair *self) {
