@@ -250,6 +250,11 @@
    mutations to the read value don't affect the original. ccodegen passes all args
    as C pointers (true by-reference). The interpreter should match.
 
+   This is a bandaid for the shallow copy problem (see #0): since declarations
+   and assignments shallow-copy Values, the deep copy on read prevents aliasing.
+   Once the typer inserts explicit clone calls at copy sites, NODE_IDENT should
+   return the value directly without deep copying, matching ccodegen.
+
 ** namespace call path: no named arg resolution
    The typer's namespace call path (typer.c:193-228) doesn't resolve named args
    into positional — it only fills defaults for missing trailing args (added in
@@ -259,6 +264,7 @@
    but would break for user code like Point.delete(call_free=false).
 
 * OPEN #0 Complete basic memory management before extending pointer semantics
+  :DEPENDENCIES: #1
   Before #2 (ref), #3 (own fields), and #5 (arrays), the existing memory
   management needs to be solid. The user should never need to call free or
   delete explicitly — ASAP handles it. But there are gaps.
@@ -270,6 +276,29 @@
   - own at call sites transfers ownership, ASAP skips cleanup. Works.
 
   What's missing or fragile:
+
+** Eliminate shallow copies: typer-inserted clone calls
+   Both backends have shallow copies in the same 4 places — the typer should
+   insert explicit Type.clone(x) calls so backends never need copy logic:
+
+   | Operation              | ccodegen             | interpreter                  |
+   | Declaration (y := x)   | *dest = *src         | scope_set_owned copies Value |
+   | Assignment (y = x)     | *dest = *src         | cell->val = val              |
+   | Field assign (o.f = x) | field = deref(val)   | field_values[i] = val        |
+   | Struct construction    | _r->field = *param   | field_values[fi] = eval(arg) |
+
+   These are all fine for primitives (I64, Bool, U8) but dangerous once structs
+   have owned heap pointers (#3): a shallow copy would create two owners of the
+   same allocation → double-free.
+
+   Fix: the typer rewrites RHS expressions in these 4 cases to Type.clone(x)
+   for struct types. Both backends then handle clone as a normal function call
+   — no special copy logic needed. Primitives can skip clone (no heap data).
+
+   Related: the interpreter's value_deep_copy on NODE_IDENT (see #1) is a
+   bandaid for this — every variable read produces a full clone. Once the typer
+   inserts clone at the right places, NODE_IDENT should return the value
+   directly (by reference), matching ccodegen's pointer semantics.
 
 ** Custom delete: user-defined override for auto-generated delete
    Sometimes the auto-generated delete isn't enough — e.g. a struct that holds
