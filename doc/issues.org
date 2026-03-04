@@ -193,6 +193,11 @@
    clone does not deep-copy it, delete does not recurse into it —
    just copies/ignores the pointer.
 
+   Open question: default initialization. Inline fields use literal defaults
+   (x := 0), but ref fields point to external values that may not exist yet
+   at construction time. Options include NULL/nil default, requiring the
+   field at construction, or something else. TBD.
+
 ** args are already ref by default
    Function args are borrowed (ref) unless explicitly marked own.
    No change needed for args.
