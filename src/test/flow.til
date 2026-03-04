@@ -84,9 +84,68 @@ test_else_if := proc() {
     assert_eq(loc(), flow_check(99), 0)
 }
 
+# ASAP edge cases: return from inside while must free parent-scope locals
+
+asap_return_from_while := func(n: I64) returns Str {
+    s := "allocated"
+    mut i := 0
+    while i.lt(n) {
+        if i.eq(2) { return "early" }
+        i = i.add(1)
+    }
+    return s
+}
+
+test_asap_while := proc() {
+    # Early return path: s must be freed before returning "early"
+    assert_eq_str(loc(), asap_return_from_while(5), "early")
+    # Normal path: s returned normally
+    assert_eq_str(loc(), asap_return_from_while(1), "allocated")
+}
+
+asap_return_nested := func(n: I64) returns Str {
+    s1 := "first"
+    s2 := "second"
+    mut i := 0
+    while i.lt(n) {
+        if i.eq(1) {
+            if true {
+                return s1
+            }
+        }
+        i = i.add(1)
+    }
+    return s2
+}
+
+test_asap_nested := proc() {
+    # Return from if-inside-if-inside-while: s2 must be freed, s1 returned
+    assert_eq_str(loc(), asap_return_nested(3), "first")
+    # Normal path: s1 freed by ASAP, s2 returned
+    assert_eq_str(loc(), asap_return_nested(0), "second")
+}
+
+asap_break_no_leak := func() returns Str {
+    s := "alive"
+    mut i := 0
+    while i.lt(10) {
+        if i.eq(2) { break }
+        i = i.add(1)
+    }
+    # s must still be alive after break (not freed by break)
+    return s
+}
+
+test_asap_break := proc() {
+    assert_eq_str(loc(), asap_break_no_leak(), "alive")
+}
+
 test_if_else()
 test_while_loop()
 test_break()
 test_continue()
 test_early_return()
 test_else_if()
+test_asap_while()
+test_asap_nested()
+test_asap_break()

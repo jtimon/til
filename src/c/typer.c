@@ -1003,17 +1003,23 @@ typedef struct {
     int own_transfer;  // index of stmt that transfers ownership, -1 if none
 } LocalInfo;
 
-// Insert deletes for live parent-scope locals before any NODE_BREAK/NODE_RETURN in body
-static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live) {
+// Insert deletes for live parent-scope locals before early exits in body.
+// return_only=1: only before NODE_RETURN (used when propagating into while bodies,
+// since break/continue don't leave the parent scope).
+static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live, int return_only) {
     Expr **new_ch = NULL;
     int new_n = 0;
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
         if (stmt->type == NODE_IF) {
             for (int c = 1; c < stmt->nchildren; c++)
-                insert_exit_deletes(stmt->children[c], live, n_live);
+                insert_exit_deletes(stmt->children[c], live, n_live, return_only);
         }
-        if (stmt->type == NODE_BREAK || stmt->type == NODE_RETURN || stmt->type == NODE_CONTINUE) {
+        if (stmt->type == NODE_WHILE) {
+            insert_exit_deletes(stmt->children[1], live, n_live, 1);
+        }
+        if (stmt->type == NODE_RETURN ||
+            (!return_only && (stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE))) {
             for (int j = 0; j < n_live; j++) {
                 if (stmt->nchildren > 0 &&
                     expr_uses_var(stmt->children[0], live[j].name)) continue;
@@ -1146,8 +1152,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
             }
         }
 
-        // For NODE_IF: insert frees before any nested NODE_BREAK/NODE_RETURN in branches
-        if (stmt->type == NODE_IF) {
+        // For NODE_IF/NODE_WHILE: insert frees before nested early exits
+        if (stmt->type == NODE_IF || stmt->type == NODE_WHILE) {
             LocalInfo *live = NULL;
             int n_live = 0;
             for (int j = 0; j < n_locals; j++) {
@@ -1160,8 +1166,13 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                 }
             }
             if (n_live > 0) {
-                for (int c = 1; c < stmt->nchildren; c++)
-                    insert_exit_deletes(stmt->children[c], live, n_live);
+                if (stmt->type == NODE_IF) {
+                    for (int c = 1; c < stmt->nchildren; c++)
+                        insert_exit_deletes(stmt->children[c], live, n_live, 0);
+                } else {
+                    // While: only free before return (break/continue stay in parent scope)
+                    insert_exit_deletes(stmt->children[1], live, n_live, 1);
+                }
                 free(live);
             }
         }

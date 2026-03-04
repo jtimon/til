@@ -324,4 +324,9 @@
    ASAP works for straightforward code but may have edge cases:
    - Variables used in both branches of if/else
    - Variables captured in closures (not yet supported, but eventually)
-   - Variables returned from deeply nested scopes
+   - FIXED: Return from inside while leaks parent-scope locals.
+     insert_exit_deletes and insert_free_calls only handled NODE_IF, not
+     NODE_WHILE. Added NODE_WHILE support with a return_only flag — only
+     return triggers parent-scope cleanup (break/continue stay in scope).
+     Tests: asap_return_from_while, asap_return_nested, asap_break_no_leak
+     in flow.til.
