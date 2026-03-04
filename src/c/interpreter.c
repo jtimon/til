@@ -1,5 +1,6 @@
 #include "interpreter.h"
 #include "dispatch.h"
+#include "map.h"
 #include "ccore.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,34 +15,27 @@ static Value return_value;
 
 // --- Namespace fields (static struct fields) ---
 
-typedef struct {
-    Str *struct_name;
-    Str *field_name;
-    Value val;
-} NsField;
+static Map ns_fields; // Str* "Type.field" → Value
+static Vec ns_keys;   // owns the qualified-name Str*s
 
-static NsField *ns_fields;
-static int ns_count;
-static int ns_cap;
+static Str *ns_qname(Str *sname, Str *fname) {
+    int len = sname->len + 1 + fname->len;
+    char *buf = malloc(len + 1);
+    snprintf(buf, len + 1, "%s.%s", sname->c_str, fname->c_str);
+    Str *s = Str_new(buf);
+    free(buf);
+    Vec_push(&ns_keys, &s);
+    return s;
+}
 
 static Value *ns_get(Str *sname, Str *fname) {
-    for (int i = 0; i < ns_count; i++) {
-        if (Str_eq(ns_fields[i].struct_name, sname) &&
-            Str_eq(ns_fields[i].field_name, fname)) {
-            return &ns_fields[i].val;
-        }
-    }
-    return NULL;
+    Str *qn = ns_qname(sname, fname);
+    return Map_get(&ns_fields, &qn);
 }
 
 static void ns_set(Str *sname, Str *fname, Value val) {
-    Value *existing = ns_get(sname, fname);
-    if (existing) { *existing = val; return; }
-    if (ns_count >= ns_cap) {
-        ns_cap = ns_cap ? ns_cap * 2 : 8;
-        ns_fields = realloc(ns_fields, ns_cap * sizeof(NsField));
-    }
-    ns_fields[ns_count++] = (NsField){sname, fname, val};
+    Str *qn = ns_qname(sname, fname);
+    Map_set(&ns_fields, &qn, &val);
 }
 
 // --- Scope / environment ---
@@ -583,7 +577,8 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
 }
 
 void interpreter_init_ns(Scope *global, Expr *program, const char *path) {
-    ns_fields = NULL; ns_count = 0; ns_cap = 0;
+    ns_fields = Map_new(sizeof(Str *), sizeof(Value), str_ptr_cmp);
+    ns_keys = Vec_new(sizeof(Str *));
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && (stmt->children[0]->type == NODE_STRUCT_DEF ||
