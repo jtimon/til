@@ -153,7 +153,7 @@
         ref parent: Node   # borrowed pointer, not managed
     }
 
-* OPEN #2 ref keyword: non-owning references for returns, declarations, and struct fields
+* WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
   :DEPENDENCIES: #0
   Currently all returns are owned by the caller (heap-allocated, caller must
   delete). This breaks when a function wants to return one of its args:
@@ -164,7 +164,7 @@
 
   Either a or b would be owned twice and deleted twice (double-free).
 
-** ref returns
+** FIXED ref returns
    returns ref I64 — the caller does NOT own the returned value and must
    not delete it. ASAP destruction skips ref return values.
 
@@ -172,9 +172,21 @@
         if a.lt(b) { return a } else { return b }
     }
 
-** ref declarations
+   Typer validates: return value must be a param or ref variable.
+
+** FIXED ref declarations
    Required when binding the result of a ref-returning function:
    ref my_min := min(34, 35). ASAP destruction skips ref variables.
+
+   Typer validates: RHS must be a ref-returning function call or a
+   ref/param variable. Cannot pass ref variable to 'own' parameter.
+
+   ASAP lifetime extension: args to ref-returning calls have their
+   lifetimes extended to at least the ref variable's last use, preventing
+   use-after-free.
+
+   Interpreter: ref from ident uses scope_set_borrowed (shared cell).
+   ccodegen: ref decl emits pointer assignment (no malloc).
 
 ** ref struct fields
    A ref field stores a pointer to an existing value (not inline).

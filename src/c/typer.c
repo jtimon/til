@@ -34,6 +34,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
 static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope, int in_loop);
 static const char *type_to_name(TilType type, Str *struct_name);
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, int line, int col);
+static int fcall_returns_ref(Expr *fcall, TypeScope *scope);
 
 static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func) {
     switch (e->type) {
@@ -93,6 +94,22 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             // Check: func must have a return type
             if (is_func && !e->data.func_def.return_type) {
                 type_error(path, e, "func must declare a return type");
+            }
+            // Validate ref returns: every return value must be a param or ref variable
+            if (e->data.func_def.return_is_ref) {
+                Expr *body = e->children[0];
+                for (int ri = 0; ri < body->nchildren; ri++) {
+                    Expr *s = body->children[ri];
+                    if (s->type != NODE_RETURN || s->nchildren == 0) continue;
+                    Expr *rv = s->children[0];
+                    int ok = 0;
+                    if (rv->type == NODE_IDENT) {
+                        TypeBinding *rb = tscope_find(func_scope, rv->data.str_val);
+                        if (rb && (rb->is_param || rb->is_ref)) ok = 1;
+                    }
+                    if (rv->type == NODE_FCALL && fcall_returns_ref(rv, func_scope)) ok = 1;
+                    if (!ok) type_error(path, s, "ref function must return a parameter or ref variable");
+                }
             }
             tscope_free(func_scope);
         }
@@ -283,6 +300,10 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                             snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
                                      ns_func->data.func_def.param_names[i - 1]->c_str);
                             type_error(path, e->children[i], buf);
+                        }
+                        if (pown && e->children[i]->type == NODE_IDENT) {
+                            TypeBinding *ab = tscope_find(scope, e->children[i]->data.str_val);
+                            if (ab && ab->is_ref) type_error(path, e->children[i], "cannot pass ref variable to 'own' parameter");
                         }
                     }
                 }
@@ -485,6 +506,10 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                              fdef->data.func_def.param_names[i - 1]->c_str);
                     type_error(path, e->children[i], buf);
                 }
+                if (pown && e->children[i]->type == NODE_IDENT) {
+                    TypeBinding *ab = tscope_find(scope, e->children[i]->data.str_val);
+                    if (ab && ab->is_ref) type_error(path, e->children[i], "cannot pass ref variable to 'own' parameter");
+                }
             }
         }
         // Resolve return type from scope (covers builtins and user-defined)
@@ -561,6 +586,29 @@ static int expr_contains_fcall(Expr *e) {
     return 0;
 }
 
+// Check if a function call returns ref
+static int fcall_returns_ref(Expr *fcall, TypeScope *scope) {
+    if (fcall->type != NODE_FCALL) return 0;
+    Expr *callee = fcall->children[0];
+    if (callee->type == NODE_IDENT) {
+        TypeBinding *cb = tscope_find(scope, callee->data.str_val);
+        return (cb && cb->func_def) ? cb->func_def->data.func_def.return_is_ref : 0;
+    }
+    if (callee->type == NODE_FIELD_ACCESS && callee->is_ns_field) {
+        Expr *sdef = tscope_get_struct(scope, callee->children[0]->data.str_val);
+        if (!sdef) return 0;
+        Expr *body = sdef->children[0];
+        for (int j = 0; j < body->nchildren; j++) {
+            Expr *f = body->children[j];
+            if (f->type == NODE_DECL && f->data.decl.is_namespace &&
+                Str_eq(f->data.decl.name, callee->data.str_val) &&
+                f->children[0]->type == NODE_FUNC_DEF)
+                return f->children[0]->data.func_def.return_is_ref;
+        }
+    }
+    return 0;
+}
+
 static int hoist_counter = 0;
 
 // Create a temp decl for an expression, register in scope, return the replacement ident.
@@ -584,6 +632,10 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, int *nhoisted, int *cap, 
     tscope_set(scope, tname, val->til_type, -1, 0, val->line, val->col, 0, 0);
     TypeBinding *tb = tscope_find(scope, tname);
     if (tb) tb->struct_name = val->struct_name;
+    if (val->type == NODE_FCALL && fcall_returns_ref(val, scope)) {
+        decl->data.decl.is_ref = true;
+        if (tb) tb->is_ref = 1;
+    }
     if (*nhoisted >= *cap) {
         *cap = *cap ? *cap * 2 : 8;
         *hoisted = realloc(*hoisted, *cap * sizeof(Expr *));
@@ -884,7 +936,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     LocalInfo *locals = NULL;
     for (int i = 0; i < scope->len; i++) {
         TypeBinding *b = &scope->bindings[i];
-        if ((b->is_param && !b->is_own) || b->struct_def || b->func_def) continue;
+        if ((b->is_param && !b->is_own) || b->struct_def || b->func_def || b->is_ref) continue;
 
         // Find decl_index: direct child first, then nested
         int decl_idx = -1;
@@ -923,6 +975,32 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     }
 
     if (n_locals == 0) return;
+
+    // Extend lifetimes for args to ref-returning calls:
+    // If ref m := f(x, y), then x and y must outlive m
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *stmt = body->children[i];
+        if (stmt->type != NODE_DECL || !stmt->data.decl.is_ref) continue;
+        Expr *rhs = stmt->children[0];
+        if (rhs->type != NODE_FCALL) continue;
+        // Find ref var's last_use (scan forward from decl)
+        int ref_last = -1;
+        for (int j = i + 1; j < body->nchildren; j++) {
+            if (expr_uses_var(body->children[j], stmt->data.decl.name))
+                ref_last = j;
+        }
+        if (ref_last == -1) ref_last = i; // at least until the decl itself
+        // Extend last_use of all ident args in the fcall
+        for (int a = 1; a < rhs->nchildren; a++) {
+            if (rhs->children[a]->type != NODE_IDENT) continue;
+            Str *aname = rhs->children[a]->data.str_val;
+            for (int j = 0; j < n_locals; j++) {
+                if (Str_eq(locals[j].name, aname) && locals[j].last_use < ref_last) {
+                    locals[j].last_use = ref_last;
+                }
+            }
+        }
+    }
 
     // Check for use after ownership transfer
     for (int j = 0; j < n_locals; j++) {
@@ -1114,8 +1192,21 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
                 if (b) b->struct_name = stmt->children[0]->struct_name;
             }
-            // Auto-insert clone for declarations from identifiers
-            if (stmt->children[0]->type == NODE_IDENT) {
+            if (stmt->data.decl.is_ref) {
+                TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
+                if (b) b->is_ref = 1;
+                // Validate ref RHS: must be a ref-returning fcall or a ref/param variable
+                Expr *rhs = stmt->children[0];
+                int ok = 0;
+                if (rhs->type == NODE_FCALL && fcall_returns_ref(rhs, scope)) ok = 1;
+                if (rhs->type == NODE_IDENT) {
+                    TypeBinding *rb = tscope_find(scope, rhs->data.str_val);
+                    if (rb && (rb->is_ref || (rb->is_param && !rb->is_own))) ok = 1;
+                }
+                if (!ok) type_error(path, stmt, "'ref' declaration requires a ref-returning function or ref/param variable");
+            }
+            // Auto-insert clone for declarations from identifiers (skip ref decls)
+            if (stmt->children[0]->type == NODE_IDENT && !stmt->data.decl.is_ref) {
                 const char *tname = type_to_name(stmt->til_type, stmt->children[0]->struct_name);
                 if (tname) {
                     stmt->children[0] = make_clone_call(

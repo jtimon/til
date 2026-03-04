@@ -62,6 +62,7 @@ struct Expr {
             Str *explicit_type;    // NULL if inferred (:=), e.g. "I64", "Str"
             bool is_mut;
             bool is_namespace;     // true for fields after namespace: in a struct
+            bool is_ref;           // true for ref declarations (borrowed, no delete)
         } decl;
         struct {                    // for FUNC_DEF
             FuncType func_type;
@@ -73,6 +74,7 @@ struct Expr {
             Expr **param_defaults;    // array[nparam], NULL entries for required params
             Str *return_type;      // NULL if none (proc)
             bool is_variadic;         // true if last param is variadic (..Type)
+            bool return_is_ref;       // true for `returns ref Type`
         } func_def;
     } data;
     Str *struct_name;               // for TIL_TYPE_STRUCT: which struct type

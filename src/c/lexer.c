@@ -37,6 +37,7 @@ const char *tok_name(TokenType type) {
     case TOK_MODE:      return "mode";
     case TOK_MUT:       return "mut";
     case TOK_OWN:       return "own";
+    case TOK_REF:       return "ref";
     case TOK_STRUCT:     return "struct";
     case TOK_EXT_STRUCT: return "ext_struct";
     case TOK_ENUM:      return "enum";
@@ -81,6 +82,7 @@ static const Keyword keywords[] = {
     {"mode",      TOK_MODE},
     {"mut",       TOK_MUT},
     {"own",       TOK_OWN},
+    {"ref",       TOK_REF},
     {"struct",     TOK_STRUCT},
     {"ext_struct", TOK_EXT_STRUCT},
     {"enum",      TOK_ENUM},

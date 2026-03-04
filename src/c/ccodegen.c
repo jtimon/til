@@ -181,6 +181,12 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             fprintf(f, "/* TODO: nested func %s */\n", e->data.decl.name->c_str);
         } else if (e->children[0]->type == NODE_STRUCT_DEF) {
             fprintf(f, "/* struct %s defined above */\n", e->data.decl.name->c_str);
+        } else if (e->data.decl.is_ref) {
+            const char *ctype = c_type_name(e->til_type, e->children[0]->struct_name);
+            Expr *rhs = e->children[0];
+            fprintf(f, "%s *%s = ", ctype, e->data.decl.name->c_str);
+            emit_expr(f, rhs, depth);
+            fprintf(f, ";\n");
         } else {
             const char *ctype = c_type_name(e->til_type, e->children[0]->struct_name);
             Expr *rhs = e->children[0];

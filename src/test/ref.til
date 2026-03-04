@@ -1,0 +1,43 @@
+mode script
+
+# --- ref returns with I64 ---
+
+min := func(a: I64, b: I64) returns ref I64 {
+    if a.lt(b) { return a } else { return b }
+}
+
+test_ref_i64 := proc() {
+    x := 3
+    y := 7
+    ref m := min(x, y)
+    assert_eq(loc(), m, 3)
+}
+
+# --- ref returns with Str ---
+
+shorter := func(a: Str, b: Str) returns ref Str {
+    if a.len().lt(b.len()) { return a } else { return b }
+}
+
+test_ref_str := proc() {
+    a := "hi"
+    b := "hello"
+    ref s := shorter(a, b)
+    assert_eq_str(loc(), s, "hi")
+}
+
+# --- ref from parameter ---
+
+identity := func(x: I64) returns ref I64 {
+    return x
+}
+
+test_ref_from_param := proc() {
+    v := 42
+    ref r := identity(v)
+    assert_eq(loc(), r, 42)
+}
+
+test_ref_i64()
+test_ref_str()
+test_ref_from_param()

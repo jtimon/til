@@ -324,16 +324,22 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
         switch (stmt->type) {
         case NODE_DECL: {
             Expr *rhs = stmt->children[0];
-            Value val;
-            if (rhs->type == NODE_IDENT) {
-                // Move semantics: transfer value from source, null source
+            if (stmt->data.decl.is_ref && rhs->type == NODE_IDENT) {
+                // Ref decl from ident: borrow the same cell (no move, no free)
                 Cell *src = scope_get(scope, rhs->data.str_val);
-                val = src->val;
-                src->val = val_none();
+                scope_set_borrowed(scope, stmt->data.decl.name, src);
             } else {
-                val = eval_expr(scope, rhs, path);
+                Value val;
+                if (rhs->type == NODE_IDENT) {
+                    // Move semantics: transfer value from source, null source
+                    Cell *src = scope_get(scope, rhs->data.str_val);
+                    val = src->val;
+                    src->val = val_none();
+                } else {
+                    val = eval_expr(scope, rhs, path);
+                }
+                scope_set_owned(scope, stmt->data.decl.name, val);
             }
-            scope_set_owned(scope, stmt->data.decl.name, val);
             break;
         }
         case NODE_ASSIGN: {

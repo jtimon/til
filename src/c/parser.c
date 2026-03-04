@@ -127,10 +127,15 @@ static Expr *parse_func_def(Parser *p) {
     }
     expect(p, TOK_RPAREN);
 
-    // Parse optional 'returns Type'
+    // Parse optional 'returns [ref] Type'
     Str *return_type = NULL;
+    bool return_is_ref = false;
     if (check(p, TOK_RETURNS)) {
         advance(p);
+        if (check(p, TOK_REF)) {
+            advance(p);
+            return_is_ref = true;
+        }
         Token *rt = expect(p, TOK_IDENT);
         return_type = tok_str(rt);
     }
@@ -144,6 +149,7 @@ static Expr *parse_func_def(Parser *p) {
     def->data.func_def.param_defaults = param_defaults;
     def->data.func_def.nparam = nparam;
     def->data.func_def.return_type = return_type;
+    def->data.func_def.return_is_ref = return_is_ref;
     def->data.func_def.is_variadic = has_variadic;
 
     expect(p, TOK_LBRACE);
@@ -427,6 +433,17 @@ static Expr *parse_statement(Parser *p) {
     switch (t->type) {
     case TOK_IDENT:
         return parse_statement_ident(p, 0);
+    case TOK_REF: {
+        advance(p); // consume 'ref'
+        Token *ident = expect(p, TOK_IDENT);
+        Str *name = tok_str(ident);
+        expect(p, TOK_COLONEQ);
+        Expr *decl = expr_new(NODE_DECL, ident->line, ident->col);
+        decl->data.decl.name = name;
+        decl->data.decl.is_ref = true;
+        expr_add_child(decl, parse_expression(p));
+        return decl;
+    }
     case TOK_MUT: {
         advance(p); // consume 'mut'
         return parse_statement_ident(p, 1);

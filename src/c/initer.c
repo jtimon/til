@@ -33,7 +33,7 @@ void tscope_set(TypeScope *s, Str *name, TilType type, int is_proc, int is_mut, 
         s->cap = s->cap ? s->cap * 2 : 8;
         s->bindings = realloc(s->bindings, s->cap * sizeof(TypeBinding));
     }
-    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, is_own, NULL, NULL, 0, 0, NULL};
+    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, is_own, 0, NULL, NULL, 0, 0, NULL};
 }
 
 TilType tscope_get(TypeScope *s, Str *name) {
