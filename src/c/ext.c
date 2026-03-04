@@ -7,25 +7,21 @@
 void til_free(void *ptr) { free(ptr); }
 void til_exit(til_I64 *code) { exit((int)*code); }
 
-c_str *til_I64_to_str(til_I64 *v) {
-    char *buf = malloc(32);
+Str *til_I64_to_str(til_I64 *v) {
+    char buf[32];
     snprintf(buf, 32, "%lld", *v);
-    c_str *r = malloc(sizeof(c_str));
-    *r = buf;
-    return r;
+    return Str_new(buf);
 }
 
-c_str *til_U8_to_str(til_U8 *v) {
-    char *buf = malloc(4);
+Str *til_U8_to_str(til_U8 *v) {
+    char buf[4];
     snprintf(buf, 4, "%u", (unsigned)*v);
-    c_str *r = malloc(sizeof(c_str));
-    *r = buf;
-    return r;
+    return Str_new(buf);
 }
 
-til_Bool *til_Str_eq(c_str *a, c_str *b) {
+til_Bool *til_Str_eq(Str *a, Str *b) {
     til_Bool *r = malloc(sizeof(til_Bool));
-    *r = (strcmp(*a, *b) == 0);
+    *r = Str_eq(a, b);
     return r;
 }
 
@@ -69,27 +65,30 @@ til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(ti
 til_Bool *til_Bool_not(til_Bool *a) { til_Bool *r = malloc(sizeof(til_Bool)); *r = !*a; return r; }
 
 // Variadic builtins
-c_str *til_format(int n, ...) {
+Str *til_format(int n, ...) {
     va_list ap; va_start(ap, n);
+    Str *strs[64];
     int total = 0;
-    const char *strs[64];
-    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, const char *); total += strlen(strs[i]); }
+    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, Str *); total += strs[i]->len; }
     va_end(ap);
-    char *r = malloc(total + 1); int off = 0;
-    for (int i = 0; i < n; i++) { int l = strlen(strs[i]); memcpy(r + off, strs[i], l); off += l; }
-    r[off] = '\0';
-    c_str *_r = malloc(sizeof(c_str)); *_r = r; return _r;
+    Str *s = malloc(sizeof(Str));
+    s->c_str = malloc(total + 1);
+    s->len = total;
+    int off = 0;
+    for (int i = 0; i < n; i++) { memcpy(s->c_str + off, strs[i]->c_str, strs[i]->len); off += strs[i]->len; }
+    s->c_str[off] = '\0';
+    return s;
 }
 
 void til_println(int n, ...) {
     va_list ap; va_start(ap, n);
-    for (int i = 0; i < n; i++) printf("%s", va_arg(ap, const char *));
+    for (int i = 0; i < n; i++) { Str *s = va_arg(ap, Str *); printf("%s", s->c_str); }
     va_end(ap);
     printf("\n");
 }
 
 void til_print(int n, ...) {
     va_list ap; va_start(ap, n);
-    for (int i = 0; i < n; i++) printf("%s", va_arg(ap, const char *));
+    for (int i = 0; i < n; i++) { Str *s = va_arg(ap, Str *); printf("%s", s->c_str); }
     va_end(ap);
 }

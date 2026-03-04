@@ -36,12 +36,9 @@ static Token *expect(Parser *p, TokenType type) {
     return advance(p);
 }
 
-// Extract a null-terminated string from a token. Uses malloc.
-static const char *tok_str(Token *t) {
-    char *s = malloc(t->len + 1);
-    memcpy(s, t->start, t->len);
-    s[t->len] = '\0';
-    return s;
+// Extract a Str from a token.
+static Str *tok_str(Token *t) {
+    return Str_new_len(t->start, t->len);
 }
 
 // --- Forward declarations ---
@@ -81,8 +78,8 @@ static Expr *parse_func_def(Parser *p) {
 
     // Parse parameters: name: Type, name: Type, ...
     int param_cap = 4;
-    const char **param_names = malloc(param_cap * sizeof(char *));
-    const char **param_types = malloc(param_cap * sizeof(char *));
+    Str **param_names = malloc(param_cap * sizeof(Str *));
+    Str **param_types = malloc(param_cap * sizeof(Str *));
     bool *param_muts = malloc(param_cap * sizeof(bool));
     bool *param_owns = malloc(param_cap * sizeof(bool));
     Expr **param_defaults = malloc(param_cap * sizeof(Expr *));
@@ -108,8 +105,8 @@ static Expr *parse_func_def(Parser *p) {
         Token *ptype = expect(p, TOK_IDENT);
         if (nparam >= param_cap) {
             param_cap *= 2;
-            param_names = realloc(param_names, param_cap * sizeof(char *));
-            param_types = realloc(param_types, param_cap * sizeof(char *));
+            param_names = realloc(param_names, param_cap * sizeof(Str *));
+            param_types = realloc(param_types, param_cap * sizeof(Str *));
             param_muts = realloc(param_muts, param_cap * sizeof(bool));
             param_owns = realloc(param_owns, param_cap * sizeof(bool));
             param_defaults = realloc(param_defaults, param_cap * sizeof(Expr *));
@@ -131,7 +128,7 @@ static Expr *parse_func_def(Parser *p) {
     expect(p, TOK_RPAREN);
 
     // Parse optional 'returns Type'
-    const char *return_type = NULL;
+    Str *return_type = NULL;
     if (check(p, TOK_RETURNS)) {
         advance(p);
         Token *rt = expect(p, TOK_IDENT);
@@ -182,18 +179,16 @@ static Expr *parse_struct_def(Parser *p) {
 }
 
 // parse_call: identifier already consumed, current token is '('
-static Expr *parse_call(Parser *p, const char *name, int line, int col) {
+static Expr *parse_call(Parser *p, Str *name, int line, int col) {
     advance(p); // consume '('
 
     // loc() — replaced with "path:line:col" string literal
-    if (strcmp(name, "loc") == 0) {
+    if (Str_eq_c(name, "loc")) {
         expect(p, TOK_RPAREN);
         char buf[256];
         snprintf(buf, sizeof(buf), "%s:%d:%d", p->path, line, col);
         Expr *e = expr_new(NODE_LITERAL_STR, line, col);
-        char *s = malloc(strlen(buf) + 1);
-        strcpy(s, buf);
-        e->data.str_val = s;
+        e->data.str_val = Str_new(buf);
         return e;
     }
 
@@ -251,7 +246,7 @@ static Expr *parse_expression(Parser *p) {
         e->data.str_val = tok_str(t);
     } else if (t->type == TOK_IDENT) {
         advance(p);
-        const char *name = tok_str(t);
+        Str *name = tok_str(t);
         // function call?
         if (check(p, TOK_LPAREN)) {
             e = parse_call(p, name, t->line, t->col);
@@ -318,7 +313,7 @@ static Expr *parse_expression(Parser *p) {
 // parse_statement_ident: identifier is current token
 static Expr *parse_statement_ident(Parser *p, int is_mut) {
     Token *t = advance(p); // consume identifier
-    const char *name = tok_str(t);
+    Str *name = tok_str(t);
 
     // Declaration: name := value (inferred type)
     if (check(p, TOK_COLONEQ)) {
@@ -335,7 +330,7 @@ static Expr *parse_statement_ident(Parser *p, int is_mut) {
     if (check(p, TOK_COLON)) {
         advance(p); // consume :
         Token *type_tok = peek(p);
-        const char *type_name = tok_str(type_tok);
+        Str *type_name = tok_str(type_tok);
         advance(p); // consume type name
         expect(p, TOK_EQ); // consume =
         Expr *decl = expr_new(NODE_DECL, t->line, t->col);
@@ -419,7 +414,7 @@ static Expr *parse_statement_ident(Parser *p, int is_mut) {
     }
 
     fprintf(stderr, "%s:%d:%d: parse error: expected ':=', ':', '=' or '(' after identifier '%s'\n",
-            p->path, t->line, t->col, name);
+            p->path, t->line, t->col, name->c_str);
     exit(1);
 }
 
@@ -506,7 +501,7 @@ static Expr *parse_statement(Parser *p) {
     }
 }
 
-Expr *parse(Token *tokens, int count, const char *path, const char **mode_out) {
+Expr *parse(Token *tokens, int count, const char *path, Str **mode_out) {
     Parser p = {tokens, count, 0, path};
 
     // Parse optional mode declaration

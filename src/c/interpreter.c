@@ -1,5 +1,6 @@
 #include "interpreter.h"
 #include "ext.h"
+#include "str.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,8 +21,8 @@ typedef struct StructInstance StructInstance;
 typedef struct Value Value;
 
 struct StructInstance {
-    const char *struct_name;
-    const char **field_names;
+    Str *struct_name;
+    Str **field_names;
     int *field_muts;
     int nfields;
     Value *field_values;
@@ -32,7 +33,7 @@ struct Value {
     union {
         til_I64 *i64;
         til_U8 *u8;
-        c_str *str;
+        Str *str;
         til_Bool *boolean;
         Expr *func;
         StructInstance *instance;
@@ -45,7 +46,7 @@ static Value val_none(void) {
 static Value val_i64(til_I64 v) { til_I64 *p = malloc(sizeof(til_I64)); *p = v; return (Value){.type = VAL_I64, .i64 = p}; }
 static Value val_u8(long long v) { til_U8 *p = malloc(sizeof(til_U8)); *p = (til_U8)(v & 0xFF); return (Value){.type = VAL_U8, .u8 = p}; }
 static Value val_bool(til_Bool v) { til_Bool *p = malloc(sizeof(til_Bool)); *p = v; return (Value){.type = VAL_BOOL, .boolean = p}; }
-static Value val_str(c_str v) { c_str *p = malloc(sizeof(c_str)); *p = v; return (Value){.type = VAL_STR, .str = p}; }
+static Value val_str(Str *v) { return (Value){.type = VAL_STR, .str = v}; }
 
 // --- Cells (heap-allocated value containers) ---
 
@@ -59,13 +60,13 @@ static Value value_deep_copy(Value v) {
     case VAL_I64: return val_i64(*v.i64);
     case VAL_U8: return val_u8(*v.u8);
     case VAL_BOOL: return val_bool(*v.boolean);
-    case VAL_STR: return val_str(*v.str);
+    case VAL_STR: return val_str(Str_clone(v.str));
     case VAL_STRUCT: {
         StructInstance *old = v.instance;
         StructInstance *inst = malloc(sizeof(StructInstance));
         inst->struct_name = old->struct_name;
         inst->nfields = old->nfields;
-        inst->field_names = malloc(inst->nfields * sizeof(char *));
+        inst->field_names = malloc(inst->nfields * sizeof(Str *));
         inst->field_muts = malloc(inst->nfields * sizeof(int));
         inst->field_values = malloc(inst->nfields * sizeof(Value));
         for (int i = 0; i < inst->nfields; i++) {
@@ -88,8 +89,8 @@ static Value return_value;
 // --- Namespace fields (static struct fields) ---
 
 typedef struct {
-    const char *struct_name;
-    const char *field_name;
+    Str *struct_name;
+    Str *field_name;
     Value val;
 } NsField;
 
@@ -97,17 +98,17 @@ static NsField *ns_fields;
 static int ns_count;
 static int ns_cap;
 
-static Value *ns_get(const char *sname, const char *fname) {
+static Value *ns_get(Str *sname, Str *fname) {
     for (int i = 0; i < ns_count; i++) {
-        if (strcmp(ns_fields[i].struct_name, sname) == 0 &&
-            strcmp(ns_fields[i].field_name, fname) == 0) {
+        if (Str_eq(ns_fields[i].struct_name, sname) &&
+            Str_eq(ns_fields[i].field_name, fname)) {
             return &ns_fields[i].val;
         }
     }
     return NULL;
 }
 
-static void ns_set(const char *sname, const char *fname, Value val) {
+static void ns_set(Str *sname, Str *fname, Value val) {
     Value *existing = ns_get(sname, fname);
     if (existing) { *existing = val; return; }
     if (ns_count >= ns_cap) {
@@ -120,7 +121,7 @@ static void ns_set(const char *sname, const char *fname, Value val) {
 // --- Scope / environment ---
 
 typedef struct {
-    const char *name;
+    Str *name;
     Cell *cell;
     int cell_is_local; // 1 = cell malloc'd by this scope, 0 = shared from caller
 } Binding;
@@ -149,10 +150,10 @@ static void scope_free(Scope *s) {
     free(s);
 }
 
-static void scope_set_owned(Scope *s, const char *name, Value val) {
+static void scope_set_owned(Scope *s, Str *name, Value val) {
     // Check if already exists in this scope
     for (int i = 0; i < s->len; i++) {
-        if (strcmp(s->bindings[i].name, name) == 0) {
+        if (Str_eq(s->bindings[i].name, name)) {
             s->bindings[i].cell->val = val;
             return;
         }
@@ -167,7 +168,7 @@ static void scope_set_owned(Scope *s, const char *name, Value val) {
     s->bindings[s->len++] = (Binding){name, cell, 1};
 }
 
-static void scope_set_borrowed(Scope *s, const char *name, Cell *cell) {
+static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
     if (s->len >= s->cap) {
         s->cap = s->cap ? s->cap * 2 : 8;
         s->bindings = realloc(s->bindings, s->cap * sizeof(Binding));
@@ -175,10 +176,10 @@ static void scope_set_borrowed(Scope *s, const char *name, Cell *cell) {
     s->bindings[s->len++] = (Binding){name, cell, 0};
 }
 
-static Cell *scope_get(Scope *s, const char *name) {
+static Cell *scope_get(Scope *s, Str *name) {
     for (Scope *cur = s; cur; cur = cur->parent) {
         for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
+            if (Str_eq(cur->bindings[i].name, name)) {
                 return cur->bindings[i].cell;
             }
         }
@@ -192,101 +193,103 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path);
 
 // Returns 1 if name matched an ext function, 0 if not.
 // If matched, *result is set to the return value.
-static int ext_function_dispatch(const char *name, Scope *scope, Expr *e, const char *path, Value *result) {
+static int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Value *result) {
     // Variadic builtins
-    if (strcmp(name, "println") == 0) {
+    if (Str_eq_c(name, "println")) {
         for (int i = 1; i < e->nchildren; i++) {
             Value arg = eval_expr(scope, e->children[i], path);
-            printf("%s", *arg.str);
+            printf("%s", arg.str->c_str);
         }
         printf("\n");
         *result = val_none();
         return 1;
     }
-    if (strcmp(name, "print") == 0) {
+    if (Str_eq_c(name, "print")) {
         for (int i = 1; i < e->nchildren; i++) {
             Value arg = eval_expr(scope, e->children[i], path);
-            printf("%s", *arg.str);
+            printf("%s", arg.str->c_str);
         }
         *result = val_none();
         return 1;
     }
-    if (strcmp(name, "format") == 0) {
+    if (Str_eq_c(name, "format")) {
         int nargs = e->nchildren - 1;
-        const char *strs[64];
+        Str *strs[64];
         int total = 0;
         for (int i = 0; i < nargs; i++) {
             Value v = eval_expr(scope, e->children[i + 1], path);
-            strs[i] = *v.str;
-            total += (int)strlen(strs[i]);
+            strs[i] = v.str;
+            total += v.str->len;
         }
         char *buf = malloc(total + 1);
         int off = 0;
         for (int i = 0; i < nargs; i++) {
-            int len = (int)strlen(strs[i]);
-            memcpy(buf + off, strs[i], len);
-            off += len;
+            memcpy(buf + off, strs[i]->c_str, strs[i]->len);
+            off += strs[i]->len;
         }
         buf[off] = '\0';
-        *result = val_str(buf);
+        Str *s = malloc(sizeof(Str));
+        s->c_str = buf;
+        s->len = total;
+        *result = val_str(s);
         return 1;
     }
 
     // I64 arithmetic
-    if (strcmp(name, "I64_add") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_add(a.i64, b.i64)}; return 1; }
-    if (strcmp(name, "I64_sub") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_sub(a.i64, b.i64)}; return 1; }
-    if (strcmp(name, "I64_mul") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_mul(a.i64, b.i64)}; return 1; }
-    if (strcmp(name, "I64_div") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_div(a.i64, b.i64)}; return 1; }
-    if (strcmp(name, "I64_mod") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_mod(a.i64, b.i64)}; return 1; }
-    if (strcmp(name, "I64_and") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_and(a.i64, b.i64)}; return 1; }
-    if (strcmp(name, "I64_or") == 0)  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_or(a.i64, b.i64)}; return 1; }
-    if (strcmp(name, "I64_xor") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_xor(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_add")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_add(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_sub")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_sub(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_mul")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_mul(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_div")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_div(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_mod")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_mod(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_and(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_or(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_xor")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_I64, .i64 = til_I64_xor(a.i64, b.i64)}; return 1; }
 
     // I64 comparisons
-    if (strcmp(name, "I64_eq") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_I64_eq(a.i64, b.i64)}; return 1; }
-    if (strcmp(name, "I64_lt") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_I64_lt(a.i64, b.i64)}; return 1; }
-    if (strcmp(name, "I64_gt") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_I64_gt(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_I64_eq(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_lt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_I64_lt(a.i64, b.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_gt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_I64_gt(a.i64, b.i64)}; return 1; }
 
     // I64 conversion
-    if (strcmp(name, "I64_to_str") == 0) { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_STR, .str = til_I64_to_str(v.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_to_str")) { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_STR, .str = til_I64_to_str(v.i64)}; return 1; }
 
     // U8 arithmetic
-    if (strcmp(name, "U8_add") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_add(a.u8, b.u8)}; return 1; }
-    if (strcmp(name, "U8_sub") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_sub(a.u8, b.u8)}; return 1; }
-    if (strcmp(name, "U8_mul") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_mul(a.u8, b.u8)}; return 1; }
-    if (strcmp(name, "U8_div") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_div(a.u8, b.u8)}; return 1; }
-    if (strcmp(name, "U8_mod") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_mod(a.u8, b.u8)}; return 1; }
-    if (strcmp(name, "U8_and") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_and(a.u8, b.u8)}; return 1; }
-    if (strcmp(name, "U8_or") == 0)  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_or(a.u8, b.u8)}; return 1; }
-    if (strcmp(name, "U8_xor") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_xor(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_add")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_add(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_sub")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_sub(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_mul")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_mul(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_div")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_div(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_mod")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_mod(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_and(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_or(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_xor")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_xor(a.u8, b.u8)}; return 1; }
 
     // U8 comparisons
-    if (strcmp(name, "U8_eq") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_U8_eq(a.u8, b.u8)}; return 1; }
-    if (strcmp(name, "U8_lt") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_U8_lt(a.u8, b.u8)}; return 1; }
-    if (strcmp(name, "U8_gt") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_U8_gt(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_U8_eq(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_lt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_U8_lt(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_gt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_U8_gt(a.u8, b.u8)}; return 1; }
 
     // U8 conversions
-    if (strcmp(name, "U8_to_str") == 0)  { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_STR, .str = til_U8_to_str(v.u8)}; return 1; }
-    if (strcmp(name, "U8_to_i64") == 0)  { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_I64, .i64 = til_U8_to_i64(v.u8)}; return 1; }
-    if (strcmp(name, "U8_from_i64") == 0 || strcmp(name, "U8_from_i64_ext") == 0) {
+    if (Str_eq_c(name, "U8_to_str"))  { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_STR, .str = til_U8_to_str(v.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_to_i64"))  { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_I64, .i64 = til_U8_to_i64(v.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_from_i64") || Str_eq_c(name, "U8_from_i64_ext")) {
         Value v = eval_expr(scope, e->children[1], path);
         *result = (Value){.type = VAL_U8, .u8 = til_U8_from_i64_ext(v.i64)};
         return 1;
     }
 
     // Bool ops
-    if (strcmp(name, "Bool_and") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_and(a.boolean, b.boolean)}; return 1; }
-    if (strcmp(name, "Bool_or") == 0)  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_or(a.boolean, b.boolean)}; return 1; }
-    if (strcmp(name, "Bool_not") == 0) { Value a = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_not(a.boolean)}; return 1; }
+    if (Str_eq_c(name, "Bool_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_and(a.boolean, b.boolean)}; return 1; }
+    if (Str_eq_c(name, "Bool_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_or(a.boolean, b.boolean)}; return 1; }
+    if (Str_eq_c(name, "Bool_not")) { Value a = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_not(a.boolean)}; return 1; }
 
     // Str ops
-    if (strcmp(name, "Str_eq") == 0) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Str_eq(a.str, b.str)}; return 1; }
+    if (Str_eq_c(name, "Str_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Str_eq(a.str, b.str)}; return 1; }
 
     // Misc
-    if (strcmp(name, "exit") == 0) { Value a = eval_expr(scope, e->children[1], path); til_exit(a.i64); *result = val_none(); return 1; }
+    if (Str_eq_c(name, "exit")) { Value a = eval_expr(scope, e->children[1], path); til_exit(a.i64); *result = val_none(); return 1; }
 
     // free — accesses scope directly (fragile, see #1)
-    if (strcmp(name, "free") == 0) {
+    if (Str_eq_c(name, "free")) {
         Cell *cell = scope_get(scope, e->children[1]->data.str_val);
         if (cell->val.type == VAL_STRUCT && cell->val.instance) {
             til_free(cell->val.instance->field_names);
@@ -300,7 +303,7 @@ static int ext_function_dispatch(const char *name, Scope *scope, Expr *e, const 
         } else if (cell->val.type == VAL_BOOL) {
             til_free(cell->val.boolean);
         } else if (cell->val.type == VAL_STR) {
-            til_free(cell->val.str);
+            Str_delete(cell->val.str);
         }
         cell->val = val_none();
         *result = val_none();
@@ -330,15 +333,14 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         // Direct ext_func namespace method — dispatch by flat name
         FuncType fft = func_def->data.func_def.func_type;
         if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) {
-            static char flat_name[256];
-            snprintf(flat_name, sizeof(flat_name), "%s_%s",
-                     callee_expr->children[0]->struct_name, callee_expr->data.str_val);
-            // Create a shallow copy of the call expr with the flat name
-            // so the regular dispatch can handle it
+            static char flat_name_buf[256];
+            int flen = snprintf(flat_name_buf, sizeof(flat_name_buf), "%s_%s",
+                     callee_expr->children[0]->struct_name->c_str, callee_expr->data.str_val->c_str);
+            Str flat_str = {.c_str = flat_name_buf, .len = flen};
             Expr *orig_callee = e->children[0];
             Expr flat_ident = *orig_callee;
             flat_ident.type = NODE_IDENT;
-            flat_ident.data.str_val = flat_name;
+            flat_ident.data.str_val = &flat_str;
             e->children[0] = &flat_ident;
             Value result = eval_call(scope, e, path);
             e->children[0] = orig_callee;
@@ -367,7 +369,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         return result;
     }
 
-    const char *name = callee_expr->data.str_val;
+    Str *name = callee_expr->data.str_val;
 
     // Ext function dispatch
     Value ext_result;
@@ -378,7 +380,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     Cell *fn_cell = scope_get(scope, name);
     if (!fn_cell) {
         fprintf(stderr, "%s:%d:%d: runtime error: undefined function '%s'\n",
-                path, e->line, e->col, name);
+                path, e->line, e->col, name->c_str);
         exit(1);
     }
 
@@ -392,7 +394,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         StructInstance *inst = malloc(sizeof(StructInstance));
         inst->struct_name = name;
         inst->nfields = nfields;
-        inst->field_names = malloc(nfields * sizeof(char *));
+        inst->field_names = malloc(nfields * sizeof(Str *));
         inst->field_muts = malloc(nfields * sizeof(int));
         inst->field_values = malloc(nfields * sizeof(Value));
         int arg_idx = 1;
@@ -410,7 +412,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
 
     if (fn_cell->val.type != VAL_FUNC) {
         fprintf(stderr, "%s:%d:%d: runtime error: '%s' is not a function\n",
-                path, e->line, e->col, name);
+                path, e->line, e->col, name->c_str);
         exit(1);
     }
 
@@ -445,18 +447,18 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
 static Value eval_expr(Scope *scope, Expr *e, const char *path) {
     switch (e->type) {
     case NODE_LITERAL_STR:
-        return val_str(e->data.str_val);
+        return val_str(Str_clone(e->data.str_val));
     case NODE_LITERAL_NUM:
         if (e->til_type == TIL_TYPE_U8)
-            return val_u8(atoll(e->data.str_val));
-        return val_i64(atoll(e->data.str_val));
+            return val_u8(atoll(e->data.str_val->c_str));
+        return val_i64(atoll(e->data.str_val->c_str));
     case NODE_LITERAL_BOOL:
-        return val_bool(strcmp(e->data.str_val, "true") == 0);
+        return val_bool(Str_eq_c(e->data.str_val, "true"));
     case NODE_IDENT: {
         Cell *cell = scope_get(scope, e->data.str_val);
         if (!cell) {
             fprintf(stderr, "%s:%d:%d: runtime error: undefined variable '%s'\n",
-                    path, e->line, e->col, e->data.str_val);
+                    path, e->line, e->col, e->data.str_val->c_str);
             exit(1);
         }
         return value_deep_copy(cell->val);
@@ -469,14 +471,14 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
         return (Value){.type = VAL_FUNC, .func = e};
     case NODE_FIELD_ACCESS: {
         Value obj = eval_expr(scope, e->children[0], path);
-        const char *fname = e->data.str_val;
+        Str *fname = e->data.str_val;
         if (e->is_ns_field) {
-            const char *sname = obj.type == VAL_STRUCT
+            Str *sname = obj.type == VAL_STRUCT
                 ? obj.instance->struct_name : e->children[0]->data.str_val;
             Value *nsv = ns_get(sname, fname);
             if (nsv) return *nsv;
             fprintf(stderr, "%s:%d:%d: runtime error: no namespace field '%s'\n",
-                    path, e->line, e->col, fname);
+                    path, e->line, e->col, fname->c_str);
             exit(1);
         }
         if (obj.type != VAL_STRUCT) {
@@ -485,12 +487,12 @@ static Value eval_expr(Scope *scope, Expr *e, const char *path) {
             exit(1);
         }
         for (int i = 0; i < obj.instance->nfields; i++) {
-            if (strcmp(obj.instance->field_names[i], fname) == 0) {
+            if (Str_eq(obj.instance->field_names[i], fname)) {
                 return obj.instance->field_values[i];
             }
         }
         fprintf(stderr, "%s:%d:%d: runtime error: no field '%s'\n",
-                path, e->line, e->col, fname);
+                path, e->line, e->col, fname->c_str);
         exit(1);
     }
     default:
@@ -515,7 +517,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             Cell *cell = scope_get(scope, stmt->data.str_val);
             if (!cell) {
                 fprintf(stderr, "%s:%d:%d: runtime error: undefined variable '%s'\n",
-                        path, stmt->line, stmt->col, stmt->data.str_val);
+                        path, stmt->line, stmt->col, stmt->data.str_val->c_str);
                 exit(1);
             }
             cell->val = val;
@@ -523,10 +525,10 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
         }
         case NODE_FIELD_ASSIGN: {
             Value val = eval_expr(scope, stmt->children[1], path);
-            const char *fname = stmt->data.str_val;
+            Str *fname = stmt->data.str_val;
             if (stmt->is_ns_field) {
                 Value obj = eval_expr(scope, stmt->children[0], path);
-                const char *sname = obj.type == VAL_STRUCT
+                Str *sname = obj.type == VAL_STRUCT
                     ? obj.instance->struct_name : stmt->children[0]->data.str_val;
                 ns_set(sname, fname, val);
             } else {
@@ -549,10 +551,10 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                     if (cell && cell->val.type == VAL_STRUCT) {
                         inst = cell->val.instance;
                         for (int d = depth - 1; d >= 0; d--) {
-                            const char *fn = chain[d]->data.str_val;
+                            Str *fn = chain[d]->data.str_val;
                             StructInstance *next = NULL;
                             for (int j = 0; j < inst->nfields; j++) {
-                                if (strcmp(inst->field_names[j], fn) == 0 &&
+                                if (Str_eq(inst->field_names[j], fn) &&
                                     inst->field_values[j].type == VAL_STRUCT) {
                                     next = inst->field_values[j].instance;
                                     break;
@@ -569,7 +571,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                     exit(1);
                 }
                 for (int i = 0; i < inst->nfields; i++) {
-                    if (strcmp(inst->field_names[i], fname) == 0) {
+                    if (Str_eq(inst->field_names[i], fname)) {
                         inst->field_values[i] = val;
                         break;
                     }
@@ -634,7 +636,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
     }
 }
 
-int interpret(Expr *program, const char *mode, const char *path) {
+int interpret(Expr *program, Str *mode, const char *path) {
     Scope *global = scope_new(NULL);
 
     // Pre-register all top-level func/proc/struct definitions for forward references
@@ -653,7 +655,7 @@ int interpret(Expr *program, const char *mode, const char *path) {
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
-            const char *sname = stmt->data.decl.name;
+            Str *sname = stmt->data.decl.name;
             Expr *body = stmt->children[0]->children[0];
             for (int j = 0; j < body->nchildren; j++) {
                 Expr *field = body->children[j];
@@ -669,8 +671,9 @@ int interpret(Expr *program, const char *mode, const char *path) {
     eval_body(global, program, path);
 
     // In cli mode, call main()
-    if (mode && strcmp(mode, "cli") == 0) {
-        Cell *main_cell = scope_get(global, "main");
+    if (mode && Str_eq_c(mode, "cli")) {
+        Str main_name = {.c_str = (char *)"main", .len = 4};
+        Cell *main_cell = scope_get(global, &main_name);
         if (!main_cell || main_cell->val.type != VAL_FUNC) {
             fprintf(stderr, "%s: error: mode 'cli' requires a 'main' proc\n", path);
             scope_free(global);

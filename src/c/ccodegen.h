@@ -6,7 +6,7 @@
 // Generate C source code from a parsed program.
 // Writes the generated C to `c_output_path`.
 // Returns 0 on success, non-zero on error.
-int codegen_c(Expr *program, const char *mode, const char *path, const char *c_output_path);
+int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_path);
 
 // Compile a generated C file to a binary using cc.
 // Returns 0 on success, non-zero on error.

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-const char *til_type_name(TilType t) {
+const char *til_type_name_c(TilType t) {
     switch (t) {
     case TIL_TYPE_UNKNOWN: return "unknown";
     case TIL_TYPE_NONE:    return "None";
@@ -97,7 +97,7 @@ void ast_print(Expr *e, int indent) {
     for (int i = 0; i < indent; i++) printf("  ");
     printf("(%s", node_name(e->type));
     if (e->til_type != TIL_TYPE_UNKNOWN) {
-        printf(":%s", til_type_name(e->til_type));
+        printf(":%s", til_type_name_c(e->til_type));
     }
     switch (e->type) {
     case NODE_IDENT:
@@ -105,14 +105,14 @@ void ast_print(Expr *e, int indent) {
     case NODE_LITERAL_NUM:
     case NODE_LITERAL_BOOL:
     case NODE_FOR_IN:
-        printf(" \"%s\"", e->data.str_val);
+        printf(" \"%s\"", e->data.str_val->c_str);
         break;
     case NODE_DECL:
-        printf(" %s%s", e->data.decl.is_mut ? "mut " : "", e->data.decl.name);
+        printf(" %s%s", e->data.decl.is_mut ? "mut " : "", e->data.decl.name->c_str);
         break;
     case NODE_ASSIGN:
     case NODE_NAMED_ARG:
-        printf(" %s", e->data.str_val);
+        printf(" %s", e->data.str_val->c_str);
         break;
     case NODE_FUNC_DEF:
         printf(" %s", func_type_name(e->data.func_def.func_type));

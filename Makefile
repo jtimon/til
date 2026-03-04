@@ -1,4 +1,4 @@
-.PHONY: all clean
+.PHONY: all clean test
 
 all: bin/ctil
 
@@ -8,6 +8,9 @@ HDRS := $(wildcard src/c/*.h)
 bin/ctil: $(SRCS) $(HDRS)
 	@mkdir -p bin
 	cc -Wall -Wextra -g -Isrc $(SRCS) -o bin/ctil
+
+test: bin/ctil
+	@bash tests.sh
 
 clean:
 	rm -rf bin/*

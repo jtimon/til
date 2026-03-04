@@ -2,6 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+Str Str_val(const char *data) {
+    int len = (int)strlen(data);
+    char *copy = malloc(len + 1);
+    memcpy(copy, data, len + 1);
+    return (Str){.c_str = copy, .len = len};
+}
+
 Str *Str_new(const char *data) {
     int len = (int)strlen(data);
     return Str_new_len(data, len);
@@ -28,6 +35,12 @@ void Str_delete(Str *s) {
 int Str_eq(Str *a, Str *b) {
     if (a->len != b->len) return 0;
     return memcmp(a->c_str, b->c_str, a->len) == 0;
+}
+
+int Str_eq_c(Str *a, const char *b) {
+    int blen = (int)strlen(b);
+    if (a->len != blen) return 0;
+    return memcmp(a->c_str, b, blen) == 0;
 }
 
 Str *Str_concat(Str *a, Str *b) {

@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
     int count;
     Token *tokens = tokenize(source, path, &count);
 
-    const char *mode = NULL;
+    Str *mode = NULL;
     Expr *ast = parse(tokens, count, path, &mode);
 
     // Prepend core declarations to program AST
@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
             result = system(bin_path);
         }
     } else if (strcmp(command, "ast") == 0) {
-        printf("mode: %s\n", mode ? mode : "(none)");
+        printf("mode: %s\n", mode ? mode->c_str : "(none)");
         ast_print(ast, 0);
     } else {
         fprintf(stderr, "error: unknown command '%s'\n", command);

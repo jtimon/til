@@ -16,9 +16,9 @@ void tscope_free(TypeScope *s) {
     free(s);
 }
 
-void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc, int is_mut, int line, int col, int is_param, int is_own) {
+void tscope_set(TypeScope *s, Str *name, TilType type, int is_proc, int is_mut, int line, int col, int is_param, int is_own) {
     for (int i = 0; i < s->len; i++) {
-        if (strcmp(s->bindings[i].name, name) == 0) {
+        if (Str_eq(s->bindings[i].name, name)) {
             s->bindings[i].type = type;
             s->bindings[i].is_proc = is_proc;
             s->bindings[i].is_mut = is_mut;
@@ -36,10 +36,10 @@ void tscope_set(TypeScope *s, const char *name, TilType type, int is_proc, int i
     s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, is_own, NULL, NULL, 0, NULL};
 }
 
-TilType tscope_get(TypeScope *s, const char *name) {
+TilType tscope_get(TypeScope *s, Str *name) {
     for (TypeScope *cur = s; cur; cur = cur->parent) {
         for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
+            if (Str_eq(cur->bindings[i].name, name)) {
                 return cur->bindings[i].type;
             }
         }
@@ -47,10 +47,10 @@ TilType tscope_get(TypeScope *s, const char *name) {
     return TIL_TYPE_UNKNOWN;
 }
 
-int tscope_is_proc(TypeScope *s, const char *name) {
+int tscope_is_proc(TypeScope *s, Str *name) {
     for (TypeScope *cur = s; cur; cur = cur->parent) {
         for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
+            if (Str_eq(cur->bindings[i].name, name)) {
                 return cur->bindings[i].is_proc;
             }
         }
@@ -58,10 +58,10 @@ int tscope_is_proc(TypeScope *s, const char *name) {
     return -1;
 }
 
-TypeBinding *tscope_find(TypeScope *s, const char *name) {
+TypeBinding *tscope_find(TypeScope *s, Str *name) {
     for (TypeScope *cur = s; cur; cur = cur->parent) {
         for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
+            if (Str_eq(cur->bindings[i].name, name)) {
                 return &cur->bindings[i];
             }
         }
@@ -69,10 +69,10 @@ TypeBinding *tscope_find(TypeScope *s, const char *name) {
     return NULL;
 }
 
-Expr *tscope_get_struct(TypeScope *s, const char *name) {
+Expr *tscope_get_struct(TypeScope *s, Str *name) {
     for (TypeScope *cur = s; cur; cur = cur->parent) {
         for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
+            if (Str_eq(cur->bindings[i].name, name)) {
                 return cur->bindings[i].struct_def;
             }
         }
@@ -80,10 +80,10 @@ Expr *tscope_get_struct(TypeScope *s, const char *name) {
     return NULL;
 }
 
-int tscope_is_mut(TypeScope *s, const char *name) {
+int tscope_is_mut(TypeScope *s, Str *name) {
     for (TypeScope *cur = s; cur; cur = cur->parent) {
         for (int i = 0; i < cur->len; i++) {
-            if (strcmp(cur->bindings[i].name, name) == 0) {
+            if (Str_eq(cur->bindings[i].name, name)) {
                 return cur->bindings[i].is_mut;
             }
         }
@@ -93,14 +93,14 @@ int tscope_is_mut(TypeScope *s, const char *name) {
 
 // --- Resolve type name (simplified, for init phase) ---
 
-static TilType type_from_name_init(const char *name, TypeScope *scope) {
-    if (strcmp(name, "I64") == 0)  return TIL_TYPE_I64;
-    if (strcmp(name, "U8") == 0)   return TIL_TYPE_U8;
-    if (strcmp(name, "Str") == 0)  return TIL_TYPE_STR;
-    if (strcmp(name, "Bool") == 0) return TIL_TYPE_BOOL;
-    if (strcmp(name, "StructDef") == 0)    return TIL_TYPE_STRUCT_DEF;
-    if (strcmp(name, "FunctionDef") == 0)  return TIL_TYPE_FUNC_DEF;
-    if (strcmp(name, "Dynamic") == 0)     return TIL_TYPE_DYNAMIC;
+static TilType type_from_name_init(Str *name, TypeScope *scope) {
+    if (Str_eq_c(name, "I64"))  return TIL_TYPE_I64;
+    if (Str_eq_c(name, "U8"))   return TIL_TYPE_U8;
+    if (Str_eq_c(name, "Str"))  return TIL_TYPE_STR;
+    if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
+    if (Str_eq_c(name, "StructDef"))    return TIL_TYPE_STRUCT_DEF;
+    if (Str_eq_c(name, "FunctionDef"))  return TIL_TYPE_FUNC_DEF;
+    if (Str_eq_c(name, "Dynamic"))     return TIL_TYPE_DYNAMIC;
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) return TIL_TYPE_STRUCT;
@@ -118,16 +118,16 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         if (stmt->type != NODE_DECL) continue;
         if (stmt->children[0]->type != NODE_STRUCT_DEF) continue;
 
-        const char *sname = stmt->data.decl.name;
+        Str *sname = stmt->data.decl.name;
         TilType builtin_type = TIL_TYPE_STRUCT;
         int is_builtin = 0;
-        if (strcmp(sname, "I64") == 0)             { builtin_type = TIL_TYPE_I64;        is_builtin = 1; }
-        else if (strcmp(sname, "U8") == 0)         { builtin_type = TIL_TYPE_U8;         is_builtin = 1; }
-        else if (strcmp(sname, "Str") == 0)        { builtin_type = TIL_TYPE_STR;        is_builtin = 1; }
-        else if (strcmp(sname, "Bool") == 0)       { builtin_type = TIL_TYPE_BOOL;       is_builtin = 1; }
-        else if (strcmp(sname, "StructDef") == 0)  { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
-        else if (strcmp(sname, "FunctionDef") == 0){ builtin_type = TIL_TYPE_FUNC_DEF;   is_builtin = 1; }
-        else if (strcmp(sname, "Dynamic") == 0)   { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
+        if (Str_eq_c(sname, "I64"))             { builtin_type = TIL_TYPE_I64;        is_builtin = 1; }
+        else if (Str_eq_c(sname, "U8"))         { builtin_type = TIL_TYPE_U8;         is_builtin = 1; }
+        else if (Str_eq_c(sname, "Str"))        { builtin_type = TIL_TYPE_STR;        is_builtin = 1; }
+        else if (Str_eq_c(sname, "Bool"))       { builtin_type = TIL_TYPE_BOOL;       is_builtin = 1; }
+        else if (Str_eq_c(sname, "StructDef"))  { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
+        else if (Str_eq_c(sname, "FunctionDef")){ builtin_type = TIL_TYPE_FUNC_DEF;   is_builtin = 1; }
+        else if (Str_eq_c(sname, "Dynamic"))   { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
 
         tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *b = tscope_find(scope, sname);
@@ -141,12 +141,12 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         if (stmt->type != NODE_DECL) continue;
         if (stmt->children[0]->type != NODE_STRUCT_DEF) continue;
 
-        const char *sname = stmt->data.decl.name;
+        Str *sname = stmt->data.decl.name;
 
         // Skip meta-types (not actual data types)
-        if (strcmp(sname, "StructDef") == 0 ||
-            strcmp(sname, "FunctionDef") == 0 ||
-            strcmp(sname, "Dynamic") == 0) continue;
+        if (Str_eq_c(sname, "StructDef") ||
+            Str_eq_c(sname, "FunctionDef") ||
+            Str_eq_c(sname, "Dynamic")) continue;
 
         Expr *sdef = stmt->children[0];
         Expr *body = sdef->children[0]; // NODE_BODY
@@ -156,7 +156,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         for (int j = 0; j < body->nchildren; j++) {
             Expr *field = body->children[j];
             if (field->type == NODE_DECL && field->data.decl.is_namespace &&
-                strcmp(field->data.decl.name, "clone") == 0) {
+                Str_eq_c(field->data.decl.name, "clone")) {
                 has_clone = 1;
                 break;
             }
@@ -165,12 +165,12 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // Collect instance field names
         int nfields = 0;
-        const char **field_names = NULL;
+        Str **field_names = NULL;
         for (int j = 0; j < body->nchildren; j++) {
             Expr *field = body->children[j];
             if (field->type == NODE_DECL && !field->data.decl.is_namespace) {
                 nfields++;
-                field_names = realloc(field_names, nfields * sizeof(const char *));
+                field_names = realloc(field_names, nfields * sizeof(Str *));
                 field_names[nfields - 1] = field->data.decl.name;
             }
         }
@@ -199,14 +199,14 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             for (int j = 0; j < nfields; j++) {
                 // self.field_name
                 Expr *self_id = expr_new(NODE_IDENT, line, col);
-                self_id->data.str_val = "self";
+                self_id->data.str_val = Str_new("self");
                 Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col);
                 field_acc->data.str_val = field_names[j];
                 expr_add_child(field_acc, self_id);
 
                 // self.field_name.clone()
                 Expr *clone_acc = expr_new(NODE_FIELD_ACCESS, line, col);
-                clone_acc->data.str_val = "clone";
+                clone_acc->data.str_val = Str_new("clone");
                 expr_add_child(clone_acc, field_acc);
                 Expr *clone_call = expr_new(NODE_FCALL, line, col);
                 expr_add_child(clone_call, clone_acc);
@@ -227,9 +227,9 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         Expr *func_def = expr_new(NODE_FUNC_DEF, line, col);
         func_def->data.func_def.func_type = FUNC_FUNC;
         func_def->data.func_def.nparam = 1;
-        func_def->data.func_def.param_names = malloc(sizeof(const char *));
-        func_def->data.func_def.param_names[0] = "self";
-        func_def->data.func_def.param_types = malloc(sizeof(const char *));
+        func_def->data.func_def.param_names = malloc(sizeof(Str *));
+        func_def->data.func_def.param_names[0] = Str_new("self");
+        func_def->data.func_def.param_types = malloc(sizeof(Str *));
         func_def->data.func_def.param_types[0] = sname;
         func_def->data.func_def.param_muts = calloc(1, sizeof(bool));
         func_def->data.func_def.param_owns = calloc(1, sizeof(bool));
@@ -240,7 +240,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // clone := func(...)  (namespace decl)
         Expr *decl = expr_new(NODE_DECL, line, col);
-        decl->data.decl.name = "clone";
+        decl->data.decl.name = Str_new("clone");
         decl->data.decl.is_namespace = true;
         decl->data.decl.is_mut = false;
         decl->data.decl.explicit_type = NULL;
@@ -257,12 +257,12 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         if (stmt->type != NODE_DECL) continue;
         if (stmt->children[0]->type != NODE_STRUCT_DEF) continue;
 
-        const char *sname = stmt->data.decl.name;
+        Str *sname = stmt->data.decl.name;
 
         // Skip meta-types (not actual data types)
-        if (strcmp(sname, "StructDef") == 0 ||
-            strcmp(sname, "FunctionDef") == 0 ||
-            strcmp(sname, "Dynamic") == 0) continue;
+        if (Str_eq_c(sname, "StructDef") ||
+            Str_eq_c(sname, "FunctionDef") ||
+            Str_eq_c(sname, "Dynamic")) continue;
 
         Expr *sdef = stmt->children[0];
         Expr *body = sdef->children[0]; // NODE_BODY
@@ -272,7 +272,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         for (int j = 0; j < body->nchildren; j++) {
             Expr *field = body->children[j];
             if (field->type == NODE_DECL && field->data.decl.is_namespace &&
-                strcmp(field->data.decl.name, "delete") == 0) {
+                Str_eq_c(field->data.decl.name, "delete")) {
                 has_delete = 1;
                 break;
             }
@@ -281,12 +281,12 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // Collect instance field names
         int nfields = 0;
-        const char **field_names = NULL;
+        Str **field_names = NULL;
         for (int j = 0; j < body->nchildren; j++) {
             Expr *field = body->children[j];
             if (field->type == NODE_DECL && !field->data.decl.is_namespace) {
                 nfields++;
-                field_names = realloc(field_names, nfields * sizeof(const char *));
+                field_names = realloc(field_names, nfields * sizeof(Str *));
                 field_names[nfields - 1] = field->data.decl.name;
             }
         }
@@ -298,21 +298,21 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         // For each field: self.field.delete(call_free=false)
         for (int j = 0; j < nfields; j++) {
             Expr *self_id = expr_new(NODE_IDENT, line, col);
-            self_id->data.str_val = "self";
+            self_id->data.str_val = Str_new("self");
             Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col);
             field_acc->data.str_val = field_names[j];
             field_acc->is_own_arg = true; // delete takes own self
             expr_add_child(field_acc, self_id);
 
             Expr *del_acc = expr_new(NODE_FIELD_ACCESS, line, col);
-            del_acc->data.str_val = "delete";
+            del_acc->data.str_val = Str_new("delete");
             expr_add_child(del_acc, field_acc);
             Expr *del_call = expr_new(NODE_FCALL, line, col);
             expr_add_child(del_call, del_acc);
 
             // call_free=false (inline field, don't free individually)
             Expr *false_lit = expr_new(NODE_LITERAL_BOOL, line, col);
-            false_lit->data.str_val = "false";
+            false_lit->data.str_val = Str_new("false");
             expr_add_child(del_call, false_lit);
 
             expr_add_child(proc_body, del_call);
@@ -320,14 +320,14 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // if call_free { free(own self) }
         Expr *cond = expr_new(NODE_IDENT, line, col);
-        cond->data.str_val = "call_free";
+        cond->data.str_val = Str_new("call_free");
         Expr *then_body = expr_new(NODE_BODY, line, col);
         Expr *free_call = expr_new(NODE_FCALL, line, col);
         Expr *free_id = expr_new(NODE_IDENT, line, col);
-        free_id->data.str_val = "free";
+        free_id->data.str_val = Str_new("free");
         expr_add_child(free_call, free_id);
         Expr *self_arg = expr_new(NODE_IDENT, line, col);
-        self_arg->data.str_val = "self";
+        self_arg->data.str_val = Str_new("self");
         self_arg->is_own_arg = true;
         expr_add_child(free_call, self_arg);
         expr_add_child(then_body, free_call);
@@ -338,17 +338,17 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // proc def: delete(own self: Type, call_free: Bool = true)
         Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col);
-        default_true->data.str_val = "true";
+        default_true->data.str_val = Str_new("true");
 
         Expr *proc_def = expr_new(NODE_FUNC_DEF, line, col);
         proc_def->data.func_def.func_type = FUNC_PROC;
         proc_def->data.func_def.nparam = 2;
-        proc_def->data.func_def.param_names = malloc(2 * sizeof(const char *));
-        proc_def->data.func_def.param_names[0] = "self";
-        proc_def->data.func_def.param_names[1] = "call_free";
-        proc_def->data.func_def.param_types = malloc(2 * sizeof(const char *));
+        proc_def->data.func_def.param_names = malloc(2 * sizeof(Str *));
+        proc_def->data.func_def.param_names[0] = Str_new("self");
+        proc_def->data.func_def.param_names[1] = Str_new("call_free");
+        proc_def->data.func_def.param_types = malloc(2 * sizeof(Str *));
         proc_def->data.func_def.param_types[0] = sname;
-        proc_def->data.func_def.param_types[1] = "Bool";
+        proc_def->data.func_def.param_types[1] = Str_new("Bool");
         proc_def->data.func_def.param_muts = calloc(2, sizeof(bool));
         proc_def->data.func_def.param_owns = calloc(2, sizeof(bool));
         proc_def->data.func_def.param_owns[0] = true;
@@ -360,7 +360,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // delete := proc(...)  (namespace decl)
         Expr *decl = expr_new(NODE_DECL, line, col);
-        decl->data.decl.name = "delete";
+        decl->data.decl.name = Str_new("delete");
         decl->data.decl.is_namespace = true;
         decl->data.decl.is_mut = false;
         decl->data.decl.explicit_type = NULL;

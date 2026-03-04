@@ -2,6 +2,7 @@
 #define TIL_AST_H
 
 #include <stdbool.h>
+#include "str.h"
 
 typedef enum {
     NODE_BODY,          // list of statements (children = statements)
@@ -47,7 +48,7 @@ typedef enum {
     TIL_TYPE_DYNAMIC,
 } TilType;
 
-const char *til_type_name(TilType t);
+const char *til_type_name_c(TilType t);
 
 typedef struct Expr Expr;
 
@@ -55,26 +56,26 @@ struct Expr {
     NodeType type;
     TilType til_type;               // resolved type (set by typer)
     union {
-        const char *str_val;        // for IDENT, LITERAL_STR, LITERAL_NUM, ASSIGN, FOR_IN
+        Str *str_val;               // for IDENT, LITERAL_STR, LITERAL_NUM, ASSIGN, FOR_IN
         struct {                    // for DECL
-            const char *name;
-            const char *explicit_type; // NULL if inferred (:=), e.g. "I64", "Str"
+            Str *name;
+            Str *explicit_type;    // NULL if inferred (:=), e.g. "I64", "Str"
             bool is_mut;
             bool is_namespace;     // true for fields after namespace: in a struct
         } decl;
         struct {                    // for FUNC_DEF
             FuncType func_type;
-            const char **param_names;
-            const char **param_types; // type name strings: "I64", "Str", etc.
+            Str **param_names;
+            Str **param_types;     // type name strings: "I64", "Str", etc.
             bool *param_muts;        // true for mut params
             bool *param_owns;        // true for own params
             int nparam;
             Expr **param_defaults;    // array[nparam], NULL entries for required params
-            const char *return_type;  // NULL if none (proc)
+            Str *return_type;      // NULL if none (proc)
             bool is_variadic;         // true if last param is variadic (..Type)
         } func_def;
     } data;
-    const char *struct_name;        // for TIL_TYPE_STRUCT: which struct type
+    Str *struct_name;               // for TIL_TYPE_STRUCT: which struct type
     bool is_own_arg;                // true if this arg was marked 'own' at call site
     bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
     Expr **children;                // malloc'd array of child pointers

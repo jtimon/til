@@ -1,16 +1,17 @@
 #ifndef TIL_EXT_H
 #define TIL_EXT_H
 
+#include "str.h"
+
 typedef long long til_I64;
 typedef unsigned char til_U8;
 typedef int til_Bool;
-typedef const char *c_str;
 
 void til_free(void *ptr);
 void til_exit(til_I64 *code);
-c_str *til_I64_to_str(til_I64 *v);
-c_str *til_U8_to_str(til_U8 *v);
-til_Bool *til_Str_eq(c_str *a, c_str *b);
+Str *til_I64_to_str(til_I64 *v);
+Str *til_U8_to_str(til_U8 *v);
+til_Bool *til_Str_eq(Str *a, Str *b);
 
 // I64 arithmetic
 til_I64 *til_I64_add(til_I64 *a, til_I64 *b);
@@ -52,7 +53,7 @@ til_Bool *til_Bool_or(til_Bool *a, til_Bool *b);
 til_Bool *til_Bool_not(til_Bool *a);
 
 // Variadic builtins
-c_str *til_format(int n, ...);
+Str *til_format(int n, ...);
 void til_println(int n, ...);
 void til_print(int n, ...);
 
