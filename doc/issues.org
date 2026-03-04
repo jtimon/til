@@ -1,4 +1,4 @@
-# Issue tracker for til2.
+# Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
 # NEXT_ISSUE: 10
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
