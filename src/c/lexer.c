@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include "vec.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -123,26 +124,10 @@ static TokenType lookup_keyword(const char *start, int len) {
     return TOK_IDENT;
 }
 
-// --- Growable token array ---
-
-typedef struct {
-    Token *data;
-    int len;
-    int cap;
-} TokenArray;
-
-static void arr_push(TokenArray *a, Token t) {
-    if (a->len >= a->cap) {
-        a->cap = a->cap ? a->cap * 2 : 64;
-        a->data = realloc(a->data, a->cap * sizeof(Token));
-    }
-    a->data[a->len++] = t;
-}
-
 // --- Tokenizer ---
 
 Token *tokenize(const char *source, const char *path, int *count_out) {
-    TokenArray tokens = {0};
+    Vec tokens = Vec_new(sizeof(Token));
     const char *pos = source;
     int line = 1;
     const char *line_start = source;
@@ -191,7 +176,7 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
                 pos++;
                 while (isdigit(*pos)) pos++;
             }
-            arr_push(&tokens, (Token){TOK_NUMBER, start, (int)(pos - start), line, col});
+            Vec_push(&tokens, &(Token){TOK_NUMBER, start, (int)(pos - start), line, col});
             continue;
         }
 
@@ -200,7 +185,7 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
             while (isalpha(*pos) || isdigit(*pos) || *pos == '_') pos++;
             int len = (int)(pos - start);
             TokenType type = lookup_keyword(start, len);
-            arr_push(&tokens, (Token){type, start, len, line, col});
+            Vec_push(&tokens, &(Token){type, start, len, line, col});
             continue;
         }
 
@@ -215,10 +200,10 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
             if (*pos == '"') {
                 pos++; // skip closing quote
                 // start+1 to skip opening quote, len excludes both quotes
-                arr_push(&tokens, (Token){TOK_STRING, start + 1, (int)(pos - start - 2), line, col});
+                Vec_push(&tokens, &(Token){TOK_STRING, start + 1, (int)(pos - start - 2), line, col});
             } else {
                 fprintf(stderr, "%s:%d:%d: error: unterminated string\n", path, line, col);
-                arr_push(&tokens, (Token){TOK_ERROR, start, (int)(pos - start), line, col});
+                Vec_push(&tokens, &(Token){TOK_ERROR, start, (int)(pos - start), line, col});
             }
             continue;
         }
@@ -233,7 +218,7 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
             else if (pos[0] == '>' && pos[1] == '=') two = TOK_GTEQ;
             else if (pos[0] == '.' && pos[1] == '.') two = TOK_DOTDOT;
             if (two != TOK_EOF) {
-                arr_push(&tokens, (Token){two, start, 2, line, col});
+                Vec_push(&tokens, &(Token){two, start, 2, line, col});
                 pos += 2;
                 continue;
             }
@@ -264,7 +249,7 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
             default: break;
             }
             if (single != TOK_EOF) {
-                arr_push(&tokens, (Token){single, start, 1, line, col});
+                Vec_push(&tokens, &(Token){single, start, 1, line, col});
                 pos++;
                 continue;
             }
@@ -272,14 +257,14 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
 
         // Unknown character
         fprintf(stderr, "%s:%d:%d: error: unexpected character '%c'\n", path, line, col, *pos);
-        arr_push(&tokens, (Token){TOK_ERROR, start, 1, line, col});
+        Vec_push(&tokens, &(Token){TOK_ERROR, start, 1, line, col});
         pos++;
     }
 
     // EOF
     int col = (int)(pos - line_start) + 1;
-    arr_push(&tokens, (Token){TOK_EOF, pos, 0, line, col});
+    Vec_push(&tokens, &(Token){TOK_EOF, pos, 0, line, col});
 
     if (count_out) *count_out = tokens.len;
-    return tokens.data;
+    return Vec_take(&tokens);
 }
