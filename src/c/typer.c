@@ -71,6 +71,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         // Type the body
         {
             int is_func = (e->data.func_def.func_type == FUNC_FUNC);
+            int is_macro = (e->data.func_def.func_type == FUNC_MACRO);
             TypeScope *func_scope = tscope_new(scope);
             // Bind parameters
             for (int i = 0; i < e->data.func_def.nparam; i++) {
@@ -91,9 +92,10 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 }
             }
             infer_body(func_scope, e->children[0], path, is_func, 1, 0);
-            // Check: func must have a return type
-            if (is_func && !e->data.func_def.return_type) {
-                type_error(path, e, "func must declare a return type");
+            // Check: func/macro must have a return type
+            if ((is_func || is_macro) && !e->data.func_def.return_type) {
+                type_error(path, e, is_macro ? "macro must declare a return type"
+                                             : "func must declare a return type");
             }
             // Validate ref returns: every return value must be a param or ref variable
             if (e->data.func_def.return_is_ref) {

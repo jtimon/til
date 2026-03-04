@@ -75,8 +75,12 @@ struct Scope {
     Scope *parent;
 };
 
-// Functions used by dispatch
+// Functions used by dispatch and precomp
 Value eval_expr(Scope *scope, Expr *e, const char *path);
 Cell *scope_get(Scope *s, Str *name);
+Scope *scope_new(Scope *parent);
+void scope_set_owned(Scope *s, Str *name, Value val);
+void scope_free(Scope *s);
+void interpreter_init_ns(Scope *global, Expr *program, const char *path);
 
 #endif

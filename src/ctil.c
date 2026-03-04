@@ -7,6 +7,7 @@
 #include "c/typer.h"
 #include "c/interpreter.h"
 #include "c/ccodegen.h"
+#include "c/precomp.h"
 #include "c/scavenger.h"
 
 static char *read_file(const char *path) {
@@ -115,6 +116,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    precomp(ast, path);
     scavenge(ast, mode);
 
     int result = 0;

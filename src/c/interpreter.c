@@ -46,13 +46,13 @@ static void ns_set(Str *sname, Str *fname, Value val) {
 
 // --- Scope / environment ---
 
-static Scope *scope_new(Scope *parent) {
+Scope *scope_new(Scope *parent) {
     Scope *s = calloc(1, sizeof(Scope));
     s->parent = parent;
     return s;
 }
 
-static void scope_free(Scope *s) {
+void scope_free(Scope *s) {
     for (int i = 0; i < s->len; i++) {
         if (s->bindings[i].cell_is_local) {
             free(s->bindings[i].cell);
@@ -62,7 +62,7 @@ static void scope_free(Scope *s) {
     free(s);
 }
 
-static void scope_set_owned(Scope *s, Str *name, Value val) {
+void scope_set_owned(Scope *s, Str *name, Value val) {
     // Check if already exists in this scope
     for (int i = 0; i < s->len; i++) {
         if (Str_eq(s->bindings[i].name, name)) {
@@ -484,22 +484,8 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
     }
 }
 
-int interpret(Expr *program, Str *mode, const char *path) {
-    Scope *global = scope_new(NULL);
-
-    // Pre-register all top-level func/proc/struct definitions for forward references
+void interpreter_init_ns(Scope *global, Expr *program, const char *path) {
     ns_fields = NULL; ns_count = 0; ns_cap = 0;
-    for (int i = 0; i < program->nchildren; i++) {
-        Expr *stmt = program->children[i];
-        if (stmt->type == NODE_DECL &&
-            (stmt->children[0]->type == NODE_FUNC_DEF ||
-             stmt->children[0]->type == NODE_STRUCT_DEF)) {
-            Value val = {.type = VAL_FUNC, .func = stmt->children[0]};
-            scope_set_owned(global, stmt->data.decl.name, val);
-        }
-    }
-
-    // Initialize namespace fields for all structs
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
@@ -514,6 +500,24 @@ int interpret(Expr *program, Str *mode, const char *path) {
             }
         }
     }
+}
+
+int interpret(Expr *program, Str *mode, const char *path) {
+    Scope *global = scope_new(NULL);
+
+    // Pre-register all top-level func/proc/struct definitions for forward references
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type == NODE_DECL &&
+            (stmt->children[0]->type == NODE_FUNC_DEF ||
+             stmt->children[0]->type == NODE_STRUCT_DEF)) {
+            Value val = {.type = VAL_FUNC, .func = stmt->children[0]};
+            scope_set_owned(global, stmt->data.decl.name, val);
+        }
+    }
+
+    // Initialize namespace fields for all structs
+    interpreter_init_ns(global, program, path);
 
     // Evaluate top-level declarations
     eval_body(global, program, path);
