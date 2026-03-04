@@ -195,8 +195,14 @@
   instead of func-wrapping-ext_func. println/print/format now live in ext.c as
   simple variadic C functions — the ..Str contract means all args are strings,
   no type-switching needed. Struct constructors use compound literals instead of
-  per-struct _new functions. Remaining convergence work: value_deep_copy removal
-  needs all 4 clone sites (#0), and hoisting could normalize declarations/returns.
+  per-struct _new functions.
+
+  All 4 clone sites in #0 are now FIXED. Removing value_deep_copy is blocked
+  by typer pass ordering: clone insertion and hoisting are separate sub-passes
+  within infer_body that don't see each other's output. The fix requires
+  merging them into one coherent desugaring pass AND switching ccodegen from
+  deref-copy (`*a = *b`) to pointer reassignment (`a = b`) for assignments.
+  See value_deep_copy sub-issue below for full analysis.
 
 ** FIXED ccodegen: free() special case
    Moved to ext.c as til_free(). ccodegen generic call path handles it.
@@ -251,19 +257,41 @@
    generation and forward declarations. Interpreter simplified to always use
    positional args (typer desugaring fills all fields with defaults).
 
+** ccodegen: mixed pointer-assignment and deref-copy semantics
+   ccodegen mixes two assignment styles:
+   - Declarations with fcall RHS: `dest = fcall()` (pointer assignment)
+   - Assignments: `*dest = deref(src)` (value copy into existing allocation)
+   - Field assignments: `field = deref(src)` (value copy)
+
+   If the typer guarantees RHS is always fcall (never bare ident) after
+   desugaring — which it does when clone insertion works properly — then
+   assignments could also use pointer assignment: `dest = fcall()`. The old
+   allocation needs freeing before reassignment, but ASAP or explicit delete
+   can handle that.
+
+   This change would:
+   1. Unify assignment semantics (all become pointer assignment)
+   2. Remove emit_deref from assignment/field-assign paths
+   3. Allow clone insertion during hoisting without leaking (the clone
+      result pointer IS the new dest — no deref discards it)
+   4. Unblock value_deep_copy removal (see sub-issue below)
+
+   Related sub-issues: literal return values and declaration branching are
+   symptoms of the same inconsistency. If all values are pointer-assigned
+   (never deref-copied), these branches collapse.
+
 ** ccodegen: literal return values need heap allocation
    When a function returns a literal (ccodegen.c:290-306), the codegen must
    malloc+copy because literals aren't heap-allocated. The hoisting pass could
    convert all return-value literals into temporaries beforehand, making return
-   emission uniform. This and the declaration branching below are related —
-   both are cases where hoisting could normalize all values to fcalls or idents.
+   emission uniform. Related to the pointer-assignment unification above.
 
 ** ccodegen: declaration emission branches on RHS type
    Declaration emission (ccodegen.c:250-266) branches: if RHS is NODE_FCALL,
-   just assign (already a pointer); otherwise malloc+copy. The hoisting pass
-   could normalize this so all RHS values are either fcalls or idents, making
-   declaration emission uniform. Combined with literal return hoisting above,
-   this would make ccodegen's value handling much simpler.
+   just assign (already a pointer); otherwise malloc+copy. Related to the
+   pointer-assignment unification above — if hoisting normalizes all RHS to
+   fcalls or idents (and idents are always cloned to fcalls), this branch
+   collapses.
 
 ** interpreter: ~27 remaining strcmp checks for ext_func builtins
    All non-variadic builtins have C implementations in ext.c with PascalCase
@@ -286,16 +314,33 @@
    arg is always "self" (an ident). Still fragile.
 
 ** interpreter: value_deep_copy on NODE_IDENT breaks pass-by-reference semantics
-   The interpreter's eval_expr for NODE_IDENT (interpreter.c:617) calls
-   value_deep_copy(cell->val), so every variable read produces a copy. Arguments
-   passed via scope_set_borrowed share the Cell, but the deep copy on read means
-   mutations to the read value don't affect the original. ccodegen passes all args
-   as C pointers (true by-reference). The interpreter should match.
+   The interpreter's eval_expr for NODE_IDENT calls value_deep_copy(cell->val),
+   so every variable read produces a copy. ccodegen passes all args as C
+   pointers (true by-reference). The interpreter should match.
 
-   This is a bandaid for the shallow copy problem (see #0): since declarations
-   and assignments shallow-copy Values, the deep copy on read prevents aliasing.
-   Once the typer inserts explicit clone calls at copy sites, NODE_IDENT should
-   return the value directly without deep copying, matching ccodegen.
+   All 4 clone sites in #0 are now FIXED — the typer inserts Type.clone(x)
+   for declarations, assignments, field assignments, and struct construction
+   when the value is a NODE_IDENT. However, removing value_deep_copy still
+   causes double frees.
+
+   Root cause: the typer's desugaring sub-passes run in the wrong order.
+   Clone insertion runs during infer_body's statement loop. Hoisting
+   (hoist_fcall_args) runs at the end of infer_body. Hoisting creates new
+   NODE_IDENT assignments (e.g. `y = foo(x)` → `_t := foo(x); y = _t`)
+   that clone insertion never processed. Without value_deep_copy, y and _t
+   share the interpreter's boxed pointer. ASAP deletes _t → y dangles.
+
+   This is NOT a problem in ccodegen because C's `*dest = *src` is an
+   implicit value copy — the data is copied, not the pointer. The interpreter
+   uses boxed values (every I64 is a til_I64*), so it needs explicit copying
+   that ccodegen gets for free from C semantics.
+
+   Fix: merge clone insertion and hoisting into one coherent desugaring pass,
+   or run clone insertion after hoisting so it sees the hoisted assignments.
+   Cannot simply insert clone calls during hoisting because that would leak
+   in ccodegen (the clone result pointer would never be freed — ccodegen does
+   `*dest = *clone(src)` which dereferences the clone result, leaking the
+   allocation).
 
 ** namespace call path: no named arg resolution
    The typer's namespace call path (typer.c:193-228) doesn't resolve named args
@@ -326,11 +371,11 @@
    | Operation              | ccodegen             | interpreter                  | Status |
    | Declaration (y := x)   | *dest = *src         | scope_set_owned copies Value | FIXED  |
    | Assignment (y = x)     | *dest = *src         | cell->val = val              | FIXED  |
-   | Field assign (o.f = x) | field = deref(val)   | field_values[i] = val        |        |
-   | Struct construction    | compound literal val  | field_values[fi] = eval(arg) |        |
+   | Field assign (o.f = x) | field = deref(val)   | field_values[i] = val        | FIXED  |
+   | Struct construction    | compound literal val  | field_values[fi] = eval(arg) | FIXED  |
 
-   Declarations and assignments: the typer now inserts Type.clone(x) when the
-   RHS is a NODE_IDENT. Works for ALL types — primitives (I64, U8, Bool, Str)
+   All 4 sites: the typer inserts Type.clone(x) when the value is a
+   NODE_IDENT. Works for ALL types — primitives (I64, U8, Bool, Str)
    and user-defined structs (with or without instance fields). Primitive clone
    is defined in pure til in core.til (e.g. I64.clone via val.add(0)), so no
    new C special cases were added. The initer's has_clone check skips
@@ -338,16 +383,24 @@
 
    Fieldless struct clone: the initer now generates `return Type()` instead of
    `other := self; return other`, avoiding infinite recursion from clone
-   insertion. ccodegen now supports fieldless struct constructors (_new with
-   void params, empty struct typedef with char padding).
+   insertion. ccodegen now supports fieldless struct constructors (compound
+   literals, empty struct typedef with char padding).
 
-   Still TODO: field assignments and struct constructor args.
+   BLOCKER — value_deep_copy removal blocked by typer pass ordering:
 
-   Related: the interpreter's value_deep_copy on NODE_IDENT (see #1) is
-   redundant now for declarations/assignments (clone handles the copy), but
-   removing it requires handling ALL 4 copy sites first. Once all are done,
-   NODE_IDENT should return the value directly (by reference), matching
-   ccodegen's pointer semantics.
+   All 4 clone sites are done, but removing value_deep_copy from the
+   interpreter causes double frees. Root cause: clone insertion runs during
+   infer_body's statement loop, hoisting (hoist_fcall_args) runs at the end.
+   Hoisting rewrites `y = foo(x)` into `_t := foo(x); y = _t`. The new
+   `y = _t` has NODE_IDENT RHS that clone insertion never saw. Without
+   value_deep_copy, y and _t share the same pointer. ASAP deletes _t →
+   y dangles → double free.
+
+   The fix: clone insertion and hoisting need to be one coherent desugaring
+   pass — one AST in, desugared AST out. Currently they are separate
+   sub-passes within infer_body that don't see each other's output. This
+   also affects field-assign and return hoisting (same pattern). See #1
+   value_deep_copy sub-issue.
 
 ** FIXED Custom clone/delete: user-defined override for auto-generated
    The initer checks for existing clone/delete in the struct namespace before

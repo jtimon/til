@@ -32,6 +32,8 @@ static TilType type_from_name(const char *name, TypeScope *scope) {
 
 static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func);
 static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope, int in_loop);
+static const char *type_to_name(TilType type, const char *struct_name);
+static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, int line, int col);
 
 static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func) {
     switch (e->type) {
@@ -320,6 +322,18 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             for (int i = 1; i < e->nchildren; i++) {
                 if (e->children[i]->til_type == TIL_TYPE_UNKNOWN) {
                     infer_expr(scope, e->children[i], path, in_func);
+                }
+            }
+            // Auto-insert clone for constructor args that are identifiers
+            for (int i = 1; i < e->nchildren; i++) {
+                if (e->children[i]->type == NODE_IDENT) {
+                    const char *tname = type_to_name(e->children[i]->til_type,
+                                                      e->children[i]->struct_name);
+                    if (tname) {
+                        e->children[i] = make_clone_call(tname,
+                            e->children[i]->til_type, e->children[i],
+                            e->children[i]->line, e->children[i]->col);
+                    }
                 }
             }
             e->til_type = TIL_TYPE_STRUCT;
@@ -1131,6 +1145,16 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 type_error(path, stmt, "field assignment on non-struct value");
             }
             stmt->til_type = TIL_TYPE_NONE;
+            // Auto-insert clone for field assignments from identifiers
+            if (stmt->children[1]->type == NODE_IDENT) {
+                const char *tname = type_to_name(stmt->children[1]->til_type,
+                                                  stmt->children[1]->struct_name);
+                if (tname) {
+                    stmt->children[1] = make_clone_call(tname,
+                        stmt->children[1]->til_type, stmt->children[1],
+                        stmt->children[1]->line, stmt->children[1]->col);
+                }
+            }
             break;
         }
         case NODE_FCALL:
