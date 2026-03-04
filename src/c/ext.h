@@ -1,12 +1,11 @@
 #ifndef TIL_EXT_H
 #define TIL_EXT_H
 
-#include "str.h"
-#include "i64.h"
+#include "ccore.h"
 
 typedef I64 til_I64;
-typedef unsigned char til_U8;
-typedef int til_Bool;
+typedef U8 til_U8;
+typedef Bool til_Bool;
 
 void til_free(void *ptr);
 void til_exit(til_I64 *code);

@@ -440,7 +440,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         return 1;
     }
 
-    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"str.h\"\n#include \"ext.h\"\n\n");
+    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"ccore.h\"\n#include \"ext.h\"\n\n");
 
     // All ext_func implementations are in ext.c, declared via ext.h
     fprintf(f, "\n");
@@ -566,15 +566,14 @@ int compile_c(const char *c_path, const char *bin_path, const char *ext_c_path) 
         snprintf(ext_dir, sizeof(ext_dir), ".");
     }
 
-    // Build the cc command — also compile str.c, i64.c
-    char str_c_path[256], i64_c_path[256];
-    snprintf(str_c_path, sizeof(str_c_path), "%s/str.c", ext_dir);
-    snprintf(i64_c_path, sizeof(i64_c_path), "%s/i64.c", ext_dir);
-    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s %s",
-                       ext_dir, bin_path, c_path, ext_c_path, str_c_path, i64_c_path);
+    // Build the cc command — also compile ccore.c (str, i64, etc.)
+    char ccore_c_path[256];
+    snprintf(ccore_c_path, sizeof(ccore_c_path), "%s/ccore.c", ext_dir);
+    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s",
+                       ext_dir, bin_path, c_path, ext_c_path, ccore_c_path);
     char *cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s %s",
-             ext_dir, bin_path, c_path, ext_c_path, str_c_path, i64_c_path);
+    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s",
+             ext_dir, bin_path, c_path, ext_c_path, ccore_c_path);
 
     int result = system(cmd);
     free(cmd);

@@ -2,7 +2,7 @@
 #define TIL_AST_H
 
 #include <stdbool.h>
-#include "str.h"
+#include "ccore.h"
 
 typedef enum {
     NODE_BODY,          // list of statements (children = statements)

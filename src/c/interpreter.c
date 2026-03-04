@@ -1,6 +1,6 @@
 #include "interpreter.h"
 #include "ext.h"
-#include "str.h"
+#include "ccore.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
