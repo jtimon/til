@@ -1,8 +1,23 @@
 # Issue tracker for til2.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 8
+# NEXT_ISSUE: 9
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #8 Variadic args for funcs, procs, and macros
+  Currently `..Type` variadic parameters only work in ext_func and ext_proc
+  (format, println, print). Regular funcs, procs, and macros can't use them.
+
+  What's needed:
+  - Parser: allow `..Type` in func/proc/macro parameter lists
+  - Typer: validate variadic calls, ensure args match the element type
+  - Interpreter: collect variadic args into an array-like structure
+  - ccodegen: emit variadic C calls or array-based passing
+
+  This blocks several improvements:
+  - Desugaring println/print in the typer (the replacement needs to be variadic)
+  - User-defined variadic functions (e.g. custom logging, string builders)
+  - Variadic macros for compile-time code generation
 
 * OPEN #7 Precomp phase: compile-time macro evaluation
   A new function kind, macro, that executes at compile time. Macros look like
@@ -300,11 +315,10 @@
    inserts clone at the right places, NODE_IDENT should return the value
    directly (by reference), matching ccodegen's pointer semantics.
 
-** Custom delete: user-defined override for auto-generated delete
-   Sometimes the auto-generated delete isn't enough — e.g. a struct that holds
-   a file handle needs to close it before freeing. The user should be able to
-   define their own delete proc for a struct, and the initer should skip
-   auto-generating one when a user-defined delete already exists.
+** FIXED Custom clone/delete: user-defined override for auto-generated
+   The initer checks for existing clone/delete in the struct namespace before
+   auto-generating. If the user defines their own, the initer skips generation.
+   Works for both clone (func) and delete (proc). Tested in structs.til.
 
 ** Use-after-own error: catch transferred variables at compile time
    After `own p.delete()` or `foo(own p)`, p is no longer owned by the current

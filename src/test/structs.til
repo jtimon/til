@@ -215,6 +215,44 @@ test_delete := proc() {
     own b.delete()
 }
 
+// Custom clone: adds 1 to val, proving auto-generated clone was skipped
+CloneCustom := struct {
+    mut val := 0
+    namespace:
+    clone := func(self: CloneCustom) returns CloneCustom {
+        return CloneCustom(val=self.val.add(1))
+    }
+}
+
+// Custom delete: increments namespace counter, proving auto-generated delete was skipped
+DeleteCustom := struct {
+    mut id := 0
+    namespace:
+    mut delete_count := 0
+    delete := proc(own self: DeleteCustom, call_free: Bool = true) {
+        DeleteCustom.delete_count = DeleteCustom.delete_count.add(1)
+        if call_free { free(own self) }
+    }
+}
+
+test_custom_clone := proc() {
+    c := CloneCustom(val=5)
+    d := c.clone()
+    assert_eq(loc(), d.val, 6)
+    e := d.clone()
+    assert_eq(loc(), e.val, 7)
+}
+
+test_custom_delete := proc() {
+    assert_eq(loc(), DeleteCustom.delete_count, 0)
+    t := DeleteCustom(id=1)
+    own t.delete()
+    assert_eq(loc(), DeleteCustom.delete_count, 1)
+    t2 := DeleteCustom(id=2)
+    own t2.delete()
+    assert_eq(loc(), DeleteCustom.delete_count, 2)
+}
+
 test_basic_struct()
 test_mixed_types()
 test_bool_fields()
@@ -227,3 +265,5 @@ test_namespace()
 test_ufcs()
 test_clone()
 test_delete()
+test_custom_clone()
+test_custom_delete()
