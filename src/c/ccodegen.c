@@ -490,35 +490,7 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
     fprintf(f, "    const char **_r = malloc(sizeof(const char *)); *_r = r; return _r;\n");
     fprintf(f, "}\n\n");
 
-    // --- Ext_func wrapper functions (all take pointer args, return pointer) ---
-    // I64 arithmetic and bitwise ops
-    const char *i64_arith[][2] = {{"add","+"}, {"sub","-"}, {"mul","*"}, {"and","&"}, {"or","|"}, {"xor","^"}};
-    for (int i = 0; i < 6; i++)
-        fprintf(f, "static long long *til_i64_%s(long long *a, long long *b) { long long *_r = malloc(sizeof(long long)); *_r = (*a) %s (*b); return _r; }\n", i64_arith[i][0], i64_arith[i][1]);
-    fprintf(f, "static long long *til_i64_div(long long *a, long long *b) { long long *_r = malloc(sizeof(long long)); *_r = (*b == 0) ? 0 : (*a) / (*b); return _r; }\n");
-    fprintf(f, "static long long *til_i64_mod(long long *a, long long *b) { long long *_r = malloc(sizeof(long long)); *_r = (*b == 0) ? 0 : (*a) %% (*b); return _r; }\n");
-    // I64 comparisons (return Bool/int *)
-    const char *i64_cmp[][2] = {{"eq","=="}, {"lt","<"}, {"gt",">"}};
-    for (int i = 0; i < 3; i++)
-        fprintf(f, "static int *til_i64_%s(long long *a, long long *b) { int *_r = malloc(sizeof(int)); *_r = (*a) %s (*b); return _r; }\n", i64_cmp[i][0], i64_cmp[i][1]);
-    // U8 arithmetic and bitwise ops
-    const char *u8_arith[][2] = {{"add","+"}, {"sub","-"}, {"mul","*"}, {"and","&"}, {"or","|"}, {"xor","^"}};
-    for (int i = 0; i < 6; i++)
-        fprintf(f, "static unsigned char *til_u8_%s(unsigned char *a, unsigned char *b) { unsigned char *_r = malloc(1); *_r = (unsigned char)((*a) %s (*b)); return _r; }\n", u8_arith[i][0], u8_arith[i][1]);
-    fprintf(f, "static unsigned char *til_u8_div(unsigned char *a, unsigned char *b) { unsigned char *_r = malloc(1); *_r = (*b == 0) ? 0 : (unsigned char)((*a) / (*b)); return _r; }\n");
-    fprintf(f, "static unsigned char *til_u8_mod(unsigned char *a, unsigned char *b) { unsigned char *_r = malloc(1); *_r = (*b == 0) ? 0 : (unsigned char)((*a) %% (*b)); return _r; }\n");
-    // U8 comparisons
-    const char *u8_cmp[][2] = {{"eq","=="}, {"lt","<"}, {"gt",">"}};
-    for (int i = 0; i < 3; i++)
-        fprintf(f, "static int *til_u8_%s(unsigned char *a, unsigned char *b) { int *_r = malloc(sizeof(int)); *_r = (*a) %s (*b); return _r; }\n", u8_cmp[i][0], u8_cmp[i][1]);
-    // U8 conversions
-    fprintf(f, "static long long *til_u8_to_i64(unsigned char *a) { long long *_r = malloc(sizeof(long long)); *_r = (long long)(*a); return _r; }\n");
-    fprintf(f, "static unsigned char *til_u8_from_i64(long long *a) { unsigned char *_r = malloc(1); *_r = (unsigned char)(*a); return _r; }\n");
-    // Bool ops
-    fprintf(f, "static int *til_bool_and(int *a, int *b) { int *_r = malloc(sizeof(int)); *_r = (*a) && (*b); return _r; }\n");
-    fprintf(f, "static int *til_bool_or(int *a, int *b) { int *_r = malloc(sizeof(int)); *_r = (*a) || (*b); return _r; }\n");
-    fprintf(f, "static int *til_bool_not(int *a) { int *_r = malloc(sizeof(int)); *_r = !(*a); return _r; }\n");
-    // (str_eq, i64_to_str, u8_to_str moved to ext.c)
+    // All ext_func implementations are in ext.c, declared via ext.h
     fprintf(f, "\n");
 
     int is_script = mode && strcmp(mode, "script") == 0;

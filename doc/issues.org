@@ -249,11 +249,11 @@
    declaration emission uniform.
 
 ** interpreter: ~30 remaining strcmp checks for ext_func/ext_proc builtins
-   The interpreter still has ~30 strcmp(name, ...) checks in eval_call for
-   builtins: i64_add, i64_sub, u8_eq, bool_not, etc. Some now delegate to
-   ext.c (i64_to_str, u8_to_str, str_eq, exit, free), but the strcmp dispatch
-   remains. Could be organized better — e.g. a dispatch table, or move more
-   arithmetic/comparison builtins to ext.c.
+   All non-variadic builtins now have their C implementations in ext.c, shared
+   by both backends. The interpreter still has strcmp dispatch to call them.
+   Could be replaced with a function pointer table to eliminate the strcmp chain.
+   Remaining special cases: println, print (variadic, type-aware), format
+   (variadic), free (accesses scope directly).
 
 ** interpreter: free() accesses variable cell directly
    The interpreter's free() handler (interpreter.c:508-524) assumes the argument

@@ -267,35 +267,35 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (strcmp(name, "i64_add") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_i64(*a.i64 + *b.i64);
+        return (Value){.type = VAL_I64, .i64 = til_i64_add(a.i64, b.i64)};
     }
 
     // Built-in: i64_sub(a, b)
     if (strcmp(name, "i64_sub") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_i64(*a.i64 - *b.i64);
+        return (Value){.type = VAL_I64, .i64 = til_i64_sub(a.i64, b.i64)};
     }
 
     // Built-in: i64_mul(a, b)
     if (strcmp(name, "i64_mul") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_i64(*a.i64 * *b.i64);
+        return (Value){.type = VAL_I64, .i64 = til_i64_mul(a.i64, b.i64)};
     }
 
     // Built-in: i64_div(a, b)
     if (strcmp(name, "i64_div") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_i64(*b.i64 == 0 ? 0 : *a.i64 / *b.i64);
+        return (Value){.type = VAL_I64, .i64 = til_i64_div(a.i64, b.i64)};
     }
 
     // Built-in: i64_mod(a, b)
     if (strcmp(name, "i64_mod") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_i64(*b.i64 == 0 ? 0 : *a.i64 % *b.i64);
+        return (Value){.type = VAL_I64, .i64 = til_i64_mod(a.i64, b.i64)};
     }
 
     // Built-in: i64_to_str(val)
@@ -308,119 +308,127 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (strcmp(name, "i64_eq") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_bool(*a.i64 == *b.i64);
+        return (Value){.type = VAL_BOOL, .boolean = til_i64_eq(a.i64, b.i64)};
     }
 
     // Built-in: i64_lt(a, b)
     if (strcmp(name, "i64_lt") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_bool(*a.i64 < *b.i64);
+        return (Value){.type = VAL_BOOL, .boolean = til_i64_lt(a.i64, b.i64)};
     }
 
     // Built-in: i64_gt(a, b)
     if (strcmp(name, "i64_gt") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_bool(*a.i64 > *b.i64);
+        return (Value){.type = VAL_BOOL, .boolean = til_i64_gt(a.i64, b.i64)};
     }
 
     // Built-in: i64_and(a, b)
     if (strcmp(name, "i64_and") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_i64(*a.i64 & *b.i64);
+        return (Value){.type = VAL_I64, .i64 = til_i64_and(a.i64, b.i64)};
     }
 
     // Built-in: i64_or(a, b)
     if (strcmp(name, "i64_or") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_i64(*a.i64 | *b.i64);
+        return (Value){.type = VAL_I64, .i64 = til_i64_or(a.i64, b.i64)};
     }
 
     // Built-in: i64_xor(a, b)
     if (strcmp(name, "i64_xor") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_i64(*a.i64 ^ *b.i64);
+        return (Value){.type = VAL_I64, .i64 = til_i64_xor(a.i64, b.i64)};
     }
 
     // Built-in: u8_add(a, b)
     if (strcmp(name, "u8_add") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_u8(*a.i64 + *b.i64);
+        unsigned char *r = til_u8_add((unsigned char *)a.i64, (unsigned char *)b.i64);
+        Value v = val_u8(*r); free(r); return v;
     }
 
     // Built-in: u8_sub(a, b)
     if (strcmp(name, "u8_sub") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_u8(*a.i64 - *b.i64 + 256);
+        unsigned char *r = til_u8_sub((unsigned char *)a.i64, (unsigned char *)b.i64);
+        Value v = val_u8(*r); free(r); return v;
     }
 
     // Built-in: u8_mul(a, b)
     if (strcmp(name, "u8_mul") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_u8(*a.i64 * *b.i64);
+        unsigned char *r = til_u8_mul((unsigned char *)a.i64, (unsigned char *)b.i64);
+        Value v = val_u8(*r); free(r); return v;
     }
 
     // Built-in: u8_div(a, b)
     if (strcmp(name, "u8_div") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_u8(*b.i64 == 0 ? 0 : *a.i64 / *b.i64);
+        unsigned char *r = til_u8_div((unsigned char *)a.i64, (unsigned char *)b.i64);
+        Value v = val_u8(*r); free(r); return v;
     }
 
     // Built-in: u8_mod(a, b)
     if (strcmp(name, "u8_mod") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_u8(*b.i64 == 0 ? 0 : *a.i64 % *b.i64);
+        unsigned char *r = til_u8_mod((unsigned char *)a.i64, (unsigned char *)b.i64);
+        Value v = val_u8(*r); free(r); return v;
     }
 
     // Built-in: u8_eq(a, b)
     if (strcmp(name, "u8_eq") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_bool(*a.i64 == *b.i64);
+        return (Value){.type = VAL_BOOL, .boolean = til_u8_eq((unsigned char *)a.i64, (unsigned char *)b.i64)};
     }
 
     // Built-in: u8_lt(a, b)
     if (strcmp(name, "u8_lt") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_bool(*a.i64 < *b.i64);
+        return (Value){.type = VAL_BOOL, .boolean = til_u8_lt((unsigned char *)a.i64, (unsigned char *)b.i64)};
     }
 
     // Built-in: u8_gt(a, b)
     if (strcmp(name, "u8_gt") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_bool(*a.i64 > *b.i64);
+        return (Value){.type = VAL_BOOL, .boolean = til_u8_gt((unsigned char *)a.i64, (unsigned char *)b.i64)};
     }
 
     // Built-in: u8_and(a, b)
     if (strcmp(name, "u8_and") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_u8(*a.i64 & *b.i64);
+        unsigned char *r = til_u8_and((unsigned char *)a.i64, (unsigned char *)b.i64);
+        Value v = val_u8(*r); free(r); return v;
     }
 
     // Built-in: u8_or(a, b)
     if (strcmp(name, "u8_or") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_u8(*a.i64 | *b.i64);
+        unsigned char *r = til_u8_or((unsigned char *)a.i64, (unsigned char *)b.i64);
+        Value v = val_u8(*r); free(r); return v;
     }
 
     // Built-in: u8_xor(a, b)
     if (strcmp(name, "u8_xor") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_u8(*a.i64 ^ *b.i64);
+        unsigned char *r = til_u8_xor((unsigned char *)a.i64, (unsigned char *)b.i64);
+        Value v = val_u8(*r); free(r); return v;
     }
 
     // Built-in: u8_to_str(val)
@@ -432,27 +440,28 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     // Built-in: u8_to_i64(val)
     if (strcmp(name, "u8_to_i64") == 0) {
         Value v = eval_expr(scope, e->children[1], path);
-        return val_i64(*v.i64);
+        return (Value){.type = VAL_I64, .i64 = til_u8_to_i64((unsigned char *)v.i64)};
     }
 
     // Built-in: u8_from_i64(val)
     if (strcmp(name, "u8_from_i64") == 0) {
         Value v = eval_expr(scope, e->children[1], path);
-        return val_u8(*v.i64);
+        unsigned char *r = til_u8_from_i64(v.i64);
+        Value rv = val_u8(*r); free(r); return rv;
     }
 
     // Built-in: bool_and(a, b)
     if (strcmp(name, "bool_and") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_bool(*a.boolean && *b.boolean);
+        return (Value){.type = VAL_BOOL, .boolean = til_bool_and(a.boolean, b.boolean)};
     }
 
     // Built-in: bool_or(a, b)
     if (strcmp(name, "bool_or") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
         Value b = eval_expr(scope, e->children[2], path);
-        return val_bool(*a.boolean || *b.boolean);
+        return (Value){.type = VAL_BOOL, .boolean = til_bool_or(a.boolean, b.boolean)};
     }
 
     // Built-in: str_eq(a, b)
@@ -492,7 +501,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     // Built-in: bool_not(a)
     if (strcmp(name, "bool_not") == 0) {
         Value a = eval_expr(scope, e->children[1], path);
-        return val_bool(!*a.boolean);
+        return (Value){.type = VAL_BOOL, .boolean = til_bool_not(a.boolean)};
     }
 
     // Built-in: free(val)
