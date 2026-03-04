@@ -1,0 +1,126 @@
+# Self-hosting requirements: C features we actually use, mapped to til equivalents.
+# This file works both ways:
+#   1. Tracks what til still needs for self-hosting (NEED → HAVE as til gains features)
+#   2. Constrains the C side: don't introduce C features not on this list.
+#      The more C features we use, the harder self-hosting becomes.
+#      The more til features we add, the later we self-host.
+#      Keep both sides minimal. Stay close to the intersection.
+# Update when features are added to til or new C patterns are introduced.
+#+TODO: NEED | HAVE
+
+* HAVE Basic types: I64, U8, Bool, Str
+  C uses: int, long long, unsigned char, bool, const char *.
+  til has all of these via typedefs in ext.h.
+
+* HAVE Structs with named fields
+  C uses: struct Expr, struct Token, struct Value, struct StructInstance, etc.
+  til has structs with fields, namespace methods, clone, delete.
+
+* HAVE Enums
+  C uses: NodeType, TokenType, FuncType, TilType, ValType.
+  til treats enums as structs with namespace constants (I64 fields).
+  Works but verbose — no match/switch sugar.
+
+* HAVE Functions and procedures (func/proc)
+  C uses: functions with return values, void functions.
+  til maps these to func (returns) and proc (no return).
+
+* HAVE Control flow: if/else, while, return, break, continue
+  C uses: if/else, while, for, switch/case, return, break, continue.
+  til has if/else, while, return, break, continue. No for, no switch.
+
+* NEED for loops
+  C uses: for (int i = 0; i < n; i++) everywhere (~100s of instances).
+  til has no for loop. Could desugar to while, or add for-in with ranges.
+
+* NEED switch/case or equivalent pattern matching
+  C uses: switch on enum values in parser, interpreter, ccodegen, typer.
+  til has no switch. Could use if/else chains (ugly but works) or add switch.
+
+* HAVE Heap allocation: malloc, free
+  C uses: malloc, calloc, free throughout.
+  til has automatic memory management — ASAP handles free, clone handles copy.
+  ext.c provides til_free for the rare manual case.
+
+* NEED realloc / dynamic arrays
+  C uses: realloc for growing arrays (TokenArray, children, bindings, params).
+  Pattern: len/cap struct with realloc on overflow.
+  til has no arrays or realloc. Needs #5 (arrays) or a growable list type.
+
+* NEED Pointer-to-pointer (arrays of pointers)
+  C uses: Expr **children, const char **param_names, Value *field_values.
+  These are dynamic arrays of heap pointers. Needs #5 (arrays).
+
+* NEED String operations: strcmp, strlen, snprintf, memcpy, strrchr
+  C uses: strcmp heavily (parser, typer, interpreter all do string matching).
+  strlen, memcpy for string building. snprintf for formatting.
+  til has Str.eq for strcmp. Missing: strlen, indexing, slicing, snprintf.
+  Needs string methods in ext.c or a richer Str type.
+
+* NEED File I/O: fopen, fread, fseek, ftell, fclose
+  C uses: file reading in ctil.c (read source files).
+  til has no file I/O. Needs ext_funcs wrapping C file operations (#4 FFI).
+
+* NEED printf / fprintf to stdout/stderr
+  C uses: printf for output, fprintf(stderr, ...) for errors.
+  til has println/print for stdout. No stderr. No format specifiers.
+  Could add an eprint/eprintln or a stderr ext_proc.
+
+* NEED NULL and nullable pointers
+  C uses: NULL checks before dereferencing, NULL returns for "not found".
+  til has no null/none concept for user types. Needs optional types or
+  a sentinel value pattern. Could be a simple enum: Some(val) / None.
+
+* NEED Casting between types
+  C uses: (int), (unsigned), (til_U8), (til_I64) casts.
+  til has U8.from_i64, U8.to_i64. Missing: general cast mechanism or
+  more conversion ext_funcs.
+
+* NEED sizeof
+  C uses: sizeof(Expr), sizeof(Token), sizeof(char *) for malloc.
+  til doesn't need sizeof directly — allocation is automatic. But if
+  self-hosting needs to call malloc for the compiler's own data structures,
+  sizeof would be needed as an ext_func or compile-time macro.
+
+* HAVE Static / module-private functions
+  C uses: static functions and variables for file-scoped visibility.
+  til funcs/procs are module-scoped by default. No export mechanism yet,
+  but for single-file self-hosting this works.
+
+* NEED system() for shell commands
+  C uses: system("mkdir -p gen/c") and system(bin_path) in ctil.c.
+  til has no system call. Needs an ext_proc wrapping system().
+
+* NEED Compound literals / struct initialization
+  C uses: (Value){.type = VAL_I64, .i64 = p}, (Token){TOK_EOF, ...}.
+  til has struct construction with named fields: Point(x=1, y=2).
+  Works, but C compound literals also do stack allocation — til always heaps.
+
+* HAVE Unions (anonymous)
+  C uses: anonymous unions in Expr (data union) and Value.
+  til has no union type. But the pattern is always enum + union (tagged union).
+  Could be modeled as a struct with an enum tag and type-specific fields,
+  or needs a proper sum type / variant feature.
+  Workaround: just use a struct with all fields, waste some memory.
+
+* HAVE Const correctness
+  C uses: const char * for immutable strings.
+  til is immutable by default (mut opts in). Stricter than C.
+
+* NEED Pointer arithmetic (limited)
+  C uses: pointer subtraction (slash - argv[0]), array indexing with
+  pointer offsets. Limited usage — mostly array[index] patterns.
+  Covered by #5 (arrays with indexing).
+
+* HAVE Recursive data structures
+  C uses: Expr has Expr **children (tree), Scope has parent Scope *.
+  til supports this via own/ref fields (#3) — structs can reference
+  their own type.
+
+* HAVE Forward declarations
+  C uses: typedef struct X X; for circular references.
+  til handles this naturally — the typer resolves forward references.
+
+* HAVE exit() for error handling
+  C uses: exit(1) on parse/type errors.
+  til has exit as ext_func. panic() wraps println + exit.
