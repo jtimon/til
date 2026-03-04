@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "vec.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -77,13 +78,11 @@ static Expr *parse_func_def(Parser *p) {
     expect(p, TOK_LPAREN);
 
     // Parse parameters: name: Type, name: Type, ...
-    int param_cap = 4;
-    Str **param_names = malloc(param_cap * sizeof(Str *));
-    Str **param_types = malloc(param_cap * sizeof(Str *));
-    bool *param_muts = malloc(param_cap * sizeof(bool));
-    bool *param_owns = malloc(param_cap * sizeof(bool));
-    Expr **param_defaults = malloc(param_cap * sizeof(Expr *));
-    int nparam = 0;
+    Vec pnames = Vec_new(sizeof(Str *));
+    Vec ptypes = Vec_new(sizeof(Str *));
+    Vec pmuts = Vec_new(sizeof(bool));
+    Vec powns = Vec_new(sizeof(bool));
+    Vec pdefs = Vec_new(sizeof(Expr *));
     int has_variadic = 0;
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
         bool is_own = false;
@@ -103,26 +102,19 @@ static Expr *parse_func_def(Parser *p) {
             has_variadic = 1;
         }
         Token *ptype = expect(p, TOK_IDENT);
-        if (nparam >= param_cap) {
-            param_cap *= 2;
-            param_names = realloc(param_names, param_cap * sizeof(Str *));
-            param_types = realloc(param_types, param_cap * sizeof(Str *));
-            param_muts = realloc(param_muts, param_cap * sizeof(bool));
-            param_owns = realloc(param_owns, param_cap * sizeof(bool));
-            param_defaults = realloc(param_defaults, param_cap * sizeof(Expr *));
-        }
-        param_names[nparam] = tok_str(pname);
-        param_types[nparam] = tok_str(ptype);
-        param_muts[nparam] = is_mut;
-        param_owns[nparam] = is_own;
+        Str *nm = tok_str(pname);
+        Str *tp = tok_str(ptype);
+        Vec_push(&pnames, &nm);
+        Vec_push(&ptypes, &tp);
+        Vec_push(&pmuts, &is_mut);
+        Vec_push(&powns, &is_own);
         // Optional default value: name: Type = expr
+        Expr *def_val = NULL;
         if (check(p, TOK_EQ)) {
             advance(p); // consume '='
-            param_defaults[nparam] = parse_expression(p);
-        } else {
-            param_defaults[nparam] = NULL;
+            def_val = parse_expression(p);
         }
-        nparam++;
+        Vec_push(&pdefs, &def_val);
         if (check(p, TOK_COMMA)) advance(p);
     }
     expect(p, TOK_RPAREN);
@@ -142,12 +134,12 @@ static Expr *parse_func_def(Parser *p) {
 
     Expr *def = expr_new(NODE_FUNC_DEF, kw->line, kw->col);
     def->data.func_def.func_type = ft;
-    def->data.func_def.param_names = param_names;
-    def->data.func_def.param_types = param_types;
-    def->data.func_def.param_muts = param_muts;
-    def->data.func_def.param_owns = param_owns;
-    def->data.func_def.param_defaults = param_defaults;
-    def->data.func_def.nparam = nparam;
+    def->data.func_def.nparam = pnames.len;
+    def->data.func_def.param_names = Vec_take(&pnames);
+    def->data.func_def.param_types = Vec_take(&ptypes);
+    def->data.func_def.param_muts = Vec_take(&pmuts);
+    def->data.func_def.param_owns = Vec_take(&powns);
+    def->data.func_def.param_defaults = Vec_take(&pdefs);
     def->data.func_def.return_type = return_type;
     def->data.func_def.return_is_ref = return_is_ref;
     def->data.func_def.is_variadic = has_variadic;
