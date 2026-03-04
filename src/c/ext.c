@@ -84,6 +84,10 @@ til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(t
 til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a || *b; return r; }
 til_Bool *til_Bool_not(til_Bool *a) { til_Bool *r = malloc(sizeof(til_Bool)); *r = !*a; return r; }
 
+// Bool clone/delete
+til_Bool *til_Bool_clone(til_Bool *v) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *v; return r; }
+void til_Bool_delete(til_Bool *v, til_Bool *call_free) { if (*call_free) free(v); }
+
 // ext_struct: Pair (test)
 til_I64 *til_Pair_sum(til_Pair *self) {
     til_I64 *r = malloc(sizeof(til_I64));

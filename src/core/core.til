@@ -78,7 +78,7 @@ Str : StructDef = ext_struct {
     starts_with := ext_func(a: Str, b: Str) returns Bool {}
     ends_with := ext_func(a: Str, b: Str) returns Bool {}
 }
-Bool : StructDef = struct {
+Bool : StructDef = ext_struct {
     namespace:
     to_str := func(b: Bool) returns Str {
         if b { return "true" } else { return "false" }
@@ -86,9 +86,8 @@ Bool : StructDef = struct {
     and := ext_func(a: Bool, b: Bool) returns Bool {}
     or := ext_func(a: Bool, b: Bool) returns Bool {}
     not := ext_func(a: Bool) returns Bool {}
-    clone := func(val: Bool) returns Bool {
-        return val.and(true)
-    }
+    clone := ext_func(val: Bool) returns Bool {}
+    delete := ext_proc(own self: Bool, call_free: Bool = true) {}
 }
 
 // builtin functions and procs

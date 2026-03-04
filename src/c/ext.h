@@ -76,6 +76,10 @@ til_Pair *til_Pair_swap(til_Pair *self);
 til_Pair *til_Pair_clone(til_Pair *self);
 void til_Pair_delete(til_Pair *self, til_Bool *call_free);
 
+// Bool clone/delete
+til_Bool *til_Bool_clone(til_Bool *v);
+void til_Bool_delete(til_Bool *v, til_Bool *call_free);
+
 // Variadic builtins
 Str *til_format(int n, ...);
 void til_println(int n, ...);
