@@ -67,15 +67,18 @@ I64 : StructDef = struct {
         return val.add(0)
     }
 }
-Str : StructDef = struct {
+Str : StructDef = ext_struct {
     namespace:
     eq := ext_func(a: Str, b: Str) returns Bool {}
-    concat := func(a: Str, b: Str) returns Str {
-        return format(a, b)
-    }
-    clone := func(val: Str) returns Str {
-        return format(val)
-    }
+    concat := ext_func(a: Str, b: Str) returns Str {}
+    clone := ext_func(val: Str) returns Str {}
+    delete := ext_proc(own self: Str, call_free: Bool = true) {}
+    to_str := ext_func(val: Str) returns Str {}
+    len := ext_func(val: Str) returns I64 {}
+    substr := ext_func(s: Str, start: I64, n: I64) returns Str {}
+    contains := ext_func(a: Str, b: Str) returns Bool {}
+    starts_with := ext_func(a: Str, b: Str) returns Bool {}
+    ends_with := ext_func(a: Str, b: Str) returns Bool {}
 }
 Bool : StructDef = struct {
     namespace:

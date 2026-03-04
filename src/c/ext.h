@@ -12,6 +12,15 @@ void til_exit(til_I64 *code);
 Str *til_I64_to_str(til_I64 *v);
 Str *til_U8_to_str(til_U8 *v);
 til_Bool *til_Str_eq(Str *a, Str *b);
+Str *til_Str_concat(Str *a, Str *b);
+Str *til_Str_clone(Str *s);
+void til_Str_delete(Str *s, til_Bool *call_free);
+Str *til_Str_to_str(Str *s);
+til_I64 *til_Str_len(Str *s);
+Str *til_Str_substr(Str *s, til_I64 *start, til_I64 *n);
+til_Bool *til_Str_contains(Str *a, Str *b);
+til_Bool *til_Str_starts_with(Str *a, Str *b);
+til_Bool *til_Str_ends_with(Str *a, Str *b);
 
 // I64 arithmetic
 til_I64 *til_I64_add(til_I64 *a, til_I64 *b);

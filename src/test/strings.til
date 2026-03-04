@@ -1,0 +1,78 @@
+mode script
+
+test_eq := proc() {
+    assert(loc(), "hello".eq("hello"))
+    assert(loc(), "hello".eq("world").not())
+    assert(loc(), "".eq(""))
+    assert(loc(), "a".eq("ab").not())
+}
+
+test_concat := proc() {
+    assert_eq_str(loc(), "hello".concat(" world"), "hello world")
+    assert_eq_str(loc(), "".concat("abc"), "abc")
+    assert_eq_str(loc(), "abc".concat(""), "abc")
+    assert_eq_str(loc(), "".concat(""), "")
+}
+
+test_clone := proc() {
+    s := "hello"
+    s2 := s.clone()
+    assert_eq_str(loc(), s2, "hello")
+    assert_eq_str(loc(), s, "hello")
+}
+
+test_to_str := proc() {
+    assert_eq_str(loc(), "hello".to_str(), "hello")
+    assert_eq_str(loc(), "".to_str(), "")
+}
+
+test_len := proc() {
+    assert_eq(loc(), "hello".len(), 5)
+    assert_eq(loc(), "".len(), 0)
+    assert_eq(loc(), "a".len(), 1)
+    assert_eq(loc(), "hello world".len(), 11)
+}
+
+test_substr := proc() {
+    assert_eq_str(loc(), "hello".substr(1, 3), "ell")
+    assert_eq_str(loc(), "hello".substr(0, 5), "hello")
+    assert_eq_str(loc(), "hello".substr(0, 0), "")
+    assert_eq_str(loc(), "hello".substr(4, 1), "o")
+    assert_eq_str(loc(), "hello".substr(0, 1), "h")
+}
+
+test_contains := proc() {
+    assert(loc(), "hello world".contains("world"))
+    assert(loc(), "hello".contains("hello"))
+    assert(loc(), "hello".contains(""))
+    assert(loc(), "hello".contains("ell"))
+    assert(loc(), "hello".contains("xyz").not())
+    assert(loc(), "".contains("a").not())
+    assert(loc(), "".contains(""))
+}
+
+test_starts_with := proc() {
+    assert(loc(), "hello".starts_with("hel"))
+    assert(loc(), "hello".starts_with("hello"))
+    assert(loc(), "hello".starts_with(""))
+    assert(loc(), "hello".starts_with("world").not())
+    assert(loc(), "hi".starts_with("hello").not())
+}
+
+test_ends_with := proc() {
+    assert(loc(), "hello".ends_with("llo"))
+    assert(loc(), "hello".ends_with("hello"))
+    assert(loc(), "hello".ends_with(""))
+    assert(loc(), "hello".ends_with("world").not())
+    assert(loc(), "hi".ends_with("hello").not())
+}
+
+test_eq()
+test_concat()
+test_clone()
+test_to_str()
+test_len()
+test_substr()
+test_contains()
+test_starts_with()
+test_ends_with()

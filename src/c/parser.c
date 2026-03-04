@@ -178,23 +178,6 @@ static Expr *parse_struct_def(Parser *p) {
     expect(p, TOK_RBRACE);
     expr_add_child(def, body);
 
-    // ext_struct validation: namespace methods must be ext_func/ext_proc only
-    if (is_ext) {
-        for (int i = 0; i < body->nchildren; i++) {
-            Expr *stmt = body->children[i];
-            if (stmt->type == NODE_DECL && stmt->data.decl.is_namespace) {
-                Expr *val = stmt->children[0];
-                if (val->type != NODE_FUNC_DEF ||
-                    (val->data.func_def.func_type != FUNC_EXT_FUNC &&
-                     val->data.func_def.func_type != FUNC_EXT_PROC)) {
-                    fprintf(stderr, "%s:%d:%d: parse error: ext_struct namespace can only contain ext_func/ext_proc\n",
-                            p->path, stmt->line, stmt->col);
-                    exit(1);
-                }
-            }
-        }
-    }
-
     return def;
 }
 

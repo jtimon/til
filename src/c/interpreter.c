@@ -283,7 +283,21 @@ static int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *p
     if (Str_eq_c(name, "Bool_not")) { Value a = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_not(a.boolean)}; return 1; }
 
     // Str ops
-    if (Str_eq_c(name, "Str_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Str_eq(a.str, b.str)}; return 1; }
+    if (Str_eq_c(name, "Str_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Str_eq(a.str, b.str)); return 1; }
+    if (Str_eq_c(name, "Str_concat")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_str(Str_concat(a.str, b.str)); return 1; }
+    if (Str_eq_c(name, "Str_clone")) { Value a = eval_expr(scope, e->children[1], path); *result = val_str(Str_clone(a.str)); return 1; }
+    if (Str_eq_c(name, "Str_delete")) {
+        Value s = eval_expr(scope, e->children[1], path);
+        Value cf = eval_expr(scope, e->children[2], path);
+        if (cf.boolean) Str_delete(s.str);
+        *result = val_none(); return 1;
+    }
+    if (Str_eq_c(name, "Str_to_str")) { Value a = eval_expr(scope, e->children[1], path); *result = val_str(Str_clone(a.str)); return 1; }
+    if (Str_eq_c(name, "Str_len")) { Value a = eval_expr(scope, e->children[1], path); *result = val_i64(Str_len(a.str)); return 1; }
+    if (Str_eq_c(name, "Str_substr")) { Value s = eval_expr(scope, e->children[1], path); Value start = eval_expr(scope, e->children[2], path); Value n = eval_expr(scope, e->children[3], path); *result = val_str(Str_substr(s.str, (int)*start.i64, (int)*n.i64)); return 1; }
+    if (Str_eq_c(name, "Str_contains")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Str_contains(a.str, b.str)); return 1; }
+    if (Str_eq_c(name, "Str_starts_with")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Str_starts_with(a.str, b.str)); return 1; }
+    if (Str_eq_c(name, "Str_ends_with")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(Str_ends_with(a.str, b.str)); return 1; }
 
     // Misc
     if (Str_eq_c(name, "exit")) { Value a = eval_expr(scope, e->children[1], path); til_exit(a.i64); *result = val_none(); return 1; }
@@ -333,17 +347,6 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         // Direct ext_func namespace method — dispatch by flat name
         FuncType fft = func_def->data.func_def.func_type;
         if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) {
-            // Check if this belongs to an ext_struct (not available in interpreter)
-            Str *sname = callee_expr->children[0]->struct_name;
-            if (sname) {
-                Cell *sc = scope_get(scope, sname);
-                if (sc && sc->val.type == VAL_FUNC && sc->val.func->type == NODE_STRUCT_DEF
-                    && sc->val.func->is_ext) {
-                    fprintf(stderr, "%s:%d:%d: runtime error: ext_struct method '%s.%s' not available in interpreter mode\n",
-                            path, e->line, e->col, sname->c_str, callee_expr->data.str_val->c_str);
-                    exit(1);
-                }
-            }
             static char flat_name_buf[256];
             int flen = snprintf(flat_name_buf, sizeof(flat_name_buf), "%s_%s",
                      callee_expr->children[0]->struct_name->c_str, callee_expr->data.str_val->c_str);

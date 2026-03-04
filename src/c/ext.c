@@ -24,6 +24,18 @@ til_Bool *til_Str_eq(Str *a, Str *b) {
     *r = Str_eq(a, b);
     return r;
 }
+Str *til_Str_concat(Str *a, Str *b) { return Str_concat(a, b); }
+Str *til_Str_clone(Str *s) { return Str_clone(s); }
+void til_Str_delete(Str *s, til_Bool *call_free) {
+    if (*call_free) Str_delete(s);
+    else free(s->c_str); // field context: free string data but not the struct
+}
+Str *til_Str_to_str(Str *s) { return Str_clone(s); }
+til_I64 *til_Str_len(Str *s) { til_I64 *r = malloc(sizeof(til_I64)); *r = Str_len(s); return r; }
+Str *til_Str_substr(Str *s, til_I64 *start, til_I64 *n) { return Str_substr(s, (int)*start, (int)*n); }
+til_Bool *til_Str_contains(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = Str_contains(a, b); return r; }
+til_Bool *til_Str_starts_with(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = Str_starts_with(a, b); return r; }
+til_Bool *til_Str_ends_with(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = Str_ends_with(a, b); return r; }
 
 // I64 arithmetic
 til_I64 *til_I64_add(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a + *b; return r; }
