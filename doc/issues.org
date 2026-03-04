@@ -205,6 +205,21 @@
    Replaced with pure til: if b { return "true" } else { return "false" }.
    Removed ext_func, C wrapper from ccodegen, and strcmp case from interpreter.
 
+** FIXED type aliases and PascalCase ext naming
+   Added typedefs in ext.h: til_I64, til_U8, til_Bool, c_str. Used everywhere
+   instead of raw C types. PascalCase function names (til_I64_add, til_U8_eq)
+   match what ccodegen naturally emits for namespace methods.
+
+** FIXED U8 stored as I64 in interpreter
+   Interpreter Value union now has a .u8 field (til_U8 *). No more storing
+   U8 values in .i64 with casts. All U8 handlers are clean one-liners.
+
+** FIXED trivial ext_func wrappers in core.til
+   Namespace methods that just wrapped an ext_func call (e.g. I64.add calling
+   i64_add) are now direct ext_func declarations. No wrapper generated in C,
+   call sites go straight to ext.c. Eliminates ~50 lines of boilerplate in
+   core.til and removes the double-call overhead.
+
 ** ccodegen: println/print special case (45 lines of type-aware printf)
    ccodegen has ~45 lines (ccodegen.c:81-126) of type-specific printf optimization:
    unwraps to_str() calls, emits bool ternaries, format specifiers per type, etc.
@@ -248,10 +263,12 @@
    could normalize this so all RHS values are either fcalls or idents, making
    declaration emission uniform.
 
-** interpreter: ~30 remaining strcmp checks for ext_func/ext_proc builtins
-   All non-variadic builtins now have their C implementations in ext.c, shared
-   by both backends. The interpreter still has strcmp dispatch to call them.
-   Could be replaced with a function pointer table to eliminate the strcmp chain.
+** interpreter: ~27 remaining strcmp checks for ext_func builtins
+   All non-variadic builtins have C implementations in ext.c with PascalCase
+   names (til_I64_add, til_U8_eq, etc.). The interpreter dispatches to them via
+   strcmp chain — including a redirect for direct ext_func namespace fields that
+   builds the flat name (e.g. I64 + add → "I64_add") and recurses into the
+   same dispatch. Could be replaced with a function pointer table.
    Remaining special cases: println, print (variadic, type-aware), format
    (variadic), free (accesses scope directly).
 

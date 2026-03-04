@@ -9,10 +9,17 @@
   NODE_IDENT access goes through value_deep_copy(), so reads are copies. NOT YET.
 
 * TRUE All values are heap-allocated in both backends
-  ccodegen: all types map to C pointers (long long *, int *, til_Point *, etc.).
+  ccodegen: all types map to C pointers (til_I64 *, til_U8 *, til_Point *, etc.).
   Declarations malloc+copy, function returns malloc, builtins malloc results.
-  interpreter: val_i64(), val_bool(), val_str() all malloc. Struct instances
+  interpreter: val_i64(), val_u8(), val_bool(), val_str() all malloc into
+  their own union fields (.i64, .u8, .boolean, .str). Struct instances
   and their fields are malloc'd. Cells containing values are malloc'd.
+
+* TRUE ext.h defines type aliases shared by both backends
+  typedef long long til_I64; typedef unsigned char til_U8; typedef int til_Bool;
+  typedef const char *c_str. Used in ext.c, interpreter.c (directly), and
+  ccodegen output (via #include "ext.h"). c_str not til_Str — reserved for
+  a future fat string struct with len/cap.
 
 * TRUE The typer rewrites the AST, not just type-checks it
   Desugars UFCS (instance.method) to namespace calls (Type.method), resolves
@@ -29,9 +36,11 @@
   procs can have side effects and don't return values.
 
 * TRUE ext_func and ext_proc declare builtins with C implementations
-  Declared in core.til with signatures only. Implementations live in C:
-  interpreter handles them as strcmp cases in eval_call, ccodegen emits
-  C wrapper functions (til_i64_add, til_println, etc.).
+  Declared in core.til — either as direct namespace fields (e.g. I64.add)
+  or at top-level (e.g. exit, free). Implementations live in ext.c with
+  PascalCase names (til_I64_add, til_Bool_not, etc.). Interpreter dispatches
+  via strcmp chain; ccodegen skips them (ext.c provides the symbol directly).
+  Direct namespace ext_funcs eliminated ~50 lines of trivial wrappers in core.til.
 
 * TRUE Variadic parameters (..Type) only work in ext_func and ext_proc
   format (..Str), println (..Str), and print (..Str) use variadic params.
