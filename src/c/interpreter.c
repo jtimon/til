@@ -382,33 +382,27 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         exit(1);
     }
 
-    // Struct instantiation: Point() or Point(x=1)
+    // Struct instantiation — typer already desugared named args to positional
     if (fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type == NODE_STRUCT_DEF) {
         Expr *sdef = fn_cell->val.func;
         Expr *body = sdef->children[0];
-        // Count instance fields (skip namespace)
         int nfields = 0;
-        for (int i = 0; i < body->nchildren; i++) {
+        for (int i = 0; i < body->nchildren; i++)
             if (!body->children[i]->data.decl.is_namespace) nfields++;
-        }
         StructInstance *inst = malloc(sizeof(StructInstance));
         inst->struct_name = name;
         inst->nfields = nfields;
         inst->field_names = malloc(nfields * sizeof(char *));
         inst->field_muts = malloc(nfields * sizeof(int));
         inst->field_values = malloc(nfields * sizeof(Value));
-        int arg_idx = 1; // index into desugared args
-        int fi = 0;      // index into instance fields
+        int arg_idx = 1;
+        int fi = 0;
         for (int i = 0; i < body->nchildren; i++) {
             Expr *field = body->children[i];
             if (field->data.decl.is_namespace) continue;
             inst->field_names[fi] = field->data.decl.name;
             inst->field_muts[fi] = field->data.decl.is_mut;
-            if (e->nchildren > 1) {
-                inst->field_values[fi] = eval_expr(scope, e->children[arg_idx++], path);
-            } else {
-                inst->field_values[fi] = eval_expr(scope, field->children[0], path);
-            }
+            inst->field_values[fi] = eval_expr(scope, e->children[arg_idx++], path);
             fi++;
         }
         return (Value){.type = VAL_STRUCT, .instance = inst};

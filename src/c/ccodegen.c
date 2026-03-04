@@ -81,13 +81,8 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             }
             fprintf(f, ")");
         } else if (e->struct_name && strcmp(name, e->struct_name) == 0) {
-            // Struct constructor — call generated _new function
-            fprintf(f, "til_%s_new(", e->struct_name);
-            for (int i = 1; i < e->nchildren; i++) {
-                if (i > 1) fprintf(f, ", ");
-                emit_as_ptr(f, e->children[i], depth);
-            }
-            fprintf(f, ")");
+            // Struct constructor — compound literal (handled in emit_stmt)
+            fprintf(f, "/* BUG: struct constructor in expr context */");
         } else {
             // User-defined function call
             fprintf(f, "til_%s(", name);
@@ -191,7 +186,20 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         } else {
             const char *ctype = c_type_name(e->til_type, e->children[0]->struct_name);
             Expr *rhs = e->children[0];
-            if (rhs->type == NODE_FCALL) {
+            if (rhs->type == NODE_FCALL && rhs->struct_name &&
+                strcmp(rhs->children[0]->data.str_val, rhs->struct_name) == 0) {
+                // Struct constructor — malloc + compound literal
+                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name, ctype);
+                if (rhs->nchildren > 1) {
+                    emit_indent(f, depth);
+                    fprintf(f, "*%s = (%s){", e->data.decl.name, ctype);
+                    for (int i = 1; i < rhs->nchildren; i++) {
+                        if (i > 1) fprintf(f, ", ");
+                        emit_deref(f, rhs->children[i], depth);
+                    }
+                    fprintf(f, "};\n");
+                }
+            } else if (rhs->type == NODE_FCALL) {
                 // Function calls already return a fresh heap pointer
                 fprintf(f, "%s *%s = ", ctype, e->data.decl.name);
                 emit_expr(f, rhs, depth);
@@ -225,15 +233,34 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         break;
     }
     case NODE_FCALL:
-        emit_expr(f, e, depth);
-        fprintf(f, ";\n");
+        if (e->struct_name && strcmp(e->children[0]->data.str_val, e->struct_name) == 0) {
+            // Bare struct constructor statement — discard result
+            fprintf(f, "/* discarded struct constructor */;\n");
+        } else {
+            emit_expr(f, e, depth);
+            fprintf(f, ";\n");
+        }
         break;
     case NODE_RETURN:
         if (e->nchildren == 0) {
             fprintf(f, "return;\n");
         } else {
             Expr *rv = e->children[0];
-            if (rv->type == NODE_LITERAL_STR || rv->type == NODE_LITERAL_NUM ||
+            if (rv->type == NODE_FCALL && rv->struct_name &&
+                strcmp(rv->children[0]->data.str_val, rv->struct_name) == 0) {
+                // Struct constructor return — malloc + compound literal
+                const char *ctype = c_type_name(rv->til_type, rv->struct_name);
+                fprintf(f, "{ %s *_r = malloc(sizeof(%s));", ctype, ctype);
+                if (rv->nchildren > 1) {
+                    fprintf(f, " *_r = (%s){", ctype);
+                    for (int i = 1; i < rv->nchildren; i++) {
+                        if (i > 1) fprintf(f, ", ");
+                        emit_deref(f, rv->children[i], depth);
+                    }
+                    fprintf(f, "};");
+                }
+                fprintf(f, " return _r; }\n");
+            } else if (rv->type == NODE_LITERAL_STR || rv->type == NODE_LITERAL_NUM ||
                 rv->type == NODE_LITERAL_BOOL) {
                 const char *ctype = c_type_name(rv->til_type, rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
@@ -397,35 +424,6 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
         emit_func_def(f, full_name, fdef, NULL);
         fprintf(f, "\n");
     }
-    // Emit constructor _new function (skip for primitives — no struct body)
-    if (!is_prim) {
-        int has_inst = 0;
-        for (int i = 0; i < body->nchildren; i++)
-            if (!body->children[i]->data.decl.is_namespace) { has_inst = 1; break; }
-        if (!has_inst) {
-            fprintf(f, "static til_%s *til_%s_new(void) {\n", name, name);
-            fprintf(f, "    return malloc(sizeof(til_%s));\n", name);
-            fprintf(f, "}\n\n");
-        } else {
-            fprintf(f, "static til_%s *til_%s_new(", name, name);
-            int first = 1;
-            for (int i = 0; i < body->nchildren; i++) {
-                Expr *field = body->children[i];
-                if (field->data.decl.is_namespace) continue;
-                if (!first) fprintf(f, ", ");
-                first = 0;
-                fprintf(f, "%s *%s", c_type_name(field->til_type, field->children[0]->struct_name), field->data.decl.name);
-            }
-            fprintf(f, ") {\n");
-            fprintf(f, "    til_%s *_r = malloc(sizeof(til_%s));\n", name, name);
-            for (int i = 0; i < body->nchildren; i++) {
-                Expr *field = body->children[i];
-                if (field->data.decl.is_namespace) continue;
-                fprintf(f, "    _r->%s = *%s;\n", field->data.decl.name, field->data.decl.name);
-            }
-            fprintf(f, "    return _r;\n}\n\n");
-        }
-    }
 }
 
 int codegen_c(Expr *program, const char *mode, const char *path, const char *c_output_path) {
@@ -482,26 +480,6 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
                     }
                 }
                 fprintf(f, ");\n");
-            }
-            // Forward-declare constructor _new (skip primitives — no struct body)
-            if (!is_ext_primitive(sname)) {
-                int has_inst = 0;
-                for (int j = 0; j < body->nchildren; j++)
-                    if (!body->children[j]->data.decl.is_namespace) { has_inst = 1; break; }
-                if (!has_inst) {
-                    fprintf(f, "static til_%s *til_%s_new(void);\n", sname, sname);
-                } else {
-                    fprintf(f, "static til_%s *til_%s_new(", sname, sname);
-                    int first = 1;
-                    for (int j = 0; j < body->nchildren; j++) {
-                        Expr *field = body->children[j];
-                        if (field->data.decl.is_namespace) continue;
-                        if (!first) fprintf(f, ", ");
-                        first = 0;
-                        fprintf(f, "%s *%s", c_type_name(field->til_type, field->children[0]->struct_name), field->data.decl.name);
-                    }
-                    fprintf(f, ");\n");
-                }
             }
         } else if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
             Expr *func_def = stmt->children[0];

@@ -194,7 +194,8 @@
   ccodegen's namespace convention. core.til uses direct ext_func namespace fields
   instead of func-wrapping-ext_func. println/print/format now live in ext.c as
   simple variadic C functions — the ..Str contract means all args are strings,
-  no type-switching needed. Remaining convergence work: value_deep_copy removal
+  no type-switching needed. Struct constructors use compound literals instead of
+  per-struct _new functions. Remaining convergence work: value_deep_copy removal
   needs all 4 clone sites (#0), and hoisting could normalize declarations/returns.
 
 ** FIXED ccodegen: free() special case
@@ -242,19 +243,13 @@
    (already emitted til_format(n, args...)). Interpreter handler unchanged
    (already Str-only). Generated C no longer needs <stdarg.h>.
 
-** ccodegen: struct constructors (til_X_new functions)
-   ccodegen emits per-struct til_X_new() constructor functions and special-cases
-   struct instantiation calls to route to them. These could be replaced with C99
-   compound literals at the call site: &(til_Point){.x = *x, .y = *y} instead
-   of til_Point_new(x, y). This would eliminate both the constructor functions
-   and the special-case dispatch.
-
-   Progress: ccodegen now generates _new for ALL structs including fieldless
-   ones (void params, malloc only). Empty struct typedefs use char padding to
-   avoid zero-size issues. Primitives (I64, U8, Bool, Str) skip _new since
-   they're typedefs not structs. However, marker types (StructDef, FunctionDef,
-   Dynamic) still get _new emitted even though they're never instantiated —
-   the scavenger (#6) would remove these.
+** FIXED ccodegen: struct constructors (til_X_new functions)
+   Replaced per-struct til_X_new() constructor functions with inline malloc +
+   C99 compound literals. ccodegen now emits `*var = (til_Type){f1, f2, ...}`
+   at statement level (NODE_DECL, NODE_RETURN, bare NODE_FCALL). Fieldless
+   structs just malloc without assignment. Removed ~47 lines of _new function
+   generation and forward declarations. Interpreter simplified to always use
+   positional args (typer desugaring fills all fields with defaults).
 
 ** ccodegen: literal return values need heap allocation
    When a function returns a literal (ccodegen.c:290-306), the codegen must
@@ -332,7 +327,7 @@
    | Declaration (y := x)   | *dest = *src         | scope_set_owned copies Value | FIXED  |
    | Assignment (y = x)     | *dest = *src         | cell->val = val              | FIXED  |
    | Field assign (o.f = x) | field = deref(val)   | field_values[i] = val        |        |
-   | Struct construction    | _r->field = *param   | field_values[fi] = eval(arg) |        |
+   | Struct construction    | compound literal val  | field_values[fi] = eval(arg) |        |
 
    Declarations and assignments: the typer now inserts Type.clone(x) when the
    RHS is a NODE_IDENT. Works for ALL types — primitives (I64, U8, Bool, Str)
