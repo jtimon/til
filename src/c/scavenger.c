@@ -157,12 +157,12 @@ void scavenge(Expr *program, Str *mode) {
     }
 
     // 4. BFS
-    Set visited = Set_new();
+    Set visited = Set_new(sizeof(Str *), str_ptr_cmp);
     int cursor = 0;
     while (cursor < worklist.len) {
         Str *name = ((Str **)worklist.data)[cursor++];
-        if (Set_has(&visited, name)) continue;
-        Set_add(&visited, name);
+        if (Set_has(&visited, &name)) continue;
+        Set_add(&visited, &name);
 
         // Top-level declaration?
         Expr *decl = map_get_expr(&top, name);
@@ -196,7 +196,8 @@ void scavenge(Expr *program, Str *mode) {
             (stmt->children[0]->type == NODE_FUNC_DEF ||
              stmt->children[0]->type == NODE_STRUCT_DEF ||
              stmt->children[0]->type == NODE_ENUM_DEF)) {
-            if (!Set_has(&visited, stmt->data.decl.name)) continue;
+            Str *dname = stmt->data.decl.name;
+            if (!Set_has(&visited, &dname)) continue;
         }
         program->children[w++] = stmt;
     }
@@ -215,7 +216,7 @@ void scavenge(Expr *program, Str *mode) {
             Expr *field = body->children[j];
             if (field->data.decl.is_namespace) {
                 Str *qn = qualified_name(sname, field->data.decl.name);
-                if (!Set_has(&visited, qn)) continue;
+                if (!Set_has(&visited, &qn)) continue;
             }
             body->children[bw++] = field;
         }

@@ -2,6 +2,9 @@
 #define MAP_H
 
 #include "ccore.h"
+#include "vec.h"
+
+typedef int (*CmpFn)(const void *a, const void *b);
 
 typedef struct {
     Str **keys;
@@ -19,15 +22,16 @@ int   Map_len(Map *m);
 void  Map_delete(Map *m);
 
 typedef struct {
-    Str **keys;
-    int len;
-    int cap;
+    Vec data;
+    CmpFn cmp;
 } Set;
 
-Set  Set_new(void);
-int  Set_has(Set *s, Str *key);
-void Set_add(Set *s, Str *key);
+Set  Set_new(int elem_size, CmpFn cmp);
+int  Set_has(Set *s, const void *elem);
+void Set_add(Set *s, const void *elem);
 int  Set_len(Set *s);
 void Set_delete(Set *s);
+
+int str_ptr_cmp(const void *a, const void *b);
 
 #endif

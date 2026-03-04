@@ -15,6 +15,7 @@ Str *Str_clone(Str *s);
 void Str_delete(Str *s);
 int Str_eq(Str *a, Str *b);
 int Str_eq_c(Str *a, const char *b);
+int Str_cmp(Str *a, Str *b);
 Str *Str_concat(Str *a, Str *b);
 Str *Str_to_str(Str *s);
 int Str_len(Str *s);

@@ -40,6 +40,10 @@ int Str_eq(Str *a, Str *b) {
     return memcmp(a->c_str, b->c_str, a->len) == 0;
 }
 
+int Str_cmp(Str *a, Str *b) {
+    return strcmp(a->c_str, b->c_str);
+}
+
 int Str_eq_c(Str *a, const char *b) {
     int blen = (int)strlen(b);
     if (a->len != blen) return 0;

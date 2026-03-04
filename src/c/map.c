@@ -69,36 +69,61 @@ void Map_delete(Map *m) {
     m->cap = 0;
 }
 
-Set Set_new(void) {
-    return (Set){.keys = NULL, .len = 0, .cap = 0};
+// Generic binary search over sorted void* array with comparator.
+static int sorted_find_generic(void *data, int len, int elem_size,
+                               CmpFn cmp, const void *elem, int *found) {
+    int lo = 0, hi = len;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        int c = cmp((char *)data + mid * elem_size, elem);
+        if (c < 0) lo = mid + 1;
+        else if (c > 0) hi = mid;
+        else { *found = 1; return mid; }
+    }
+    *found = 0;
+    return lo;
 }
 
-int Set_has(Set *s, Str *key) {
+Set Set_new(int elem_size, CmpFn cmp) {
+    return (Set){.data = Vec_new(elem_size), .cmp = cmp};
+}
+
+int Set_has(Set *s, const void *elem) {
     int found;
-    sorted_find(s->keys, s->len, key, &found);
+    sorted_find_generic(s->data.data, s->data.len, s->data.elem_size,
+                        s->cmp, elem, &found);
     return found;
 }
 
-void Set_add(Set *s, Str *key) {
+void Set_add(Set *s, const void *elem) {
     int found;
-    int i = sorted_find(s->keys, s->len, key, &found);
+    int es = s->data.elem_size;
+    int i = sorted_find_generic(s->data.data, s->data.len, es,
+                                s->cmp, elem, &found);
     if (found) return;
-    if (s->len >= s->cap) {
-        s->cap = s->cap ? s->cap * 2 : 16;
-        s->keys = realloc(s->keys, s->cap * sizeof(Str *));
+    // Grow if needed
+    if (s->data.len >= s->data.cap) {
+        s->data.cap = s->data.cap ? s->data.cap * 2 : 16;
+        s->data.data = realloc(s->data.data, s->data.cap * es);
     }
-    memmove(&s->keys[i + 1], &s->keys[i], (s->len - i) * sizeof(Str *));
-    s->keys[i] = key;
-    s->len++;
+    // Shift right and insert at sorted position
+    memmove((char *)s->data.data + (i + 1) * es,
+            (char *)s->data.data + i * es,
+            (s->data.len - i) * es);
+    memcpy((char *)s->data.data + i * es, elem, es);
+    s->data.len++;
 }
 
 int Set_len(Set *s) {
-    return s->len;
+    return s->data.len;
 }
 
 void Set_delete(Set *s) {
-    free(s->keys);
-    s->keys = NULL;
-    s->len = 0;
-    s->cap = 0;
+    Vec_delete(&s->data);
+}
+
+int str_ptr_cmp(const void *a, const void *b) {
+    Str *sa = *(Str *const *)a;
+    Str *sb = *(Str *const *)b;
+    return Str_cmp(sa, sb);
 }
