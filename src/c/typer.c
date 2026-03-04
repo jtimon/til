@@ -548,6 +548,9 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 int found = 0;
                 for (int i = 0; i < body->nchildren; i++) {
                     Expr *field = body->children[i];
+                    // Skip variant registry entries (non-namespace) in enum bodies
+                    if (sdef->type == NODE_ENUM_DEF && !field->data.decl.is_namespace)
+                        continue;
                     if (Str_eq(field->data.decl.name, fname)) {
                         e->til_type = field->til_type;
                         e->is_ns_field = field->data.decl.is_namespace;
@@ -1199,6 +1202,8 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
         Expr *stmt = body->children[i];
         switch (stmt->type) {
         case NODE_DECL:
+            // Skip variant registry entries (payload enum: no children)
+            if (stmt->nchildren == 0) break;
             infer_expr(scope, stmt->children[0], path, in_func);
             // For struct/enum defs, register type in scope
             if (stmt->children[0]->type == NODE_STRUCT_DEF ||

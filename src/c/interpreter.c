@@ -101,6 +101,91 @@ Cell *scope_get(Scope *s, Str *name) {
 
 // ext_function_dispatch is in dispatch.c
 
+// Check if an enum def has payload variants (any non-namespace decl with explicit_type)
+static int enum_has_payloads(Expr *enum_def) {
+    Expr *body = enum_def->children[0];
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *f = body->children[i];
+        if (f->type == NODE_DECL && !f->data.decl.is_namespace && f->data.decl.explicit_type)
+            return 1;
+    }
+    return 0;
+}
+
+// Find tag index for a variant name in an enum def (scan non-namespace entries)
+static int enum_variant_tag(Expr *enum_def, Str *variant_name) {
+    Expr *body = enum_def->children[0];
+    int tag = 0;
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *f = body->children[i];
+        if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
+            if (Str_eq(f->data.decl.name, variant_name)) return tag;
+            tag++;
+        }
+    }
+    return -1;
+}
+
+// Find payload type string for a variant (NULL if no payload)
+static Str *enum_variant_type(Expr *enum_def, int tag) {
+    Expr *body = enum_def->children[0];
+    int idx = 0;
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *f = body->children[i];
+        if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
+            if (idx == tag) return f->data.decl.explicit_type;
+            idx++;
+        }
+    }
+    return NULL;
+}
+
+// Deep-clone a Value for payload enum operations
+static Value clone_value(Value v) {
+    switch (v.type) {
+    case VAL_I64:  return val_i64(*v.i64);
+    case VAL_U8:   return val_u8(*v.u8);
+    case VAL_STR:  return val_str(Str_clone(v.str));
+    case VAL_BOOL: return val_bool(*v.boolean);
+    case VAL_ENUM: return val_enum(v.enum_inst->enum_name, v.enum_inst->tag,
+                                    clone_value(v.enum_inst->payload));
+    case VAL_NONE: return val_none();
+    default:       return val_none();
+    }
+}
+
+// Free a Value's heap memory
+static void free_value(Value v) {
+    switch (v.type) {
+    case VAL_I64:  free(v.i64); break;
+    case VAL_U8:   free(v.u8); break;
+    case VAL_STR:  Str_delete(v.str); break;
+    case VAL_BOOL: free(v.boolean); break;
+    case VAL_ENUM:
+        free_value(v.enum_inst->payload);
+        free(v.enum_inst);
+        break;
+    default: break;
+    }
+}
+
+// Compare two Values for equality
+static int values_equal(Value a, Value b) {
+    if (a.type != b.type) return 0;
+    switch (a.type) {
+    case VAL_I64:  return *a.i64 == *b.i64;
+    case VAL_U8:   return *a.u8 == *b.u8;
+    case VAL_STR:  return Str_eq(a.str, b.str);
+    case VAL_BOOL: return *a.boolean == *b.boolean;
+    case VAL_ENUM:
+        if (a.enum_inst->tag != b.enum_inst->tag) return 0;
+        return values_equal(a.enum_inst->payload, b.enum_inst->payload);
+    case VAL_NONE:
+        return 1;
+    default:       return 0;
+    }
+}
+
 // --- Eval ---
 
 static void eval_body(Scope *scope, Expr *body, const char *path);
@@ -121,27 +206,77 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         // Direct ext_func namespace method — dispatch by flat name
         FuncType fft = func_def->data.func_def.func_type;
         if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) {
-            // Enum ext methods: handle generically (eq, clone, delete)
+            // Enum ext methods: handle generically
             Str *parent_sname = callee_expr->children[0]->struct_name;
             if (parent_sname) {
                 Cell *tc = scope_get(scope, parent_sname);
                 if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_ENUM_DEF) {
+                    Expr *enum_def = tc->val.func;
+                    int hp = enum_has_payloads(enum_def);
                     Str *method = callee_expr->data.str_val;
-                    if (Str_eq_c(method, "eq")) {
-                        Value a = eval_expr(scope, e->children[1], path);
-                        Value b = eval_expr(scope, e->children[2], path);
-                        return val_bool(*a.i64 == *b.i64);
-                    }
-                    if (Str_eq_c(method, "clone")) {
-                        Value v = eval_expr(scope, e->children[1], path);
-                        return val_i64(*v.i64);
-                    }
-                    if (Str_eq_c(method, "delete")) {
-                        Value v = eval_expr(scope, e->children[1], path);
-                        if (v.type == VAL_NONE) return val_none();
-                        Value cf = eval_expr(scope, e->children[2], path);
-                        if (*cf.boolean) free(v.i64);
-                        return val_none();
+
+                    if (!hp) {
+                        // Simple enum (Phase 1)
+                        if (Str_eq_c(method, "eq")) {
+                            Value a = eval_expr(scope, e->children[1], path);
+                            Value b = eval_expr(scope, e->children[2], path);
+                            return val_bool(*a.i64 == *b.i64);
+                        }
+                        if (Str_eq_c(method, "clone")) {
+                            Value v = eval_expr(scope, e->children[1], path);
+                            return val_i64(*v.i64);
+                        }
+                        if (Str_eq_c(method, "delete")) {
+                            Value v = eval_expr(scope, e->children[1], path);
+                            if (v.type == VAL_NONE) return val_none();
+                            Value cf = eval_expr(scope, e->children[2], path);
+                            if (*cf.boolean) free(v.i64);
+                            return val_none();
+                        }
+                    } else {
+                        // Payload enum (Phase 2)
+
+                        // Constructor: Token.Num(val) → VAL_ENUM
+                        int ctor_tag = enum_variant_tag(enum_def, method);
+                        if (ctor_tag >= 0 && enum_variant_type(enum_def, ctor_tag)) {
+                            Value payload = eval_expr(scope, e->children[1], path);
+                            return val_enum(parent_sname, ctor_tag, clone_value(payload));
+                        }
+
+                        // eq
+                        if (Str_eq_c(method, "eq")) {
+                            Value a = eval_expr(scope, e->children[1], path);
+                            Value b = eval_expr(scope, e->children[2], path);
+                            return val_bool(values_equal(a, b));
+                        }
+                        // clone
+                        if (Str_eq_c(method, "clone")) {
+                            Value v = eval_expr(scope, e->children[1], path);
+                            return clone_value(v);
+                        }
+                        // delete
+                        if (Str_eq_c(method, "delete")) {
+                            Value v = eval_expr(scope, e->children[1], path);
+                            if (v.type == VAL_NONE) return val_none();
+                            Value cf = eval_expr(scope, e->children[2], path);
+                            if (*cf.boolean) free_value(v);
+                            return val_none();
+                        }
+                        // is_Variant
+                        if (method->len > 3 && memcmp(method->c_str, "is_", 3) == 0) {
+                            Str var_name = {.c_str = method->c_str + 3, .len = method->len - 3};
+                            int tag = enum_variant_tag(enum_def, &var_name);
+                            Value v = eval_expr(scope, e->children[1], path);
+                            if (v.type == VAL_ENUM)
+                                return val_bool(v.enum_inst->tag == tag);
+                            // Simple I64 variant in payload enum
+                            return val_bool((int)*v.i64 == tag);
+                        }
+                        // get_Variant
+                        if (method->len > 4 && memcmp(method->c_str, "get_", 4) == 0) {
+                            Value v = eval_expr(scope, e->children[1], path);
+                            return clone_value(v.enum_inst->payload);
+                        }
                     }
                 }
             }
@@ -516,11 +651,19 @@ void interpreter_init_ns(Scope *global, Expr *program, const char *path) {
         if (stmt->type == NODE_DECL && (stmt->children[0]->type == NODE_STRUCT_DEF ||
                                         stmt->children[0]->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
-            Expr *body = stmt->children[0]->children[0];
+            Expr *edef = stmt->children[0];
+            int hp = (edef->type == NODE_ENUM_DEF) ? enum_has_payloads(edef) : 0;
+            Expr *body = edef->children[0];
             for (int j = 0; j < body->nchildren; j++) {
                 Expr *field = body->children[j];
                 if (field->data.decl.is_namespace) {
                     Value fval = eval_expr(global, field->children[0], path);
+                    // For payload enums, convert no-payload variant I64 to VAL_ENUM
+                    if (hp && fval.type == VAL_I64) {
+                        int tag = (int)*fval.i64;
+                        free(fval.i64);
+                        fval = val_enum(sname, tag, val_none());
+                    }
                     ns_set(sname, field->data.decl.name, fval);
                 }
             }

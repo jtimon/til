@@ -216,6 +216,7 @@ static void process_body(Scope *scope, Expr *body, KnownMap *known,
 
         switch (stmt->type) {
         case NODE_DECL:
+            if (stmt->nchildren == 0) break; // variant registry (payload enums)
             if (stmt->children[0]->type == NODE_FUNC_DEF ||
                 stmt->children[0]->type == NODE_STRUCT_DEF ||
                 stmt->children[0]->type == NODE_ENUM_DEF) {
@@ -290,7 +291,7 @@ void precomp(Expr *program, const char *path) {
     func_names = NULL; func_count = 0; func_cap = 0;
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
-        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_FUNC_DEF) {
+        if (stmt->type == NODE_DECL && stmt->nchildren > 0 && stmt->children[0]->type == NODE_FUNC_DEF) {
             FuncType ft = stmt->children[0]->data.func_def.func_type;
             if (ft == FUNC_MACRO) {
                 if (macro_count == macro_cap) {

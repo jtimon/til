@@ -1,5 +1,89 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #9 Tagged unions (enums): enum definitions with optional payloads
+  til lacks enums and unions. Tagged unions (like Rust enums) combine both:
+  variants are named alternatives, optionally carrying a payload. Essential
+  for translating C code to til (C uses enums + unions extensively).
+
+  Syntax follows struct conventions — EnumDef type annotation is optional
+  (inferred from enum keyword). Trailing commas allowed.
+
+    Color := enum { Red, Green, Blue }
+
+    Token := enum {
+        Num: I64,
+        Name: Str,
+        Eof,
+    }
+
+  Variants are accessed as namespace members: Color.Red, Color.Green.
+  Payload variants are constructed as calls: Token.Num(42).
+  Payload extraction via auto-generated is_Variant / get_Variant methods
+  (no match statement yet).
+
+  Enums have a namespace section just like structs, separated by
+  namespace:. The initer auto-generates clone, delete, eq, and to_str
+  if missing, same as structs.
+
+** FIXED Phase 1: simple enums (no payloads)
+   Variants are named integer constants (0, 1, 2, ...). Internally stored
+   as I64. Namespace access for construction: Color.Red.
+
+   Implemented:
+   - AST: NODE_ENUM_DEF, TIL_TYPE_ENUM, TIL_TYPE_ENUM_DEF
+   - Parser: parse_enum_def() — comma-separated variants, optional
+     namespace: section (same separator as structs)
+   - Initer: register enum defs, generate variant namespace fields (I64
+     constants 0,1,2...), auto-generate eq/clone/delete (ext_func/ext_proc)
+     and to_str (pure func with if-chain). Skips if user provides their own.
+   - Typer: TIL_TYPE_ENUM alongside TIL_TYPE_STRUCT everywhere (13 sites),
+     EnumDef type, enum variant type override in field access
+   - Interpreter: enum ext method dispatch (eq/clone/delete), scope
+     registration and init_ns for NODE_ENUM_DEF
+   - ccodegen: emit_enum_def (typedef long long, variant value globals,
+     eq/clone/delete C implementations), forward declarations, variant
+     initialization in main
+   - scavenger/precomp: NODE_ENUM_DEF alongside NODE_STRUCT_DEF
+   - Test: src/test/enums.til (basic enum, eq, to_str, clone, func params,
+     namespace section with custom method)
+
+** FIXED Phase 2: payloads (tagged unions)
+   Variants can carry typed payloads. Internally a tag + payload value.
+   Simple enums (no payloads) keep their Phase 1 I64 representation.
+   Payload extraction uses auto-generated per-variant is_/get_ methods.
+
+   Detection: an enum has payloads if any variant has explicit_type set.
+   Variant registry entries (non-namespace, nchildren==0) kept in body
+   for downstream code to scan variant names, types, and tag indices.
+
+   Implemented:
+   - Parser: Variant: Type syntax in parse_enum_def — peek for TOK_COLON
+     after variant ident, parse type into explicit_type
+   - interpreter.h: VAL_ENUM, EnumInstance { enum_name, tag, payload },
+     val_enum() helper
+   - Initer: payload enum detection (has_payloads flag), ext_func
+     constructors for payload variants, I64 literals for no-payload
+     variants, is_Variant/get_Variant ext_funcs, to_str using is_/get_
+     pattern, eq/clone/delete ext_func/ext_proc declarations
+   - Typer: skip variant registry entries (nchildren==0) in infer_body
+     and field access lookup (skip non-namespace entries in enum bodies)
+   - Interpreter: enum dispatch branching on has_payloads — constructor
+     dispatch (clone payload into VAL_ENUM), is_Variant (tag comparison),
+     get_Variant (clone payload), eq (values_equal), clone (clone_value),
+     delete (free_value). Helper functions: enum_has_payloads,
+     enum_variant_tag, enum_variant_type, clone_value, free_value,
+     values_equal. interpreter_init_ns converts I64 tags to VAL_ENUM
+     for no-payload variants in payload enums.
+   - ccodegen: tag enum + struct with union for payload enums. Constructor
+     functions clone payload. is_/get_ functions, eq/clone/delete with
+     switch on tag. Forward declarations for all generated methods.
+     Compound literal init for no-payload variant globals.
+   - dispatch.c: VAL_ENUM case in free function
+   - precomp.c: skip childless variant entries in process_body and
+     top-level loop
+   - Test: src/test/enums.til (construction, is_Variant, get_Variant,
+     to_str, eq, clone, payload enum in func params)
+
 * FIXED #7 Precomp phase: compile-time macro evaluation and constant folding
   A precomp phase (between typer and scavenger) that evaluates macros and
   pure func calls at compile time, replacing them with literal results.

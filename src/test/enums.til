@@ -35,3 +35,46 @@ Direction := enum {
 }
 test(loc(), Direction.Up.is_vertical(), "Up is vertical")
 test(loc(), Direction.Left.is_vertical().not(), "Left not vertical")
+
+# --- payload enums ---
+
+Token := enum { Num: I64, Name: Str, Eof }
+
+# construction
+t := Token.Num(42)
+t2 := Token.Eof
+t3 := Token.Name("hello")
+
+# is_Variant
+test(loc(), t.is_Num(), "Num is_Num")
+test(loc(), t.is_Eof().not(), "Num not is_Eof")
+test(loc(), t2.is_Eof(), "Eof is_Eof")
+test(loc(), t3.is_Name(), "Name is_Name")
+
+# get_Variant
+assert_eq(loc(), t.get_Num(), 42)
+assert_eq_str(loc(), t3.get_Name(), "hello")
+
+# to_str
+assert_eq_str(loc(), t.to_str(), "Num(42)")
+assert_eq_str(loc(), t2.to_str(), "Eof")
+assert_eq_str(loc(), t3.to_str(), "Name(hello)")
+
+# eq
+test(loc(), t.eq(Token.Num(42)), "Num(42) eq Num(42)")
+test(loc(), t.eq(Token.Num(99)).not(), "Num(42) neq Num(99)")
+test(loc(), t.eq(Token.Eof).not(), "Num neq Eof")
+test(loc(), t2.eq(Token.Eof), "Eof eq Eof")
+
+# clone
+t4 := Token.Num(7)
+assert_eq(loc(), t4.get_Num(), 7)
+
+# payload enum in func params
+get_tag_name := func(tok: Token) returns Str {
+    if tok.is_Num() { return "num" }
+    if tok.is_Name() { return "name" }
+    return "eof"
+}
+assert_eq_str(loc(), get_tag_name(Token.Num(1)), "num")
+assert_eq_str(loc(), get_tag_name(Token.Eof), "eof")

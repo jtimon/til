@@ -19,9 +19,11 @@ typedef enum {
     VAL_BOOL,
     VAL_FUNC,   // pointer to a func/proc AST node
     VAL_STRUCT, // struct instance
+    VAL_ENUM,   // enum instance (tagged union with optional payload)
 } ValType;
 
 typedef struct StructInstance StructInstance;
+typedef struct EnumInstance EnumInstance;
 typedef struct Value Value;
 
 struct StructInstance {
@@ -41,7 +43,14 @@ struct Value {
         til_Bool *boolean;
         Expr *func;
         StructInstance *instance;
+        EnumInstance *enum_inst;
     };
+};
+
+struct EnumInstance {
+    Str *enum_name;
+    int tag;
+    Value payload;  // VAL_NONE for no-payload variants
 };
 
 static inline Value val_none(void) {
@@ -51,6 +60,13 @@ static inline Value val_i64(til_I64 v) { til_I64 *p = malloc(sizeof(til_I64)); *
 static inline Value val_u8(long long v) { til_U8 *p = malloc(sizeof(til_U8)); *p = (til_U8)(v & 0xFF); return (Value){.type = VAL_U8, .u8 = p}; }
 static inline Value val_bool(til_Bool v) { til_Bool *p = malloc(sizeof(til_Bool)); *p = v; return (Value){.type = VAL_BOOL, .boolean = p}; }
 static inline Value val_str(Str *v) { return (Value){.type = VAL_STR, .str = v}; }
+static inline Value val_enum(Str *enum_name, int tag, Value payload) {
+    EnumInstance *ei = malloc(sizeof(EnumInstance));
+    ei->enum_name = enum_name;
+    ei->tag = tag;
+    ei->payload = payload;
+    return (Value){.type = VAL_ENUM, .enum_inst = ei};
+}
 
 // --- Cells ---
 

@@ -208,10 +208,15 @@ static Expr *parse_enum_def(Parser *p) {
             }
             expr_add_child(body, stmt);
         } else {
-            // Variant: bare identifier, comma-separated
+            // Variant: bare identifier or Variant: Type, comma-separated
             Token *name = expect(p, TOK_IDENT);
             Expr *variant = expr_new(NODE_DECL, name->line, name->col);
             variant->data.decl.name = tok_str(name);
+            if (check(p, TOK_COLON)) {
+                advance(p);
+                Token *ptype = expect(p, TOK_IDENT);
+                variant->data.decl.explicit_type = tok_str(ptype);
+            }
             expr_add_child(body, variant);
             if (check(p, TOK_COMMA)) advance(p);
         }

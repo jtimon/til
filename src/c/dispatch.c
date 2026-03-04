@@ -131,6 +131,14 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
             til_free(cell->val.instance->field_muts);
             til_free(cell->val.instance->field_values);
             til_free(cell->val.instance);
+        } else if (cell->val.type == VAL_ENUM && cell->val.enum_inst) {
+            // Free payload if present, then the instance
+            Value p = cell->val.enum_inst->payload;
+            if (p.type == VAL_I64)  til_free(p.i64);
+            else if (p.type == VAL_U8)   til_free(p.u8);
+            else if (p.type == VAL_BOOL) til_free(p.boolean);
+            else if (p.type == VAL_STR)  Str_delete(p.str);
+            til_free(cell->val.enum_inst);
         } else if (cell->val.type == VAL_I64) {
             til_free(cell->val.i64);
         } else if (cell->val.type == VAL_U8) {

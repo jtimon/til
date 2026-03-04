@@ -396,36 +396,133 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         Expr *body = stmt->children[0]->children[0]; // NODE_BODY
 
-        // Collect variant names (non-namespace entries) and generate namespace fields
+        // Collect variant info (names + optional payload types)
         int nvariants = 0;
         Str **variant_names = NULL;
+        Str **variant_types = NULL; // NULL for no-payload variants
+        int has_payloads = 0;
         for (int j = 0; j < body->nchildren; j++) {
             if (body->children[j]->data.decl.is_namespace) continue;
             nvariants++;
             variant_names = realloc(variant_names, nvariants * sizeof(Str *));
+            variant_types = realloc(variant_types, nvariants * sizeof(Str *));
             variant_names[nvariants - 1] = body->children[j]->data.decl.name;
+            variant_types[nvariants - 1] = body->children[j]->data.decl.explicit_type;
+            if (body->children[j]->data.decl.explicit_type) has_payloads = 1;
         }
 
-        // Add namespace I64 fields for each variant
-        for (int j = 0; j < nvariants; j++) {
-            Expr *vdecl = expr_new(NODE_DECL, line, col);
-            vdecl->data.decl.name = variant_names[j];
-            vdecl->data.decl.is_namespace = true;
-            char buf[32];
-            snprintf(buf, sizeof(buf), "%d", j);
-            Expr *lit = expr_new(NODE_LITERAL_NUM, line, col);
-            lit->data.str_val = Str_new(buf);
-            expr_add_child(vdecl, lit);
-            expr_add_child(body, vdecl);
-        }
+        if (!has_payloads) {
+            // === SIMPLE ENUM (Phase 1 path — no payloads) ===
 
-        // Remove original non-namespace variant markers (compact in place)
-        int bw = 0;
-        for (int j = 0; j < body->nchildren; j++) {
-            if (body->children[j]->data.decl.is_namespace)
-                body->children[bw++] = body->children[j];
+            // Add namespace I64 fields for each variant
+            for (int j = 0; j < nvariants; j++) {
+                Expr *vdecl = expr_new(NODE_DECL, line, col);
+                vdecl->data.decl.name = variant_names[j];
+                vdecl->data.decl.is_namespace = true;
+                char buf[32];
+                snprintf(buf, sizeof(buf), "%d", j);
+                Expr *lit = expr_new(NODE_LITERAL_NUM, line, col);
+                lit->data.str_val = Str_new(buf);
+                expr_add_child(vdecl, lit);
+                expr_add_child(body, vdecl);
+            }
+
+            // Remove original non-namespace variant markers (compact in place)
+            int bw = 0;
+            for (int j = 0; j < body->nchildren; j++) {
+                if (body->children[j]->data.decl.is_namespace)
+                    body->children[bw++] = body->children[j];
+            }
+            body->nchildren = bw;
+        } else {
+            // === PAYLOAD ENUM (Phase 2 path) ===
+            // Keep original variant markers as registry (don't compact)
+
+            for (int j = 0; j < nvariants; j++) {
+                if (variant_types[j]) {
+                    // Payload variant: ext_func constructor
+                    // e.g. Num := ext_func(val: I64) returns Token {}
+                    Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+                    fdef->data.func_def.func_type = FUNC_EXT_FUNC;
+                    fdef->data.func_def.nparam = 1;
+                    fdef->data.func_def.param_names = malloc(sizeof(Str *));
+                    fdef->data.func_def.param_names[0] = Str_new("val");
+                    fdef->data.func_def.param_types = malloc(sizeof(Str *));
+                    fdef->data.func_def.param_types[0] = variant_types[j];
+                    fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
+                    fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
+                    fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
+                    fdef->data.func_def.return_type = ename;
+                    fdef->data.func_def.is_variadic = false;
+                    expr_add_child(fdef, expr_new(NODE_BODY, line, col));
+                    Expr *decl = expr_new(NODE_DECL, line, col);
+                    decl->data.decl.name = variant_names[j];
+                    decl->data.decl.is_namespace = true;
+                    expr_add_child(decl, fdef);
+                    expr_add_child(body, decl);
+                } else {
+                    // No-payload variant: I64 tag value
+                    Expr *vdecl = expr_new(NODE_DECL, line, col);
+                    vdecl->data.decl.name = variant_names[j];
+                    vdecl->data.decl.is_namespace = true;
+                    char buf[32];
+                    snprintf(buf, sizeof(buf), "%d", j);
+                    Expr *lit = expr_new(NODE_LITERAL_NUM, line, col);
+                    lit->data.str_val = Str_new(buf);
+                    expr_add_child(vdecl, lit);
+                    expr_add_child(body, vdecl);
+                }
+            }
+
+            // Generate is_Variant ext_func for every variant
+            for (int j = 0; j < nvariants; j++) {
+                char name_buf[256];
+                snprintf(name_buf, sizeof(name_buf), "is_%s", variant_names[j]->c_str);
+                Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+                fdef->data.func_def.func_type = FUNC_EXT_FUNC;
+                fdef->data.func_def.nparam = 1;
+                fdef->data.func_def.param_names = malloc(sizeof(Str *));
+                fdef->data.func_def.param_names[0] = Str_new("self");
+                fdef->data.func_def.param_types = malloc(sizeof(Str *));
+                fdef->data.func_def.param_types[0] = ename;
+                fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
+                fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
+                fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
+                fdef->data.func_def.return_type = Str_new("Bool");
+                fdef->data.func_def.is_variadic = false;
+                expr_add_child(fdef, expr_new(NODE_BODY, line, col));
+                Expr *decl = expr_new(NODE_DECL, line, col);
+                decl->data.decl.name = Str_new(name_buf);
+                decl->data.decl.is_namespace = true;
+                expr_add_child(decl, fdef);
+                expr_add_child(body, decl);
+            }
+
+            // Generate get_Variant ext_func for payload variants
+            for (int j = 0; j < nvariants; j++) {
+                if (!variant_types[j]) continue;
+                char name_buf[256];
+                snprintf(name_buf, sizeof(name_buf), "get_%s", variant_names[j]->c_str);
+                Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+                fdef->data.func_def.func_type = FUNC_EXT_FUNC;
+                fdef->data.func_def.nparam = 1;
+                fdef->data.func_def.param_names = malloc(sizeof(Str *));
+                fdef->data.func_def.param_names[0] = Str_new("self");
+                fdef->data.func_def.param_types = malloc(sizeof(Str *));
+                fdef->data.func_def.param_types[0] = ename;
+                fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
+                fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
+                fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
+                fdef->data.func_def.return_type = variant_types[j];
+                fdef->data.func_def.is_variadic = false;
+                expr_add_child(fdef, expr_new(NODE_BODY, line, col));
+                Expr *decl = expr_new(NODE_DECL, line, col);
+                decl->data.decl.name = Str_new(name_buf);
+                decl->data.decl.is_namespace = true;
+                expr_add_child(decl, fdef);
+                expr_add_child(body, decl);
+            }
         }
-        body->nchildren = bw;
 
         // Check existing methods
         int has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
@@ -517,37 +614,100 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         if (!has_to_str) {
             Expr *func_body = expr_new(NODE_BODY, line, col);
             for (int j = 0; j < nvariants; j++) {
-                // if self.eq(EnumName.VariantName) { return "VariantName" }
-                Expr *self_id = expr_new(NODE_IDENT, line, col);
-                self_id->data.str_val = Str_new("self");
-                Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col);
-                eq_acc->data.str_val = Str_new("eq");
-                expr_add_child(eq_acc, self_id);
+                if (has_payloads) {
+                    // Payload enum to_str uses is_/get_ methods
+                    // if self.is_Variant() { ... }
+                    Expr *self_id = expr_new(NODE_IDENT, line, col);
+                    self_id->data.str_val = Str_new("self");
+                    char is_buf[256];
+                    snprintf(is_buf, sizeof(is_buf), "is_%s", variant_names[j]->c_str);
+                    Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                    is_acc->data.str_val = Str_new(is_buf);
+                    expr_add_child(is_acc, self_id);
+                    Expr *is_call = expr_new(NODE_FCALL, line, col);
+                    expr_add_child(is_call, is_acc);
 
-                // EnumName.VariantName
-                Expr *ename_id = expr_new(NODE_IDENT, line, col);
-                ename_id->data.str_val = ename;
-                Expr *var_acc = expr_new(NODE_FIELD_ACCESS, line, col);
-                var_acc->data.str_val = variant_names[j];
-                expr_add_child(var_acc, ename_id);
+                    Expr *then_body = expr_new(NODE_BODY, line, col);
+                    if (variant_types[j]) {
+                        // return format("Variant(", self.get_Variant().to_str(), ")")
+                        Expr *fmt_call = expr_new(NODE_FCALL, line, col);
+                        Expr *fmt_id = expr_new(NODE_IDENT, line, col);
+                        fmt_id->data.str_val = Str_new("format");
+                        expr_add_child(fmt_call, fmt_id);
 
-                // self.eq(EnumName.VariantName)
-                Expr *eq_call = expr_new(NODE_FCALL, line, col);
-                expr_add_child(eq_call, eq_acc);
-                expr_add_child(eq_call, var_acc);
+                        char prefix_buf[256];
+                        snprintf(prefix_buf, sizeof(prefix_buf), "%s(", variant_names[j]->c_str);
+                        Expr *prefix = expr_new(NODE_LITERAL_STR, line, col);
+                        prefix->data.str_val = Str_new(prefix_buf);
+                        expr_add_child(fmt_call, prefix);
 
-                // return "VariantName"
-                Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col);
-                ret_str->data.str_val = variant_names[j];
-                Expr *ret = expr_new(NODE_RETURN, line, col);
-                expr_add_child(ret, ret_str);
-                Expr *then_body = expr_new(NODE_BODY, line, col);
-                expr_add_child(then_body, ret);
+                        // self.get_Variant().to_str()
+                        Expr *self2 = expr_new(NODE_IDENT, line, col);
+                        self2->data.str_val = Str_new("self");
+                        char get_buf[256];
+                        snprintf(get_buf, sizeof(get_buf), "get_%s", variant_names[j]->c_str);
+                        Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                        get_acc->data.str_val = Str_new(get_buf);
+                        expr_add_child(get_acc, self2);
+                        Expr *get_call = expr_new(NODE_FCALL, line, col);
+                        expr_add_child(get_call, get_acc);
+                        Expr *tostr_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                        tostr_acc->data.str_val = Str_new("to_str");
+                        expr_add_child(tostr_acc, get_call);
+                        Expr *tostr_call = expr_new(NODE_FCALL, line, col);
+                        expr_add_child(tostr_call, tostr_acc);
+                        expr_add_child(fmt_call, tostr_call);
 
-                Expr *if_node = expr_new(NODE_IF, line, col);
-                expr_add_child(if_node, eq_call);
-                expr_add_child(if_node, then_body);
-                expr_add_child(func_body, if_node);
+                        Expr *suffix = expr_new(NODE_LITERAL_STR, line, col);
+                        suffix->data.str_val = Str_new(")");
+                        expr_add_child(fmt_call, suffix);
+
+                        Expr *ret = expr_new(NODE_RETURN, line, col);
+                        expr_add_child(ret, fmt_call);
+                        expr_add_child(then_body, ret);
+                    } else {
+                        // return "VariantName"
+                        Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col);
+                        ret_str->data.str_val = variant_names[j];
+                        Expr *ret = expr_new(NODE_RETURN, line, col);
+                        expr_add_child(ret, ret_str);
+                        expr_add_child(then_body, ret);
+                    }
+
+                    Expr *if_node = expr_new(NODE_IF, line, col);
+                    expr_add_child(if_node, is_call);
+                    expr_add_child(if_node, then_body);
+                    expr_add_child(func_body, if_node);
+                } else {
+                    // Simple enum: if self.eq(EnumName.VariantName) { return "VariantName" }
+                    Expr *self_id = expr_new(NODE_IDENT, line, col);
+                    self_id->data.str_val = Str_new("self");
+                    Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                    eq_acc->data.str_val = Str_new("eq");
+                    expr_add_child(eq_acc, self_id);
+
+                    Expr *ename_id = expr_new(NODE_IDENT, line, col);
+                    ename_id->data.str_val = ename;
+                    Expr *var_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                    var_acc->data.str_val = variant_names[j];
+                    expr_add_child(var_acc, ename_id);
+
+                    Expr *eq_call = expr_new(NODE_FCALL, line, col);
+                    expr_add_child(eq_call, eq_acc);
+                    expr_add_child(eq_call, var_acc);
+
+                    Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col);
+                    ret_str->data.str_val = variant_names[j];
+                    Expr *ret = expr_new(NODE_RETURN, line, col);
+                    expr_add_child(ret, ret_str);
+                    Expr *then_body = expr_new(NODE_BODY, line, col);
+                    expr_add_child(then_body, ret);
+
+                    Expr *if_node = expr_new(NODE_IF, line, col);
+                    expr_add_child(if_node, eq_call);
+                    expr_add_child(if_node, then_body);
+                    expr_add_child(func_body, if_node);
+                }
             }
             // return "unknown"
             Expr *unk = expr_new(NODE_LITERAL_STR, line, col);
@@ -578,6 +738,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         }
 
         free(variant_names);
+        free(variant_types);
     }
 
     // Pass 2: register all func/proc definitions
