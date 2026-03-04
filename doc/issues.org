@@ -189,6 +189,13 @@
   The ccodegen and interpreter should be as similar and minimal as possible.
   The typer/initer should do more AST rewriting so backends can be dumb and uniform.
 
+  Pattern emerging: ext.c is the shared runtime, ext.h is the shared type system.
+  Builtins move from inline backend code → ext.c with PascalCase names matching
+  ccodegen's namespace convention. core.til uses direct ext_func namespace fields
+  instead of func-wrapping-ext_func. Three blockers remain for full convergence:
+  variadics (#8) block println/print/format desugaring, value_deep_copy removal
+  needs all 4 clone sites (#0), and hoisting could normalize declarations/returns.
+
 ** FIXED ccodegen: free() special case
    Moved to ext.c as til_free(). ccodegen generic call path handles it.
    Interpreter also uses til_free() from ext.c.
@@ -226,20 +233,24 @@
    The interpreter has its own ~30-line version (interpreter.c:231-263).
    The typer could desugar println so both backends handle it uniformly — e.g.
    ensure all args are Str before reaching the backends, or desugar to per-arg
-   print calls.
+   print calls. Blocked by #8 (variadic) — println/print are ext_proc(..Str),
+   desugaring would need to handle variadic calls.
 
 ** ccodegen: println/print unwrap_to_str optimization
    The unwrap_to_str() helper (ccodegen.c:17-36) detects to_str() calls inside
    println/print args and bypasses the string conversion to print values directly.
    This is an optimization that adds complexity. If println is desugared in the
    typer to always receive Str args, this optimization becomes unnecessary.
+   Also blocked by #8 — once variadics work in regular funcs, println could
+   become a til proc that calls a single-arg ext_proc for each element.
 
 ** ccodegen: format() special case
    ccodegen special-cases format() to prepend the arg count (ccodegen.c:131-137):
    format(a, b) -> til_format(2, a, b). The typer could insert the count as a
-   literal first arg during desugaring, eliminating the special case.
+   literal first arg during desugaring, eliminating the special case. Also
+   blocked by #8 — format is ext_func(..Str).
 
-** ccodegen: struct constructors (til_new_X functions)
+** ccodegen: struct constructors (til_X_new functions)
    ccodegen emits per-struct til_X_new() constructor functions and special-cases
    struct instantiation calls to route to them. These could be replaced with C99
    compound literals at the call site: &(til_Point){.x = *x, .y = *y} instead
@@ -248,29 +259,35 @@
 
    Progress: ccodegen now generates _new for ALL structs including fieldless
    ones (void params, malloc only). Empty struct typedefs use char padding to
-   avoid zero-size issues. Previously fieldless structs had no _new, which
-   broke fieldless struct clone in ccodegen.
+   avoid zero-size issues. Primitives (I64, U8, Bool, Str) skip _new since
+   they're typedefs not structs. However, marker types (StructDef, FunctionDef,
+   Dynamic) still get _new emitted even though they're never instantiated —
+   the scavenger (#6) would remove these.
 
 ** ccodegen: literal return values need heap allocation
    When a function returns a literal (ccodegen.c:290-306), the codegen must
    malloc+copy because literals aren't heap-allocated. The hoisting pass could
    convert all return-value literals into temporaries beforehand, making return
-   emission uniform.
+   emission uniform. This and the declaration branching below are related —
+   both are cases where hoisting could normalize all values to fcalls or idents.
 
 ** ccodegen: declaration emission branches on RHS type
    Declaration emission (ccodegen.c:250-266) branches: if RHS is NODE_FCALL,
    just assign (already a pointer); otherwise malloc+copy. The hoisting pass
    could normalize this so all RHS values are either fcalls or idents, making
-   declaration emission uniform.
+   declaration emission uniform. Combined with literal return hoisting above,
+   this would make ccodegen's value handling much simpler.
 
 ** interpreter: ~27 remaining strcmp checks for ext_func builtins
    All non-variadic builtins have C implementations in ext.c with PascalCase
    names (til_I64_add, til_U8_eq, etc.). The interpreter dispatches to them via
    strcmp chain — including a redirect for direct ext_func namespace fields that
    builds the flat name (e.g. I64 + add → "I64_add") and recurses into the
-   same dispatch. Could be replaced with a function pointer table.
-   Remaining special cases: println, print (variadic, type-aware), format
-   (variadic), free (accesses scope directly).
+   same dispatch. Could be replaced with a function pointer table keyed by the
+   flat name, mapping directly to ext.c symbols. The PascalCase naming makes
+   this natural: the table key matches the ext.c function name after til_ prefix.
+   Remaining special cases that can't use the table: println, print (variadic,
+   type-aware), format (variadic, inserts arg count), free (accesses scope).
 
 ** interpreter: free() accesses variable cell directly
    The interpreter's free() handler (interpreter.c:508-524) assumes the argument
