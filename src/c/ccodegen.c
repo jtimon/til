@@ -5,6 +5,17 @@
 
 static Expr *codegen_program; // set during codegen for struct lookups
 
+// Find struct body (NODE_BODY) by struct name in the program
+static Expr *find_struct_body(Str *name) {
+    for (int i = 0; i < codegen_program->nchildren; i++) {
+        Expr *stmt = codegen_program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF &&
+            Str_eq(stmt->data.decl.name, name)) {
+            return stmt->children[0]->children[0]; // NODE_BODY
+        }
+    }
+    return NULL;
+}
 
 // --- Emitter helpers ---
 
@@ -96,7 +107,8 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             fprintf(f, "til_%s_%s", obj->struct_name->c_str, fname->c_str);
         } else {
             emit_expr(f, obj, depth);
-            fprintf(f, "%s%s", obj->type == NODE_FIELD_ACCESS ? "." : "->", fname->c_str);
+            int use_dot = (obj->type == NODE_FIELD_ACCESS && !obj->is_own_field);
+            fprintf(f, "%s%s", use_dot ? "." : "->", fname->c_str);
         }
         break;
     }
@@ -160,9 +172,13 @@ static void emit_as_ptr(FILE *f, Expr *e, int depth) {
     if (e->type == NODE_IDENT || e->type == NODE_FCALL || e->type == NODE_LITERAL_STR) {
         emit_expr(f, e, depth);
     } else if (e->type == NODE_FIELD_ACCESS) {
-        // Struct/Str field: take address directly (fields are embedded values)
-        fprintf(f, "&");
-        emit_expr(f, e, depth);
+        // Own field is already a pointer; inline field needs address-of
+        if (e->is_own_field) {
+            emit_expr(f, e, depth);
+        } else {
+            fprintf(f, "&");
+            emit_expr(f, e, depth);
+        }
     } else {
         const char *ctype = c_type_name(e->til_type, e->struct_name);
         fprintf(f, "&(%s){", ctype);
@@ -197,9 +213,26 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
                 if (rhs->nchildren > 1) {
                     emit_indent(f, depth);
                     fprintf(f, "*%s = (%s){", e->data.decl.name->c_str, ctype);
+                    Expr *sbody = find_struct_body(rhs->struct_name);
+                    int fi = 0;
                     for (int i = 1; i < rhs->nchildren; i++) {
                         if (i > 1) fprintf(f, ", ");
-                        emit_deref(f, rhs->children[i], depth);
+                        int is_own = 0;
+                        if (sbody) {
+                            // Find the fi-th instance field
+                            for (; fi < sbody->nchildren; fi++) {
+                                if (!sbody->children[fi]->data.decl.is_namespace) {
+                                    is_own = sbody->children[fi]->data.decl.is_own;
+                                    fi++;
+                                    break;
+                                }
+                            }
+                        }
+                        if (is_own) {
+                            emit_expr(f, rhs->children[i], depth);
+                        } else {
+                            emit_deref(f, rhs->children[i], depth);
+                        }
                     }
                     fprintf(f, "};\n");
                 }
@@ -230,9 +263,14 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             fprintf(f, "til_%s_%s = ", obj->struct_name->c_str, fname->c_str);
         } else {
             emit_expr(f, obj, depth);
-            fprintf(f, "%s%s = ", obj->type == NODE_FIELD_ACCESS ? "." : "->", fname->c_str);
+            int use_dot = (obj->type == NODE_FIELD_ACCESS && !obj->is_own_field);
+            fprintf(f, "%s%s = ", use_dot ? "." : "->", fname->c_str);
         }
-        emit_deref(f, e->children[1], depth);
+        if (e->is_own_field) {
+            emit_expr(f, e->children[1], depth);
+        } else {
+            emit_deref(f, e->children[1], depth);
+        }
         fprintf(f, ";\n");
         break;
     }
@@ -257,9 +295,25 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s));", ctype, ctype);
                 if (rv->nchildren > 1) {
                     fprintf(f, " *_r = (%s){", ctype);
+                    Expr *sbody = find_struct_body(rv->struct_name);
+                    int fi = 0;
                     for (int i = 1; i < rv->nchildren; i++) {
                         if (i > 1) fprintf(f, ", ");
-                        emit_deref(f, rv->children[i], depth);
+                        int is_own = 0;
+                        if (sbody) {
+                            for (; fi < sbody->nchildren; fi++) {
+                                if (!sbody->children[fi]->data.decl.is_namespace) {
+                                    is_own = sbody->children[fi]->data.decl.is_own;
+                                    fi++;
+                                    break;
+                                }
+                            }
+                        }
+                        if (is_own) {
+                            emit_expr(f, rv->children[i], depth);
+                        } else {
+                            emit_deref(f, rv->children[i], depth);
+                        }
                     }
                     fprintf(f, "};");
                 }
@@ -390,7 +444,9 @@ static void emit_struct_def(FILE *f, Str *name, Expr *struct_def) {
         for (int i = 0; i < body->nchildren; i++) {
             Expr *field = body->children[i];
             if (field->data.decl.is_namespace) continue;
-            if (field->til_type == TIL_TYPE_STRUCT && field->children[0]->struct_name) {
+            if (field->data.decl.is_own && field->til_type == TIL_TYPE_STRUCT && field->children[0]->struct_name) {
+                fprintf(f, "    til_%s *%s;\n", field->children[0]->struct_name->c_str, field->data.decl.name->c_str);
+            } else if (field->til_type == TIL_TYPE_STRUCT && field->children[0]->struct_name) {
                 fprintf(f, "    til_%s %s;\n", field->children[0]->struct_name->c_str, field->data.decl.name->c_str);
             } else {
                 fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);

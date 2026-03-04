@@ -63,6 +63,7 @@ struct Expr {
             bool is_mut;
             bool is_namespace;     // true for fields after namespace: in a struct
             bool is_ref;           // true for ref declarations (borrowed, no delete)
+            bool is_own;           // true for own field declarations (heap pointer)
         } decl;
         struct {                    // for FUNC_DEF
             FuncType func_type;
@@ -79,6 +80,7 @@ struct Expr {
     } data;
     Str *struct_name;               // for TIL_TYPE_STRUCT: which struct type
     bool is_own_arg;                // true if this arg was marked 'own' at call site
+    bool is_own_field;              // NODE_FIELD_ACCESS/ASSIGN: field is 'own' (pointer)
     bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
     bool is_ext;                    // NODE_STRUCT_DEF: externally-implemented struct
     Expr **children;                // malloc'd array of child pointers

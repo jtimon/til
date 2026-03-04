@@ -284,15 +284,18 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         }
         if (has_delete) continue;
 
-        // Collect instance field names
+        // Collect instance field names and own flags
         int nfields = 0;
         Str **field_names = NULL;
+        int *field_owns = NULL;
         for (int j = 0; j < body->nchildren; j++) {
             Expr *field = body->children[j];
             if (field->type == NODE_DECL && !field->data.decl.is_namespace) {
                 nfields++;
                 field_names = realloc(field_names, nfields * sizeof(Str *));
                 field_names[nfields - 1] = field->data.decl.name;
+                field_owns = realloc(field_owns, nfields * sizeof(int));
+                field_owns[nfields - 1] = field->data.decl.is_own;
             }
         }
 
@@ -300,7 +303,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         int col = stmt->col;
         Expr *proc_body = expr_new(NODE_BODY, line, col);
 
-        // For each field: self.field.delete(call_free=false)
+        // For each field: self.field.delete(call_free=<true for own, false for inline>)
         for (int j = 0; j < nfields; j++) {
             Expr *self_id = expr_new(NODE_IDENT, line, col);
             self_id->data.str_val = Str_new("self");
@@ -315,10 +318,10 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             Expr *del_call = expr_new(NODE_FCALL, line, col);
             expr_add_child(del_call, del_acc);
 
-            // call_free=false (inline field, don't free individually)
-            Expr *false_lit = expr_new(NODE_LITERAL_BOOL, line, col);
-            false_lit->data.str_val = Str_new("false");
-            expr_add_child(del_call, false_lit);
+            // call_free=true for own fields (separate allocation), false for inline
+            Expr *cf_lit = expr_new(NODE_LITERAL_BOOL, line, col);
+            cf_lit->data.str_val = Str_new(field_owns[j] ? "true" : "false");
+            expr_add_child(del_call, cf_lit);
 
             expr_add_child(proc_body, del_call);
         }
@@ -374,6 +377,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         // Add to struct body
         expr_add_child(body, decl);
         free(field_names);
+        free(field_owns);
     }
 
     // Pass 2: register all func/proc definitions

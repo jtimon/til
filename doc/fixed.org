@@ -1,0 +1,32 @@
+# Fixed issues moved from issues.org.
+
+* FIXED #3 own keyword for struct fields: heap-allocated owned pointers
+  :DEPENDENCIES: #0
+  Struct fields are normally inline (contiguous in parent allocation).
+  An own field stores a heap pointer instead. Clone recursively clones it,
+  delete recursively deletes it (with call_free=true).
+
+  Syntax: own field := default, own mut field := default.
+
+    Line := struct {
+        own start := Point(x=0, y=0)
+        own end := Point(x=0, y=0)
+    }
+
+  What was done:
+  - ast.h: is_own on decl, is_own_field on Expr (field access/assign nodes)
+  - parser.c: own keyword in struct body (merged with existing call-site own
+    via lookahead to distinguish declaration vs expression)
+  - initer.c: auto-generated delete passes call_free=true for own fields
+  - typer.c: marks is_own_field on field access/assign. ASAP recognizes own
+    field constructor args and own field assignments as ownership transfers
+    (fcall_has_own_arg for struct constructors, expr_transfers_own for field
+    assigns). Inserts Type.delete(obj.field, true) before own field
+    reassignment to free the old value.
+  - ccodegen.c: struct typedef emits pointer (til_Point *start), compound
+    literal stores pointer directly (not deref), field access uses -> through
+    own fields, emit_as_ptr skips & for own fields, field assign emits
+    pointer assign.
+  - Interpreter: no changes needed (all struct instances are heap Values).
+  - Tests: src/test/own_fields.til (access, defaults, clone, nested assign,
+    replace, clone independence).

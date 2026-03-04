@@ -547,6 +547,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     if (Str_eq(field->data.decl.name, fname)) {
                         e->til_type = field->til_type;
                         e->is_ns_field = field->data.decl.is_namespace;
+                        e->is_own_field = field->data.decl.is_own;
                         if (field->til_type == TIL_TYPE_STRUCT) {
                             e->struct_name = field->children[0]->struct_name;
                         } else {
@@ -794,6 +795,72 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, int
     return call;
 }
 
+// Build Type.delete(obj.field, true) for own field reassignment
+static Expr *make_own_field_delete(Expr *field_assign) {
+    Expr *rhs = field_assign->children[1];
+    const char *tname = type_to_name(rhs->til_type, rhs->struct_name);
+    if (!tname) return NULL;
+    int line = field_assign->line, col = field_assign->col;
+
+    Expr *call = expr_new(NODE_FCALL, line, col);
+    call->til_type = TIL_TYPE_NONE;
+
+    Expr *type_id = expr_new(NODE_IDENT, line, col);
+    type_id->data.str_val = Str_new(tname);
+    type_id->struct_name = Str_new(tname);
+
+    Expr *fa = expr_new(NODE_FIELD_ACCESS, line, col);
+    fa->data.str_val = Str_new("delete");
+    fa->is_ns_field = true;
+    expr_add_child(fa, type_id);
+    expr_add_child(call, fa);
+
+    // arg: obj.field_name (clone the obj expr, build field access)
+    Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+    field_acc->data.str_val = field_assign->data.str_val;
+    field_acc->is_own_field = true;
+    field_acc->til_type = rhs->til_type;
+    field_acc->struct_name = rhs->struct_name;
+    expr_add_child(field_acc, expr_clone(field_assign->children[0]));
+    expr_add_child(call, field_acc);
+
+    Expr *true_lit = expr_new(NODE_LITERAL_BOOL, line, col);
+    true_lit->data.str_val = Str_new("true");
+    true_lit->til_type = TIL_TYPE_BOOL;
+    expr_add_child(call, true_lit);
+
+    return call;
+}
+
+// Insert delete calls before own field reassignments
+static void insert_own_field_deletes(Expr *body) {
+    Expr **new_ch = NULL;
+    int new_n = 0, changed = 0;
+
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *stmt = body->children[i];
+        if (stmt->type == NODE_FIELD_ASSIGN && stmt->is_own_field) {
+            Expr *del = make_own_field_delete(stmt);
+            if (del) {
+                new_n++;
+                new_ch = realloc(new_ch, new_n * sizeof(Expr *));
+                new_ch[new_n - 1] = del;
+                changed = 1;
+            }
+        }
+        new_n++;
+        new_ch = realloc(new_ch, new_n * sizeof(Expr *));
+        new_ch[new_n - 1] = stmt;
+    }
+    if (changed) {
+        free(body->children);
+        body->children = new_ch;
+        body->nchildren = new_n;
+    } else {
+        free(new_ch);
+    }
+}
+
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, int line, int col) {
     Expr *call = expr_new(NODE_FCALL, line, col);
     call->til_type = type;
@@ -848,6 +915,27 @@ static int check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
 
 static int fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
     if (fcall->type != NODE_FCALL || fcall->nchildren < 2) return 0;
+    // Struct constructor: check if var is in an own field position
+    if (fcall->struct_name && fcall->children[0]->type == NODE_IDENT &&
+        Str_eq(fcall->children[0]->data.str_val, fcall->struct_name)) {
+        Expr *sdef = tscope_get_struct(scope, fcall->struct_name);
+        if (sdef) {
+            Expr *body = sdef->children[0];
+            int fi = 0;
+            for (int i = 0; i < body->nchildren; i++) {
+                if (body->children[i]->type != NODE_DECL ||
+                    body->children[i]->data.decl.is_namespace) continue;
+                int arg_idx = fi + 1;
+                fi++;
+                if (arg_idx < fcall->nchildren &&
+                    fcall->children[arg_idx]->type == NODE_IDENT &&
+                    Str_eq(fcall->children[arg_idx]->data.str_val, var_name) &&
+                    body->children[i]->data.decl.is_own) {
+                    return 1;
+                }
+            }
+        }
+    }
     // Direct call: look up func def in scope
     if (fcall->children[0]->type == NODE_IDENT) {
         Str *fn_name = fcall->children[0]->data.str_val;
@@ -878,6 +966,12 @@ static int fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
 static int expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
     if (e->type == NODE_FUNC_DEF) return 0;
     if (fcall_has_own_arg(e, var_name, scope)) return 1;
+    // Own field assignment: RHS ownership transfers to the field
+    if (e->type == NODE_FIELD_ASSIGN && e->is_own_field &&
+        e->children[1]->type == NODE_IDENT &&
+        Str_eq(e->children[1]->data.str_val, var_name)) {
+        return 1;
+    }
     for (int i = 0; i < e->nchildren; i++) {
         if (expr_transfers_own(e->children[i], var_name, scope)) return 1;
     }
@@ -1272,6 +1366,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                         if (Str_eq(field->data.decl.name, fname)) {
                             found = 1;
                             stmt->is_ns_field = field->data.decl.is_namespace;
+                            stmt->is_own_field = field->data.decl.is_own;
                             if (!field->data.decl.is_mut) {
                                 char buf[128];
                                 snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname->c_str);
@@ -1433,6 +1528,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
         }
     }
     if (owns_scope) hoist_fcall_args(body, scope);
+    insert_own_field_deletes(body);
     insert_free_calls(body, scope, owns_scope, path);
 }
 

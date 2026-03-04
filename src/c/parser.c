@@ -320,7 +320,7 @@ static Expr *parse_expression(Parser *p) {
 }
 
 // parse_statement_ident: identifier is current token
-static Expr *parse_statement_ident(Parser *p, int is_mut) {
+static Expr *parse_statement_ident(Parser *p, int is_mut, int is_own) {
     Token *t = advance(p); // consume identifier
     Str *name = tok_str(t);
 
@@ -331,6 +331,7 @@ static Expr *parse_statement_ident(Parser *p, int is_mut) {
         decl->data.decl.name = name;
         decl->data.decl.explicit_type = NULL;
         decl->data.decl.is_mut = is_mut;
+        decl->data.decl.is_own = is_own;
         expr_add_child(decl, parse_expression(p));
         return decl;
     }
@@ -346,6 +347,7 @@ static Expr *parse_statement_ident(Parser *p, int is_mut) {
         decl->data.decl.name = name;
         decl->data.decl.explicit_type = type_name;
         decl->data.decl.is_mut = is_mut;
+        decl->data.decl.is_own = is_own;
         expr_add_child(decl, parse_expression(p));
         return decl;
     }
@@ -432,7 +434,7 @@ static Expr *parse_statement(Parser *p) {
 
     switch (t->type) {
     case TOK_IDENT:
-        return parse_statement_ident(p, 0);
+        return parse_statement_ident(p, 0, 0);
     case TOK_REF: {
         advance(p); // consume 'ref'
         Token *ident = expect(p, TOK_IDENT);
@@ -446,7 +448,7 @@ static Expr *parse_statement(Parser *p) {
     }
     case TOK_MUT: {
         advance(p); // consume 'mut'
-        return parse_statement_ident(p, 1);
+        return parse_statement_ident(p, 1, 0);
     }
     case TOK_RETURN: {
         advance(p);
@@ -496,8 +498,26 @@ static Expr *parse_statement(Parser *p) {
     }
     case TOK_OWN: {
         advance(p); // consume 'own'
+        // own field declaration: own name := value  or  own mut name := value
+        if (check(p, TOK_IDENT) || check(p, TOK_MUT)) {
+            int own_mut = 0;
+            if (check(p, TOK_MUT)) { advance(p); own_mut = 1; }
+            if (check(p, TOK_IDENT)) {
+                Token *next = &p->tokens[p->pos + 1];
+                if (next->type == TOK_COLONEQ || next->type == TOK_COLON) {
+                    return parse_statement_ident(p, own_mut, 1);
+                }
+            }
+            // Not a declaration — fall through to own expression
+            if (own_mut) {
+                // We consumed 'mut' but it's not a declaration — error
+                fprintf(stderr, "%s:%d:%d: parse error: expected identifier after 'own mut'\n",
+                        p->path, t->line, t->col);
+                exit(1);
+            }
+        }
+        // own expression (call-site ownership marker)
         Expr *expr = parse_expression(p);
-        // Walk to leftmost primary and mark as own
         Expr *primary = expr;
         while (primary->nchildren > 0 &&
                (primary->type == NODE_FCALL || primary->type == NODE_FIELD_ACCESS)) {
