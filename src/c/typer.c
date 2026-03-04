@@ -1126,8 +1126,10 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
             snprintf(buf, sizeof(buf), "use of '%s' after ownership transfer", locals[j].name->c_str);
             type_error(path, stmt, buf);
             Expr *xfer = body->children[locals[j].own_transfer];
-            fprintf(stderr, "%s:%d:%d: note: ownership of '%s' transferred here — use clone before this call to keep using it\n",
-                    path, xfer->line, xfer->col, locals[j].name->c_str);
+            fprintf(stderr, "%s:%d:%d: note: ownership transferred here\n",
+                    path, xfer->line, xfer->col);
+            fprintf(stderr, "  help: pass a clone instead: own %s.clone()\n",
+                    locals[j].name->c_str);
         }
     }
 

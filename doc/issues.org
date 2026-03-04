@@ -309,16 +309,18 @@
 
 ** FIXED Use-after-own error: catch transferred variables at compile time
    The typer detects use of a variable after ownership transfer via `own` and
-   emits two lines: the error at the use site, and a note at the transfer site
-   suggesting clone as an alternative.
+   emits three lines: the error at the use site, a note at the transfer site,
+   and a help line showing the fix pattern (own var.clone()).
 
-** Clone responsibility: clarify when the user must clone explicitly
-   ASAP handles deletion automatically, but cloning is the user's responsibility
-   in some cases. If a function needs to keep a value that was passed by ref,
-   it must clone it. The rules should be clear and enforced:
+** FIXED Clone responsibility: clarify when the user must clone explicitly
+   The use-after-own error message now explains the fix concretely:
+     error: use of 'x' after ownership transfer
+     note: ownership transferred here
+     help: pass a clone instead: own x.clone()
+   Rules are enforced by the typer:
    - Passing by ref (default): caller keeps ownership, callee borrows
-   - Passing with own: caller gives up ownership
-   - If callee wants to store a ref arg beyond its scope, it must clone
+   - Passing with own: caller gives up ownership, use after is a type error
+   - To keep using after own: pass own x.clone() instead
 
 ** ASAP edge cases
    ASAP works for straightforward code but may have edge cases:
