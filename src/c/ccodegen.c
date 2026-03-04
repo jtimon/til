@@ -892,14 +892,15 @@ int compile_c(const char *c_path, const char *bin_path, const char *ext_c_path) 
         snprintf(ext_dir, sizeof(ext_dir), ".");
     }
 
-    // Build the cc command — also compile ccore.c (str, i64, etc.)
-    char ccore_c_path[256];
+    // Build the cc command — also compile str.c and ccore.c
+    char str_c_path[256], ccore_c_path[256];
+    snprintf(str_c_path, sizeof(str_c_path), "%s/str.c", ext_dir);
     snprintf(ccore_c_path, sizeof(ccore_c_path), "%s/ccore.c", ext_dir);
-    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s",
-                       ext_dir, bin_path, c_path, ext_c_path, ccore_c_path);
+    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s %s",
+                       ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path);
     char *cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s",
-             ext_dir, bin_path, c_path, ext_c_path, ccore_c_path);
+    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s %s",
+             ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path);
 
     int result = system(cmd);
     free(cmd);

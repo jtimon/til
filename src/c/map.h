@@ -1,7 +1,7 @@
 #ifndef MAP_H
 #define MAP_H
 
-#include "ccore.h"
+#include "str.h"
 #include "vec.h"
 
 typedef int (*CmpFn)(const void *a, const void *b);
