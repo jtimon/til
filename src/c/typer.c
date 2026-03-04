@@ -859,8 +859,9 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, int
     return call;
 }
 
-// Build Type.delete(obj.field, true) for own field reassignment
-static Expr *make_own_field_delete(Expr *field_assign) {
+// Build Type.delete(obj.field, call_free) for field reassignment.
+// is_own: true for own (pointer) fields, false for inline (value) fields.
+static Expr *make_field_delete(Expr *field_assign, int is_own) {
     Expr *rhs = field_assign->children[1];
     const char *tname = type_to_name(rhs->til_type, rhs->struct_name);
     if (!tname) return NULL;
@@ -882,34 +883,45 @@ static Expr *make_own_field_delete(Expr *field_assign) {
     // arg: obj.field_name (clone the obj expr, build field access)
     Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col);
     field_acc->data.str_val = field_assign->data.str_val;
-    field_acc->is_own_field = true;
+    field_acc->is_own_field = is_own;
     field_acc->til_type = rhs->til_type;
     field_acc->struct_name = rhs->struct_name;
     expr_add_child(field_acc, expr_clone(field_assign->children[0]));
     expr_add_child(call, field_acc);
 
-    Expr *true_lit = expr_new(NODE_LITERAL_BOOL, line, col);
-    true_lit->data.str_val = Str_new("true");
-    true_lit->til_type = TIL_TYPE_BOOL;
-    expr_add_child(call, true_lit);
+    Expr *cf_lit = expr_new(NODE_LITERAL_BOOL, line, col);
+    cf_lit->data.str_val = Str_new(is_own ? "true" : "false");
+    cf_lit->til_type = TIL_TYPE_BOOL;
+    expr_add_child(call, cf_lit);
 
     return call;
 }
 
-// Insert delete calls before own field reassignments
-static void insert_own_field_deletes(Expr *body) {
+// Insert delete calls before field reassignments (own and inline compound)
+static void insert_field_deletes(Expr *body) {
     Expr **new_ch = NULL;
     int new_n = 0, changed = 0;
 
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
-        if (stmt->type == NODE_FIELD_ASSIGN && stmt->is_own_field) {
-            Expr *del = make_own_field_delete(stmt);
-            if (del) {
-                new_n++;
-                new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                new_ch[new_n - 1] = del;
-                changed = 1;
+        if (stmt->type == NODE_FIELD_ASSIGN) {
+            int need_delete = 0;
+            int is_own = stmt->is_own_field;
+            if (is_own) {
+                need_delete = 1;
+            } else {
+                TilType ft = stmt->children[1]->til_type;
+                if (ft == TIL_TYPE_STR || ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM)
+                    need_delete = 1;
+            }
+            if (need_delete) {
+                Expr *del = make_field_delete(stmt, is_own);
+                if (del) {
+                    new_n++;
+                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
+                    new_ch[new_n - 1] = del;
+                    changed = 1;
+                }
             }
         }
         new_n++;
@@ -1627,7 +1639,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
         }
     }
     if (owns_scope) hoist_fcall_args(body, scope);
-    insert_own_field_deletes(body);
+    insert_field_deletes(body);
     insert_free_calls(body, scope, owns_scope, path);
 }
 

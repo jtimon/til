@@ -211,8 +211,10 @@
    (ext dispatch evaluates by value, wasn't nulling cells like user-defined
    funcs do via borrowed cells). Also evaluates RHS before freeing old value
    to prevent reading freed memory when RHS references the same variable.
-   NODE_FIELD_ASSIGN to inline compound fields still uses hoisting+deref-copy
-   (separate issue, less common — users should use own for compound fields).
+   NODE_FIELD_ASSIGN to inline compound fields: typer now inserts
+   Type.delete(obj.field, call_free=false) before inline compound field
+   reassignment. ccodegen emits &(obj->field) via emit_as_ptr, freeing
+   only internals (not the inline slot). Interpreter uses free_value.
 
 ** FIXED interpreter: reassignment leaks old value
    Was: NODE_ASSIGN did cell->val = src->val without freeing old value.

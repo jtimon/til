@@ -253,6 +253,15 @@ test_custom_delete := proc() {
     assert_eq(loc(), DeleteCustom.delete_count, 2)
 }
 
+test_field_reassign := proc() {
+    bob := Person()
+    assert_eq_str(loc(), bob.name, "unknown")
+    bob.name = "Alice"
+    assert_eq_str(loc(), bob.name, "Alice")
+    bob.name = "Charlie"
+    assert_eq_str(loc(), bob.name, "Charlie")
+}
+
 test_basic_struct()
 test_mixed_types()
 test_bool_fields()
@@ -267,3 +276,4 @@ test_clone()
 test_delete()
 test_custom_clone()
 test_custom_delete()
+test_field_reassign()
