@@ -7,8 +7,7 @@ static Expr *codegen_program; // set during codegen for struct lookups
 
 // Primitive types already typedef'd in ext.h — skip struct emission for these
 static int is_ext_primitive(Str *name) {
-    return Str_eq_c(name, "I64") || Str_eq_c(name, "U8") ||
-           Str_eq_c(name, "Bool");
+    return Str_eq_c(name, "U8") || Str_eq_c(name, "Bool");
 }
 
 // --- Emitter helpers ---

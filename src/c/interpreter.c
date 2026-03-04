@@ -252,6 +252,8 @@ static int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *p
 
     // I64 conversion
     if (Str_eq_c(name, "I64_to_str")) { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_STR, .str = til_I64_to_str(v.i64)}; return 1; }
+    if (Str_eq_c(name, "I64_clone")) { Value v = eval_expr(scope, e->children[1], path); *result = val_i64(*v.i64); return 1; }
+    if (Str_eq_c(name, "I64_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) free(v.i64); *result = val_none(); return 1; }
 
     // U8 arithmetic
     if (Str_eq_c(name, "U8_add")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_add(a.u8, b.u8)}; return 1; }

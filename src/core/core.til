@@ -37,7 +37,7 @@ U8 : StructDef = struct {
         return U8.from_i64(val.to_i64())
     }
 }
-I64 : StructDef = struct {
+I64 : StructDef = ext_struct {
     namespace:
     to_str := ext_func(val: I64) returns Str {}
     add := ext_func(a: I64, b: I64) returns I64 {}
@@ -63,9 +63,8 @@ I64 : StructDef = struct {
     and := ext_func(a: I64, b: I64) returns I64 {}
     or := ext_func(a: I64, b: I64) returns I64 {}
     xor := ext_func(a: I64, b: I64) returns I64 {}
-    clone := func(val: I64) returns I64 {
-        return val.add(0)
-    }
+    clone := ext_func(val: I64) returns I64 {}
+    delete := ext_proc(own self: I64, call_free: Bool = true) {}
 }
 Str : StructDef = ext_struct {
     namespace:

@@ -37,6 +37,10 @@ til_Bool *til_Str_contains(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Boo
 til_Bool *til_Str_starts_with(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = Str_starts_with(a, b); return r; }
 til_Bool *til_Str_ends_with(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = Str_ends_with(a, b); return r; }
 
+// I64 clone/delete
+til_I64 *til_I64_clone(til_I64 *v) { til_I64 *r = malloc(sizeof(til_I64)); *r = *v; return r; }
+void til_I64_delete(til_I64 *v, til_Bool *call_free) { if (*call_free) free(v); }
+
 // I64 arithmetic
 til_I64 *til_I64_add(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a + *b; return r; }
 til_I64 *til_I64_sub(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a - *b; return r; }

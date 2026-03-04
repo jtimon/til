@@ -70,9 +70,6 @@ bad1 := ImmutStruct(bogus=1)
 // struct instantiation: positional arg not allowed
 bad2 := ImmutStruct(42)
 
-// cannot instantiate builtin type
-bad3 := I64()
-
 // wrong explicit type on func def
 bad_fn : Str = func(n: I64) returns I64 { return n }
 

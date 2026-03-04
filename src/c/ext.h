@@ -22,6 +22,10 @@ til_Bool *til_Str_contains(Str *a, Str *b);
 til_Bool *til_Str_starts_with(Str *a, Str *b);
 til_Bool *til_Str_ends_with(Str *a, Str *b);
 
+// I64 clone/delete
+til_I64 *til_I64_clone(til_I64 *v);
+void til_I64_delete(til_I64 *v, til_Bool *call_free);
+
 // I64 arithmetic
 til_I64 *til_I64_add(til_I64 *a, til_I64 *b);
 til_I64 *til_I64_sub(til_I64 *a, til_I64 *b);
