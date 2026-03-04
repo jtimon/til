@@ -3,7 +3,7 @@
 # Update or remove facts when the implementation changes.
 #+TODO: NOT_YET NOT_ANYMORE | TRUE
 
-* NOT_YET All arguments are passed by reference, both semantically and in both backends (not yet because of #1)
+* NOT_YET All arguments are passed by reference, both semantically and in both backends
   ccodegen: all params are C pointers, call sites use emit_as_ptr(). TRUE.
   interpreter: identifier args use scope_set_borrowed (shared Cell), but every
   NODE_IDENT access goes through value_deep_copy(), so reads are copies. NOT YET.
@@ -16,7 +16,8 @@
 
 * TRUE The typer rewrites the AST, not just type-checks it
   Desugars UFCS (instance.method) to namespace calls (Type.method), resolves
-  named args to positional, fills default args, and inserts ASAP delete calls.
+  named args to positional, fills default args, inserts ASAP delete calls,
+  and inserts Type.clone() for declarations and assignments from identifiers.
   Goal: backends can be simpler and more uniform.
 
 * TRUE Struct fields are stored inline, not as separate heap pointers
@@ -32,6 +33,11 @@
   interpreter handles them as strcmp cases in eval_call, ccodegen emits
   C wrapper functions (til_i64_add, til_println, etc.).
 
+* TRUE Variadic parameters (..Type) only work in ext_func and ext_proc
+  format (..Str), println (..Str), and print (..Str) use variadic params.
+  Regular funcs, procs, and macros cannot use ..Type — the parser, typer,
+  interpreter, and ccodegen don't support it outside ext declarations.
+
 * TRUE Everything is immutable by default, mut opts in to mutation
   Applies to variable declarations (mut x := 5), struct fields (mut x := 0),
   and function/proc parameters (mut self: Point). The typer enforces this —
@@ -43,12 +49,43 @@
   ASAP destruction skips variables after an own transfer — the callee is
   now responsible for cleanup.
 
-* TRUE All returns are by reference and owned by the caller
+* TRUE All returns are owned by the caller (no ref returns until #2)
   Functions return heap-allocated pointers. The caller owns the returned
   value and is responsible for its cleanup (ASAP destruction handles this).
+  This means a function can't return one of its args without copying it —
+  e.g. min(a, b) must clone the result, otherwise the same value is owned
+  twice and deleted twice (double-free). Ref returns (#2) will fix this.
 
 * TRUE The only meta-types are StructDef, FunctionDef, and Dynamic
   Meta-types are type-system scaffolding, not data types. You never
   instantiate them as values. The initer skips clone/delete generation
   for these three. Everything else (I64, U8, Bool, Str, user-defined
   structs) gets auto-generated clone and delete.
+
+* TRUE Primitive clone is defined in pure til in core.til
+  I64.clone via val.add(0), U8.clone via U8.from_i64(val.to_i64()),
+  Bool.clone via val.and(true), Str.clone via format(val).
+  The initer skips auto-generation when a clone already exists.
+
+* TRUE The initer auto-generates clone and delete for structs
+  clone: returns a new instance with each field cloned via FieldType.clone().
+  delete: calls FieldType.delete(own field) for each field, then free(own self).
+  Skipped if the user defines their own clone or delete in the struct namespace.
+  Fieldless struct clone generates return Type() to avoid recursion.
+
+* TRUE The typer inserts clone for declarations and assignments from identifiers
+  When RHS is NODE_IDENT, the typer wraps it: y := x becomes y := Type.clone(x).
+  Covers declarations (y := x) and assignments (y = x). Does NOT yet cover
+  field assignments (obj.f = x) or struct constructor args (Point(x=val)).
+
+* NOT_YET interpreter and ccodegen handle declarations and assignments identically
+  The typer-inserted clone makes the RHS a fcall for ident-to-ident copies.
+  But interpreter still deep-copies on every NODE_IDENT read (value_deep_copy),
+  making the clone redundant there. ccodegen still has a malloc+copy path for
+  ident RHS in declarations. Both should simplify once all 4 copy sites have
+  clone insertion — then value_deep_copy can be removed and ccodegen's ident
+  branch becomes dead code.
+
+* TRUE The hoisting pass lifts fcall args into temporaries
+  Prevents memory leaks from intermediate results and simplifies evaluation
+  order. Runs after the typer, before interpretation/codegen.
