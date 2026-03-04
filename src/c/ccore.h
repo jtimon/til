@@ -47,6 +47,24 @@ void I64_delete(I64 *v);
 
 typedef unsigned char U8;
 
+U8 U8_add(U8 a, U8 b);
+U8 U8_sub(U8 a, U8 b);
+U8 U8_mul(U8 a, U8 b);
+U8 U8_div(U8 a, U8 b);
+U8 U8_mod(U8 a, U8 b);
+U8 U8_and(U8 a, U8 b);
+U8 U8_or(U8 a, U8 b);
+U8 U8_xor(U8 a, U8 b);
+int U8_eq(U8 a, U8 b);
+int U8_lt(U8 a, U8 b);
+int U8_gt(U8 a, U8 b);
+Str *U8_to_str(U8 v);
+I64 U8_to_i64(U8 v);
+U8 U8_from_i64(I64 v);
+U8 *U8_new(U8 val);
+U8 *U8_clone(U8 *v);
+void U8_delete(U8 *v);
+
 // --- Bool ---
 
 typedef int Bool;

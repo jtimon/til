@@ -118,3 +118,36 @@ I64 *I64_new(I64 val) {
 
 I64 *I64_clone(I64 *v) { return I64_new(*v); }
 void I64_delete(I64 *v) { free(v); }
+
+// --- U8 (ccore.h) ---
+
+U8 U8_add(U8 a, U8 b) { return (U8)(a + b); }
+U8 U8_sub(U8 a, U8 b) { return (U8)(a - b); }
+U8 U8_mul(U8 a, U8 b) { return (U8)(a * b); }
+U8 U8_div(U8 a, U8 b) { return (b == 0) ? 0 : (U8)(a / b); }
+U8 U8_mod(U8 a, U8 b) { return (b == 0) ? 0 : (U8)(a % b); }
+U8 U8_and(U8 a, U8 b) { return a & b; }
+U8 U8_or(U8 a, U8 b) { return a | b; }
+U8 U8_xor(U8 a, U8 b) { return a ^ b; }
+
+int U8_eq(U8 a, U8 b) { return a == b; }
+int U8_lt(U8 a, U8 b) { return a < b; }
+int U8_gt(U8 a, U8 b) { return a > b; }
+
+Str *U8_to_str(U8 v) {
+    char buf[4];
+    snprintf(buf, 4, "%u", (unsigned)v);
+    return Str_new(buf);
+}
+
+I64 U8_to_i64(U8 v) { return (I64)v; }
+U8 U8_from_i64(I64 v) { return (U8)v; }
+
+U8 *U8_new(U8 val) {
+    U8 *p = malloc(sizeof(U8));
+    *p = val;
+    return p;
+}
+
+U8 *U8_clone(U8 *v) { return U8_new(*v); }
+void U8_delete(U8 *v) { free(v); }

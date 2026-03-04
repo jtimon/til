@@ -9,11 +9,7 @@ void til_exit(til_I64 *code) { exit((int)*code); }
 
 Str *til_I64_to_str(til_I64 *v) { return I64_to_str(*v); }
 
-Str *til_U8_to_str(til_U8 *v) {
-    char buf[4];
-    snprintf(buf, 4, "%u", (unsigned)*v);
-    return Str_new(buf);
-}
+Str *til_U8_to_str(til_U8 *v) { return U8_to_str(*v); }
 
 til_Bool *til_Str_eq(Str *a, Str *b) {
     til_Bool *r = malloc(sizeof(til_Bool));
@@ -53,27 +49,27 @@ til_Bool *til_I64_lt(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_B
 til_Bool *til_I64_gt(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I64_gt(*a, *b); return r; }
 
 // U8 arithmetic
-til_U8 *til_U8_add(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)(*a + *b); return r; }
-til_U8 *til_U8_sub(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)(*a - *b); return r; }
-til_U8 *til_U8_mul(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)(*a * *b); return r; }
-til_U8 *til_U8_div(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (*b == 0) ? 0 : (til_U8)(*a / *b); return r; }
-til_U8 *til_U8_mod(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (*b == 0) ? 0 : (til_U8)(*a % *b); return r; }
-til_U8 *til_U8_and(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = *a & *b; return r; }
-til_U8 *til_U8_or(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = *a | *b; return r; }
-til_U8 *til_U8_xor(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = *a ^ *b; return r; }
+til_U8 *til_U8_add(til_U8 *a, til_U8 *b) { return U8_new(U8_add(*a, *b)); }
+til_U8 *til_U8_sub(til_U8 *a, til_U8 *b) { return U8_new(U8_sub(*a, *b)); }
+til_U8 *til_U8_mul(til_U8 *a, til_U8 *b) { return U8_new(U8_mul(*a, *b)); }
+til_U8 *til_U8_div(til_U8 *a, til_U8 *b) { return U8_new(U8_div(*a, *b)); }
+til_U8 *til_U8_mod(til_U8 *a, til_U8 *b) { return U8_new(U8_mod(*a, *b)); }
+til_U8 *til_U8_and(til_U8 *a, til_U8 *b) { return U8_new(U8_and(*a, *b)); }
+til_U8 *til_U8_or(til_U8 *a, til_U8 *b) { return U8_new(U8_or(*a, *b)); }
+til_U8 *til_U8_xor(til_U8 *a, til_U8 *b) { return U8_new(U8_xor(*a, *b)); }
 
 // U8 comparisons
-til_Bool *til_U8_eq(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a == *b; return r; }
-til_Bool *til_U8_lt(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a < *b; return r; }
-til_Bool *til_U8_gt(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a > *b; return r; }
+til_Bool *til_U8_eq(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = U8_eq(*a, *b); return r; }
+til_Bool *til_U8_lt(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = U8_lt(*a, *b); return r; }
+til_Bool *til_U8_gt(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = U8_gt(*a, *b); return r; }
 
 // U8 conversions
-til_I64 *til_U8_to_i64(til_U8 *a) { til_I64 *r = malloc(sizeof(til_I64)); *r = (til_I64)*a; return r; }
-til_U8 *til_U8_from_i64_ext(til_I64 *a) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)*a; return r; }
+til_I64 *til_U8_to_i64(til_U8 *a) { return I64_new(U8_to_i64(*a)); }
+til_U8 *til_U8_from_i64_ext(til_I64 *a) { return U8_new(U8_from_i64(*a)); }
 
 // U8 clone/delete
-til_U8 *til_U8_clone(til_U8 *v) { til_U8 *r = malloc(sizeof(til_U8)); *r = *v; return r; }
-void til_U8_delete(til_U8 *v, til_Bool *call_free) { if (*call_free) free(v); }
+til_U8 *til_U8_clone(til_U8 *v) { return U8_clone(v); }
+void til_U8_delete(til_U8 *v, til_Bool *call_free) { if (*call_free) U8_delete(v); }
 
 // Bool ops
 til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a && *b; return r; }

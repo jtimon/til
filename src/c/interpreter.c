@@ -256,30 +256,30 @@ static int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *p
     if (Str_eq_c(name, "I64_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) I64_delete(v.i64); *result = val_none(); return 1; }
 
     // U8 arithmetic
-    if (Str_eq_c(name, "U8_add")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_add(a.u8, b.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_sub")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_sub(a.u8, b.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_mul")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_mul(a.u8, b.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_div")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_div(a.u8, b.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_mod")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_mod(a.u8, b.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_and(a.u8, b.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_or(a.u8, b.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_xor")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_U8, .u8 = til_U8_xor(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_add")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_u8(U8_add(*a.u8, *b.u8)); return 1; }
+    if (Str_eq_c(name, "U8_sub")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_u8(U8_sub(*a.u8, *b.u8)); return 1; }
+    if (Str_eq_c(name, "U8_mul")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_u8(U8_mul(*a.u8, *b.u8)); return 1; }
+    if (Str_eq_c(name, "U8_div")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_u8(U8_div(*a.u8, *b.u8)); return 1; }
+    if (Str_eq_c(name, "U8_mod")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_u8(U8_mod(*a.u8, *b.u8)); return 1; }
+    if (Str_eq_c(name, "U8_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_u8(U8_and(*a.u8, *b.u8)); return 1; }
+    if (Str_eq_c(name, "U8_or"))  { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_u8(U8_or(*a.u8, *b.u8)); return 1; }
+    if (Str_eq_c(name, "U8_xor")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_u8(U8_xor(*a.u8, *b.u8)); return 1; }
 
     // U8 comparisons
-    if (Str_eq_c(name, "U8_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_U8_eq(a.u8, b.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_lt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_U8_lt(a.u8, b.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_gt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_U8_gt(a.u8, b.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_eq")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(U8_eq(*a.u8, *b.u8)); return 1; }
+    if (Str_eq_c(name, "U8_lt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(U8_lt(*a.u8, *b.u8)); return 1; }
+    if (Str_eq_c(name, "U8_gt")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = val_bool(U8_gt(*a.u8, *b.u8)); return 1; }
 
     // U8 conversions
-    if (Str_eq_c(name, "U8_to_str"))  { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_STR, .str = til_U8_to_str(v.u8)}; return 1; }
-    if (Str_eq_c(name, "U8_to_i64"))  { Value v = eval_expr(scope, e->children[1], path); *result = (Value){.type = VAL_I64, .i64 = til_U8_to_i64(v.u8)}; return 1; }
+    if (Str_eq_c(name, "U8_to_str"))  { Value v = eval_expr(scope, e->children[1], path); *result = val_str(U8_to_str(*v.u8)); return 1; }
+    if (Str_eq_c(name, "U8_to_i64"))  { Value v = eval_expr(scope, e->children[1], path); *result = val_i64(U8_to_i64(*v.u8)); return 1; }
     if (Str_eq_c(name, "U8_from_i64") || Str_eq_c(name, "U8_from_i64_ext")) {
         Value v = eval_expr(scope, e->children[1], path);
-        *result = (Value){.type = VAL_U8, .u8 = til_U8_from_i64_ext(v.i64)};
+        *result = val_u8(U8_from_i64(*v.i64));
         return 1;
     }
     if (Str_eq_c(name, "U8_clone")) { Value v = eval_expr(scope, e->children[1], path); *result = val_u8(*v.u8); return 1; }
-    if (Str_eq_c(name, "U8_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) free(v.u8); *result = val_none(); return 1; }
+    if (Str_eq_c(name, "U8_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) U8_delete(v.u8); *result = val_none(); return 1; }
 
     // Bool ops
     if (Str_eq_c(name, "Bool_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_and(a.boolean, b.boolean)}; return 1; }
