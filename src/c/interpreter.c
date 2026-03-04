@@ -121,6 +121,30 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         // Direct ext_func namespace method — dispatch by flat name
         FuncType fft = func_def->data.func_def.func_type;
         if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) {
+            // Enum ext methods: handle generically (eq, clone, delete)
+            Str *parent_sname = callee_expr->children[0]->struct_name;
+            if (parent_sname) {
+                Cell *tc = scope_get(scope, parent_sname);
+                if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_ENUM_DEF) {
+                    Str *method = callee_expr->data.str_val;
+                    if (Str_eq_c(method, "eq")) {
+                        Value a = eval_expr(scope, e->children[1], path);
+                        Value b = eval_expr(scope, e->children[2], path);
+                        return val_bool(*a.i64 == *b.i64);
+                    }
+                    if (Str_eq_c(method, "clone")) {
+                        Value v = eval_expr(scope, e->children[1], path);
+                        return val_i64(*v.i64);
+                    }
+                    if (Str_eq_c(method, "delete")) {
+                        Value v = eval_expr(scope, e->children[1], path);
+                        if (v.type == VAL_NONE) return val_none();
+                        Value cf = eval_expr(scope, e->children[2], path);
+                        if (*cf.boolean) free(v.i64);
+                        return val_none();
+                    }
+                }
+            }
             static char flat_name_buf[256];
             int flen = snprintf(flat_name_buf, sizeof(flat_name_buf), "%s_%s",
                      callee_expr->children[0]->struct_name->c_str, callee_expr->data.str_val->c_str);
@@ -283,6 +307,7 @@ Value eval_expr(Scope *scope, Expr *e, const char *path) {
     case NODE_FUNC_DEF:
         return (Value){.type = VAL_FUNC, .func = e};
     case NODE_STRUCT_DEF:
+    case NODE_ENUM_DEF:
         return (Value){.type = VAL_FUNC, .func = e};
     case NODE_FIELD_ACCESS: {
         Value obj = eval_expr(scope, e->children[0], path);
@@ -488,7 +513,8 @@ void interpreter_init_ns(Scope *global, Expr *program, const char *path) {
     ns_fields = NULL; ns_count = 0; ns_cap = 0;
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
-        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
+        if (stmt->type == NODE_DECL && (stmt->children[0]->type == NODE_STRUCT_DEF ||
+                                        stmt->children[0]->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
             Expr *body = stmt->children[0]->children[0];
             for (int j = 0; j < body->nchildren; j++) {
@@ -510,7 +536,8 @@ int interpret(Expr *program, Str *mode, const char *path) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL &&
             (stmt->children[0]->type == NODE_FUNC_DEF ||
-             stmt->children[0]->type == NODE_STRUCT_DEF)) {
+             stmt->children[0]->type == NODE_STRUCT_DEF ||
+             stmt->children[0]->type == NODE_ENUM_DEF)) {
             Value val = {.type = VAL_FUNC, .func = stmt->children[0]};
             scope_set_owned(global, stmt->data.decl.name, val);
         }

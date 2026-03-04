@@ -187,6 +187,40 @@ static Expr *parse_struct_def(Parser *p) {
     return def;
 }
 
+// parse_enum_def: current token is 'enum'
+static Expr *parse_enum_def(Parser *p) {
+    Token *kw = advance(p); // consume 'enum'
+    Expr *def = expr_new(NODE_ENUM_DEF, kw->line, kw->col);
+    expect(p, TOK_LBRACE);
+    Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col);
+    int in_namespace = 0;
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+        if (check(p, TOK_NAMESPACE)) {
+            advance(p);
+            expect(p, TOK_COLON);
+            in_namespace = 1;
+            continue;
+        }
+        if (in_namespace) {
+            Expr *stmt = parse_statement(p);
+            if (stmt->type == NODE_DECL) {
+                stmt->data.decl.is_namespace = true;
+            }
+            expr_add_child(body, stmt);
+        } else {
+            // Variant: bare identifier, comma-separated
+            Token *name = expect(p, TOK_IDENT);
+            Expr *variant = expr_new(NODE_DECL, name->line, name->col);
+            variant->data.decl.name = tok_str(name);
+            expr_add_child(body, variant);
+            if (check(p, TOK_COMMA)) advance(p);
+        }
+    }
+    expect(p, TOK_RBRACE);
+    expr_add_child(def, body);
+    return def;
+}
+
 // parse_call: identifier already consumed, current token is '('
 static Expr *parse_call(Parser *p, Str *name, int line, int col) {
     advance(p); // consume '('
@@ -268,6 +302,8 @@ static Expr *parse_expression(Parser *p) {
         return parse_func_def(p);
     } else if (t->type == TOK_STRUCT || t->type == TOK_EXT_STRUCT) {
         return parse_struct_def(p);
+    } else if (t->type == TOK_ENUM) {
+        return parse_enum_def(p);
     } else {
         fprintf(stderr, "%s:%d:%d: parse error: unexpected token '%.*s'\n",
                 p->path, t->line, t->col, t->len, t->start);

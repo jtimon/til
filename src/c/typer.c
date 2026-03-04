@@ -20,12 +20,13 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "Str"))  return TIL_TYPE_STR;
     if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
     if (Str_eq_c(name, "StructDef"))    return TIL_TYPE_STRUCT_DEF;
+    if (Str_eq_c(name, "EnumDef"))      return TIL_TYPE_ENUM_DEF;
     if (Str_eq_c(name, "FunctionDef"))  return TIL_TYPE_FUNC_DEF;
     if (Str_eq_c(name, "Dynamic"))     return TIL_TYPE_DYNAMIC;
-    // Check scope for user-defined struct types
+    // Check scope for user-defined struct/enum types
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
-        if (sdef) return TIL_TYPE_STRUCT;
+        if (sdef) return (sdef->type == NODE_ENUM_DEF) ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
     }
     return TIL_TYPE_UNKNOWN;
 }
@@ -55,7 +56,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             type_error(path, e, buf);
         }
         e->til_type = t;
-        if (t == TIL_TYPE_STRUCT) {
+        if (t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) {
             TypeBinding *b = tscope_find(scope, e->data.str_val);
             if (b) e->struct_name = b->struct_name;
         }
@@ -85,8 +86,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 int pmut = e->data.func_def.param_muts ? e->data.func_def.param_muts[i] : 0;
                 int pown = e->data.func_def.param_owns ? e->data.func_def.param_owns[i] : 0;
                 tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1, pmut, e->line, e->col, 1, pown);
-                // For struct-typed params, store struct_name
-                if (pt == TIL_TYPE_STRUCT) {
+                // For struct/enum-typed params, store struct_name
+                if (pt == TIL_TYPE_STRUCT || pt == TIL_TYPE_ENUM) {
                     TypeBinding *pb = tscope_find(func_scope, e->data.func_def.param_names[i]);
                     if (pb) pb->struct_name = ptn;
                 }
@@ -116,7 +117,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             tscope_free(func_scope);
         }
         break;
-    case NODE_STRUCT_DEF: {
+    case NODE_STRUCT_DEF:
+    case NODE_ENUM_DEF: {
         e->til_type = TIL_TYPE_NONE;
         // Type-check field declarations (save/restore scope len so fields
         // don't leak into outer scope's locals for free-call insertion)
@@ -147,7 +149,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 else if (obj->til_type == TIL_TYPE_U8)   type_name = Str_new("U8");
                 else if (obj->til_type == TIL_TYPE_BOOL) type_name = Str_new("Bool");
                 else if (obj->til_type == TIL_TYPE_STR)  type_name = Str_new("Str");
-                else if (obj->til_type == TIL_TYPE_STRUCT && obj->struct_name)
+                else if ((obj->til_type == TIL_TYPE_STRUCT || obj->til_type == TIL_TYPE_ENUM) && obj->struct_name)
                     type_name = obj->struct_name;
 
                 Expr *sdef = type_name ? tscope_get_struct(scope, type_name) : NULL;
@@ -316,7 +318,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 rt = type_from_name(ns_func->data.func_def.return_type, scope);
             }
             e->til_type = rt;
-            if (rt == TIL_TYPE_STRUCT && ns_func->data.func_def.return_type) {
+            if ((rt == TIL_TYPE_STRUCT || rt == TIL_TYPE_ENUM) && ns_func->data.func_def.return_type) {
                 e->struct_name = ns_func->data.func_def.return_type;
             }
             break;
@@ -523,7 +525,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         }
         e->til_type = fn_type;
         // Propagate struct_name for struct-returning functions
-        if (fn_type == TIL_TYPE_STRUCT && callee_bind && callee_bind->func_def &&
+        if ((fn_type == TIL_TYPE_STRUCT || fn_type == TIL_TYPE_ENUM) && callee_bind && callee_bind->func_def &&
             callee_bind->func_def->data.func_def.return_type) {
             e->struct_name = callee_bind->func_def->data.func_def.return_type;
         }
@@ -550,9 +552,17 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                         e->til_type = field->til_type;
                         e->is_ns_field = field->data.decl.is_namespace;
                         e->is_own_field = field->data.decl.is_own;
-                        if (field->til_type == TIL_TYPE_STRUCT) {
+                        if (field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) {
                             e->struct_name = field->children[0]->struct_name;
                         } else {
+                            e->struct_name = obj->struct_name;
+                        }
+                        // Enum variant access: override I64 literal type to enum type
+                        if (sdef->type == NODE_ENUM_DEF &&
+                            field->data.decl.is_namespace &&
+                            field->nchildren > 0 &&
+                            field->children[0]->type != NODE_FUNC_DEF) {
+                            e->til_type = TIL_TYPE_ENUM;
                             e->struct_name = obj->struct_name;
                         }
                         found = 1;
@@ -561,7 +571,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 }
                 if (!found) {
                     char buf[128];
-                    snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'",
+                    snprintf(buf, sizeof(buf), "%s '%s' has no field '%s'",
+                             sdef->type == NODE_ENUM_DEF ? "enum" : "struct",
                              obj->struct_name->c_str, fname->c_str);
                     type_error(path, e, buf);
                     e->til_type = TIL_TYPE_UNKNOWN;
@@ -651,7 +662,7 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, int *nhoisted, int *cap, 
 // Does NOT recurse into scope boundaries (func/struct defs, bodies).
 static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeScope *scope) {
     // Don't recurse into scope boundaries -- those have their own infer_body calls
-    if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF || e->type == NODE_BODY) return;
+    if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF || e->type == NODE_ENUM_DEF || e->type == NODE_BODY) return;
     // Recurse into children first (depth-first: inner fcalls hoisted before outer)
     for (int i = 0; i < e->nchildren; i++) {
         hoist_expr(e->children[i], hoisted, nhoisted, cap, scope);
@@ -866,7 +877,7 @@ static void insert_own_field_deletes(Expr *body) {
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, int line, int col) {
     Expr *call = expr_new(NODE_FCALL, line, col);
     call->til_type = type;
-    call->struct_name = (type == TIL_TYPE_STRUCT) ? Str_new(type_name) : NULL;
+    call->struct_name = (type == TIL_TYPE_STRUCT || type == TIL_TYPE_ENUM) ? Str_new(type_name) : NULL;
 
     Expr *type_id = expr_new(NODE_IDENT, line, col);
     type_id->data.str_val = Str_new(type_name);
@@ -1189,28 +1200,33 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
         switch (stmt->type) {
         case NODE_DECL:
             infer_expr(scope, stmt->children[0], path, in_func);
-            // For struct defs, register struct type in scope
-            if (stmt->children[0]->type == NODE_STRUCT_DEF) {
+            // For struct/enum defs, register type in scope
+            if (stmt->children[0]->type == NODE_STRUCT_DEF ||
+                stmt->children[0]->type == NODE_ENUM_DEF) {
+                int is_enum = (stmt->children[0]->type == NODE_ENUM_DEF);
                 // Check explicit type annotation if present
                 if (stmt->data.decl.explicit_type) {
                     TilType declared = type_from_name(stmt->data.decl.explicit_type, scope);
-                    if (declared != TIL_TYPE_STRUCT_DEF) {
+                    TilType expected = is_enum ? TIL_TYPE_ENUM_DEF : TIL_TYPE_STRUCT_DEF;
+                    if (declared != expected) {
                         char buf[128];
-                        snprintf(buf, sizeof(buf), "'%s' declared as %s but value is StructDef",
-                                 stmt->data.decl.name->c_str, stmt->data.decl.explicit_type->c_str);
+                        snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
+                                 stmt->data.decl.name->c_str, stmt->data.decl.explicit_type->c_str,
+                                 is_enum ? "EnumDef" : "StructDef");
                         type_error(path, stmt, buf);
                     }
                 }
                 stmt->til_type = TIL_TYPE_NONE;
                 Str *sname = stmt->data.decl.name;
                 // Check if this is a builtin type
-                TilType builtin_type = TIL_TYPE_STRUCT;
+                TilType builtin_type = is_enum ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
                 int is_builtin = 0;
                 if (Str_eq_c(sname, "I64"))  { builtin_type = TIL_TYPE_I64;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "U8"))   { builtin_type = TIL_TYPE_U8;   is_builtin = 1; }
                 else if (Str_eq_c(sname, "Str"))  { builtin_type = TIL_TYPE_STR;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "Bool")) { builtin_type = TIL_TYPE_BOOL; is_builtin = 1; }
                 else if (Str_eq_c(sname, "StructDef"))    { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
+                else if (Str_eq_c(sname, "EnumDef"))      { builtin_type = TIL_TYPE_ENUM_DEF;   is_builtin = 1; }
                 else if (Str_eq_c(sname, "FunctionDef"))  { builtin_type = TIL_TYPE_FUNC_DEF;   is_builtin = 1; }
                 else if (Str_eq_c(sname, "Dynamic"))      { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
                 tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
@@ -1267,7 +1283,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                              stmt->data.decl.name->c_str, til_type_name_c(declared),
                              til_type_name_c(stmt->children[0]->til_type));
                     type_error(path, stmt, buf);
-                } else if (declared == TIL_TYPE_STRUCT &&
+                } else if ((declared == TIL_TYPE_STRUCT || declared == TIL_TYPE_ENUM) &&
                            stmt->children[0]->struct_name &&
                            !Str_eq(etn, stmt->children[0]->struct_name)) {
                     char buf[128];
@@ -1276,15 +1292,15 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                     type_error(path, stmt, buf);
                 }
                 stmt->til_type = declared;
-                // For struct types, propagate struct_name from explicit type
-                if (declared == TIL_TYPE_STRUCT) {
+                // For struct/enum types, propagate struct_name from explicit type
+                if (declared == TIL_TYPE_STRUCT || declared == TIL_TYPE_ENUM) {
                     stmt->children[0]->struct_name = etn;
                 }
             } else {
                 stmt->til_type = stmt->children[0]->til_type;
             }
             tscope_set(scope, stmt->data.decl.name, stmt->til_type, -1, stmt->data.decl.is_mut, stmt->line, stmt->col, 0, 0);
-            if (stmt->til_type == TIL_TYPE_STRUCT && stmt->children[0]->struct_name) {
+            if ((stmt->til_type == TIL_TYPE_STRUCT || stmt->til_type == TIL_TYPE_ENUM) && stmt->children[0]->struct_name) {
                 TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
                 if (b) b->struct_name = stmt->children[0]->struct_name;
             }

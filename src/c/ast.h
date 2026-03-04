@@ -15,6 +15,7 @@ typedef enum {
     NODE_FCALL,         // function call   (children[0] = callee ident, children[1..] = args)
     NODE_FUNC_DEF,      // func/proc def   (data.func_def, children[0] = body)
     NODE_STRUCT_DEF,    // struct def       (children[0] = body of NODE_DECL fields)
+    NODE_ENUM_DEF,      // enum def        (children[0] = body of variant + namespace decls)
     NODE_FIELD_ACCESS,  // field access     (children[0] = object expr, data.str_val = field name)
     NODE_FIELD_ASSIGN,  // field assign     (children[0] = object expr, children[1] = value, data.str_val = field name)
     NODE_RETURN,        // return           (children[0] = value, if any)
@@ -44,6 +45,8 @@ typedef enum {
     TIL_TYPE_BOOL,
     TIL_TYPE_STRUCT,
     TIL_TYPE_STRUCT_DEF,
+    TIL_TYPE_ENUM,
+    TIL_TYPE_ENUM_DEF,
     TIL_TYPE_FUNC_DEF,
     TIL_TYPE_DYNAMIC,
 } TilType;

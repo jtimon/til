@@ -22,41 +22,41 @@
 
   Variants are accessed as namespace members: Color.Red, Color.Green.
 
-  Enums have a namespace section just like structs, separated by ---. The
-  initer auto-generates clone, delete, eq, and to_str if missing, same as
-  structs. The typer's auto-inserted clone/delete calls work identically
-  (ASAP destruction, clone on assignment from ident, etc.).
+  Enums have a namespace section just like structs, separated by
+  namespace:. The initer auto-generates clone, delete, eq, and to_str
+  if missing, same as structs. The typer's auto-inserted clone/delete
+  calls work identically (ASAP destruction, clone on assignment from
+  ident, etc.).
 
     Color := enum {
         Red, Green, Blue
-        ---
+        namespace:
         describe := func(self: Color) returns Str {
             return format("color: ", self.to_str())
         }
     }
 
-** Phase 1: simple enums (no payloads)
+** FIXED Phase 1: simple enums (no payloads)
    Variants are named integer constants (0, 1, 2, ...). Internally stored
    as I64. Namespace access for construction: Color.Red.
 
-   What's needed:
-   - Lexer: TOK_ENUM keyword
-   - Parser: parse enum definition → NODE_ENUM_DEF with variant list,
-     optional --- namespace section (same as structs)
-   - AST: NODE_ENUM_DEF node type, variant representation
-   - Typer: type check enum usage, variant access via namespace
-   - Initer: auto-generate eq, clone, delete, to_str methods (same
-     pattern as structs — skip if user provides their own)
-   - Interpreter: represent enum values as I64 internally
-   - ccodegen: emit C enum typedef + namespace methods
-
-   Example:
-
-     Color := enum { Red, Green, Blue }
-
-     c := Color.Red
-     test(loc(), c.eq(Color.Red), "is red")
-     println(c.to_str())             # "Red"
+   Implemented:
+   - AST: NODE_ENUM_DEF, TIL_TYPE_ENUM, TIL_TYPE_ENUM_DEF
+   - Parser: parse_enum_def() — comma-separated variants, optional
+     namespace: section (same separator as structs)
+   - Initer: register enum defs, generate variant namespace fields (I64
+     constants 0,1,2...), auto-generate eq/clone/delete (ext_func/ext_proc)
+     and to_str (pure func with if-chain). Skips if user provides their own.
+   - Typer: TIL_TYPE_ENUM alongside TIL_TYPE_STRUCT everywhere (13 sites),
+     EnumDef type, enum variant type override in field access
+   - Interpreter: enum ext method dispatch (eq/clone/delete), scope
+     registration and init_ns for NODE_ENUM_DEF
+   - ccodegen: emit_enum_def (typedef long long, variant value globals,
+     eq/clone/delete C implementations), forward declarations, variant
+     initialization in main
+   - scavenger/precomp: NODE_ENUM_DEF alongside NODE_STRUCT_DEF
+   - Test: src/test/enums.til (basic enum, eq, to_str, clone, func params,
+     namespace section with custom method)
 
 ** Phase 2: payloads (tagged unions)
    Variants can carry typed payloads. Internally a tag (I64) + union of

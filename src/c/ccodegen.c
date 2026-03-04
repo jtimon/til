@@ -133,7 +133,7 @@ static const char *til_type_to_c(TilType t) {
 
 // C type name without pointer — "til_Point" for structs, "til_I64" for I64, etc.
 static const char *c_type_name(TilType t, Str *struct_name) {
-    if (t == TIL_TYPE_STRUCT && struct_name) {
+    if ((t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) && struct_name) {
         static char buf[128];
         snprintf(buf, sizeof(buf), "til_%s", struct_name->c_str);
         return buf;
@@ -195,8 +195,11 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
     case NODE_DECL:
         if (e->children[0]->type == NODE_FUNC_DEF) {
             fprintf(f, "/* TODO: nested func %s */\n", e->data.decl.name->c_str);
-        } else if (e->children[0]->type == NODE_STRUCT_DEF) {
-            fprintf(f, "/* struct %s defined above */\n", e->data.decl.name->c_str);
+        } else if (e->children[0]->type == NODE_STRUCT_DEF ||
+                   e->children[0]->type == NODE_ENUM_DEF) {
+            fprintf(f, "/* %s %s defined above */\n",
+                    e->children[0]->type == NODE_ENUM_DEF ? "enum" : "struct",
+                    e->data.decl.name->c_str);
         } else if (e->data.decl.is_ref) {
             const char *ctype = c_type_name(e->til_type, e->children[0]->struct_name);
             Expr *rhs = e->children[0];
@@ -376,7 +379,8 @@ static void emit_body(FILE *f, Expr *body, int depth) {
 static void emit_ns_inits(FILE *f, int depth) {
     for (int i = 0; i < codegen_program->nchildren; i++) {
         Expr *stmt = codegen_program->children[i];
-        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
+        if (stmt->type == NODE_DECL && (stmt->children[0]->type == NODE_STRUCT_DEF ||
+                                        stmt->children[0]->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
             Expr *body = stmt->children[0]->children[0];
             for (int j = 0; j < body->nchildren; j++) {
@@ -482,6 +486,52 @@ static void emit_struct_def(FILE *f, Str *name, Expr *struct_def) {
     }
 }
 
+static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
+    Expr *body = enum_def->children[0];
+
+    // typedef already emitted in forward declarations
+
+    // Variant constants as globals: til_Color til_Color_Red;
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *field = body->children[i];
+        if (!field->data.decl.is_namespace) continue;
+        if (field->children[0]->type == NODE_FUNC_DEF) continue;
+        fprintf(f, "til_%s til_%s_%s;\n", name->c_str, name->c_str, field->data.decl.name->c_str);
+    }
+    fprintf(f, "\n");
+
+    // eq: til_Bool *til_Color_eq(til_Color *a, til_Color *b)
+    fprintf(f, "til_Bool *til_%s_eq(til_%s *a, til_%s *b) {\n", name->c_str, name->c_str, name->c_str);
+    fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = (*a == *b); return r;\n");
+    fprintf(f, "}\n");
+
+    // clone: til_Color *til_Color_clone(til_Color *a)
+    fprintf(f, "til_%s *til_%s_clone(til_%s *a) {\n", name->c_str, name->c_str, name->c_str);
+    fprintf(f, "    til_%s *r = malloc(sizeof(til_%s)); *r = *a; return r;\n", name->c_str, name->c_str);
+    fprintf(f, "}\n");
+
+    // delete: void til_Color_delete(til_Color *self, til_Bool *call_free)
+    fprintf(f, "void til_%s_delete(til_%s *self, til_Bool *call_free) {\n", name->c_str, name->c_str);
+    fprintf(f, "    if (*call_free) free(self);\n");
+    fprintf(f, "}\n");
+
+    // Emit namespace func/proc methods (to_str, user methods)
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *field = body->children[i];
+        if (!field->data.decl.is_namespace) continue;
+        if (field->children[0]->type != NODE_FUNC_DEF) continue;
+        Expr *fdef = field->children[0];
+        FuncType fft = fdef->data.func_def.func_type;
+        if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+        char full_name_buf[256];
+        snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->data.decl.name->c_str);
+        Str *full_name = Str_new(full_name_buf);
+        emit_func_def(f, full_name, fdef, NULL);
+        Str_delete(full_name);
+        fprintf(f, "\n");
+    }
+}
+
 int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_path) {
     (void)path;
     codegen_program = program;
@@ -505,13 +555,17 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             if (stmt->children[0]->is_ext) continue;
             fprintf(f, "typedef struct til_%s til_%s;\n", stmt->data.decl.name->c_str, stmt->data.decl.name->c_str);
         }
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_ENUM_DEF) {
+            fprintf(f, "typedef long long til_%s;\n", stmt->data.decl.name->c_str);
+        }
     }
     fprintf(f, "\n");
 
     // Forward-declare all functions (namespace methods + top-level)
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
-        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
+        if (stmt->type == NODE_DECL && (stmt->children[0]->type == NODE_STRUCT_DEF ||
+                                         stmt->children[0]->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
             Expr *body = stmt->children[0]->children[0];
             for (int j = 0; j < body->nchildren; j++) {
@@ -561,13 +615,27 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             fprintf(f, ");\n");
         }
     }
+    // Forward-declare enum ext methods (eq, clone, delete — emitted inline, not in ext.c)
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_ENUM_DEF) {
+            Str *sname = stmt->data.decl.name;
+            fprintf(f, "til_Bool *til_%s_eq(til_%s *, til_%s *);\n", sname->c_str, sname->c_str, sname->c_str);
+            fprintf(f, "til_%s *til_%s_clone(til_%s *);\n", sname->c_str, sname->c_str, sname->c_str);
+            fprintf(f, "void til_%s_delete(til_%s *, til_Bool *);\n", sname->c_str, sname->c_str);
+        }
+    }
     fprintf(f, "\n");
 
-    // First pass: emit struct definitions (primitives skip body/constructor, keep namespace methods)
+    // First pass: emit struct/enum definitions
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
             emit_struct_def(f, stmt->data.decl.name, stmt->children[0]);
+            fprintf(f, "\n");
+        }
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_ENUM_DEF) {
+            emit_enum_def(f, stmt->data.decl.name, stmt->children[0]);
             fprintf(f, "\n");
         }
     }
@@ -594,7 +662,8 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             // Skip func/proc/struct defs (already emitted above)
             if (stmt->type == NODE_DECL &&
                 (stmt->children[0]->type == NODE_FUNC_DEF ||
-                 stmt->children[0]->type == NODE_STRUCT_DEF))
+                 stmt->children[0]->type == NODE_STRUCT_DEF ||
+                 stmt->children[0]->type == NODE_ENUM_DEF))
                 continue;
             emit_stmt(f, stmt, 1);
         }

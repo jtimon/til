@@ -178,7 +178,8 @@ void scavenge(Expr *program, Str *mode) {
     DeclMap methods = declmap_new();
     for (int i = 0; i < top.len; i++) {
         Expr *decl = top.vals[i];
-        if (decl->children[0]->type != NODE_STRUCT_DEF) continue;
+        if (decl->children[0]->type != NODE_STRUCT_DEF &&
+            decl->children[0]->type != NODE_ENUM_DEF) continue;
         Str *sname = top.keys[i];
         Expr *body = decl->children[0]->children[0];
         for (int j = 0; j < body->nchildren; j++) {
@@ -198,7 +199,8 @@ void scavenge(Expr *program, Str *mode) {
             Expr *stmt = program->children[i];
             if (stmt->type == NODE_DECL &&
                 (stmt->children[0]->type == NODE_FUNC_DEF ||
-                 stmt->children[0]->type == NODE_STRUCT_DEF))
+                 stmt->children[0]->type == NODE_STRUCT_DEF ||
+                 stmt->children[0]->type == NODE_ENUM_DEF))
                 continue;
             collect_refs(stmt, &worklist);
         }
@@ -215,8 +217,9 @@ void scavenge(Expr *program, Str *mode) {
         // Top-level declaration?
         Expr *decl = declmap_get(&top, name);
         if (decl) {
-            if (decl->children[0]->type == NODE_STRUCT_DEF) {
-                // For structs: only walk instance fields, not namespace methods.
+            if (decl->children[0]->type == NODE_STRUCT_DEF ||
+                decl->children[0]->type == NODE_ENUM_DEF) {
+                // For structs/enums: only walk instance fields, not namespace methods.
                 // Namespace methods are walked individually via qualified names.
                 Expr *body = decl->children[0]->children[0];
                 for (int i = 0; i < body->nchildren; i++) {
@@ -241,7 +244,8 @@ void scavenge(Expr *program, Str *mode) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL &&
             (stmt->children[0]->type == NODE_FUNC_DEF ||
-             stmt->children[0]->type == NODE_STRUCT_DEF)) {
+             stmt->children[0]->type == NODE_STRUCT_DEF ||
+             stmt->children[0]->type == NODE_ENUM_DEF)) {
             if (!strset_has(&visited, stmt->data.decl.name)) continue;
         }
         program->children[w++] = stmt;
@@ -251,7 +255,8 @@ void scavenge(Expr *program, Str *mode) {
     // 6. Filter namespace methods in kept structs
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
-        if (stmt->type != NODE_DECL || stmt->children[0]->type != NODE_STRUCT_DEF)
+        if (stmt->type != NODE_DECL || (stmt->children[0]->type != NODE_STRUCT_DEF &&
+                                        stmt->children[0]->type != NODE_ENUM_DEF))
             continue;
         Str *sname = stmt->data.decl.name;
         Expr *body = stmt->children[0]->children[0];

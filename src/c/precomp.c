@@ -217,7 +217,8 @@ static void process_body(Scope *scope, Expr *body, KnownMap *known,
         switch (stmt->type) {
         case NODE_DECL:
             if (stmt->children[0]->type == NODE_FUNC_DEF ||
-                stmt->children[0]->type == NODE_STRUCT_DEF) {
+                stmt->children[0]->type == NODE_STRUCT_DEF ||
+                stmt->children[0]->type == NODE_ENUM_DEF) {
                 // Recurse into func/proc/macro bodies
                 if (stmt->children[0]->type == NODE_FUNC_DEF &&
                     stmt->children[0]->nchildren > 0) {
@@ -320,7 +321,8 @@ void precomp(Expr *program, const char *path) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL &&
             (stmt->children[0]->type == NODE_FUNC_DEF ||
-             stmt->children[0]->type == NODE_STRUCT_DEF)) {
+             stmt->children[0]->type == NODE_STRUCT_DEF ||
+             stmt->children[0]->type == NODE_ENUM_DEF)) {
             Value val = {.type = VAL_FUNC, .func = stmt->children[0]};
             scope_set_owned(global, stmt->data.decl.name, val);
         }

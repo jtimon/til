@@ -12,6 +12,8 @@ const char *til_type_name_c(TilType t) {
     case TIL_TYPE_BOOL:    return "Bool";
     case TIL_TYPE_STRUCT:      return "Struct";
     case TIL_TYPE_STRUCT_DEF:  return "StructDef";
+    case TIL_TYPE_ENUM:        return "Enum";
+    case TIL_TYPE_ENUM_DEF:    return "EnumDef";
     case TIL_TYPE_FUNC_DEF:    return "FunctionDef";
     case TIL_TYPE_DYNAMIC:     return "Dynamic";
     }
@@ -68,6 +70,7 @@ static const char *node_name(NodeType type) {
     case NODE_FCALL:       return "fcall";
     case NODE_FUNC_DEF:    return "func_def";
     case NODE_STRUCT_DEF:  return "struct_def";
+    case NODE_ENUM_DEF:    return "enum_def";
     case NODE_FIELD_ACCESS: return "field_access";
     case NODE_FIELD_ASSIGN: return "field_assign";
     case NODE_RETURN:      return "return";

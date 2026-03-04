@@ -103,7 +103,7 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "Dynamic"))     return TIL_TYPE_DYNAMIC;
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
-        if (sdef) return TIL_TYPE_STRUCT;
+        if (sdef) return (sdef->type == NODE_ENUM_DEF) ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
     }
     return TIL_TYPE_UNKNOWN;
 }
@@ -378,6 +378,206 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         expr_add_child(body, decl);
         free(field_names);
         free(field_owns);
+    }
+
+    // Pass 1.8: register enum definitions, generate variants + methods
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type != NODE_DECL) continue;
+        if (stmt->children[0]->type != NODE_ENUM_DEF) continue;
+
+        Str *ename = stmt->data.decl.name;
+        int line = stmt->line, col = stmt->col;
+
+        // Register in type scope
+        tscope_set(scope, ename, TIL_TYPE_ENUM, -1, 0, line, col, 0, 0);
+        TypeBinding *b = tscope_find(scope, ename);
+        b->struct_def = stmt->children[0];
+
+        Expr *body = stmt->children[0]->children[0]; // NODE_BODY
+
+        // Collect variant names (non-namespace entries) and generate namespace fields
+        int nvariants = 0;
+        Str **variant_names = NULL;
+        for (int j = 0; j < body->nchildren; j++) {
+            if (body->children[j]->data.decl.is_namespace) continue;
+            nvariants++;
+            variant_names = realloc(variant_names, nvariants * sizeof(Str *));
+            variant_names[nvariants - 1] = body->children[j]->data.decl.name;
+        }
+
+        // Add namespace I64 fields for each variant
+        for (int j = 0; j < nvariants; j++) {
+            Expr *vdecl = expr_new(NODE_DECL, line, col);
+            vdecl->data.decl.name = variant_names[j];
+            vdecl->data.decl.is_namespace = true;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d", j);
+            Expr *lit = expr_new(NODE_LITERAL_NUM, line, col);
+            lit->data.str_val = Str_new(buf);
+            expr_add_child(vdecl, lit);
+            expr_add_child(body, vdecl);
+        }
+
+        // Remove original non-namespace variant markers (compact in place)
+        int bw = 0;
+        for (int j = 0; j < body->nchildren; j++) {
+            if (body->children[j]->data.decl.is_namespace)
+                body->children[bw++] = body->children[j];
+        }
+        body->nchildren = bw;
+
+        // Check existing methods
+        int has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
+        for (int j = 0; j < body->nchildren; j++) {
+            Expr *f = body->children[j];
+            if (f->type != NODE_DECL || !f->data.decl.is_namespace) continue;
+            if (f->nchildren == 0 || f->children[0]->type != NODE_FUNC_DEF) continue;
+            if (Str_eq_c(f->data.decl.name, "eq")) has_eq = 1;
+            if (Str_eq_c(f->data.decl.name, "clone")) has_clone = 1;
+            if (Str_eq_c(f->data.decl.name, "delete")) has_delete = 1;
+            if (Str_eq_c(f->data.decl.name, "to_str")) has_to_str = 1;
+        }
+
+        // Auto-generate eq := ext_func(self: E, other: E) returns Bool {}
+        if (!has_eq) {
+            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+            fdef->data.func_def.func_type = FUNC_EXT_FUNC;
+            fdef->data.func_def.nparam = 2;
+            fdef->data.func_def.param_names = malloc(2 * sizeof(Str *));
+            fdef->data.func_def.param_names[0] = Str_new("self");
+            fdef->data.func_def.param_names[1] = Str_new("other");
+            fdef->data.func_def.param_types = malloc(2 * sizeof(Str *));
+            fdef->data.func_def.param_types[0] = ename;
+            fdef->data.func_def.param_types[1] = ename;
+            fdef->data.func_def.param_muts = calloc(2, sizeof(bool));
+            fdef->data.func_def.param_owns = calloc(2, sizeof(bool));
+            fdef->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
+            fdef->data.func_def.return_type = Str_new("Bool");
+            fdef->data.func_def.is_variadic = false;
+            expr_add_child(fdef, expr_new(NODE_BODY, line, col));
+            Expr *decl = expr_new(NODE_DECL, line, col);
+            decl->data.decl.name = Str_new("eq");
+            decl->data.decl.is_namespace = true;
+            expr_add_child(decl, fdef);
+            expr_add_child(body, decl);
+        }
+
+        // Auto-generate clone := ext_func(self: E) returns E {}
+        if (!has_clone) {
+            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+            fdef->data.func_def.func_type = FUNC_EXT_FUNC;
+            fdef->data.func_def.nparam = 1;
+            fdef->data.func_def.param_names = malloc(sizeof(Str *));
+            fdef->data.func_def.param_names[0] = Str_new("self");
+            fdef->data.func_def.param_types = malloc(sizeof(Str *));
+            fdef->data.func_def.param_types[0] = ename;
+            fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
+            fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
+            fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
+            fdef->data.func_def.return_type = ename;
+            fdef->data.func_def.is_variadic = false;
+            expr_add_child(fdef, expr_new(NODE_BODY, line, col));
+            Expr *decl = expr_new(NODE_DECL, line, col);
+            decl->data.decl.name = Str_new("clone");
+            decl->data.decl.is_namespace = true;
+            expr_add_child(decl, fdef);
+            expr_add_child(body, decl);
+        }
+
+        // Auto-generate delete := ext_proc(own self: E, call_free: Bool = true) {}
+        if (!has_delete) {
+            Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col);
+            default_true->data.str_val = Str_new("true");
+            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+            fdef->data.func_def.func_type = FUNC_EXT_PROC;
+            fdef->data.func_def.nparam = 2;
+            fdef->data.func_def.param_names = malloc(2 * sizeof(Str *));
+            fdef->data.func_def.param_names[0] = Str_new("self");
+            fdef->data.func_def.param_names[1] = Str_new("call_free");
+            fdef->data.func_def.param_types = malloc(2 * sizeof(Str *));
+            fdef->data.func_def.param_types[0] = ename;
+            fdef->data.func_def.param_types[1] = Str_new("Bool");
+            fdef->data.func_def.param_muts = calloc(2, sizeof(bool));
+            fdef->data.func_def.param_owns = calloc(2, sizeof(bool));
+            fdef->data.func_def.param_owns[0] = true;
+            fdef->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
+            fdef->data.func_def.param_defaults[1] = default_true;
+            fdef->data.func_def.return_type = NULL;
+            fdef->data.func_def.is_variadic = false;
+            expr_add_child(fdef, expr_new(NODE_BODY, line, col));
+            Expr *decl = expr_new(NODE_DECL, line, col);
+            decl->data.decl.name = Str_new("delete");
+            decl->data.decl.is_namespace = true;
+            expr_add_child(decl, fdef);
+            expr_add_child(body, decl);
+        }
+
+        // Auto-generate to_str := func(self: E) returns Str { if-chain }
+        if (!has_to_str) {
+            Expr *func_body = expr_new(NODE_BODY, line, col);
+            for (int j = 0; j < nvariants; j++) {
+                // if self.eq(EnumName.VariantName) { return "VariantName" }
+                Expr *self_id = expr_new(NODE_IDENT, line, col);
+                self_id->data.str_val = Str_new("self");
+                Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                eq_acc->data.str_val = Str_new("eq");
+                expr_add_child(eq_acc, self_id);
+
+                // EnumName.VariantName
+                Expr *ename_id = expr_new(NODE_IDENT, line, col);
+                ename_id->data.str_val = ename;
+                Expr *var_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                var_acc->data.str_val = variant_names[j];
+                expr_add_child(var_acc, ename_id);
+
+                // self.eq(EnumName.VariantName)
+                Expr *eq_call = expr_new(NODE_FCALL, line, col);
+                expr_add_child(eq_call, eq_acc);
+                expr_add_child(eq_call, var_acc);
+
+                // return "VariantName"
+                Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col);
+                ret_str->data.str_val = variant_names[j];
+                Expr *ret = expr_new(NODE_RETURN, line, col);
+                expr_add_child(ret, ret_str);
+                Expr *then_body = expr_new(NODE_BODY, line, col);
+                expr_add_child(then_body, ret);
+
+                Expr *if_node = expr_new(NODE_IF, line, col);
+                expr_add_child(if_node, eq_call);
+                expr_add_child(if_node, then_body);
+                expr_add_child(func_body, if_node);
+            }
+            // return "unknown"
+            Expr *unk = expr_new(NODE_LITERAL_STR, line, col);
+            unk->data.str_val = Str_new("unknown");
+            Expr *ret_unk = expr_new(NODE_RETURN, line, col);
+            expr_add_child(ret_unk, unk);
+            expr_add_child(func_body, ret_unk);
+
+            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+            fdef->data.func_def.func_type = FUNC_FUNC;
+            fdef->data.func_def.nparam = 1;
+            fdef->data.func_def.param_names = malloc(sizeof(Str *));
+            fdef->data.func_def.param_names[0] = Str_new("self");
+            fdef->data.func_def.param_types = malloc(sizeof(Str *));
+            fdef->data.func_def.param_types[0] = ename;
+            fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
+            fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
+            fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
+            fdef->data.func_def.return_type = Str_new("Str");
+            fdef->data.func_def.is_variadic = false;
+            expr_add_child(fdef, func_body);
+
+            Expr *decl = expr_new(NODE_DECL, line, col);
+            decl->data.decl.name = Str_new("to_str");
+            decl->data.decl.is_namespace = true;
+            expr_add_child(decl, fdef);
+            expr_add_child(body, decl);
+        }
+
+        free(variant_names);
     }
 
     // Pass 2: register all func/proc definitions

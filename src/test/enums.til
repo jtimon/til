@@ -1,0 +1,37 @@
+mode script
+
+# basic enum
+Color := enum { Red, Green, Blue }
+
+# construction and eq
+c := Color.Red
+test(loc(), c.eq(Color.Red), "Red eq Red")
+test(loc(), c.eq(Color.Green).not(), "Red neq Green")
+
+# to_str
+assert_eq_str(loc(), c.to_str(), "Red")
+assert_eq_str(loc(), Color.Blue.to_str(), "Blue")
+
+# clone
+c2 := Color.Green
+assert_eq_str(loc(), c2.to_str(), "Green")
+
+# enum in func params
+is_red := func(c: Color) returns Bool {
+    return c.eq(Color.Red)
+}
+test(loc(), is_red(Color.Red), "func: is_red(Red)")
+test(loc(), is_red(Color.Blue).not(), "func: is_red(Blue)")
+
+# enum with namespace section
+Direction := enum {
+    Up, Down, Left, Right
+    namespace:
+    is_vertical := func(self: Direction) returns Bool {
+        if self.eq(Direction.Up) { return true }
+        if self.eq(Direction.Down) { return true }
+        return false
+    }
+}
+test(loc(), Direction.Up.is_vertical(), "Up is vertical")
+test(loc(), Direction.Left.is_vertical().not(), "Left not vertical")
