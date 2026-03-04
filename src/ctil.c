@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include "c/lexer.h"
 #include "c/parser.h"
 #include "c/initer.h"
@@ -144,7 +145,11 @@ int main(int argc, char **argv) {
             result = compile_c(c_path, bin_path, ext_c_path);
         }
         if (result == 0 && strcmp(command, "run") == 0) {
-            result = system(bin_path);
+            int status = system(bin_path);
+            if (WIFEXITED(status))
+                result = WEXITSTATUS(status);
+            else
+                result = 1;
         }
     } else if (strcmp(command, "ast") == 0) {
         printf("mode: %s\n", mode ? mode->c_str : "(none)");
