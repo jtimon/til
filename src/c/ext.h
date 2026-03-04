@@ -60,6 +60,10 @@ til_Bool *til_U8_gt(til_U8 *a, til_U8 *b);
 til_I64 *til_U8_to_i64(til_U8 *a);
 til_U8 *til_U8_from_i64_ext(til_I64 *a);
 
+// U8 clone/delete
+til_U8 *til_U8_clone(til_U8 *v);
+void til_U8_delete(til_U8 *v, til_Bool *call_free);
+
 // Bool ops
 til_Bool *til_Bool_and(til_Bool *a, til_Bool *b);
 til_Bool *til_Bool_or(til_Bool *a, til_Bool *b);

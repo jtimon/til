@@ -278,6 +278,8 @@ static int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *p
         *result = (Value){.type = VAL_U8, .u8 = til_U8_from_i64_ext(v.i64)};
         return 1;
     }
+    if (Str_eq_c(name, "U8_clone")) { Value v = eval_expr(scope, e->children[1], path); *result = val_u8(*v.u8); return 1; }
+    if (Str_eq_c(name, "U8_delete")) { Value v = eval_expr(scope, e->children[1], path); Value cf = eval_expr(scope, e->children[2], path); if (*cf.boolean) free(v.u8); *result = val_none(); return 1; }
 
     // Bool ops
     if (Str_eq_c(name, "Bool_and")) { Value a = eval_expr(scope, e->children[1], path); Value b = eval_expr(scope, e->children[2], path); *result = (Value){.type = VAL_BOOL, .boolean = til_Bool_and(a.boolean, b.boolean)}; return 1; }

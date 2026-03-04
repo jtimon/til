@@ -2,7 +2,7 @@
 StructDef : StructDef = struct {}
 FunctionDef : StructDef = struct {}
 Dynamic : StructDef = struct {}
-U8 : StructDef = struct {
+U8 : StructDef = ext_struct {
     namespace:
     to_str := ext_func(val: U8) returns Str {}
     to_i64 := ext_func(val: U8) returns I64 {}
@@ -33,9 +33,8 @@ U8 : StructDef = struct {
     and := ext_func(a: U8, b: U8) returns U8 {}
     or := ext_func(a: U8, b: U8) returns U8 {}
     xor := ext_func(a: U8, b: U8) returns U8 {}
-    clone := func(val: U8) returns U8 {
-        return U8.from_i64(val.to_i64())
-    }
+    clone := ext_func(val: U8) returns U8 {}
+    delete := ext_proc(own self: U8, call_free: Bool = true) {}
 }
 I64 : StructDef = ext_struct {
     namespace:

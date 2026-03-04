@@ -75,6 +75,10 @@ til_Bool *til_U8_gt(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool
 til_I64 *til_U8_to_i64(til_U8 *a) { til_I64 *r = malloc(sizeof(til_I64)); *r = (til_I64)*a; return r; }
 til_U8 *til_U8_from_i64_ext(til_I64 *a) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)*a; return r; }
 
+// U8 clone/delete
+til_U8 *til_U8_clone(til_U8 *v) { til_U8 *r = malloc(sizeof(til_U8)); *r = *v; return r; }
+void til_U8_delete(til_U8 *v, til_Bool *call_free) { if (*call_free) free(v); }
+
 // Bool ops
 til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a && *b; return r; }
 til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a || *b; return r; }
