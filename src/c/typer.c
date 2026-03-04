@@ -120,11 +120,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
     case NODE_STRUCT_DEF:
     case NODE_ENUM_DEF: {
         e->til_type = TIL_TYPE_NONE;
-        // Type-check field declarations (save/restore scope len so fields
-        // don't leak into outer scope's locals for free-call insertion)
-        int saved_len = scope->len;
-        infer_body(scope, e->children[0], path, 0, 0, 0);
-        scope->len = saved_len;
+        // Type-check field declarations in a child scope so fields
+        // don't leak into outer scope's locals for free-call insertion
+        TypeScope *inner = tscope_new(scope);
+        infer_body(inner, e->children[0], path, 0, 0, 0);
+        tscope_free(inner);
         break;
     }
     case NODE_FCALL: {
@@ -1122,8 +1122,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     // Start from 0 (not locals_start) to include own params, which are added before the body
     int n_locals = 0;
     LocalInfo *locals = NULL;
-    for (int i = 0; i < scope->len; i++) {
-        TypeBinding *b = &scope->bindings[i];
+    for (int i = 0; i < Map_len(&scope->bindings); i++) {
+        TypeBinding *b = (TypeBinding *)((char *)scope->bindings.vals.data + i * sizeof(TypeBinding));
         if ((b->is_param && !b->is_own) || b->struct_def || b->func_def || b->is_ref) continue;
 
         // Find decl_index: direct child first, then nested

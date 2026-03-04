@@ -2,6 +2,7 @@
 #define TIL_INITER_H
 
 #include "ast.h"
+#include "map.h"
 
 // --- Type scope (tracks variable types across phases) ---
 
@@ -24,9 +25,7 @@ typedef struct {
 
 typedef struct TypeScope TypeScope;
 struct TypeScope {
-    TypeBinding *bindings;
-    int len;
-    int cap;
+    Map bindings; // Str* name → TypeBinding
     TypeScope *parent;
 };
 

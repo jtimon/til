@@ -6,89 +6,59 @@
 // --- Type scope implementation ---
 
 TypeScope *tscope_new(TypeScope *parent) {
-    TypeScope *s = calloc(1, sizeof(TypeScope));
+    TypeScope *s = malloc(sizeof(TypeScope));
+    s->bindings = Map_new(sizeof(Str *), sizeof(TypeBinding), str_ptr_cmp);
     s->parent = parent;
     return s;
 }
 
 void tscope_free(TypeScope *s) {
-    free(s->bindings);
+    Map_delete(&s->bindings);
     free(s);
 }
 
 void tscope_set(TypeScope *s, Str *name, TilType type, int is_proc, int is_mut, int line, int col, int is_param, int is_own) {
-    for (int i = 0; i < s->len; i++) {
-        if (Str_eq(s->bindings[i].name, name)) {
-            s->bindings[i].type = type;
-            s->bindings[i].is_proc = is_proc;
-            s->bindings[i].is_mut = is_mut;
-            s->bindings[i].line = line;
-            s->bindings[i].col = col;
-            s->bindings[i].is_param = is_param;
-            s->bindings[i].is_own = is_own;
-            return;
-        }
+    TypeBinding *b = Map_get(&s->bindings, &name);
+    if (b) {
+        b->type = type;
+        b->is_proc = is_proc;
+        b->is_mut = is_mut;
+        b->line = line;
+        b->col = col;
+        b->is_param = is_param;
+        b->is_own = is_own;
+        return;
     }
-    if (s->len >= s->cap) {
-        s->cap = s->cap ? s->cap * 2 : 8;
-        s->bindings = realloc(s->bindings, s->cap * sizeof(TypeBinding));
-    }
-    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, is_own, 0, NULL, NULL, 0, 0, NULL};
-}
-
-TilType tscope_get(TypeScope *s, Str *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (Str_eq(cur->bindings[i].name, name)) {
-                return cur->bindings[i].type;
-            }
-        }
-    }
-    return TIL_TYPE_UNKNOWN;
-}
-
-int tscope_is_proc(TypeScope *s, Str *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (Str_eq(cur->bindings[i].name, name)) {
-                return cur->bindings[i].is_proc;
-            }
-        }
-    }
-    return -1;
+    TypeBinding nb = {name, type, is_proc, is_mut, line, col, is_param, is_own, 0, NULL, NULL, 0, 0, NULL};
+    Map_set(&s->bindings, &name, &nb);
 }
 
 TypeBinding *tscope_find(TypeScope *s, Str *name) {
     for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (Str_eq(cur->bindings[i].name, name)) {
-                return &cur->bindings[i];
-            }
-        }
+        TypeBinding *b = Map_get(&cur->bindings, &name);
+        if (b) return b;
     }
     return NULL;
+}
+
+TilType tscope_get(TypeScope *s, Str *name) {
+    TypeBinding *b = tscope_find(s, name);
+    return b ? b->type : TIL_TYPE_UNKNOWN;
+}
+
+int tscope_is_proc(TypeScope *s, Str *name) {
+    TypeBinding *b = tscope_find(s, name);
+    return b ? b->is_proc : -1;
 }
 
 Expr *tscope_get_struct(TypeScope *s, Str *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (Str_eq(cur->bindings[i].name, name)) {
-                return cur->bindings[i].struct_def;
-            }
-        }
-    }
-    return NULL;
+    TypeBinding *b = tscope_find(s, name);
+    return b ? b->struct_def : NULL;
 }
 
 int tscope_is_mut(TypeScope *s, Str *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (Str_eq(cur->bindings[i].name, name)) {
-                return cur->bindings[i].is_mut;
-            }
-        }
-    }
-    return 0;
+    TypeBinding *b = tscope_find(s, name);
+    return b ? b->is_mut : 0;
 }
 
 // --- Resolve type name (simplified, for init phase) ---
