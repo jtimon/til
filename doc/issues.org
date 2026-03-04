@@ -189,13 +189,18 @@
   The ccodegen and interpreter should be as similar and minimal as possible.
   The typer/initer should do more AST rewriting so backends can be dumb and uniform.
 
-  Pattern emerging: ext.c is the shared runtime, ext.h is the shared type system.
-  Builtins move from inline backend code → ext.c with PascalCase names matching
-  ccodegen's namespace convention. core.til uses direct ext_func namespace fields
-  instead of func-wrapping-ext_func. println/print/format now live in ext.c as
-  simple variadic C functions — the ..Str contract means all args are strings,
-  no type-switching needed. Struct constructors use compound literals instead of
-  per-struct _new functions.
+  Architecture now has 3 layers:
+  - ccore.h/c: raw C types (Str, I64, U8, Bool) + raw functions with natural
+    C semantics (value params for scalars, raw int returns for comparisons)
+  - ext.h/c: til_* typedefs + pointer-boxing wrappers for ccodegen's calling
+    convention (all args/returns are heap pointers)
+  - dispatch.h/c: interpreter's ext_function_dispatch, calls ccore directly
+
+  ccodegen links ext.c + ccore.c and emits calls to til_* wrappers.
+  The interpreter calls raw ccore functions via dispatch.c's strcmp chain.
+  core.til uses direct ext_func namespace fields instead of func-wrapping-ext_func.
+  println/print/format live in ext.c as variadic C functions. Struct constructors
+  use compound literals instead of per-struct _new functions.
 
   All 4 clone sites in #0 are now FIXED. Removing value_deep_copy is blocked
   by typer pass ordering: clone insertion and hoisting are separate sub-passes
@@ -213,8 +218,8 @@
    Interpreter also uses til_exit() from ext.c.
 
 ** FIXED ccodegen: i64_to_str, u8_to_str, str_eq emitted inline
-   Moved to ext.c. Both backends now share the same C implementations.
-   Interpreter calls ext.c functions directly instead of reimplementing.
+   Raw implementations in ccore.c. ccodegen links via ext.c wrappers.
+   Interpreter calls ccore functions directly via dispatch.c.
 
 ** FIXED bool_to_str was a needless builtin
    Replaced with pure til: if b { return "true" } else { return "false" }.
@@ -293,20 +298,15 @@
    fcalls or idents (and idents are always cloned to fcalls), this branch
    collapses.
 
-** interpreter: ~27 remaining strcmp checks for ext_func builtins
-   All non-variadic builtins have C implementations in ext.c with PascalCase
-   names (til_I64_add, til_U8_eq, etc.). The interpreter dispatches to them via
-   strcmp chain — including a redirect for direct ext_func namespace fields that
-   builds the flat name (e.g. I64 + add → "I64_add") and recurses into the
-   same dispatch. Could be replaced with a function pointer table keyed by the
-   flat name, mapping directly to ext.c symbols. The PascalCase naming makes
-   this natural: the table key matches the ext.c function name after til_ prefix.
+** interpreter: dispatch.c still uses strcmp chain
+   Dispatch extracted to dispatch.c — calls raw ccore functions (I64_add,
+   Bool_not, etc.) instead of ext.c wrappers. But still a linear strcmp chain.
+   Could be replaced with a function pointer table keyed by flat name.
    Remaining special cases that can't use the table: free (accesses scope).
-   println, print, and format are now in ext.c but still special-cased in
-   ccodegen (variadic arg count prepended) and interpreter (direct handling).
+   println, print, and format are variadic (special arg count handling).
 
 ** interpreter: free() accesses variable cell directly
-   The interpreter's free() handler (interpreter.c:508-524) assumes the argument
+   The dispatch.c free() handler assumes the argument
    is always a NODE_IDENT and directly accesses the variable's Cell via scope_get.
    This is the only builtin that reaches into the scope like this. It would crash
    on free(some_expr()). Now that ASAP uses delete() instead, user code rarely
