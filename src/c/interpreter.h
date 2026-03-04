@@ -3,6 +3,7 @@
 
 #include "ast.h"
 #include "ext.h"
+#include "map.h"
 #include <stdlib.h>
 
 // Interpret a parsed program. `mode` is the mode string (e.g. "cli").
@@ -85,9 +86,7 @@ typedef struct {
 
 typedef struct Scope Scope;
 struct Scope {
-    Binding *bindings;
-    int len;
-    int cap;
+    Map bindings;
     Scope *parent;
 };
 

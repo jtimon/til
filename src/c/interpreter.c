@@ -41,54 +41,43 @@ static void ns_set(Str *sname, Str *fname, Value val) {
 // --- Scope / environment ---
 
 Scope *scope_new(Scope *parent) {
-    Scope *s = calloc(1, sizeof(Scope));
+    Scope *s = malloc(sizeof(Scope));
+    s->bindings = Map_new(sizeof(Str *), sizeof(Binding), str_ptr_cmp);
     s->parent = parent;
     return s;
 }
 
 void scope_free(Scope *s) {
-    for (int i = 0; i < s->len; i++) {
-        if (s->bindings[i].cell_is_local) {
-            free(s->bindings[i].cell);
-        }
+    for (int i = 0; i < Map_len(&s->bindings); i++) {
+        Binding *b = (Binding *)((char *)s->bindings.vals.data + i * sizeof(Binding));
+        if (b->cell_is_local)
+            free(b->cell);
     }
-    free(s->bindings);
+    Map_delete(&s->bindings);
     free(s);
 }
 
 void scope_set_owned(Scope *s, Str *name, Value val) {
-    // Check if already exists in this scope
-    for (int i = 0; i < s->len; i++) {
-        if (Str_eq(s->bindings[i].name, name)) {
-            s->bindings[i].cell->val = val;
-            return;
-        }
+    Binding *b = Map_get(&s->bindings, &name);
+    if (b) {
+        b->cell->val = val;
+        return;
     }
-    // Add new binding with a locally allocated cell
     Cell *cell = malloc(sizeof(Cell));
     cell->val = val;
-    if (s->len >= s->cap) {
-        s->cap = s->cap ? s->cap * 2 : 8;
-        s->bindings = realloc(s->bindings, s->cap * sizeof(Binding));
-    }
-    s->bindings[s->len++] = (Binding){name, cell, 1};
+    Binding nb = {name, cell, 1};
+    Map_set(&s->bindings, &name, &nb);
 }
 
 static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
-    if (s->len >= s->cap) {
-        s->cap = s->cap ? s->cap * 2 : 8;
-        s->bindings = realloc(s->bindings, s->cap * sizeof(Binding));
-    }
-    s->bindings[s->len++] = (Binding){name, cell, 0};
+    Binding b = {name, cell, 0};
+    Map_set(&s->bindings, &name, &b);
 }
 
 Cell *scope_get(Scope *s, Str *name) {
     for (Scope *cur = s; cur; cur = cur->parent) {
-        for (int i = 0; i < cur->len; i++) {
-            if (Str_eq(cur->bindings[i].name, name)) {
-                return cur->bindings[i].cell;
-            }
-        }
+        Binding *b = Map_get(&cur->bindings, &name);
+        if (b) return b->cell;
     }
     return NULL;
 }
