@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "ccore.h"
+#include "vec.h"
 
 typedef enum {
     NODE_BODY,          // list of statements (children = statements)
@@ -87,8 +88,7 @@ struct Expr {
     bool is_own_field;              // NODE_FIELD_ACCESS/ASSIGN: field is 'own' (pointer)
     bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
     bool is_ext;                    // NODE_STRUCT_DEF: externally-implemented struct
-    Expr **children;                // malloc'd array of child pointers
-    int nchildren;
+    Vec children;                   // Vec of Expr* child pointers
     int line;
     int col;
 };
@@ -108,13 +108,16 @@ void expr_free(Expr *e);
 // Print an AST tree (for debugging)
 void ast_print(Expr *e, int indent);
 
+// Access child i of expr e (works as lvalue and rvalue)
+#define expr_child(e, i) (((Expr **)(e)->children.data)[(i)])
+
 // --- Enum helpers (shared by interpreter, ccodegen, precomp) ---
 
 // Check if an enum def has payload variants (any non-namespace decl with explicit_type)
 static inline int enum_has_payloads(Expr *enum_def) {
-    Expr *body = enum_def->children[0];
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *f = body->children[i];
+    Expr *body = expr_child(enum_def, 0);
+    for (int i = 0; i < body->children.len; i++) {
+        Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace && f->data.decl.explicit_type)
             return 1;
     }
@@ -123,10 +126,10 @@ static inline int enum_has_payloads(Expr *enum_def) {
 
 // Find tag index for a variant name in an enum def (scan non-namespace entries)
 static inline int enum_variant_tag(Expr *enum_def, Str *variant_name) {
-    Expr *body = enum_def->children[0];
+    Expr *body = expr_child(enum_def, 0);
     int tag = 0;
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *f = body->children[i];
+    for (int i = 0; i < body->children.len; i++) {
+        Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
             if (Str_eq(f->data.decl.name, variant_name)) return tag;
             tag++;
@@ -137,10 +140,10 @@ static inline int enum_variant_tag(Expr *enum_def, Str *variant_name) {
 
 // Find payload type string for a variant (NULL if no payload)
 static inline Str *enum_variant_type(Expr *enum_def, int tag) {
-    Expr *body = enum_def->children[0];
+    Expr *body = expr_child(enum_def, 0);
     int idx = 0;
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *f = body->children[i];
+    for (int i = 0; i < body->children.len; i++) {
+        Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
             if (idx == tag) return f->data.decl.explicit_type;
             idx++;

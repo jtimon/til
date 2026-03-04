@@ -84,10 +84,10 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
 int init_declarations(Expr *program, TypeScope *scope, const char *path) {
     (void)path;
     // Pass 1: register all struct definitions
-    for (int i = 0; i < program->nchildren; i++) {
-        Expr *stmt = program->children[i];
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
         if (stmt->type != NODE_DECL) continue;
-        if (stmt->children[0]->type != NODE_STRUCT_DEF) continue;
+        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
 
         Str *sname = stmt->data.decl.name;
         TilType builtin_type = TIL_TYPE_STRUCT;
@@ -102,16 +102,16 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *b = tscope_find(scope, sname);
-        b->struct_def = stmt->children[0];
+        b->struct_def = expr_child(stmt, 0);
         b->is_builtin = is_builtin;
-        b->is_ext = stmt->children[0]->is_ext;
+        b->is_ext = expr_child(stmt, 0)->is_ext;
     }
 
     // Pass 1.5: auto-generate clone methods for all structs
-    for (int i = 0; i < program->nchildren; i++) {
-        Expr *stmt = program->children[i];
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
         if (stmt->type != NODE_DECL) continue;
-        if (stmt->children[0]->type != NODE_STRUCT_DEF) continue;
+        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
 
         Str *sname = stmt->data.decl.name;
 
@@ -120,15 +120,15 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             Str_eq_c(sname, "FunctionDef") ||
             Str_eq_c(sname, "Dynamic")) continue;
 
-        Expr *sdef = stmt->children[0];
+        Expr *sdef = expr_child(stmt, 0);
         if (sdef->is_ext) continue;
 
-        Expr *body = sdef->children[0]; // NODE_BODY
+        Expr *body = expr_child(sdef, 0); // NODE_BODY
 
         // Check if clone already exists in namespace
         int has_clone = 0;
-        for (int j = 0; j < body->nchildren; j++) {
-            Expr *field = body->children[j];
+        for (int j = 0; j < body->children.len; j++) {
+            Expr *field = expr_child(body, j);
             if (field->type == NODE_DECL && field->data.decl.is_namespace &&
                 Str_eq_c(field->data.decl.name, "clone")) {
                 has_clone = 1;
@@ -139,8 +139,8 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // Collect instance field names
         Vec field_names = Vec_new(sizeof(Str *));
-        for (int j = 0; j < body->nchildren; j++) {
-            Expr *field = body->children[j];
+        for (int j = 0; j < body->children.len; j++) {
+            Expr *field = expr_child(body, j);
             if (field->type == NODE_DECL && !field->data.decl.is_namespace)
                 Vec_push(&field_names, &field->data.decl.name);
         }
@@ -223,10 +223,10 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
     }
 
     // Pass 1.7: auto-generate delete methods for all structs
-    for (int i = 0; i < program->nchildren; i++) {
-        Expr *stmt = program->children[i];
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
         if (stmt->type != NODE_DECL) continue;
-        if (stmt->children[0]->type != NODE_STRUCT_DEF) continue;
+        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
 
         Str *sname = stmt->data.decl.name;
 
@@ -235,15 +235,15 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             Str_eq_c(sname, "FunctionDef") ||
             Str_eq_c(sname, "Dynamic")) continue;
 
-        Expr *sdef = stmt->children[0];
+        Expr *sdef = expr_child(stmt, 0);
         if (sdef->is_ext) continue;
 
-        Expr *body = sdef->children[0]; // NODE_BODY
+        Expr *body = expr_child(sdef, 0); // NODE_BODY
 
         // Check if delete already exists in namespace
         int has_delete = 0;
-        for (int j = 0; j < body->nchildren; j++) {
-            Expr *field = body->children[j];
+        for (int j = 0; j < body->children.len; j++) {
+            Expr *field = expr_child(body, j);
             if (field->type == NODE_DECL && field->data.decl.is_namespace &&
                 Str_eq_c(field->data.decl.name, "delete")) {
                 has_delete = 1;
@@ -255,8 +255,8 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         // Collect instance field names and own flags
         Vec field_names = Vec_new(sizeof(Str *));
         Vec field_owns = Vec_new(sizeof(int));
-        for (int j = 0; j < body->nchildren; j++) {
-            Expr *field = body->children[j];
+        for (int j = 0; j < body->children.len; j++) {
+            Expr *field = expr_child(body, j);
             if (field->type == NODE_DECL && !field->data.decl.is_namespace) {
                 Vec_push(&field_names, &field->data.decl.name);
                 Vec_push(&field_owns, &field->data.decl.is_own);
@@ -347,10 +347,10 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
     }
 
     // Pass 1.8: register enum definitions, generate variants + methods
-    for (int i = 0; i < program->nchildren; i++) {
-        Expr *stmt = program->children[i];
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
         if (stmt->type != NODE_DECL) continue;
-        if (stmt->children[0]->type != NODE_ENUM_DEF) continue;
+        if (expr_child(stmt, 0)->type != NODE_ENUM_DEF) continue;
 
         Str *ename = stmt->data.decl.name;
         int line = stmt->line, col = stmt->col;
@@ -358,19 +358,19 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         // Register in type scope
         tscope_set(scope, ename, TIL_TYPE_ENUM, -1, 0, line, col, 0, 0);
         TypeBinding *b = tscope_find(scope, ename);
-        b->struct_def = stmt->children[0];
+        b->struct_def = expr_child(stmt, 0);
 
-        Expr *body = stmt->children[0]->children[0]; // NODE_BODY
+        Expr *body = expr_child(expr_child(stmt, 0), 0); // NODE_BODY
 
         // Collect variant info (names + optional payload types)
         Vec variant_names = Vec_new(sizeof(Str *));
         Vec variant_types = Vec_new(sizeof(Str *)); // NULL entries for no-payload
         int has_payloads = 0;
-        for (int j = 0; j < body->nchildren; j++) {
-            if (body->children[j]->data.decl.is_namespace) continue;
-            Vec_push(&variant_names, &body->children[j]->data.decl.name);
-            Vec_push(&variant_types, &body->children[j]->data.decl.explicit_type);
-            if (body->children[j]->data.decl.explicit_type) has_payloads = 1;
+        for (int j = 0; j < body->children.len; j++) {
+            if (expr_child(body, j)->data.decl.is_namespace) continue;
+            Vec_push(&variant_names, &expr_child(body, j)->data.decl.name);
+            Vec_push(&variant_types, &expr_child(body, j)->data.decl.explicit_type);
+            if (expr_child(body, j)->data.decl.explicit_type) has_payloads = 1;
         }
 
         if (!has_payloads) {
@@ -489,10 +489,10 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // Check existing methods
         int has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
-        for (int j = 0; j < body->nchildren; j++) {
-            Expr *f = body->children[j];
+        for (int j = 0; j < body->children.len; j++) {
+            Expr *f = expr_child(body, j);
             if (f->type != NODE_DECL || !f->data.decl.is_namespace) continue;
-            if (f->nchildren == 0 || f->children[0]->type != NODE_FUNC_DEF) continue;
+            if (f->children.len == 0 || expr_child(f, 0)->type != NODE_FUNC_DEF) continue;
             if (Str_eq_c(f->data.decl.name, "eq")) has_eq = 1;
             if (Str_eq_c(f->data.decl.name, "clone")) has_clone = 1;
             if (Str_eq_c(f->data.decl.name, "delete")) has_delete = 1;
@@ -811,21 +811,21 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
     }
 
     // Pass 2: register all func/proc definitions
-    for (int i = 0; i < program->nchildren; i++) {
-        Expr *stmt = program->children[i];
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
         if (stmt->type != NODE_DECL) continue;
-        if (stmt->children[0]->type != NODE_FUNC_DEF) continue;
+        if (expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
 
-        FuncType ft = stmt->children[0]->data.func_def.func_type;
+        FuncType ft = expr_child(stmt, 0)->data.func_def.func_type;
         int callee_is_proc = (ft == FUNC_PROC || ft == FUNC_EXT_PROC);
         TilType rt = TIL_TYPE_NONE;
-        if (stmt->children[0]->data.func_def.return_type) {
-            rt = type_from_name_init(stmt->children[0]->data.func_def.return_type, scope);
+        if (expr_child(stmt, 0)->data.func_def.return_type) {
+            rt = type_from_name_init(expr_child(stmt, 0)->data.func_def.return_type, scope);
         }
         tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *fb = tscope_find(scope, stmt->data.decl.name);
         if (fb) {
-            fb->func_def = stmt->children[0];
+            fb->func_def = expr_child(stmt, 0);
             if (ft == FUNC_EXT_FUNC || ft == FUNC_EXT_PROC)
                 fb->is_builtin = 1;
         }

@@ -93,7 +93,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     if (pb) pb->struct_name = ptn;
                 }
             }
-            infer_body(func_scope, e->children[0], path, is_func, 1, 0);
+            infer_body(func_scope, expr_child(e, 0), path, is_func, 1, 0);
             // Check: func/macro must have a return type
             if ((is_func || is_macro) && !e->data.func_def.return_type) {
                 type_error(path, e, is_macro ? "macro must declare a return type"
@@ -101,11 +101,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             }
             // Validate ref returns: every return value must be a param or ref variable
             if (e->data.func_def.return_is_ref) {
-                Expr *body = e->children[0];
-                for (int ri = 0; ri < body->nchildren; ri++) {
-                    Expr *s = body->children[ri];
-                    if (s->type != NODE_RETURN || s->nchildren == 0) continue;
-                    Expr *rv = s->children[0];
+                Expr *body = expr_child(e, 0);
+                for (int ri = 0; ri < body->children.len; ri++) {
+                    Expr *s = expr_child(body, ri);
+                    if (s->type != NODE_RETURN || s->children.len == 0) continue;
+                    Expr *rv = expr_child(s, 0);
                     int ok = 0;
                     if (rv->type == NODE_IDENT) {
                         TypeBinding *rb = tscope_find(func_scope, rv->data.str_val);
@@ -124,15 +124,15 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         // Type-check field declarations in a child scope so fields
         // don't leak into outer scope's locals for free-call insertion
         TypeScope *inner = tscope_new(scope);
-        infer_body(inner, e->children[0], path, 0, 0, 0);
+        infer_body(inner, expr_child(e, 0), path, 0, 0, 0);
         tscope_free(inner);
         break;
     }
     case NODE_FCALL: {
         // Namespace method call or UFCS: Type.method(args) or instance.method(args)
-        if (e->children[0]->type == NODE_FIELD_ACCESS) {
-            Expr *fa = e->children[0];
-            Expr *obj = fa->children[0];
+        if (expr_child(e, 0)->type == NODE_FIELD_ACCESS) {
+            Expr *fa = expr_child(e, 0);
+            Expr *obj = expr_child(fa, 0);
             Str *method = fa->data.str_val;
 
             // Type just the object first (not the full field access)
@@ -156,13 +156,13 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 Expr *sdef = type_name ? tscope_get_struct(scope, type_name) : NULL;
                 Expr *ns_func = NULL;
                 if (sdef) {
-                    Expr *body = sdef->children[0];
-                    for (int i = 0; i < body->nchildren; i++) {
-                        Expr *field = body->children[i];
+                    Expr *body = expr_child(sdef, 0);
+                    for (int i = 0; i < body->children.len; i++) {
+                        Expr *field = expr_child(body, i);
                         if (field->data.decl.is_namespace &&
                             Str_eq(field->data.decl.name, method) &&
-                            field->children[0]->type == NODE_FUNC_DEF) {
-                            ns_func = field->children[0];
+                            expr_child(field, 0)->type == NODE_FUNC_DEF) {
+                            ns_func = expr_child(field, 0);
                             break;
                         }
                     }
@@ -179,30 +179,30 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 Expr *instance = obj;
                 Expr *type_ident = expr_new(NODE_IDENT, obj->line, obj->col);
                 type_ident->data.str_val = type_name;
-                fa->children[0] = type_ident;
+                expr_child(fa, 0) = type_ident;
                 // Insert instance as first arg
-                e->children = realloc(e->children, (e->nchildren + 1) * sizeof(Expr *));
-                memmove(&e->children[2], &e->children[1], (e->nchildren - 1) * sizeof(Expr *));
-                e->children[1] = instance;
-                e->nchildren++;
+                Expr *dummy = NULL;
+                Vec_push(&e->children, &dummy);
+                memmove(&expr_child(e, 2), &expr_child(e, 1), (e->children.len - 2) * sizeof(Expr *));
+                expr_child(e, 1) = instance;
                 // Fall through -- existing code below handles Type.method(instance, args)
             }
 
             // Type the (possibly new) object and look up namespace func
-            obj = fa->children[0];
+            obj = expr_child(fa, 0);
             if (obj->til_type == TIL_TYPE_UNKNOWN) {
                 infer_expr(scope, obj, path, in_func);
             }
             Expr *sdef = obj->struct_name ? tscope_get_struct(scope, obj->struct_name) : NULL;
             Expr *ns_func = NULL;
             if (sdef) {
-                Expr *body = sdef->children[0];
-                for (int i = 0; i < body->nchildren; i++) {
-                    Expr *field = body->children[i];
+                Expr *body = expr_child(sdef, 0);
+                for (int i = 0; i < body->children.len; i++) {
+                    Expr *field = expr_child(body, i);
                     if (field->data.decl.is_namespace &&
                         Str_eq(field->data.decl.name, method) &&
-                        field->children[0]->type == NODE_FUNC_DEF) {
-                        ns_func = field->children[0];
+                        expr_child(field, 0)->type == NODE_FUNC_DEF) {
+                        ns_func = expr_child(field, 0);
                         break;
                     }
                 }
@@ -221,8 +221,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 Expr **new_args = calloc(np, sizeof(Expr *));
                 int pos_idx = 0;
                 int seen_named = 0;
-                for (int i = 1; i < e->nchildren; i++) {
-                    Expr *arg = e->children[i];
+                for (int i = 1; i < e->children.len; i++) {
+                    Expr *arg = expr_child(e, i);
                     if (arg->type == NODE_NAMED_ARG) {
                         seen_named = 1;
                         Str *aname = arg->data.str_val;
@@ -242,7 +242,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                             snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
                             type_error(path, arg, buf);
                         } else {
-                            new_args[slot] = arg->children[0]; // unwrap NODE_NAMED_ARG
+                            new_args[slot] = expr_child(arg, 0); // unwrap NODE_NAMED_ARG
                         }
                     } else {
                         if (seen_named) {
@@ -274,41 +274,40 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     type_error(path, e, buf);
                 }
                 // Rebuild children: callee + desugared args
-                Expr **new_children = malloc((np + 1) * sizeof(Expr *));
-                new_children[0] = e->children[0]; // callee (field access)
-                for (int i = 0; i < np; i++) {
-                    new_children[i + 1] = new_args[i];
-                }
-                free(e->children);
-                e->children = new_children;
-                e->nchildren = np + 1;
+                Vec new_ch = Vec_new(sizeof(Expr *));
+                Expr *callee = expr_child(e, 0);
+                Vec_push(&new_ch, &callee);
+                for (int i = 0; i < np; i++)
+                    Vec_push(&new_ch, &new_args[i]);
+                Vec_delete(&e->children);
+                e->children = new_ch;
                 free(new_args);
             }
             // Infer arg types
-            for (int i = 1; i < e->nchildren; i++) {
-                infer_expr(scope, e->children[i], path, in_func);
+            for (int i = 1; i < e->children.len; i++) {
+                infer_expr(scope, expr_child(e, i), path, in_func);
             }
             // Validate 'own' markers on arguments
             {
                 bool *po = ns_func->data.func_def.param_owns;
                 if (po) {
                     int np = ns_func->data.func_def.nparam;
-                    for (int i = 1; i < e->nchildren && i - 1 < np; i++) {
+                    for (int i = 1; i < e->children.len && i - 1 < np; i++) {
                         int pown = po[i - 1];
-                        if (pown && !e->children[i]->is_own_arg) {
+                        if (pown && !expr_child(e, i)->is_own_arg) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
                                      ns_func->data.func_def.param_names[i - 1]->c_str);
-                            type_error(path, e->children[i], buf);
-                        } else if (!pown && e->children[i]->is_own_arg) {
+                            type_error(path, expr_child(e, i), buf);
+                        } else if (!pown && expr_child(e, i)->is_own_arg) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
                                      ns_func->data.func_def.param_names[i - 1]->c_str);
-                            type_error(path, e->children[i], buf);
+                            type_error(path, expr_child(e, i), buf);
                         }
-                        if (pown && e->children[i]->type == NODE_IDENT) {
-                            TypeBinding *ab = tscope_find(scope, e->children[i]->data.str_val);
-                            if (ab && ab->is_ref) type_error(path, e->children[i], "cannot pass ref variable to 'own' parameter");
+                        if (pown && expr_child(e, i)->type == NODE_IDENT) {
+                            TypeBinding *ab = tscope_find(scope, expr_child(e, i)->data.str_val);
+                            if (ab && ab->is_ref) type_error(path, expr_child(e, i), "cannot pass ref variable to 'own' parameter");
                         }
                     }
                 }
@@ -325,7 +324,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             break;
         }
         // Resolve callee
-        Str *name = e->children[0]->data.str_val;
+        Str *name = expr_child(e, 0)->data.str_val;
         // Struct instantiation: Point() or Point(x=1, y=2)
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) {
@@ -337,23 +336,23 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 e->til_type = TIL_TYPE_UNKNOWN;
                 break;
             }
-            Expr *body = sdef->children[0];
+            Expr *body = expr_child(sdef, 0);
             // Count instance fields (skip namespace)
             int nfields = 0;
-            for (int i = 0; i < body->nchildren; i++) {
-                if (!body->children[i]->data.decl.is_namespace) nfields++;
+            for (int i = 0; i < body->children.len; i++) {
+                if (!expr_child(body, i)->data.decl.is_namespace) nfields++;
             }
             // Desugar named args into positional (one per instance field)
             Expr **field_vals = calloc(nfields, sizeof(Expr *));
             // Map: field_idx[k] = index into body->children for k-th instance field
             int *field_idx = malloc(nfields * sizeof(int));
             { int k = 0;
-              for (int i = 0; i < body->nchildren; i++) {
-                  if (!body->children[i]->data.decl.is_namespace) field_idx[k++] = i;
+              for (int i = 0; i < body->children.len; i++) {
+                  if (!expr_child(body, i)->data.decl.is_namespace) field_idx[k++] = i;
               }
             }
-            for (int i = 1; i < e->nchildren; i++) {
-                Expr *arg = e->children[i];
+            for (int i = 1; i < e->children.len; i++) {
+                Expr *arg = expr_child(e, i);
                 if (arg->type != NODE_NAMED_ARG) {
                     type_error(path, arg, "struct instantiation requires named arguments");
                     continue;
@@ -361,7 +360,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 Str *aname = arg->data.str_val;
                 int slot = -1;
                 for (int j = 0; j < nfields; j++) {
-                    if (Str_eq(body->children[field_idx[j]]->data.decl.name, aname)) {
+                    if (Str_eq(expr_child(body, field_idx[j])->data.decl.name, aname)) {
                         slot = j;
                         break;
                     }
@@ -375,41 +374,40 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                     snprintf(buf, sizeof(buf), "duplicate argument for field '%s'", aname->c_str);
                     type_error(path, arg, buf);
                 } else {
-                    field_vals[slot] = arg->children[0]; // unwrap NODE_NAMED_ARG
+                    field_vals[slot] = expr_child(arg, 0); // unwrap NODE_NAMED_ARG
                 }
             }
             // Fill remaining from struct field defaults (clone to avoid shared ownership)
             for (int i = 0; i < nfields; i++) {
                 if (!field_vals[i]) {
-                    field_vals[i] = expr_clone(body->children[field_idx[i]]->children[0]);
+                    field_vals[i] = expr_clone(expr_child(expr_child(body, field_idx[i]), 0));
                 }
             }
             // Rebuild children: callee + instance field values
-            Expr **new_children = malloc((nfields + 1) * sizeof(Expr *));
-            new_children[0] = e->children[0]; // callee
-            for (int i = 0; i < nfields; i++) {
-                new_children[i + 1] = field_vals[i];
-            }
-            free(e->children);
-            e->children = new_children;
-            e->nchildren = nfields + 1;
+            Vec new_ch = Vec_new(sizeof(Expr *));
+            Expr *callee = expr_child(e, 0);
+            Vec_push(&new_ch, &callee);
+            for (int i = 0; i < nfields; i++)
+                Vec_push(&new_ch, &field_vals[i]);
+            Vec_delete(&e->children);
+            e->children = new_ch;
             free(field_vals);
             free(field_idx);
             // Type-check args (skip already-inferred defaults)
-            for (int i = 1; i < e->nchildren; i++) {
-                if (e->children[i]->til_type == TIL_TYPE_UNKNOWN) {
-                    infer_expr(scope, e->children[i], path, in_func);
+            for (int i = 1; i < e->children.len; i++) {
+                if (expr_child(e, i)->til_type == TIL_TYPE_UNKNOWN) {
+                    infer_expr(scope, expr_child(e, i), path, in_func);
                 }
             }
             // Auto-insert clone for constructor args that are identifiers
-            for (int i = 1; i < e->nchildren; i++) {
-                if (e->children[i]->type == NODE_IDENT) {
-                    const char *tname = type_to_name(e->children[i]->til_type,
-                                                      e->children[i]->struct_name);
+            for (int i = 1; i < e->children.len; i++) {
+                if (expr_child(e, i)->type == NODE_IDENT) {
+                    const char *tname = type_to_name(expr_child(e, i)->til_type,
+                                                      expr_child(e, i)->struct_name);
                     if (tname) {
-                        e->children[i] = make_clone_call(tname,
-                            e->children[i]->til_type, e->children[i],
-                            e->children[i]->line, e->children[i]->col);
+                        expr_child(e, i) = make_clone_call(tname,
+                            expr_child(e, i)->til_type, expr_child(e, i),
+                            expr_child(e, i)->line, expr_child(e, i)->col);
                     }
                 }
             }
@@ -426,8 +424,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             Expr **new_args = calloc(nparam, sizeof(Expr *));
             int pos_idx = 0;
             int seen_named = 0;
-            for (int i = 1; i < e->nchildren; i++) {
-                Expr *arg = e->children[i];
+            for (int i = 1; i < e->children.len; i++) {
+                Expr *arg = expr_child(e, i);
                 if (arg->type == NODE_NAMED_ARG) {
                     seen_named = 1;
                     Str *aname = arg->data.str_val;
@@ -447,7 +445,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                         snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
                         type_error(path, arg, buf);
                     } else {
-                        new_args[slot] = arg->children[0]; // unwrap NODE_NAMED_ARG
+                        new_args[slot] = expr_child(arg, 0); // unwrap NODE_NAMED_ARG
                     }
                 } else {
                     if (seen_named) {
@@ -480,40 +478,39 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 type_error(path, e, buf);
             }
             // Rebuild children: callee + desugared args
-            Expr **new_children = malloc((nparam + 1) * sizeof(Expr *));
-            new_children[0] = e->children[0]; // callee
-            for (int i = 0; i < nparam; i++) {
-                new_children[i + 1] = new_args[i];
-            }
-            free(e->children);
-            e->children = new_children;
-            e->nchildren = nparam + 1;
+            Vec new_ch = Vec_new(sizeof(Expr *));
+            Expr *callee = expr_child(e, 0);
+            Vec_push(&new_ch, &callee);
+            for (int i = 0; i < nparam; i++)
+                Vec_push(&new_ch, &new_args[i]);
+            Vec_delete(&e->children);
+            e->children = new_ch;
             free(new_args);
         }
         // Infer types of all arguments
-        for (int i = 1; i < e->nchildren; i++) {
-            infer_expr(scope, e->children[i], path, in_func);
+        for (int i = 1; i < e->children.len; i++) {
+            infer_expr(scope, expr_child(e, i), path, in_func);
         }
         // Validate 'own' markers on arguments
         if (callee_bind && callee_bind->func_def) {
             Expr *fdef = callee_bind->func_def;
             bool *po = fdef->data.func_def.param_owns;
-            for (int i = 1; i < e->nchildren && i - 1 < fdef->data.func_def.nparam; i++) {
+            for (int i = 1; i < e->children.len && i - 1 < fdef->data.func_def.nparam; i++) {
                 int pown = po ? po[i - 1] : 0;
-                if (pown && !e->children[i]->is_own_arg) {
+                if (pown && !expr_child(e, i)->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
                              fdef->data.func_def.param_names[i - 1]->c_str);
-                    type_error(path, e->children[i], buf);
-                } else if (!pown && e->children[i]->is_own_arg) {
+                    type_error(path, expr_child(e, i), buf);
+                } else if (!pown && expr_child(e, i)->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
                              fdef->data.func_def.param_names[i - 1]->c_str);
-                    type_error(path, e->children[i], buf);
+                    type_error(path, expr_child(e, i), buf);
                 }
-                if (pown && e->children[i]->type == NODE_IDENT) {
-                    TypeBinding *ab = tscope_find(scope, e->children[i]->data.str_val);
-                    if (ab && ab->is_ref) type_error(path, e->children[i], "cannot pass ref variable to 'own' parameter");
+                if (pown && expr_child(e, i)->type == NODE_IDENT) {
+                    TypeBinding *ab = tscope_find(scope, expr_child(e, i)->data.str_val);
+                    if (ab && ab->is_ref) type_error(path, expr_child(e, i), "cannot pass ref variable to 'own' parameter");
                 }
             }
         }
@@ -539,16 +536,16 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         break;
     }
     case NODE_FIELD_ACCESS: {
-        infer_expr(scope, e->children[0], path, in_func);
-        Expr *obj = e->children[0];
+        infer_expr(scope, expr_child(e, 0), path, in_func);
+        Expr *obj = expr_child(e, 0);
         if (obj->struct_name) {
             Expr *sdef = tscope_get_struct(scope, obj->struct_name);
             if (sdef) {
-                Expr *body = sdef->children[0];
+                Expr *body = expr_child(sdef, 0);
                 Str *fname = e->data.str_val;
                 int found = 0;
-                for (int i = 0; i < body->nchildren; i++) {
-                    Expr *field = body->children[i];
+                for (int i = 0; i < body->children.len; i++) {
+                    Expr *field = expr_child(body, i);
                     // Skip variant registry entries (non-namespace) in enum bodies
                     if (sdef->type == NODE_ENUM_DEF && !field->data.decl.is_namespace)
                         continue;
@@ -557,7 +554,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                         e->is_ns_field = field->data.decl.is_namespace;
                         e->is_own_field = field->data.decl.is_own;
                         if (field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) {
-                            e->struct_name = field->children[0]->struct_name;
+                            e->struct_name = expr_child(field, 0)->struct_name;
                         } else {
                             e->struct_name = obj->struct_name;
                         }
@@ -566,8 +563,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                         // 2. Zero-arg ext_func constructors (no-payload in payload enums)
                         if (sdef->type == NODE_ENUM_DEF &&
                             field->data.decl.is_namespace &&
-                            field->nchildren > 0) {
-                            Expr *fc = field->children[0];
+                            field->children.len > 0) {
+                            Expr *fc = expr_child(field, 0);
                             if (fc->type != NODE_FUNC_DEF) {
                                 // I64 literal variant
                                 e->til_type = TIL_TYPE_ENUM;
@@ -610,8 +607,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
 
 static int expr_contains_fcall(Expr *e) {
     if (e->type == NODE_FCALL) return 1;
-    for (int i = 0; i < e->nchildren; i++) {
-        if (expr_contains_fcall(e->children[i])) return 1;
+    for (int i = 0; i < e->children.len; i++) {
+        if (expr_contains_fcall(expr_child(e, i))) return 1;
     }
     return 0;
 }
@@ -619,21 +616,21 @@ static int expr_contains_fcall(Expr *e) {
 // Check if a function call returns ref
 static int fcall_returns_ref(Expr *fcall, TypeScope *scope) {
     if (fcall->type != NODE_FCALL) return 0;
-    Expr *callee = fcall->children[0];
+    Expr *callee = expr_child(fcall, 0);
     if (callee->type == NODE_IDENT) {
         TypeBinding *cb = tscope_find(scope, callee->data.str_val);
         return (cb && cb->func_def) ? cb->func_def->data.func_def.return_is_ref : 0;
     }
     if (callee->type == NODE_FIELD_ACCESS && callee->is_ns_field) {
-        Expr *sdef = tscope_get_struct(scope, callee->children[0]->data.str_val);
+        Expr *sdef = tscope_get_struct(scope, expr_child(callee, 0)->data.str_val);
         if (!sdef) return 0;
-        Expr *body = sdef->children[0];
-        for (int j = 0; j < body->nchildren; j++) {
-            Expr *f = body->children[j];
+        Expr *body = expr_child(sdef, 0);
+        for (int j = 0; j < body->children.len; j++) {
+            Expr *f = expr_child(body, j);
             if (f->type == NODE_DECL && f->data.decl.is_namespace &&
                 Str_eq(f->data.decl.name, callee->data.str_val) &&
-                f->children[0]->type == NODE_FUNC_DEF)
-                return f->children[0]->data.func_def.return_is_ref;
+                expr_child(f, 0)->type == NODE_FUNC_DEF)
+                return expr_child(f, 0)->data.func_def.return_is_ref;
         }
     }
     return 0;
@@ -680,37 +677,37 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
     // Don't recurse into scope boundaries -- those have their own infer_body calls
     if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF || e->type == NODE_ENUM_DEF || e->type == NODE_BODY) return;
     // Recurse into children first (depth-first: inner fcalls hoisted before outer)
-    for (int i = 0; i < e->nchildren; i++) {
-        hoist_expr(e->children[i], hoisted, nhoisted, cap, scope);
+    for (int i = 0; i < e->children.len; i++) {
+        hoist_expr(expr_child(e, i), hoisted, nhoisted, cap, scope);
     }
     if (e->type != NODE_FCALL) return;
 
     // For struct constructors, find field info to skip hoisting inline compound args
     Expr *ctor_body = NULL;
-    if (e->struct_name && e->nchildren > 0 &&
-        Str_eq(e->children[0]->data.str_val, e->struct_name)) {
+    if (e->struct_name && e->children.len > 0 &&
+        Str_eq(expr_child(e, 0)->data.str_val, e->struct_name)) {
         Expr *sdef = tscope_get_struct(scope, e->struct_name);
-        if (sdef) ctor_body = sdef->children[0];
+        if (sdef) ctor_body = expr_child(sdef, 0);
     }
 
     // Check each argument (children[1..n])
     int fi = 0; // instance field index for struct constructors
-    for (int i = 1; i < e->nchildren; i++) {
-        if (e->children[i]->type != NODE_FCALL &&
-            e->children[i]->type != NODE_LITERAL_NUM &&
-            e->children[i]->type != NODE_LITERAL_STR &&
-            e->children[i]->type != NODE_LITERAL_BOOL) continue;
+    for (int i = 1; i < e->children.len; i++) {
+        if (expr_child(e, i)->type != NODE_FCALL &&
+            expr_child(e, i)->type != NODE_LITERAL_NUM &&
+            expr_child(e, i)->type != NODE_LITERAL_STR &&
+            expr_child(e, i)->type != NODE_LITERAL_BOOL) continue;
 
         // Skip hoisting inline compound field args in struct constructors
         if (ctor_body) {
             // Find the fi-th instance field
             int is_own = 0;
             TilType ft = TIL_TYPE_NONE;
-            for (; fi < ctor_body->nchildren; fi++) {
-                Expr *field = ctor_body->children[fi];
+            for (; fi < ctor_body->children.len; fi++) {
+                Expr *field = expr_child(ctor_body, fi);
                 if (!field->data.decl.is_namespace) {
                     is_own = field->data.decl.is_own;
-                    ft = field->children[0]->til_type;
+                    ft = expr_child(field, 0)->til_type;
                     fi++;
                     break;
                 }
@@ -719,44 +716,43 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
                 continue; // don't hoist — ccodegen handles directly
         }
 
-        e->children[i] = hoist_to_temp(e->children[i], hoisted, nhoisted, cap, scope);
+        expr_child(e, i) = hoist_to_temp(expr_child(e, i), hoisted, nhoisted, cap, scope);
     }
 }
 
 static void hoist_fcall_args(Expr *body, TypeScope *scope) {
-    Expr **new_ch = NULL;
-    int new_n = 0, new_cap = 0;
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *stmt = body->children[i];
+    Vec new_ch = Vec_new(sizeof(Expr *));
+    for (int i = 0; i < body->children.len; i++) {
+        Expr *stmt = expr_child(body, i);
         // Collect hoisted decls from this statement
         Expr **hoisted = NULL;
         int nhoisted = 0, hcap = 0;
         // Walk the appropriate expression tree based on statement type
         switch (stmt->type) {
         case NODE_DECL:
-            hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            hoist_expr(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
             break;
         case NODE_FCALL:
             hoist_expr(stmt, &hoisted, &nhoisted, &hcap, scope);
             if (stmt->til_type != TIL_TYPE_NONE) {
                 hoist_to_temp(stmt, &hoisted, &nhoisted, &hcap, scope);
                 stmt = hoisted[--nhoisted];
-                body->children[i] = stmt;
+                expr_child(body, i) = stmt;
             }
             break;
         case NODE_RETURN:
-            if (stmt->nchildren > 0) {
-                hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
-                if (stmt->children[0]->type == NODE_FCALL ||
-                    stmt->children[0]->type == NODE_LITERAL_NUM ||
-                    stmt->children[0]->type == NODE_LITERAL_STR ||
-                    stmt->children[0]->type == NODE_LITERAL_BOOL) {
-                    stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            if (stmt->children.len > 0) {
+                hoist_expr(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
+                if (expr_child(stmt, 0)->type == NODE_FCALL ||
+                    expr_child(stmt, 0)->type == NODE_LITERAL_NUM ||
+                    expr_child(stmt, 0)->type == NODE_LITERAL_STR ||
+                    expr_child(stmt, 0)->type == NODE_LITERAL_BOOL) {
+                    expr_child(stmt, 0) = hoist_to_temp(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
                 }
             }
             break;
         case NODE_ASSIGN: {
-            hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            hoist_expr(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
             // Skip top-level hoisting for compound-type locals — ccodegen
             // uses pointer-assign (typer inserts delete before reassignment).
             // Keep hoisting for scalars (deref-assign) and params (write-through).
@@ -767,62 +763,52 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 if (t == TIL_TYPE_STR || t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM)
                     do_hoist = 0;
             }
-            if (do_hoist && (stmt->children[0]->type == NODE_FCALL ||
-                stmt->children[0]->type == NODE_LITERAL_NUM ||
-                stmt->children[0]->type == NODE_LITERAL_STR ||
-                stmt->children[0]->type == NODE_LITERAL_BOOL)) {
-                stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            if (do_hoist && (expr_child(stmt, 0)->type == NODE_FCALL ||
+                expr_child(stmt, 0)->type == NODE_LITERAL_NUM ||
+                expr_child(stmt, 0)->type == NODE_LITERAL_STR ||
+                expr_child(stmt, 0)->type == NODE_LITERAL_BOOL)) {
+                expr_child(stmt, 0) = hoist_to_temp(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         }
         case NODE_FIELD_ASSIGN: {
-            hoist_expr(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
+            hoist_expr(expr_child(stmt, 1), &hoisted, &nhoisted, &hcap, scope);
             // Skip hoisting for inline compound fields (same as constructor args)
             int fa_hoist = 1;
             if (!stmt->is_own_field) {
-                TilType ft = stmt->children[1]->til_type;
+                TilType ft = expr_child(stmt, 1)->til_type;
                 if (ft == TIL_TYPE_STR || ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM)
                     fa_hoist = 0;
             }
-            if (fa_hoist && (stmt->children[1]->type == NODE_FCALL ||
-                stmt->children[1]->type == NODE_LITERAL_NUM ||
-                stmt->children[1]->type == NODE_LITERAL_STR ||
-                stmt->children[1]->type == NODE_LITERAL_BOOL)) {
-                stmt->children[1] = hoist_to_temp(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
+            if (fa_hoist && (expr_child(stmt, 1)->type == NODE_FCALL ||
+                expr_child(stmt, 1)->type == NODE_LITERAL_NUM ||
+                expr_child(stmt, 1)->type == NODE_LITERAL_STR ||
+                expr_child(stmt, 1)->type == NODE_LITERAL_BOOL)) {
+                expr_child(stmt, 1) = hoist_to_temp(expr_child(stmt, 1), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         }
         case NODE_IF:
-            hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
-            if (stmt->children[0]->type == NODE_FCALL) {
-                stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            hoist_expr(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
+            if (expr_child(stmt, 0)->type == NODE_FCALL) {
+                expr_child(stmt, 0) = hoist_to_temp(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         // NODE_WHILE: skip condition -- hoisting changes loop semantics
         default: break;
         }
         // Insert hoisted decls before the statement
-        for (int j = 0; j < nhoisted; j++) {
-            if (new_n >= new_cap) {
-                new_cap = new_cap ? new_cap * 2 : body->nchildren * 2;
-                new_ch = realloc(new_ch, new_cap * sizeof(Expr *));
-            }
-            new_ch[new_n++] = hoisted[j];
-        }
+        for (int j = 0; j < nhoisted; j++)
+            Vec_push(&new_ch, &hoisted[j]);
         free(hoisted);
         // Add original statement
-        if (new_n >= new_cap) {
-            new_cap = new_cap ? new_cap * 2 : body->nchildren * 2;
-            new_ch = realloc(new_ch, new_cap * sizeof(Expr *));
-        }
-        new_ch[new_n++] = stmt;
+        Vec_push(&new_ch, &stmt);
     }
-    if (new_n != body->nchildren) {
-        free(body->children);
+    if (new_ch.len != body->children.len) {
+        Vec_delete(&body->children);
         body->children = new_ch;
-        body->nchildren = new_n;
     } else {
-        free(new_ch);
+        Vec_delete(&new_ch);
     }
 }
 
@@ -875,7 +861,7 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, int
 // Build Type.delete(obj.field, call_free) for field reassignment.
 // is_own: true for own (pointer) fields, false for inline (value) fields.
 static Expr *make_field_delete(Expr *field_assign, int is_own) {
-    Expr *rhs = field_assign->children[1];
+    Expr *rhs = expr_child(field_assign, 1);
     const char *tname = type_to_name(rhs->til_type, rhs->struct_name);
     if (!tname) return NULL;
     int line = field_assign->line, col = field_assign->col;
@@ -899,7 +885,7 @@ static Expr *make_field_delete(Expr *field_assign, int is_own) {
     field_acc->is_own_field = is_own;
     field_acc->til_type = rhs->til_type;
     field_acc->struct_name = rhs->struct_name;
-    expr_add_child(field_acc, expr_clone(field_assign->children[0]));
+    expr_add_child(field_acc, expr_clone(expr_child(field_assign, 0)));
     expr_add_child(call, field_acc);
 
     Expr *cf_lit = expr_new(NODE_LITERAL_BOOL, line, col);
@@ -912,41 +898,36 @@ static Expr *make_field_delete(Expr *field_assign, int is_own) {
 
 // Insert delete calls before field reassignments (own and inline compound)
 static void insert_field_deletes(Expr *body) {
-    Expr **new_ch = NULL;
-    int new_n = 0, changed = 0;
+    Vec new_ch = Vec_new(sizeof(Expr *));
+    int changed = 0;
 
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *stmt = body->children[i];
+    for (int i = 0; i < body->children.len; i++) {
+        Expr *stmt = expr_child(body, i);
         if (stmt->type == NODE_FIELD_ASSIGN) {
             int need_delete = 0;
             int is_own = stmt->is_own_field;
             if (is_own) {
                 need_delete = 1;
             } else {
-                TilType ft = stmt->children[1]->til_type;
+                TilType ft = expr_child(stmt, 1)->til_type;
                 if (ft == TIL_TYPE_STR || ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM)
                     need_delete = 1;
             }
             if (need_delete) {
                 Expr *del = make_field_delete(stmt, is_own);
                 if (del) {
-                    new_n++;
-                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                    new_ch[new_n - 1] = del;
+                    Vec_push(&new_ch, &del);
                     changed = 1;
                 }
             }
         }
-        new_n++;
-        new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-        new_ch[new_n - 1] = stmt;
+        Vec_push(&new_ch, &stmt);
     }
     if (changed) {
-        free(body->children);
+        Vec_delete(&body->children);
         body->children = new_ch;
-        body->nchildren = new_n;
     } else {
-        free(new_ch);
+        Vec_delete(&new_ch);
     }
 }
 
@@ -973,8 +954,8 @@ static int expr_uses_var(Expr *e, Str *name) {
     if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_IDENT && Str_eq(e->data.str_val, name)) return 1;
     if (e->type == NODE_ASSIGN && Str_eq(e->data.str_val, name)) return 1;
-    for (int i = 0; i < e->nchildren; i++) {
-        if (expr_uses_var(e->children[i], name)) return 1;
+    for (int i = 0; i < e->children.len; i++) {
+        if (expr_uses_var(expr_child(e, i), name)) return 1;
     }
     return 0;
 }
@@ -982,8 +963,8 @@ static int expr_uses_var(Expr *e, Str *name) {
 static int expr_contains_decl(Expr *e, Str *name) {
     if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_DECL && Str_eq(e->data.decl.name, name)) return 1;
-    for (int i = 0; i < e->nchildren; i++) {
-        if (expr_contains_decl(e->children[i], name)) return 1;
+    for (int i = 0; i < e->children.len; i++) {
+        if (expr_contains_decl(expr_child(e, i), name)) return 1;
     }
     return 0;
 }
@@ -993,9 +974,9 @@ static int check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
     bool *po = fdef->data.func_def.param_owns;
     if (!po) return 0;
     int np = fdef->data.func_def.nparam;
-    for (int i = 0; i < np && i + 1 < fcall->nchildren; i++) {
-        if (po[i] && fcall->children[i + 1]->type == NODE_IDENT &&
-            Str_eq(fcall->children[i + 1]->data.str_val, var_name)) {
+    for (int i = 0; i < np && i + 1 < fcall->children.len; i++) {
+        if (po[i] && expr_child(fcall, i + 1)->type == NODE_IDENT &&
+            Str_eq(expr_child(fcall, i + 1)->data.str_val, var_name)) {
             return 1;
         }
     }
@@ -1003,49 +984,49 @@ static int check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
 }
 
 static int fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
-    if (fcall->type != NODE_FCALL || fcall->nchildren < 2) return 0;
+    if (fcall->type != NODE_FCALL || fcall->children.len < 2) return 0;
     // Struct constructor: check if var is in an own field position
-    if (fcall->struct_name && fcall->children[0]->type == NODE_IDENT &&
-        Str_eq(fcall->children[0]->data.str_val, fcall->struct_name)) {
+    if (fcall->struct_name && expr_child(fcall, 0)->type == NODE_IDENT &&
+        Str_eq(expr_child(fcall, 0)->data.str_val, fcall->struct_name)) {
         Expr *sdef = tscope_get_struct(scope, fcall->struct_name);
         if (sdef) {
-            Expr *body = sdef->children[0];
+            Expr *body = expr_child(sdef, 0);
             int fi = 0;
-            for (int i = 0; i < body->nchildren; i++) {
-                if (body->children[i]->type != NODE_DECL ||
-                    body->children[i]->data.decl.is_namespace) continue;
+            for (int i = 0; i < body->children.len; i++) {
+                if (expr_child(body, i)->type != NODE_DECL ||
+                    expr_child(body, i)->data.decl.is_namespace) continue;
                 int arg_idx = fi + 1;
                 fi++;
-                if (arg_idx < fcall->nchildren &&
-                    fcall->children[arg_idx]->type == NODE_IDENT &&
-                    Str_eq(fcall->children[arg_idx]->data.str_val, var_name) &&
-                    body->children[i]->data.decl.is_own) {
+                if (arg_idx < fcall->children.len &&
+                    expr_child(fcall, arg_idx)->type == NODE_IDENT &&
+                    Str_eq(expr_child(fcall, arg_idx)->data.str_val, var_name) &&
+                    expr_child(body, i)->data.decl.is_own) {
                     return 1;
                 }
             }
         }
     }
     // Direct call: look up func def in scope
-    if (fcall->children[0]->type == NODE_IDENT) {
-        Str *fn_name = fcall->children[0]->data.str_val;
+    if (expr_child(fcall, 0)->type == NODE_IDENT) {
+        Str *fn_name = expr_child(fcall, 0)->data.str_val;
         TypeBinding *fb = tscope_find(scope, fn_name);
         if (!fb || !fb->func_def) return 0;
         return check_own_args(fb->func_def, fcall, var_name);
     }
     // Namespace method call: look up in struct definition
-    if (fcall->children[0]->type == NODE_FIELD_ACCESS && fcall->children[0]->is_ns_field) {
-        Str *method = fcall->children[0]->data.str_val;
-        Expr *type_node = fcall->children[0]->children[0];
+    if (expr_child(fcall, 0)->type == NODE_FIELD_ACCESS && expr_child(fcall, 0)->is_ns_field) {
+        Str *method = expr_child(fcall, 0)->data.str_val;
+        Expr *type_node = expr_child(expr_child(fcall, 0), 0);
         if (type_node->type != NODE_IDENT) return 0;
         Expr *sdef = tscope_get_struct(scope, type_node->data.str_val);
         if (!sdef) return 0;
-        Expr *body = sdef->children[0];
-        for (int i = 0; i < body->nchildren; i++) {
-            Expr *field = body->children[i];
+        Expr *body = expr_child(sdef, 0);
+        for (int i = 0; i < body->children.len; i++) {
+            Expr *field = expr_child(body, i);
             if (field->type == NODE_DECL && field->data.decl.is_namespace &&
                 Str_eq(field->data.decl.name, method) &&
-                field->children[0]->type == NODE_FUNC_DEF) {
-                return check_own_args(field->children[0], fcall, var_name);
+                expr_child(field, 0)->type == NODE_FUNC_DEF) {
+                return check_own_args(expr_child(field, 0), fcall, var_name);
             }
         }
     }
@@ -1057,12 +1038,12 @@ static int expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
     if (fcall_has_own_arg(e, var_name, scope)) return 1;
     // Own field assignment: RHS ownership transfers to the field
     if (e->type == NODE_FIELD_ASSIGN && e->is_own_field &&
-        e->children[1]->type == NODE_IDENT &&
-        Str_eq(e->children[1]->data.str_val, var_name)) {
+        expr_child(e, 1)->type == NODE_IDENT &&
+        Str_eq(expr_child(e, 1)->data.str_val, var_name)) {
         return 1;
     }
-    for (int i = 0; i < e->nchildren; i++) {
-        if (expr_transfers_own(e->children[i], var_name, scope)) return 1;
+    for (int i = 0; i < e->children.len; i++) {
+        if (expr_transfers_own(expr_child(e, i), var_name, scope)) return 1;
     }
     return 0;
 }
@@ -1081,20 +1062,20 @@ typedef struct {
 // since break/continue don't leave the parent scope).
 static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live, int return_only) {
     Vec new_ch = Vec_new(sizeof(Expr *));
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *stmt = body->children[i];
+    for (int i = 0; i < body->children.len; i++) {
+        Expr *stmt = expr_child(body, i);
         if (stmt->type == NODE_IF) {
-            for (int c = 1; c < stmt->nchildren; c++)
-                insert_exit_deletes(stmt->children[c], live, n_live, return_only);
+            for (int c = 1; c < stmt->children.len; c++)
+                insert_exit_deletes(expr_child(stmt, c), live, n_live, return_only);
         }
         if (stmt->type == NODE_WHILE) {
-            insert_exit_deletes(stmt->children[1], live, n_live, 1);
+            insert_exit_deletes(expr_child(stmt, 1), live, n_live, 1);
         }
         if (stmt->type == NODE_RETURN ||
             (!return_only && (stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE))) {
             for (int j = 0; j < n_live; j++) {
-                if (stmt->nchildren > 0 &&
-                    expr_uses_var(stmt->children[0], live[j].name)) continue;
+                if (stmt->children.len > 0 &&
+                    expr_uses_var(expr_child(stmt, 0), live[j].name)) continue;
                 Expr *del = make_delete_call(
                     live[j].name, live[j].type, live[j].struct_name,
                     stmt->line, stmt->col);
@@ -1103,10 +1084,9 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live, int ret
         }
         Vec_push(&new_ch, &stmt);
     }
-    if (new_ch.len != body->nchildren) {
-        free(body->children);
-        body->nchildren = new_ch.len;
-        body->children = Vec_take(&new_ch);
+    if (new_ch.len != body->children.len) {
+        Vec_delete(&body->children);
+        body->children = new_ch;
     } else {
         Vec_delete(&new_ch);
     }
@@ -1124,16 +1104,16 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
 
         // Find decl_index: direct child first, then nested
         int decl_idx = -1;
-        for (int j = 0; j < body->nchildren; j++) {
-            Expr *s = body->children[j];
+        for (int j = 0; j < body->children.len; j++) {
+            Expr *s = expr_child(body, j);
             if (s->type == NODE_DECL && Str_eq(s->data.decl.name, b->name)) {
                 decl_idx = j;
                 break;
             }
         }
         if (decl_idx == -1) {
-            for (int j = 0; j < body->nchildren; j++) {
-                if (expr_contains_decl(body->children[j], b->name)) {
+            for (int j = 0; j < body->children.len; j++) {
+                if (expr_contains_decl(expr_child(body, j), b->name)) {
                     decl_idx = j;
                     break;
                 }
@@ -1144,11 +1124,11 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
         int last_use = -1;
         int own_transfer = -1;
         int scan_from = decl_idx >= 0 ? decl_idx + 1 : 0;
-        for (int j = scan_from; j < body->nchildren; j++) {
-            if (expr_uses_var(body->children[j], b->name)) {
+        for (int j = scan_from; j < body->children.len; j++) {
+            if (expr_uses_var(expr_child(body, j), b->name)) {
                 last_use = j;
             }
-            if (own_transfer == -1 && expr_transfers_own(body->children[j], b->name, scope)) {
+            if (own_transfer == -1 && expr_transfers_own(expr_child(body, j), b->name, scope)) {
                 own_transfer = j;
             }
         }
@@ -1163,22 +1143,22 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
 
     // Extend lifetimes for args to ref-returning calls:
     // If ref m := f(x, y), then x and y must outlive m
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *stmt = body->children[i];
+    for (int i = 0; i < body->children.len; i++) {
+        Expr *stmt = expr_child(body, i);
         if (stmt->type != NODE_DECL || !stmt->data.decl.is_ref) continue;
-        Expr *rhs = stmt->children[0];
+        Expr *rhs = expr_child(stmt, 0);
         if (rhs->type != NODE_FCALL) continue;
         // Find ref var's last_use (scan forward from decl)
         int ref_last = -1;
-        for (int j = i + 1; j < body->nchildren; j++) {
-            if (expr_uses_var(body->children[j], stmt->data.decl.name))
+        for (int j = i + 1; j < body->children.len; j++) {
+            if (expr_uses_var(expr_child(body, j), stmt->data.decl.name))
                 ref_last = j;
         }
         if (ref_last == -1) ref_last = i; // at least until the decl itself
         // Extend last_use of all ident args in the fcall
-        for (int a = 1; a < rhs->nchildren; a++) {
-            if (rhs->children[a]->type != NODE_IDENT) continue;
-            Str *aname = rhs->children[a]->data.str_val;
+        for (int a = 1; a < rhs->children.len; a++) {
+            if (expr_child(rhs, a)->type != NODE_IDENT) continue;
+            Str *aname = expr_child(rhs, a)->data.str_val;
             for (int j = 0; j < n_locals; j++) {
                 if (Str_eq(locals[j].name, aname) && locals[j].last_use < ref_last) {
                     locals[j].last_use = ref_last;
@@ -1190,11 +1170,11 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     // Check for use after ownership transfer
     for (int j = 0; j < n_locals; j++) {
         if (locals[j].own_transfer >= 0 && locals[j].last_use > locals[j].own_transfer) {
-            Expr *stmt = body->children[locals[j].last_use];
+            Expr *stmt = expr_child(body, locals[j].last_use);
             char buf[128];
             snprintf(buf, sizeof(buf), "use of '%s' after ownership transfer", locals[j].name->c_str);
             type_error(path, stmt, buf);
-            Expr *xfer = body->children[locals[j].own_transfer];
+            Expr *xfer = expr_child(body, locals[j].own_transfer);
             fprintf(stderr, "%s:%d:%d: note: ownership transferred here\n",
                     path, xfer->line, xfer->col);
             fprintf(stderr, "  help: pass a clone instead: own %s.clone()\n",
@@ -1205,13 +1185,13 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     // Phase 2: rebuild body with ASAP frees
     Vec new_ch = Vec_new(sizeof(Expr *));
 
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *stmt = body->children[i];
+    for (int i = 0; i < body->children.len; i++) {
+        Expr *stmt = expr_child(body, i);
 
         // Before NODE_RETURN/NODE_BREAK/NODE_CONTINUE: free locals not yet freed
         if (stmt->type == NODE_RETURN || stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE) {
             for (int j = 0; j < n_locals; j++) {
-                if (stmt->nchildren > 0 && expr_uses_var(stmt->children[0], locals[j].name)) continue;
+                if (stmt->children.len > 0 && expr_uses_var(expr_child(stmt, 0), locals[j].name)) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < i &&
                     (locals[j].last_use >= i || locals[j].last_use == -1)) {
@@ -1235,11 +1215,11 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                 int n_live = live_vec.len;
                 LocalInfo *live = Vec_take(&live_vec);
                 if (stmt->type == NODE_IF) {
-                    for (int c = 1; c < stmt->nchildren; c++)
-                        insert_exit_deletes(stmt->children[c], live, n_live, 0);
+                    for (int c = 1; c < stmt->children.len; c++)
+                        insert_exit_deletes(expr_child(stmt, c), live, n_live, 0);
                 } else {
                     // While: only free before return (break/continue stay in parent scope)
-                    insert_exit_deletes(stmt->children[1], live, n_live, 1);
+                    insert_exit_deletes(expr_child(stmt, 1), live, n_live, 1);
                 }
                 free(live);
             } else {
@@ -1281,25 +1261,24 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
         }
     }
 
-    free(body->children);
-    body->nchildren = new_ch.len;
-    body->children = Vec_take(&new_ch);
+    Vec_delete(&body->children);
+    body->children = new_ch;
     free(locals);
 }
 
 static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope, int in_loop) {
     body->til_type = TIL_TYPE_NONE;
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *stmt = body->children[i];
+    for (int i = 0; i < body->children.len; i++) {
+        Expr *stmt = expr_child(body, i);
         switch (stmt->type) {
         case NODE_DECL:
             // Skip variant registry entries (payload enum: no children)
-            if (stmt->nchildren == 0) break;
-            infer_expr(scope, stmt->children[0], path, in_func);
+            if (stmt->children.len == 0) break;
+            infer_expr(scope, expr_child(stmt, 0), path, in_func);
             // For struct/enum defs, register type in scope
-            if (stmt->children[0]->type == NODE_STRUCT_DEF ||
-                stmt->children[0]->type == NODE_ENUM_DEF) {
-                int is_enum = (stmt->children[0]->type == NODE_ENUM_DEF);
+            if (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
+                expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
+                int is_enum = (expr_child(stmt, 0)->type == NODE_ENUM_DEF);
                 // Check explicit type annotation if present
                 if (stmt->data.decl.explicit_type) {
                     TilType declared = type_from_name(stmt->data.decl.explicit_type, scope);
@@ -1328,13 +1307,13 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
                 // Store struct def pointer and builtin flag in the binding
                 TypeBinding *b = tscope_find(scope, sname);
-                b->struct_def = stmt->children[0];
+                b->struct_def = expr_child(stmt, 0);
                 b->is_builtin = is_builtin;
-                b->is_ext = stmt->children[0]->is_ext;
+                b->is_ext = expr_child(stmt, 0)->is_ext;
                 break;
             }
             // For func/proc defs, store return type and func/proc-ness in scope
-            if (stmt->children[0]->type == NODE_FUNC_DEF) {
+            if (expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
                 // Check explicit type annotation if present
                 if (stmt->data.decl.explicit_type) {
                     TilType declared = type_from_name(stmt->data.decl.explicit_type, scope);
@@ -1345,18 +1324,18 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                         type_error(path, stmt, buf);
                     }
                 }
-                FuncType ft = stmt->children[0]->data.func_def.func_type;
+                FuncType ft = expr_child(stmt, 0)->data.func_def.func_type;
                 int callee_is_proc = (ft == FUNC_PROC || ft == FUNC_EXT_PROC);
                 TilType rt = TIL_TYPE_NONE;
-                if (stmt->children[0]->data.func_def.return_type) {
-                    rt = type_from_name(stmt->children[0]->data.func_def.return_type, scope);
+                if (expr_child(stmt, 0)->data.func_def.return_type) {
+                    rt = type_from_name(expr_child(stmt, 0)->data.func_def.return_type, scope);
                 }
                 stmt->til_type = rt;
                 tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
                 // Store func_def pointer and builtin flag
                 TypeBinding *fb = tscope_find(scope, stmt->data.decl.name);
                 if (fb) {
-                    fb->func_def = stmt->children[0];
+                    fb->func_def = expr_child(stmt, 0);
                     if (ft == FUNC_EXT_FUNC || ft == FUNC_EXT_PROC)
                         fb->is_builtin = 1;
                 }
@@ -1369,42 +1348,42 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
                     type_error(path, stmt, buf);
-                } else if (stmt->children[0]->type == NODE_LITERAL_NUM &&
+                } else if (expr_child(stmt, 0)->type == NODE_LITERAL_NUM &&
                            (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8)) {
                     // Numeric literals can be used with any numeric type
-                    stmt->children[0]->til_type = declared;
-                } else if (stmt->children[0]->til_type != declared) {
+                    expr_child(stmt, 0)->til_type = declared;
+                } else if (expr_child(stmt, 0)->til_type != declared) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
                              stmt->data.decl.name->c_str, til_type_name_c(declared),
-                             til_type_name_c(stmt->children[0]->til_type));
+                             til_type_name_c(expr_child(stmt, 0)->til_type));
                     type_error(path, stmt, buf);
                 } else if ((declared == TIL_TYPE_STRUCT || declared == TIL_TYPE_ENUM) &&
-                           stmt->children[0]->struct_name &&
-                           !Str_eq(etn, stmt->children[0]->struct_name)) {
+                           expr_child(stmt, 0)->struct_name &&
+                           !Str_eq(etn, expr_child(stmt, 0)->struct_name)) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
-                             stmt->data.decl.name->c_str, etn->c_str, stmt->children[0]->struct_name->c_str);
+                             stmt->data.decl.name->c_str, etn->c_str, expr_child(stmt, 0)->struct_name->c_str);
                     type_error(path, stmt, buf);
                 }
                 stmt->til_type = declared;
                 // For struct/enum types, propagate struct_name from explicit type
                 if (declared == TIL_TYPE_STRUCT || declared == TIL_TYPE_ENUM) {
-                    stmt->children[0]->struct_name = etn;
+                    expr_child(stmt, 0)->struct_name = etn;
                 }
             } else {
-                stmt->til_type = stmt->children[0]->til_type;
+                stmt->til_type = expr_child(stmt, 0)->til_type;
             }
             tscope_set(scope, stmt->data.decl.name, stmt->til_type, -1, stmt->data.decl.is_mut, stmt->line, stmt->col, 0, 0);
-            if ((stmt->til_type == TIL_TYPE_STRUCT || stmt->til_type == TIL_TYPE_ENUM) && stmt->children[0]->struct_name) {
+            if ((stmt->til_type == TIL_TYPE_STRUCT || stmt->til_type == TIL_TYPE_ENUM) && expr_child(stmt, 0)->struct_name) {
                 TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
-                if (b) b->struct_name = stmt->children[0]->struct_name;
+                if (b) b->struct_name = expr_child(stmt, 0)->struct_name;
             }
             if (stmt->data.decl.is_ref) {
                 TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
                 if (b) b->is_ref = 1;
                 // Validate ref RHS: must be a ref-returning fcall or a ref/param variable
-                Expr *rhs = stmt->children[0];
+                Expr *rhs = expr_child(stmt, 0);
                 int ok = 0;
                 if (rhs->type == NODE_FCALL && fcall_returns_ref(rhs, scope)) ok = 1;
                 if (rhs->type == NODE_IDENT) {
@@ -1414,19 +1393,19 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 if (!ok) type_error(path, stmt, "'ref' declaration requires a ref-returning function or ref/param variable");
             }
             // Auto-insert clone for declarations from identifiers (skip ref decls)
-            if (stmt->children[0]->type == NODE_IDENT && !stmt->data.decl.is_ref) {
-                const char *tname = type_to_name(stmt->til_type, stmt->children[0]->struct_name);
+            if (expr_child(stmt, 0)->type == NODE_IDENT && !stmt->data.decl.is_ref) {
+                const char *tname = type_to_name(stmt->til_type, expr_child(stmt, 0)->struct_name);
                 if (tname) {
-                    stmt->children[0] = make_clone_call(
+                    expr_child(stmt, 0) = make_clone_call(
                         tname, stmt->til_type,
-                        stmt->children[0],
+                        expr_child(stmt, 0),
                         stmt->line, stmt->col);
                 }
             }
             break;
         case NODE_ASSIGN: {
-            infer_expr(scope, stmt->children[0], path, in_func);
-            stmt->til_type = stmt->children[0]->til_type;
+            infer_expr(scope, expr_child(stmt, 0), path, in_func);
+            stmt->til_type = expr_child(stmt, 0)->til_type;
             Str *aname = stmt->data.str_val;
             TilType existing = tscope_get(scope, aname);
             if (existing == TIL_TYPE_UNKNOWN) {
@@ -1445,38 +1424,38 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                     fprintf(stderr, "%s:%d:%d: note: '%s' declared here, consider adding 'mut'\n",
                             path, b->line, b->col, aname->c_str);
                 }
-            } else if (stmt->children[0]->til_type != existing &&
-                       stmt->children[0]->til_type != TIL_TYPE_UNKNOWN) {
+            } else if (expr_child(stmt, 0)->til_type != existing &&
+                       expr_child(stmt, 0)->til_type != TIL_TYPE_UNKNOWN) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "'%s' is %s but assigned %s",
                          aname->c_str, til_type_name_c(existing),
-                         til_type_name_c(stmt->children[0]->til_type));
+                         til_type_name_c(expr_child(stmt, 0)->til_type));
                 type_error(path, stmt, buf);
             }
             // Auto-insert clone for assignments from identifiers
-            if (stmt->children[0]->type == NODE_IDENT) {
-                const char *tname = type_to_name(stmt->children[0]->til_type, stmt->children[0]->struct_name);
+            if (expr_child(stmt, 0)->type == NODE_IDENT) {
+                const char *tname = type_to_name(expr_child(stmt, 0)->til_type, expr_child(stmt, 0)->struct_name);
                 if (tname) {
-                    stmt->children[0] = make_clone_call(
-                        tname, stmt->children[0]->til_type,
-                        stmt->children[0],
+                    expr_child(stmt, 0) = make_clone_call(
+                        tname, expr_child(stmt, 0)->til_type,
+                        expr_child(stmt, 0),
                         stmt->line, stmt->col);
                 }
             }
             break;
         }
         case NODE_FIELD_ASSIGN: {
-            infer_expr(scope, stmt->children[0], path, in_func); // object
-            infer_expr(scope, stmt->children[1], path, in_func); // value
-            Expr *obj = stmt->children[0];
+            infer_expr(scope, expr_child(stmt, 0), path, in_func); // object
+            infer_expr(scope, expr_child(stmt, 1), path, in_func); // value
+            Expr *obj = expr_child(stmt, 0);
             Str *fname = stmt->data.str_val;
             if (obj->struct_name) {
                 Expr *sdef = tscope_get_struct(scope, obj->struct_name);
                 if (sdef) {
-                    Expr *body = sdef->children[0];
+                    Expr *body = expr_child(sdef, 0);
                     int found = 0;
-                    for (int i = 0; i < body->nchildren; i++) {
-                        Expr *field = body->children[i];
+                    for (int i = 0; i < body->children.len; i++) {
+                        Expr *field = expr_child(body, i);
                         if (Str_eq(field->data.decl.name, fname)) {
                             found = 1;
                             stmt->is_ns_field = field->data.decl.is_namespace;
@@ -1486,12 +1465,12 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                                 snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname->c_str);
                                 type_error(path, stmt, buf);
                             }
-                            if (stmt->children[1]->til_type != field->til_type &&
-                                stmt->children[1]->til_type != TIL_TYPE_UNKNOWN) {
+                            if (expr_child(stmt, 1)->til_type != field->til_type &&
+                                expr_child(stmt, 1)->til_type != TIL_TYPE_UNKNOWN) {
                                 char buf[128];
                                 snprintf(buf, sizeof(buf), "field '%s' is %s but assigned %s",
                                          fname->c_str, til_type_name_c(field->til_type),
-                                         til_type_name_c(stmt->children[1]->til_type));
+                                         til_type_name_c(expr_child(stmt, 1)->til_type));
                                 type_error(path, stmt, buf);
                             }
                             break;
@@ -1509,13 +1488,13 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             }
             stmt->til_type = TIL_TYPE_NONE;
             // Auto-insert clone for field assignments from identifiers
-            if (stmt->children[1]->type == NODE_IDENT) {
-                const char *tname = type_to_name(stmt->children[1]->til_type,
-                                                  stmt->children[1]->struct_name);
+            if (expr_child(stmt, 1)->type == NODE_IDENT) {
+                const char *tname = type_to_name(expr_child(stmt, 1)->til_type,
+                                                  expr_child(stmt, 1)->struct_name);
                 if (tname) {
-                    stmt->children[1] = make_clone_call(tname,
-                        stmt->children[1]->til_type, stmt->children[1],
-                        stmt->children[1]->line, stmt->children[1]->col);
+                    expr_child(stmt, 1) = make_clone_call(tname,
+                        expr_child(stmt, 1)->til_type, expr_child(stmt, 1),
+                        expr_child(stmt, 1)->line, expr_child(stmt, 1)->col);
                 }
             }
             break;
@@ -1524,9 +1503,9 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             infer_expr(scope, stmt, path, in_func);
             break;
         case NODE_RETURN:
-            if (stmt->nchildren > 0) {
-                infer_expr(scope, stmt->children[0], path, in_func);
-                stmt->til_type = stmt->children[0]->til_type;
+            if (stmt->children.len > 0) {
+                infer_expr(scope, expr_child(stmt, 0), path, in_func);
+                stmt->til_type = expr_child(stmt, 0)->til_type;
             } else {
                 stmt->til_type = TIL_TYPE_NONE;
             }
@@ -1544,22 +1523,22 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             stmt->til_type = TIL_TYPE_NONE;
             break;
         case NODE_IF:
-            infer_expr(scope, stmt->children[0], path, in_func); // condition
-            if (stmt->children[0]->til_type != TIL_TYPE_BOOL &&
-                stmt->children[0]->til_type != TIL_TYPE_UNKNOWN) {
+            infer_expr(scope, expr_child(stmt, 0), path, in_func); // condition
+            if (expr_child(stmt, 0)->til_type != TIL_TYPE_BOOL &&
+                expr_child(stmt, 0)->til_type != TIL_TYPE_UNKNOWN) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "if condition must be Bool, got %s",
-                         til_type_name_c(stmt->children[0]->til_type));
+                         til_type_name_c(expr_child(stmt, 0)->til_type));
                 type_error(path, stmt, buf);
             }
             {
                 TypeScope *then_scope = tscope_new(scope);
-                infer_body(then_scope, stmt->children[1], path, in_func, 1, in_loop);
+                infer_body(then_scope, expr_child(stmt, 1), path, in_func, 1, in_loop);
                 tscope_free(then_scope);
             }
-            if (stmt->nchildren > 2) {
+            if (stmt->children.len > 2) {
                 TypeScope *else_scope = tscope_new(scope);
-                infer_body(else_scope, stmt->children[2], path, in_func, 1, in_loop);
+                infer_body(else_scope, expr_child(stmt, 2), path, in_func, 1, in_loop);
                 tscope_free(else_scope);
             }
             stmt->til_type = TIL_TYPE_NONE;
@@ -1571,21 +1550,21 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             break;
         }
         case NODE_WHILE:
-            infer_expr(scope, stmt->children[0], path, in_func); // condition
-            if (stmt->children[0]->til_type != TIL_TYPE_BOOL &&
-                stmt->children[0]->til_type != TIL_TYPE_UNKNOWN) {
+            infer_expr(scope, expr_child(stmt, 0), path, in_func); // condition
+            if (expr_child(stmt, 0)->til_type != TIL_TYPE_BOOL &&
+                expr_child(stmt, 0)->til_type != TIL_TYPE_UNKNOWN) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "while condition must be Bool, got %s",
-                         til_type_name_c(stmt->children[0]->til_type));
+                         til_type_name_c(expr_child(stmt, 0)->til_type));
                 type_error(path, stmt, buf);
             }
             // Transform: while COND { BODY } -> while true { _wcond := COND; if _wcond {} else { break }; BODY }
             // This lets ASAP destruction free the condition result each iteration.
-            if (expr_contains_fcall(stmt->children[0])) {
-                int line = stmt->children[0]->line;
-                int col = stmt->children[0]->col;
-                Expr *cond = stmt->children[0];
-                Expr *body = stmt->children[1];
+            if (expr_contains_fcall(expr_child(stmt, 0))) {
+                int line = expr_child(stmt, 0)->line;
+                int col = expr_child(stmt, 0)->col;
+                Expr *cond = expr_child(stmt, 0);
+                Expr *body = expr_child(stmt, 1);
                 // _wcondN := COND
                 char name_buf[32];
                 snprintf(name_buf, sizeof(name_buf), "_wcond%d", hoist_counter++);
@@ -1614,24 +1593,24 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 expr_add_child(else_body, brk);
                 expr_add_child(if_node, else_body);
                 // Prepend decl + if to body
-                int old_n = body->nchildren;
-                int new_n = old_n + 2;
-                Expr **new_ch = malloc(new_n * sizeof(Expr *));
-                new_ch[0] = decl;
-                new_ch[1] = if_node;
-                for (int j = 0; j < old_n; j++) new_ch[j + 2] = body->children[j];
-                free(body->children);
+                Vec new_ch = Vec_new(sizeof(Expr *));
+                Vec_push(&new_ch, &decl);
+                Vec_push(&new_ch, &if_node);
+                for (int j = 0; j < body->children.len; j++) {
+                    Expr *ch = expr_child(body, j);
+                    Vec_push(&new_ch, &ch);
+                }
+                Vec_delete(&body->children);
                 body->children = new_ch;
-                body->nchildren = new_n;
                 // Replace condition with true
                 Expr *true_lit = expr_new(NODE_LITERAL_BOOL, line, col);
                 true_lit->data.str_val = Str_new("true");
                 true_lit->til_type = TIL_TYPE_BOOL;
-                stmt->children[0] = true_lit;
+                expr_child(stmt, 0) = true_lit;
             }
             {
                 TypeScope *while_scope = tscope_new(scope);
-                infer_body(while_scope, stmt->children[1], path, in_func, 1, 1);
+                infer_body(while_scope, expr_child(stmt, 1), path, in_func, 1, 1);
                 tscope_free(while_scope);
             }
             stmt->til_type = TIL_TYPE_NONE;

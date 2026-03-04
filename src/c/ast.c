@@ -23,38 +23,34 @@ const char *til_type_name_c(TilType t) {
 Expr *expr_new(NodeType type, int line, int col) {
     Expr *e = calloc(1, sizeof(Expr));
     e->type = type;
+    e->children = Vec_new(sizeof(Expr *));
     e->line = line;
     e->col = col;
     return e;
 }
 
 void expr_add_child(Expr *parent, Expr *child) {
-    parent->nchildren++;
-    parent->children = realloc(parent->children, parent->nchildren * sizeof(Expr *));
-    parent->children[parent->nchildren - 1] = child;
+    Vec_push(&parent->children, &child);
 }
 
 Expr *expr_clone(Expr *e) {
     if (!e) return NULL;
     Expr *c = calloc(1, sizeof(Expr));
     *c = *e;
-    if (e->nchildren > 0) {
-        c->children = malloc(e->nchildren * sizeof(Expr *));
-        for (int i = 0; i < e->nchildren; i++) {
-            c->children[i] = expr_clone(e->children[i]);
-        }
-    } else {
-        c->children = NULL;
+    c->children = Vec_new(sizeof(Expr *));
+    for (int i = 0; i < e->children.len; i++) {
+        Expr *cloned = expr_clone(expr_child(e, i));
+        Vec_push(&c->children, &cloned);
     }
     return c;
 }
 
 void expr_free(Expr *e) {
     if (!e) return;
-    for (int i = 0; i < e->nchildren; i++) {
-        expr_free(e->children[i]);
+    for (int i = 0; i < e->children.len; i++) {
+        expr_free(expr_child(e, i));
     }
-    free(e->children);
+    Vec_delete(&e->children);
     free(e);
 }
 
@@ -123,10 +119,10 @@ void ast_print(Expr *e, int indent) {
     default:
         break;
     }
-    if (e->nchildren > 0) {
+    if (e->children.len > 0) {
         printf("\n");
-        for (int i = 0; i < e->nchildren; i++) {
-            ast_print(e->children[i], indent + 1);
+        for (int i = 0; i < e->children.len; i++) {
+            ast_print(expr_child(e, i), indent + 1);
         }
         for (int i = 0; i < indent; i++) printf("  ");
     }

@@ -92,14 +92,18 @@ int main(int argc, char **argv) {
     Expr *ast = parse(tokens, count, path, &mode);
 
     // Prepend core declarations to program AST
-    if (core_ast && core_ast->nchildren > 0) {
-        int total = core_ast->nchildren + ast->nchildren;
-        Expr **merged = malloc(total * sizeof(Expr *));
-        memcpy(merged, core_ast->children, core_ast->nchildren * sizeof(Expr *));
-        memcpy(merged + core_ast->nchildren, ast->children, ast->nchildren * sizeof(Expr *));
-        free(ast->children);
+    if (core_ast && core_ast->children.len > 0) {
+        Vec merged = Vec_new(sizeof(Expr *));
+        for (int i = 0; i < core_ast->children.len; i++) {
+            Expr *ch = expr_child(core_ast, i);
+            Vec_push(&merged, &ch);
+        }
+        for (int i = 0; i < ast->children.len; i++) {
+            Expr *ch = expr_child(ast, i);
+            Vec_push(&merged, &ch);
+        }
+        Vec_delete(&ast->children);
         ast->children = merged;
-        ast->nchildren = total;
     }
 
     // Init phase: pre-scan declarations for forward references

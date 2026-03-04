@@ -136,7 +136,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path);
 
 static Value eval_call(Scope *scope, Expr *e, const char *path) {
     // children[0] = callee ident or field access, children[1..] = args
-    Expr *callee_expr = e->children[0];
+    Expr *callee_expr = expr_child(e, 0);
 
     // Namespace method call: Struct.method(args)
     if (callee_expr->type == NODE_FIELD_ACCESS) {
@@ -151,7 +151,7 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         FuncType fft = func_def->data.func_def.func_type;
         if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) {
             // Enum ext methods — delegated to dispatch.c
-            Str *parent_sname = callee_expr->children[0]->struct_name;
+            Str *parent_sname = expr_child(callee_expr, 0)->struct_name;
             if (parent_sname) {
                 Cell *tc = scope_get(scope, parent_sname);
                 if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_ENUM_DEF) {
@@ -159,9 +159,9 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
                     if (enum_method_dispatch(callee_expr->data.str_val, scope,
                             tc->val.func, parent_sname, e, path, &eresult)) {
                         // Null cells of own-arg idents
-                        for (int i = 1; i < e->nchildren; i++) {
-                            if (e->children[i]->type == NODE_IDENT && e->children[i]->is_own_arg) {
-                                Cell *c = scope_get(scope, e->children[i]->data.str_val);
+                        for (int i = 1; i < e->children.len; i++) {
+                            if (expr_child(e, i)->type == NODE_IDENT && expr_child(e, i)->is_own_arg) {
+                                Cell *c = scope_get(scope, expr_child(e, i)->data.str_val);
                                 if (c) c->val = val_none();
                             }
                         }
@@ -171,31 +171,31 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
             }
             static char flat_name_buf[256];
             int flen = snprintf(flat_name_buf, sizeof(flat_name_buf), "%s_%s",
-                     callee_expr->children[0]->struct_name->c_str, callee_expr->data.str_val->c_str);
+                     expr_child(callee_expr, 0)->struct_name->c_str, callee_expr->data.str_val->c_str);
             Str flat_str = {.c_str = flat_name_buf, .len = flen};
-            Expr *orig_callee = e->children[0];
+            Expr *orig_callee = expr_child(e, 0);
             Expr flat_ident = *orig_callee;
             flat_ident.type = NODE_IDENT;
             flat_ident.data.str_val = &flat_str;
-            e->children[0] = &flat_ident;
+            expr_child(e, 0) = &flat_ident;
             Value result = eval_call(scope, e, path);
-            e->children[0] = orig_callee;
+            expr_child(e, 0) = orig_callee;
             return result;
         }
-        Expr *body = func_def->children[0];
+        Expr *body = expr_child(func_def, 0);
 
         // Guard: skip call if first 'own' param is val_none (already moved/deleted)
         if (func_def->data.func_def.nparam > 0 &&
             func_def->data.func_def.param_owns &&
             func_def->data.func_def.param_owns[0] &&
-            e->nchildren > 1 && e->children[1]->type == NODE_IDENT) {
-            Cell *fc = scope_get(scope, e->children[1]->data.str_val);
+            e->children.len > 1 && expr_child(e, 1)->type == NODE_IDENT) {
+            Cell *fc = scope_get(scope, expr_child(e, 1)->data.str_val);
             if (fc && fc->val.type == VAL_NONE) return val_none();
         }
 
         Scope *call_scope = scope_new(scope);
         for (int i = 0; i < func_def->data.func_def.nparam; i++) {
-            Expr *arg_expr = e->children[i + 1];
+            Expr *arg_expr = expr_child(e, i + 1);
             if (arg_expr->type == NODE_IDENT) {
                 Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
                 scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
@@ -221,9 +221,9 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     Value ext_result;
     if (ext_function_dispatch(name, scope, e, path, &ext_result)) {
         // Null cells of own-arg idents (ext dispatch evaluates by value, not borrowed cell)
-        for (int i = 1; i < e->nchildren; i++) {
-            if (e->children[i]->type == NODE_IDENT && e->children[i]->is_own_arg) {
-                Cell *c = scope_get(scope, e->children[i]->data.str_val);
+        for (int i = 1; i < e->children.len; i++) {
+            if (expr_child(e, i)->type == NODE_IDENT && expr_child(e, i)->is_own_arg) {
+                Cell *c = scope_get(scope, expr_child(e, i)->data.str_val);
                 if (c) c->val = val_none();
             }
         }
@@ -241,10 +241,10 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     // Struct instantiation — typer already desugared named args to positional
     if (fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type == NODE_STRUCT_DEF) {
         Expr *sdef = fn_cell->val.func;
-        Expr *body = sdef->children[0];
+        Expr *body = expr_child(sdef, 0);
         int nfields = 0;
-        for (int i = 0; i < body->nchildren; i++)
-            if (!body->children[i]->data.decl.is_namespace) nfields++;
+        for (int i = 0; i < body->children.len; i++)
+            if (!expr_child(body, i)->data.decl.is_namespace) nfields++;
         StructInstance *inst = malloc(sizeof(StructInstance));
         inst->struct_name = name;
         inst->nfields = nfields;
@@ -253,12 +253,12 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         inst->field_values = malloc(nfields * sizeof(Value));
         int arg_idx = 1;
         int fi = 0;
-        for (int i = 0; i < body->nchildren; i++) {
-            Expr *field = body->children[i];
+        for (int i = 0; i < body->children.len; i++) {
+            Expr *field = expr_child(body, i);
             if (field->data.decl.is_namespace) continue;
             inst->field_names[fi] = field->data.decl.name;
             inst->field_muts[fi] = field->data.decl.is_mut;
-            Expr *arg = e->children[arg_idx++];
+            Expr *arg = expr_child(e, arg_idx++);
             if (arg->type == NODE_IDENT) {
                 // Move semantics: struct takes ownership of ident's value
                 Cell *src = scope_get(scope, arg->data.str_val);
@@ -279,21 +279,21 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
     }
 
     Expr *func_def = fn_cell->val.func;
-    Expr *body = func_def->children[0];
+    Expr *body = expr_child(func_def, 0);
 
     // Guard: skip call if first 'own' param is val_none (already moved/deleted)
     if (func_def->data.func_def.nparam > 0 &&
         func_def->data.func_def.param_owns &&
         func_def->data.func_def.param_owns[0] &&
-        e->nchildren > 1 && e->children[1]->type == NODE_IDENT) {
-        Cell *fc = scope_get(scope, e->children[1]->data.str_val);
+        e->children.len > 1 && expr_child(e, 1)->type == NODE_IDENT) {
+        Cell *fc = scope_get(scope, expr_child(e, 1)->data.str_val);
         if (fc && fc->val.type == VAL_NONE) return val_none();
     }
 
     Scope *call_scope = scope_new(scope);
     // Bind arguments to parameters (borrowed refs for idents, owned for expressions)
     for (int i = 0; i < func_def->data.func_def.nparam; i++) {
-        Expr *arg_expr = e->children[i + 1];
+        Expr *arg_expr = expr_child(e, i + 1);
         if (arg_expr->type == NODE_IDENT) {
             Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
             scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
@@ -342,11 +342,11 @@ Value eval_expr(Scope *scope, Expr *e, const char *path) {
     case NODE_ENUM_DEF:
         return (Value){.type = VAL_FUNC, .func = e};
     case NODE_FIELD_ACCESS: {
-        Value obj = eval_expr(scope, e->children[0], path);
+        Value obj = eval_expr(scope, expr_child(e, 0), path);
         Str *fname = e->data.str_val;
         if (e->is_ns_field) {
             Str *sname = obj.type == VAL_STRUCT
-                ? obj.instance->struct_name : e->children[0]->data.str_val;
+                ? obj.instance->struct_name : expr_child(e, 0)->data.str_val;
             Value *nsv = ns_get(sname, fname);
             if (nsv) {
                 // Fresh copy of scalar values (simple enum variant safety)
@@ -395,12 +395,12 @@ Value eval_expr(Scope *scope, Expr *e, const char *path) {
 }
 
 static void eval_body(Scope *scope, Expr *body, const char *path) {
-    for (int i = 0; i < body->nchildren; i++) {
+    for (int i = 0; i < body->children.len; i++) {
         if (has_return || has_break || has_continue) return;
-        Expr *stmt = body->children[i];
+        Expr *stmt = expr_child(body, i);
         switch (stmt->type) {
         case NODE_DECL: {
-            Expr *rhs = stmt->children[0];
+            Expr *rhs = expr_child(stmt, 0);
             if (stmt->data.decl.is_ref && rhs->type == NODE_IDENT) {
                 // Ref decl from ident: borrow the same cell (no move, no free)
                 Cell *src = scope_get(scope, rhs->data.str_val);
@@ -420,7 +420,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             break;
         }
         case NODE_ASSIGN: {
-            Expr *rhs = stmt->children[0];
+            Expr *rhs = expr_child(stmt, 0);
             Cell *cell = scope_get(scope, stmt->data.str_val);
             if (!cell) {
                 fprintf(stderr, "%s:%d:%d: runtime error: undefined variable '%s'\n",
@@ -441,7 +441,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             break;
         }
         case NODE_FIELD_ASSIGN: {
-            Expr *val_expr = stmt->children[1];
+            Expr *val_expr = expr_child(stmt, 1);
             Value val;
             Cell *move_src = NULL;
             if (val_expr->type == NODE_IDENT) {
@@ -453,15 +453,15 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             }
             Str *fname = stmt->data.str_val;
             if (stmt->is_ns_field) {
-                Value obj = eval_expr(scope, stmt->children[0], path);
+                Value obj = eval_expr(scope, expr_child(stmt, 0), path);
                 Str *sname = obj.type == VAL_STRUCT
-                    ? obj.instance->struct_name : stmt->children[0]->data.str_val;
+                    ? obj.instance->struct_name : expr_child(stmt, 0)->data.str_val;
                 ns_set(sname, fname, val);
                 if (move_src) move_src->val = val_none();
             } else {
                 // Resolve the object to a mutable StructInstance without copying
                 StructInstance *inst = NULL;
-                Expr *obj_expr = stmt->children[0];
+                Expr *obj_expr = expr_child(stmt, 0);
                 if (obj_expr->type == NODE_IDENT) {
                     Cell *cell = scope_get(scope, obj_expr->data.str_val);
                     if (cell && cell->val.type == VAL_STRUCT) inst = cell->val.instance;
@@ -472,7 +472,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                     Expr *cur = obj_expr;
                     while (cur->type == NODE_FIELD_ACCESS) {
                         chain[depth++] = cur;
-                        cur = cur->children[0];
+                        cur = expr_child(cur, 0);
                     }
                     Cell *cell = scope_get(scope, cur->data.str_val);
                     if (cell && cell->val.type == VAL_STRUCT) {
@@ -518,14 +518,14 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             break;
         }
         case NODE_IF: {
-            Value cond = eval_expr(scope, stmt->children[0], path);
+            Value cond = eval_expr(scope, expr_child(stmt, 0), path);
             if (*cond.boolean) {
                 Scope *then_scope = scope_new(scope);
-                eval_body(then_scope, stmt->children[1], path);
+                eval_body(then_scope, expr_child(stmt, 1), path);
                 scope_free(then_scope);
-            } else if (stmt->nchildren > 2) {
+            } else if (stmt->children.len > 2) {
                 Scope *else_scope = scope_new(scope);
-                eval_body(else_scope, stmt->children[2], path);
+                eval_body(else_scope, expr_child(stmt, 2), path);
                 scope_free(else_scope);
             }
             break;
@@ -533,10 +533,10 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
         case NODE_WHILE: {
             while (1) {
                 if (has_return) break;
-                Value cond = eval_expr(scope, stmt->children[0], path);
+                Value cond = eval_expr(scope, expr_child(stmt, 0), path);
                 if (!*cond.boolean) break;
                 Scope *while_scope = scope_new(scope);
-                eval_body(while_scope, stmt->children[1], path);
+                eval_body(while_scope, expr_child(stmt, 1), path);
                 scope_free(while_scope);
                 if (has_break) { has_break = 0; break; }
                 if (has_continue) { has_continue = 0; }
@@ -550,8 +550,8 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             has_continue = 1;
             return;
         case NODE_RETURN:
-            if (stmt->nchildren > 0) {
-                return_value = eval_expr(scope, stmt->children[0], path);
+            if (stmt->children.len > 0) {
+                return_value = eval_expr(scope, expr_child(stmt, 0), path);
             } else {
                 return_value = val_none();
             }
@@ -568,16 +568,16 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
 void interpreter_init_ns(Scope *global, Expr *program, const char *path) {
     ns_fields = Map_new(sizeof(Str *), sizeof(Value), str_ptr_cmp);
     ns_keys = Vec_new(sizeof(Str *));
-    for (int i = 0; i < program->nchildren; i++) {
-        Expr *stmt = program->children[i];
-        if (stmt->type == NODE_DECL && (stmt->children[0]->type == NODE_STRUCT_DEF ||
-                                        stmt->children[0]->type == NODE_ENUM_DEF)) {
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->type == NODE_DECL && (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
+                                        expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
-            Expr *body = stmt->children[0]->children[0];
-            for (int j = 0; j < body->nchildren; j++) {
-                Expr *field = body->children[j];
+            Expr *body = expr_child(expr_child(stmt, 0), 0);
+            for (int j = 0; j < body->children.len; j++) {
+                Expr *field = expr_child(body, j);
                 if (field->data.decl.is_namespace) {
-                    Value fval = eval_expr(global, field->children[0], path);
+                    Value fval = eval_expr(global, expr_child(field, 0), path);
                     ns_set(sname, field->data.decl.name, fval);
                 }
             }
@@ -589,13 +589,13 @@ int interpret(Expr *program, Str *mode, const char *path) {
     Scope *global = scope_new(NULL);
 
     // Pre-register all top-level func/proc/struct definitions for forward references
-    for (int i = 0; i < program->nchildren; i++) {
-        Expr *stmt = program->children[i];
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL &&
-            (stmt->children[0]->type == NODE_FUNC_DEF ||
-             stmt->children[0]->type == NODE_STRUCT_DEF ||
-             stmt->children[0]->type == NODE_ENUM_DEF)) {
-            Value val = {.type = VAL_FUNC, .func = stmt->children[0]};
+            (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
+             expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
+             expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
+            Value val = {.type = VAL_FUNC, .func = expr_child(stmt, 0)};
             scope_set_owned(global, stmt->data.decl.name, val);
         }
     }
@@ -616,7 +616,7 @@ int interpret(Expr *program, Str *mode, const char *path) {
             return 1;
         }
         Expr *func_def = main_cell->val.func;
-        Expr *body = func_def->children[0];
+        Expr *body = expr_child(func_def, 0);
         Scope *main_scope = scope_new(global);
         eval_body(main_scope, body, path);
         scope_free(main_scope);

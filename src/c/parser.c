@@ -552,9 +552,9 @@ static Expr *parse_statement(Parser *p) {
         // own expression (call-site ownership marker)
         Expr *expr = parse_expression(p);
         Expr *primary = expr;
-        while (primary->nchildren > 0 &&
+        while (primary->children.len > 0 &&
                (primary->type == NODE_FCALL || primary->type == NODE_FIELD_ACCESS)) {
-            primary = primary->children[0];
+            primary = expr_child(primary, 0);
         }
         primary->is_own_arg = true;
         return expr;
