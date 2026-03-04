@@ -109,7 +109,7 @@ void expr_free(Expr *e);
 void ast_print(Expr *e, int indent);
 
 // Access child i of expr e (works as lvalue and rvalue)
-#define expr_child(e, i) (((Expr **)(e)->children.data)[(i)])
+#define expr_child(e, i) (*(Expr **)Vec_get(&(e)->children, (i)))
 
 // --- Enum helpers (shared by interpreter, ccodegen, precomp) ---
 

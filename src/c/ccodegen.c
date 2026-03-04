@@ -542,7 +542,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Zero-arg constructors
         for (int i = 0; i < vnames.len; i++) {
-            Str *vn = ((Str **)vnames.data)[i];
+            Str *vn = *(Str **)Vec_get(&vnames, i);
             fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
             fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
             fprintf(f, "    *r = (til_%s){ .tag = til_%s_TAG_%s };\n", name->c_str, name->c_str, vn->c_str);
@@ -571,8 +571,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Constructor functions for all variants
         for (int i = 0; i < vnames.len; i++) {
-            Str *vn = ((Str **)vnames.data)[i];
-            Str *vt = ((Str **)vtypes.data)[i];
+            Str *vn = *(Str **)Vec_get(&vnames, i);
+            Str *vt = *(Str **)Vec_get(&vtypes, i);
             if (!vt) {
                 // Zero-arg constructor for no-payload variant
                 fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
@@ -604,7 +604,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // is_Variant functions
         for (int i = 0; i < vnames.len; i++) {
-            Str *vn = ((Str **)vnames.data)[i];
+            Str *vn = *(Str **)Vec_get(&vnames, i);
             fprintf(f, "til_Bool *til_%s_is_%s(til_%s *self) {\n", name->c_str, vn->c_str, name->c_str);
             fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool));\n");
             fprintf(f, "    *r = (self->tag == til_%s_TAG_%s);\n", name->c_str, vn->c_str);
@@ -614,8 +614,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // get_Variant functions (payload variants only)
         for (int i = 0; i < vnames.len; i++) {
-            Str *vn = ((Str **)vnames.data)[i];
-            Str *vt = ((Str **)vtypes.data)[i];
+            Str *vn = *(Str **)Vec_get(&vnames, i);
+            Str *vt = *(Str **)Vec_get(&vtypes, i);
             if (!vt) continue;
             const char *ptype = type_name_to_c(vt);
             fprintf(f, "%s til_%s_get_%s(til_%s *self) {\n", ptype, name->c_str, vn->c_str, name->c_str);
@@ -641,8 +641,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         fprintf(f, "    if (a->tag != b->tag) { *r = 0; return r; }\n");
         fprintf(f, "    switch (a->tag) {\n");
         for (int i = 0; i < vnames.len; i++) {
-            Str *vn = ((Str **)vnames.data)[i];
-            Str *vt = ((Str **)vtypes.data)[i];
+            Str *vn = *(Str **)Vec_get(&vnames, i);
+            Str *vt = *(Str **)Vec_get(&vtypes, i);
             fprintf(f, "    case til_%s_TAG_%s:\n", name->c_str, vn->c_str);
             if (vt) {
                 if (Str_eq_c(vt, "I64") || Str_eq_c(vt, "U8") || Str_eq_c(vt, "Bool")) {

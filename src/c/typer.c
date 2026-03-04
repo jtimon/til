@@ -1099,7 +1099,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     // Start from 0 (not locals_start) to include own params, which are added before the body
     Vec locals_vec = Vec_new(sizeof(LocalInfo));
     for (int i = 0; i < Map_len(&scope->bindings); i++) {
-        TypeBinding *b = (TypeBinding *)((char *)scope->bindings.vals.data + i * sizeof(TypeBinding));
+        TypeBinding *b = (TypeBinding *)Vec_get(&scope->bindings.vals, i);
         if ((b->is_param && !b->is_own) || b->struct_def || b->func_def || b->is_ref) continue;
 
         // Find decl_index: direct child first, then nested

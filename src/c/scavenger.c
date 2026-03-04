@@ -21,7 +21,7 @@ static Str *gc_str(Str *s) {
 
 static void gc_free_all(void) {
     for (int i = 0; i < gc_strs.len; i++)
-        Str_delete(((Str **)gc_strs.data)[i]);
+        Str_delete(*(Str **)Vec_get(&gc_strs, i));
     Vec_delete(&gc_strs);
 }
 
@@ -125,10 +125,10 @@ void scavenge(Expr *program, Str *mode) {
     // 2. Build namespace method map: "Type.method" → method decl node
     Map methods = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
     for (int i = 0; i < Map_len(&top); i++) {
-        Expr *decl = ((Expr **)top.vals.data)[i];
+        Expr *decl = *(Expr **)Vec_get(&top.vals, i);
         if (expr_child(decl, 0)->type != NODE_STRUCT_DEF &&
             expr_child(decl, 0)->type != NODE_ENUM_DEF) continue;
-        Str *sname = ((Str **)top.keys.data)[i];
+        Str *sname = *(Str **)Vec_get(&top.keys, i);
         Expr *body = expr_child(expr_child(decl, 0), 0);
         for (int j = 0; j < body->children.len; j++) {
             Expr *field = expr_child(body, j);
@@ -159,7 +159,7 @@ void scavenge(Expr *program, Str *mode) {
     Set visited = Set_new(sizeof(Str *), str_ptr_cmp);
     int cursor = 0;
     while (cursor < worklist.len) {
-        Str *name = ((Str **)worklist.data)[cursor++];
+        Str *name = *(Str **)Vec_get(&worklist, cursor++);
         if (Set_has(&visited, &name)) continue;
         Set_add(&visited, &name);
 

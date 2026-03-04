@@ -49,7 +49,7 @@ Scope *scope_new(Scope *parent) {
 
 void scope_free(Scope *s) {
     for (int i = 0; i < Map_len(&s->bindings); i++) {
-        Binding *b = (Binding *)((char *)s->bindings.vals.data + i * sizeof(Binding));
+        Binding *b = (Binding *)Vec_get(&s->bindings.vals, i);
         if (b->cell_is_local)
             free(b->cell);
     }
