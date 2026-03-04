@@ -78,6 +78,7 @@ struct Expr {
     Str *struct_name;               // for TIL_TYPE_STRUCT: which struct type
     bool is_own_arg;                // true if this arg was marked 'own' at call site
     bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
+    bool is_ext;                    // NODE_STRUCT_DEF: externally-implemented struct
     Expr **children;                // malloc'd array of child pointers
     int nchildren;
     int line;

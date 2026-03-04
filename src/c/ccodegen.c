@@ -387,9 +387,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
 
 static void emit_struct_def(FILE *f, Str *name, Expr *struct_def) {
     Expr *body = struct_def->children[0];
-    int is_prim = is_ext_primitive(name);
-    // Emit typedef struct (skip for primitives — already in ext.h)
-    if (!is_prim) {
+    int skip_typedef = is_ext_primitive(name) || struct_def->is_ext;
+    // Emit typedef struct (skip for primitives and ext_structs — C side provides)
+    if (!skip_typedef) {
         int has_instance_fields = 0;
         for (int i = 0; i < body->nchildren; i++)
             if (!body->children[i]->data.decl.is_namespace) { has_instance_fields = 1; break; }
@@ -452,11 +452,11 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
 
     int is_script = mode && Str_eq_c(mode, "script");
 
-    // Forward-declare all structs (skip primitives — already typedef'd in ext.h)
+    // Forward-declare all structs (skip primitives and ext_structs — C side provides)
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
-            if (is_ext_primitive(stmt->data.decl.name)) continue;
+            if (is_ext_primitive(stmt->data.decl.name) || stmt->children[0]->is_ext) continue;
             fprintf(f, "typedef struct til_%s til_%s;\n", stmt->data.decl.name->c_str, stmt->data.decl.name->c_str);
         }
     }

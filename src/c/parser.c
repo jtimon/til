@@ -152,10 +152,12 @@ static Expr *parse_func_def(Parser *p) {
     return def;
 }
 
-// parse_struct_def: current token is 'struct'
+// parse_struct_def: current token is 'struct' or 'ext_struct'
 static Expr *parse_struct_def(Parser *p) {
-    Token *kw = advance(p); // consume 'struct'
+    Token *kw = advance(p); // consume 'struct' or 'ext_struct'
+    bool is_ext = (kw->type == TOK_EXT_STRUCT);
     Expr *def = expr_new(NODE_STRUCT_DEF, kw->line, kw->col);
+    def->is_ext = is_ext;
     expect(p, TOK_LBRACE);
     // Parse struct body with namespace: support
     Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col);
@@ -175,6 +177,24 @@ static Expr *parse_struct_def(Parser *p) {
     }
     expect(p, TOK_RBRACE);
     expr_add_child(def, body);
+
+    // ext_struct validation: namespace methods must be ext_func/ext_proc only
+    if (is_ext) {
+        for (int i = 0; i < body->nchildren; i++) {
+            Expr *stmt = body->children[i];
+            if (stmt->type == NODE_DECL && stmt->data.decl.is_namespace) {
+                Expr *val = stmt->children[0];
+                if (val->type != NODE_FUNC_DEF ||
+                    (val->data.func_def.func_type != FUNC_EXT_FUNC &&
+                     val->data.func_def.func_type != FUNC_EXT_PROC)) {
+                    fprintf(stderr, "%s:%d:%d: parse error: ext_struct namespace can only contain ext_func/ext_proc\n",
+                            p->path, stmt->line, stmt->col);
+                    exit(1);
+                }
+            }
+        }
+    }
+
     return def;
 }
 
@@ -257,7 +277,7 @@ static Expr *parse_expression(Parser *p) {
     } else if (t->type == TOK_FUNC || t->type == TOK_PROC || t->type == TOK_MACRO ||
                t->type == TOK_EXT_FUNC || t->type == TOK_EXT_PROC) {
         return parse_func_def(p);
-    } else if (t->type == TOK_STRUCT) {
+    } else if (t->type == TOK_STRUCT || t->type == TOK_EXT_STRUCT) {
         return parse_struct_def(p);
     } else {
         fprintf(stderr, "%s:%d:%d: parse error: unexpected token '%.*s'\n",

@@ -17,6 +17,7 @@ typedef struct {
     Expr *struct_def; // non-NULL if this is a struct type definition
     Expr *func_def;   // non-NULL if this is a func/proc definition
     int is_builtin;   // 1 if this is a builtin type (I64, Str, Bool, etc.)
+    int is_ext;       // 1 if this is an ext_struct
     Str *struct_name; // for variables of struct type: which struct
 } TypeBinding;
 

@@ -333,6 +333,17 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
         // Direct ext_func namespace method — dispatch by flat name
         FuncType fft = func_def->data.func_def.func_type;
         if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) {
+            // Check if this belongs to an ext_struct (not available in interpreter)
+            Str *sname = callee_expr->children[0]->struct_name;
+            if (sname) {
+                Cell *sc = scope_get(scope, sname);
+                if (sc && sc->val.type == VAL_FUNC && sc->val.func->type == NODE_STRUCT_DEF
+                    && sc->val.func->is_ext) {
+                    fprintf(stderr, "%s:%d:%d: runtime error: ext_struct method '%s.%s' not available in interpreter mode\n",
+                            path, e->line, e->col, sname->c_str, callee_expr->data.str_val->c_str);
+                    exit(1);
+                }
+            }
             static char flat_name_buf[256];
             int flen = snprintf(flat_name_buf, sizeof(flat_name_buf), "%s_%s",
                      callee_expr->children[0]->struct_name->c_str, callee_expr->data.str_val->c_str);

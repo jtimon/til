@@ -1,0 +1,39 @@
+mode script
+
+Pair := ext_struct {
+    mut a := 0
+    mut b := 0
+    namespace:
+    sum := ext_func(self: Pair) returns I64 {}
+    swap := ext_func(self: Pair) returns Pair {}
+    clone := ext_func(self: Pair) returns Pair {}
+    delete := ext_proc(own self: Pair, call_free: Bool = true) {}
+}
+
+test_instantiation := proc() {
+    p := Pair()
+    assert_eq(loc(), p.a, 0)
+    assert_eq(loc(), p.b, 0)
+    p2 := Pair(a=3, b=7)
+    assert_eq(loc(), p2.a, 3)
+    assert_eq(loc(), p2.b, 7)
+}
+
+test_field_mutation := proc() {
+    p := Pair(a=1, b=2)
+    p.a = 10
+    assert_eq(loc(), p.a, 10)
+    assert_eq(loc(), p.b, 2)
+}
+
+test_ext_methods := proc() {
+    p := Pair(a=3, b=7)
+    assert_eq(loc(), p.sum(), 10)
+    q := p.swap()
+    assert_eq(loc(), q.a, 7)
+    assert_eq(loc(), q.b, 3)
+}
+
+test_instantiation()
+test_field_mutation()
+test_ext_methods()

@@ -64,6 +64,27 @@ til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(t
 til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a || *b; return r; }
 til_Bool *til_Bool_not(til_Bool *a) { til_Bool *r = malloc(sizeof(til_Bool)); *r = !*a; return r; }
 
+// ext_struct: Pair (test)
+til_I64 *til_Pair_sum(til_Pair *self) {
+    til_I64 *r = malloc(sizeof(til_I64));
+    *r = self->a + self->b;
+    return r;
+}
+til_Pair *til_Pair_swap(til_Pair *self) {
+    til_Pair *r = malloc(sizeof(til_Pair));
+    r->a = self->b;
+    r->b = self->a;
+    return r;
+}
+til_Pair *til_Pair_clone(til_Pair *self) {
+    til_Pair *r = malloc(sizeof(til_Pair));
+    *r = *self;
+    return r;
+}
+void til_Pair_delete(til_Pair *self, til_Bool *call_free) {
+    if (*call_free) free(self);
+}
+
 // Variadic builtins
 Str *til_format(int n, ...) {
     va_list ap; va_start(ap, n);

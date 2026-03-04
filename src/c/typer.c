@@ -253,7 +253,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) {
             TypeBinding *sb = tscope_find(scope, name);
-            if (sb && sb->is_builtin) {
+            if (sb && sb->is_builtin && !sb->is_ext) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "cannot instantiate builtin type '%s'", name->c_str);
                 type_error(path, e, buf);
@@ -982,6 +982,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 TypeBinding *b = tscope_find(scope, sname);
                 b->struct_def = stmt->children[0];
                 b->is_builtin = is_builtin;
+                b->is_ext = stmt->children[0]->is_ext;
                 break;
             }
             // For func/proc defs, store return type and func/proc-ness in scope

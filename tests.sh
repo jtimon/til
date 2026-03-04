@@ -17,6 +17,16 @@ for t in $TESTS; do
     fi
 done
 
+# ext_struct tests: codegen only (interpreter gives runtime error for ext methods)
+CODEGEN_TESTS="src/test/ext_struct.til"
+for t in $CODEGEN_TESTS; do
+    name=$(basename "$t" .til)
+    if ! $CTIL run "$t" > /dev/null 2>&1; then
+        echo "FAIL (codegen):   $name"
+        FAIL=1
+    fi
+done
+
 # typer_errors: should fail with exactly 25 errors
 errors=$($CTIL interpret src/test/typer_errors.til 2>&1 | grep -c "type error:" || true)
 if [ "$errors" -ne 32 ]; then

@@ -33,7 +33,7 @@ void tscope_set(TypeScope *s, Str *name, TilType type, int is_proc, int is_mut, 
         s->cap = s->cap ? s->cap * 2 : 8;
         s->bindings = realloc(s->bindings, s->cap * sizeof(TypeBinding));
     }
-    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, is_own, NULL, NULL, 0, NULL};
+    s->bindings[s->len++] = (TypeBinding){name, type, is_proc, is_mut, line, col, is_param, is_own, NULL, NULL, 0, 0, NULL};
 }
 
 TilType tscope_get(TypeScope *s, Str *name) {
@@ -133,6 +133,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         TypeBinding *b = tscope_find(scope, sname);
         b->struct_def = stmt->children[0];
         b->is_builtin = is_builtin;
+        b->is_ext = stmt->children[0]->is_ext;
     }
 
     // Pass 1.5: auto-generate clone methods for all structs
@@ -143,12 +144,14 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         Str *sname = stmt->data.decl.name;
 
-        // Skip meta-types (not actual data types)
+        // Skip meta-types and ext_structs (C side provides clone if needed)
         if (Str_eq_c(sname, "StructDef") ||
             Str_eq_c(sname, "FunctionDef") ||
             Str_eq_c(sname, "Dynamic")) continue;
 
         Expr *sdef = stmt->children[0];
+        if (sdef->is_ext) continue;
+
         Expr *body = sdef->children[0]; // NODE_BODY
 
         // Check if clone already exists in namespace
@@ -259,12 +262,14 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         Str *sname = stmt->data.decl.name;
 
-        // Skip meta-types (not actual data types)
+        // Skip meta-types and ext_structs (C side provides delete if needed)
         if (Str_eq_c(sname, "StructDef") ||
             Str_eq_c(sname, "FunctionDef") ||
             Str_eq_c(sname, "Dynamic")) continue;
 
         Expr *sdef = stmt->children[0];
+        if (sdef->is_ext) continue;
+
         Expr *body = sdef->children[0]; // NODE_BODY
 
         // Check if delete already exists in namespace

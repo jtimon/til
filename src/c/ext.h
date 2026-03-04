@@ -52,6 +52,13 @@ til_Bool *til_Bool_and(til_Bool *a, til_Bool *b);
 til_Bool *til_Bool_or(til_Bool *a, til_Bool *b);
 til_Bool *til_Bool_not(til_Bool *a);
 
+// ext_struct: Pair (test)
+typedef struct til_Pair { til_I64 a; til_I64 b; } til_Pair;
+til_I64 *til_Pair_sum(til_Pair *self);
+til_Pair *til_Pair_swap(til_Pair *self);
+til_Pair *til_Pair_clone(til_Pair *self);
+void til_Pair_delete(til_Pair *self, til_Bool *call_free);
+
 // Variadic builtins
 Str *til_format(int n, ...);
 void til_println(int n, ...);
