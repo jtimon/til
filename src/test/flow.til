@@ -140,6 +140,51 @@ test_asap_break := proc() {
     assert_eq_str(loc(), asap_break_no_leak(), "alive")
 }
 
+# ASAP edge case: variable used in both branches of if/else
+asap_if_both_branches := func(x: I64) returns Str {
+    s := "both"
+    if x.eq(1) {
+        _ := format(s)
+    } else {
+        _ := format(s)
+    }
+    # s freed after if/else, not leaked
+    return "done"
+}
+
+# ASAP edge case: variable used only in one branch
+asap_if_one_branch := func(x: I64) returns Str {
+    s := "one"
+    if x.eq(1) {
+        _ := format(s)
+    } else {
+        _ := format("other")
+    }
+    # s freed after if/else even though only used in then
+    return "done"
+}
+
+# ASAP edge case: return from one branch, other locals freed
+asap_if_return_branch := func(x: I64) returns Str {
+    s := "kept"
+    t := "freed"
+    if x.eq(1) {
+        return s
+    }
+    return t
+}
+
+test_asap_if_else := proc() {
+    assert_eq_str(loc(), asap_if_both_branches(1), "done")
+    assert_eq_str(loc(), asap_if_both_branches(0), "done")
+    assert_eq_str(loc(), asap_if_one_branch(1), "done")
+    assert_eq_str(loc(), asap_if_one_branch(0), "done")
+    # return from if: s returned, t freed before return
+    assert_eq_str(loc(), asap_if_return_branch(1), "kept")
+    # fall through: t returned, s freed by ASAP
+    assert_eq_str(loc(), asap_if_return_branch(0), "freed")
+}
+
 test_if_else()
 test_while_loop()
 test_break()
@@ -149,3 +194,4 @@ test_else_if()
 test_asap_while()
 test_asap_nested()
 test_asap_break()
+test_asap_if_else()

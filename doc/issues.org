@@ -323,9 +323,12 @@
    - To keep using after own: pass own x.clone() instead
 
 ** ASAP edge cases
-   ASAP works for straightforward code but may have edge cases:
-   - Variables used in both branches of if/else
-   - Variables captured in closures (not yet supported, but eventually)
+   - VERIFIED: Variables used in both branches of if/else — works correctly.
+     expr_uses_var recurses into all NODE_IF children, so last_use is set
+     to the if statement index and delete is inserted after it. Tests:
+     asap_if_both_branches, asap_if_one_branch, asap_if_return_branch
+     in flow.til.
+   - Variables captured in closures — deferred (closures not yet supported).
    - FIXED: Return from inside while leaks parent-scope locals.
      insert_exit_deletes and insert_free_calls only handled NODE_IF, not
      NODE_WHILE. Added NODE_WHILE support with a return_only flag — only
