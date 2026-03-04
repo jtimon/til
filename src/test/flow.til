@@ -185,6 +185,27 @@ test_asap_if_else := proc() {
     assert_eq_str(loc(), asap_if_return_branch(0), "freed")
 }
 
+# ASAP edge case: mut variable reassignment must free old value
+test_reassign_str := proc() {
+    mut s := "hello"
+    s = "world"
+    assert_eq_str(loc(), s, "world")
+}
+
+test_reassign_clone := proc(x: Str) {
+    mut s := "hello"
+    s = x
+    assert_eq_str(loc(), s, "from_arg")
+}
+
+test_reassign_multi := proc() {
+    mut s := "a"
+    s = "b"
+    s = "c"
+    s = "d"
+    assert_eq_str(loc(), s, "d")
+}
+
 test_if_else()
 test_while_loop()
 test_break()
@@ -195,3 +216,6 @@ test_asap_while()
 test_asap_nested()
 test_asap_break()
 test_asap_if_else()
+test_reassign_str()
+test_reassign_clone("from_arg")
+test_reassign_multi()

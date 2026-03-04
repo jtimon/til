@@ -197,26 +197,29 @@
    generation and forward declarations. Interpreter simplified to always use
    positional args (typer desugaring fills all fields with defaults).
 
-** ccodegen: deref-copy in assignments causes use-after-free
-   BUG: The typer inserts clone for assignments (s = Str.clone(x)), but
-   hoisting turns the clone fcall into a temp (_t := Str.clone(x); s = _t).
-   ccodegen then emits *s = (*_t) — a deref-copy that shares internal
-   pointers between s and _t. ASAP then deletes _t, freeing the internal
-   data that s still points to. Use-after-free.
+** FIXED ccodegen: deref-copy in assignments causes use-after-free
+   Was: hoisting turned clone fcalls into temps, ccodegen emitted *s = (*_t)
+   (deref-copy sharing internal pointers), ASAP deleted _t → use-after-free.
+   Fix: three changes working together:
+   1. Typer inserts Type.delete(own var) before compound-type reassignment
+      in insert_free_calls (frees old value before overwriting).
+   2. Hoisting no longer lifts top-level RHS for NODE_ASSIGN — the clone
+      fcall stays as RHS, no intermediate temp.
+   3. ccodegen uses pointer-assign (var = expr) for NODE_FCALL/NODE_LITERAL_STR
+      RHS instead of deref-copy. Scalars still use deref-assign (*var = val).
+   Interpreter fix: ext_function_dispatch now nulls own-arg ident cells
+   (ext dispatch evaluates by value, wasn't nulling cells like user-defined
+   funcs do via borrowed cells). Also evaluates RHS before freeing old value
+   to prevent reading freed memory when RHS references the same variable.
+   NODE_FIELD_ASSIGN to inline compound fields still uses hoisting+deref-copy
+   (separate issue, less common — users should use own for compound fields).
 
-   Same issue affects field assignments (obj.f = x) via emit_deref.
-
-   Fix: NODE_ASSIGN should free the old value and use pointer assignment
-   (s = _t) instead of deref-copy (*s = (*_t)). Or: don't hoist clone
-   calls in assignment RHS (skip hoisting when RHS is already a clone
-   fcall, letting ccodegen emit *s = til_Str_clone(x) directly).
-
-** interpreter: reassignment leaks old value
-   BUG: NODE_ASSIGN does cell->val = src->val without freeing the old
-   cell->val first. For mut s := "hello"; s = "world", the old Str
-   ("hello") leaks. No use-after-free (move nulls source), just a leak.
-   Same issue for NODE_FIELD_ASSIGN overwriting existing field values.
-   Fix: free old value before overwriting (call delete on cell->val).
+** FIXED interpreter: reassignment leaks old value
+   Was: NODE_ASSIGN did cell->val = src->val without freeing old value.
+   Fix: free_value(cell->val) before overwriting for scalars/Str/enum.
+   For compound types (Str, struct, enum), the typer-inserted delete
+   handles cleanup before the assignment reaches the interpreter.
+   NODE_FIELD_ASSIGN also frees old inline field values.
 
 ** FIXED ccodegen: literal return values need heap allocation
    Hoisting now converts bare literals in return statements to temporaries.

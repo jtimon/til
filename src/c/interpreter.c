@@ -330,8 +330,16 @@ static Value eval_call(Scope *scope, Expr *e, const char *path) {
 
     // Ext function dispatch
     Value ext_result;
-    if (ext_function_dispatch(name, scope, e, path, &ext_result))
+    if (ext_function_dispatch(name, scope, e, path, &ext_result)) {
+        // Null cells of own-arg idents (ext dispatch evaluates by value, not borrowed cell)
+        for (int i = 1; i < e->nchildren; i++) {
+            if (e->children[i]->type == NODE_IDENT && e->children[i]->is_own_arg) {
+                Cell *c = scope_get(scope, e->children[i]->data.str_val);
+                if (c) c->val = val_none();
+            }
+        }
         return ext_result;
+    }
 
     // User-defined function or struct instantiation
     Cell *fn_cell = scope_get(scope, name);
@@ -517,8 +525,9 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                 cell->val = src->val;
                 src->val = val_none();
             } else {
+                Value new_val = eval_expr(scope, rhs, path);
                 free_value(cell->val);
-                cell->val = eval_expr(scope, rhs, path);
+                cell->val = new_val;
             }
             break;
         }

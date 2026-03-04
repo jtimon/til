@@ -715,12 +715,6 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             break;
         case NODE_ASSIGN:
             hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
-            if (stmt->children[0]->type == NODE_FCALL ||
-                stmt->children[0]->type == NODE_LITERAL_NUM ||
-                stmt->children[0]->type == NODE_LITERAL_STR ||
-                stmt->children[0]->type == NODE_LITERAL_BOOL) {
-                stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
-            }
             break;
         case NODE_FIELD_ASSIGN:
             hoist_expr(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
@@ -1176,6 +1170,21 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                     insert_exit_deletes(stmt->children[1], live, n_live, 1);
                 }
                 free(live);
+            }
+        }
+
+        // Before NODE_ASSIGN: delete old compound-type value
+        if (stmt->type == NODE_ASSIGN) {
+            Str *vname = stmt->data.str_val;
+            for (int j = 0; j < n_locals; j++) {
+                if (!Str_eq(locals[j].name, vname)) continue;
+                TilType t = locals[j].type;
+                if (t == TIL_TYPE_STR || t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) {
+                    new_n++;
+                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
+                    new_ch[new_n - 1] = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                }
+                break;
             }
         }
 

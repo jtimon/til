@@ -265,11 +265,18 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             }
         }
         break;
-    case NODE_ASSIGN:
-        fprintf(f, "*%s = ", e->data.str_val->c_str);
-        emit_deref(f, e->children[0], depth);
+    case NODE_ASSIGN: {
+        Expr *rhs = e->children[0];
+        if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR) {
+            fprintf(f, "%s = ", e->data.str_val->c_str);
+            emit_expr(f, rhs, depth);
+        } else {
+            fprintf(f, "*%s = ", e->data.str_val->c_str);
+            emit_deref(f, rhs, depth);
+        }
         fprintf(f, ";\n");
         break;
+    }
     case NODE_FIELD_ASSIGN: {
         Expr *obj = e->children[0];
         Str *fname = e->data.str_val;
