@@ -4,65 +4,65 @@
 #include <string.h>
 
 void til_free(void *ptr) { free(ptr); }
-void til_exit(long long *code) { exit((int)*code); }
+void til_exit(til_I64 *code) { exit((int)*code); }
 
-const char **til_i64_to_str(long long *v) {
+c_str *til_I64_to_str(til_I64 *v) {
     char *buf = malloc(32);
     snprintf(buf, 32, "%lld", *v);
-    const char **r = malloc(sizeof(const char *));
+    c_str *r = malloc(sizeof(c_str));
     *r = buf;
     return r;
 }
 
-const char **til_u8_to_str(unsigned char *v) {
+c_str *til_U8_to_str(til_U8 *v) {
     char *buf = malloc(4);
     snprintf(buf, 4, "%u", (unsigned)*v);
-    const char **r = malloc(sizeof(const char *));
+    c_str *r = malloc(sizeof(c_str));
     *r = buf;
     return r;
 }
 
-int *til_str_eq(const char **a, const char **b) {
-    int *r = malloc(sizeof(int));
+til_Bool *til_Str_eq(c_str *a, c_str *b) {
+    til_Bool *r = malloc(sizeof(til_Bool));
     *r = (strcmp(*a, *b) == 0);
     return r;
 }
 
 // I64 arithmetic
-long long *til_i64_add(long long *a, long long *b) { long long *r = malloc(sizeof(long long)); *r = *a + *b; return r; }
-long long *til_i64_sub(long long *a, long long *b) { long long *r = malloc(sizeof(long long)); *r = *a - *b; return r; }
-long long *til_i64_mul(long long *a, long long *b) { long long *r = malloc(sizeof(long long)); *r = *a * *b; return r; }
-long long *til_i64_div(long long *a, long long *b) { long long *r = malloc(sizeof(long long)); *r = (*b == 0) ? 0 : *a / *b; return r; }
-long long *til_i64_mod(long long *a, long long *b) { long long *r = malloc(sizeof(long long)); *r = (*b == 0) ? 0 : *a % *b; return r; }
-long long *til_i64_and(long long *a, long long *b) { long long *r = malloc(sizeof(long long)); *r = *a & *b; return r; }
-long long *til_i64_or(long long *a, long long *b) { long long *r = malloc(sizeof(long long)); *r = *a | *b; return r; }
-long long *til_i64_xor(long long *a, long long *b) { long long *r = malloc(sizeof(long long)); *r = *a ^ *b; return r; }
+til_I64 *til_I64_add(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a + *b; return r; }
+til_I64 *til_I64_sub(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a - *b; return r; }
+til_I64 *til_I64_mul(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a * *b; return r; }
+til_I64 *til_I64_div(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = (*b == 0) ? 0 : *a / *b; return r; }
+til_I64 *til_I64_mod(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = (*b == 0) ? 0 : *a % *b; return r; }
+til_I64 *til_I64_and(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a & *b; return r; }
+til_I64 *til_I64_or(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a | *b; return r; }
+til_I64 *til_I64_xor(til_I64 *a, til_I64 *b) { til_I64 *r = malloc(sizeof(til_I64)); *r = *a ^ *b; return r; }
 
-// I64 comparisons (return Bool/int *)
-int *til_i64_eq(long long *a, long long *b) { int *r = malloc(sizeof(int)); *r = *a == *b; return r; }
-int *til_i64_lt(long long *a, long long *b) { int *r = malloc(sizeof(int)); *r = *a < *b; return r; }
-int *til_i64_gt(long long *a, long long *b) { int *r = malloc(sizeof(int)); *r = *a > *b; return r; }
+// I64 comparisons
+til_Bool *til_I64_eq(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a == *b; return r; }
+til_Bool *til_I64_lt(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a < *b; return r; }
+til_Bool *til_I64_gt(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a > *b; return r; }
 
 // U8 arithmetic
-unsigned char *til_u8_add(unsigned char *a, unsigned char *b) { unsigned char *r = malloc(1); *r = (unsigned char)(*a + *b); return r; }
-unsigned char *til_u8_sub(unsigned char *a, unsigned char *b) { unsigned char *r = malloc(1); *r = (unsigned char)(*a - *b); return r; }
-unsigned char *til_u8_mul(unsigned char *a, unsigned char *b) { unsigned char *r = malloc(1); *r = (unsigned char)(*a * *b); return r; }
-unsigned char *til_u8_div(unsigned char *a, unsigned char *b) { unsigned char *r = malloc(1); *r = (*b == 0) ? 0 : (unsigned char)(*a / *b); return r; }
-unsigned char *til_u8_mod(unsigned char *a, unsigned char *b) { unsigned char *r = malloc(1); *r = (*b == 0) ? 0 : (unsigned char)(*a % *b); return r; }
-unsigned char *til_u8_and(unsigned char *a, unsigned char *b) { unsigned char *r = malloc(1); *r = *a & *b; return r; }
-unsigned char *til_u8_or(unsigned char *a, unsigned char *b) { unsigned char *r = malloc(1); *r = *a | *b; return r; }
-unsigned char *til_u8_xor(unsigned char *a, unsigned char *b) { unsigned char *r = malloc(1); *r = *a ^ *b; return r; }
+til_U8 *til_U8_add(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)(*a + *b); return r; }
+til_U8 *til_U8_sub(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)(*a - *b); return r; }
+til_U8 *til_U8_mul(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)(*a * *b); return r; }
+til_U8 *til_U8_div(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (*b == 0) ? 0 : (til_U8)(*a / *b); return r; }
+til_U8 *til_U8_mod(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = (*b == 0) ? 0 : (til_U8)(*a % *b); return r; }
+til_U8 *til_U8_and(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = *a & *b; return r; }
+til_U8 *til_U8_or(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = *a | *b; return r; }
+til_U8 *til_U8_xor(til_U8 *a, til_U8 *b) { til_U8 *r = malloc(sizeof(til_U8)); *r = *a ^ *b; return r; }
 
 // U8 comparisons
-int *til_u8_eq(unsigned char *a, unsigned char *b) { int *r = malloc(sizeof(int)); *r = *a == *b; return r; }
-int *til_u8_lt(unsigned char *a, unsigned char *b) { int *r = malloc(sizeof(int)); *r = *a < *b; return r; }
-int *til_u8_gt(unsigned char *a, unsigned char *b) { int *r = malloc(sizeof(int)); *r = *a > *b; return r; }
+til_Bool *til_U8_eq(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a == *b; return r; }
+til_Bool *til_U8_lt(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a < *b; return r; }
+til_Bool *til_U8_gt(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a > *b; return r; }
 
 // U8 conversions
-long long *til_u8_to_i64(unsigned char *a) { long long *r = malloc(sizeof(long long)); *r = (long long)*a; return r; }
-unsigned char *til_u8_from_i64(long long *a) { unsigned char *r = malloc(1); *r = (unsigned char)*a; return r; }
+til_I64 *til_U8_to_i64(til_U8 *a) { til_I64 *r = malloc(sizeof(til_I64)); *r = (til_I64)*a; return r; }
+til_U8 *til_U8_from_i64_ext(til_I64 *a) { til_U8 *r = malloc(sizeof(til_U8)); *r = (til_U8)*a; return r; }
 
 // Bool ops
-int *til_bool_and(int *a, int *b) { int *r = malloc(sizeof(int)); *r = *a && *b; return r; }
-int *til_bool_or(int *a, int *b) { int *r = malloc(sizeof(int)); *r = *a || *b; return r; }
-int *til_bool_not(int *a) { int *r = malloc(sizeof(int)); *r = !*a; return r; }
+til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a && *b; return r; }
+til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = *a || *b; return r; }
+til_Bool *til_Bool_not(til_Bool *a) { til_Bool *r = malloc(sizeof(til_Bool)); *r = !*a; return r; }

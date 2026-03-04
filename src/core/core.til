@@ -4,53 +4,23 @@ FunctionDef : StructDef = struct {}
 Dynamic : StructDef = struct {}
 U8 : StructDef = struct {
     namespace:
-    to_str := func(val: U8) returns Str {
-        u8_to_str := ext_func(val: U8) returns Str {}
-        return u8_to_str(val)
-    }
-    to_i64 := func(val: U8) returns I64 {
-        u8_to_i64 := ext_func(val: U8) returns I64 {}
-        return u8_to_i64(val)
-    }
+    to_str := ext_func(val: U8) returns Str {}
+    to_i64 := ext_func(val: U8) returns I64 {}
     from_i64 := func(val: I64) returns U8 {
         if val.lt(0).or(val.gt(255)) {
             panic("U8.from_i64", "value out of range (0-255)")
         }
-        u8_from_i64 := ext_func(val: I64) returns U8 {}
-        return u8_from_i64(val)
+        U8_from_i64_ext := ext_func(val: I64) returns U8 {}
+        return U8_from_i64_ext(val)
     }
-    add := func(a: U8, b: U8) returns U8 {
-        u8_add := ext_func(a: U8, b: U8) returns U8 {}
-        return u8_add(a, b)
-    }
-    sub := func(a: U8, b: U8) returns U8 {
-        u8_sub := ext_func(a: U8, b: U8) returns U8 {}
-        return u8_sub(a, b)
-    }
-    mul := func(a: U8, b: U8) returns U8 {
-        u8_mul := ext_func(a: U8, b: U8) returns U8 {}
-        return u8_mul(a, b)
-    }
-    div := func(a: U8, b: U8) returns U8 {
-        u8_div := ext_func(a: U8, b: U8) returns U8 {}
-        return u8_div(a, b)
-    }
-    mod := func(a: U8, b: U8) returns U8 {
-        u8_mod := ext_func(a: U8, b: U8) returns U8 {}
-        return u8_mod(a, b)
-    }
-    eq := func(a: U8, b: U8) returns Bool {
-        u8_eq := ext_func(a: U8, b: U8) returns Bool {}
-        return u8_eq(a, b)
-    }
-    lt := func(a: U8, b: U8) returns Bool {
-        u8_lt := ext_func(a: U8, b: U8) returns Bool {}
-        return u8_lt(a, b)
-    }
-    gt := func(a: U8, b: U8) returns Bool {
-        u8_gt := ext_func(a: U8, b: U8) returns Bool {}
-        return u8_gt(a, b)
-    }
+    add := ext_func(a: U8, b: U8) returns U8 {}
+    sub := ext_func(a: U8, b: U8) returns U8 {}
+    mul := ext_func(a: U8, b: U8) returns U8 {}
+    div := ext_func(a: U8, b: U8) returns U8 {}
+    mod := ext_func(a: U8, b: U8) returns U8 {}
+    eq := ext_func(a: U8, b: U8) returns Bool {}
+    lt := ext_func(a: U8, b: U8) returns Bool {}
+    gt := ext_func(a: U8, b: U8) returns Bool {}
     lte := func(a: U8, b: U8) returns Bool {
         return a.lt(b).or(a.eq(b))
     }
@@ -60,60 +30,24 @@ U8 : StructDef = struct {
     neq := func(a: U8, b: U8) returns Bool {
         return a.eq(b).not()
     }
-    and := func(a: U8, b: U8) returns U8 {
-        u8_and := ext_func(a: U8, b: U8) returns U8 {}
-        return u8_and(a, b)
-    }
-    or := func(a: U8, b: U8) returns U8 {
-        u8_or := ext_func(a: U8, b: U8) returns U8 {}
-        return u8_or(a, b)
-    }
-    xor := func(a: U8, b: U8) returns U8 {
-        u8_xor := ext_func(a: U8, b: U8) returns U8 {}
-        return u8_xor(a, b)
-    }
+    and := ext_func(a: U8, b: U8) returns U8 {}
+    or := ext_func(a: U8, b: U8) returns U8 {}
+    xor := ext_func(a: U8, b: U8) returns U8 {}
     clone := func(val: U8) returns U8 {
         return U8.from_i64(val.to_i64())
     }
 }
 I64 : StructDef = struct {
     namespace:
-    to_str := func(val: I64) returns Str {
-        i64_to_str := ext_func(val: I64) returns Str {}
-        return i64_to_str(val)
-    }
-    add := func(a: I64, b: I64) returns I64 {
-        i64_add := ext_func(a: I64, b: I64) returns I64 {}
-        return i64_add(a, b)
-    }
-    sub := func(a: I64, b: I64) returns I64 {
-        i64_sub := ext_func(a: I64, b: I64) returns I64 {}
-        return i64_sub(a, b)
-    }
-    mul := func(a: I64, b: I64) returns I64 {
-        i64_mul := ext_func(a: I64, b: I64) returns I64 {}
-        return i64_mul(a, b)
-    }
-    div := func(a: I64, b: I64) returns I64 {
-        i64_div := ext_func(a: I64, b: I64) returns I64 {}
-        return i64_div(a, b)
-    }
-    mod := func(a: I64, b: I64) returns I64 {
-        i64_mod := ext_func(a: I64, b: I64) returns I64 {}
-        return i64_mod(a, b)
-    }
-    eq := func(a: I64, b: I64) returns Bool {
-        i64_eq := ext_func(a: I64, b: I64) returns Bool {}
-        return i64_eq(a, b)
-    }
-    lt := func(a: I64, b: I64) returns Bool {
-        i64_lt := ext_func(a: I64, b: I64) returns Bool {}
-        return i64_lt(a, b)
-    }
-    gt := func(a: I64, b: I64) returns Bool {
-        i64_gt := ext_func(a: I64, b: I64) returns Bool {}
-        return i64_gt(a, b)
-    }
+    to_str := ext_func(val: I64) returns Str {}
+    add := ext_func(a: I64, b: I64) returns I64 {}
+    sub := ext_func(a: I64, b: I64) returns I64 {}
+    mul := ext_func(a: I64, b: I64) returns I64 {}
+    div := ext_func(a: I64, b: I64) returns I64 {}
+    mod := ext_func(a: I64, b: I64) returns I64 {}
+    eq := ext_func(a: I64, b: I64) returns Bool {}
+    lt := ext_func(a: I64, b: I64) returns Bool {}
+    gt := ext_func(a: I64, b: I64) returns Bool {}
     lte := func(a: I64, b: I64) returns Bool {
         return a.lt(b).or(a.eq(b))
     }
@@ -126,28 +60,16 @@ I64 : StructDef = struct {
     neq := func(a: I64, b: I64) returns Bool {
         return a.eq(b).not()
     }
-    and := func(a: I64, b: I64) returns I64 {
-        i64_and := ext_func(a: I64, b: I64) returns I64 {}
-        return i64_and(a, b)
-    }
-    or := func(a: I64, b: I64) returns I64 {
-        i64_or := ext_func(a: I64, b: I64) returns I64 {}
-        return i64_or(a, b)
-    }
-    xor := func(a: I64, b: I64) returns I64 {
-        i64_xor := ext_func(a: I64, b: I64) returns I64 {}
-        return i64_xor(a, b)
-    }
+    and := ext_func(a: I64, b: I64) returns I64 {}
+    or := ext_func(a: I64, b: I64) returns I64 {}
+    xor := ext_func(a: I64, b: I64) returns I64 {}
     clone := func(val: I64) returns I64 {
         return val.add(0)
     }
 }
 Str : StructDef = struct {
     namespace:
-    eq := func(a: Str, b: Str) returns Bool {
-        str_eq := ext_func(a: Str, b: Str) returns Bool {}
-        return str_eq(a, b)
-    }
+    eq := ext_func(a: Str, b: Str) returns Bool {}
     concat := func(a: Str, b: Str) returns Str {
         return format(a, b)
     }
@@ -160,18 +82,9 @@ Bool : StructDef = struct {
     to_str := func(b: Bool) returns Str {
         if b { return "true" } else { return "false" }
     }
-    and := func(a: Bool, b: Bool) returns Bool {
-        bool_and := ext_func(a: Bool, b: Bool) returns Bool {}
-        return bool_and(a, b)
-    }
-    or := func(a: Bool, b: Bool) returns Bool {
-        bool_or := ext_func(a: Bool, b: Bool) returns Bool {}
-        return bool_or(a, b)
-    }
-    not := func(a: Bool) returns Bool {
-        bool_not := ext_func(a: Bool) returns Bool {}
-        return bool_not(a)
-    }
+    and := ext_func(a: Bool, b: Bool) returns Bool {}
+    or := ext_func(a: Bool, b: Bool) returns Bool {}
+    not := ext_func(a: Bool) returns Bool {}
     clone := func(val: Bool) returns Bool {
         return val.and(true)
     }

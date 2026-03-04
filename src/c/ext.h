@@ -1,49 +1,54 @@
 #ifndef TIL_EXT_H
 #define TIL_EXT_H
 
+typedef long long til_I64;
+typedef unsigned char til_U8;
+typedef int til_Bool;
+typedef const char *c_str;
+
 void til_free(void *ptr);
-void til_exit(long long *code);
-const char **til_i64_to_str(long long *v);
-const char **til_u8_to_str(unsigned char *v);
-int *til_str_eq(const char **a, const char **b);
+void til_exit(til_I64 *code);
+c_str *til_I64_to_str(til_I64 *v);
+c_str *til_U8_to_str(til_U8 *v);
+til_Bool *til_Str_eq(c_str *a, c_str *b);
 
 // I64 arithmetic
-long long *til_i64_add(long long *a, long long *b);
-long long *til_i64_sub(long long *a, long long *b);
-long long *til_i64_mul(long long *a, long long *b);
-long long *til_i64_div(long long *a, long long *b);
-long long *til_i64_mod(long long *a, long long *b);
-long long *til_i64_and(long long *a, long long *b);
-long long *til_i64_or(long long *a, long long *b);
-long long *til_i64_xor(long long *a, long long *b);
+til_I64 *til_I64_add(til_I64 *a, til_I64 *b);
+til_I64 *til_I64_sub(til_I64 *a, til_I64 *b);
+til_I64 *til_I64_mul(til_I64 *a, til_I64 *b);
+til_I64 *til_I64_div(til_I64 *a, til_I64 *b);
+til_I64 *til_I64_mod(til_I64 *a, til_I64 *b);
+til_I64 *til_I64_and(til_I64 *a, til_I64 *b);
+til_I64 *til_I64_or(til_I64 *a, til_I64 *b);
+til_I64 *til_I64_xor(til_I64 *a, til_I64 *b);
 
 // I64 comparisons
-int *til_i64_eq(long long *a, long long *b);
-int *til_i64_lt(long long *a, long long *b);
-int *til_i64_gt(long long *a, long long *b);
+til_Bool *til_I64_eq(til_I64 *a, til_I64 *b);
+til_Bool *til_I64_lt(til_I64 *a, til_I64 *b);
+til_Bool *til_I64_gt(til_I64 *a, til_I64 *b);
 
 // U8 arithmetic
-unsigned char *til_u8_add(unsigned char *a, unsigned char *b);
-unsigned char *til_u8_sub(unsigned char *a, unsigned char *b);
-unsigned char *til_u8_mul(unsigned char *a, unsigned char *b);
-unsigned char *til_u8_div(unsigned char *a, unsigned char *b);
-unsigned char *til_u8_mod(unsigned char *a, unsigned char *b);
-unsigned char *til_u8_and(unsigned char *a, unsigned char *b);
-unsigned char *til_u8_or(unsigned char *a, unsigned char *b);
-unsigned char *til_u8_xor(unsigned char *a, unsigned char *b);
+til_U8 *til_U8_add(til_U8 *a, til_U8 *b);
+til_U8 *til_U8_sub(til_U8 *a, til_U8 *b);
+til_U8 *til_U8_mul(til_U8 *a, til_U8 *b);
+til_U8 *til_U8_div(til_U8 *a, til_U8 *b);
+til_U8 *til_U8_mod(til_U8 *a, til_U8 *b);
+til_U8 *til_U8_and(til_U8 *a, til_U8 *b);
+til_U8 *til_U8_or(til_U8 *a, til_U8 *b);
+til_U8 *til_U8_xor(til_U8 *a, til_U8 *b);
 
 // U8 comparisons
-int *til_u8_eq(unsigned char *a, unsigned char *b);
-int *til_u8_lt(unsigned char *a, unsigned char *b);
-int *til_u8_gt(unsigned char *a, unsigned char *b);
+til_Bool *til_U8_eq(til_U8 *a, til_U8 *b);
+til_Bool *til_U8_lt(til_U8 *a, til_U8 *b);
+til_Bool *til_U8_gt(til_U8 *a, til_U8 *b);
 
 // U8 conversions
-long long *til_u8_to_i64(unsigned char *a);
-unsigned char *til_u8_from_i64(long long *a);
+til_I64 *til_U8_to_i64(til_U8 *a);
+til_U8 *til_U8_from_i64_ext(til_I64 *a);
 
 // Bool ops
-int *til_bool_and(int *a, int *b);
-int *til_bool_or(int *a, int *b);
-int *til_bool_not(int *a);
+til_Bool *til_Bool_and(til_Bool *a, til_Bool *b);
+til_Bool *til_Bool_or(til_Bool *a, til_Bool *b);
+til_Bool *til_Bool_not(til_Bool *a);
 
 #endif
