@@ -1,5 +1,6 @@
 #include "typer.h"
 #include "initer.h"
+#include "vec.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1079,8 +1080,7 @@ typedef struct {
 // return_only=1: only before NODE_RETURN (used when propagating into while bodies,
 // since break/continue don't leave the parent scope).
 static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live, int return_only) {
-    Expr **new_ch = NULL;
-    int new_n = 0;
+    Vec new_ch = Vec_new(sizeof(Expr *));
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
         if (stmt->type == NODE_IF) {
@@ -1095,23 +1095,20 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live, int ret
             for (int j = 0; j < n_live; j++) {
                 if (stmt->nchildren > 0 &&
                     expr_uses_var(stmt->children[0], live[j].name)) continue;
-                new_n++;
-                new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                new_ch[new_n - 1] = make_delete_call(
+                Expr *del = make_delete_call(
                     live[j].name, live[j].type, live[j].struct_name,
                     stmt->line, stmt->col);
+                Vec_push(&new_ch, &del);
             }
         }
-        new_n++;
-        new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-        new_ch[new_n - 1] = stmt;
+        Vec_push(&new_ch, &stmt);
     }
-    if (new_n != body->nchildren) {
+    if (new_ch.len != body->nchildren) {
         free(body->children);
-        body->children = new_ch;
-        body->nchildren = new_n;
+        body->nchildren = new_ch.len;
+        body->children = Vec_take(&new_ch);
     } else {
-        free(new_ch);
+        Vec_delete(&new_ch);
     }
 }
 
@@ -1120,8 +1117,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
 
     // Phase 1: collect locals with lifetime info
     // Start from 0 (not locals_start) to include own params, which are added before the body
-    int n_locals = 0;
-    LocalInfo *locals = NULL;
+    Vec locals_vec = Vec_new(sizeof(LocalInfo));
     for (int i = 0; i < Map_len(&scope->bindings); i++) {
         TypeBinding *b = (TypeBinding *)((char *)scope->bindings.vals.data + i * sizeof(TypeBinding));
         if ((b->is_param && !b->is_own) || b->struct_def || b->func_def || b->is_ref) continue;
@@ -1157,12 +1153,13 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
             }
         }
 
-        n_locals++;
-        locals = realloc(locals, n_locals * sizeof(LocalInfo));
-        locals[n_locals - 1] = (LocalInfo){b->name, b->type, b->struct_name, decl_idx, last_use, own_transfer};
+        LocalInfo li = {b->name, b->type, b->struct_name, decl_idx, last_use, own_transfer};
+        Vec_push(&locals_vec, &li);
     }
 
-    if (n_locals == 0) return;
+    if (locals_vec.len == 0) { Vec_delete(&locals_vec); return; }
+    int n_locals = locals_vec.len;
+    LocalInfo *locals = Vec_take(&locals_vec);
 
     // Extend lifetimes for args to ref-returning calls:
     // If ref m := f(x, y), then x and y must outlive m
@@ -1206,8 +1203,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     }
 
     // Phase 2: rebuild body with ASAP frees
-    Expr **new_ch = NULL;
-    int new_n = 0;
+    Vec new_ch = Vec_new(sizeof(Expr *));
 
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
@@ -1219,27 +1215,25 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < i &&
                     (locals[j].last_use >= i || locals[j].last_use == -1)) {
-                    new_n++;
-                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                    new_ch[new_n - 1] = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    Vec_push(&new_ch, &del);
                 }
             }
         }
 
         // For NODE_IF/NODE_WHILE: insert frees before nested early exits
         if (stmt->type == NODE_IF || stmt->type == NODE_WHILE) {
-            LocalInfo *live = NULL;
-            int n_live = 0;
+            Vec live_vec = Vec_new(sizeof(LocalInfo));
             for (int j = 0; j < n_locals; j++) {
                 if (locals[j].own_transfer >= 0) continue;
                 if (locals[j].decl_index < i &&
                     (locals[j].last_use >= i || locals[j].last_use == -1)) {
-                    n_live++;
-                    live = realloc(live, n_live * sizeof(LocalInfo));
-                    live[n_live - 1] = locals[j];
+                    Vec_push(&live_vec, &locals[j]);
                 }
             }
-            if (n_live > 0) {
+            if (live_vec.len > 0) {
+                int n_live = live_vec.len;
+                LocalInfo *live = Vec_take(&live_vec);
                 if (stmt->type == NODE_IF) {
                     for (int c = 1; c < stmt->nchildren; c++)
                         insert_exit_deletes(stmt->children[c], live, n_live, 0);
@@ -1248,6 +1242,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                     insert_exit_deletes(stmt->children[1], live, n_live, 1);
                 }
                 free(live);
+            } else {
+                Vec_delete(&live_vec);
             }
         }
 
@@ -1258,41 +1254,36 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                 if (!Str_eq(locals[j].name, vname)) continue;
                 TilType t = locals[j].type;
                 if (t == TIL_TYPE_STR || t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) {
-                    new_n++;
-                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                    new_ch[new_n - 1] = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    Vec_push(&new_ch, &del);
                 }
                 break;
             }
         }
 
         // Add original statement
-        new_n++;
-        new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-        new_ch[new_n - 1] = stmt;
+        Vec_push(&new_ch, &stmt);
 
         // After non-exit statements: free locals whose last use is this statement
         if (stmt->type != NODE_RETURN && stmt->type != NODE_BREAK && stmt->type != NODE_CONTINUE) {
             for (int j = 0; j < n_locals; j++) {
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == i) {
-                    new_n++;
-                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                    new_ch[new_n - 1] = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    Vec_push(&new_ch, &del);
                 }
                 // Never used after declaration: free immediately
                 if (locals[j].last_use == -1 && locals[j].decl_index == i) {
-                    new_n++;
-                    new_ch = realloc(new_ch, new_n * sizeof(Expr *));
-                    new_ch[new_n - 1] = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
+                    Vec_push(&new_ch, &del);
                 }
             }
         }
     }
 
     free(body->children);
-    body->children = new_ch;
-    body->nchildren = new_n;
+    body->nchildren = new_ch.len;
+    body->children = Vec_take(&new_ch);
     free(locals);
 }
 
