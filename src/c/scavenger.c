@@ -7,7 +7,7 @@
 
 // Name-to-Expr map (for top-level decls and namespace methods)
 static Expr *map_get_expr(Map *m, Str *key) {
-    Expr **p = Map_get(m, key);
+    Expr **p = Map_get(m, &key);
     return p ? *p : NULL;
 }
 
@@ -117,25 +117,28 @@ void scavenge(Expr *program, Str *mode) {
     int is_cli = mode && strcmp(mode->c_str, "cli") == 0;
 
     // 1. Build top-level declaration map
-    Map top = Map_new(sizeof(Expr *));
+    Map top = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
-        if (stmt->type == NODE_DECL)
-            Map_set(&top, stmt->data.decl.name, &stmt);
+        if (stmt->type == NODE_DECL) {
+            Str *name = stmt->data.decl.name;
+            Map_set(&top, &name, &stmt);
+        }
     }
 
     // 2. Build namespace method map: "Type.method" → method decl node
-    Map methods = Map_new(sizeof(Expr *));
-    for (int i = 0; i < top.len; i++) {
-        Expr *decl = ((Expr **)top.vals)[i];
+    Map methods = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
+    for (int i = 0; i < Map_len(&top); i++) {
+        Expr *decl = ((Expr **)top.vals.data)[i];
         if (decl->children[0]->type != NODE_STRUCT_DEF &&
             decl->children[0]->type != NODE_ENUM_DEF) continue;
-        Str *sname = top.keys[i];
+        Str *sname = ((Str **)top.keys.data)[i];
         Expr *body = decl->children[0]->children[0];
         for (int j = 0; j < body->nchildren; j++) {
             Expr *field = body->children[j];
             if (!field->data.decl.is_namespace) continue;
-            Map_set(&methods, qualified_name(sname, field->data.decl.name), &field);
+            Str *qn = qualified_name(sname, field->data.decl.name);
+            Map_set(&methods, &qn, &field);
         }
     }
 

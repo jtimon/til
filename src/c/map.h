@@ -7,17 +7,15 @@
 typedef int (*CmpFn)(const void *a, const void *b);
 
 typedef struct {
-    Str **keys;
-    void *vals;
-    int len;
-    int cap;
-    int elem_size;
+    Vec keys;
+    Vec vals;
+    CmpFn cmp;
 } Map;
 
-Map   Map_new(int elem_size);
-void *Map_get(Map *m, Str *key);
-void  Map_set(Map *m, Str *key, const void *val);
-int   Map_has(Map *m, Str *key);
+Map   Map_new(int key_size, int val_size, CmpFn cmp);
+void *Map_get(Map *m, const void *key);
+void  Map_set(Map *m, const void *key, const void *val);
+int   Map_has(Map *m, const void *key);
 int   Map_len(Map *m);
 void  Map_delete(Map *m);
 
