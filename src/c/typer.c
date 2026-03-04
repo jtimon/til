@@ -927,11 +927,13 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     // Check for use after ownership transfer
     for (int j = 0; j < n_locals; j++) {
         if (locals[j].own_transfer >= 0 && locals[j].last_use > locals[j].own_transfer) {
-            // Find the statement for error location
             Expr *stmt = body->children[locals[j].last_use];
             char buf[128];
             snprintf(buf, sizeof(buf), "use of '%s' after ownership transfer", locals[j].name->c_str);
             type_error(path, stmt, buf);
+            Expr *xfer = body->children[locals[j].own_transfer];
+            fprintf(stderr, "%s:%d:%d: note: ownership of '%s' transferred here — use clone before this call to keep using it\n",
+                    path, xfer->line, xfer->col, locals[j].name->c_str);
         }
     }
 
