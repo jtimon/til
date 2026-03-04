@@ -225,11 +225,16 @@
    literal first arg during desugaring, eliminating the special case.
 
 ** ccodegen: struct constructors (til_new_X functions)
-   ccodegen emits per-struct til_X_new() constructor functions (ccodegen.c:412-470)
-   and special-cases struct instantiation calls to route to them (ccodegen.c:142-149).
-   These could be replaced with C99 compound literals at the call site:
-   &(til_Point){.x = *x, .y = *y} instead of til_Point_new(x, y).
-   This eliminates both the constructor functions and the special-case dispatch.
+   ccodegen emits per-struct til_X_new() constructor functions and special-cases
+   struct instantiation calls to route to them. These could be replaced with C99
+   compound literals at the call site: &(til_Point){.x = *x, .y = *y} instead
+   of til_Point_new(x, y). This would eliminate both the constructor functions
+   and the special-case dispatch.
+
+   Progress: ccodegen now generates _new for ALL structs including fieldless
+   ones (void params, malloc only). Empty struct typedefs use char padding to
+   avoid zero-size issues. Previously fieldless structs had no _new, which
+   broke fieldless struct clone in ccodegen.
 
 ** ccodegen: literal return values need heap allocation
    When a function returns a literal (ccodegen.c:290-306), the codegen must
@@ -296,24 +301,31 @@
    Both backends have shallow copies in the same 4 places — the typer should
    insert explicit Type.clone(x) calls so backends never need copy logic:
 
-   | Operation              | ccodegen             | interpreter                  |
-   | Declaration (y := x)   | *dest = *src         | scope_set_owned copies Value |
-   | Assignment (y = x)     | *dest = *src         | cell->val = val              |
-   | Field assign (o.f = x) | field = deref(val)   | field_values[i] = val        |
-   | Struct construction    | _r->field = *param   | field_values[fi] = eval(arg) |
+   | Operation              | ccodegen             | interpreter                  | Status |
+   | Declaration (y := x)   | *dest = *src         | scope_set_owned copies Value | FIXED  |
+   | Assignment (y = x)     | *dest = *src         | cell->val = val              | FIXED  |
+   | Field assign (o.f = x) | field = deref(val)   | field_values[i] = val        |        |
+   | Struct construction    | _r->field = *param   | field_values[fi] = eval(arg) |        |
 
-   These are all fine for primitives (I64, Bool, U8) but dangerous once structs
-   have owned heap pointers (#3): a shallow copy would create two owners of the
-   same allocation → double-free.
+   Declarations and assignments: the typer now inserts Type.clone(x) when the
+   RHS is a NODE_IDENT. Works for ALL types — primitives (I64, U8, Bool, Str)
+   and user-defined structs (with or without instance fields). Primitive clone
+   is defined in pure til in core.til (e.g. I64.clone via val.add(0)), so no
+   new C special cases were added. The initer's has_clone check skips
+   auto-generation when a user-defined or core.til clone already exists.
 
-   Fix: the typer rewrites RHS expressions in these 4 cases to Type.clone(x)
-   for struct types. Both backends then handle clone as a normal function call
-   — no special copy logic needed. Primitives can skip clone (no heap data).
+   Fieldless struct clone: the initer now generates `return Type()` instead of
+   `other := self; return other`, avoiding infinite recursion from clone
+   insertion. ccodegen now supports fieldless struct constructors (_new with
+   void params, empty struct typedef with char padding).
 
-   Related: the interpreter's value_deep_copy on NODE_IDENT (see #1) is a
-   bandaid for this — every variable read produces a full clone. Once the typer
-   inserts clone at the right places, NODE_IDENT should return the value
-   directly (by reference), matching ccodegen's pointer semantics.
+   Still TODO: field assignments and struct constructor args.
+
+   Related: the interpreter's value_deep_copy on NODE_IDENT (see #1) is
+   redundant now for declarations/assignments (clone handles the copy), but
+   removing it requires handling ALL 4 copy sites first. Once all are done,
+   NODE_IDENT should return the value directly (by reference), matching
+   ccodegen's pointer semantics.
 
 ** FIXED Custom clone/delete: user-defined override for auto-generated
    The initer checks for existing clone/delete in the struct namespace before

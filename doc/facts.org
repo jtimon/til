@@ -46,3 +46,9 @@
 * TRUE All returns are by reference and owned by the caller
   Functions return heap-allocated pointers. The caller owns the returned
   value and is responsible for its cleanup (ASAP destruction handles this).
+
+* TRUE The only meta-types are StructDef, FunctionDef, and Dynamic
+  Meta-types are type-system scaffolding, not data types. You never
+  instantiate them as values. The initer skips clone/delete generation
+  for these three. Everything else (I64, U8, Bool, Str, user-defined
+  structs) gets auto-generated clone and delete.

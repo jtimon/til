@@ -403,7 +403,13 @@ static void emit_func_def(FILE *f, const char *name, Expr *func_def, const char 
 static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
     Expr *body = struct_def->children[0];
     // Emit typedef struct (skip namespace fields, nested structs are inline)
+    int has_instance_fields = 0;
+    for (int i = 0; i < body->nchildren; i++)
+        if (!body->children[i]->data.decl.is_namespace) { has_instance_fields = 1; break; }
     fprintf(f, "typedef struct til_%s {\n", name);
+    if (!has_instance_fields) {
+        fprintf(f, "    char _;\n"); // padding for empty structs
+    }
     for (int i = 0; i < body->nchildren; i++) {
         Expr *field = body->children[i];
         if (field->data.decl.is_namespace) continue;
@@ -436,28 +442,30 @@ static void emit_struct_def(FILE *f, const char *name, Expr *struct_def) {
         emit_func_def(f, full_name, fdef, NULL);
         fprintf(f, "\n");
     }
-    // Emit constructor _new function (skip for namespace-only structs)
-    int has_instance_fields = 0;
-    for (int i = 0; i < body->nchildren; i++)
-        if (!body->children[i]->data.decl.is_namespace) { has_instance_fields = 1; break; }
-    if (!has_instance_fields) return;
-    fprintf(f, "static til_%s *til_%s_new(", name, name);
-    int first = 1;
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *field = body->children[i];
-        if (field->data.decl.is_namespace) continue;
-        if (!first) fprintf(f, ", ");
-        first = 0;
-        fprintf(f, "%s *%s", c_type_name(field->til_type, field->children[0]->struct_name), field->data.decl.name);
+    // Emit constructor _new function
+    if (!has_instance_fields) {
+        fprintf(f, "static til_%s *til_%s_new(void) {\n", name, name);
+        fprintf(f, "    return malloc(sizeof(til_%s));\n", name);
+        fprintf(f, "}\n\n");
+    } else {
+        fprintf(f, "static til_%s *til_%s_new(", name, name);
+        int first = 1;
+        for (int i = 0; i < body->nchildren; i++) {
+            Expr *field = body->children[i];
+            if (field->data.decl.is_namespace) continue;
+            if (!first) fprintf(f, ", ");
+            first = 0;
+            fprintf(f, "%s *%s", c_type_name(field->til_type, field->children[0]->struct_name), field->data.decl.name);
+        }
+        fprintf(f, ") {\n");
+        fprintf(f, "    til_%s *_r = malloc(sizeof(til_%s));\n", name, name);
+        for (int i = 0; i < body->nchildren; i++) {
+            Expr *field = body->children[i];
+            if (field->data.decl.is_namespace) continue;
+            fprintf(f, "    _r->%s = *%s;\n", field->data.decl.name, field->data.decl.name);
+        }
+        fprintf(f, "    return _r;\n}\n\n");
     }
-    fprintf(f, ") {\n");
-    fprintf(f, "    til_%s *_r = malloc(sizeof(til_%s));\n", name, name);
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *field = body->children[i];
-        if (field->data.decl.is_namespace) continue;
-        fprintf(f, "    _r->%s = *%s;\n", field->data.decl.name, field->data.decl.name);
-    }
-    fprintf(f, "    return _r;\n}\n\n");
 }
 
 int codegen_c(Expr *program, const char *mode, const char *path, const char *c_output_path) {
@@ -557,7 +565,9 @@ int codegen_c(Expr *program, const char *mode, const char *path, const char *c_o
             int has_inst = 0;
             for (int j = 0; j < body->nchildren; j++)
                 if (!body->children[j]->data.decl.is_namespace) { has_inst = 1; break; }
-            if (has_inst) {
+            if (!has_inst) {
+                fprintf(f, "static til_%s *til_%s_new(void);\n", sname, sname);
+            } else {
                 fprintf(f, "static til_%s *til_%s_new(", sname, sname);
                 int first = 1;
                 for (int j = 0; j < body->nchildren; j++) {

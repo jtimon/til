@@ -72,6 +72,9 @@ U8 : StructDef = struct {
         u8_xor := ext_func(a: U8, b: U8) returns U8 {}
         return u8_xor(a, b)
     }
+    clone := func(val: U8) returns U8 {
+        return U8.from_i64(val.to_i64())
+    }
 }
 I64 : StructDef = struct {
     namespace:
@@ -135,6 +138,9 @@ I64 : StructDef = struct {
         i64_xor := ext_func(a: I64, b: I64) returns I64 {}
         return i64_xor(a, b)
     }
+    clone := func(val: I64) returns I64 {
+        return val.add(0)
+    }
 }
 Str : StructDef = struct {
     namespace:
@@ -144,6 +150,9 @@ Str : StructDef = struct {
     }
     concat := func(a: Str, b: Str) returns Str {
         return format(a, b)
+    }
+    clone := func(val: Str) returns Str {
+        return format(val)
     }
 }
 Bool : StructDef = struct {
@@ -162,6 +171,9 @@ Bool : StructDef = struct {
     not := func(a: Bool) returns Bool {
         bool_not := ext_func(a: Bool) returns Bool {}
         return bool_not(a)
+    }
+    clone := func(val: Bool) returns Bool {
+        return val.and(true)
     }
 }
 

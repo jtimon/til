@@ -180,21 +180,14 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         Expr *func_body = expr_new(NODE_BODY, line, col);
 
         if (nfields == 0) {
-            // No instance fields: other := self; return other
-            Expr *self_ref = expr_new(NODE_IDENT, line, col);
-            self_ref->data.str_val = "self";
-            Expr *other_decl = expr_new(NODE_DECL, line, col);
-            other_decl->data.decl.name = "other";
-            other_decl->data.decl.is_mut = false;
-            other_decl->data.decl.is_namespace = false;
-            other_decl->data.decl.explicit_type = NULL;
-            expr_add_child(other_decl, self_ref);
-            expr_add_child(func_body, other_decl);
+            // No instance fields: return Type()
+            Expr *ctor = expr_new(NODE_FCALL, line, col);
+            Expr *ctor_name = expr_new(NODE_IDENT, line, col);
+            ctor_name->data.str_val = sname;
+            expr_add_child(ctor, ctor_name);
 
-            Expr *other_ref = expr_new(NODE_IDENT, line, col);
-            other_ref->data.str_val = "other";
             Expr *ret = expr_new(NODE_RETURN, line, col);
-            expr_add_child(ret, other_ref);
+            expr_add_child(ret, ctor);
             expr_add_child(func_body, ret);
         } else {
             // With fields: return StructName(f1=self.f1.clone(), ...)
