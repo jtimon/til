@@ -144,32 +144,20 @@
   Remaining differences fall into 3 categories: actionable, low-priority, and
   acceptable (inherent to having an interpreter vs a C emitter).
 
-** Payload enum clone/delete should be generated til, not ext_func stubs
-   The initer generates real til-level clone/delete for structs:
-   clone does return Type(f1=self.f1.clone(), ...), delete calls
-   self.field.delete() for each field then free(own self). Both backends
-   just evaluate/emit these like any other function call.
+** FIXED Enum clone/delete/to_str are real til for ALL enums
+   The initer now generates real til-level clone/delete/to_str for all
+   enums (both simple and payload). Tagged union structs used in ccodegen
+   for all enums. No-payload variants use bare field access syntax
+   (Color.Red, Token.Eof — no parens needed).
 
-   The initer also generates to_str for payload enums as a real til
-   function using the is_/get_ pattern — proving the approach works.
+   Simple enum variants are I64 namespace literals with copy-on-access
+   in the interpreter. Payload enum no-payload variants are zero-arg
+   ext_func constructors auto-called on field access.
 
-   But clone and delete for payload enums are ext_func/ext_proc stubs
-   with empty bodies (initer.c lines 563-611). Both backends independently
-   implement the actual logic:
-   - dispatch.c: clone_value/free_value (recursive Value type-switch)
-   - ccodegen emit_enum_def: ~120 lines generating C functions with
-     switch-on-tag for clone/delete
-
-   Fix: generate real til clone/delete in the initer using the same
-   is_/get_/constructor pattern as to_str. Clone:
-     if self.is_Num() { return Token.Num(self.get_Num()) } ...
-   Delete:
-     if self.is_Num() { own self.get_Num().delete() } ... free(own self)
-
-   This eliminates:
-   - clone_value and free_value from the interpreter
-   - clone/delete generation (~80 lines) from ccodegen's emit_enum_def
-   - clone/delete cases from enum_method_dispatch in dispatch.c
+   Clone: payload uses is_/get_/constructor chain, simple uses eq chain.
+   Delete: same real til proc for all — free() handles payloads.
+   Eliminated ~120 lines of C generation from ccodegen, clone/delete
+   dispatch from dispatch.c.
 
 ** FIXED Enum method dispatch moved from eval_call to dispatch.c
    Both simple and payload enum methods (constructor, eq, clone, delete,

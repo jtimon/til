@@ -170,19 +170,6 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
             *result = val_bool(*a.i64 == *b.i64);
             return 1;
         }
-        if (Str_eq_c(method, "clone")) {
-            Value v = eval_expr(scope, e->children[1], path);
-            *result = val_i64(*v.i64);
-            return 1;
-        }
-        if (Str_eq_c(method, "delete")) {
-            Value v = eval_expr(scope, e->children[1], path);
-            if (v.type == VAL_NONE) { *result = val_none(); return 1; }
-            Value cf = eval_expr(scope, e->children[2], path);
-            if (*cf.boolean) free(v.i64);
-            *result = val_none();
-            return 1;
-        }
     } else {
         // Payload enum: constructor, eq, clone, delete, is_Variant, get_Variant
         int ctor_tag = enum_variant_tag(enum_def, method);
