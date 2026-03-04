@@ -26,7 +26,7 @@ int Vec_len(Vec *v) {
     return v->len;
 }
 
-void Vec_free(Vec *v) {
+void Vec_delete(Vec *v) {
     free(v->data);
     v->data = NULL;
     v->len = 0;

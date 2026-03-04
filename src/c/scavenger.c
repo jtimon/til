@@ -3,35 +3,7 @@
 #include <stdio.h>
 #include "scavenger.h"
 #include "map.h"
-
-// Simple string set (dynamic array with linear lookup)
-typedef struct {
-    Str **items;
-    int len, cap;
-} StrSet;
-
-static StrSet strset_new(void) {
-    return (StrSet){NULL, 0, 0};
-}
-
-static int strset_has(StrSet *s, Str *name) {
-    for (int i = 0; i < s->len; i++)
-        if (Str_eq(s->items[i], name)) return 1;
-    return 0;
-}
-
-static void strset_add(StrSet *s, Str *name) {
-    if (strset_has(s, name)) return;
-    if (s->len == s->cap) {
-        s->cap = s->cap ? s->cap * 2 : 16;
-        s->items = realloc(s->items, s->cap * sizeof(Str *));
-    }
-    s->items[s->len++] = name;
-}
-
-static void strset_free(StrSet *s) {
-    free(s->items);
-}
+#include "vec.h"
 
 // Name-to-Expr map (for top-level decls and namespace methods)
 static Expr *map_get_expr(Map *m, Str *key) {
@@ -70,12 +42,16 @@ static Str *qualified_name(Str *type_name, Str *method_name) {
 }
 
 // Collect all name references from an AST subtree into refs
-static void collect_refs(Expr *e, StrSet *refs) {
+static void vec_push_str(Vec *v, Str *s) {
+    Vec_push(v, &s);
+}
+
+static void collect_refs(Expr *e, Vec *refs) {
     if (!e) return;
 
     switch (e->type) {
     case NODE_IDENT:
-        strset_add(refs, e->data.str_val);
+        vec_push_str(refs, e->data.str_val);
         break;
 
     case NODE_FCALL:
@@ -85,8 +61,8 @@ static void collect_refs(Expr *e, StrSet *refs) {
             Expr *fa = e->children[0];
             Str *type_name = fa->children[0]->data.str_val;
             Str *method = fa->data.str_val;
-            strset_add(refs, type_name);
-            strset_add(refs, qualified_name(type_name, method));
+            vec_push_str(refs, type_name);
+            vec_push_str(refs, qualified_name(type_name, method));
             // Recurse into args (skip callee — already handled)
             for (int i = 1; i < e->nchildren; i++)
                 collect_refs(e->children[i], refs);
@@ -98,10 +74,10 @@ static void collect_refs(Expr *e, StrSet *refs) {
         int np = e->data.func_def.nparam;
         for (int i = 0; i < np; i++) {
             if (e->data.func_def.param_types[i])
-                strset_add(refs, e->data.func_def.param_types[i]);
+                vec_push_str(refs, e->data.func_def.param_types[i]);
         }
         if (e->data.func_def.return_type)
-            strset_add(refs, e->data.func_def.return_type);
+            vec_push_str(refs, e->data.func_def.return_type);
         break;
     }
 
@@ -109,8 +85,8 @@ static void collect_refs(Expr *e, StrSet *refs) {
         // Namespace field access: Type.field
         if (e->is_ns_field && e->children[0]->type == NODE_IDENT) {
             Str *type_name = e->children[0]->data.str_val;
-            strset_add(refs, type_name);
-            strset_add(refs, qualified_name(type_name, e->data.str_val));
+            vec_push_str(refs, type_name);
+            vec_push_str(refs, qualified_name(type_name, e->data.str_val));
         }
         break;
 
@@ -118,14 +94,14 @@ static void collect_refs(Expr *e, StrSet *refs) {
         // Namespace field assignment: Type.field = value
         if (e->is_ns_field && e->children[0]->type == NODE_IDENT) {
             Str *type_name = e->children[0]->data.str_val;
-            strset_add(refs, type_name);
-            strset_add(refs, qualified_name(type_name, e->data.str_val));
+            vec_push_str(refs, type_name);
+            vec_push_str(refs, qualified_name(type_name, e->data.str_val));
         }
         break;
 
     case NODE_DECL:
         if (e->data.decl.explicit_type)
-            strset_add(refs, e->data.decl.explicit_type);
+            vec_push_str(refs, e->data.decl.explicit_type);
         break;
 
     default:
@@ -164,9 +140,9 @@ void scavenge(Expr *program, Str *mode) {
     }
 
     // 3. Seed worklist
-    StrSet worklist = strset_new();
+    Vec worklist = Vec_new(sizeof(Str *));
     if (is_cli) {
-        strset_add(&worklist, gc_str(Str_new("main")));
+        vec_push_str(&worklist, gc_str(Str_new("main")));
     } else {
         // Script mode: collect refs from all top-level executable statements
         for (int i = 0; i < program->nchildren; i++) {
@@ -181,12 +157,12 @@ void scavenge(Expr *program, Str *mode) {
     }
 
     // 4. BFS
-    StrSet visited = strset_new();
+    Set visited = Set_new();
     int cursor = 0;
     while (cursor < worklist.len) {
-        Str *name = worklist.items[cursor++];
-        if (strset_has(&visited, name)) continue;
-        strset_add(&visited, name);
+        Str *name = ((Str **)worklist.data)[cursor++];
+        if (Set_has(&visited, name)) continue;
+        Set_add(&visited, name);
 
         // Top-level declaration?
         Expr *decl = map_get_expr(&top, name);
@@ -220,7 +196,7 @@ void scavenge(Expr *program, Str *mode) {
             (stmt->children[0]->type == NODE_FUNC_DEF ||
              stmt->children[0]->type == NODE_STRUCT_DEF ||
              stmt->children[0]->type == NODE_ENUM_DEF)) {
-            if (!strset_has(&visited, stmt->data.decl.name)) continue;
+            if (!Set_has(&visited, stmt->data.decl.name)) continue;
         }
         program->children[w++] = stmt;
     }
@@ -239,7 +215,7 @@ void scavenge(Expr *program, Str *mode) {
             Expr *field = body->children[j];
             if (field->data.decl.is_namespace) {
                 Str *qn = qualified_name(sname, field->data.decl.name);
-                if (!strset_has(&visited, qn)) continue;
+                if (!Set_has(&visited, qn)) continue;
             }
             body->children[bw++] = field;
         }
@@ -247,9 +223,9 @@ void scavenge(Expr *program, Str *mode) {
     }
 
     // Cleanup
-    strset_free(&worklist);
-    strset_free(&visited);
-    Map_free(&top);
-    Map_free(&methods);
+    Vec_delete(&worklist);
+    Set_delete(&visited);
+    Map_delete(&top);
+    Map_delete(&methods);
     gc_free_all();
 }
