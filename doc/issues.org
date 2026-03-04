@@ -144,14 +144,38 @@
   Remaining differences fall into 3 categories: actionable, low-priority, and
   acceptable (inherent to having an interpreter vs a C emitter).
 
+** Payload enum clone/delete should be generated til, not ext_func stubs
+   The initer generates real til-level clone/delete for structs:
+   clone does return Type(f1=self.f1.clone(), ...), delete calls
+   self.field.delete() for each field then free(own self). Both backends
+   just evaluate/emit these like any other function call.
+
+   The initer also generates to_str for payload enums as a real til
+   function using the is_/get_ pattern — proving the approach works.
+
+   But clone and delete for payload enums are ext_func/ext_proc stubs
+   with empty bodies (initer.c lines 563-611). Both backends independently
+   implement the actual logic:
+   - dispatch.c: clone_value/free_value (recursive Value type-switch)
+   - ccodegen emit_enum_def: ~120 lines generating C functions with
+     switch-on-tag for clone/delete
+
+   Fix: generate real til clone/delete in the initer using the same
+   is_/get_/constructor pattern as to_str. Clone:
+     if self.is_Num() { return Token.Num(self.get_Num()) } ...
+   Delete:
+     if self.is_Num() { own self.get_Num().delete() } ... free(own self)
+
+   This eliminates:
+   - clone_value and free_value from the interpreter
+   - clone/delete generation (~80 lines) from ccodegen's emit_enum_def
+   - clone/delete cases from enum_method_dispatch in dispatch.c
+
 ** FIXED Enum method dispatch moved from eval_call to dispatch.c
    Both simple and payload enum methods (constructor, eq, clone, delete,
    is_Variant, get_Variant) were hard-coded inline in eval_call (~65 lines).
    Moved to enum_method_dispatch() in dispatch.c. eval_call now detects
    "this is an enum" and delegates in ~5 lines.
-
-   Value helpers (clone_value, free_value, values_equal) exported from
-   interpreter.h for use by dispatch.c.
 
 ** FIXED enum_has_payloads and variant helpers shared via ast.h
    enum_has_payloads was duplicated in interpreter.c and ccodegen.c.
