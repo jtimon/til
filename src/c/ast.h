@@ -2,6 +2,7 @@
 #define TIL_AST_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include "ccore.h"
 
 typedef enum {
@@ -106,5 +107,46 @@ void expr_free(Expr *e);
 
 // Print an AST tree (for debugging)
 void ast_print(Expr *e, int indent);
+
+// --- Enum helpers (shared by interpreter, ccodegen, precomp) ---
+
+// Check if an enum def has payload variants (any non-namespace decl with explicit_type)
+static inline int enum_has_payloads(Expr *enum_def) {
+    Expr *body = enum_def->children[0];
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *f = body->children[i];
+        if (f->type == NODE_DECL && !f->data.decl.is_namespace && f->data.decl.explicit_type)
+            return 1;
+    }
+    return 0;
+}
+
+// Find tag index for a variant name in an enum def (scan non-namespace entries)
+static inline int enum_variant_tag(Expr *enum_def, Str *variant_name) {
+    Expr *body = enum_def->children[0];
+    int tag = 0;
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *f = body->children[i];
+        if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
+            if (Str_eq(f->data.decl.name, variant_name)) return tag;
+            tag++;
+        }
+    }
+    return -1;
+}
+
+// Find payload type string for a variant (NULL if no payload)
+static inline Str *enum_variant_type(Expr *enum_def, int tag) {
+    Expr *body = enum_def->children[0];
+    int idx = 0;
+    for (int i = 0; i < body->nchildren; i++) {
+        Expr *f = body->children[i];
+        if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
+            if (idx == tag) return f->data.decl.explicit_type;
+            idx++;
+        }
+    }
+    return NULL;
+}
 
 #endif

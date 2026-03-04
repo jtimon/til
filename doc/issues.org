@@ -144,34 +144,19 @@
   Remaining differences fall into 3 categories: actionable, low-priority, and
   acceptable (inherent to having an interpreter vs a C emitter).
 
-** Payload enum methods duplicated in eval_call and emit_enum_def
-   The biggest remaining inconsistency. Both backends independently implement
-   the same 6 payload enum methods: constructor, eq, clone, delete,
-   is_Variant, get_Variant.
+** FIXED Enum method dispatch moved from eval_call to dispatch.c
+   Both simple and payload enum methods (constructor, eq, clone, delete,
+   is_Variant, get_Variant) were hard-coded inline in eval_call (~65 lines).
+   Moved to enum_method_dispatch() in dispatch.c. eval_call now detects
+   "this is an enum" and delegates in ~5 lines.
 
-   Interpreter (eval_call lines 236-280): ~45 lines of hard-coded dispatch
-   in the namespace call path, using interpreter-specific Value types
-   (val_enum, clone_value, free_value, values_equal).
+   Value helpers (clone_value, free_value, values_equal) exported from
+   interpreter.h for use by dispatch.c.
 
-   ccodegen (emit_enum_def lines 595-717): ~120 lines generating per-enum C
-   functions. Type-switches on payload type (I64/U8/Bool/Str/other) for
-   clone/eq/delete patterns.
-
-   Simple enums (no payloads) are cleaner — the initer generates ext_func
-   stubs, dispatch.c handles eq/clone/delete via flat name, ccodegen generates
-   trivial C functions. Payload enums bypass this clean path.
-
-   Fix: move interpreter payload enum logic from eval_call to dispatch.c,
-   consistent with how simple enum methods and all other ext methods work.
-   Would need enum_has_payloads, enum_variant_tag, enum_variant_type
-   available in dispatch.c (currently static in interpreter.c).
-
-** enum_has_payloads duplicated
-   Identical function in interpreter.c (line 105) and ccodegen.c (line 9,
-   named cg_enum_has_payloads). Both scan non-namespace fields for
-   explicit_type. Easy fix: move to ast.c or ast.h as shared utility.
-   Also move enum_variant_tag and enum_variant_type if fixing the payload
-   enum duplication above.
+** FIXED enum_has_payloads and variant helpers shared via ast.h
+   enum_has_payloads was duplicated in interpreter.c and ccodegen.c.
+   Moved to ast.h as static inline, along with enum_variant_tag and
+   enum_variant_type. Both backends and dispatch.c use the shared versions.
 
 ** interpreter: dispatch.c still uses strcmp chain
    Linear scan of 47 string comparisons. Could be a sorted array + binary

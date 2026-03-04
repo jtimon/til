@@ -155,3 +155,75 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
 
     return 0;
 }
+
+int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
+                         Str *enum_name, Expr *e, const char *path,
+                         Value *result) {
+    int hp = enum_has_payloads(enum_def);
+
+    if (!hp) {
+        // Simple enum: stored as I64
+        if (Str_eq_c(method, "eq")) {
+            Value a = eval_expr(scope, e->children[1], path);
+            Value b = eval_expr(scope, e->children[2], path);
+            *result = val_bool(*a.i64 == *b.i64);
+            return 1;
+        }
+        if (Str_eq_c(method, "clone")) {
+            Value v = eval_expr(scope, e->children[1], path);
+            *result = val_i64(*v.i64);
+            return 1;
+        }
+        if (Str_eq_c(method, "delete")) {
+            Value v = eval_expr(scope, e->children[1], path);
+            if (v.type == VAL_NONE) { *result = val_none(); return 1; }
+            Value cf = eval_expr(scope, e->children[2], path);
+            if (*cf.boolean) free(v.i64);
+            *result = val_none();
+            return 1;
+        }
+    } else {
+        // Payload enum: constructor, eq, clone, delete, is_Variant, get_Variant
+        int ctor_tag = enum_variant_tag(enum_def, method);
+        if (ctor_tag >= 0 && enum_variant_type(enum_def, ctor_tag)) {
+            Value payload = eval_expr(scope, e->children[1], path);
+            *result = val_enum(enum_name, ctor_tag, clone_value(payload));
+            return 1;
+        }
+        if (Str_eq_c(method, "eq")) {
+            Value a = eval_expr(scope, e->children[1], path);
+            Value b = eval_expr(scope, e->children[2], path);
+            *result = val_bool(values_equal(a, b));
+            return 1;
+        }
+        if (Str_eq_c(method, "clone")) {
+            Value v = eval_expr(scope, e->children[1], path);
+            *result = clone_value(v);
+            return 1;
+        }
+        if (Str_eq_c(method, "delete")) {
+            Value v = eval_expr(scope, e->children[1], path);
+            if (v.type == VAL_NONE) { *result = val_none(); return 1; }
+            Value cf = eval_expr(scope, e->children[2], path);
+            if (*cf.boolean) free_value(v);
+            *result = val_none();
+            return 1;
+        }
+        if (method->len > 3 && memcmp(method->c_str, "is_", 3) == 0) {
+            Str var_name = {.c_str = method->c_str + 3, .len = method->len - 3};
+            int tag = enum_variant_tag(enum_def, &var_name);
+            Value v = eval_expr(scope, e->children[1], path);
+            if (v.type == VAL_ENUM)
+                *result = val_bool(v.enum_inst->tag == tag);
+            else
+                *result = val_bool((int)*v.i64 == tag);
+            return 1;
+        }
+        if (method->len > 4 && memcmp(method->c_str, "get_", 4) == 0) {
+            Value v = eval_expr(scope, e->children[1], path);
+            *result = clone_value(v.enum_inst->payload);
+            return 1;
+        }
+    }
+    return 0;
+}

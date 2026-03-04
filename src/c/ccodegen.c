@@ -5,16 +5,7 @@
 
 static Expr *codegen_program; // set during codegen for struct lookups
 
-// Check if an enum def has payload variants
-static int cg_enum_has_payloads(Expr *enum_def) {
-    Expr *body = enum_def->children[0];
-    for (int i = 0; i < body->nchildren; i++) {
-        Expr *f = body->children[i];
-        if (f->type == NODE_DECL && !f->data.decl.is_namespace && f->data.decl.explicit_type)
-            return 1;
-    }
-    return 0;
-}
+// enum_has_payloads is in ast.h
 
 // Find struct body (NODE_BODY) by struct name in the program
 static Expr *find_struct_body(Str *name) {
@@ -425,7 +416,7 @@ static void emit_ns_inits(FILE *f, int depth) {
                                         stmt->children[0]->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
             Expr *edef = stmt->children[0];
-            int hp = (edef->type == NODE_ENUM_DEF) ? cg_enum_has_payloads(edef) : 0;
+            int hp = (edef->type == NODE_ENUM_DEF) ? enum_has_payloads(edef) : 0;
             Expr *body = edef->children[0];
             for (int j = 0; j < body->nchildren; j++) {
                 Expr *field = body->children[j];
@@ -539,7 +530,7 @@ static void emit_struct_def(FILE *f, Str *name, Expr *struct_def) {
 
 static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
     Expr *body = enum_def->children[0];
-    int hp = cg_enum_has_payloads(enum_def);
+    int hp = enum_has_payloads(enum_def);
 
     if (!hp) {
         // === SIMPLE ENUM ===
@@ -762,7 +753,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         }
         if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_ENUM_DEF) {
             Str *ename = stmt->data.decl.name;
-            if (cg_enum_has_payloads(stmt->children[0])) {
+            if (enum_has_payloads(stmt->children[0])) {
                 // Payload enum: tag enum + struct with union
                 Expr *ebody = stmt->children[0]->children[0];
                 fprintf(f, "typedef enum {\n");
@@ -858,7 +849,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             fprintf(f, "til_Bool *til_%s_eq(til_%s *, til_%s *);\n", sname->c_str, sname->c_str, sname->c_str);
             fprintf(f, "til_%s *til_%s_clone(til_%s *);\n", sname->c_str, sname->c_str, sname->c_str);
             fprintf(f, "void til_%s_delete(til_%s *, til_Bool *);\n", sname->c_str, sname->c_str);
-            if (cg_enum_has_payloads(stmt->children[0])) {
+            if (enum_has_payloads(stmt->children[0])) {
                 Expr *ebody = stmt->children[0]->children[0];
                 for (int j = 0; j < ebody->nchildren; j++) {
                     Expr *v = ebody->children[j];
