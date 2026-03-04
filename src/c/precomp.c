@@ -227,6 +227,8 @@ static void process_body(Scope *scope, Expr *body, KnownMap *known,
                 }
                 break;
             }
+            // ref declarations must keep the function call — no folding
+            if (stmt->data.decl.is_ref) break;
             // Check if RHS is a macro or pure func call
             if (is_macro_call(stmt->children[0])) {
                 Expr *lit = try_eval_call(scope, stmt->children[0], known, path, 1);

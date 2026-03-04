@@ -198,6 +198,66 @@ static void emit_as_ptr(FILE *f, Expr *e, int depth) {
     }
 }
 
+// Emit struct constructor field assignments into 'var' (already malloc'd).
+static int _ctor_seq = 0;
+static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, int depth) {
+    Expr *sbody = find_struct_body(ctor->struct_name);
+    int fi = 0;
+    for (int i = 1; i < ctor->nchildren; i++) {
+        int is_own = 0;
+        const char *fname = NULL;
+        if (sbody) {
+            for (; fi < sbody->nchildren; fi++) {
+                if (!sbody->children[fi]->data.decl.is_namespace) {
+                    is_own = sbody->children[fi]->data.decl.is_own;
+                    fname = sbody->children[fi]->data.decl.name->c_str;
+                    fi++;
+                    break;
+                }
+            }
+        }
+        Expr *arg = ctor->children[i];
+        emit_indent(f, depth);
+        if (is_own && arg->type == NODE_FCALL && arg->struct_name &&
+            Str_eq(arg->children[0]->data.str_val, arg->struct_name)) {
+            // Nested struct constructor for own field: emit as temp, assign pointer
+            const char *ct = c_type_name(arg->til_type, arg->struct_name);
+            int id = _ctor_seq++;
+            char tmp[32];
+            snprintf(tmp, sizeof(tmp), "_cs%d", id);
+            fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ct, tmp, ct);
+            emit_ctor_fields(f, tmp, arg, depth);
+            emit_indent(f, depth);
+            fprintf(f, "%s->%s = %s;\n", var, fname, tmp);
+        } else if (is_own) {
+            fprintf(f, "%s->%s = ", var, fname);
+            emit_expr(f, arg, depth);
+            fprintf(f, ";\n");
+        } else if (arg->type == NODE_FCALL && arg->struct_name &&
+                   Str_eq(arg->children[0]->data.str_val, arg->struct_name)) {
+            // Inline struct field: nested constructor — build in-place
+            const char *ct = c_type_name(arg->til_type, arg->struct_name);
+            int id = _ctor_seq++;
+            char tmp[32];
+            snprintf(tmp, sizeof(tmp), "_cs%d", id);
+            fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ct, tmp, ct);
+            emit_ctor_fields(f, tmp, arg, depth);
+            emit_indent(f, depth);
+            fprintf(f, "%s->%s = *%s; free(%s);\n", var, fname, tmp, tmp);
+        } else if (arg->type == NODE_FCALL) {
+            // Unhoisted fcall for inline compound field: deref + free wrapper
+            const char *ftype = c_type_name(arg->til_type, arg->struct_name);
+            fprintf(f, "{ %s *_ca = ", ftype);
+            emit_expr(f, arg, depth);
+            fprintf(f, "; %s->%s = *_ca; free(_ca); }\n", var, fname);
+        } else {
+            fprintf(f, "%s->%s = ", var, fname);
+            emit_deref(f, arg, depth);
+            fprintf(f, ";\n");
+        }
+    }
+}
+
 // --- Statement emission ---
 
 static void emit_stmt(FILE *f, Expr *e, int depth) {
@@ -222,34 +282,10 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             Expr *rhs = e->children[0];
             if (rhs->type == NODE_FCALL && rhs->struct_name &&
                 Str_eq(rhs->children[0]->data.str_val, rhs->struct_name)) {
-                // Struct constructor — malloc + compound literal
-                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name->c_str, ctype);
-                if (rhs->nchildren > 1) {
-                    emit_indent(f, depth);
-                    fprintf(f, "*%s = (%s){", e->data.decl.name->c_str, ctype);
-                    Expr *sbody = find_struct_body(rhs->struct_name);
-                    int fi = 0;
-                    for (int i = 1; i < rhs->nchildren; i++) {
-                        if (i > 1) fprintf(f, ", ");
-                        int is_own = 0;
-                        if (sbody) {
-                            // Find the fi-th instance field
-                            for (; fi < sbody->nchildren; fi++) {
-                                if (!sbody->children[fi]->data.decl.is_namespace) {
-                                    is_own = sbody->children[fi]->data.decl.is_own;
-                                    fi++;
-                                    break;
-                                }
-                            }
-                        }
-                        if (is_own) {
-                            emit_expr(f, rhs->children[i], depth);
-                        } else {
-                            emit_deref(f, rhs->children[i], depth);
-                        }
-                    }
-                    fprintf(f, "};\n");
-                }
+                // Struct constructor — malloc + field-by-field assignment
+                const char *var = e->data.decl.name->c_str;
+                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
+                emit_ctor_fields(f, var, rhs, depth);
             } else if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR) {
                 // Function calls already return a fresh heap pointer
                 fprintf(f, "%s *%s = ", ctype, e->data.decl.name->c_str);
@@ -289,10 +325,20 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         }
         if (e->is_own_field) {
             emit_expr(f, e->children[1], depth);
+            fprintf(f, ";\n");
+        } else if (e->children[1]->type == NODE_FCALL) {
+            // Unhoisted fcall for inline compound field: deref + free wrapper
+            const char *ftype = c_type_name(e->children[1]->til_type, e->children[1]->struct_name);
+            fprintf(f, "{ %s *_fa = ", ftype);
+            emit_expr(f, e->children[1], depth);
+            fprintf(f, "; ");
+            emit_expr(f, obj, depth);
+            int use_dot = (obj->type == NODE_FIELD_ACCESS && !obj->is_own_field);
+            fprintf(f, "%s%s = *_fa; free(_fa); }\n", use_dot ? "." : "->", fname->c_str);
         } else {
             emit_deref(f, e->children[1], depth);
+            fprintf(f, ";\n");
         }
-        fprintf(f, ";\n");
         break;
     }
     case NODE_FCALL:
@@ -311,34 +357,12 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
             Expr *rv = e->children[0];
             if (rv->type == NODE_FCALL && rv->struct_name &&
                 Str_eq(rv->children[0]->data.str_val, rv->struct_name)) {
-                // Struct constructor return — malloc + compound literal
+                // Struct constructor return — malloc + field-by-field
                 const char *ctype = c_type_name(rv->til_type, rv->struct_name);
-                fprintf(f, "{ %s *_r = malloc(sizeof(%s));", ctype, ctype);
-                if (rv->nchildren > 1) {
-                    fprintf(f, " *_r = (%s){", ctype);
-                    Expr *sbody = find_struct_body(rv->struct_name);
-                    int fi = 0;
-                    for (int i = 1; i < rv->nchildren; i++) {
-                        if (i > 1) fprintf(f, ", ");
-                        int is_own = 0;
-                        if (sbody) {
-                            for (; fi < sbody->nchildren; fi++) {
-                                if (!sbody->children[fi]->data.decl.is_namespace) {
-                                    is_own = sbody->children[fi]->data.decl.is_own;
-                                    fi++;
-                                    break;
-                                }
-                            }
-                        }
-                        if (is_own) {
-                            emit_expr(f, rv->children[i], depth);
-                        } else {
-                            emit_deref(f, rv->children[i], depth);
-                        }
-                    }
-                    fprintf(f, "};");
-                }
-                fprintf(f, " return _r; }\n");
+                fprintf(f, "{ %s *_r = malloc(sizeof(%s));\n", ctype, ctype);
+                emit_ctor_fields(f, "_r", rv, depth);
+                emit_indent(f, depth);
+                fprintf(f, "return _r; }\n");
             } else {
                 fprintf(f, "return ");
                 emit_expr(f, rv, depth);

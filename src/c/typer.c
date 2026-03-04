@@ -671,12 +671,41 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
         hoist_expr(e->children[i], hoisted, nhoisted, cap, scope);
     }
     if (e->type != NODE_FCALL) return;
+
+    // For struct constructors, find field info to skip hoisting inline compound args
+    Expr *ctor_body = NULL;
+    if (e->struct_name && e->nchildren > 0 &&
+        Str_eq(e->children[0]->data.str_val, e->struct_name)) {
+        Expr *sdef = tscope_get_struct(scope, e->struct_name);
+        if (sdef) ctor_body = sdef->children[0];
+    }
+
     // Check each argument (children[1..n])
+    int fi = 0; // instance field index for struct constructors
     for (int i = 1; i < e->nchildren; i++) {
         if (e->children[i]->type != NODE_FCALL &&
             e->children[i]->type != NODE_LITERAL_NUM &&
             e->children[i]->type != NODE_LITERAL_STR &&
             e->children[i]->type != NODE_LITERAL_BOOL) continue;
+
+        // Skip hoisting inline compound field args in struct constructors
+        if (ctor_body) {
+            // Find the fi-th instance field
+            int is_own = 0;
+            TilType ft = TIL_TYPE_NONE;
+            for (; fi < ctor_body->nchildren; fi++) {
+                Expr *field = ctor_body->children[fi];
+                if (!field->data.decl.is_namespace) {
+                    is_own = field->data.decl.is_own;
+                    ft = field->children[0]->til_type;
+                    fi++;
+                    break;
+                }
+            }
+            if (!is_own && (ft == TIL_TYPE_STR || ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM))
+                continue; // don't hoist — ccodegen handles directly
+        }
+
         e->children[i] = hoist_to_temp(e->children[i], hoisted, nhoisted, cap, scope);
     }
 }
@@ -713,18 +742,43 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 }
             }
             break;
-        case NODE_ASSIGN:
+        case NODE_ASSIGN: {
             hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            // Skip top-level hoisting for compound-type locals — ccodegen
+            // uses pointer-assign (typer inserts delete before reassignment).
+            // Keep hoisting for scalars (deref-assign) and params (write-through).
+            int do_hoist = 1;
+            TypeBinding *ab = tscope_find(scope, stmt->data.str_val);
+            if (ab && !ab->is_param) {
+                TilType t = ab->type;
+                if (t == TIL_TYPE_STR || t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM)
+                    do_hoist = 0;
+            }
+            if (do_hoist && (stmt->children[0]->type == NODE_FCALL ||
+                stmt->children[0]->type == NODE_LITERAL_NUM ||
+                stmt->children[0]->type == NODE_LITERAL_STR ||
+                stmt->children[0]->type == NODE_LITERAL_BOOL)) {
+                stmt->children[0] = hoist_to_temp(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
+            }
             break;
-        case NODE_FIELD_ASSIGN:
+        }
+        case NODE_FIELD_ASSIGN: {
             hoist_expr(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
-            if (stmt->children[1]->type == NODE_FCALL ||
+            // Skip hoisting for inline compound fields (same as constructor args)
+            int fa_hoist = 1;
+            if (!stmt->is_own_field) {
+                TilType ft = stmt->children[1]->til_type;
+                if (ft == TIL_TYPE_STR || ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM)
+                    fa_hoist = 0;
+            }
+            if (fa_hoist && (stmt->children[1]->type == NODE_FCALL ||
                 stmt->children[1]->type == NODE_LITERAL_NUM ||
                 stmt->children[1]->type == NODE_LITERAL_STR ||
-                stmt->children[1]->type == NODE_LITERAL_BOOL) {
+                stmt->children[1]->type == NODE_LITERAL_BOOL)) {
                 stmt->children[1] = hoist_to_temp(stmt->children[1], &hoisted, &nhoisted, &hcap, scope);
             }
             break;
+        }
         case NODE_IF:
             hoist_expr(stmt->children[0], &hoisted, &nhoisted, &hcap, scope);
             if (stmt->children[0]->type == NODE_FCALL) {
