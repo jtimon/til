@@ -3,66 +3,10 @@
 #include <stdio.h>
 #include "precomp.h"
 #include "interpreter.h"
+#include "map.h"
 
-// --- Macro and pure func name sets ---
-
-static Str **macro_names = NULL;
-static int macro_count = 0, macro_cap = 0;
-
-static Str **func_names = NULL;
-static int func_count = 0, func_cap = 0;
-
-static int is_macro(Str *name) {
-    for (int i = 0; i < macro_count; i++)
-        if (Str_eq(macro_names[i], name)) return 1;
-    return 0;
-}
-
-static int is_pure_func(Str *name) {
-    for (int i = 0; i < func_count; i++)
-        if (Str_eq(func_names[i], name)) return 1;
-    return 0;
-}
-
-// --- Compile-time known values ---
-
-typedef struct {
-    Str *name;
-    Value val;
-} KnownEntry;
-
-typedef struct {
-    KnownEntry *entries;
-    int len, cap;
-} KnownMap;
-
-static KnownMap known_new(void) {
-    return (KnownMap){NULL, 0, 0};
-}
-
-static void known_set(KnownMap *m, Str *name, Value val) {
-    for (int i = 0; i < m->len; i++) {
-        if (Str_eq(m->entries[i].name, name)) {
-            m->entries[i].val = val;
-            return;
-        }
-    }
-    if (m->len == m->cap) {
-        m->cap = m->cap ? m->cap * 2 : 8;
-        m->entries = realloc(m->entries, m->cap * sizeof(KnownEntry));
-    }
-    m->entries[m->len++] = (KnownEntry){name, val};
-}
-
-static Value *known_get(KnownMap *m, Str *name) {
-    for (int i = 0; i < m->len; i++)
-        if (Str_eq(m->entries[i].name, name)) return &m->entries[i].val;
-    return NULL;
-}
-
-static void known_free(KnownMap *m) {
-    free(m->entries);
-}
+static Set macros, funcs;
+static Map known;
 
 // --- Value → Expr conversion ---
 
@@ -120,14 +64,14 @@ static Value expr_to_value(Expr *e) {
 }
 
 // Check if an expression is compile-time known and return its value
-static int is_known(Expr *e, KnownMap *known, Value *out) {
+static int is_known(Expr *e, Value *out) {
     if (e->type == NODE_LITERAL_NUM || e->type == NODE_LITERAL_STR ||
         e->type == NODE_LITERAL_BOOL) {
         *out = expr_to_value(e);
         return 1;
     }
     if (e->type == NODE_IDENT) {
-        Value *v = known_get(known, e->data.str_val);
+        Value *v = Map_get(&known, &e->data.str_val);
         if (v) { *out = *v; return 1; }
     }
     return 0;
@@ -138,7 +82,7 @@ static int is_macro_call(Expr *e) {
     return e->type == NODE_FCALL &&
            e->nchildren > 0 &&
            e->children[0]->type == NODE_IDENT &&
-           is_macro(e->children[0]->data.str_val);
+           Set_has(&macros, &e->children[0]->data.str_val);
 }
 
 // Check if a NODE_FCALL is a pure func call
@@ -146,12 +90,12 @@ static int is_func_call(Expr *e) {
     return e->type == NODE_FCALL &&
            e->nchildren > 0 &&
            e->children[0]->type == NODE_IDENT &&
-           is_pure_func(e->children[0]->data.str_val);
+           Set_has(&funcs, &e->children[0]->data.str_val);
 }
 
 // Try to evaluate a call at compile time.
 // require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
-static Expr *try_eval_call(Scope *scope, Expr *fcall, KnownMap *known,
+static Expr *try_eval_call(Scope *scope, Expr *fcall,
                            const char *path, int require_known) {
     // Build a call with literal args for the interpreter
     int nargs = fcall->nchildren - 1;
@@ -163,7 +107,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, KnownMap *known,
     for (int i = 0; i < nargs; i++) {
         Expr *arg = fcall->children[i + 1];
         Value arg_val;
-        if (!is_known(arg, known, &arg_val)) {
+        if (!is_known(arg, &arg_val)) {
             if (require_known) {
                 fprintf(stderr, "%s:%d:%d: error: macro argument must be known at compile time\n",
                         path, arg->line, arg->col);
@@ -201,16 +145,15 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, KnownMap *known,
 }
 
 // Track a literal value from a declaration
-static void track_literal(KnownMap *known, Str *name, Expr *rhs) {
+static void track_literal(Str *name, Expr *rhs) {
     Value v;
-    if (is_known(rhs, known, &v)) {
-        known_set(known, name, v);
+    if (is_known(rhs, &v)) {
+        Map_set(&known, &name, &v);
     }
 }
 
 // Process a body, replacing macro calls with literals
-static void process_body(Scope *scope, Expr *body, KnownMap *known,
-                         const char *path) {
+static void process_body(Scope *scope, Expr *body, const char *path) {
     for (int i = 0; i < body->nchildren; i++) {
         Expr *stmt = body->children[i];
 
@@ -223,7 +166,7 @@ static void process_body(Scope *scope, Expr *body, KnownMap *known,
                 // Recurse into func/proc/macro bodies
                 if (stmt->children[0]->type == NODE_FUNC_DEF &&
                     stmt->children[0]->nchildren > 0) {
-                    process_body(scope, stmt->children[0]->children[0], known, path);
+                    process_body(scope, stmt->children[0]->children[0], path);
                 }
                 break;
             }
@@ -231,49 +174,49 @@ static void process_body(Scope *scope, Expr *body, KnownMap *known,
             if (stmt->data.decl.is_ref) break;
             // Check if RHS is a macro or pure func call
             if (is_macro_call(stmt->children[0])) {
-                Expr *lit = try_eval_call(scope, stmt->children[0], known, path, 1);
+                Expr *lit = try_eval_call(scope, stmt->children[0], path, 1);
                 if (lit) {
                     expr_free(stmt->children[0]);
                     stmt->children[0] = lit;
-                    track_literal(known, stmt->data.decl.name, lit);
+                    track_literal(stmt->data.decl.name, lit);
                 }
             } else if (is_func_call(stmt->children[0])) {
-                Expr *lit = try_eval_call(scope, stmt->children[0], known, path, 0);
+                Expr *lit = try_eval_call(scope, stmt->children[0], path, 0);
                 if (lit) {
                     expr_free(stmt->children[0]);
                     stmt->children[0] = lit;
-                    track_literal(known, stmt->data.decl.name, lit);
+                    track_literal(stmt->data.decl.name, lit);
                 } else {
-                    track_literal(known, stmt->data.decl.name, stmt->children[0]);
+                    track_literal(stmt->data.decl.name, stmt->children[0]);
                 }
             } else {
                 // Track compile-time known value
-                track_literal(known, stmt->data.decl.name, stmt->children[0]);
+                track_literal(stmt->data.decl.name, stmt->children[0]);
             }
             break;
 
         case NODE_IF:
             if (stmt->nchildren > 1)
-                process_body(scope, stmt->children[1], known, path);
+                process_body(scope, stmt->children[1], path);
             if (stmt->nchildren > 2)
-                process_body(scope, stmt->children[2], known, path);
+                process_body(scope, stmt->children[2], path);
             break;
 
         case NODE_WHILE:
             if (stmt->nchildren > 1)
-                process_body(scope, stmt->children[1], known, path);
+                process_body(scope, stmt->children[1], path);
             break;
 
         case NODE_FCALL:
             // Bare macro or pure func call (not in a declaration)
             if (is_macro_call(stmt)) {
-                Expr *lit = try_eval_call(scope, stmt, known, path, 1);
+                Expr *lit = try_eval_call(scope, stmt, path, 1);
                 if (lit) {
                     expr_free(stmt);
                     body->children[i] = lit;
                 }
             } else if (is_func_call(stmt)) {
-                Expr *lit = try_eval_call(scope, stmt, known, path, 0);
+                Expr *lit = try_eval_call(scope, stmt, path, 0);
                 if (lit) {
                     expr_free(stmt);
                     body->children[i] = lit;
@@ -289,32 +232,23 @@ static void process_body(Scope *scope, Expr *body, KnownMap *known,
 
 void precomp(Expr *program, const char *path) {
     // 1. Collect macro and pure func names
-    macro_names = NULL; macro_count = 0; macro_cap = 0;
-    func_names = NULL; func_count = 0; func_cap = 0;
+    macros = Set_new(sizeof(Str *), str_ptr_cmp);
+    funcs = Set_new(sizeof(Str *), str_ptr_cmp);
     for (int i = 0; i < program->nchildren; i++) {
         Expr *stmt = program->children[i];
         if (stmt->type == NODE_DECL && stmt->nchildren > 0 && stmt->children[0]->type == NODE_FUNC_DEF) {
             FuncType ft = stmt->children[0]->data.func_def.func_type;
-            if (ft == FUNC_MACRO) {
-                if (macro_count == macro_cap) {
-                    macro_cap = macro_cap ? macro_cap * 2 : 8;
-                    macro_names = realloc(macro_names, macro_cap * sizeof(Str *));
-                }
-                macro_names[macro_count++] = stmt->data.decl.name;
-            } else if (ft == FUNC_FUNC) {
-                if (func_count == func_cap) {
-                    func_cap = func_cap ? func_cap * 2 : 8;
-                    func_names = realloc(func_names, func_cap * sizeof(Str *));
-                }
-                func_names[func_count++] = stmt->data.decl.name;
-            }
+            if (ft == FUNC_MACRO)
+                Set_add(&macros, &stmt->data.decl.name);
+            else if (ft == FUNC_FUNC)
+                Set_add(&funcs, &stmt->data.decl.name);
         }
     }
 
     // Nothing to fold?
-    if (macro_count == 0 && func_count == 0) {
-        free(macro_names); macro_names = NULL;
-        free(func_names); func_names = NULL;
+    if (Set_len(&macros) == 0 && Set_len(&funcs) == 0) {
+        Set_delete(&macros);
+        Set_delete(&funcs);
         return;
     }
 
@@ -333,12 +267,12 @@ void precomp(Expr *program, const char *path) {
     interpreter_init_ns(global, program, path);
 
     // 3. Process the program body
-    KnownMap known = known_new();
-    process_body(global, program, &known, path);
+    known = Map_new(sizeof(Str *), sizeof(Value), str_ptr_cmp);
+    process_body(global, program, path);
 
     // Cleanup
-    known_free(&known);
+    Map_delete(&known);
     scope_free(global);
-    free(macro_names); macro_names = NULL; macro_count = 0;
-    free(func_names); func_names = NULL; func_count = 0;
+    Set_delete(&macros);
+    Set_delete(&funcs);
 }

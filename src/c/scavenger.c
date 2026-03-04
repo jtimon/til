@@ -12,23 +12,17 @@ static Expr *map_get_expr(Map *m, Str *key) {
 }
 
 // Garbage collector for Str* allocated during scavenging
-static Str **gc_strs = NULL;
-static int gc_len = 0, gc_cap = 0;
+static Vec gc_strs;
 
 static Str *gc_str(Str *s) {
-    if (gc_len == gc_cap) {
-        gc_cap = gc_cap ? gc_cap * 2 : 32;
-        gc_strs = realloc(gc_strs, gc_cap * sizeof(Str *));
-    }
-    gc_strs[gc_len++] = s;
+    Vec_push(&gc_strs, &s);
     return s;
 }
 
 static void gc_free_all(void) {
-    for (int i = 0; i < gc_len; i++) Str_delete(gc_strs[i]);
-    free(gc_strs);
-    gc_strs = NULL;
-    gc_len = gc_cap = 0;
+    for (int i = 0; i < gc_strs.len; i++)
+        Str_delete(((Str **)gc_strs.data)[i]);
+    Vec_delete(&gc_strs);
 }
 
 // Build a qualified name "Type.method"
@@ -115,6 +109,8 @@ static void collect_refs(Expr *e, Vec *refs) {
 
 void scavenge(Expr *program, Str *mode) {
     int is_cli = mode && strcmp(mode->c_str, "cli") == 0;
+
+    gc_strs = Vec_new(sizeof(Str *));
 
     // 1. Build top-level declaration map
     Map top = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);

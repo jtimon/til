@@ -1,22 +1,16 @@
 #include "ccodegen.h"
+#include "map.h"
+#include "vec.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static Expr *codegen_program; // set during codegen for struct lookups
+static Expr *codegen_program; // set during codegen for ns_init lookups
+static Map struct_bodies; // Str* name → Expr* body (NODE_BODY)
 
-// enum_has_payloads is in ast.h
-
-// Find struct body (NODE_BODY) by struct name in the program
 static Expr *find_struct_body(Str *name) {
-    for (int i = 0; i < codegen_program->nchildren; i++) {
-        Expr *stmt = codegen_program->children[i];
-        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF &&
-            Str_eq(stmt->data.decl.name, name)) {
-            return stmt->children[0]->children[0]; // NODE_BODY
-        }
-    }
-    return NULL;
+    Expr **p = Map_get(&struct_bodies, &name);
+    return p ? *p : NULL;
 }
 
 // --- Emitter helpers ---
@@ -539,21 +533,19 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         // === SIMPLE ENUM ===
 
         // Collect variant names from non-namespace entries
-        int nvariants = 0;
-        Str **vnames = NULL;
+        Vec vnames = Vec_new(sizeof(Str *));
         for (int i = 0; i < body->nchildren; i++) {
             Expr *v = body->children[i];
             if (v->data.decl.is_namespace) continue;
-            nvariants++;
-            vnames = realloc(vnames, nvariants * sizeof(Str *));
-            vnames[nvariants - 1] = v->data.decl.name;
+            Vec_push(&vnames, &v->data.decl.name);
         }
 
         // Zero-arg constructors
-        for (int i = 0; i < nvariants; i++) {
-            fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vnames[i]->c_str);
+        for (int i = 0; i < vnames.len; i++) {
+            Str *vn = ((Str **)vnames.data)[i];
+            fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
             fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
-            fprintf(f, "    *r = (til_%s){ .tag = til_%s_TAG_%s };\n", name->c_str, name->c_str, vnames[i]->c_str);
+            fprintf(f, "    *r = (til_%s){ .tag = til_%s_TAG_%s };\n", name->c_str, name->c_str, vn->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n");
         }
@@ -563,81 +555,82 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = (a->tag == b->tag); return r;\n");
         fprintf(f, "}\n");
 
-        free(vnames);
+        Vec_delete(&vnames);
     } else {
         // === PAYLOAD ENUM ===
 
         // Collect variant info from non-namespace entries
-        int nvariants = 0;
-        Str **vnames = NULL;
-        Str **vtypes = NULL;
+        Vec vnames = Vec_new(sizeof(Str *));
+        Vec vtypes = Vec_new(sizeof(Str *));
         for (int i = 0; i < body->nchildren; i++) {
             Expr *v = body->children[i];
             if (v->data.decl.is_namespace) continue;
-            nvariants++;
-            vnames = realloc(vnames, nvariants * sizeof(Str *));
-            vtypes = realloc(vtypes, nvariants * sizeof(Str *));
-            vnames[nvariants - 1] = v->data.decl.name;
-            vtypes[nvariants - 1] = v->data.decl.explicit_type;
+            Vec_push(&vnames, &v->data.decl.name);
+            Vec_push(&vtypes, &v->data.decl.explicit_type);
         }
 
         // Constructor functions for all variants
-        for (int i = 0; i < nvariants; i++) {
-            if (!vtypes[i]) {
+        for (int i = 0; i < vnames.len; i++) {
+            Str *vn = ((Str **)vnames.data)[i];
+            Str *vt = ((Str **)vtypes.data)[i];
+            if (!vt) {
                 // Zero-arg constructor for no-payload variant
-                fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vnames[i]->c_str);
+                fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
                 fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
-                fprintf(f, "    r->tag = til_%s_TAG_%s;\n", name->c_str, vnames[i]->c_str);
+                fprintf(f, "    r->tag = til_%s_TAG_%s;\n", name->c_str, vn->c_str);
                 fprintf(f, "    return r;\n");
                 fprintf(f, "}\n");
                 continue;
             }
-            const char *ptype = type_name_to_c(vtypes[i]);
-            fprintf(f, "til_%s *til_%s_%s(%s val) {\n", name->c_str, name->c_str, vnames[i]->c_str, ptype);
+            const char *ptype = type_name_to_c(vt);
+            fprintf(f, "til_%s *til_%s_%s(%s val) {\n", name->c_str, name->c_str, vn->c_str, ptype);
             fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
-            fprintf(f, "    r->tag = til_%s_TAG_%s;\n", name->c_str, vnames[i]->c_str);
+            fprintf(f, "    r->tag = til_%s_TAG_%s;\n", name->c_str, vn->c_str);
             // Clone the payload to take ownership
-            if (Str_eq_c(vtypes[i], "I64")) {
-                fprintf(f, "    r->data.%s = malloc(sizeof(til_I64)); *r->data.%s = *val;\n", vnames[i]->c_str, vnames[i]->c_str);
-            } else if (Str_eq_c(vtypes[i], "U8")) {
-                fprintf(f, "    r->data.%s = malloc(sizeof(til_U8)); *r->data.%s = *val;\n", vnames[i]->c_str, vnames[i]->c_str);
-            } else if (Str_eq_c(vtypes[i], "Bool")) {
-                fprintf(f, "    r->data.%s = malloc(sizeof(til_Bool)); *r->data.%s = *val;\n", vnames[i]->c_str, vnames[i]->c_str);
-            } else if (Str_eq_c(vtypes[i], "Str")) {
-                fprintf(f, "    r->data.%s = Str_clone(val);\n", vnames[i]->c_str);
+            if (Str_eq_c(vt, "I64")) {
+                fprintf(f, "    r->data.%s = malloc(sizeof(til_I64)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
+            } else if (Str_eq_c(vt, "U8")) {
+                fprintf(f, "    r->data.%s = malloc(sizeof(til_U8)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
+            } else if (Str_eq_c(vt, "Bool")) {
+                fprintf(f, "    r->data.%s = malloc(sizeof(til_Bool)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
+            } else if (Str_eq_c(vt, "Str")) {
+                fprintf(f, "    r->data.%s = Str_clone(val);\n", vn->c_str);
             } else {
-                fprintf(f, "    r->data.%s = til_%s_clone(val);\n", vnames[i]->c_str, vtypes[i]->c_str);
+                fprintf(f, "    r->data.%s = til_%s_clone(val);\n", vn->c_str, vt->c_str);
             }
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n");
         }
 
         // is_Variant functions
-        for (int i = 0; i < nvariants; i++) {
-            fprintf(f, "til_Bool *til_%s_is_%s(til_%s *self) {\n", name->c_str, vnames[i]->c_str, name->c_str);
+        for (int i = 0; i < vnames.len; i++) {
+            Str *vn = ((Str **)vnames.data)[i];
+            fprintf(f, "til_Bool *til_%s_is_%s(til_%s *self) {\n", name->c_str, vn->c_str, name->c_str);
             fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool));\n");
-            fprintf(f, "    *r = (self->tag == til_%s_TAG_%s);\n", name->c_str, vnames[i]->c_str);
+            fprintf(f, "    *r = (self->tag == til_%s_TAG_%s);\n", name->c_str, vn->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n");
         }
 
         // get_Variant functions (payload variants only)
-        for (int i = 0; i < nvariants; i++) {
-            if (!vtypes[i]) continue;
-            const char *ptype = type_name_to_c(vtypes[i]);
-            fprintf(f, "%s til_%s_get_%s(til_%s *self) {\n", ptype, name->c_str, vnames[i]->c_str, name->c_str);
+        for (int i = 0; i < vnames.len; i++) {
+            Str *vn = ((Str **)vnames.data)[i];
+            Str *vt = ((Str **)vtypes.data)[i];
+            if (!vt) continue;
+            const char *ptype = type_name_to_c(vt);
+            fprintf(f, "%s til_%s_get_%s(til_%s *self) {\n", ptype, name->c_str, vn->c_str, name->c_str);
             // Clone the payload
-            if (Str_eq_c(vtypes[i], "I64")) {
-                fprintf(f, "    til_I64 *r = malloc(sizeof(til_I64)); *r = *self->data.%s; return r;\n", vnames[i]->c_str);
-            } else if (Str_eq_c(vtypes[i], "U8")) {
-                fprintf(f, "    til_U8 *r = malloc(sizeof(til_U8)); *r = *self->data.%s; return r;\n", vnames[i]->c_str);
-            } else if (Str_eq_c(vtypes[i], "Bool")) {
-                fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = *self->data.%s; return r;\n", vnames[i]->c_str);
-            } else if (Str_eq_c(vtypes[i], "Str")) {
-                fprintf(f, "    return Str_clone(self->data.%s);\n", vnames[i]->c_str);
+            if (Str_eq_c(vt, "I64")) {
+                fprintf(f, "    til_I64 *r = malloc(sizeof(til_I64)); *r = *self->data.%s; return r;\n", vn->c_str);
+            } else if (Str_eq_c(vt, "U8")) {
+                fprintf(f, "    til_U8 *r = malloc(sizeof(til_U8)); *r = *self->data.%s; return r;\n", vn->c_str);
+            } else if (Str_eq_c(vt, "Bool")) {
+                fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = *self->data.%s; return r;\n", vn->c_str);
+            } else if (Str_eq_c(vt, "Str")) {
+                fprintf(f, "    return Str_clone(self->data.%s);\n", vn->c_str);
             } else {
                 // Struct/enum type — call clone
-                fprintf(f, "    return til_%s_clone(self->data.%s);\n", vtypes[i]->c_str, vnames[i]->c_str);
+                fprintf(f, "    return til_%s_clone(self->data.%s);\n", vt->c_str, vn->c_str);
             }
             fprintf(f, "}\n");
         }
@@ -647,15 +640,17 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool));\n");
         fprintf(f, "    if (a->tag != b->tag) { *r = 0; return r; }\n");
         fprintf(f, "    switch (a->tag) {\n");
-        for (int i = 0; i < nvariants; i++) {
-            fprintf(f, "    case til_%s_TAG_%s:\n", name->c_str, vnames[i]->c_str);
-            if (vtypes[i]) {
-                if (Str_eq_c(vtypes[i], "I64") || Str_eq_c(vtypes[i], "U8") || Str_eq_c(vtypes[i], "Bool")) {
-                    fprintf(f, "        *r = (*a->data.%s == *b->data.%s); break;\n", vnames[i]->c_str, vnames[i]->c_str);
-                } else if (Str_eq_c(vtypes[i], "Str")) {
-                    fprintf(f, "        { til_Bool *t = til_Str_eq(a->data.%s, b->data.%s); *r = *t; free(t); break; }\n", vnames[i]->c_str, vnames[i]->c_str);
+        for (int i = 0; i < vnames.len; i++) {
+            Str *vn = ((Str **)vnames.data)[i];
+            Str *vt = ((Str **)vtypes.data)[i];
+            fprintf(f, "    case til_%s_TAG_%s:\n", name->c_str, vn->c_str);
+            if (vt) {
+                if (Str_eq_c(vt, "I64") || Str_eq_c(vt, "U8") || Str_eq_c(vt, "Bool")) {
+                    fprintf(f, "        *r = (*a->data.%s == *b->data.%s); break;\n", vn->c_str, vn->c_str);
+                } else if (Str_eq_c(vt, "Str")) {
+                    fprintf(f, "        { til_Bool *t = til_Str_eq(a->data.%s, b->data.%s); *r = *t; free(t); break; }\n", vn->c_str, vn->c_str);
                 } else {
-                    fprintf(f, "        { til_Bool *t = til_%s_eq(a->data.%s, b->data.%s); *r = *t; free(t); break; }\n", vtypes[i]->c_str, vnames[i]->c_str, vnames[i]->c_str);
+                    fprintf(f, "        { til_Bool *t = til_%s_eq(a->data.%s, b->data.%s); *r = *t; free(t); break; }\n", vt->c_str, vn->c_str, vn->c_str);
                 }
             } else {
                 fprintf(f, "        *r = 1; break;\n");
@@ -665,8 +660,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         fprintf(f, "    return r;\n");
         fprintf(f, "}\n");
 
-        free(vnames);
-        free(vtypes);
+        Vec_delete(&vnames);
+        Vec_delete(&vtypes);
     }
 
     // Emit namespace func/proc methods (to_str, user methods)
@@ -688,7 +683,19 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
 int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_path) {
     (void)path;
+
     codegen_program = program;
+
+    // Build struct body lookup map
+    struct_bodies = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
+    for (int i = 0; i < program->nchildren; i++) {
+        Expr *stmt = program->children[i];
+        if (stmt->type == NODE_DECL && stmt->children[0]->type == NODE_STRUCT_DEF) {
+            Str *sname = stmt->data.decl.name;
+            Expr *body = stmt->children[0]->children[0];
+            Map_set(&struct_bodies, &sname, &body);
+        }
+    }
     FILE *f = fopen(c_output_path, "w");
     if (!f) {
         fprintf(stderr, "error: could not open '%s' for writing\n", c_output_path);
@@ -878,6 +885,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     }
 
     fclose(f);
+    Map_delete(&struct_bodies);
     return 0;
 }
 
