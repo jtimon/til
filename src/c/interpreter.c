@@ -513,9 +513,11 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             if (rhs->type == NODE_IDENT) {
                 // Move semantics: transfer value from source, null source
                 Cell *src = scope_get(scope, rhs->data.str_val);
+                free_value(cell->val);
                 cell->val = src->val;
                 src->val = val_none();
             } else {
+                free_value(cell->val);
                 cell->val = eval_expr(scope, rhs, path);
             }
             break;
@@ -579,6 +581,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                 }
                 for (int i = 0; i < inst->nfields; i++) {
                     if (Str_eq(inst->field_names[i], fname)) {
+                        free_value(inst->field_values[i]);
                         inst->field_values[i] = val;
                         if (move_src) move_src->val = val_none();
                         break;
