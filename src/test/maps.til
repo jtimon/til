@@ -1,0 +1,49 @@
+mode script
+
+// TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
+assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
+assert_eq(loc(), Str.cmp("a", "b"), 0.sub(1))
+assert_eq(loc(), 1.clone(), 1)
+assert_eq_str(loc(), "hi".clone(), "hi")
+
+// I64 -> I64 map
+m := Map.new("I64", I64.size(), "I64", I64.size())
+m.set(own 3, own 30)
+m.set(own 1, own 10)
+m.set(own 2, own 20)
+assert_eq(loc(), m.len(), 3)
+assert(loc(), m.has(1))
+assert(loc(), m.has(2))
+assert(loc(), m.has(3))
+assert(loc(), m.has(4).not())
+
+// get
+ref v1 : I64 = m.get(1)
+ref v2 : I64 = m.get(2)
+ref v3 : I64 = m.get(3)
+assert_eq(loc(), v1, 10)
+assert_eq(loc(), v2, 20)
+assert_eq(loc(), v3, 30)
+
+// overwrite existing key
+m.set(own 2, own 99)
+assert_eq(loc(), m.len(), 3)
+ref v2b : I64 = m.get(2)
+assert_eq(loc(), v2b, 99)
+
+// Str -> I64 map
+sm := Map.new("Str", Str.size(), "I64", I64.size())
+sm.set(own "banana", own 2)
+sm.set(own "apple", own 1)
+sm.set(own "cherry", own 3)
+assert_eq(loc(), sm.len(), 3)
+assert(loc(), sm.has("apple"))
+assert(loc(), sm.has("banana"))
+assert(loc(), sm.has("cherry"))
+assert(loc(), sm.has("date").not())
+ref sa : I64 = sm.get("apple")
+ref sb : I64 = sm.get("banana")
+assert_eq(loc(), sa, 1)
+assert_eq(loc(), sb, 2)
+
+println("maps: all passed")
