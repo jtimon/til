@@ -96,6 +96,7 @@ int main(int argc, char **argv) {
         Vec merged = Vec_new(sizeof(Expr *));
         for (int i = 0; i < core_ast->children.len; i++) {
             Expr *ch = expr_child(core_ast, i);
+            ch->is_core = true;
             Vec_push(&merged, &ch);
         }
         for (int i = 0; i < ast->children.len; i++) {
@@ -126,6 +127,18 @@ int main(int argc, char **argv) {
 
     int result = 0;
 
+    // Check for user FFI .c file (same name as .til but with .c extension)
+    char user_c_path[256];
+    const char *user_c = NULL;
+    {
+        int plen = (int)strlen(path);
+        if (plen > 4 && strcmp(path + plen - 4, ".til") == 0) {
+            snprintf(user_c_path, sizeof(user_c_path), "%.*s.c", plen - 4, path);
+            FILE *uf = fopen(user_c_path, "r");
+            if (uf) { fclose(uf); user_c = user_c_path; }
+        }
+    }
+
     if (strcmp(command, "interpret") == 0) {
         result = interpret(ast, mode, path);
     } else if (strcmp(command, "translate") == 0 || strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
@@ -146,7 +159,7 @@ int main(int argc, char **argv) {
             printf("Generated: %s\n", c_path);
         }
         if (result == 0 && strcmp(command, "translate") != 0) {
-            result = compile_c(c_path, bin_path, ext_c_path);
+            result = compile_c(c_path, bin_path, ext_c_path, user_c);
         }
         if (result == 0 && strcmp(command, "run") == 0) {
             int status = system(bin_path);

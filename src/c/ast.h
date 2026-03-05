@@ -88,6 +88,7 @@ struct Expr {
     bool is_own_field;              // NODE_FIELD_ACCESS/ASSIGN: field is 'own' (pointer)
     bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
     bool is_ext;                    // NODE_STRUCT_DEF: externally-implemented struct
+    bool is_core;                   // declaration came from core.til
     Vec children;                   // Vec of Expr* child pointers
     int line;
     int col;

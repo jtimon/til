@@ -10,6 +10,6 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
 
 // Compile a generated C file to a binary using cc.
 // Returns 0 on success, non-zero on error.
-int compile_c(const char *c_path, const char *bin_path, const char *ext_c_path);
+int compile_c(const char *c_path, const char *bin_path, const char *ext_c_path, const char *user_c_path);
 
 #endif

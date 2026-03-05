@@ -704,7 +704,25 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
 
     fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"ccore.h\"\n#include \"ext.h\"\n\n");
 
-    // All ext_func implementations are in ext.c, declared via ext.h
+    // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins)
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->is_core) continue;
+        if (stmt->type != NODE_DECL || expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
+        Expr *fdef = expr_child(stmt, 0);
+        FuncType fft = fdef->data.func_def.func_type;
+        if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
+        if (fdef->data.func_def.return_type)
+            fprintf(f, "%s *til_%s(", fdef->data.func_def.return_type->c_str, stmt->data.decl.name->c_str);
+        else
+            fprintf(f, "void til_%s(", stmt->data.decl.name->c_str);
+        for (int p = 0; p < fdef->data.func_def.nparam; p++) {
+            if (p > 0) fprintf(f, ", ");
+            fprintf(f, "%s *", fdef->data.func_def.param_types[p]->c_str);
+        }
+        if (fdef->data.func_def.nparam == 0) fprintf(f, "void");
+        fprintf(f, ");\n");
+    }
     fprintf(f, "\n");
 
     int is_script = mode && Str_eq_c(mode, "script");
@@ -889,7 +907,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     return 0;
 }
 
-int compile_c(const char *c_path, const char *bin_path, const char *ext_c_path) {
+int compile_c(const char *c_path, const char *bin_path, const char *ext_c_path, const char *user_c_path) {
     // Extract directory from ext_c_path for -I flag
     char ext_dir[256];
     const char *last_slash = strrchr(ext_c_path, '/');
@@ -904,11 +922,12 @@ int compile_c(const char *c_path, const char *bin_path, const char *ext_c_path) 
     char str_c_path[256], ccore_c_path[256];
     snprintf(str_c_path, sizeof(str_c_path), "%s/str.c", ext_dir);
     snprintf(ccore_c_path, sizeof(ccore_c_path), "%s/ccore.c", ext_dir);
-    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s %s",
-                       ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path);
+    const char *user_part = user_c_path ? user_c_path : "";
+    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s %s %s",
+                       ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path, user_part);
     char *cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s %s",
-             ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path);
+    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s %s %s",
+             ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path, user_part);
 
     int result = system(cmd);
     free(cmd);
