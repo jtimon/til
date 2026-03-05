@@ -6,6 +6,12 @@
 #include <dlfcn.h>
 #include <unistd.h>
 
+typedef int (*DispatchFn)(Scope *, Expr *, const char *, Value *);
+
+// --- Dispatch state ---
+static Map dispatch_map;
+static int dispatch_inited;
+
 // --- FFI state ---
 typedef struct {
     void *fn;           // dlsym'd function pointer
@@ -17,154 +23,255 @@ static Map ffi_map;          // name -> FFIEntry
 static void *ffi_handle;     // dlopen handle
 static int ffi_loaded;
 
-int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Value *result) {
-    // Variadic builtins
-    if (Str_eq_c(name, "println")) {
-        for (int i = 1; i < e->children.len; i++) {
-            Value arg = eval_expr(scope, expr_child(e, i), path);
-            printf("%s", arg.str->c_str);
-        }
-        printf("\n");
-        *result = val_none();
-        return 1;
+// === Handler macros ===
+
+// 2-arg handler: eval both args, call cfn(xa, xb), wrap result
+#define H2(hname, cfn, xa, xb, w) \
+static int h_##hname(Scope *s, Expr *e, const char *p, Value *r) { \
+    Value a = eval_expr(s, expr_child(e, 1), p); \
+    Value b = eval_expr(s, expr_child(e, 2), p); \
+    *r = w(cfn(xa, xb)); return 1; }
+
+// 1-arg handler: eval one arg, call cfn(xv), wrap result
+#define H1(hname, cfn, xv, w) \
+static int h_##hname(Scope *s, Expr *e, const char *p, Value *r) { \
+    Value v = eval_expr(s, expr_child(e, 1), p); \
+    *r = w(cfn(xv)); return 1; }
+
+// Delete handler: check VAL_NONE, eval call_free flag, conditionally delete
+#define HDEL(hname, dfn, xv) \
+static int h_##hname(Scope *s, Expr *e, const char *p, Value *r) { \
+    Value v = eval_expr(s, expr_child(e, 1), p); \
+    if (v.type == VAL_NONE) { *r = val_none(); return 1; } \
+    Value cf = eval_expr(s, expr_child(e, 2), p); \
+    if (*cf.boolean) dfn(xv); \
+    *r = val_none(); return 1; }
+
+// Clone handler: eval one arg, copy raw value
+#define HCLONE(hname, xv, w) \
+static int h_##hname(Scope *s, Expr *e, const char *p, Value *r) { \
+    Value v = eval_expr(s, expr_child(e, 1), p); \
+    *r = w(xv); return 1; }
+
+// === I64 handlers ===
+H2(I64_add, I64_add, *a.i64, *b.i64, val_i64)
+H2(I64_sub, I64_sub, *a.i64, *b.i64, val_i64)
+H2(I64_mul, I64_mul, *a.i64, *b.i64, val_i64)
+H2(I64_div, I64_div, *a.i64, *b.i64, val_i64)
+H2(I64_mod, I64_mod, *a.i64, *b.i64, val_i64)
+H2(I64_and, I64_and, *a.i64, *b.i64, val_i64)
+H2(I64_or,  I64_or,  *a.i64, *b.i64, val_i64)
+H2(I64_xor, I64_xor, *a.i64, *b.i64, val_i64)
+H2(I64_eq, I64_eq, *a.i64, *b.i64, val_bool)
+H2(I64_lt, I64_lt, *a.i64, *b.i64, val_bool)
+H2(I64_gt, I64_gt, *a.i64, *b.i64, val_bool)
+H1(I64_to_str, I64_to_str, *v.i64, val_str)
+HCLONE(I64_clone, *v.i64, val_i64)
+HDEL(I64_delete, I64_delete, v.i64)
+
+// === U8 handlers ===
+H2(U8_add, U8_add, *a.u8, *b.u8, val_u8)
+H2(U8_sub, U8_sub, *a.u8, *b.u8, val_u8)
+H2(U8_mul, U8_mul, *a.u8, *b.u8, val_u8)
+H2(U8_div, U8_div, *a.u8, *b.u8, val_u8)
+H2(U8_mod, U8_mod, *a.u8, *b.u8, val_u8)
+H2(U8_and, U8_and, *a.u8, *b.u8, val_u8)
+H2(U8_or,  U8_or,  *a.u8, *b.u8, val_u8)
+H2(U8_xor, U8_xor, *a.u8, *b.u8, val_u8)
+H2(U8_eq, U8_eq, *a.u8, *b.u8, val_bool)
+H2(U8_lt, U8_lt, *a.u8, *b.u8, val_bool)
+H2(U8_gt, U8_gt, *a.u8, *b.u8, val_bool)
+H1(U8_to_str, U8_to_str, *v.u8, val_str)
+H1(U8_to_i64, U8_to_i64, *v.u8, val_i64)
+HCLONE(U8_clone, *v.u8, val_u8)
+HDEL(U8_delete, U8_delete, v.u8)
+
+static int h_U8_from_i64(Scope *s, Expr *e, const char *p, Value *r) {
+    Value v = eval_expr(s, expr_child(e, 1), p);
+    *r = val_u8(U8_from_i64(*v.i64)); return 1;
+}
+
+// === Bool handlers ===
+H2(Bool_and, Bool_and, *a.boolean, *b.boolean, val_bool)
+H2(Bool_or,  Bool_or,  *a.boolean, *b.boolean, val_bool)
+H1(Bool_not, Bool_not, *v.boolean, val_bool)
+HCLONE(Bool_clone, *v.boolean, val_bool)
+HDEL(Bool_delete, Bool_delete, v.boolean)
+
+// === Str handlers ===
+H2(Str_eq, Str_eq, a.str, b.str, val_bool)
+H2(Str_concat, Str_concat, a.str, b.str, val_str)
+H1(Str_clone, Str_clone, v.str, val_str)
+H1(Str_to_str, Str_clone, v.str, val_str)
+H1(Str_len, Str_len, v.str, val_i64)
+H2(Str_contains, Str_contains, a.str, b.str, val_bool)
+H2(Str_starts_with, Str_starts_with, a.str, b.str, val_bool)
+H2(Str_ends_with, Str_ends_with, a.str, b.str, val_bool)
+HDEL(Str_delete, Str_delete, v.str)
+
+static int h_Str_substr(Scope *s, Expr *e, const char *p, Value *r) {
+    Value sv = eval_expr(s, expr_child(e, 1), p);
+    Value start = eval_expr(s, expr_child(e, 2), p);
+    Value n = eval_expr(s, expr_child(e, 3), p);
+    *r = val_str(Str_substr(sv.str, (int)*start.i64, (int)*n.i64));
+    return 1;
+}
+
+// === Variadic handlers ===
+
+static int h_println(Scope *s, Expr *e, const char *p, Value *r) {
+    for (int i = 1; i < e->children.len; i++) {
+        Value arg = eval_expr(s, expr_child(e, i), p);
+        printf("%s", arg.str->c_str);
     }
-    if (Str_eq_c(name, "print")) {
-        for (int i = 1; i < e->children.len; i++) {
-            Value arg = eval_expr(scope, expr_child(e, i), path);
-            printf("%s", arg.str->c_str);
-        }
-        *result = val_none();
-        return 1;
+    printf("\n");
+    *r = val_none(); return 1;
+}
+
+static int h_print(Scope *s, Expr *e, const char *p, Value *r) {
+    for (int i = 1; i < e->children.len; i++) {
+        Value arg = eval_expr(s, expr_child(e, i), p);
+        printf("%s", arg.str->c_str);
     }
-    if (Str_eq_c(name, "format")) {
-        int nargs = e->children.len - 1;
-        Str *strs[64];
-        int total = 0;
-        for (int i = 0; i < nargs; i++) {
-            Value v = eval_expr(scope, expr_child(e, i + 1), path);
-            strs[i] = v.str;
-            total += v.str->len;
-        }
-        char *buf = malloc(total + 1);
-        int off = 0;
-        for (int i = 0; i < nargs; i++) {
-            memcpy(buf + off, strs[i]->c_str, strs[i]->len);
-            off += strs[i]->len;
-        }
-        buf[off] = '\0';
-        Str *s = malloc(sizeof(Str));
-        s->c_str = buf;
-        s->len = total;
-        *result = val_str(s);
-        return 1;
+    *r = val_none(); return 1;
+}
+
+static int h_format(Scope *s, Expr *e, const char *p, Value *r) {
+    int nargs = e->children.len - 1;
+    Str *strs[64];
+    int total = 0;
+    for (int i = 0; i < nargs; i++) {
+        Value v = eval_expr(s, expr_child(e, i + 1), p);
+        strs[i] = v.str;
+        total += v.str->len;
     }
-
-    // I64 arithmetic
-    if (Str_eq_c(name, "I64_add")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_i64(I64_add(*a.i64, *b.i64)); return 1; }
-    if (Str_eq_c(name, "I64_sub")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_i64(I64_sub(*a.i64, *b.i64)); return 1; }
-    if (Str_eq_c(name, "I64_mul")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_i64(I64_mul(*a.i64, *b.i64)); return 1; }
-    if (Str_eq_c(name, "I64_div")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_i64(I64_div(*a.i64, *b.i64)); return 1; }
-    if (Str_eq_c(name, "I64_mod")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_i64(I64_mod(*a.i64, *b.i64)); return 1; }
-    if (Str_eq_c(name, "I64_and")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_i64(I64_and(*a.i64, *b.i64)); return 1; }
-    if (Str_eq_c(name, "I64_or"))  { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_i64(I64_or(*a.i64, *b.i64)); return 1; }
-    if (Str_eq_c(name, "I64_xor")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_i64(I64_xor(*a.i64, *b.i64)); return 1; }
-
-    // I64 comparisons
-    if (Str_eq_c(name, "I64_eq")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(I64_eq(*a.i64, *b.i64)); return 1; }
-    if (Str_eq_c(name, "I64_lt")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(I64_lt(*a.i64, *b.i64)); return 1; }
-    if (Str_eq_c(name, "I64_gt")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(I64_gt(*a.i64, *b.i64)); return 1; }
-
-    // I64 conversion
-    if (Str_eq_c(name, "I64_to_str")) { Value v = eval_expr(scope, expr_child(e, 1), path); *result = val_str(I64_to_str(*v.i64)); return 1; }
-    if (Str_eq_c(name, "I64_clone")) { Value v = eval_expr(scope, expr_child(e, 1), path); *result = val_i64(*v.i64); return 1; }
-    if (Str_eq_c(name, "I64_delete")) { Value v = eval_expr(scope, expr_child(e, 1), path); if (v.type == VAL_NONE) { *result = val_none(); return 1; } Value cf = eval_expr(scope, expr_child(e, 2), path); if (*cf.boolean) I64_delete(v.i64); *result = val_none(); return 1; }
-
-    // U8 arithmetic
-    if (Str_eq_c(name, "U8_add")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_u8(U8_add(*a.u8, *b.u8)); return 1; }
-    if (Str_eq_c(name, "U8_sub")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_u8(U8_sub(*a.u8, *b.u8)); return 1; }
-    if (Str_eq_c(name, "U8_mul")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_u8(U8_mul(*a.u8, *b.u8)); return 1; }
-    if (Str_eq_c(name, "U8_div")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_u8(U8_div(*a.u8, *b.u8)); return 1; }
-    if (Str_eq_c(name, "U8_mod")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_u8(U8_mod(*a.u8, *b.u8)); return 1; }
-    if (Str_eq_c(name, "U8_and")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_u8(U8_and(*a.u8, *b.u8)); return 1; }
-    if (Str_eq_c(name, "U8_or"))  { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_u8(U8_or(*a.u8, *b.u8)); return 1; }
-    if (Str_eq_c(name, "U8_xor")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_u8(U8_xor(*a.u8, *b.u8)); return 1; }
-
-    // U8 comparisons
-    if (Str_eq_c(name, "U8_eq")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(U8_eq(*a.u8, *b.u8)); return 1; }
-    if (Str_eq_c(name, "U8_lt")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(U8_lt(*a.u8, *b.u8)); return 1; }
-    if (Str_eq_c(name, "U8_gt")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(U8_gt(*a.u8, *b.u8)); return 1; }
-
-    // U8 conversions
-    if (Str_eq_c(name, "U8_to_str"))  { Value v = eval_expr(scope, expr_child(e, 1), path); *result = val_str(U8_to_str(*v.u8)); return 1; }
-    if (Str_eq_c(name, "U8_to_i64"))  { Value v = eval_expr(scope, expr_child(e, 1), path); *result = val_i64(U8_to_i64(*v.u8)); return 1; }
-    if (Str_eq_c(name, "U8_from_i64") || Str_eq_c(name, "U8_from_i64_ext")) {
-        Value v = eval_expr(scope, expr_child(e, 1), path);
-        *result = val_u8(U8_from_i64(*v.i64));
-        return 1;
+    char *buf = malloc(total + 1);
+    int off = 0;
+    for (int i = 0; i < nargs; i++) {
+        memcpy(buf + off, strs[i]->c_str, strs[i]->len);
+        off += strs[i]->len;
     }
-    if (Str_eq_c(name, "U8_clone")) { Value v = eval_expr(scope, expr_child(e, 1), path); *result = val_u8(*v.u8); return 1; }
-    if (Str_eq_c(name, "U8_delete")) { Value v = eval_expr(scope, expr_child(e, 1), path); if (v.type == VAL_NONE) { *result = val_none(); return 1; } Value cf = eval_expr(scope, expr_child(e, 2), path); if (*cf.boolean) U8_delete(v.u8); *result = val_none(); return 1; }
+    buf[off] = '\0';
+    Str *out = malloc(sizeof(Str));
+    out->c_str = buf;
+    out->len = total;
+    *r = val_str(out);
+    return 1;
+}
 
-    // Bool ops
-    if (Str_eq_c(name, "Bool_and")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(Bool_and(*a.boolean, *b.boolean)); return 1; }
-    if (Str_eq_c(name, "Bool_or"))  { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(Bool_or(*a.boolean, *b.boolean)); return 1; }
-    if (Str_eq_c(name, "Bool_not")) { Value a = eval_expr(scope, expr_child(e, 1), path); *result = val_bool(Bool_not(*a.boolean)); return 1; }
-    if (Str_eq_c(name, "Bool_clone")) { Value v = eval_expr(scope, expr_child(e, 1), path); *result = val_bool(*v.boolean); return 1; }
-    if (Str_eq_c(name, "Bool_delete")) { Value v = eval_expr(scope, expr_child(e, 1), path); if (v.type == VAL_NONE) { *result = val_none(); return 1; } Value cf = eval_expr(scope, expr_child(e, 2), path); if (*cf.boolean) Bool_delete(v.boolean); *result = val_none(); return 1; }
+// === Misc handlers ===
 
-    // Str ops
-    if (Str_eq_c(name, "Str_eq")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(Str_eq(a.str, b.str)); return 1; }
-    if (Str_eq_c(name, "Str_concat")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_str(Str_concat(a.str, b.str)); return 1; }
-    if (Str_eq_c(name, "Str_clone")) { Value a = eval_expr(scope, expr_child(e, 1), path); *result = val_str(Str_clone(a.str)); return 1; }
-    if (Str_eq_c(name, "Str_delete")) {
-        Value s = eval_expr(scope, expr_child(e, 1), path);
-        if (s.type == VAL_NONE) { *result = val_none(); return 1; }
-        Value cf = eval_expr(scope, expr_child(e, 2), path);
-        if (*cf.boolean) Str_delete(s.str);
-        *result = val_none(); return 1;
+static int h_exit(Scope *s, Expr *e, const char *p, Value *r) {
+    Value a = eval_expr(s, expr_child(e, 1), p);
+    til_exit(a.i64);
+    *r = val_none(); return 1;
+}
+
+static int h_free(Scope *s, Expr *e, const char *p, Value *r) {
+    (void)p;
+    if (expr_child(e, 1)->type != NODE_IDENT) {
+        fprintf(stderr, "free() requires identifier argument\n"); exit(1);
     }
-    if (Str_eq_c(name, "Str_to_str")) { Value a = eval_expr(scope, expr_child(e, 1), path); *result = val_str(Str_clone(a.str)); return 1; }
-    if (Str_eq_c(name, "Str_len")) { Value a = eval_expr(scope, expr_child(e, 1), path); *result = val_i64(Str_len(a.str)); return 1; }
-    if (Str_eq_c(name, "Str_substr")) { Value s = eval_expr(scope, expr_child(e, 1), path); Value start = eval_expr(scope, expr_child(e, 2), path); Value n = eval_expr(scope, expr_child(e, 3), path); *result = val_str(Str_substr(s.str, (int)*start.i64, (int)*n.i64)); return 1; }
-    if (Str_eq_c(name, "Str_contains")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(Str_contains(a.str, b.str)); return 1; }
-    if (Str_eq_c(name, "Str_starts_with")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(Str_starts_with(a.str, b.str)); return 1; }
-    if (Str_eq_c(name, "Str_ends_with")) { Value a = eval_expr(scope, expr_child(e, 1), path); Value b = eval_expr(scope, expr_child(e, 2), path); *result = val_bool(Str_ends_with(a.str, b.str)); return 1; }
+    Cell *cell = scope_get(s, expr_child(e, 1)->data.str_val);
+    if (cell->val.type == VAL_STRUCT && cell->val.instance) {
+        til_free(cell->val.instance->field_names);
+        til_free(cell->val.instance->field_muts);
+        til_free(cell->val.instance->field_values);
+        til_free(cell->val.instance);
+    } else if (cell->val.type == VAL_ENUM && cell->val.enum_inst) {
+        Value payload = cell->val.enum_inst->payload;
+        if (payload.type == VAL_I64)  til_free(payload.i64);
+        else if (payload.type == VAL_U8)   til_free(payload.u8);
+        else if (payload.type == VAL_BOOL) til_free(payload.boolean);
+        else if (payload.type == VAL_STR)  Str_delete(payload.str);
+        til_free(cell->val.enum_inst);
+    } else if (cell->val.type == VAL_I64) {
+        til_free(cell->val.i64);
+    } else if (cell->val.type == VAL_U8) {
+        til_free(cell->val.u8);
+    } else if (cell->val.type == VAL_BOOL) {
+        til_free(cell->val.boolean);
+    } else if (cell->val.type == VAL_STR) {
+        Str_delete(cell->val.str);
+    }
+    cell->val = val_none();
+    *r = val_none();
+    return 1;
+}
+
+#undef H1
+#undef H2
+#undef HDEL
+#undef HCLONE
+
+// === Dispatch init ===
+
+static void dispatch_init(void) {
+    dispatch_map = Map_new(sizeof(Str *), sizeof(DispatchFn), str_ptr_cmp);
+
+    #define REG(n, fn) do { Str *k = Str_new(n); DispatchFn f = fn; Map_set(&dispatch_map, &k, &f); } while(0)
+
+    // Variadic
+    REG("println", h_println);
+    REG("print", h_print);
+    REG("format", h_format);
+
+    // I64
+    REG("I64_add", h_I64_add); REG("I64_sub", h_I64_sub);
+    REG("I64_mul", h_I64_mul); REG("I64_div", h_I64_div);
+    REG("I64_mod", h_I64_mod);
+    REG("I64_and", h_I64_and); REG("I64_or", h_I64_or); REG("I64_xor", h_I64_xor);
+    REG("I64_eq", h_I64_eq); REG("I64_lt", h_I64_lt); REG("I64_gt", h_I64_gt);
+    REG("I64_to_str", h_I64_to_str);
+    REG("I64_clone", h_I64_clone);
+    REG("I64_delete", h_I64_delete);
+
+    // U8
+    REG("U8_add", h_U8_add); REG("U8_sub", h_U8_sub);
+    REG("U8_mul", h_U8_mul); REG("U8_div", h_U8_div);
+    REG("U8_mod", h_U8_mod);
+    REG("U8_and", h_U8_and); REG("U8_or", h_U8_or); REG("U8_xor", h_U8_xor);
+    REG("U8_eq", h_U8_eq); REG("U8_lt", h_U8_lt); REG("U8_gt", h_U8_gt);
+    REG("U8_to_str", h_U8_to_str);
+    REG("U8_to_i64", h_U8_to_i64);
+    REG("U8_from_i64", h_U8_from_i64);
+    REG("U8_from_i64_ext", h_U8_from_i64);
+    REG("U8_clone", h_U8_clone);
+    REG("U8_delete", h_U8_delete);
+
+    // Bool
+    REG("Bool_and", h_Bool_and); REG("Bool_or", h_Bool_or);
+    REG("Bool_not", h_Bool_not);
+    REG("Bool_clone", h_Bool_clone);
+    REG("Bool_delete", h_Bool_delete);
+
+    // Str
+    REG("Str_eq", h_Str_eq);
+    REG("Str_concat", h_Str_concat);
+    REG("Str_clone", h_Str_clone);
+    REG("Str_delete", h_Str_delete);
+    REG("Str_to_str", h_Str_to_str);
+    REG("Str_len", h_Str_len);
+    REG("Str_substr", h_Str_substr);
+    REG("Str_contains", h_Str_contains);
+    REG("Str_starts_with", h_Str_starts_with);
+    REG("Str_ends_with", h_Str_ends_with);
 
     // Misc
-    if (Str_eq_c(name, "exit")) { Value a = eval_expr(scope, expr_child(e, 1), path); til_exit(a.i64); *result = val_none(); return 1; }
+    REG("exit", h_exit);
+    REG("free", h_free);
 
-    // free — accesses scope directly; requires identifier argument
-    if (Str_eq_c(name, "free")) {
-        if (expr_child(e, 1)->type != NODE_IDENT) {
-            fprintf(stderr, "free() requires identifier argument\n"); exit(1);
-        }
-        Cell *cell = scope_get(scope, expr_child(e, 1)->data.str_val);
-        if (cell->val.type == VAL_STRUCT && cell->val.instance) {
-            til_free(cell->val.instance->field_names);
-            til_free(cell->val.instance->field_muts);
-            til_free(cell->val.instance->field_values);
-            til_free(cell->val.instance);
-        } else if (cell->val.type == VAL_ENUM && cell->val.enum_inst) {
-            // Free payload if present, then the instance
-            Value p = cell->val.enum_inst->payload;
-            if (p.type == VAL_I64)  til_free(p.i64);
-            else if (p.type == VAL_U8)   til_free(p.u8);
-            else if (p.type == VAL_BOOL) til_free(p.boolean);
-            else if (p.type == VAL_STR)  Str_delete(p.str);
-            til_free(cell->val.enum_inst);
-        } else if (cell->val.type == VAL_I64) {
-            til_free(cell->val.i64);
-        } else if (cell->val.type == VAL_U8) {
-            til_free(cell->val.u8);
-        } else if (cell->val.type == VAL_BOOL) {
-            til_free(cell->val.boolean);
-        } else if (cell->val.type == VAL_STR) {
-            Str_delete(cell->val.str);
-        }
-        cell->val = val_none();
-        *result = val_none();
-        return 1;
-    }
+    #undef REG
+    dispatch_inited = 1;
+}
+
+// === Main dispatch ===
+
+int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Value *result) {
+    if (!dispatch_inited) dispatch_init();
+
+    DispatchFn *fn = Map_get(&dispatch_map, &name);
+    if (fn) return (*fn)(scope, e, path, result);
 
     // FFI trampoline
     if (ffi_loaded) {
@@ -217,7 +324,6 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
 
     if (!hp) {
         // Simple enum: stored as I64
-        // Variant access handled by interpreter field_access (copy-on-access)
         if (Str_eq_c(method, "eq")) {
             Value a = eval_expr(scope, expr_child(e, 1), path);
             Value b = eval_expr(scope, expr_child(e, 2), path);
@@ -229,11 +335,9 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         int ctor_tag = enum_variant_tag(enum_def, method);
         if (ctor_tag >= 0) {
             if (enum_variant_type(enum_def, ctor_tag)) {
-                // Payload constructor: Token.Num(val)
                 Value payload = eval_expr(scope, expr_child(e, 1), path);
                 *result = val_enum(enum_name, ctor_tag, clone_value(payload));
             } else {
-                // Zero-arg constructor: Token.Eof()
                 *result = val_enum(enum_name, ctor_tag, val_none());
             }
             return 1;

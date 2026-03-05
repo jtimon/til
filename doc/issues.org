@@ -46,30 +46,6 @@
   - Manual dereference (* operator)
   - Void pointers
 
-* OPEN #4 FFI: call external C functions from til
-  The ext_func/ext_proc syntax already works for builtins. Extend it so users
-  can call arbitrary C functions by providing a .c file alongside their .til
-  program. The user declares signatures in til, implements them in C following
-  the til pointer convention, and the compiler links them.
-
-  First milestone — user-provided ext file:
-
-    # square.c
-    #include <stdlib.h>
-    long long *til_square(long long *x) {
-        long long *r = malloc(sizeof(long long));
-        *r = (*x) * (*x);
-        return r;
-    }
-
-    # program.til
-    square := ext_func(x: I64) returns I64 {}
-    assert_eq(square(5), 25)
-
-  Later — mode-specific imports:
-  A mode like "gui" could auto-link a library (e.g. raylib) and auto-import
-  a .til file with ext_func/ext_proc signatures and wrapper structs, so the
-  user just writes `mode gui` and gets access to the API.
 
 * WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
   Currently all returns are owned by the caller (heap-allocated, caller must

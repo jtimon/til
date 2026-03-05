@@ -27,6 +27,24 @@ for t in $CODEGEN_TESTS; do
     fi
 done
 
+# FFI tests: both interpret and run
+FFI_TESTS="src/examples/ffi/greet.til"
+for t in $FFI_TESTS; do
+    name=$(basename "$t" .til)
+    expected="hello world
+hello universe"
+    got=$($CTIL interpret "$t" 2>&1)
+    if [ "$got" != "$expected" ]; then
+        echo "FAIL (interpret): ffi/$name"
+        FAIL=1
+    fi
+    got=$($CTIL run "$t" 2>&1)
+    if [ "$got" != "$expected" ]; then
+        echo "FAIL (codegen):   ffi/$name"
+        FAIL=1
+    fi
+done
+
 # typer_errors: should fail with exactly 25 errors
 errors=$($CTIL interpret src/test/typer_errors.til 2>&1 | grep -c "type error:" || true)
 if [ "$errors" -ne 33 ]; then
