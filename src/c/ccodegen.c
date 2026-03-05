@@ -899,6 +899,18 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     }
     fprintf(f, "\n");
 
+    // Forward declarations for dyn_call dispatch functions
+    {
+        Vec dyn_methods = Vec_new(sizeof(Str *));
+        collect_dyn_methods(program, &dyn_methods);
+        for (int m = 0; m < dyn_methods.len; m++) {
+            Str *method = *(Str **)Vec_get(&dyn_methods, m);
+            fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val);\n", method->c_str);
+        }
+        fprintf(f, "\n");
+        Vec_delete(&dyn_methods);
+    }
+
     // First pass: emit struct/enum definitions
     for (int i = 0; i < program->children.len; i++) {
         Expr *stmt = expr_child(program, i);
@@ -925,12 +937,13 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         }
     }
 
-    // Emit dyn_call dispatch functions (one per unique method literal)
+    // Emit dyn_call dispatch function bodies
     {
         Vec dyn_methods = Vec_new(sizeof(Str *));
         collect_dyn_methods(program, &dyn_methods);
         for (int m = 0; m < dyn_methods.len; m++) {
             Str *method = *(Str **)Vec_get(&dyn_methods, m);
+            int is_delete = Str_eq_c(method, "delete");
             fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val) {\n", method->c_str);
             // Iterate all struct/type defs in AST
             for (int i = 0; i < program->children.len; i++) {
@@ -951,8 +964,13 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                     }
                 }
                 if (!has_method) continue;
-                fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) return (void *)til_%s_%s(val);\n",
+                if (is_delete) {
+                    fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) { til_%s_%s(val, &(til_Bool){1}); return NULL; }\n",
+                            tname->c_str, tname->c_str, method->c_str);
+                } else {
+                    fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) return (void *)til_%s_%s(val);\n",
                         tname->c_str, tname->c_str, method->c_str);
+                }
             }
             fprintf(f, "    fprintf(stderr, \"dyn_call_func: unknown type for %s\\n\");\n", method->c_str);
             fprintf(f, "    exit(1);\n");

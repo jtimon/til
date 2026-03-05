@@ -254,6 +254,21 @@ static int h_dyn_call_func(Scope *s, Expr *e, const char *p, Value *r) {
         Vec_push(&fake_call.children, &arg);
     }
 
+    // Look up the target function and fill in default args for missing params
+    Value fn_val = eval_expr(s, &field_access, p);
+    if (fn_val.type == VAL_FUNC && fn_val.func->type == NODE_FUNC_DEF) {
+        Expr *fdef = fn_val.func;
+        int nparam = fdef->data.func_def.nparam;
+        int nargs = fake_call.children.len - 1; // subtract callee
+        for (int i = nargs; i < nparam; i++) {
+            if (fdef->data.func_def.param_defaults &&
+                fdef->data.func_def.param_defaults[i]) {
+                Expr *def_arg = fdef->data.func_def.param_defaults[i];
+                Vec_push(&fake_call.children, &def_arg);
+            }
+        }
+    }
+
     *r = eval_call(s, &fake_call, p);
 
     Vec_delete(&fake_call.children);

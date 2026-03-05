@@ -1,7 +1,7 @@
 mode script
 
 test_array_new_get_set := proc() {
-    a := Array.new(I64.size(), 3)
+    a := Array.new("I64", I64.size(), 3)
     a.set(0, own 10)
     a.set(1, own 20)
     a.set(2, own 30)
@@ -17,7 +17,7 @@ test_array_new_get_set := proc() {
 }
 
 test_array_strings := proc() {
-    a := Array.new(Str.size(), 2)
+    a := Array.new("Str", Str.size(), 2)
     a.set(0, own "hello")
     a.set(1, own "world")
 
@@ -29,7 +29,7 @@ test_array_strings := proc() {
 }
 
 test_array_overwrite := proc() {
-    a := Array.new(I64.size(), 2)
+    a := Array.new("I64", I64.size(), 2)
     a.set(0, own 1)
     a.set(1, own 2)
     a.set(0, own 99)
