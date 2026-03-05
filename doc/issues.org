@@ -1,6 +1,25 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 16
+# NEXT_ISSUE: 17
+
+* OPEN #16 Imports: multi-file programs and modular core.til
+  til programs are currently single-file. There's no way to split code
+  across files or reuse libraries. core.til is a single monolithic file
+  that gets prepended to every program.
+
+  An import system would allow:
+  - Programs split across multiple .til files
+  - core.til split into focused modules (e.g. vec.til, array.til, str.til)
+    with a top-level core.til that imports them
+  - User libraries shared across projects
+
+  What's needed:
+  - Syntax: import "path/to/file.til" or similar
+  - Lexer/parser: recognize import statements, resolve paths
+  - Pipeline: parse imported files, merge ASTs (handle duplicates)
+  - Typer: cross-file type resolution
+  - Codegen/interpreter: handle merged program
+  - Cycle detection for circular imports
 
 * OPEN #15 Scavenger doesn't understand dyn_call/dyn_has_method
   The scavenger removes namespace methods not reachable from used code.
@@ -84,7 +103,7 @@
    modes is essential for validating correctness during the rewrite.
 
 * OPEN #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2 #5 #8 #13 #14
+  :DEPENDENCIES: #1 #2 #5 #8 #13 #14 #15 #16
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
