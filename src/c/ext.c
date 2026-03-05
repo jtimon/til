@@ -58,27 +58,6 @@ til_Bool *til_Bool_not(til_Bool *a) { return Bool_new(Bool_not(*a)); }
 til_Bool *til_Bool_clone(til_Bool *v) { return Bool_clone(v); }
 void til_Bool_delete(til_Bool *v, til_Bool *call_free) { if (*call_free) Bool_delete(v); }
 
-// ext_struct: Pair (test)
-til_I64 *til_Pair_sum(til_Pair *self) {
-    til_I64 *r = malloc(sizeof(til_I64));
-    *r = self->a + self->b;
-    return r;
-}
-til_Pair *til_Pair_swap(til_Pair *self) {
-    til_Pair *r = malloc(sizeof(til_Pair));
-    r->a = self->b;
-    r->b = self->a;
-    return r;
-}
-til_Pair *til_Pair_clone(til_Pair *self) {
-    til_Pair *r = malloc(sizeof(til_Pair));
-    *r = *self;
-    return r;
-}
-void til_Pair_delete(til_Pair *self, til_Bool *call_free) {
-    if (*call_free) free(self);
-}
-
 // Pointer primitives
 void *til_malloc(til_I64 *count) { return calloc(1, (size_t)*count); }
 void *til_realloc(void *buf, til_I64 *count) { return realloc(buf, (size_t)*count); }

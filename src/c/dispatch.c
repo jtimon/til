@@ -519,26 +519,63 @@ int ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->is_core) continue;
-        if (stmt->type != NODE_DECL || expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
-        Expr *fdef = expr_child(stmt, 0);
-        FuncType fft = fdef->data.func_def.func_type;
-        if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
+        if (stmt->type != NODE_DECL || stmt->children.count == 0) continue;
 
-        char sym_name[256];
-        snprintf(sym_name, sizeof(sym_name), "til_%s", stmt->data.decl.name->c_str);
-        void *fn = dlsym(ffi_handle, sym_name);
-        if (!fn) {
-            fprintf(stderr, "error: FFI symbol '%s' not found: %s\n", sym_name, dlerror());
-            dlclose(ffi_handle);
-            ffi_handle = NULL;
-            return 1;
+        // Top-level ext_func/ext_proc
+        if (expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
+            Expr *fdef = expr_child(stmt, 0);
+            FuncType fft = fdef->data.func_def.func_type;
+            if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
+
+            char sym_name[256];
+            snprintf(sym_name, sizeof(sym_name), "til_%s", stmt->data.decl.name->c_str);
+            void *fn = dlsym(ffi_handle, sym_name);
+            if (!fn) {
+                fprintf(stderr, "error: FFI symbol '%s' not found: %s\n", sym_name, dlerror());
+                dlclose(ffi_handle);
+                ffi_handle = NULL;
+                return 1;
+            }
+            FFIEntry entry = {
+                .fn = fn,
+                .return_type = fdef->data.func_def.return_type,
+                .nparam = fdef->data.func_def.nparam,
+            };
+            Map_set(&ffi_map, &stmt->data.decl.name, &entry);
         }
-        FFIEntry entry = {
-            .fn = fn,
-            .return_type = fdef->data.func_def.return_type,
-            .nparam = fdef->data.func_def.nparam,
-        };
-        Map_set(&ffi_map, &stmt->data.decl.name, &entry);
+
+        // ext_struct namespace methods
+        if (expr_child(stmt, 0)->type == NODE_STRUCT_DEF && expr_child(stmt, 0)->is_ext) {
+            Str *sname = stmt->data.decl.name;
+            Expr *body = expr_child(expr_child(stmt, 0), 0);
+            for (int j = 0; j < body->children.count; j++) {
+                Expr *field = expr_child(body, j);
+                if (!field->data.decl.is_namespace) continue;
+                if (field->children.count == 0) continue;
+                Expr *fdef = expr_child(field, 0);
+                if (fdef->type != NODE_FUNC_DEF) continue;
+                FuncType fft = fdef->data.func_def.func_type;
+                if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
+
+                char flat_name[256], sym_name[256];
+                snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->data.decl.name->c_str);
+                snprintf(sym_name, sizeof(sym_name), "til_%s", flat_name);
+                void *fn = dlsym(ffi_handle, sym_name);
+                if (!fn) {
+                    fprintf(stderr, "error: FFI symbol '%s' not found: %s\n", sym_name, dlerror());
+                    dlclose(ffi_handle);
+                    ffi_handle = NULL;
+                    return 1;
+                }
+                FFIEntry entry = {
+                    .fn = fn,
+                    .return_type = fdef->data.func_def.return_type,
+                    .nparam = fdef->data.func_def.nparam,
+                };
+                Str *key = Str_new(flat_name);
+                Map_set(&ffi_map, &key, &entry);
+            }
+        }
     }
 
     ffi_loaded = 1;

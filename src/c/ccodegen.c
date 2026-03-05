@@ -553,9 +553,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
     }
 }
 
-static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
+static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def, int is_core) {
     Expr *body = expr_child(struct_def, 0);
-    if (struct_def->is_ext) return;
+    if (struct_def->is_ext && is_core) return; // core ext_structs defined in ext.h
     if (Str_eq_c(name, "Str")) return; // Str typedef provided by ext.h
     int has_instance_fields = 0;
     for (int i = 0; i < body->children.count; i++)
@@ -782,34 +782,13 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
 
     fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include \"ccore.h\"\n#include \"ext.h\"\n\n");
 
-    // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins)
-    for (int i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->is_core) continue;
-        if (stmt->type != NODE_DECL || expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
-        Expr *fdef = expr_child(stmt, 0);
-        FuncType fft = fdef->data.func_def.func_type;
-        if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
-        if (fdef->data.func_def.return_type)
-            fprintf(f, "%stil_%s(", type_name_to_c(fdef->data.func_def.return_type), stmt->data.decl.name->c_str);
-        else
-            fprintf(f, "void til_%s(", stmt->data.decl.name->c_str);
-        for (int p = 0; p < fdef->data.func_def.nparam; p++) {
-            if (p > 0) fprintf(f, ", ");
-            fprintf(f, "%s", type_name_to_c(fdef->data.func_def.param_types[p]));
-        }
-        if (fdef->data.func_def.nparam == 0) fprintf(f, "void");
-        fprintf(f, ");\n");
-    }
-    fprintf(f, "\n");
-
     int is_script = mode && Str_eq_c(mode, "script");
 
-    // Forward-declare all structs (skip primitives, ext_structs, and Str — ext.h provides)
+    // Forward-declare all structs (skip core ext_structs and Str — ext.h provides)
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
-            if (expr_child(stmt, 0)->is_ext) continue;
+            if (expr_child(stmt, 0)->is_ext && stmt->is_core) continue;
             if (Str_eq_c(stmt->data.decl.name, "Str")) continue;
             fprintf(f, "typedef struct til_%s til_%s;\n", stmt->data.decl.name->c_str, stmt->data.decl.name->c_str);
         }
@@ -850,6 +829,27 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     }
     fprintf(f, "\n");
 
+    // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins)
+    for (int i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->is_core) continue;
+        if (stmt->type != NODE_DECL || expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
+        Expr *fdef = expr_child(stmt, 0);
+        FuncType fft = fdef->data.func_def.func_type;
+        if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
+        if (fdef->data.func_def.return_type)
+            fprintf(f, "%stil_%s(", type_name_to_c(fdef->data.func_def.return_type), stmt->data.decl.name->c_str);
+        else
+            fprintf(f, "void til_%s(", stmt->data.decl.name->c_str);
+        for (int p = 0; p < fdef->data.func_def.nparam; p++) {
+            if (p > 0) fprintf(f, ", ");
+            fprintf(f, "%s", type_name_to_c(fdef->data.func_def.param_types[p]));
+        }
+        if (fdef->data.func_def.nparam == 0) fprintf(f, "void");
+        fprintf(f, ");\n");
+    }
+    fprintf(f, "\n");
+
     // Forward-declare string helper functions (implementations after struct defs)
     fprintf(f, "static til_Str *til_Str_lit(const char *s, long long cap);\n");
     fprintf(f, "static void til_print_str(til_Str *s);\n");
@@ -870,7 +870,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                 if (expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
                 Expr *fdef = expr_child(field, 0);
                 FuncType fft = fdef->data.func_def.func_type;
-                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+                if ((fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) && stmt->is_core) continue;
                 const char *ret = "void";
                 if (fdef->data.func_def.return_type)
                     ret = type_name_to_c(fdef->data.func_def.return_type);
@@ -982,7 +982,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
-            emit_struct_typedef(f, stmt->data.decl.name, expr_child(stmt, 0));
+            emit_struct_typedef(f, stmt->data.decl.name, expr_child(stmt, 0), stmt->is_core);
             fprintf(f, "\n");
         }
     }

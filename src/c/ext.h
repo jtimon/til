@@ -65,13 +65,6 @@ til_Bool *til_Bool_not(til_Bool *a);
 
 void til_memmove(void *dest, void *src, til_I64 *len);
 
-// ext_struct: Pair (test)
-typedef struct til_Pair { til_I64 a; til_I64 b; } til_Pair;
-til_I64 *til_Pair_sum(til_Pair *self);
-til_Pair *til_Pair_swap(til_Pair *self);
-til_Pair *til_Pair_clone(til_Pair *self);
-void til_Pair_delete(til_Pair *self, til_Bool *call_free);
-
 // Bool clone/delete
 til_Bool *til_Bool_clone(til_Bool *v);
 void til_Bool_delete(til_Bool *v, til_Bool *call_free);

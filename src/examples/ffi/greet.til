@@ -1,8 +1,0 @@
-mode script
-
-greet := ext_func(name: Str) returns Str {}
-greet_print := ext_proc(name: Str) {}
-
-result := greet("world")
-println(result)
-greet_print("universe")

@@ -1,5 +1,10 @@
 mode script
 
+// Top-level ext functions
+greet := ext_func(name: Str) returns Str {}
+greet_print := ext_proc(name: Str) {}
+
+// ext_struct with ext methods
 Pair := ext_struct {
     mut a := 0
     mut b := 0
@@ -26,6 +31,16 @@ Pair := ext_struct {
         return Pair(a=self.a.add(n), b=self.b.add(n))
     }
 }
+
+// --- Top-level ext function tests ---
+
+test_greet := proc() {
+    result := greet("world")
+    println(result)
+    greet_print("universe")
+}
+
+// --- ext_struct tests ---
 
 test_instantiation := proc() {
     p := Pair()
@@ -83,6 +98,24 @@ test_delete := proc() {
     own p.delete()
 }
 
+// Regular struct used as ext_func arg/return
+Point := struct {
+    mut x := 0
+    mut y := 0
+}
+
+add_points := ext_func(a: Point, b: Point) returns Point {}
+
+test_add_points := proc() {
+    a := Point(x=1, y=2)
+    b := Point(x=3, y=4)
+    c := add_points(a, b)
+    assert_eq(loc(), c.x, 4)
+    assert_eq(loc(), c.y, 6)
+}
+
+test_greet()
+test_add_points()
 test_instantiation()
 test_field_mutation()
 test_ext_methods()

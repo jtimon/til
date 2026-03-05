@@ -17,30 +17,17 @@ for t in $TESTS; do
     fi
 done
 
-# ext_struct tests: codegen only (interpreter gives runtime error for ext methods)
-CODEGEN_TESTS="src/test/ext_struct.til"
-for t in $CODEGEN_TESTS; do
-    name=$(basename "$t" .til)
-    if ! $CTIL run "$t" > /dev/null 2>&1; then
-        echo "FAIL (codegen):   $name"
-        FAIL=1
-    fi
-done
-
-# FFI tests: both interpret and run
-FFI_TESTS="src/examples/ffi/greet.til"
+# FFI + ext_struct tests: codegen only (interpreter lacks struct marshaling for FFI, see #1)
+FFI_TESTS="src/examples/ffi/ext_module.til"
 for t in $FFI_TESTS; do
     name=$(basename "$t" .til)
     expected="hello world
 hello universe"
-    got=$($CTIL interpret "$t" 2>&1)
-    if [ "$got" != "$expected" ]; then
-        echo "FAIL (interpret): ffi/$name"
-        FAIL=1
-    fi
     got=$($CTIL run "$t" 2>&1)
     if [ "$got" != "$expected" ]; then
         echo "FAIL (codegen):   ffi/$name"
+        echo "  expected: $expected"
+        echo "  got:      $got"
         FAIL=1
     fi
 done

@@ -136,50 +136,6 @@
    | src/test/vecs.til  | Updated size expectations                         |
    | tests.sh           | Added arrays.til to test list                     |
 
-* FIXED #4 FFI: call external C functions from til
-  The ext_func/ext_proc syntax already works for builtins. Users can now call
-  arbitrary C functions by providing a .c file alongside their .til program.
-  Declare signatures in til with ext_func/ext_proc, implement in C following
-  the til pointer convention (all args/returns are heap-allocated pointers,
-  functions prefixed with til_).
-
-  Convention: for program.til, ctil looks for program.c in the same directory.
-
-  What was done:
-
-** Build/run path (codegen)
-   - ccodegen.c: codegen_c emits forward declarations for non-core
-     ext_func/ext_proc (skips builtins via is_core flag on AST nodes).
-   - ccodegen.c: compile_c accepts optional user_c_path, links it alongside
-     ext.c/str.c/ccore.c.
-   - ctil.c: detects program.c next to program.til, passes to compile_c.
-
-** Interpreter path (dlopen)
-   - dispatch.c: ffi_init compiles user .c to shared library (cc -shared
-     -fPIC), dlopen/dlsym each non-core ext_func/ext_proc into a Map of
-     FFIEntry (function pointer + return type + nparam).
-   - dispatch.c: arity-based trampoline (0-4 args) calls through void*
-     function pointers. No libffi needed — til's uniform pointer calling
-     convention means all args are the same type (void*).
-   - Makefile: -rdynamic so .so can access Str_new/etc from ctil,
-     -ldl for dlopen/dlsym.
-   - Cleanup: .so file unlinked after dlopen, dlclose on exit.
-
-** Dispatch refactor
-   - dispatch.c: replaced 45-entry strcmp chain with Map of DispatchFn
-     function pointers. Handlers generated via H1/H2/HDEL/HCLONE macros
-     for regular patterns, explicit functions for special cases (println,
-     print, format, free, Str_substr). Lazy init on first dispatch call.
-
-** Core infrastructure
-   - ast.h: is_core flag on Expr nodes, set during core.til merge in ctil.c.
-     Distinguishes core builtins from user FFI declarations.
-
-** Example and test
-   - src/examples/ffi/greet.c: ext_func til_greet (prepends "hello " to
-     Str, returns new Str) and ext_proc til_greet_print (same but prints).
-   - src/examples/ffi/greet.til: declares greet/greet_print, calls both.
-   - tests.sh: FFI test verifies output matches for both interpret and run.
 
 * FIXED #9 Tagged unions (enums): enum definitions with optional payloads
   til lacks enums and unions. Tagged unions (like Rust enums) combine both:
