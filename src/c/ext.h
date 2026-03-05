@@ -83,8 +83,8 @@ void til_Bool_delete(til_Bool *v, til_Bool *call_free);
 // Pointer primitives
 void *til_malloc(til_I64 *count);
 void *til_realloc(void *buf, til_I64 *count);
-void *til_ptr_at(void *buf, til_I64 *offset);
-void til_ptr_set(void *buf, til_I64 *offset, void *val);
+void *til_ptr_add(void *buf, til_I64 *offset);
+void til_memcpy(void *dest, void *src, til_I64 *len);
 
 // Variadic builtins
 Str *til_format(int n, ...);

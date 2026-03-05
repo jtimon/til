@@ -93,13 +93,8 @@ Value clone_value(Value v) {
     case VAL_BOOL: return val_bool(*v.boolean);
     case VAL_ENUM: return val_enum(v.enum_inst->enum_name, v.enum_inst->tag,
                                     clone_value(v.enum_inst->payload));
-    case VAL_PTR: {
-        PtrInst *p = malloc(sizeof(PtrInst));
-        p->cap = v.ptr->cap;
-        p->data = malloc(p->cap * sizeof(Value));
-        for (int i = 0; i < p->cap; i++) p->data[i] = clone_value(v.ptr->data[i]);
-        return (Value){.type = VAL_PTR, .ptr = p};
-    }
+    case VAL_PTR:
+        return (Value){.type = VAL_PTR, .ptr = v.ptr};
     case VAL_NONE: return val_none();
     default:       return val_none();
     }
@@ -117,9 +112,7 @@ void free_value(Value v) {
         free(v.enum_inst);
         break;
     case VAL_PTR:
-        free(v.ptr->data);
-        free(v.ptr);
-        break;
+        break; // borrowed pointer into buffer, nothing to free
     default: break;
     }
 }
@@ -432,6 +425,18 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                     src->val = val_none();
                 } else {
                     val = eval_expr(scope, rhs, path);
+                }
+                // Reinterpret VAL_PTR based on declared type (ref a : I64 = ptr_add(...))
+                if (val.type == VAL_PTR && stmt->data.decl.explicit_type) {
+                    Str *etype = stmt->data.decl.explicit_type;
+                    if (Str_eq_c(etype, "I64"))
+                        val = (Value){.type = VAL_I64, .i64 = (til_I64 *)val.ptr};
+                    else if (Str_eq_c(etype, "U8"))
+                        val = (Value){.type = VAL_U8, .u8 = (til_U8 *)val.ptr};
+                    else if (Str_eq_c(etype, "Bool"))
+                        val = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)val.ptr};
+                    else if (Str_eq_c(etype, "Str"))
+                        val = (Value){.type = VAL_STR, .str = (Str *)val.ptr};
                 }
                 scope_set_owned(scope, stmt->data.decl.name, val);
             }

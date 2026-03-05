@@ -51,9 +51,9 @@ test_vec_strings := proc() {
 test_vec_size := proc() {
     assert_eq(loc(), I64.size(), 8)
     assert_eq(loc(), U8.size(), 1)
-    assert_eq(loc(), Str.size(), 8)
+    assert_eq(loc(), Str.size(), 16)
     assert_eq(loc(), Bool.size(), 1)
-    assert_eq(loc(), Vec.size(), 40)
+    assert_eq(loc(), Vec.size(), 48)
 }
 
 test_vec_push_get()

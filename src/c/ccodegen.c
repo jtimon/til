@@ -8,19 +8,31 @@
 static Expr *codegen_program; // set during codegen for ns_init lookups
 static Map struct_bodies; // Str* name → Expr* body (NODE_BODY)
 
-// Collect unique dyn_call_func method literals from AST
+// Collect unique dyn_call method literals from AST
+typedef struct { Str *method; int nargs; int returns; } DynCallInfo;
+
+static int is_dyn_call_name(Str *name, int *nargs, int *returns) {
+    if (Str_eq_c(name, "dyn_call1"))     { *nargs = 1; *returns = 0; return 1; }
+    if (Str_eq_c(name, "dyn_call2"))     { *nargs = 2; *returns = 0; return 1; }
+    if (Str_eq_c(name, "dyn_call1_ret")) { *nargs = 1; *returns = 1; return 1; }
+    if (Str_eq_c(name, "dyn_call2_ret")) { *nargs = 2; *returns = 1; return 1; }
+    return 0;
+}
+
 static void collect_dyn_methods(Expr *e, Vec *methods) {
     if (!e) return;
     if (e->type == NODE_FCALL && expr_child(e, 0)->type == NODE_IDENT &&
-        Str_eq_c(expr_child(e, 0)->data.str_val, "dyn_call_func") &&
         e->children.count >= 3 && expr_child(e, 2)->type == NODE_LITERAL_STR) {
-        Str *method = expr_child(e, 2)->data.str_val;
-        // Check if already collected
-        for (int i = 0; i < methods->count; i++) {
-            Str **existing = Vec_get(methods, i);
-            if (Str_eq(*existing, method)) return;
+        int nargs, returns;
+        if (is_dyn_call_name(expr_child(e, 0)->data.str_val, &nargs, &returns)) {
+            Str *method = expr_child(e, 2)->data.str_val;
+            for (int i = 0; i < methods->count; i++) {
+                DynCallInfo *existing = Vec_get(methods, i);
+                if (Str_eq(existing->method, method)) return;
+            }
+            DynCallInfo info = {method, nargs, returns};
+            Vec_push(methods, &info);
         }
-        Vec_push(methods, &method);
     }
     for (int i = 0; i < e->children.count; i++) {
         collect_dyn_methods(expr_child(e, i), methods);
@@ -101,13 +113,14 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
             fprintf(f, ")");
-        } else if (Str_eq_c(name, "dyn_call_func")) {
-            // dyn_call_func(type_name, "method", val, ...) → til_dyn_call_method(type_name, val, ...)
+        } else if (Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
+                   Str_eq_c(name, "dyn_call1_ret") || Str_eq_c(name, "dyn_call2_ret")) {
+            // dyn_call*(type_name, "method", val, ...) → til_dyn_call_method(type_name, val, ...)
             Str *method = expr_child(e, 2)->data.str_val;
             fprintf(f, "til_dyn_call_%s(", method->c_str);
             // Emit type_name as first arg
             emit_as_ptr(f, expr_child(e, 1), depth);
-            // Emit remaining args (val, and any defaults like call_free)
+            // Emit remaining args (val, and any extra args like call_free)
             for (int i = 3; i < e->children.count; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
@@ -908,11 +921,21 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
 
     // Forward declarations for dyn_call dispatch functions
     {
-        Vec dyn_methods = Vec_new(sizeof(Str *));
+        Vec dyn_methods = Vec_new(sizeof(DynCallInfo));
         collect_dyn_methods(program, &dyn_methods);
         for (int m = 0; m < dyn_methods.count; m++) {
-            Str *method = *(Str **)Vec_get(&dyn_methods, m);
-            fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val);\n", method->c_str);
+            DynCallInfo *info = Vec_get(&dyn_methods, m);
+            if (info->returns) {
+                if (info->nargs == 1)
+                    fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
+                else
+                    fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val, void *arg2);\n", info->method->c_str);
+            } else {
+                if (info->nargs == 1)
+                    fprintf(f, "void til_dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
+                else
+                    fprintf(f, "void til_dyn_call_%s(Str *type_name, void *val, void *arg2);\n", info->method->c_str);
+            }
         }
         fprintf(f, "\n");
         Vec_delete(&dyn_methods);
@@ -946,12 +969,16 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
 
     // Emit dyn_call dispatch function bodies
     {
-        Vec dyn_methods = Vec_new(sizeof(Str *));
+        Vec dyn_methods = Vec_new(sizeof(DynCallInfo));
         collect_dyn_methods(program, &dyn_methods);
         for (int m = 0; m < dyn_methods.count; m++) {
-            Str *method = *(Str **)Vec_get(&dyn_methods, m);
-            int is_delete = Str_eq_c(method, "delete");
-            fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val) {\n", method->c_str);
+            DynCallInfo *info = Vec_get(&dyn_methods, m);
+            Str *method = info->method;
+            const char *ret_type = info->returns ? "void *" : "void ";
+            if (info->nargs == 1)
+                fprintf(f, "%stil_dyn_call_%s(Str *type_name, void *val) {\n", ret_type, method->c_str);
+            else
+                fprintf(f, "%stil_dyn_call_%s(Str *type_name, void *val, void *arg2) {\n", ret_type, method->c_str);
             // Iterate all struct/type defs in AST
             for (int i = 0; i < program->children.count; i++) {
                 Expr *stmt = expr_child(program, i);
@@ -971,15 +998,23 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                     }
                 }
                 if (!has_method) continue;
-                if (is_delete) {
-                    fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) { til_%s_%s(val, &(til_Bool){1}); return NULL; }\n",
-                            tname->c_str, tname->c_str, method->c_str);
+                if (info->nargs == 2) {
+                    if (info->returns)
+                        fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) return (void *)til_%s_%s(val, arg2);\n",
+                                tname->c_str, tname->c_str, method->c_str);
+                    else
+                        fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) { til_%s_%s(val, arg2); return; }\n",
+                                tname->c_str, tname->c_str, method->c_str);
                 } else {
-                    fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) return (void *)til_%s_%s(val);\n",
-                        tname->c_str, tname->c_str, method->c_str);
+                    if (info->returns)
+                        fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) return (void *)til_%s_%s(val);\n",
+                                tname->c_str, tname->c_str, method->c_str);
+                    else
+                        fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) { til_%s_%s(val); return; }\n",
+                                tname->c_str, tname->c_str, method->c_str);
                 }
             }
-            fprintf(f, "    fprintf(stderr, \"dyn_call_func: unknown type for %s\\n\");\n", method->c_str);
+            fprintf(f, "    fprintf(stderr, \"dyn_call: unknown type for %s\\n\");\n", method->c_str);
             fprintf(f, "    exit(1);\n");
             fprintf(f, "}\n\n");
         }

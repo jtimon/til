@@ -491,11 +491,13 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         for (int i = 1; i < e->children.count; i++) {
             infer_expr(scope, expr_child(e, i), path, in_func);
         }
-        // dyn_call_func: method (2nd arg) must be a string literal
-        if (Str_eq_c(name, "dyn_call_func") && e->children.count >= 3) {
+        // dyn_call variants: method (2nd arg) must be a string literal
+        if ((Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
+             Str_eq_c(name, "dyn_call1_ret") || Str_eq_c(name, "dyn_call2_ret")) &&
+            e->children.count >= 3) {
             Expr *method_arg = expr_child(e, 2);
             if (method_arg->type != NODE_LITERAL_STR) {
-                type_error(path, method_arg, "dyn_call_func method argument must be a string literal");
+                type_error(path, method_arg, "dyn_call method argument must be a string literal");
             }
         }
         // Validate 'own' markers on arguments
@@ -698,9 +700,13 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
     }
 
     // Check each argument (children[1..n])
-    // dyn_call_func: don't hoist the method arg (2nd) — codegen needs it as a literal
-    int is_dyn_call = (expr_child(e, 0)->type == NODE_IDENT &&
-                       Str_eq_c(expr_child(e, 0)->data.str_val, "dyn_call_func"));
+    // dyn_call variants: don't hoist the method arg (2nd) — codegen needs it as a literal
+    int is_dyn_call = 0;
+    if (expr_child(e, 0)->type == NODE_IDENT) {
+        Str *cn = expr_child(e, 0)->data.str_val;
+        is_dyn_call = Str_eq_c(cn, "dyn_call1") || Str_eq_c(cn, "dyn_call2") ||
+                      Str_eq_c(cn, "dyn_call1_ret") || Str_eq_c(cn, "dyn_call2_ret");
+    }
     int fi = 0; // instance field index for struct constructors
     for (int i = 1; i < e->children.count; i++) {
         if (is_dyn_call && i == 2) continue; // keep method as NODE_LITERAL_STR
@@ -1359,9 +1365,9 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
                     type_error(path, stmt, buf);
-                } else if (declared == TIL_TYPE_DYNAMIC) {
+                } else if (declared == TIL_TYPE_DYNAMIC && !stmt->data.decl.is_own) {
                     char buf[128];
-                    snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add explicit type annotation",
+                    snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; use 'own' with Dynamic type",
                              stmt->data.decl.name->c_str);
                     type_error(path, stmt, buf);
                 } else if (expr_child(stmt, 0)->type == NODE_LITERAL_NUM &&

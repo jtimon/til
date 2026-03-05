@@ -79,7 +79,7 @@ Str : StructDef = ext_struct {
     contains := ext_func(a: Str, b: Str) returns Bool {}
     starts_with := ext_func(a: Str, b: Str) returns Bool {}
     ends_with := ext_func(a: Str, b: Str) returns Bool {}
-    size := func() returns I64 { return 8 }
+    size := func() returns I64 { return 16 }
 }
 Bool : StructDef = ext_struct {
     namespace:
@@ -99,12 +99,15 @@ format := ext_func(parts: ..Str) returns Str {}
 println := ext_proc(args: ..Str) {}
 print := ext_proc(args: ..Str) {}
 exit := ext_func(code: I64) {}
-free := ext_proc(own elem: Dynamic) {}
+free := ext_func(own elem: Dynamic) {}
 malloc := ext_func(count: I64) returns Dynamic {}
 realloc := ext_func(own buf: Dynamic, count: I64) returns Dynamic {}
-ptr_at := ext_func(buf: Dynamic, offset: I64) returns ref Dynamic {}
-ptr_set := ext_func(buf: Dynamic, offset: I64, own val: Dynamic) {}
-dyn_call_func := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dynamic {}
+ptr_add := ext_func(buf: Dynamic, offset: I64) returns ref Dynamic {}
+memcpy := ext_func(dest: Dynamic, src: Dynamic, len: I64) {}
+dyn_call1 := ext_func(type_name: Str, method: Str, val: Dynamic) {}
+dyn_call2 := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) {}
+dyn_call1_ret := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dynamic {}
+dyn_call2_ret := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) returns Dynamic {}
 
 Vec := struct {
     own mut data : U8 = 0
@@ -127,7 +130,8 @@ Vec := struct {
             self.data = realloc(own self.data, new_cap.mul(self.elem_size))
             self.cap = new_cap
         }
-        ptr_set(self.data, self.count.mul(self.elem_size), own val)
+        memcpy(ptr_add(self.data, self.count.mul(self.elem_size)), val, self.elem_size)
+        free(own val)
         self.count = self.count.add(1)
     }
 
@@ -135,13 +139,13 @@ Vec := struct {
         if i.lt(0).or(i.gte(self.count)) {
             panic("Vec.get", format("index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")"))
         }
-        return ptr_at(self.data, i.mul(self.elem_size))
+        return ptr_add(self.data, i.mul(self.elem_size))
     }
 
     delete := proc(own self: Vec, call_free: Bool = true) {
         mut i := 0
         while i.lt(self.count) {
-            dyn_call_func(self.elem_type, "delete", ptr_at(self.data, i.mul(self.elem_size)))
+            dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)
             i = i.add(1)
         }
         free(own self.data)
@@ -152,8 +156,9 @@ Vec := struct {
         own new_data : U8 = malloc(self.cap.mul(self.elem_size))
         mut i := 0
         while i.lt(self.count) {
-            ptr_set(new_data, i.mul(self.elem_size),
-                    own dyn_call_func(self.elem_type, "clone", ptr_at(self.data, i.mul(self.elem_size))))
+            own cloned : Dynamic = dyn_call1_ret(self.elem_type, "clone", ptr_add(self.data, i.mul(self.elem_size)))
+            memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+            free(own cloned)
             i = i.add(1)
         }
         return Vec(data = new_data, count = self.count, cap = self.cap,
@@ -180,7 +185,7 @@ Array := struct {
             panic("Array.get", format("index ", i.to_str(),
                   " out of bounds (len ", self.cap.to_str(), ")"))
         }
-        return ptr_at(self.data, i.mul(self.elem_size))
+        return ptr_add(self.data, i.mul(self.elem_size))
     }
 
     set := proc(self: Array, i: I64, own val: Dynamic) {
@@ -188,13 +193,15 @@ Array := struct {
             panic("Array.set", format("index ", i.to_str(),
                   " out of bounds (len ", self.cap.to_str(), ")"))
         }
-        ptr_set(self.data, i.mul(self.elem_size), own val)
+        dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)
+        memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
+        free(own val)
     }
 
     delete := proc(own self: Array, call_free: Bool = true) {
         mut i := 0
         while i.lt(self.cap) {
-            dyn_call_func(self.elem_type, "delete", ptr_at(self.data, i.mul(self.elem_size)))
+            dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)
             i = i.add(1)
         }
         free(own self.data)
@@ -205,8 +212,9 @@ Array := struct {
         own new_data : U8 = malloc(self.cap.mul(self.elem_size))
         mut i := 0
         while i.lt(self.cap) {
-            ptr_set(new_data, i.mul(self.elem_size),
-                    own dyn_call_func(self.elem_type, "clone", ptr_at(self.data, i.mul(self.elem_size))))
+            own cloned : Dynamic = dyn_call1_ret(self.elem_type, "clone", ptr_add(self.data, i.mul(self.elem_size)))
+            memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+            free(own cloned)
             i = i.add(1)
         }
         return Array(data = new_data, cap = self.cap,

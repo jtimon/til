@@ -196,11 +196,8 @@ static int h_free(Scope *s, Expr *e, const char *p, Value *r) {
     } else if (cell->val.type == VAL_BOOL) {
         til_free(cell->val.boolean);
     } else if (cell->val.type == VAL_STR) {
-        Str_delete(cell->val.str);
+        free(cell->val.str);
     } else if (cell->val.type == VAL_PTR) {
-        for (int i = 0; i < cell->val.ptr->cap; i++)
-            free_value(cell->val.ptr->data[i]);
-        free(cell->val.ptr->data);
         free(cell->val.ptr);
     }
     cell->val = val_none();
@@ -210,20 +207,13 @@ static int h_free(Scope *s, Expr *e, const char *p, Value *r) {
 
 // === Dynamic dispatch handler ===
 
-static int h_dyn_call_func(Scope *s, Expr *e, const char *p, Value *r) {
-    // dyn_call_func(type_name, "method", val)
-    // Build a synthetic Type.method(val) NODE_FCALL and pass to eval_call
-
-    // 1. Eval type_name (1st arg) — can be runtime
+// Shared helper for all dyn_call variants
+static int h_dyn_call(Scope *s, Expr *e, const char *p, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e, 1), p);
     Str *type_name = type_name_val.str;
-
-    // 2. Eval method (2nd arg) — string literal, but typer may have hoisted to temp var
     Value method_val = eval_expr(s, expr_child(e, 2), p);
     Str *method = method_val.str;
 
-    // 3. Build synthetic: Type.method(val, ...)
-    //    callee = NODE_FIELD_ACCESS { children[0]=NODE_IDENT(type_name), data.str_val=method }
     Expr type_ident = {0};
     type_ident.type = NODE_IDENT;
     type_ident.data.str_val = type_name;
@@ -248,18 +238,16 @@ static int h_dyn_call_func(Scope *s, Expr *e, const char *p, Value *r) {
     fake_call.children = Vec_new(sizeof(Expr *));
     Expr *fa_ptr = &field_access;
     Vec_push(&fake_call.children, &fa_ptr);
-    // Pass remaining args (val, and any defaults like call_free)
     for (int i = 3; i < e->children.count; i++) {
         Expr *arg = expr_child(e, i);
         Vec_push(&fake_call.children, &arg);
     }
 
-    // Look up the target function and fill in default args for missing params
     Value fn_val = eval_expr(s, &field_access, p);
     if (fn_val.type == VAL_FUNC && fn_val.func->type == NODE_FUNC_DEF) {
         Expr *fdef = fn_val.func;
         int nparam = fdef->data.func_def.nparam;
-        int nargs = fake_call.children.count - 1; // subtract callee
+        int nargs = fake_call.children.count - 1;
         for (int i = nargs; i < nparam; i++) {
             if (fdef->data.func_def.param_defaults &&
                 fdef->data.func_def.param_defaults[i]) {
@@ -278,13 +266,23 @@ static int h_dyn_call_func(Scope *s, Expr *e, const char *p, Value *r) {
 
 // === Pointer primitive handlers ===
 
+// Extract raw void* from any Value type
+static void *val_to_ptr(Value v) {
+    switch (v.type) {
+        case VAL_PTR:    return v.ptr;
+        case VAL_I64:    return v.i64;
+        case VAL_U8:     return v.u8;
+        case VAL_BOOL:   return v.boolean;
+        case VAL_STR:    return v.str;
+        case VAL_STRUCT: return v.instance;
+        default:         return NULL;
+    }
+}
+
 static int h_malloc(Scope *s, Expr *e, const char *p, Value *r) {
     Value count = eval_expr(s, expr_child(e, 1), p);
     int nbytes = (int)*count.i64;
-    // In interpreter, allocate slots (nbytes / 8)
-    int nslots = nbytes / (int)sizeof(void *);
-    if (nslots < 1) nslots = 1;
-    *r = val_ptr(nslots);
+    *r = (Value){.type = VAL_PTR, .ptr = calloc(1, nbytes)};
     return 1;
 }
 
@@ -292,41 +290,22 @@ static int h_realloc(Scope *s, Expr *e, const char *p, Value *r) {
     Value buf = eval_expr(s, expr_child(e, 1), p);
     Value count = eval_expr(s, expr_child(e, 2), p);
     int nbytes = (int)*count.i64;
-    int new_slots = nbytes / (int)sizeof(void *);
-    if (new_slots < 1) new_slots = 1;
-    PtrInst *old_pi = buf.ptr;
-    int old_cap = old_pi->cap;
-    Value *new_data = realloc(old_pi->data, new_slots * sizeof(Value));
-    for (int i = old_cap; i < new_slots; i++) new_data[i] = val_none();
-    // Detach old PtrInst from data so free_value on it won't destroy the buffer
-    old_pi->data = NULL;
-    old_pi->cap = 0;
-    // Return a new PtrInst wrapping the realloc'd data
-    PtrInst *new_pi = malloc(sizeof(PtrInst));
-    new_pi->data = new_data;
-    new_pi->cap = new_slots;
-    *r = (Value){.type = VAL_PTR, .ptr = new_pi};
+    *r = (Value){.type = VAL_PTR, .ptr = realloc(buf.ptr, nbytes)};
     return 1;
 }
 
-static int h_ptr_at(Scope *s, Expr *e, const char *p, Value *r) {
+static int h_ptr_add(Scope *s, Expr *e, const char *p, Value *r) {
     Value buf = eval_expr(s, expr_child(e, 1), p);
     Value offset = eval_expr(s, expr_child(e, 2), p);
-    int slot = (int)*offset.i64 / (int)sizeof(void *);
-    *r = buf.ptr->data[slot]; // return the Value (ref — not cloned)
+    *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + (int)*offset.i64};
     return 1;
 }
 
-static int h_ptr_set(Scope *s, Expr *e, const char *p, Value *r) {
-    Value buf = eval_expr(s, expr_child(e, 1), p);
-    Value offset = eval_expr(s, expr_child(e, 2), p);
-    Value val = eval_expr(s, expr_child(e, 3), p);
-    int slot = (int)*offset.i64 / (int)sizeof(void *);
-    // Free old value if present
-    if (buf.ptr->data[slot].type != VAL_NONE) {
-        free_value(buf.ptr->data[slot]);
-    }
-    buf.ptr->data[slot] = val;
+static int h_memcpy(Scope *s, Expr *e, const char *p, Value *r) {
+    Value dest = eval_expr(s, expr_child(e, 1), p);
+    Value src = eval_expr(s, expr_child(e, 2), p);
+    Value len = eval_expr(s, expr_child(e, 3), p);
+    memcpy(val_to_ptr(dest), val_to_ptr(src), (size_t)*len.i64);
     *r = val_none();
     return 1;
 }
@@ -396,11 +375,14 @@ static void dispatch_init(void) {
     // Pointer primitives
     REG("malloc", h_malloc);
     REG("realloc", h_realloc);
-    REG("ptr_at", h_ptr_at);
-    REG("ptr_set", h_ptr_set);
+    REG("ptr_add", h_ptr_add);
+    REG("memcpy", h_memcpy);
 
     // Dynamic dispatch
-    REG("dyn_call_func", h_dyn_call_func);
+    REG("dyn_call1", h_dyn_call);
+    REG("dyn_call2", h_dyn_call);
+    REG("dyn_call1_ret", h_dyn_call);
+    REG("dyn_call2_ret", h_dyn_call);
 
 
     #undef REG
