@@ -43,7 +43,6 @@ typedef enum {
     TIL_TYPE_NONE,      // void / no value
     TIL_TYPE_I64,
     TIL_TYPE_U8,
-    TIL_TYPE_STR,
     TIL_TYPE_BOOL,
     TIL_TYPE_STRUCT,
     TIL_TYPE_STRUCT_DEF,

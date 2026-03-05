@@ -67,7 +67,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
     (void)depth;
     switch (e->type) {
     case NODE_LITERAL_STR:
-        fprintf(f, "Str_new(\"%s\")", e->data.str_val->c_str);
+        fprintf(f, "til_Str_lit(\"%s\", %d)", e->data.str_val->c_str, e->data.str_val->cap);
         break;
     case NODE_LITERAL_NUM:
         fprintf(f, "%s", e->data.str_val->c_str);
@@ -107,7 +107,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             }
             fprintf(f, ")");
         } else if (Str_eq_c(name, "format")) {
-            fprintf(f, "til_format(%d", e->children.count - 1);
+            fprintf(f, "til_format_impl(%d", e->children.count - 1);
             for (int i = 1; i < e->children.count; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
@@ -166,7 +166,6 @@ static const char *til_type_to_c(TilType t) {
     switch (t) {
     case TIL_TYPE_I64:  return "til_I64";
     case TIL_TYPE_U8:   return "til_U8";
-    case TIL_TYPE_STR:  return "Str";
     case TIL_TYPE_BOOL: return "til_Bool";
     case TIL_TYPE_NONE:    return "void";
     case TIL_TYPE_DYNAMIC: return "void *";
@@ -189,7 +188,6 @@ static const char *c_type_name(TilType t, Str *struct_name) {
 static const char *type_name_to_c(Str *name) {
     if (Str_eq_c(name, "I64"))  return "til_I64 *";
     if (Str_eq_c(name, "U8"))   return "til_U8 *";
-    if (Str_eq_c(name, "Str"))  return "Str *";
     if (Str_eq_c(name, "Bool")) return "til_Bool *";
     if (Str_eq_c(name, "Dynamic")) return "void *";
     // User-defined struct type — pointer
@@ -207,8 +205,8 @@ static void emit_deref(FILE *f, Expr *e, int depth) {
         emit_expr(f, e, depth);
         fprintf(f, ")");
     } else if (e->type == NODE_LITERAL_STR) {
-        // Str_new returns Str *, but we need a Str value here; use Str_val
-        fprintf(f, "Str_val(\"%s\")", e->data.str_val->c_str);
+        fprintf(f, "(til_Str){.data=(til_U8*)strndup(\"%s\",%d), .cap=%d}",
+                e->data.str_val->c_str, e->data.str_val->cap, e->data.str_val->cap);
     } else if (e->type == NODE_FIELD_ACCESS && e->is_ns_field && e->til_type == TIL_TYPE_ENUM) {
         // Auto-called constructor returns pointer; dereference it
         fprintf(f, "(*");
@@ -531,45 +529,46 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
     }
 }
 
-static void emit_struct_def(FILE *f, Str *name, Expr *struct_def) {
+static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
     Expr *body = expr_child(struct_def, 0);
-    int skip_typedef = struct_def->is_ext;
-    // Emit typedef struct (skip for primitives and ext_structs — C side provides)
-    if (!skip_typedef) {
-        int has_instance_fields = 0;
-        for (int i = 0; i < body->children.count; i++)
-            if (!expr_child(body, i)->data.decl.is_namespace) { has_instance_fields = 1; break; }
-        fprintf(f, "typedef struct til_%s {\n", name->c_str);
-        if (!has_instance_fields) {
-            fprintf(f, "    char _;\n"); // padding for empty structs
-        }
-        for (int i = 0; i < body->children.count; i++) {
-            Expr *field = expr_child(body, i);
-            if (field->data.decl.is_namespace) continue;
-            if (field->data.decl.is_own && field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
-                fprintf(f, "    til_%s *%s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
-            } else if (field->data.decl.is_own) {
-                fprintf(f, "    %s *%s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
-            } else if (field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
-                fprintf(f, "    til_%s %s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
-            } else {
-                fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
-            }
-        }
-        fprintf(f, "} til_%s;\n\n", name->c_str);
-        // Emit namespace fields as globals (skip func defs — emitted separately)
-        for (int i = 0; i < body->children.count; i++) {
-            Expr *field = expr_child(body, i);
-            if (!field->data.decl.is_namespace) continue;
-            if (expr_child(field, 0)->type == NODE_FUNC_DEF) continue;
-            if (field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
-                fprintf(f, "til_%s til_%s_%s;\n", expr_child(field, 0)->struct_name->c_str, name->c_str, field->data.decl.name->c_str);
-            } else {
-                fprintf(f, "%s til_%s_%s;\n", til_type_to_c(field->til_type), name->c_str, field->data.decl.name->c_str);
-            }
+    if (struct_def->is_ext) return;
+    if (Str_eq_c(name, "Str")) return; // Str typedef provided by ext.h
+    int has_instance_fields = 0;
+    for (int i = 0; i < body->children.count; i++)
+        if (!expr_child(body, i)->data.decl.is_namespace) { has_instance_fields = 1; break; }
+    fprintf(f, "typedef struct til_%s {\n", name->c_str);
+    if (!has_instance_fields) {
+        fprintf(f, "    char _;\n"); // padding for empty structs
+    }
+    for (int i = 0; i < body->children.count; i++) {
+        Expr *field = expr_child(body, i);
+        if (field->data.decl.is_namespace) continue;
+        if (field->data.decl.is_own && field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
+            fprintf(f, "    til_%s *%s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
+        } else if (field->data.decl.is_own) {
+            fprintf(f, "    %s *%s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
+        } else if (field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
+            fprintf(f, "    til_%s %s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
+        } else {
+            fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
         }
     }
-    // Emit namespace functions as C functions (skip ext_funcs — handled by ext.c)
+    fprintf(f, "} til_%s;\n\n", name->c_str);
+    // Emit namespace fields as globals (skip func defs — emitted separately)
+    for (int i = 0; i < body->children.count; i++) {
+        Expr *field = expr_child(body, i);
+        if (!field->data.decl.is_namespace) continue;
+        if (expr_child(field, 0)->type == NODE_FUNC_DEF) continue;
+        if (field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
+            fprintf(f, "til_%s til_%s_%s;\n", expr_child(field, 0)->struct_name->c_str, name->c_str, field->data.decl.name->c_str);
+        } else {
+            fprintf(f, "%s til_%s_%s;\n", til_type_to_c(field->til_type), name->c_str, field->data.decl.name->c_str);
+        }
+    }
+}
+
+static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def) {
+    Expr *body = expr_child(struct_def, 0);
     for (int i = 0; i < body->children.count; i++) {
         Expr *field = expr_child(body, i);
         if (!field->data.decl.is_namespace) continue;
@@ -654,8 +653,6 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
                 fprintf(f, "    r->data.%s = malloc(sizeof(til_U8)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
             } else if (Str_eq_c(vt, "Bool")) {
                 fprintf(f, "    r->data.%s = malloc(sizeof(til_Bool)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
-            } else if (Str_eq_c(vt, "Str")) {
-                fprintf(f, "    r->data.%s = Str_clone(val);\n", vn->c_str);
             } else {
                 fprintf(f, "    r->data.%s = til_%s_clone(val);\n", vn->c_str, vt->c_str);
             }
@@ -687,8 +684,6 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
                 fprintf(f, "    til_U8 *r = malloc(sizeof(til_U8)); *r = *self->data.%s; return r;\n", vn->c_str);
             } else if (Str_eq_c(vt, "Bool")) {
                 fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = *self->data.%s; return r;\n", vn->c_str);
-            } else if (Str_eq_c(vt, "Str")) {
-                fprintf(f, "    return Str_clone(self->data.%s);\n", vn->c_str);
             } else {
                 // Struct/enum type — call clone
                 fprintf(f, "    return til_%s_clone(self->data.%s);\n", vt->c_str, vn->c_str);
@@ -708,8 +703,6 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             if (vt) {
                 if (Str_eq_c(vt, "I64") || Str_eq_c(vt, "U8") || Str_eq_c(vt, "Bool")) {
                     fprintf(f, "        *r = (*a->data.%s == *b->data.%s); break;\n", vn->c_str, vn->c_str);
-                } else if (Str_eq_c(vt, "Str")) {
-                    fprintf(f, "        { til_Bool *t = til_Str_eq(a->data.%s, b->data.%s); *r = *t; free(t); break; }\n", vn->c_str, vn->c_str);
                 } else {
                     fprintf(f, "        { til_Bool *t = til_%s_eq(a->data.%s, b->data.%s); *r = *t; free(t); break; }\n", vt->c_str, vn->c_str, vn->c_str);
                 }
@@ -763,7 +756,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         return 1;
     }
 
-    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"ccore.h\"\n#include \"ext.h\"\n\n");
+    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include \"ccore.h\"\n#include \"ext.h\"\n\n");
 
     // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins)
     for (int i = 0; i < program->children.count; i++) {
@@ -774,12 +767,12 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         FuncType fft = fdef->data.func_def.func_type;
         if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
         if (fdef->data.func_def.return_type)
-            fprintf(f, "%s *til_%s(", fdef->data.func_def.return_type->c_str, stmt->data.decl.name->c_str);
+            fprintf(f, "%stil_%s(", type_name_to_c(fdef->data.func_def.return_type), stmt->data.decl.name->c_str);
         else
             fprintf(f, "void til_%s(", stmt->data.decl.name->c_str);
         for (int p = 0; p < fdef->data.func_def.nparam; p++) {
             if (p > 0) fprintf(f, ", ");
-            fprintf(f, "%s *", fdef->data.func_def.param_types[p]->c_str);
+            fprintf(f, "%s", type_name_to_c(fdef->data.func_def.param_types[p]));
         }
         if (fdef->data.func_def.nparam == 0) fprintf(f, "void");
         fprintf(f, ");\n");
@@ -788,11 +781,12 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
 
     int is_script = mode && Str_eq_c(mode, "script");
 
-    // Forward-declare all structs (skip primitives and ext_structs — C side provides)
+    // Forward-declare all structs (skip primitives, ext_structs, and Str — ext.h provides)
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
             if (expr_child(stmt, 0)->is_ext) continue;
+            if (Str_eq_c(stmt->data.decl.name, "Str")) continue;
             fprintf(f, "typedef struct til_%s til_%s;\n", stmt->data.decl.name->c_str, stmt->data.decl.name->c_str);
         }
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
@@ -831,6 +825,13 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         }
     }
     fprintf(f, "\n");
+
+    // Forward-declare string helper functions (implementations after struct defs)
+    fprintf(f, "static til_Str *til_Str_lit(const char *s, long long cap);\n");
+    fprintf(f, "static void til_print_str(til_Str *s);\n");
+    fprintf(f, "static void til_println(int n, ...);\n");
+    fprintf(f, "static void til_print(int n, ...);\n");
+    fprintf(f, "static til_Str *til_format_impl(int n, ...);\n\n");
 
     // Forward-declare all functions (namespace methods + top-level)
     for (int i = 0; i < program->children.count; i++) {
@@ -927,39 +928,76 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             DynCallInfo *info = Vec_get(&dyn_methods, m);
             if (info->returns) {
                 if (info->nargs == 1)
-                    fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
+                    fprintf(f, "void *til_dyn_call_%s(til_Str *type_name, void *val);\n", info->method->c_str);
                 else
-                    fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val, void *arg2);\n", info->method->c_str);
+                    fprintf(f, "void *til_dyn_call_%s(til_Str *type_name, void *val, void *arg2);\n", info->method->c_str);
             } else {
                 if (info->nargs == 1)
-                    fprintf(f, "void til_dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
+                    fprintf(f, "void til_dyn_call_%s(til_Str *type_name, void *val);\n", info->method->c_str);
                 else
-                    fprintf(f, "void til_dyn_call_%s(Str *type_name, void *val, void *arg2);\n", info->method->c_str);
+                    fprintf(f, "void til_dyn_call_%s(til_Str *type_name, void *val, void *arg2);\n", info->method->c_str);
             }
         }
         fprintf(f, "\n");
         Vec_delete(&dyn_methods);
     }
 
-    // First pass: emit struct/enum definitions
+    // Emit struct typedefs only (no function bodies)
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
-            emit_struct_def(f, stmt->data.decl.name, expr_child(stmt, 0));
-            fprintf(f, "\n");
-        }
-        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
-            emit_enum_def(f, stmt->data.decl.name, expr_child(stmt, 0));
+            emit_struct_typedef(f, stmt->data.decl.name, expr_child(stmt, 0));
             fprintf(f, "\n");
         }
     }
 
-    fprintf(f, "\n");
+    // String helper functions (after all struct typedefs so til_Str is complete)
+    fprintf(f, "__attribute__((unused))\n");
+    fprintf(f, "static til_Str *til_Str_lit(const char *s, long long cap) {\n");
+    fprintf(f, "    til_Str *r = malloc(sizeof(til_Str));\n");
+    fprintf(f, "    r->data = (til_U8 *)strndup(s, (size_t)cap);\n");
+    fprintf(f, "    r->cap = cap;\n");
+    fprintf(f, "    return r;\n");
+    fprintf(f, "}\n");
+    fprintf(f, "__attribute__((unused))\n");
+    fprintf(f, "static void til_print_str(til_Str *s) {\n");
+    fprintf(f, "    fwrite(s->data, 1, (size_t)s->cap, stdout);\n");
+    fprintf(f, "}\n");
+    fprintf(f, "__attribute__((unused))\n");
+    fprintf(f, "static void til_println(int n, ...) {\n");
+    fprintf(f, "    va_list ap; va_start(ap, n);\n");
+    fprintf(f, "    for (int i = 0; i < n; i++) til_print_str(va_arg(ap, til_Str *));\n");
+    fprintf(f, "    va_end(ap); putchar('\\n');\n");
+    fprintf(f, "}\n");
+    fprintf(f, "__attribute__((unused))\n");
+    fprintf(f, "static void til_print(int n, ...) {\n");
+    fprintf(f, "    va_list ap; va_start(ap, n);\n");
+    fprintf(f, "    for (int i = 0; i < n; i++) til_print_str(va_arg(ap, til_Str *));\n");
+    fprintf(f, "    va_end(ap);\n");
+    fprintf(f, "}\n");
+    fprintf(f, "__attribute__((unused))\n");
+    fprintf(f, "static til_Str *til_format_impl(int n, ...) {\n");
+    fprintf(f, "    va_list ap; va_start(ap, n);\n");
+    fprintf(f, "    long long total = 0;\n");
+    fprintf(f, "    til_Str *strs[64];\n");
+    fprintf(f, "    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, til_Str *); total += strs[i]->cap; }\n");
+    fprintf(f, "    va_end(ap);\n");
+    fprintf(f, "    til_Str *r = malloc(sizeof(til_Str));\n");
+    fprintf(f, "    r->data = malloc(total); r->cap = total;\n");
+    fprintf(f, "    long long off = 0;\n");
+    fprintf(f, "    for (int i = 0; i < n; i++) { memcpy(r->data + off, strs[i]->data, strs[i]->cap); off += strs[i]->cap; }\n");
+    fprintf(f, "    return r;\n");
+    fprintf(f, "}\n\n");
 
-    // Second pass: emit func/proc definitions (skip ext_func/ext_proc builtins)
+    // Emit all function bodies: struct namespace, enum, top-level
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
+        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
+            emit_struct_funcs(f, stmt->data.decl.name, expr_child(stmt, 0));
+        } else if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
+            emit_enum_def(f, stmt->data.decl.name, expr_child(stmt, 0));
+            fprintf(f, "\n");
+        } else if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
             FuncType fft2 = expr_child(stmt, 0)->data.func_def.func_type;
             if (fft2 == FUNC_EXT_FUNC || fft2 == FUNC_EXT_PROC) continue;
             emit_func_def(f, stmt->data.decl.name, expr_child(stmt, 0), mode);
@@ -976,9 +1014,9 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             Str *method = info->method;
             const char *ret_type = info->returns ? "void *" : "void ";
             if (info->nargs == 1)
-                fprintf(f, "%stil_dyn_call_%s(Str *type_name, void *val) {\n", ret_type, method->c_str);
+                fprintf(f, "%stil_dyn_call_%s(til_Str *type_name, void *val) {\n", ret_type, method->c_str);
             else
-                fprintf(f, "%stil_dyn_call_%s(Str *type_name, void *val, void *arg2) {\n", ret_type, method->c_str);
+                fprintf(f, "%stil_dyn_call_%s(til_Str *type_name, void *val, void *arg2) {\n", ret_type, method->c_str);
             // Iterate all struct/type defs in AST
             for (int i = 0; i < program->children.count; i++) {
                 Expr *stmt = expr_child(program, i);
@@ -1000,18 +1038,18 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                 if (!has_method) continue;
                 if (info->nargs == 2) {
                     if (info->returns)
-                        fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) return (void *)til_%s_%s(val, arg2);\n",
-                                tname->c_str, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) return (void *)til_%s_%s(val, arg2);\n",
+                                tname->cap, tname->c_str, tname->cap, tname->c_str, method->c_str);
                     else
-                        fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) { til_%s_%s(val, arg2); return; }\n",
-                                tname->c_str, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) { til_%s_%s(val, arg2); return; }\n",
+                                tname->cap, tname->c_str, tname->cap, tname->c_str, method->c_str);
                 } else {
                     if (info->returns)
-                        fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) return (void *)til_%s_%s(val);\n",
-                                tname->c_str, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) return (void *)til_%s_%s(val);\n",
+                                tname->cap, tname->c_str, tname->cap, tname->c_str, method->c_str);
                     else
-                        fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) { til_%s_%s(val); return; }\n",
-                                tname->c_str, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) { til_%s_%s(val); return; }\n",
+                                tname->cap, tname->c_str, tname->cap, tname->c_str, method->c_str);
                 }
             }
             fprintf(f, "    fprintf(stderr, \"dyn_call: unknown type for %s\\n\");\n", method->c_str);

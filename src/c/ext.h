@@ -7,20 +7,13 @@ typedef I64 til_I64;
 typedef U8 til_U8;
 typedef Bool til_Bool;
 
+typedef struct til_Str {
+    til_U8 *data;
+    til_I64 cap;
+} til_Str;
+
 void til_free(void *ptr);
 void til_exit(til_I64 *code);
-Str *til_I64_to_str(til_I64 *v);
-Str *til_U8_to_str(til_U8 *v);
-til_Bool *til_Str_eq(Str *a, Str *b);
-Str *til_Str_concat(Str *a, Str *b);
-Str *til_Str_clone(Str *s);
-void til_Str_delete(Str *s, til_Bool *call_free);
-Str *til_Str_to_str(Str *s);
-til_I64 *til_Str_len(Str *s);
-Str *til_Str_substr(Str *s, til_I64 *start, til_I64 *n);
-til_Bool *til_Str_contains(Str *a, Str *b);
-til_Bool *til_Str_starts_with(Str *a, Str *b);
-til_Bool *til_Str_ends_with(Str *a, Str *b);
 
 // I64 clone/delete
 til_I64 *til_I64_clone(til_I64 *v);
@@ -85,10 +78,5 @@ void *til_malloc(til_I64 *count);
 void *til_realloc(void *buf, til_I64 *count);
 void *til_ptr_add(void *buf, til_I64 *offset);
 void til_memcpy(void *dest, void *src, til_I64 *len);
-
-// Variadic builtins
-Str *til_format(int n, ...);
-void til_println(int n, ...);
-void til_print(int n, ...);
 
 #endif

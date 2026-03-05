@@ -18,7 +18,7 @@ static void type_error(const char *path, Expr *e, const char *msg) {
 static TilType type_from_name(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "I64"))  return TIL_TYPE_I64;
     if (Str_eq_c(name, "U8"))   return TIL_TYPE_U8;
-    if (Str_eq_c(name, "Str"))  return TIL_TYPE_STR;
+    if (Str_eq_c(name, "Str"))  return TIL_TYPE_STRUCT;
     if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
     if (Str_eq_c(name, "StructDef"))    return TIL_TYPE_STRUCT_DEF;
     if (Str_eq_c(name, "EnumDef"))      return TIL_TYPE_ENUM_DEF;
@@ -41,7 +41,8 @@ static int fcall_returns_ref(Expr *fcall, TypeScope *scope);
 static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func) {
     switch (e->type) {
     case NODE_LITERAL_STR:
-        e->til_type = TIL_TYPE_STR;
+        e->til_type = TIL_TYPE_STRUCT;
+        e->struct_name = Str_new("Str");
         break;
     case NODE_LITERAL_NUM:
         e->til_type = TIL_TYPE_I64;
@@ -149,7 +150,6 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 if (obj->til_type == TIL_TYPE_I64)  type_name = Str_new("I64");
                 else if (obj->til_type == TIL_TYPE_U8)   type_name = Str_new("U8");
                 else if (obj->til_type == TIL_TYPE_BOOL) type_name = Str_new("Bool");
-                else if (obj->til_type == TIL_TYPE_STR)  type_name = Str_new("Str");
                 else if ((obj->til_type == TIL_TYPE_STRUCT || obj->til_type == TIL_TYPE_ENUM) && obj->struct_name)
                     type_name = obj->struct_name;
 
@@ -400,16 +400,29 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 }
             }
             // Auto-insert clone for constructor args that are identifiers
-            for (int i = 1; i < e->children.count; i++) {
-                if (expr_child(e, i)->type == NODE_IDENT) {
-                    const char *tname = type_to_name(expr_child(e, i)->til_type,
-                                                      expr_child(e, i)->struct_name);
+            // Skip clone for `own` fields — use move semantics instead
+            { int fi = 0;
+              for (int bi = 0; bi < body->children.count && fi < e->children.count - 1; bi++) {
+                Expr *fld = expr_child(body, bi);
+                if (fld->data.decl.is_namespace) continue;
+                int ai = fi + 1; // arg index (children[0] is callee)
+                fi++;
+                if (fld->data.decl.is_own) {
+                    // own field: mark for move, don't clone
+                    if (expr_child(e, ai)->type == NODE_IDENT)
+                        expr_child(e, ai)->is_own_arg = 1;
+                    continue;
+                }
+                if (expr_child(e, ai)->type == NODE_IDENT) {
+                    const char *tname = type_to_name(expr_child(e, ai)->til_type,
+                                                      expr_child(e, ai)->struct_name);
                     if (tname) {
-                        expr_child(e, i) = make_clone_call(tname,
-                            expr_child(e, i)->til_type, expr_child(e, i),
-                            expr_child(e, i)->line, expr_child(e, i)->col);
+                        expr_child(e, ai) = make_clone_call(tname,
+                            expr_child(e, ai)->til_type, expr_child(e, ai),
+                            expr_child(e, ai)->line, expr_child(e, ai)->col);
                     }
                 }
+              }
             }
             e->til_type = TIL_TYPE_STRUCT;
             e->struct_name = name;
@@ -729,7 +742,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
                     break;
                 }
             }
-            if (!is_own && (ft == TIL_TYPE_STR || ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM))
+            if (!is_own && (ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM))
                 continue; // don't hoist — ccodegen handles directly
         }
 
@@ -777,7 +790,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             TypeBinding *ab = tscope_find(scope, stmt->data.str_val);
             if (ab && !ab->is_param) {
                 TilType t = ab->type;
-                if (t == TIL_TYPE_STR || t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM)
+                if (t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM)
                     do_hoist = 0;
             }
             if (do_hoist && (expr_child(stmt, 0)->type == NODE_FCALL ||
@@ -794,7 +807,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             int fa_hoist = 1;
             if (!stmt->is_own_field) {
                 TilType ft = expr_child(stmt, 1)->til_type;
-                if (ft == TIL_TYPE_STR || ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM)
+                if (ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM)
                     fa_hoist = 0;
             }
             if (fa_hoist && (expr_child(stmt, 1)->type == NODE_FCALL ||
@@ -836,7 +849,6 @@ static const char *type_to_name(TilType type, Str *struct_name) {
     switch (type) {
         case TIL_TYPE_I64:  return "I64";
         case TIL_TYPE_U8:   return "U8";
-        case TIL_TYPE_STR:  return "Str";
         case TIL_TYPE_BOOL: return "Bool";
         default: return NULL;
     }
@@ -927,7 +939,7 @@ static void insert_field_deletes(Expr *body) {
                 need_delete = 1;
             } else {
                 TilType ft = expr_child(stmt, 1)->til_type;
-                if (ft == TIL_TYPE_STR || ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM)
+                if (ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM)
                     need_delete = 1;
             }
             if (need_delete) {
@@ -1250,7 +1262,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
             for (int j = 0; j < n_locals; j++) {
                 if (!Str_eq(locals[j].name, vname)) continue;
                 TilType t = locals[j].type;
-                if (t == TIL_TYPE_STR || t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) {
+                if (t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
                     if (del) Vec_push(&new_ch, &del);
                 }
@@ -1315,7 +1327,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 int is_builtin = 0;
                 if (Str_eq_c(sname, "I64"))  { builtin_type = TIL_TYPE_I64;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "U8"))   { builtin_type = TIL_TYPE_U8;   is_builtin = 1; }
-                else if (Str_eq_c(sname, "Str"))  { builtin_type = TIL_TYPE_STR;  is_builtin = 1; }
+                else if (Str_eq_c(sname, "Str"))  { is_builtin = 0; } // Str is a regular struct now
                 else if (Str_eq_c(sname, "Bool")) { builtin_type = TIL_TYPE_BOOL; is_builtin = 1; }
                 else if (Str_eq_c(sname, "StructDef"))    { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
                 else if (Str_eq_c(sname, "EnumDef"))      { builtin_type = TIL_TYPE_ENUM_DEF;   is_builtin = 1; }

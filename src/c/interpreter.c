@@ -203,9 +203,36 @@ Value eval_call(Scope *scope, Expr *e, const char *path) {
             Expr *arg_expr = expr_child(e, i + 1);
             if (arg_expr->type == NODE_IDENT) {
                 Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
-                scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
+                // Reinterpret VAL_PTR based on param type
+                if (arg_cell->val.type == VAL_PTR && func_def->data.func_def.param_types[i]) {
+                    Str *ptype = func_def->data.func_def.param_types[i];
+                    Value arg = arg_cell->val;
+                    if (Str_eq_c(ptype, "Str"))
+                        arg = val_str((Str *)arg.ptr);
+                    else if (Str_eq_c(ptype, "I64"))
+                        arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "U8"))
+                        arg = (Value){.type = VAL_U8, .u8 = (til_U8 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "Bool"))
+                        arg = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)arg.ptr};
+                    scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
+                } else {
+                    scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
+                }
             } else {
                 Value arg = eval_expr(scope, arg_expr, path);
+                // Reinterpret VAL_PTR based on param type (same as ref decl)
+                if (arg.type == VAL_PTR && func_def->data.func_def.param_types[i]) {
+                    Str *ptype = func_def->data.func_def.param_types[i];
+                    if (Str_eq_c(ptype, "Str"))
+                        arg = val_str((Str *)arg.ptr);
+                    else if (Str_eq_c(ptype, "I64"))
+                        arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "U8"))
+                        arg = (Value){.type = VAL_U8, .u8 = (til_U8 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "Bool"))
+                        arg = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)arg.ptr};
+                }
                 scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
             }
         }
@@ -247,6 +274,40 @@ Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type == NODE_STRUCT_DEF) {
         Expr *sdef = fn_cell->val.func;
         Expr *body = expr_child(sdef, 0);
+
+        // Str() constructor: create VAL_STR from data + cap args
+        if (Str_eq_c(name, "Str")) {
+            // Str has 2 non-namespace fields: data, cap
+            // arg 1 = data (VAL_PTR), arg 2 = cap (VAL_I64)
+            Value data_val, cap_val;
+            Expr *data_arg = expr_child(e, 1);
+            Expr *cap_arg = expr_child(e, 2);
+            if (data_arg->type == NODE_IDENT) {
+                Cell *src = scope_get(scope, data_arg->data.str_val);
+                data_val = src->val;
+                src->val = val_none();
+            } else {
+                data_val = eval_expr(scope, data_arg, path);
+            }
+            if (cap_arg->type == NODE_IDENT) {
+                Cell *src = scope_get(scope, cap_arg->data.str_val);
+                cap_val = src->val;
+                src->val = val_none();
+            } else {
+                cap_val = eval_expr(scope, cap_arg, path);
+            }
+            Str *s = malloc(sizeof(Str));
+            // Extract raw pointer from data_val (could be VAL_PTR or reinterpreted VAL_U8 etc)
+            switch (data_val.type) {
+                case VAL_PTR:  s->c_str = (char *)data_val.ptr; break;
+                case VAL_U8:   s->c_str = (char *)data_val.u8; break;
+                case VAL_I64:  s->c_str = (char *)data_val.i64; break;
+                default:       s->c_str = NULL; break;
+            }
+            s->cap = (int)*cap_val.i64;
+            return val_str(s);
+        }
+
         int nfields = 0;
         for (int i = 0; i < body->children.count; i++)
             if (!expr_child(body, i)->data.decl.is_namespace) nfields++;
@@ -375,6 +436,16 @@ Value eval_expr(Scope *scope, Expr *e, const char *path) {
                 return *nsv;
             }
             fprintf(stderr, "%s:%d:%d: runtime error: no namespace field '%s'\n",
+                    path, e->line, e->col, fname->c_str);
+            exit(1);
+        }
+        // VAL_STR field access: .data → VAL_PTR, .cap → VAL_I64
+        if (obj.type == VAL_STR) {
+            if (Str_eq_c(fname, "data"))
+                return (Value){.type = VAL_PTR, .ptr = obj.str->c_str};
+            if (Str_eq_c(fname, "cap"))
+                return val_i64(obj.str->cap);
+            fprintf(stderr, "%s:%d:%d: runtime error: Str has no field '%s'\n",
                     path, e->line, e->col, fname->c_str);
             exit(1);
         }

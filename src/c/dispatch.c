@@ -65,7 +65,6 @@ H2(I64_xor, I64_xor, *a.i64, *b.i64, val_i64)
 H2(I64_eq, I64_eq, *a.i64, *b.i64, val_bool)
 H2(I64_lt, I64_lt, *a.i64, *b.i64, val_bool)
 H2(I64_gt, I64_gt, *a.i64, *b.i64, val_bool)
-H1(I64_to_str, I64_to_str, *v.i64, val_str)
 HCLONE(I64_clone, *v.i64, val_i64)
 HDEL(I64_delete, I64_delete, v.i64)
 
@@ -81,7 +80,6 @@ H2(U8_xor, U8_xor, *a.u8, *b.u8, val_u8)
 H2(U8_eq, U8_eq, *a.u8, *b.u8, val_bool)
 H2(U8_lt, U8_lt, *a.u8, *b.u8, val_bool)
 H2(U8_gt, U8_gt, *a.u8, *b.u8, val_bool)
-H1(U8_to_str, U8_to_str, *v.u8, val_str)
 H1(U8_to_i64, U8_to_i64, *v.u8, val_i64)
 HCLONE(U8_clone, *v.u8, val_u8)
 HDEL(U8_delete, U8_delete, v.u8)
@@ -98,40 +96,23 @@ H1(Bool_not, Bool_not, *v.boolean, val_bool)
 HCLONE(Bool_clone, *v.boolean, val_bool)
 HDEL(Bool_delete, Bool_delete, v.boolean)
 
-// === Str handlers ===
-H2(Str_eq, Str_eq, a.str, b.str, val_bool)
-H2(Str_concat, Str_concat, a.str, b.str, val_str)
-H1(Str_clone, Str_clone, v.str, val_str)
-H1(Str_to_str, Str_clone, v.str, val_str)
-H1(Str_len, Str_len, v.str, val_i64)
-H2(Str_contains, Str_contains, a.str, b.str, val_bool)
-H2(Str_starts_with, Str_starts_with, a.str, b.str, val_bool)
-H2(Str_ends_with, Str_ends_with, a.str, b.str, val_bool)
-HDEL(Str_delete, Str_delete, v.str)
-
-static int h_Str_substr(Scope *s, Expr *e, const char *p, Value *r) {
-    Value sv = eval_expr(s, expr_child(e, 1), p);
-    Value start = eval_expr(s, expr_child(e, 2), p);
-    Value n = eval_expr(s, expr_child(e, 3), p);
-    *r = val_str(Str_substr(sv.str, (int)*start.i64, (int)*n.i64));
-    return 1;
-}
+static void *val_to_ptr(Value v);
 
 // === Variadic handlers ===
 
 static int h_println(Scope *s, Expr *e, const char *p, Value *r) {
     for (int i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e, i), p);
-        printf("%s", arg.str->c_str);
+        fwrite(arg.str->c_str, 1, arg.str->cap, stdout);
     }
-    printf("\n");
+    putchar('\n');
     *r = val_none(); return 1;
 }
 
 static int h_print(Scope *s, Expr *e, const char *p, Value *r) {
     for (int i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e, i), p);
-        printf("%s", arg.str->c_str);
+        fwrite(arg.str->c_str, 1, arg.str->cap, stdout);
     }
     *r = val_none(); return 1;
 }
@@ -145,13 +126,12 @@ static int h_format(Scope *s, Expr *e, const char *p, Value *r) {
         strs[i] = v.str;
         total += v.str->cap;
     }
-    char *buf = malloc(total + 1);
+    char *buf = malloc(total);
     int off = 0;
     for (int i = 0; i < nargs; i++) {
         memcpy(buf + off, strs[i]->c_str, strs[i]->cap);
         off += strs[i]->cap;
     }
-    buf[off] = '\0';
     Str *out = malloc(sizeof(Str));
     out->c_str = buf;
     out->cap = total;
@@ -170,9 +150,11 @@ static int h_exit(Scope *s, Expr *e, const char *p, Value *r) {
 static int h_free(Scope *s, Expr *e, const char *p, Value *r) {
     (void)p;
     if (expr_child(e, 1)->type != NODE_IDENT) {
-        // Non-identifier argument: evaluate and free the value directly
+        // Non-identifier argument: evaluate and free the raw pointer
+        // (matches codegen: til_free just calls C free on the pointer)
         Value val = eval_expr(s, expr_child(e, 1), p);
-        free_value(val);
+        void *ptr = val_to_ptr(val);
+        if (ptr) free(ptr);
         *r = val_none();
         return 1;
     }
@@ -333,7 +315,6 @@ static void dispatch_init(void) {
     REG("I64_mod", h_I64_mod);
     REG("I64_and", h_I64_and); REG("I64_or", h_I64_or); REG("I64_xor", h_I64_xor);
     REG("I64_eq", h_I64_eq); REG("I64_lt", h_I64_lt); REG("I64_gt", h_I64_gt);
-    REG("I64_to_str", h_I64_to_str);
     REG("I64_clone", h_I64_clone);
     REG("I64_delete", h_I64_delete);
 
@@ -343,7 +324,6 @@ static void dispatch_init(void) {
     REG("U8_mod", h_U8_mod);
     REG("U8_and", h_U8_and); REG("U8_or", h_U8_or); REG("U8_xor", h_U8_xor);
     REG("U8_eq", h_U8_eq); REG("U8_lt", h_U8_lt); REG("U8_gt", h_U8_gt);
-    REG("U8_to_str", h_U8_to_str);
     REG("U8_to_i64", h_U8_to_i64);
     REG("U8_from_i64", h_U8_from_i64);
     REG("U8_from_i64_ext", h_U8_from_i64);
@@ -355,18 +335,6 @@ static void dispatch_init(void) {
     REG("Bool_not", h_Bool_not);
     REG("Bool_clone", h_Bool_clone);
     REG("Bool_delete", h_Bool_delete);
-
-    // Str
-    REG("Str_eq", h_Str_eq);
-    REG("Str_concat", h_Str_concat);
-    REG("Str_clone", h_Str_clone);
-    REG("Str_delete", h_Str_delete);
-    REG("Str_to_str", h_Str_to_str);
-    REG("Str_len", h_Str_len);
-    REG("Str_substr", h_Str_substr);
-    REG("Str_contains", h_Str_contains);
-    REG("Str_starts_with", h_Str_starts_with);
-    REG("Str_ends_with", h_Str_ends_with);
 
     // Misc
     REG("exit", h_exit);

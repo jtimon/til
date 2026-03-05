@@ -32,7 +32,8 @@ static Expr *value_to_expr(Value val, int line, int col) {
     case VAL_STR: {
         e = expr_new(NODE_LITERAL_STR, line, col);
         e->data.str_val = Str_clone(val.str);
-        e->til_type = TIL_TYPE_STR;
+        e->til_type = TIL_TYPE_STRUCT;
+        e->struct_name = Str_new("Str");
         return e;
     }
     case VAL_BOOL: {

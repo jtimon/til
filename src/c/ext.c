@@ -1,33 +1,10 @@
 #include "ext.h"
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 void til_free(void *ptr) { free(ptr); }
 void til_exit(til_I64 *code) { exit((int)*code); }
-
-Str *til_I64_to_str(til_I64 *v) { return I64_to_str(*v); }
-
-Str *til_U8_to_str(til_U8 *v) { return U8_to_str(*v); }
-
-til_Bool *til_Str_eq(Str *a, Str *b) {
-    til_Bool *r = malloc(sizeof(til_Bool));
-    *r = Str_eq(a, b);
-    return r;
-}
-Str *til_Str_concat(Str *a, Str *b) { return Str_concat(a, b); }
-Str *til_Str_clone(Str *s) { return Str_clone(s); }
-void til_Str_delete(Str *s, til_Bool *call_free) {
-    if (*call_free) Str_delete(s);
-    else free(s->c_str); // field context: free string data but not the struct
-}
-Str *til_Str_to_str(Str *s) { return Str_clone(s); }
-til_I64 *til_Str_len(Str *s) { til_I64 *r = malloc(sizeof(til_I64)); *r = Str_len(s); return r; }
-Str *til_Str_substr(Str *s, til_I64 *start, til_I64 *n) { return Str_substr(s, (int)*start, (int)*n); }
-til_Bool *til_Str_contains(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = Str_contains(a, b); return r; }
-til_Bool *til_Str_starts_with(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = Str_starts_with(a, b); return r; }
-til_Bool *til_Str_ends_with(Str *a, Str *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = Str_ends_with(a, b); return r; }
 
 // I64 clone/delete
 til_I64 *til_I64_clone(til_I64 *v) { return I64_clone(v); }
@@ -111,31 +88,3 @@ void til_memcpy(void *dest, void *src, til_I64 *len) {
     memcpy(dest, src, (size_t)*len);
 }
 
-// Variadic builtins
-Str *til_format(int n, ...) {
-    va_list ap; va_start(ap, n);
-    Str *strs[64];
-    int total = 0;
-    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, Str *); total += strs[i]->cap; }
-    va_end(ap);
-    Str *s = malloc(sizeof(Str));
-    s->c_str = malloc(total + 1);
-    s->cap = total;
-    int off = 0;
-    for (int i = 0; i < n; i++) { memcpy(s->c_str + off, strs[i]->c_str, strs[i]->cap); off += strs[i]->cap; }
-    s->c_str[off] = '\0';
-    return s;
-}
-
-void til_println(int n, ...) {
-    va_list ap; va_start(ap, n);
-    for (int i = 0; i < n; i++) { Str *s = va_arg(ap, Str *); printf("%s", s->c_str); }
-    va_end(ap);
-    printf("\n");
-}
-
-void til_print(int n, ...) {
-    va_list ap; va_start(ap, n);
-    for (int i = 0; i < n; i++) { Str *s = va_arg(ap, Str *); printf("%s", s->c_str); }
-    va_end(ap);
-}

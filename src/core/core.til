@@ -4,8 +4,10 @@ FunctionDef : StructDef = struct {}
 Dynamic : StructDef = struct {}
 U8 : StructDef = ext_struct {
     namespace:
-    to_str := ext_func(val: U8) returns Str {}
     to_i64 := ext_func(val: U8) returns I64 {}
+    to_str := func(val: U8) returns Str {
+        return val.to_i64().to_str()
+    }
     from_i64 := func(val: I64) returns U8 {
         if val.lt(0).or(val.gt(255)) {
             panic("U8.from_i64", "value out of range (0-255)")
@@ -39,7 +41,38 @@ U8 : StructDef = ext_struct {
 }
 I64 : StructDef = ext_struct {
     namespace:
-    to_str := ext_func(val: I64) returns Str {}
+    to_str := func(val: I64) returns Str {
+        if val.eq(0) {
+            own buf : U8 = malloc(1)
+            memcpy(buf, U8.from_i64(48), 1)
+            return Str(data = buf, cap = 1)
+        }
+        mut is_neg := false
+        mut v := val
+        if val.lt(0) {
+            is_neg = true
+            v = 0.sub(val)
+        }
+        mut ndigits := 0
+        mut tmp := v
+        while tmp.gt(0) {
+            ndigits = ndigits.add(1)
+            tmp = tmp.div(10)
+        }
+        mut total := ndigits
+        if is_neg { total = total.add(1) }
+        own buf : U8 = malloc(total)
+        if is_neg {
+            memcpy(buf, U8.from_i64(45), 1)
+        }
+        mut i := total.sub(1)
+        while v.gt(0) {
+            memcpy(ptr_add(buf, i), U8.from_i64(v.mod(10).add(48)), 1)
+            v = v.div(10)
+            i = i.sub(1)
+        }
+        return Str(data = buf, cap = total)
+    }
     add := ext_func(a: I64, b: I64) returns I64 {}
     sub := ext_func(a: I64, b: I64) returns I64 {}
     mul := ext_func(a: I64, b: I64) returns I64 {}
@@ -67,19 +100,108 @@ I64 : StructDef = ext_struct {
     delete := ext_proc(own self: I64, call_free: Bool = true) {}
     size := func() returns I64 { return 8 }
 }
-Str : StructDef = ext_struct {
+Str := struct {
+    own mut data : U8 = 0
+    cap := 0
+
     namespace:
-    eq := ext_func(a: Str, b: Str) returns Bool {}
-    concat := ext_func(a: Str, b: Str) returns Str {}
-    clone := ext_func(val: Str) returns Str {}
-    delete := ext_proc(own self: Str, call_free: Bool = true) {}
-    to_str := ext_func(val: Str) returns Str {}
-    len := ext_func(val: Str) returns I64 {}
-    substr := ext_func(s: Str, start: I64, n: I64) returns Str {}
-    contains := ext_func(a: Str, b: Str) returns Bool {}
-    starts_with := ext_func(a: Str, b: Str) returns Bool {}
-    ends_with := ext_func(a: Str, b: Str) returns Bool {}
-    size := func() returns I64 { return 16 }
+    len := func(self: Str) returns I64 { return self.cap }
+
+    char_at := func(self: Str, i: I64) returns ref U8 {
+        if i.lt(0).or(i.gte(self.cap)) {
+            panic("Str.char_at", "index out of bounds")
+        }
+        return ptr_add(self.data, i)
+    }
+
+    eq := func(a: Str, b: Str) returns Bool {
+        if a.cap.neq(b.cap) { return false }
+        mut i := 0
+        while i.lt(a.cap) {
+            ref ab : U8 = a.char_at(i)
+            ref bb : U8 = b.char_at(i)
+            if ab.neq(bb) { return false }
+            i = i.add(1)
+        }
+        return true
+    }
+
+    concat := func(a: Str, b: Str) returns Str {
+        new_cap := a.cap.add(b.cap)
+        own new_data : U8 = malloc(new_cap)
+        memcpy(new_data, a.data, a.cap)
+        memcpy(ptr_add(new_data, a.cap), b.data, b.cap)
+        return Str(data = new_data, cap = new_cap)
+    }
+
+    clone := func(val: Str) returns Str {
+        own new_data : U8 = malloc(val.cap)
+        memcpy(new_data, val.data, val.cap)
+        return Str(data = new_data, cap = val.cap)
+    }
+
+    delete := proc(own self: Str, call_free: Bool = true) {
+        free(own self.data)
+        if call_free { free(own self) }
+    }
+
+    to_str := func(val: Str) returns Str { return val.clone() }
+
+    substr := func(s: Str, start: I64, n: I64) returns Str {
+        mut st := start
+        mut ln := n
+        if st.lt(0) { st = 0 }
+        if st.gt(s.cap) { st = s.cap }
+        if ln.lt(0) { ln = 0 }
+        if st.add(ln).gt(s.cap) { ln = s.cap.sub(st) }
+        own new_data : U8 = malloc(ln)
+        memcpy(new_data, ptr_add(s.data, st), ln)
+        return Str(data = new_data, cap = ln)
+    }
+
+    contains := func(a: Str, b: Str) returns Bool {
+        if b.cap.eq(0) { return true }
+        if b.cap.gt(a.cap) { return false }
+        mut i := 0
+        while i.lte(a.cap.sub(b.cap)) {
+            mut j := 0
+            mut found := true
+            while j.lt(b.cap) {
+                ref ac : U8 = a.char_at(i.add(j))
+                ref bc : U8 = b.char_at(j)
+                if ac.neq(bc) { found = false }
+                j = j.add(1)
+            }
+            if found { return true }
+            i = i.add(1)
+        }
+        return false
+    }
+
+    starts_with := func(a: Str, b: Str) returns Bool {
+        if b.cap.gt(a.cap) { return false }
+        mut i := 0
+        while i.lt(b.cap) {
+            ref ac : U8 = a.char_at(i)
+            ref bc : U8 = b.char_at(i)
+            if ac.neq(bc) { return false }
+            i = i.add(1)
+        }
+        return true
+    }
+
+    ends_with := func(a: Str, b: Str) returns Bool {
+        if b.cap.gt(a.cap) { return false }
+        offset := a.cap.sub(b.cap)
+        mut i := 0
+        while i.lt(b.cap) {
+            ref ac : U8 = a.char_at(offset.add(i))
+            ref bc : U8 = b.char_at(i)
+            if ac.neq(bc) { return false }
+            i = i.add(1)
+        }
+        return true
+    }
 }
 Bool : StructDef = ext_struct {
     namespace:
