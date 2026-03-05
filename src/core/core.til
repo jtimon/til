@@ -272,7 +272,7 @@ Vec := struct {
 
     namespace:
     new := func(elem_type: Str, elem_size: I64) returns Vec {
-        return Vec(data = malloc(elem_size.mul(4)), cap = 4,
+        return Vec(data = malloc(elem_size), cap = 1,
                    elem_size = elem_size, elem_type = elem_type)
     }
 
@@ -388,7 +388,7 @@ Set := struct {
         if dyn_has_method(elem_type, "cmp").not() {
             panic("Set.new", format("type ", elem_type, " must implement cmp"))
         }
-        return Set(data = malloc(elem_size.mul(4)), cap = 4,
+        return Set(data = malloc(elem_size), cap = 1,
                    elem_size = elem_size, elem_type = elem_type)
     }
 
