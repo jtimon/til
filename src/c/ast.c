@@ -26,6 +26,7 @@ Expr *expr_new(NodeType type, int line, int col, Str *path) {
     e->line = line;
     e->col = col;
     e->path = path;
+    e->variadic_index = -1;
     return e;
 }
 

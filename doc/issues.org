@@ -197,7 +197,7 @@
 
   Three phases:
 
-** Phase 1: General variadic args for user-defined functions
+** DONE Phase 1: General variadic args for user-defined functions
    Support `..Type` in regular func/proc/macro parameter lists, any type.
    Example: variadic_and := func(args: ..Bool) returns Bool {}
 
@@ -225,17 +225,16 @@
    Only params with defaults (which use named syntax at call site) are allowed
    after it. Without this rule, ambiguous cases would be hard to resolve.
 
-   What's needed:
-   - Parser: allow `..Type` in func/proc/macro parameter lists, reject own/mut.
-     No positional params after variadic, only params with defaults allowed
-   - Typer: resolve `..T` param to Array[T], validate call args match T
-   - Interpreter: build Array from variadic args, bind as param
-   - ccodegen: emit Array construction at call site, pass as single Array arg
+   Implementation: the typer desugars variadic calls into Array.new + Array.set
+   statements before the original call, replacing the variadic args with a
+   single `_vaN` temp variable. Both interpreter and codegen then see normal
+   Array code — no special variadic handling needed in either backend.
 
-   This blocks:
-   - Desugaring println/print in the typer (the replacement needs to be variadic)
-   - User-defined variadic functions (e.g. custom logging, string builders)
-   - Variadic macros for compile-time code generation
+   - Parser: rejects own/mut on `..T`, rejects positional params after variadic
+   - Typer: `desugar_variadic_calls` transforms call sites before hoisting;
+     variadic param typed as Array in function scope; `param_owns[vi] = true`
+   - Interpreter: simplified — just binds args positionally (desugaring done)
+   - Codegen: emits `til_Array` param type; call sites desugared in AST
 
 ** Phase 2: main proc CLI args (including variadic)
    main := proc(args: ..Str) must work in both compiled and interpreted modes.

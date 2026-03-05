@@ -43,3 +43,33 @@ assert_eq(loc(), Str.cmp("b", "a"), 1)
 assert_eq(loc(), Str.cmp("ab", "a"), 1)
 assert_eq(loc(), Str.cmp("a", "ab"), 0.sub(1))
 println("cmp: all passed")
+
+// variadic args
+variadic_sum := func(nums: ..I64) returns I64 {
+    mut i := 0
+    mut total := 0
+    while i.lt(nums.len()) {
+        ref n: I64 = nums.get(i)
+        total = total.add(n)
+        i = i.add(1)
+    }
+    return total
+}
+assert_eq(loc(), variadic_sum(1, 2, 3), 6)
+assert_eq(loc(), variadic_sum(10), 10)
+assert_eq(loc(), variadic_sum(), 0)
+
+// proc-based variadic test (not constant-foldable)
+variadic_print := proc(nums: ..I64) {
+    mut i := 0
+    while i.lt(nums.len()) {
+        ref n: I64 = nums.get(i)
+        print(n.to_str())
+        if i.lt(nums.len().sub(1)) { print(",") }
+        i = i.add(1)
+    }
+    println("")
+}
+variadic_print(10, 20, 30)
+
+println("variadic: all passed")

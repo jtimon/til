@@ -84,7 +84,7 @@ static Expr *parse_func_def(Parser *p) {
     Vec pmuts = Vec_new(sizeof(bool));
     Vec powns = Vec_new(sizeof(bool));
     Vec pdefs = Vec_new(sizeof(Expr *));
-    int has_variadic = 0;
+    int variadic_index = -1;
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
         bool is_own = false;
         if (check(p, TOK_OWN)) {
@@ -98,9 +98,26 @@ static Expr *parse_func_def(Parser *p) {
         }
         Token *pname = expect(p, TOK_IDENT);
         expect(p, TOK_COLON);
+        bool is_this_variadic = false;
         if (check(p, TOK_DOTDOT)) {
             advance(p); // consume '..'
-            has_variadic = 1;
+            if (is_own) {
+                fprintf(stderr, "%s:%d:%d: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
+                        p->path, pname->line, pname->col, pname->len, pname->start);
+                exit(1);
+            }
+            if (is_mut) {
+                fprintf(stderr, "%s:%d:%d: parse error: variadic parameter '%.*s' cannot be 'mut'\n",
+                        p->path, pname->line, pname->col, pname->len, pname->start);
+                exit(1);
+            }
+            if (variadic_index >= 0) {
+                fprintf(stderr, "%s:%d:%d: parse error: only one variadic parameter is allowed\n",
+                        p->path, pname->line, pname->col);
+                exit(1);
+            }
+            variadic_index = pnames.count; // index of this param (before push)
+            is_this_variadic = true;
         }
         Token *ptype = expect(p, TOK_IDENT);
         Str *nm = tok_str(pname);
@@ -114,6 +131,11 @@ static Expr *parse_func_def(Parser *p) {
         if (check(p, TOK_EQ)) {
             advance(p); // consume '='
             def_val = parse_expression(p);
+        }
+        if (variadic_index >= 0 && !is_this_variadic && !def_val) {
+            fprintf(stderr, "%s:%d:%d: parse error: positional parameter '%.*s' not allowed after variadic\n",
+                    p->path, pname->line, pname->col, pname->len, pname->start);
+            exit(1);
         }
         Vec_push(&pdefs, &def_val);
         if (check(p, TOK_COMMA)) advance(p);
@@ -143,7 +165,7 @@ static Expr *parse_func_def(Parser *p) {
     def->data.func_def.param_defaults = Vec_take(&pdefs);
     def->data.func_def.return_type = return_type;
     def->data.func_def.return_is_ref = return_is_ref;
-    def->data.func_def.is_variadic = has_variadic;
+    def->data.func_def.variadic_index = variadic_index;
 
     expect(p, TOK_LBRACE);
     expr_add_child(def, parse_block(p));

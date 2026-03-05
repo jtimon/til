@@ -66,9 +66,18 @@ static void collect_refs(Expr *e, Vec *refs) {
 
     case NODE_FUNC_DEF: {
         int np = e->data.func_def.nparam;
+        int fvi = e->data.func_def.variadic_index;
         for (int i = 0; i < np; i++) {
             if (e->data.func_def.param_types[i])
                 vec_push_str(refs, e->data.func_def.param_types[i]);
+        }
+        if (fvi >= 0) {
+            // Variadic param uses Array internally
+            Str *arr = gc_str(Str_new("Array"));
+            vec_push_str(refs, arr);
+            vec_push_str(refs, qualified_name(arr, gc_str(Str_new("new"))));
+            vec_push_str(refs, qualified_name(arr, gc_str(Str_new("set"))));
+            vec_push_str(refs, qualified_name(arr, gc_str(Str_new("delete"))));
         }
         if (e->data.func_def.return_type)
             vec_push_str(refs, e->data.func_def.return_type);

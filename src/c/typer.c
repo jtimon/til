@@ -87,11 +87,19 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
                 }
                 int pmut = e->data.func_def.param_muts ? e->data.func_def.param_muts[i] : 0;
                 int pown = e->data.func_def.param_owns ? e->data.func_def.param_owns[i] : 0;
-                tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1, pmut, e->line, e->col, 1, pown);
-                // For struct/enum-typed params, store struct_name
-                if (pt == TIL_TYPE_STRUCT || pt == TIL_TYPE_ENUM) {
+                // Variadic param: bind as Array (element type already validated above)
+                if (i == e->data.func_def.variadic_index) {
+                    if (e->data.func_def.param_owns) e->data.func_def.param_owns[i] = true;
+                    tscope_set(func_scope, e->data.func_def.param_names[i], TIL_TYPE_STRUCT, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = tscope_find(func_scope, e->data.func_def.param_names[i]);
-                    if (pb) pb->struct_name = ptn;
+                    if (pb) pb->struct_name = Str_new("Array");
+                } else {
+                    tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1, pmut, e->line, e->col, 1, pown);
+                    // For struct/enum-typed params, store struct_name
+                    if (pt == TIL_TYPE_STRUCT || pt == TIL_TYPE_ENUM) {
+                        TypeBinding *pb = tscope_find(func_scope, e->data.func_def.param_names[i]);
+                        if (pb) pb->struct_name = ptn;
+                    }
                 }
             }
             infer_body(func_scope, expr_child(e, 0), is_func, 1, 0);
@@ -433,7 +441,10 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
         if (callee_bind && callee_bind->func_def && !callee_bind->is_builtin) {
             Expr *fdef = callee_bind->func_def;
             int nparam = fdef->data.func_def.nparam;
-            // Build new args array (slot per param)
+            int vi = fdef->data.func_def.variadic_index; // -1 if not variadic
+            int fixed_count = (vi >= 0) ? vi : nparam; // params before variadic
+            // Collect positional and named args
+            Vec va_args = Vec_new(sizeof(Expr *)); // variadic args (only if vi >= 0)
             Expr **new_args = calloc(nparam, sizeof(Expr *));
             int pos_idx = 0;
             int seen_named = 0;
@@ -444,6 +455,7 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
                     Str *aname = arg->data.str_val;
                     int slot = -1;
                     for (int j = 0; j < nparam; j++) {
+                        if (j == vi) continue; // can't name the variadic param
                         if (Str_eq(fdef->data.func_def.param_names[j], aname)) {
                             slot = j;
                             break;
@@ -464,14 +476,18 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
                     if (seen_named) {
                         type_error(arg, "positional argument after named argument");
                     }
-                    if (pos_idx < nparam) {
+                    if (vi >= 0 && pos_idx >= fixed_count) {
+                        // Variadic arg
+                        Vec_push(&va_args, &arg);
+                    } else if (pos_idx < nparam) {
                         new_args[pos_idx] = arg;
                     }
                     pos_idx++;
                 }
             }
-            // Fill defaults for missing args
+            // Fill defaults for missing non-variadic params
             for (int i = 0; i < nparam; i++) {
+                if (i == vi) continue; // variadic param handled separately
                 if (!new_args[i]) {
                     if (fdef->data.func_def.param_defaults &&
                         fdef->data.func_def.param_defaults[i]) {
@@ -484,21 +500,32 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
                     }
                 }
             }
-            if (pos_idx > nparam) {
+            if (vi < 0 && pos_idx > nparam) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d",
                          nparam, pos_idx);
                 type_error(e, buf);
             }
-            // Rebuild children: callee + desugared args
+            // Rebuild children: callee + args_before_variadic + variadic_args + args_after_variadic
             Vec new_ch = Vec_new(sizeof(Expr *));
             Expr *callee = expr_child(e, 0);
             Vec_push(&new_ch, &callee);
-            for (int i = 0; i < nparam; i++)
-                Vec_push(&new_ch, &new_args[i]);
+            for (int i = 0; i < nparam; i++) {
+                if (i == vi) {
+                    e->variadic_index = new_ch.count; // children index of first variadic arg
+                    for (int j = 0; j < va_args.count; j++) {
+                        Expr *va = *(Expr **)Vec_get(&va_args, j);
+                        Vec_push(&new_ch, &va);
+                    }
+                    e->variadic_count = va_args.count;
+                } else {
+                    Vec_push(&new_ch, &new_args[i]);
+                }
+            }
             Vec_delete(&e->children);
             e->children = new_ch;
             free(new_args);
+            Vec_delete(&va_args);
         }
         // Infer types of all arguments
         for (int i = 1; i < e->children.count; i++) {
@@ -514,27 +541,35 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
                 type_error(method_arg, "dyn_call method argument must be a string literal");
             }
         }
-        // Validate 'own' markers on arguments
+        // Validate 'own' markers on arguments (variadic-aware)
         if (callee_bind && callee_bind->func_def) {
             Expr *fdef = callee_bind->func_def;
             bool *po = fdef->data.func_def.param_owns;
-            for (int i = 1; i < e->children.count && i - 1 < fdef->data.func_def.nparam; i++) {
-                int pown = po ? po[i - 1] : 0;
-                if (pown && !expr_child(e, i)->is_own_arg) {
+            int fvi = fdef->data.func_def.variadic_index;
+            int fvc = (fvi >= 0) ? e->variadic_count : 0;
+            int ci = 1; // children index
+            for (int pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
+                if (fvi >= 0 && pi == fvi) {
+                    ci += fvc; // skip variadic args
+                    continue;
+                }
+                int pown = po ? po[pi] : 0;
+                if (pown && !expr_child(e, ci)->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
-                             fdef->data.func_def.param_names[i - 1]->c_str);
-                    type_error(expr_child(e, i), buf);
-                } else if (!pown && expr_child(e, i)->is_own_arg) {
+                             fdef->data.func_def.param_names[pi]->c_str);
+                    type_error(expr_child(e, ci), buf);
+                } else if (!pown && expr_child(e, ci)->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
-                             fdef->data.func_def.param_names[i - 1]->c_str);
-                    type_error(expr_child(e, i), buf);
+                             fdef->data.func_def.param_names[pi]->c_str);
+                    type_error(expr_child(e, ci), buf);
                 }
-                if (pown && expr_child(e, i)->type == NODE_IDENT) {
-                    TypeBinding *ab = tscope_find(scope, expr_child(e, i)->data.str_val);
-                    if (ab && ab->is_ref) type_error(expr_child(e, i), "cannot pass ref variable to 'own' parameter");
+                if (pown && expr_child(e, ci)->type == NODE_IDENT) {
+                    TypeBinding *ab = tscope_find(scope, expr_child(e, ci)->data.str_val);
+                    if (ab && ab->is_ref) type_error(expr_child(e, ci), "cannot pass ref variable to 'own' parameter");
                 }
+                ci++;
             }
         }
         // Resolve return type from scope (covers builtins and user-defined)
@@ -623,6 +658,219 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
     default:
         e->til_type = TIL_TYPE_UNKNOWN;
         break;
+    }
+}
+
+// --- Variadic call desugaring ---
+// Transforms variadic function calls into Array.new + Array.set + normal call.
+// Must run before hoisting so that synthetic Array calls get hoisted too.
+
+static Expr *find_variadic_fcall(Expr *e) {
+    if (!e) return NULL;
+    if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF ||
+        e->type == NODE_ENUM_DEF || e->type == NODE_BODY) return NULL;
+    if (e->type == NODE_FCALL && e->variadic_index >= 0) return e;
+    for (int i = 0; i < e->children.count; i++) {
+        Expr *found = find_variadic_fcall(expr_child(e, i));
+        if (found) return found;
+    }
+    return NULL;
+}
+
+// Create a namespace method call: StructName.method(args...)
+static Expr *make_ns_call(const char *sname, const char *method,
+                           TilType ret_type, Str *ret_sname, Expr *src) {
+    int line = src->line, col = src->col;
+    Str *path = src->path;
+    Expr *call = expr_new(NODE_FCALL, line, col, path);
+    call->til_type = ret_type;
+    call->struct_name = ret_sname;
+    Expr *type_id = expr_new(NODE_IDENT, line, col, path);
+    type_id->data.str_val = Str_new(sname);
+    type_id->struct_name = Str_new(sname);
+    Expr *fa = expr_new(NODE_FIELD_ACCESS, line, col, path);
+    fa->data.str_val = Str_new(method);
+    fa->is_ns_field = true;
+    expr_add_child(fa, type_id);
+    expr_add_child(call, fa);
+    return call;
+}
+
+static int _va_counter = 0;
+
+static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
+    Vec new_ch = Vec_new(sizeof(Expr *));
+    int changed = 0;
+
+    for (int i = 0; i < body->children.count; i++) {
+        Expr *stmt = expr_child(body, i);
+        Expr *fcall = find_variadic_fcall(stmt);
+        if (!fcall) {
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+        changed = 1;
+        int vi = fcall->variadic_index;
+        int vc = fcall->variadic_count;
+        int line = fcall->line, col = fcall->col;
+        Str *path = fcall->path;
+
+        // Find element type from func_def
+        Str *elem_type = NULL;
+        Expr *callee = expr_child(fcall, 0);
+        if (callee->type == NODE_IDENT) {
+            TypeBinding *tb = tscope_find(scope, callee->data.str_val);
+            if (tb && tb->func_def) {
+                int fvi = tb->func_def->data.func_def.variadic_index;
+                if (fvi >= 0)
+                    elem_type = tb->func_def->data.func_def.param_types[fvi];
+            }
+        } else if (callee->type == NODE_FIELD_ACCESS && callee->is_ns_field) {
+            Expr *type_node = expr_child(callee, 0);
+            if (type_node->type == NODE_IDENT) {
+                Expr *sdef = tscope_get_struct(scope, type_node->data.str_val);
+                if (sdef) {
+                    Expr *sbody = expr_child(sdef, 0);
+                    for (int j = 0; j < sbody->children.count; j++) {
+                        Expr *f = expr_child(sbody, j);
+                        if (f->type == NODE_DECL && f->data.decl.is_namespace &&
+                            Str_eq(f->data.decl.name, callee->data.str_val) &&
+                            expr_child(f, 0)->type == NODE_FUNC_DEF) {
+                            int fvi = expr_child(f, 0)->data.func_def.variadic_index;
+                            if (fvi >= 0)
+                                elem_type = expr_child(f, 0)->data.func_def.param_types[fvi];
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (!elem_type) {
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+
+        // Create temp variable name
+        char buf[32];
+        snprintf(buf, sizeof(buf), "_va%d", _va_counter++);
+        Str *va_name = Str_new(buf);
+
+        // 1. _va := Array.new(elem_type_str, ElemType.size(), count)
+        Expr *new_call = make_ns_call("Array", "new", TIL_TYPE_STRUCT,
+                                       Str_new("Array"), fcall);
+        // Arg: elem_type string
+        Expr *et = expr_new(NODE_LITERAL_STR, line, col, path);
+        et->data.str_val = Str_new(elem_type->c_str);
+        et->til_type = TIL_TYPE_STRUCT;
+        et->struct_name = Str_new("Str");
+        expr_add_child(new_call, et);
+        // Arg: ElemType.size()
+        Expr *sz = make_ns_call(elem_type->c_str, "size", TIL_TYPE_I64,
+                                 NULL, fcall);
+        expr_add_child(new_call, sz);
+        // Arg: count
+        Expr *cap = expr_new(NODE_LITERAL_NUM, line, col, path);
+        char cap_buf[16];
+        snprintf(cap_buf, sizeof(cap_buf), "%d", vc);
+        cap->data.str_val = Str_new(cap_buf);
+        cap->til_type = TIL_TYPE_I64;
+        expr_add_child(new_call, cap);
+
+        // DECL _va := Array.new(...)
+        Expr *va_decl = expr_new(NODE_DECL, line, col, path);
+        va_decl->data.decl.name = va_name;
+        va_decl->til_type = TIL_TYPE_STRUCT;
+        expr_add_child(va_decl, new_call);
+
+        // Register _va in scope
+        tscope_set(scope, va_name, TIL_TYPE_STRUCT, -1, 0, line, col, 0, 0);
+        TypeBinding *vab = tscope_find(scope, va_name);
+        if (vab) vab->struct_name = Str_new("Array");
+
+        Vec_push(&new_ch, &va_decl);
+
+        // 2. Array.set calls for each variadic arg
+        for (int j = 0; j < vc; j++) {
+            Expr *set_call = make_ns_call("Array", "set", TIL_TYPE_NONE,
+                                           NULL, fcall);
+            // Arg: self = _va
+            Expr *self_id = expr_new(NODE_IDENT, line, col, path);
+            self_id->data.str_val = va_name;
+            self_id->til_type = TIL_TYPE_STRUCT;
+            self_id->struct_name = Str_new("Array");
+            expr_add_child(set_call, self_id);
+            // Arg: index
+            Expr *idx = expr_new(NODE_LITERAL_NUM, line, col, path);
+            char idx_buf[16];
+            snprintf(idx_buf, sizeof(idx_buf), "%d", j);
+            idx->data.str_val = Str_new(idx_buf);
+            idx->til_type = TIL_TYPE_I64;
+            expr_add_child(set_call, idx);
+            // Arg: val — clone if NODE_IDENT to preserve caller's variable
+            Expr *val = expr_child(fcall, vi + j);
+            if (val->type == NODE_IDENT) {
+                const char *tname = type_to_name(val->til_type, val->struct_name);
+                if (tname)
+                    val = make_clone_call(tname, val->til_type, val, val);
+            }
+            val->is_own_arg = true;
+            expr_add_child(set_call, val);
+
+            Vec_push(&new_ch, &set_call);
+        }
+
+        // 3. Replace variadic args in FCALL with _va ident
+        Vec fcall_new_ch = Vec_new(sizeof(Expr *));
+        int va_inserted = 0;
+        for (int j = 0; j < fcall->children.count; j++) {
+            if (j >= vi && j < vi + vc) {
+                if (!va_inserted) {
+                    Expr *va_id = expr_new(NODE_IDENT, line, col, path);
+                    va_id->data.str_val = va_name;
+                    va_id->til_type = TIL_TYPE_STRUCT;
+                    va_id->struct_name = Str_new("Array");
+                    va_id->is_own_arg = true;
+                    Vec_push(&fcall_new_ch, &va_id);
+                    va_inserted = 1;
+                }
+                continue;
+            }
+            // Insert _va before post-variadic args when vc==0
+            if (j == vi && !va_inserted) {
+                Expr *va_id = expr_new(NODE_IDENT, line, col, path);
+                va_id->data.str_val = va_name;
+                va_id->til_type = TIL_TYPE_STRUCT;
+                va_id->struct_name = Str_new("Array");
+                va_id->is_own_arg = true;
+                Vec_push(&fcall_new_ch, &va_id);
+                va_inserted = 1;
+            }
+            Expr *ch = expr_child(fcall, j);
+            Vec_push(&fcall_new_ch, &ch);
+        }
+        // Insert _va at end if variadic was last param and vc==0
+        if (!va_inserted) {
+            Expr *va_id = expr_new(NODE_IDENT, line, col, path);
+            va_id->data.str_val = va_name;
+            va_id->til_type = TIL_TYPE_STRUCT;
+            va_id->struct_name = Str_new("Array");
+            va_id->is_own_arg = true;
+            Vec_push(&fcall_new_ch, &va_id);
+        }
+        Vec_delete(&fcall->children);
+        fcall->children = fcall_new_ch;
+        fcall->variadic_index = -1;
+        fcall->variadic_count = 0;
+
+        // Insert the original statement
+        Vec_push(&new_ch, &stmt);
+    }
+
+    if (changed) {
+        Vec_delete(&body->children);
+        body->children = new_ch;
+    } else {
+        Vec_delete(&new_ch);
     }
 }
 
@@ -1668,6 +1916,7 @@ static void infer_body(TypeScope *scope, Expr *body, int in_func, int owns_scope
             break;
         }
     }
+    if (owns_scope) desugar_variadic_calls(body, scope);
     if (owns_scope) hoist_fcall_args(body, scope);
     insert_field_deletes(body);
     insert_free_calls(body, scope, owns_scope);

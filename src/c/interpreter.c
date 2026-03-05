@@ -359,13 +359,14 @@ Value eval_call(Scope *scope, Expr *e) {
 
     Scope *call_scope = scope_new(scope);
     // Bind arguments to parameters (borrowed refs for idents, owned for expressions)
-    for (int i = 0; i < func_def->data.func_def.nparam; i++) {
+    int nparam = func_def->data.func_def.nparam;
+    for (int i = 0; i < nparam; i++) {
         Expr *arg_expr = expr_child(e, i + 1);
         if (arg_expr->type == NODE_IDENT) {
             Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
             scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
         } else {
-            Value arg = eval_expr(scope,arg_expr);
+            Value arg = eval_expr(scope, arg_expr);
             scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
         }
     }

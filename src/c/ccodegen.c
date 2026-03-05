@@ -220,6 +220,25 @@ static const char *type_name_to_c(Str *name) {
     return buf;
 }
 
+// Emit a function parameter list (with variadic support)
+static void emit_param_list(FILE *f, Expr *fdef, int with_names) {
+    int np = fdef->data.func_def.nparam;
+    int fvi = fdef->data.func_def.variadic_index;
+    if (np == 0) {
+        fprintf(f, "void");
+    } else {
+        for (int i = 0; i < np; i++) {
+            if (i > 0) fprintf(f, ", ");
+            const char *ptype = (i == fvi) ? "til_Array *"
+                : type_name_to_c(fdef->data.func_def.param_types[i]);
+            if (with_names)
+                fprintf(f, "%s %s", ptype, fdef->data.func_def.param_names[i]->c_str);
+            else
+                fprintf(f, "%s", ptype);
+        }
+    }
+}
+
 static void emit_deref(FILE *f, Expr *e, int depth) {
     if (e->til_type == TIL_TYPE_DYNAMIC) {
         // Dynamic (void *) IS the value — no dereference needed
@@ -537,16 +556,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
         }
         // Signature
         fprintf(f, "%s til_%s(", ret, name->c_str);
-        int np = func_def->data.func_def.nparam;
-        if (np == 0) {
-            fprintf(f, "void");
-        } else {
-            for (int i = 0; i < np; i++) {
-                if (i > 0) fprintf(f, ", ");
-                fprintf(f, "%s %s", type_name_to_c(func_def->data.func_def.param_types[i]),
-                        func_def->data.func_def.param_names[i]->c_str);
-            }
-        }
+        emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
         emit_body(f, body, 1);
         fprintf(f, "}\n");
@@ -841,11 +851,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             fprintf(f, "%stil_%s(", type_name_to_c(fdef->data.func_def.return_type), stmt->data.decl.name->c_str);
         else
             fprintf(f, "void til_%s(", stmt->data.decl.name->c_str);
-        for (int p = 0; p < fdef->data.func_def.nparam; p++) {
-            if (p > 0) fprintf(f, ", ");
-            fprintf(f, "%s", type_name_to_c(fdef->data.func_def.param_types[p]));
-        }
-        if (fdef->data.func_def.nparam == 0) fprintf(f, "void");
+        emit_param_list(f, fdef, 0);
         fprintf(f, ");\n");
     }
     fprintf(f, "\n");
@@ -875,16 +881,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                 if (fdef->data.func_def.return_type)
                     ret = type_name_to_c(fdef->data.func_def.return_type);
                 fprintf(f, "%s til_%s_%s(", ret, sname->c_str, field->data.decl.name->c_str);
-                int np = fdef->data.func_def.nparam;
-                if (np == 0) {
-                    fprintf(f, "void");
-                } else {
-                    for (int k = 0; k < np; k++) {
-                        if (k > 0) fprintf(f, ", ");
-                        fprintf(f, "%s %s", type_name_to_c(fdef->data.func_def.param_types[k]),
-                                fdef->data.func_def.param_names[k]->c_str);
-                    }
-                }
+                emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }
         } else if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
@@ -898,16 +895,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             if (func_def->data.func_def.return_type)
                 ret = type_name_to_c(func_def->data.func_def.return_type);
             fprintf(f, "%s til_%s(", ret, name->c_str);
-            int np = func_def->data.func_def.nparam;
-            if (np == 0) {
-                fprintf(f, "void");
-            } else {
-                for (int j = 0; j < np; j++) {
-                    if (j > 0) fprintf(f, ", ");
-                    fprintf(f, "%s %s", type_name_to_c(func_def->data.func_def.param_types[j]),
-                            func_def->data.func_def.param_names[j]->c_str);
-                }
-            }
+            emit_param_list(f, func_def, 1);
             fprintf(f, ");\n");
         }
     }

@@ -206,7 +206,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
         func_def->data.func_def.param_owns = calloc(1, sizeof(bool));
         func_def->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
         func_def->data.func_def.return_type = sname;
-        func_def->data.func_def.is_variadic = false;
+        func_def->data.func_def.variadic_index = -1;
         expr_add_child(func_def, func_body);
 
         // clone := func(...)  (namespace decl)
@@ -330,7 +330,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
         proc_def->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
         proc_def->data.func_def.param_defaults[1] = default_true;
         proc_def->data.func_def.return_type = NULL;
-        proc_def->data.func_def.is_variadic = false;
+        proc_def->data.func_def.variadic_index = -1;
         expr_add_child(proc_def, proc_body);
 
         // delete := proc(...)  (namespace decl)
@@ -410,7 +410,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
                     fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
                     fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
                     fdef->data.func_def.return_type = ename;
-                    fdef->data.func_def.is_variadic = false;
+                    fdef->data.func_def.variadic_index = -1;
                     expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                     Expr *decl = expr_new(NODE_DECL, line, col, path);
                     decl->data.decl.name = *(Str **)Vec_get(&variant_names, j);
@@ -429,7 +429,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
                     fdef->data.func_def.param_owns = NULL;
                     fdef->data.func_def.param_defaults = NULL;
                     fdef->data.func_def.return_type = ename;
-                    fdef->data.func_def.is_variadic = false;
+                    fdef->data.func_def.variadic_index = -1;
                     expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                     Expr *decl = expr_new(NODE_DECL, line, col, path);
                     decl->data.decl.name = *(Str **)Vec_get(&variant_names, j);
@@ -454,7 +454,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
                 fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
                 fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
                 fdef->data.func_def.return_type = Str_new("Bool");
-                fdef->data.func_def.is_variadic = false;
+                fdef->data.func_def.variadic_index = -1;
                 expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                 Expr *decl = expr_new(NODE_DECL, line, col, path);
                 decl->data.decl.name = Str_new(name_buf);
@@ -479,7 +479,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
                 fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
                 fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
                 fdef->data.func_def.return_type = *(Str **)Vec_get(&variant_types, j);
-                fdef->data.func_def.is_variadic = false;
+                fdef->data.func_def.variadic_index = -1;
                 expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                 Expr *decl = expr_new(NODE_DECL, line, col, path);
                 decl->data.decl.name = Str_new(name_buf);
@@ -516,7 +516,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
             fdef->data.func_def.param_owns = calloc(2, sizeof(bool));
             fdef->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
             fdef->data.func_def.return_type = Str_new("Bool");
-            fdef->data.func_def.is_variadic = false;
+            fdef->data.func_def.variadic_index = -1;
             expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
             Expr *decl = expr_new(NODE_DECL, line, col, path);
             decl->data.decl.name = Str_new("eq");
@@ -620,7 +620,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
             fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
             fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
             fdef->data.func_def.return_type = ename;
-            fdef->data.func_def.is_variadic = false;
+            fdef->data.func_def.variadic_index = -1;
             expr_add_child(fdef, func_body);
 
             Expr *decl = expr_new(NODE_DECL, line, col, path);
@@ -671,7 +671,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
             fdef->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
             fdef->data.func_def.param_defaults[1] = default_true;
             fdef->data.func_def.return_type = NULL;
-            fdef->data.func_def.is_variadic = false;
+            fdef->data.func_def.variadic_index = -1;
             expr_add_child(fdef, proc_body);
             Expr *decl = expr_new(NODE_DECL, line, col, path);
             decl->data.decl.name = Str_new("delete");
@@ -798,7 +798,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
             fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
             fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
             fdef->data.func_def.return_type = Str_new("Str");
-            fdef->data.func_def.is_variadic = false;
+            fdef->data.func_def.variadic_index = -1;
             expr_add_child(fdef, func_body);
 
             Expr *decl = expr_new(NODE_DECL, line, col, path);
@@ -922,7 +922,7 @@ int init_declarations(Expr *program, TypeScope *scope) {
         func_def->data.func_def.param_owns = NULL;
         func_def->data.func_def.param_defaults = NULL;
         func_def->data.func_def.return_type = Str_new("I64");
-        func_def->data.func_def.is_variadic = false;
+        func_def->data.func_def.variadic_index = -1;
         expr_add_child(func_def, func_body);
 
         Expr *decl = expr_new(NODE_DECL, line, col, path);

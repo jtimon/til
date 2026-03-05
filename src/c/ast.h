@@ -78,7 +78,7 @@ struct Expr {
             int nparam;
             Expr **param_defaults;    // array[nparam], NULL entries for required params
             Str *return_type;      // NULL if none (proc)
-            bool is_variadic;         // true if last param is variadic (..Type)
+            int variadic_index;       // index of variadic param, or -1 if none
             bool return_is_ref;       // true for `returns ref Type`
         } func_def;
     } data;
@@ -88,6 +88,8 @@ struct Expr {
     bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
     bool is_ext;                    // NODE_STRUCT_DEF: externally-implemented struct
     bool is_core;                   // declaration came from core.til
+    int variadic_index;             // NODE_FCALL: index of first variadic arg in children (-1 if none)
+    int variadic_count;             // NODE_FCALL: number of variadic args
     Vec children;                   // Vec of Expr* child pointers
     int line;
     int col;
