@@ -13,4 +13,8 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                          Str *enum_name, Expr *e, const char *path,
                          Value *result);
 
+// FFI: load user .c as shared library, register function pointers
+int ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path);
+void ffi_cleanup(void);
+
 #endif

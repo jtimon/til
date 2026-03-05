@@ -3,6 +3,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dlfcn.h>
+#include <unistd.h>
+
+// --- FFI state ---
+typedef struct {
+    void *fn;           // dlsym'd function pointer
+    Str *return_type;   // NULL for proc (void return)
+    int nparam;
+} FFIEntry;
+
+static Map ffi_map;          // name -> FFIEntry
+static void *ffi_handle;     // dlopen handle
+static int ffi_loaded;
 
 int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Value *result) {
     // Variadic builtins
@@ -153,6 +166,47 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
         return 1;
     }
 
+    // FFI trampoline
+    if (ffi_loaded) {
+        FFIEntry *fe = Map_get(&ffi_map, &name);
+        if (fe) {
+            int nargs = e->children.len - 1;
+            void *args[8];
+            for (int i = 0; i < nargs; i++) {
+                Value v = eval_expr(scope, expr_child(e, i + 1), path);
+                switch (v.type) {
+                    case VAL_I64:  args[i] = v.i64; break;
+                    case VAL_U8:   args[i] = v.u8; break;
+                    case VAL_STR:  args[i] = v.str; break;
+                    case VAL_BOOL: args[i] = v.boolean; break;
+                    default:       args[i] = NULL; break;
+                }
+            }
+            void *raw = NULL;
+            switch (nargs) {
+                case 0: raw = ((void *(*)(void))fe->fn)(); break;
+                case 1: raw = ((void *(*)(void *))fe->fn)(args[0]); break;
+                case 2: raw = ((void *(*)(void *, void *))fe->fn)(args[0], args[1]); break;
+                case 3: raw = ((void *(*)(void *, void *, void *))fe->fn)(args[0], args[1], args[2]); break;
+                case 4: raw = ((void *(*)(void *, void *, void *, void *))fe->fn)(args[0], args[1], args[2], args[3]); break;
+            }
+            if (!fe->return_type) {
+                *result = val_none();
+            } else if (Str_eq_c(fe->return_type, "Str")) {
+                *result = val_str((Str *)raw);
+            } else if (Str_eq_c(fe->return_type, "I64")) {
+                *result = (Value){.type = VAL_I64, .i64 = (til_I64 *)raw};
+            } else if (Str_eq_c(fe->return_type, "U8")) {
+                *result = (Value){.type = VAL_U8, .u8 = (til_U8 *)raw};
+            } else if (Str_eq_c(fe->return_type, "Bool")) {
+                *result = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)raw};
+            } else {
+                *result = val_none();
+            }
+            return 1;
+        }
+    }
+
     return 0;
 }
 
@@ -207,4 +261,80 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         }
     }
     return 0;
+}
+
+int ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
+    // Extract include dir from ext_c_path
+    char ext_dir[256];
+    const char *last_slash = strrchr(ext_c_path, '/');
+    if (last_slash) {
+        int dlen = (int)(last_slash - ext_c_path);
+        snprintf(ext_dir, sizeof(ext_dir), "%.*s", dlen, ext_c_path);
+    } else {
+        snprintf(ext_dir, sizeof(ext_dir), ".");
+    }
+
+    // Compile user .c to shared library
+    char so_path[256];
+    snprintf(so_path, sizeof(so_path), "tmp/ffi_%d.so", (int)getpid());
+    system("mkdir -p tmp");
+    int cmdlen = snprintf(NULL, 0, "cc -shared -fPIC -I%s -o %s %s", ext_dir, so_path, user_c_path);
+    char *cmd = malloc(cmdlen + 1);
+    snprintf(cmd, cmdlen + 1, "cc -shared -fPIC -I%s -o %s %s", ext_dir, so_path, user_c_path);
+    int rc = system(cmd);
+    free(cmd);
+    if (rc != 0) {
+        fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path);
+        return 1;
+    }
+
+    // dlopen
+    ffi_handle = dlopen(so_path, RTLD_NOW);
+    if (!ffi_handle) {
+        fprintf(stderr, "error: dlopen failed: %s\n", dlerror());
+        return 1;
+    }
+
+    // Scan program for non-core ext_func/ext_proc, dlsym each
+    ffi_map = Map_new(sizeof(Str *), sizeof(FFIEntry), str_ptr_cmp);
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->is_core) continue;
+        if (stmt->type != NODE_DECL || expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
+        Expr *fdef = expr_child(stmt, 0);
+        FuncType fft = fdef->data.func_def.func_type;
+        if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
+
+        char sym_name[256];
+        snprintf(sym_name, sizeof(sym_name), "til_%s", stmt->data.decl.name->c_str);
+        void *fn = dlsym(ffi_handle, sym_name);
+        if (!fn) {
+            fprintf(stderr, "error: FFI symbol '%s' not found: %s\n", sym_name, dlerror());
+            dlclose(ffi_handle);
+            ffi_handle = NULL;
+            return 1;
+        }
+        FFIEntry entry = {
+            .fn = fn,
+            .return_type = fdef->data.func_def.return_type,
+            .nparam = fdef->data.func_def.nparam,
+        };
+        Map_set(&ffi_map, &stmt->data.decl.name, &entry);
+    }
+
+    ffi_loaded = 1;
+    // Clean up .so file
+    unlink(so_path);
+    return 0;
+}
+
+void ffi_cleanup(void) {
+    if (ffi_handle) {
+        dlclose(ffi_handle);
+        ffi_handle = NULL;
+    }
+    if (ffi_loaded) {
+        Map_delete(&ffi_map);
+        ffi_loaded = 0;
+    }
 }

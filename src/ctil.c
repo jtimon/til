@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
     }
 
     if (strcmp(command, "interpret") == 0) {
-        result = interpret(ast, mode, path);
+        result = interpret(ast, mode, path, user_c, ext_c_path);
     } else if (strcmp(command, "translate") == 0 || strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
         const char *basename = strrchr(path, '/');

@@ -585,7 +585,13 @@ void interpreter_init_ns(Scope *global, Expr *program, const char *path) {
     }
 }
 
-int interpret(Expr *program, Str *mode, const char *path) {
+int interpret(Expr *program, Str *mode, const char *path, const char *user_c_path, const char *ext_c_path) {
+    // Load user FFI library if provided
+    if (user_c_path) {
+        int rc = ffi_init(program, user_c_path, ext_c_path);
+        if (rc != 0) return rc;
+    }
+
     Scope *global = scope_new(NULL);
 
     // Pre-register all top-level func/proc/struct definitions for forward references
@@ -623,5 +629,6 @@ int interpret(Expr *program, Str *mode, const char *path) {
     }
 
     scope_free(global);
+    ffi_cleanup();
     return 0;
 }

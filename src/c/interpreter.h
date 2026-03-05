@@ -8,7 +8,7 @@
 
 // Interpret a parsed program. `mode` is the mode string (e.g. "cli").
 // Returns 0 on success, non-zero on error.
-int interpret(Expr *program, Str *mode, const char *path);
+int interpret(Expr *program, Str *mode, const char *path, const char *user_c_path, const char *ext_c_path);
 
 // --- Values ---
 
