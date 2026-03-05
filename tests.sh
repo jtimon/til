@@ -47,8 +47,8 @@ done
 
 # typer_errors: should fail with exactly 25 errors
 errors=$($CTIL interpret src/test/typer_errors.til 2>&1 | grep -c "type error:" || true)
-if [ "$errors" -ne 35 ]; then
-    echo "FAIL: typer_errors expected 35 errors, got $errors"
+if [ "$errors" -ne 36 ]; then
+    echo "FAIL: typer_errors expected 36 errors, got $errors"
     FAIL=1
 fi
 

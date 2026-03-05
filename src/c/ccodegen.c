@@ -8,6 +8,25 @@
 static Expr *codegen_program; // set during codegen for ns_init lookups
 static Map struct_bodies; // Str* name → Expr* body (NODE_BODY)
 
+// Collect unique dyn_call_func method literals from AST
+static void collect_dyn_methods(Expr *e, Vec *methods) {
+    if (!e) return;
+    if (e->type == NODE_FCALL && expr_child(e, 0)->type == NODE_IDENT &&
+        Str_eq_c(expr_child(e, 0)->data.str_val, "dyn_call_func") &&
+        e->children.len >= 3 && expr_child(e, 2)->type == NODE_LITERAL_STR) {
+        Str *method = expr_child(e, 2)->data.str_val;
+        // Check if already collected
+        for (int i = 0; i < methods->len; i++) {
+            Str **existing = Vec_get(methods, i);
+            if (Str_eq(*existing, method)) return;
+        }
+        Vec_push(methods, &method);
+    }
+    for (int i = 0; i < e->children.len; i++) {
+        collect_dyn_methods(expr_child(e, i), methods);
+    }
+}
+
 static Expr *find_struct_body(Str *name) {
     Expr **p = Map_get(&struct_bodies, &name);
     return p ? *p : NULL;
@@ -78,6 +97,18 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         } else if (Str_eq_c(name, "format")) {
             fprintf(f, "til_format(%d", e->children.len - 1);
             for (int i = 1; i < e->children.len; i++) {
+                fprintf(f, ", ");
+                emit_as_ptr(f, expr_child(e, i), depth);
+            }
+            fprintf(f, ")");
+        } else if (Str_eq_c(name, "dyn_call_func")) {
+            // dyn_call_func(type_name, "method", val, ...) → til_dyn_call_method(type_name, val, ...)
+            Str *method = expr_child(e, 2)->data.str_val;
+            fprintf(f, "til_dyn_call_%s(", method->c_str);
+            // Emit type_name as first arg
+            emit_as_ptr(f, expr_child(e, 1), depth);
+            // Emit remaining args (val, and any defaults like call_free)
+            for (int i = 3; i < e->children.len; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
@@ -892,6 +923,42 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             emit_func_def(f, stmt->data.decl.name, expr_child(stmt, 0), mode);
             fprintf(f, "\n");
         }
+    }
+
+    // Emit dyn_call dispatch functions (one per unique method literal)
+    {
+        Vec dyn_methods = Vec_new(sizeof(Str *));
+        collect_dyn_methods(program, &dyn_methods);
+        for (int m = 0; m < dyn_methods.len; m++) {
+            Str *method = *(Str **)Vec_get(&dyn_methods, m);
+            fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val) {\n", method->c_str);
+            // Iterate all struct/type defs in AST
+            for (int i = 0; i < program->children.len; i++) {
+                Expr *stmt = expr_child(program, i);
+                if (stmt->type != NODE_DECL) continue;
+                Expr *def = expr_child(stmt, 0);
+                if (def->type != NODE_STRUCT_DEF && def->type != NODE_ENUM_DEF) continue;
+                Str *tname = stmt->data.decl.name;
+                // Check if this type has the method in its namespace
+                Expr *body = expr_child(def, 0);
+                int has_method = 0;
+                for (int j = 0; j < body->children.len; j++) {
+                    Expr *field = expr_child(body, j);
+                    if (field->data.decl.is_namespace &&
+                        Str_eq(field->data.decl.name, method)) {
+                        has_method = 1;
+                        break;
+                    }
+                }
+                if (!has_method) continue;
+                fprintf(f, "    if (Str_eq_c(type_name, \"%s\")) return (void *)til_%s_%s(val);\n",
+                        tname->c_str, tname->c_str, method->c_str);
+            }
+            fprintf(f, "    fprintf(stderr, \"dyn_call_func: unknown type for %s\\n\");\n", method->c_str);
+            fprintf(f, "    exit(1);\n");
+            fprintf(f, "}\n\n");
+        }
+        Vec_delete(&dyn_methods);
     }
 
     // Script mode: wrap top-level statements in main()

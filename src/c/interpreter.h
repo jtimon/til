@@ -108,6 +108,7 @@ struct Scope {
 
 // Functions used by dispatch and precomp
 Value eval_expr(Scope *scope, Expr *e, const char *path);
+Value eval_call(Scope *scope, Expr *e, const char *path);
 Value clone_value(Value v);
 void free_value(Value v);
 int values_equal(Value a, Value b);

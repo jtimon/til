@@ -208,6 +208,59 @@ static int h_free(Scope *s, Expr *e, const char *p, Value *r) {
     return 1;
 }
 
+// === Dynamic dispatch handler ===
+
+static int h_dyn_call_func(Scope *s, Expr *e, const char *p, Value *r) {
+    // dyn_call_func(type_name, "method", val)
+    // Build a synthetic Type.method(val) NODE_FCALL and pass to eval_call
+
+    // 1. Eval type_name (1st arg) — can be runtime
+    Value type_name_val = eval_expr(s, expr_child(e, 1), p);
+    Str *type_name = type_name_val.str;
+
+    // 2. Eval method (2nd arg) — string literal, but typer may have hoisted to temp var
+    Value method_val = eval_expr(s, expr_child(e, 2), p);
+    Str *method = method_val.str;
+
+    // 3. Build synthetic: Type.method(val, ...)
+    //    callee = NODE_FIELD_ACCESS { children[0]=NODE_IDENT(type_name), data.str_val=method }
+    Expr type_ident = {0};
+    type_ident.type = NODE_IDENT;
+    type_ident.data.str_val = type_name;
+    type_ident.struct_name = type_name;
+    type_ident.line = e->line;
+    type_ident.col = e->col;
+
+    Expr field_access = {0};
+    field_access.type = NODE_FIELD_ACCESS;
+    field_access.data.str_val = method;
+    field_access.is_ns_field = 1;
+    field_access.line = e->line;
+    field_access.col = e->col;
+    field_access.children = Vec_new(sizeof(Expr *));
+    Expr *ti_ptr = &type_ident;
+    Vec_push(&field_access.children, &ti_ptr);
+
+    Expr fake_call = {0};
+    fake_call.type = NODE_FCALL;
+    fake_call.line = e->line;
+    fake_call.col = e->col;
+    fake_call.children = Vec_new(sizeof(Expr *));
+    Expr *fa_ptr = &field_access;
+    Vec_push(&fake_call.children, &fa_ptr);
+    // Pass remaining args (val, and any defaults like call_free)
+    for (int i = 3; i < e->children.len; i++) {
+        Expr *arg = expr_child(e, i);
+        Vec_push(&fake_call.children, &arg);
+    }
+
+    *r = eval_call(s, &fake_call, p);
+
+    Vec_delete(&fake_call.children);
+    Vec_delete(&field_access.children);
+    return 1;
+}
+
 // === Pointer primitive handlers ===
 
 static int h_alloc(Scope *s, Expr *e, const char *p, Value *r) {
@@ -330,6 +383,9 @@ static void dispatch_init(void) {
     REG("realloc", h_realloc);
     REG("ptr_at", h_ptr_at);
     REG("ptr_set", h_ptr_set);
+
+    // Dynamic dispatch
+    REG("dyn_call_func", h_dyn_call_func);
 
 
     #undef REG

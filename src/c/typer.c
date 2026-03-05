@@ -491,6 +491,13 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         for (int i = 1; i < e->children.len; i++) {
             infer_expr(scope, expr_child(e, i), path, in_func);
         }
+        // dyn_call_func: method (2nd arg) must be a string literal
+        if (Str_eq_c(name, "dyn_call_func") && e->children.len >= 3) {
+            Expr *method_arg = expr_child(e, 2);
+            if (method_arg->type != NODE_LITERAL_STR) {
+                type_error(path, method_arg, "dyn_call_func method argument must be a string literal");
+            }
+        }
         // Validate 'own' markers on arguments
         if (callee_bind && callee_bind->func_def) {
             Expr *fdef = callee_bind->func_def;
@@ -691,8 +698,12 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
     }
 
     // Check each argument (children[1..n])
+    // dyn_call_func: don't hoist the method arg (2nd) — codegen needs it as a literal
+    int is_dyn_call = (expr_child(e, 0)->type == NODE_IDENT &&
+                       Str_eq_c(expr_child(e, 0)->data.str_val, "dyn_call_func"));
     int fi = 0; // instance field index for struct constructors
     for (int i = 1; i < e->children.len; i++) {
+        if (is_dyn_call && i == 2) continue; // keep method as NODE_LITERAL_STR
         if (expr_child(e, i)->type != NODE_FCALL &&
             expr_child(e, i)->type != NODE_LITERAL_NUM &&
             expr_child(e, i)->type != NODE_LITERAL_STR &&

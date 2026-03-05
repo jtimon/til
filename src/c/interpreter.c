@@ -146,7 +146,7 @@ int values_equal(Value a, Value b) {
 
 static void eval_body(Scope *scope, Expr *body, const char *path);
 
-static Value eval_call(Scope *scope, Expr *e, const char *path) {
+Value eval_call(Scope *scope, Expr *e, const char *path) {
     // children[0] = callee ident or field access, children[1..] = args
     Expr *callee_expr = expr_child(e, 0);
 

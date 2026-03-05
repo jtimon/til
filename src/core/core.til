@@ -104,6 +104,7 @@ alloc := ext_func(count: I64) returns Dynamic {}
 realloc := ext_func(own buf: Dynamic, count: I64) returns Dynamic {}
 ptr_at := ext_func(buf: Dynamic, offset: I64) returns ref Dynamic {}
 ptr_set := ext_func(buf: Dynamic, offset: I64, own val: Dynamic) {}
+dyn_call_func := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dynamic {}
 
 Vec := struct {
     own mut data : U8 = 0
