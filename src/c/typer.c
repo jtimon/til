@@ -506,7 +506,8 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         }
         // dyn_call variants: method (2nd arg) must be a string literal
         if ((Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
-             Str_eq_c(name, "dyn_call1_ret") || Str_eq_c(name, "dyn_call2_ret")) &&
+             Str_eq_c(name, "dyn_call1_ret") || Str_eq_c(name, "dyn_call2_ret") ||
+             Str_eq_c(name, "dyn_has_method")) &&
             e->children.count >= 3) {
             Expr *method_arg = expr_child(e, 2);
             if (method_arg->type != NODE_LITERAL_STR) {
@@ -718,7 +719,8 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
     if (expr_child(e, 0)->type == NODE_IDENT) {
         Str *cn = expr_child(e, 0)->data.str_val;
         is_dyn_call = Str_eq_c(cn, "dyn_call1") || Str_eq_c(cn, "dyn_call2") ||
-                      Str_eq_c(cn, "dyn_call1_ret") || Str_eq_c(cn, "dyn_call2_ret");
+                      Str_eq_c(cn, "dyn_call1_ret") || Str_eq_c(cn, "dyn_call2_ret") ||
+                      Str_eq_c(cn, "dyn_has_method");
     }
     int fi = 0; // instance field index for struct constructors
     for (int i = 1; i < e->children.count; i++) {

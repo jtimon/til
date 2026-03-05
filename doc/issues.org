@@ -1,6 +1,22 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 15
+# NEXT_ISSUE: 16
+
+* OPEN #15 Scavenger doesn't understand dyn_call/dyn_has_method
+  The scavenger removes namespace methods not reachable from used code.
+  But it doesn't recognize dyn_call and dyn_has_method as references to
+  namespace methods — the method name is a string literal, not a
+  Type.method field access, so collect_refs doesn't pick it up.
+
+  This means dyn_has_method("I64", "cmp") only works if cmp is also
+  referenced directly (e.g. via I64.cmp(...) or dyn_call with cmp
+  elsewhere). In practice dyn_has_method is always paired with dyn_call
+  for the same method, so it works, but it's fragile.
+
+  Fix: extend collect_refs in scavenger.c to recognize dyn_call* and
+  dyn_has_method calls. For a literal method arg "foo", mark "Type.foo"
+  as referenced for all known struct/enum types (since type_name is
+  runtime).
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 

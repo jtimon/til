@@ -103,5 +103,6 @@ Scope *scope_new(Scope *parent);
 void scope_set_owned(Scope *s, Str *name, Value val);
 void scope_free(Scope *s);
 void interpreter_init_ns(Scope *global, Expr *program, const char *path);
+Value *ns_get(Str *sname, Str *fname);
 
 #endif

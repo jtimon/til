@@ -246,6 +246,17 @@ static int h_dyn_call(Scope *s, Expr *e, const char *p, Value *r) {
     return 1;
 }
 
+// dyn_has_method(type_name, "method") → Bool
+static int h_dyn_has_method(Scope *s, Expr *e, const char *p, Value *r) {
+    Value type_name_val = eval_expr(s, expr_child(e, 1), p);
+    Value method_val = eval_expr(s, expr_child(e, 2), p);
+    Str *type_name = type_name_val.str;
+    Str *method = method_val.str;
+    Value *nsv = ns_get(type_name, method);
+    *r = val_bool(nsv != NULL);
+    return 1;
+}
+
 // === Pointer primitive handlers ===
 
 // Extract raw void* from any Value type
@@ -351,7 +362,7 @@ static void dispatch_init(void) {
     REG("dyn_call2", h_dyn_call);
     REG("dyn_call1_ret", h_dyn_call);
     REG("dyn_call2_ret", h_dyn_call);
-
+    REG("dyn_has_method", h_dyn_has_method);
 
     #undef REG
     dispatch_inited = 1;

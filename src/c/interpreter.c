@@ -28,7 +28,7 @@ static Str *ns_qname(Str *sname, Str *fname) {
     return s;
 }
 
-static Value *ns_get(Str *sname, Str *fname) {
+Value *ns_get(Str *sname, Str *fname) {
     Str *qn = ns_qname(sname, fname);
     return Map_get(&ns_fields, &qn);
 }

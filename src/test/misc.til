@@ -1,0 +1,27 @@
+mode script
+
+// dyn_has_method — check method existence on builtin types
+// TODO(#15): methods checked must also be referenced directly so the scavenger
+// keeps them. Remove these dummy calls once scavenger understands dyn_has_method.
+assert_eq(loc(), 1.clone(), 1)
+assert_eq_str(loc(), "hi".clone(), "hi")
+
+test(loc(), dyn_has_method("I64", "delete"), "I64 has delete")
+test(loc(), dyn_has_method("I64", "clone"), "I64 has clone")
+test(loc(), dyn_has_method("I64", "nonexistent").not(), "I64 no nonexistent")
+test(loc(), dyn_has_method("Str", "delete"), "Str has delete")
+test(loc(), dyn_has_method("Str", "nonexistent").not(), "Str no nonexistent")
+test(loc(), dyn_has_method("Bool", "not"), "Bool has not")
+
+// Test with a user-defined struct
+Foo := struct {
+    x := 0
+    namespace:
+    bar := func(self: Foo) returns I64 { return self.x }
+}
+f := Foo(x=0)
+assert_eq(loc(), f.bar(), 0)
+test(loc(), dyn_has_method("Foo", "bar"), "Foo has bar")
+test(loc(), dyn_has_method("Foo", "baz").not(), "Foo no baz")
+
+println("dyn_has_method: all passed")

@@ -230,6 +230,7 @@ dyn_call1 := ext_func(type_name: Str, method: Str, val: Dynamic) {}
 dyn_call2 := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) {}
 dyn_call1_ret := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dynamic {}
 dyn_call2_ret := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) returns Dynamic {}
+dyn_has_method := ext_func(type_name: Str, method: Str) returns Bool {}
 
 Vec := struct {
     own mut data : U8 = 0

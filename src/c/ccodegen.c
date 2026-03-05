@@ -39,6 +39,24 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
     }
 }
 
+// Collect unique method names from dyn_has_method calls
+static void collect_dyn_has_methods(Expr *e, Vec *methods) {
+    if (!e) return;
+    if (e->type == NODE_FCALL && expr_child(e, 0)->type == NODE_IDENT &&
+        Str_eq_c(expr_child(e, 0)->data.str_val, "dyn_has_method") &&
+        e->children.count >= 3 && expr_child(e, 2)->type == NODE_LITERAL_STR) {
+        Str *method = expr_child(e, 2)->data.str_val;
+        for (int i = 0; i < methods->count; i++) {
+            Str **existing = Vec_get(methods, i);
+            if (Str_eq(*existing, method)) return;
+        }
+        Vec_push(methods, &method);
+    }
+    for (int i = 0; i < e->children.count; i++) {
+        collect_dyn_has_methods(expr_child(e, i), methods);
+    }
+}
+
 static Expr *find_struct_body(Str *name) {
     Expr **p = Map_get(&struct_bodies, &name);
     return p ? *p : NULL;
@@ -125,6 +143,12 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
+            fprintf(f, ")");
+        } else if (Str_eq_c(name, "dyn_has_method")) {
+            // dyn_has_method(type_name, "method") → til_dyn_has_method(type_name)
+            Str *method = expr_child(e, 2)->data.str_val;
+            fprintf(f, "til_dyn_has_%s(", method->c_str);
+            emit_as_ptr(f, expr_child(e, 1), depth);
             fprintf(f, ")");
         } else if (e->struct_name && Str_eq(name, e->struct_name)) {
             // Struct constructor — compound literal (handled in emit_stmt)
@@ -942,6 +966,18 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         Vec_delete(&dyn_methods);
     }
 
+    // Forward declarations for dyn_has_method dispatch functions
+    {
+        Vec has_methods = Vec_new(sizeof(Str *));
+        collect_dyn_has_methods(program, &has_methods);
+        for (int m = 0; m < has_methods.count; m++) {
+            Str **method = Vec_get(&has_methods, m);
+            fprintf(f, "til_Bool *til_dyn_has_%s(til_Str *type_name);\n", (*method)->c_str);
+        }
+        if (has_methods.count) fprintf(f, "\n");
+        Vec_delete(&has_methods);
+    }
+
     // Emit struct typedefs only (no function bodies)
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
@@ -1057,6 +1093,40 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             fprintf(f, "}\n\n");
         }
         Vec_delete(&dyn_methods);
+    }
+
+    // Emit dyn_has_method dispatch function bodies
+    {
+        Vec has_methods = Vec_new(sizeof(Str *));
+        collect_dyn_has_methods(program, &has_methods);
+        for (int m = 0; m < has_methods.count; m++) {
+            Str **method_ptr = Vec_get(&has_methods, m);
+            Str *method = *method_ptr;
+            fprintf(f, "til_Bool *til_dyn_has_%s(til_Str *type_name) {\n    (void)type_name;\n", method->c_str);
+            for (int i = 0; i < program->children.count; i++) {
+                Expr *stmt = expr_child(program, i);
+                if (stmt->type != NODE_DECL) continue;
+                Expr *def = expr_child(stmt, 0);
+                if (def->type != NODE_STRUCT_DEF && def->type != NODE_ENUM_DEF) continue;
+                Str *tname = stmt->data.decl.name;
+                Expr *body = expr_child(def, 0);
+                int found = 0;
+                for (int j = 0; j < body->children.count; j++) {
+                    Expr *field = expr_child(body, j);
+                    if (field->data.decl.is_namespace &&
+                        Str_eq(field->data.decl.name, method)) {
+                        found = 1;
+                        break;
+                    }
+                }
+                if (!found) continue;
+                fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) { til_Bool *r = malloc(sizeof(til_Bool)); *r = 1; return r; }\n",
+                        tname->cap, tname->c_str, tname->cap);
+            }
+            fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = 0; return r;\n");
+            fprintf(f, "}\n\n");
+        }
+        Vec_delete(&has_methods);
     }
 
     // Script mode: wrap top-level statements in main()
