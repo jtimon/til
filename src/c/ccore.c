@@ -68,6 +68,7 @@ void U8_delete(U8 *v) { free(v); }
 
 // --- Bool ---
 
+Bool Bool_eq(Bool a, Bool b) { return a == b; }
 Bool Bool_and(Bool a, Bool b) { return a && b; }
 Bool Bool_or(Bool a, Bool b) { return a || b; }
 Bool Bool_not(Bool a) { return !a; }

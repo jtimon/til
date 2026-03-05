@@ -49,6 +49,7 @@ void U8_delete(U8 *v);
 
 typedef int Bool;
 
+Bool Bool_eq(Bool a, Bool b);
 Bool Bool_and(Bool a, Bool b);
 Bool Bool_or(Bool a, Bool b);
 Bool Bool_not(Bool a);

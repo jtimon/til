@@ -90,6 +90,7 @@ static int h_U8_from_i64(Scope *s, Expr *e, const char *p, Value *r) {
 }
 
 // === Bool handlers ===
+H2(Bool_eq,  Bool_eq,  *a.boolean, *b.boolean, val_bool)
 H2(Bool_and, Bool_and, *a.boolean, *b.boolean, val_bool)
 H2(Bool_or,  Bool_or,  *a.boolean, *b.boolean, val_bool)
 H1(Bool_not, Bool_not, *v.boolean, val_bool)
@@ -303,6 +304,15 @@ static int h_memcpy(Scope *s, Expr *e, const char *p, Value *r) {
     return 1;
 }
 
+static int h_memmove(Scope *s, Expr *e, const char *p, Value *r) {
+    Value dest = eval_expr(s, expr_child(e, 1), p);
+    Value src = eval_expr(s, expr_child(e, 2), p);
+    Value len = eval_expr(s, expr_child(e, 3), p);
+    memmove(val_to_ptr(dest), val_to_ptr(src), (size_t)*len.i64);
+    *r = val_none();
+    return 1;
+}
+
 #undef H1
 #undef H2
 #undef HDEL
@@ -342,6 +352,7 @@ static void dispatch_init(void) {
     REG("U8_delete", h_U8_delete);
 
     // Bool
+    REG("Bool_eq", h_Bool_eq);
     REG("Bool_and", h_Bool_and); REG("Bool_or", h_Bool_or);
     REG("Bool_not", h_Bool_not);
     REG("Bool_clone", h_Bool_clone);
@@ -356,6 +367,7 @@ static void dispatch_init(void) {
     REG("realloc", h_realloc);
     REG("ptr_add", h_ptr_add);
     REG("memcpy", h_memcpy);
+    REG("memmove", h_memmove);
 
     // Dynamic dispatch
     REG("dyn_call1", h_dyn_call);

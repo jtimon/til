@@ -49,6 +49,7 @@ til_U8 *til_U8_clone(til_U8 *v) { return U8_clone(v); }
 void til_U8_delete(til_U8 *v, til_Bool *call_free) { if (*call_free) U8_delete(v); }
 
 // Bool ops
+til_Bool *til_Bool_eq(til_Bool *a, til_Bool *b) { return Bool_new(Bool_eq(*a, *b)); }
 til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { return Bool_new(Bool_and(*a, *b)); }
 til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { return Bool_new(Bool_or(*a, *b)); }
 til_Bool *til_Bool_not(til_Bool *a) { return Bool_new(Bool_not(*a)); }
@@ -86,5 +87,8 @@ void *til_ptr_add(void *buf, til_I64 *offset) {
 }
 void til_memcpy(void *dest, void *src, til_I64 *len) {
     memcpy(dest, src, (size_t)*len);
+}
+void til_memmove(void *dest, void *src, til_I64 *len) {
+    memmove(dest, src, (size_t)*len);
 }
 

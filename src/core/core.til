@@ -23,6 +23,11 @@ U8 : StructDef = ext_struct {
     eq := ext_func(a: U8, b: U8) returns Bool {}
     lt := ext_func(a: U8, b: U8) returns Bool {}
     gt := ext_func(a: U8, b: U8) returns Bool {}
+    cmp := func(a: U8, b: U8) returns I64 {
+        if a.lt(b) { return 0.sub(1) }
+        if a.gt(b) { return 1 }
+        return 0
+    }
     lte := func(a: U8, b: U8) returns Bool {
         return a.lt(b).or(a.eq(b))
     }
@@ -81,6 +86,11 @@ I64 : StructDef = ext_struct {
     eq := ext_func(a: I64, b: I64) returns Bool {}
     lt := ext_func(a: I64, b: I64) returns Bool {}
     gt := ext_func(a: I64, b: I64) returns Bool {}
+    cmp := func(a: I64, b: I64) returns I64 {
+        if a.lt(b) { return 0.sub(1) }
+        if a.gt(b) { return 1 }
+        return 0
+    }
     lte := func(a: I64, b: I64) returns Bool {
         return a.lt(b).or(a.eq(b))
     }
@@ -124,6 +134,20 @@ Str := struct {
             i = i.add(1)
         }
         return true
+    }
+
+    cmp := func(a: Str, b: Str) returns I64 {
+        mut i := 0
+        mut min_cap := a.cap
+        if b.cap.lt(a.cap) { min_cap = b.cap }
+        while i.lt(min_cap) {
+            ref ab : U8 = a.char_at(i)
+            ref bb : U8 = b.char_at(i)
+            own c := ab.cmp(bb)
+            if c.neq(0) { return c }
+            i = i.add(1)
+        }
+        return a.cap.cmp(b.cap)
     }
 
     concat := func(a: Str, b: Str) returns Str {
@@ -211,6 +235,12 @@ Bool : StructDef = ext_struct {
     and := ext_func(a: Bool, b: Bool) returns Bool {}
     or := ext_func(a: Bool, b: Bool) returns Bool {}
     not := ext_func(a: Bool) returns Bool {}
+    eq := ext_func(a: Bool, b: Bool) returns Bool {}
+    cmp := func(a: Bool, b: Bool) returns I64 {
+        if a.eq(b) { return 0 }
+        if b { return 0.sub(1) }
+        return 1
+    }
     clone := ext_func(val: Bool) returns Bool {}
     delete := ext_proc(own self: Bool, call_free: Bool = true) {}
     size := func() returns I64 { return 1 }
@@ -226,6 +256,7 @@ malloc := ext_func(count: I64) returns Dynamic {}
 realloc := ext_func(own buf: Dynamic, count: I64) returns Dynamic {}
 ptr_add := ext_func(buf: Dynamic, offset: I64) returns ref Dynamic {}
 memcpy := ext_func(dest: Dynamic, src: Dynamic, len: I64) {}
+memmove := ext_func(dest: Dynamic, src: Dynamic, len: I64) {}
 dyn_call1 := ext_func(type_name: Str, method: Str, val: Dynamic) {}
 dyn_call2 := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) {}
 dyn_call1_ret := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dynamic {}
