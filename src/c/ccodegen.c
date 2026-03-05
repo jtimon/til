@@ -13,16 +13,16 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
     if (!e) return;
     if (e->type == NODE_FCALL && expr_child(e, 0)->type == NODE_IDENT &&
         Str_eq_c(expr_child(e, 0)->data.str_val, "dyn_call_func") &&
-        e->children.len >= 3 && expr_child(e, 2)->type == NODE_LITERAL_STR) {
+        e->children.count >= 3 && expr_child(e, 2)->type == NODE_LITERAL_STR) {
         Str *method = expr_child(e, 2)->data.str_val;
         // Check if already collected
-        for (int i = 0; i < methods->len; i++) {
+        for (int i = 0; i < methods->count; i++) {
             Str **existing = Vec_get(methods, i);
             if (Str_eq(*existing, method)) return;
         }
         Vec_push(methods, &method);
     }
-    for (int i = 0; i < e->children.len; i++) {
+    for (int i = 0; i < e->children.count; i++) {
         collect_dyn_methods(expr_child(e, i), methods);
     }
 }
@@ -72,7 +72,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             Str *sname = expr_child(expr_child(e, 0), 0)->struct_name;
             Str *mname = expr_child(e, 0)->data.str_val;
             fprintf(f, "til_%s_%s(", sname->c_str, mname->c_str);
-            for (int i = 1; i < e->children.len; i++) {
+            for (int i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
@@ -81,22 +81,22 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         }
         Str *name = expr_child(e, 0)->data.str_val;
         if (Str_eq_c(name, "println")) {
-            fprintf(f, "til_println(%d", e->children.len - 1);
-            for (int i = 1; i < e->children.len; i++) {
+            fprintf(f, "til_println(%d", e->children.count - 1);
+            for (int i = 1; i < e->children.count; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
             fprintf(f, ")");
         } else if (Str_eq_c(name, "print")) {
-            fprintf(f, "til_print(%d", e->children.len - 1);
-            for (int i = 1; i < e->children.len; i++) {
+            fprintf(f, "til_print(%d", e->children.count - 1);
+            for (int i = 1; i < e->children.count; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
             fprintf(f, ")");
         } else if (Str_eq_c(name, "format")) {
-            fprintf(f, "til_format(%d", e->children.len - 1);
-            for (int i = 1; i < e->children.len; i++) {
+            fprintf(f, "til_format(%d", e->children.count - 1);
+            for (int i = 1; i < e->children.count; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
@@ -108,7 +108,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             // Emit type_name as first arg
             emit_as_ptr(f, expr_child(e, 1), depth);
             // Emit remaining args (val, and any defaults like call_free)
-            for (int i = 3; i < e->children.len; i++) {
+            for (int i = 3; i < e->children.count; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
@@ -119,7 +119,7 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
         } else {
             // User-defined function call
             fprintf(f, "til_%s(", name->c_str);
-            for (int i = 1; i < e->children.len; i++) {
+            for (int i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
@@ -234,11 +234,11 @@ static int _ctor_seq = 0;
 static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, int depth) {
     Expr *sbody = find_struct_body(ctor->struct_name);
     int fi = 0;
-    for (int i = 1; i < ctor->children.len; i++) {
+    for (int i = 1; i < ctor->children.count; i++) {
         int is_own = 0;
         const char *fname = NULL;
         if (sbody) {
-            for (; fi < sbody->children.len; fi++) {
+            for (; fi < sbody->children.count; fi++) {
                 if (!expr_child(sbody, fi)->data.decl.is_namespace) {
                     is_own = expr_child(sbody, fi)->data.decl.is_own;
                     fname = expr_child(sbody, fi)->data.decl.name->c_str;
@@ -384,7 +384,7 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         }
         break;
     case NODE_RETURN:
-        if (e->children.len == 0) {
+        if (e->children.count == 0) {
             fprintf(f, "return;\n");
         } else {
             Expr *rv = expr_child(e, 0);
@@ -396,6 +396,13 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
                 emit_ctor_fields(f, "_r", rv, depth);
                 emit_indent(f, depth);
                 fprintf(f, "return _r; }\n");
+            } else if (rv->type == NODE_FIELD_ACCESS && !rv->is_own_field &&
+                       !rv->is_ns_field && rv->til_type != TIL_TYPE_DYNAMIC) {
+                // Inline field value — must clone to heap pointer for return
+                const char *ctype = c_type_name(rv->til_type, rv->struct_name);
+                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
+                emit_expr(f, rv, depth);
+                fprintf(f, "; return _r; }\n");
             } else {
                 fprintf(f, "return ");
                 emit_expr(f, rv, depth);
@@ -415,7 +422,7 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         fprintf(f, ") {\n");
         emit_body(f, expr_child(e, 1), depth + 1);
         emit_indent(f, depth);
-        if (e->children.len > 2) {
+        if (e->children.count > 2) {
             fprintf(f, "} else {\n");
             emit_body(f, expr_child(e, 2), depth + 1);
             emit_indent(f, depth);
@@ -443,7 +450,7 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
 }
 
 static void emit_body(FILE *f, Expr *body, int depth) {
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         emit_stmt(f, expr_child(body, i), depth);
     }
 }
@@ -452,14 +459,14 @@ static void emit_body(FILE *f, Expr *body, int depth) {
 
 // Emit namespace field initializations for all structs in the program
 static void emit_ns_inits(FILE *f, int depth) {
-    for (int i = 0; i < codegen_program->children.len; i++) {
+    for (int i = 0; i < codegen_program->children.count; i++) {
         Expr *stmt = expr_child(codegen_program, i);
         if (stmt->type == NODE_DECL && (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
                                         expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
             Expr *edef = expr_child(stmt, 0);
             Expr *body = expr_child(edef, 0);
-            for (int j = 0; j < body->children.len; j++) {
+            for (int j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
                 if (!field->data.decl.is_namespace) continue;
                 if (expr_child(field, 0)->type == NODE_FUNC_DEF) continue;
@@ -517,13 +524,13 @@ static void emit_struct_def(FILE *f, Str *name, Expr *struct_def) {
     // Emit typedef struct (skip for primitives and ext_structs — C side provides)
     if (!skip_typedef) {
         int has_instance_fields = 0;
-        for (int i = 0; i < body->children.len; i++)
+        for (int i = 0; i < body->children.count; i++)
             if (!expr_child(body, i)->data.decl.is_namespace) { has_instance_fields = 1; break; }
         fprintf(f, "typedef struct til_%s {\n", name->c_str);
         if (!has_instance_fields) {
             fprintf(f, "    char _;\n"); // padding for empty structs
         }
-        for (int i = 0; i < body->children.len; i++) {
+        for (int i = 0; i < body->children.count; i++) {
             Expr *field = expr_child(body, i);
             if (field->data.decl.is_namespace) continue;
             if (field->data.decl.is_own && field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
@@ -538,7 +545,7 @@ static void emit_struct_def(FILE *f, Str *name, Expr *struct_def) {
         }
         fprintf(f, "} til_%s;\n\n", name->c_str);
         // Emit namespace fields as globals (skip func defs — emitted separately)
-        for (int i = 0; i < body->children.len; i++) {
+        for (int i = 0; i < body->children.count; i++) {
             Expr *field = expr_child(body, i);
             if (!field->data.decl.is_namespace) continue;
             if (expr_child(field, 0)->type == NODE_FUNC_DEF) continue;
@@ -550,7 +557,7 @@ static void emit_struct_def(FILE *f, Str *name, Expr *struct_def) {
         }
     }
     // Emit namespace functions as C functions (skip ext_funcs — handled by ext.c)
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *field = expr_child(body, i);
         if (!field->data.decl.is_namespace) continue;
         if (expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
@@ -575,14 +582,14 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Collect variant names from non-namespace entries
         Vec vnames = Vec_new(sizeof(Str *));
-        for (int i = 0; i < body->children.len; i++) {
+        for (int i = 0; i < body->children.count; i++) {
             Expr *v = expr_child(body, i);
             if (v->data.decl.is_namespace) continue;
             Vec_push(&vnames, &v->data.decl.name);
         }
 
         // Zero-arg constructors
-        for (int i = 0; i < vnames.len; i++) {
+        for (int i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, i);
             fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
             fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
@@ -603,7 +610,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         // Collect variant info from non-namespace entries
         Vec vnames = Vec_new(sizeof(Str *));
         Vec vtypes = Vec_new(sizeof(Str *));
-        for (int i = 0; i < body->children.len; i++) {
+        for (int i = 0; i < body->children.count; i++) {
             Expr *v = expr_child(body, i);
             if (v->data.decl.is_namespace) continue;
             Vec_push(&vnames, &v->data.decl.name);
@@ -611,7 +618,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         }
 
         // Constructor functions for all variants
-        for (int i = 0; i < vnames.len; i++) {
+        for (int i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, i);
             Str *vt = *(Str **)Vec_get(&vtypes, i);
             if (!vt) {
@@ -644,7 +651,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         }
 
         // is_Variant functions
-        for (int i = 0; i < vnames.len; i++) {
+        for (int i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, i);
             fprintf(f, "til_Bool *til_%s_is_%s(til_%s *self) {\n", name->c_str, vn->c_str, name->c_str);
             fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool));\n");
@@ -654,7 +661,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         }
 
         // get_Variant functions (payload variants only)
-        for (int i = 0; i < vnames.len; i++) {
+        for (int i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, i);
             Str *vt = *(Str **)Vec_get(&vtypes, i);
             if (!vt) continue;
@@ -681,7 +688,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool));\n");
         fprintf(f, "    if (a->tag != b->tag) { *r = 0; return r; }\n");
         fprintf(f, "    switch (a->tag) {\n");
-        for (int i = 0; i < vnames.len; i++) {
+        for (int i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, i);
             Str *vt = *(Str **)Vec_get(&vtypes, i);
             fprintf(f, "    case til_%s_TAG_%s:\n", name->c_str, vn->c_str);
@@ -706,7 +713,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
     }
 
     // Emit namespace func/proc methods (to_str, user methods)
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *field = expr_child(body, i);
         if (!field->data.decl.is_namespace) continue;
         if (expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
@@ -729,7 +736,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
 
     // Build struct body lookup map
     struct_bodies = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
             Str *sname = stmt->data.decl.name;
@@ -746,7 +753,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"ccore.h\"\n#include \"ext.h\"\n\n");
 
     // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins)
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->is_core) continue;
         if (stmt->type != NODE_DECL || expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
@@ -769,7 +776,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     int is_script = mode && Str_eq_c(mode, "script");
 
     // Forward-declare all structs (skip primitives and ext_structs — C side provides)
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
             if (expr_child(stmt, 0)->is_ext) continue;
@@ -783,7 +790,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                 int hp = enum_has_payloads(expr_child(stmt, 0));
                 fprintf(f, "typedef enum {\n");
                 int tag = 0;
-                for (int j = 0; j < ebody->children.len; j++) {
+                for (int j = 0; j < ebody->children.count; j++) {
                     Expr *v = expr_child(ebody, j);
                     if (v->data.decl.is_namespace) continue;
                     if (tag > 0) fprintf(f, ",\n");
@@ -795,7 +802,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                 fprintf(f, "    til_%s_tag tag;\n", ename->c_str);
                 if (hp) {
                     fprintf(f, "    union {\n");
-                    for (int j = 0; j < ebody->children.len; j++) {
+                    for (int j = 0; j < ebody->children.count; j++) {
                         Expr *v = expr_child(ebody, j);
                         if (v->data.decl.is_namespace) continue;
                         if (v->data.decl.explicit_type) {
@@ -813,13 +820,13 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     fprintf(f, "\n");
 
     // Forward-declare all functions (namespace methods + top-level)
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
                                          expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
             Expr *body = expr_child(expr_child(stmt, 0), 0);
-            for (int j = 0; j < body->children.len; j++) {
+            for (int j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
                 if (!field->data.decl.is_namespace) continue;
                 if (expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
@@ -867,14 +874,14 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         }
     }
     // Forward-declare enum ext methods (eq, constructors + payload methods)
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
             Str *sname = stmt->data.decl.name;
             int hp = enum_has_payloads(expr_child(stmt, 0));
             fprintf(f, "til_Bool *til_%s_eq(til_%s *, til_%s *);\n", sname->c_str, sname->c_str, sname->c_str);
             Expr *ebody = expr_child(expr_child(stmt, 0), 0);
-            for (int j = 0; j < ebody->children.len; j++) {
+            for (int j = 0; j < ebody->children.count; j++) {
                 Expr *v = expr_child(ebody, j);
                 if (v->data.decl.is_namespace) continue;
                 if (hp) {
@@ -903,7 +910,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     {
         Vec dyn_methods = Vec_new(sizeof(Str *));
         collect_dyn_methods(program, &dyn_methods);
-        for (int m = 0; m < dyn_methods.len; m++) {
+        for (int m = 0; m < dyn_methods.count; m++) {
             Str *method = *(Str **)Vec_get(&dyn_methods, m);
             fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val);\n", method->c_str);
         }
@@ -912,7 +919,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     }
 
     // First pass: emit struct/enum definitions
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
             emit_struct_def(f, stmt->data.decl.name, expr_child(stmt, 0));
@@ -927,7 +934,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     fprintf(f, "\n");
 
     // Second pass: emit func/proc definitions (skip ext_func/ext_proc builtins)
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
             FuncType fft2 = expr_child(stmt, 0)->data.func_def.func_type;
@@ -941,12 +948,12 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     {
         Vec dyn_methods = Vec_new(sizeof(Str *));
         collect_dyn_methods(program, &dyn_methods);
-        for (int m = 0; m < dyn_methods.len; m++) {
+        for (int m = 0; m < dyn_methods.count; m++) {
             Str *method = *(Str **)Vec_get(&dyn_methods, m);
             int is_delete = Str_eq_c(method, "delete");
             fprintf(f, "void *til_dyn_call_%s(Str *type_name, void *val) {\n", method->c_str);
             // Iterate all struct/type defs in AST
-            for (int i = 0; i < program->children.len; i++) {
+            for (int i = 0; i < program->children.count; i++) {
                 Expr *stmt = expr_child(program, i);
                 if (stmt->type != NODE_DECL) continue;
                 Expr *def = expr_child(stmt, 0);
@@ -955,7 +962,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                 // Check if this type has the method in its namespace
                 Expr *body = expr_child(def, 0);
                 int has_method = 0;
-                for (int j = 0; j < body->children.len; j++) {
+                for (int j = 0; j < body->children.count; j++) {
                     Expr *field = expr_child(body, j);
                     if (field->data.decl.is_namespace &&
                         Str_eq(field->data.decl.name, method)) {
@@ -983,7 +990,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     if (is_script) {
         fprintf(f, "int main(void) {\n");
         emit_ns_inits(f, 1);
-        for (int i = 0; i < program->children.len; i++) {
+        for (int i = 0; i < program->children.count; i++) {
             Expr *stmt = expr_child(program, i);
             // Skip func/proc/struct defs (already emitted above)
             if (stmt->type == NODE_DECL &&

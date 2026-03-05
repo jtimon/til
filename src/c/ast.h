@@ -117,7 +117,7 @@ void ast_print(Expr *e, int indent);
 // Check if an enum def has payload variants (any non-namespace decl with explicit_type)
 static inline int enum_has_payloads(Expr *enum_def) {
     Expr *body = expr_child(enum_def, 0);
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace && f->data.decl.explicit_type)
             return 1;
@@ -129,7 +129,7 @@ static inline int enum_has_payloads(Expr *enum_def) {
 static inline int enum_variant_tag(Expr *enum_def, Str *variant_name) {
     Expr *body = expr_child(enum_def, 0);
     int tag = 0;
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
             if (Str_eq(f->data.decl.name, variant_name)) return tag;
@@ -143,7 +143,7 @@ static inline int enum_variant_tag(Expr *enum_def, Str *variant_name) {
 static inline Str *enum_variant_type(Expr *enum_def, int tag) {
     Expr *body = expr_child(enum_def, 0);
     int idx = 0;
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
             if (idx == tag) return f->data.decl.explicit_type;

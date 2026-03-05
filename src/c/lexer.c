@@ -265,6 +265,6 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
     int col = (int)(pos - line_start) + 1;
     Vec_push(&tokens, &(Token){TOK_EOF, pos, 0, line, col});
 
-    if (count_out) *count_out = tokens.len;
+    if (count_out) *count_out = tokens.count;
     return Vec_take(&tokens);
 }

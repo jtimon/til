@@ -100,7 +100,7 @@ println := ext_proc(args: ..Str) {}
 print := ext_proc(args: ..Str) {}
 exit := ext_func(code: I64) {}
 free := ext_proc(own elem: Dynamic) {}
-alloc := ext_func(count: I64) returns Dynamic {}
+malloc := ext_func(count: I64) returns Dynamic {}
 realloc := ext_func(own buf: Dynamic, count: I64) returns Dynamic {}
 ptr_at := ext_func(buf: Dynamic, offset: I64) returns ref Dynamic {}
 ptr_set := ext_func(buf: Dynamic, offset: I64, own val: Dynamic) {}
@@ -108,37 +108,39 @@ dyn_call_func := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dyn
 
 Vec := struct {
     own mut data : U8 = 0
-    mut len := 0
+    mut count := 0
     mut cap := 0
     elem_size := 0
     elem_type := ""
 
     namespace:
     new := func(elem_type: Str, elem_size: I64) returns Vec {
-        return Vec(data = alloc(32), cap = 4,
+        return Vec(data = malloc(32), cap = 4,
                    elem_size = elem_size, elem_type = elem_type)
     }
 
+    len := func(self: Vec) returns I64 { return self.count }
+
     push := proc(mut self: Vec, own val: Dynamic) {
-        if self.len.eq(self.cap) {
+        if self.count.eq(self.cap) {
             new_cap := self.cap.mul(2)
             self.data = realloc(own self.data, new_cap.mul(self.elem_size))
             self.cap = new_cap
         }
-        ptr_set(self.data, self.len.mul(self.elem_size), own val)
-        self.len = self.len.add(1)
+        ptr_set(self.data, self.count.mul(self.elem_size), own val)
+        self.count = self.count.add(1)
     }
 
     get := func(self: Vec, i: I64) returns ref Dynamic {
-        if i.lt(0).or(i.gte(self.len)) {
-            panic("Vec.get", format("index ", i.to_str(), " out of bounds (len ", self.len.to_str(), ")"))
+        if i.lt(0).or(i.gte(self.count)) {
+            panic("Vec.get", format("index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")"))
         }
         return ptr_at(self.data, i.mul(self.elem_size))
     }
 
     delete := proc(own self: Vec, call_free: Bool = true) {
         mut i := 0
-        while i.lt(self.len) {
+        while i.lt(self.count) {
             dyn_call_func(self.elem_type, "delete", ptr_at(self.data, i.mul(self.elem_size)))
             i = i.add(1)
         }
@@ -147,49 +149,51 @@ Vec := struct {
     }
 
     clone := func(self: Vec) returns Vec {
-        own new_data : U8 = alloc(self.cap.mul(self.elem_size))
+        own new_data : U8 = malloc(self.cap.mul(self.elem_size))
         mut i := 0
-        while i.lt(self.len) {
+        while i.lt(self.count) {
             ptr_set(new_data, i.mul(self.elem_size),
                     own dyn_call_func(self.elem_type, "clone", ptr_at(self.data, i.mul(self.elem_size))))
             i = i.add(1)
         }
-        return Vec(data = new_data, len = self.len, cap = self.cap,
+        return Vec(data = new_data, count = self.count, cap = self.cap,
                    elem_size = self.elem_size, elem_type = self.elem_type)
     }
 }
 
 Array := struct {
     own mut data : U8 = 0
-    len := 0
+    cap := 0
     elem_size := 0
     elem_type := ""
 
     namespace:
-    new := func(elem_type: Str, elem_size: I64, len: I64) returns Array {
-        return Array(data = alloc(len.mul(elem_size)), len = len,
+    new := func(elem_type: Str, elem_size: I64, cap: I64) returns Array {
+        return Array(data = malloc(cap.mul(elem_size)), cap = cap,
                      elem_size = elem_size, elem_type = elem_type)
     }
 
+    len := func(self: Array) returns I64 { return self.cap }
+
     get := func(self: Array, i: I64) returns ref Dynamic {
-        if i.lt(0).or(i.gte(self.len)) {
+        if i.lt(0).or(i.gte(self.cap)) {
             panic("Array.get", format("index ", i.to_str(),
-                  " out of bounds (len ", self.len.to_str(), ")"))
+                  " out of bounds (len ", self.cap.to_str(), ")"))
         }
         return ptr_at(self.data, i.mul(self.elem_size))
     }
 
     set := proc(self: Array, i: I64, own val: Dynamic) {
-        if i.lt(0).or(i.gte(self.len)) {
+        if i.lt(0).or(i.gte(self.cap)) {
             panic("Array.set", format("index ", i.to_str(),
-                  " out of bounds (len ", self.len.to_str(), ")"))
+                  " out of bounds (len ", self.cap.to_str(), ")"))
         }
         ptr_set(self.data, i.mul(self.elem_size), own val)
     }
 
     delete := proc(own self: Array, call_free: Bool = true) {
         mut i := 0
-        while i.lt(self.len) {
+        while i.lt(self.cap) {
             dyn_call_func(self.elem_type, "delete", ptr_at(self.data, i.mul(self.elem_size)))
             i = i.add(1)
         }
@@ -198,14 +202,14 @@ Array := struct {
     }
 
     clone := func(self: Array) returns Array {
-        own new_data : U8 = alloc(self.len.mul(self.elem_size))
+        own new_data : U8 = malloc(self.cap.mul(self.elem_size))
         mut i := 0
-        while i.lt(self.len) {
+        while i.lt(self.cap) {
             ptr_set(new_data, i.mul(self.elem_size),
                     own dyn_call_func(self.elem_type, "clone", ptr_at(self.data, i.mul(self.elem_size))))
             i = i.add(1)
         }
-        return Array(data = new_data, len = self.len,
+        return Array(data = new_data, cap = self.cap,
                      elem_size = self.elem_size, elem_type = self.elem_type)
     }
 }

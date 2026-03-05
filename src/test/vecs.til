@@ -13,7 +13,7 @@ test_vec_push_get := proc() {
     assert_eq(loc(), a, 42)
     assert_eq(loc(), b, 99)
     assert_eq(loc(), c, 7)
-    assert_eq(loc(), v.len, 3)
+    assert_eq(loc(), v.len(), 3)
 }
 
 test_vec_grow := proc() {
@@ -28,7 +28,7 @@ test_vec_grow := proc() {
     v.push(own 7)
     v.push(own 8)
 
-    assert_eq(loc(), v.len, 8)
+    assert_eq(loc(), v.len(), 8)
     ref first : I64 = v.get(0)
     ref last : I64 = v.get(7)
     assert_eq(loc(), first, 1)
@@ -45,7 +45,7 @@ test_vec_strings := proc() {
 
     assert_eq_str(loc(), a, "hello")
     assert_eq_str(loc(), b, "world")
-    assert_eq(loc(), v.len, 2)
+    assert_eq(loc(), v.len(), 2)
 }
 
 test_vec_size := proc() {
@@ -53,7 +53,7 @@ test_vec_size := proc() {
     assert_eq(loc(), U8.size(), 1)
     assert_eq(loc(), Str.size(), 8)
     assert_eq(loc(), Bool.size(), 1)
-    assert_eq(loc(), Vec.size(), 8)
+    assert_eq(loc(), Vec.size(), 40)
 }
 
 test_vec_push_get()

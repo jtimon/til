@@ -3,7 +3,7 @@
 
 typedef struct {
     char *c_str;
-    int len;
+    int cap;
 } Str;
 
 Str Str_val(const char *data);

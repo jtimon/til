@@ -92,14 +92,14 @@ int main(int argc, char **argv) {
     Expr *ast = parse(tokens, count, path, &mode);
 
     // Prepend core declarations to program AST
-    if (core_ast && core_ast->children.len > 0) {
+    if (core_ast && core_ast->children.count > 0) {
         Vec merged = Vec_new(sizeof(Expr *));
-        for (int i = 0; i < core_ast->children.len; i++) {
+        for (int i = 0; i < core_ast->children.count; i++) {
             Expr *ch = expr_child(core_ast, i);
             ch->is_core = true;
             Vec_push(&merged, &ch);
         }
-        for (int i = 0; i < ast->children.len; i++) {
+        for (int i = 0; i < ast->children.count; i++) {
             Expr *ch = expr_child(ast, i);
             Vec_push(&merged, &ch);
         }

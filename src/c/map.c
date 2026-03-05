@@ -23,7 +23,7 @@ Map Map_new(int key_size, int val_size, CmpFn cmp) {
 
 void *Map_get(Map *m, const void *key) {
     int found;
-    int i = sorted_find_generic(m->keys.data, m->keys.len, m->keys.elem_size,
+    int i = sorted_find_generic(m->keys.data, m->keys.count, m->keys.elem_size,
                                 m->cmp, key, &found);
     if (!found) return NULL;
     return (char *)m->vals.data + i * m->vals.elem_size;
@@ -33,21 +33,21 @@ void Map_set(Map *m, const void *key, const void *val) {
     int found;
     int ks = m->keys.elem_size;
     int vs = m->vals.elem_size;
-    int i = sorted_find_generic(m->keys.data, m->keys.len, ks,
+    int i = sorted_find_generic(m->keys.data, m->keys.count, ks,
                                 m->cmp, key, &found);
     if (found) {
         memcpy((char *)m->vals.data + i * vs, val, vs);
         return;
     }
     // Grow if needed
-    if (m->keys.len >= m->keys.cap) {
+    if (m->keys.count >= m->keys.cap) {
         int newcap = m->keys.cap ? m->keys.cap * 2 : 16;
         m->keys.cap = newcap;
         m->keys.data = realloc(m->keys.data, newcap * ks);
         m->vals.cap = newcap;
         m->vals.data = realloc(m->vals.data, newcap * vs);
     }
-    int n = m->keys.len;
+    int n = m->keys.count;
     // Shift right and insert at sorted position
     memmove((char *)m->keys.data + (i + 1) * ks,
             (char *)m->keys.data + i * ks, (n - i) * ks);
@@ -55,19 +55,19 @@ void Map_set(Map *m, const void *key, const void *val) {
             (char *)m->vals.data + i * vs, (n - i) * vs);
     memcpy((char *)m->keys.data + i * ks, key, ks);
     memcpy((char *)m->vals.data + i * vs, val, vs);
-    m->keys.len++;
-    m->vals.len++;
+    m->keys.count++;
+    m->vals.count++;
 }
 
 int Map_has(Map *m, const void *key) {
     int found;
-    sorted_find_generic(m->keys.data, m->keys.len, m->keys.elem_size,
+    sorted_find_generic(m->keys.data, m->keys.count, m->keys.elem_size,
                         m->cmp, key, &found);
     return found;
 }
 
 int Map_len(Map *m) {
-    return m->keys.len;
+    return m->keys.count;
 }
 
 void Map_delete(Map *m) {
@@ -81,7 +81,7 @@ Set Set_new(int elem_size, CmpFn cmp) {
 
 int Set_has(Set *s, const void *elem) {
     int found;
-    sorted_find_generic(s->data.data, s->data.len, s->data.elem_size,
+    sorted_find_generic(s->data.data, s->data.count, s->data.elem_size,
                         s->cmp, elem, &found);
     return found;
 }
@@ -89,24 +89,24 @@ int Set_has(Set *s, const void *elem) {
 void Set_add(Set *s, const void *elem) {
     int found;
     int es = s->data.elem_size;
-    int i = sorted_find_generic(s->data.data, s->data.len, es,
+    int i = sorted_find_generic(s->data.data, s->data.count, es,
                                 s->cmp, elem, &found);
     if (found) return;
     // Grow if needed
-    if (s->data.len >= s->data.cap) {
+    if (s->data.count >= s->data.cap) {
         s->data.cap = s->data.cap ? s->data.cap * 2 : 16;
         s->data.data = realloc(s->data.data, s->data.cap * es);
     }
     // Shift right and insert at sorted position
     memmove((char *)s->data.data + (i + 1) * es,
             (char *)s->data.data + i * es,
-            (s->data.len - i) * es);
+            (s->data.count - i) * es);
     memcpy((char *)s->data.data + i * es, elem, es);
-    s->data.len++;
+    s->data.count++;
 }
 
 int Set_len(Set *s) {
-    return s->data.len;
+    return s->data.count;
 }
 
 void Set_delete(Set *s) {

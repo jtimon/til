@@ -102,7 +102,7 @@ void til_Pair_delete(til_Pair *self, til_Bool *call_free) {
 }
 
 // Pointer primitives
-void *til_alloc(til_I64 *count) { return calloc(1, (size_t)*count); }
+void *til_malloc(til_I64 *count) { return calloc(1, (size_t)*count); }
 void *til_realloc(void *buf, til_I64 *count) { return realloc(buf, (size_t)*count); }
 void *til_ptr_at(void *buf, til_I64 *offset) {
     return *(void **)((char *)buf + *offset);
@@ -117,13 +117,13 @@ Str *til_format(int n, ...) {
     va_list ap; va_start(ap, n);
     Str *strs[64];
     int total = 0;
-    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, Str *); total += strs[i]->len; }
+    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, Str *); total += strs[i]->cap; }
     va_end(ap);
     Str *s = malloc(sizeof(Str));
     s->c_str = malloc(total + 1);
-    s->len = total;
+    s->cap = total;
     int off = 0;
-    for (int i = 0; i < n; i++) { memcpy(s->c_str + off, strs[i]->c_str, strs[i]->len); off += strs[i]->len; }
+    for (int i = 0; i < n; i++) { memcpy(s->c_str + off, strs[i]->c_str, strs[i]->cap); off += strs[i]->cap; }
     s->c_str[off] = '\0';
     return s;
 }

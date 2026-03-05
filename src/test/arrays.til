@@ -13,7 +13,7 @@ test_array_new_get_set := proc() {
     assert_eq(loc(), x, 10)
     assert_eq(loc(), y, 20)
     assert_eq(loc(), z, 30)
-    assert_eq(loc(), a.len, 3)
+    assert_eq(loc(), a.len(), 3)
 }
 
 test_array_strings := proc() {

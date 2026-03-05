@@ -102,9 +102,9 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             // Validate ref returns: every return value must be a param or ref variable
             if (e->data.func_def.return_is_ref) {
                 Expr *body = expr_child(e, 0);
-                for (int ri = 0; ri < body->children.len; ri++) {
+                for (int ri = 0; ri < body->children.count; ri++) {
                     Expr *s = expr_child(body, ri);
-                    if (s->type != NODE_RETURN || s->children.len == 0) continue;
+                    if (s->type != NODE_RETURN || s->children.count == 0) continue;
                     Expr *rv = expr_child(s, 0);
                     int ok = 0;
                     if (rv->type == NODE_IDENT) {
@@ -157,7 +157,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 Expr *ns_func = NULL;
                 if (sdef) {
                     Expr *body = expr_child(sdef, 0);
-                    for (int i = 0; i < body->children.len; i++) {
+                    for (int i = 0; i < body->children.count; i++) {
                         Expr *field = expr_child(body, i);
                         if (field->data.decl.is_namespace &&
                             Str_eq(field->data.decl.name, method) &&
@@ -183,7 +183,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 // Insert instance as first arg
                 Expr *dummy = NULL;
                 Vec_push(&e->children, &dummy);
-                memmove(&expr_child(e, 2), &expr_child(e, 1), (e->children.len - 2) * sizeof(Expr *));
+                memmove(&expr_child(e, 2), &expr_child(e, 1), (e->children.count - 2) * sizeof(Expr *));
                 expr_child(e, 1) = instance;
                 // Fall through -- existing code below handles Type.method(instance, args)
             }
@@ -197,7 +197,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             Expr *ns_func = NULL;
             if (sdef) {
                 Expr *body = expr_child(sdef, 0);
-                for (int i = 0; i < body->children.len; i++) {
+                for (int i = 0; i < body->children.count; i++) {
                     Expr *field = expr_child(body, i);
                     if (field->data.decl.is_namespace &&
                         Str_eq(field->data.decl.name, method) &&
@@ -221,7 +221,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 Expr **new_args = calloc(np, sizeof(Expr *));
                 int pos_idx = 0;
                 int seen_named = 0;
-                for (int i = 1; i < e->children.len; i++) {
+                for (int i = 1; i < e->children.count; i++) {
                     Expr *arg = expr_child(e, i);
                     if (arg->type == NODE_NAMED_ARG) {
                         seen_named = 1;
@@ -284,7 +284,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 free(new_args);
             }
             // Infer arg types
-            for (int i = 1; i < e->children.len; i++) {
+            for (int i = 1; i < e->children.count; i++) {
                 infer_expr(scope, expr_child(e, i), path, in_func);
             }
             // Validate 'own' markers on arguments
@@ -292,7 +292,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 bool *po = ns_func->data.func_def.param_owns;
                 if (po) {
                     int np = ns_func->data.func_def.nparam;
-                    for (int i = 1; i < e->children.len && i - 1 < np; i++) {
+                    for (int i = 1; i < e->children.count && i - 1 < np; i++) {
                         int pown = po[i - 1];
                         if (pown && !expr_child(e, i)->is_own_arg) {
                             char buf[128];
@@ -339,7 +339,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             Expr *body = expr_child(sdef, 0);
             // Count instance fields (skip namespace)
             int nfields = 0;
-            for (int i = 0; i < body->children.len; i++) {
+            for (int i = 0; i < body->children.count; i++) {
                 if (!expr_child(body, i)->data.decl.is_namespace) nfields++;
             }
             // Desugar named args into positional (one per instance field)
@@ -347,11 +347,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             // Map: field_idx[k] = index into body->children for k-th instance field
             int *field_idx = malloc(nfields * sizeof(int));
             { int k = 0;
-              for (int i = 0; i < body->children.len; i++) {
+              for (int i = 0; i < body->children.count; i++) {
                   if (!expr_child(body, i)->data.decl.is_namespace) field_idx[k++] = i;
               }
             }
-            for (int i = 1; i < e->children.len; i++) {
+            for (int i = 1; i < e->children.count; i++) {
                 Expr *arg = expr_child(e, i);
                 if (arg->type != NODE_NAMED_ARG) {
                     type_error(path, arg, "struct instantiation requires named arguments");
@@ -394,13 +394,13 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             free(field_vals);
             free(field_idx);
             // Type-check args (skip already-inferred defaults)
-            for (int i = 1; i < e->children.len; i++) {
+            for (int i = 1; i < e->children.count; i++) {
                 if (expr_child(e, i)->til_type == TIL_TYPE_UNKNOWN) {
                     infer_expr(scope, expr_child(e, i), path, in_func);
                 }
             }
             // Auto-insert clone for constructor args that are identifiers
-            for (int i = 1; i < e->children.len; i++) {
+            for (int i = 1; i < e->children.count; i++) {
                 if (expr_child(e, i)->type == NODE_IDENT) {
                     const char *tname = type_to_name(expr_child(e, i)->til_type,
                                                       expr_child(e, i)->struct_name);
@@ -424,7 +424,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             Expr **new_args = calloc(nparam, sizeof(Expr *));
             int pos_idx = 0;
             int seen_named = 0;
-            for (int i = 1; i < e->children.len; i++) {
+            for (int i = 1; i < e->children.count; i++) {
                 Expr *arg = expr_child(e, i);
                 if (arg->type == NODE_NAMED_ARG) {
                     seen_named = 1;
@@ -488,11 +488,11 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
             free(new_args);
         }
         // Infer types of all arguments
-        for (int i = 1; i < e->children.len; i++) {
+        for (int i = 1; i < e->children.count; i++) {
             infer_expr(scope, expr_child(e, i), path, in_func);
         }
         // dyn_call_func: method (2nd arg) must be a string literal
-        if (Str_eq_c(name, "dyn_call_func") && e->children.len >= 3) {
+        if (Str_eq_c(name, "dyn_call_func") && e->children.count >= 3) {
             Expr *method_arg = expr_child(e, 2);
             if (method_arg->type != NODE_LITERAL_STR) {
                 type_error(path, method_arg, "dyn_call_func method argument must be a string literal");
@@ -502,7 +502,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
         if (callee_bind && callee_bind->func_def) {
             Expr *fdef = callee_bind->func_def;
             bool *po = fdef->data.func_def.param_owns;
-            for (int i = 1; i < e->children.len && i - 1 < fdef->data.func_def.nparam; i++) {
+            for (int i = 1; i < e->children.count && i - 1 < fdef->data.func_def.nparam; i++) {
                 int pown = po ? po[i - 1] : 0;
                 if (pown && !expr_child(e, i)->is_own_arg) {
                     char buf[128];
@@ -551,7 +551,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                 Expr *body = expr_child(sdef, 0);
                 Str *fname = e->data.str_val;
                 int found = 0;
-                for (int i = 0; i < body->children.len; i++) {
+                for (int i = 0; i < body->children.count; i++) {
                     Expr *field = expr_child(body, i);
                     // Skip variant registry entries (non-namespace) in enum bodies
                     if (sdef->type == NODE_ENUM_DEF && !field->data.decl.is_namespace)
@@ -570,7 +570,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
                         // 2. Zero-arg ext_func constructors (no-payload in payload enums)
                         if (sdef->type == NODE_ENUM_DEF &&
                             field->data.decl.is_namespace &&
-                            field->children.len > 0) {
+                            field->children.count > 0) {
                             Expr *fc = expr_child(field, 0);
                             if (fc->type != NODE_FUNC_DEF) {
                                 // I64 literal variant
@@ -614,7 +614,7 @@ static void infer_expr(TypeScope *scope, Expr *e, const char *path, int in_func)
 
 static int expr_contains_fcall(Expr *e) {
     if (e->type == NODE_FCALL) return 1;
-    for (int i = 0; i < e->children.len; i++) {
+    for (int i = 0; i < e->children.count; i++) {
         if (expr_contains_fcall(expr_child(e, i))) return 1;
     }
     return 0;
@@ -632,7 +632,7 @@ static int fcall_returns_ref(Expr *fcall, TypeScope *scope) {
         Expr *sdef = tscope_get_struct(scope, expr_child(callee, 0)->data.str_val);
         if (!sdef) return 0;
         Expr *body = expr_child(sdef, 0);
-        for (int j = 0; j < body->children.len; j++) {
+        for (int j = 0; j < body->children.count; j++) {
             Expr *f = expr_child(body, j);
             if (f->type == NODE_DECL && f->data.decl.is_namespace &&
                 Str_eq(f->data.decl.name, callee->data.str_val) &&
@@ -684,14 +684,14 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
     // Don't recurse into scope boundaries -- those have their own infer_body calls
     if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF || e->type == NODE_ENUM_DEF || e->type == NODE_BODY) return;
     // Recurse into children first (depth-first: inner fcalls hoisted before outer)
-    for (int i = 0; i < e->children.len; i++) {
+    for (int i = 0; i < e->children.count; i++) {
         hoist_expr(expr_child(e, i), hoisted, nhoisted, cap, scope);
     }
     if (e->type != NODE_FCALL) return;
 
     // For struct constructors, find field info to skip hoisting inline compound args
     Expr *ctor_body = NULL;
-    if (e->struct_name && e->children.len > 0 &&
+    if (e->struct_name && e->children.count > 0 &&
         Str_eq(expr_child(e, 0)->data.str_val, e->struct_name)) {
         Expr *sdef = tscope_get_struct(scope, e->struct_name);
         if (sdef) ctor_body = expr_child(sdef, 0);
@@ -702,7 +702,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
     int is_dyn_call = (expr_child(e, 0)->type == NODE_IDENT &&
                        Str_eq_c(expr_child(e, 0)->data.str_val, "dyn_call_func"));
     int fi = 0; // instance field index for struct constructors
-    for (int i = 1; i < e->children.len; i++) {
+    for (int i = 1; i < e->children.count; i++) {
         if (is_dyn_call && i == 2) continue; // keep method as NODE_LITERAL_STR
         if (expr_child(e, i)->type != NODE_FCALL &&
             expr_child(e, i)->type != NODE_LITERAL_NUM &&
@@ -714,7 +714,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
             // Find the fi-th instance field
             int is_own = 0;
             TilType ft = TIL_TYPE_NONE;
-            for (; fi < ctor_body->children.len; fi++) {
+            for (; fi < ctor_body->children.count; fi++) {
                 Expr *field = expr_child(ctor_body, fi);
                 if (!field->data.decl.is_namespace) {
                     is_own = field->data.decl.is_own;
@@ -733,7 +733,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
 
 static void hoist_fcall_args(Expr *body, TypeScope *scope) {
     Vec new_ch = Vec_new(sizeof(Expr *));
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         // Collect hoisted decls from this statement
         Expr **hoisted = NULL;
@@ -752,7 +752,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             }
             break;
         case NODE_RETURN:
-            if (stmt->children.len > 0) {
+            if (stmt->children.count > 0) {
                 hoist_expr(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
                 if (expr_child(stmt, 0)->type == NODE_FCALL ||
                     expr_child(stmt, 0)->type == NODE_LITERAL_NUM ||
@@ -815,7 +815,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
         // Add original statement
         Vec_push(&new_ch, &stmt);
     }
-    if (new_ch.len != body->children.len) {
+    if (new_ch.count != body->children.count) {
         Vec_delete(&body->children);
         body->children = new_ch;
     } else {
@@ -912,7 +912,7 @@ static void insert_field_deletes(Expr *body) {
     Vec new_ch = Vec_new(sizeof(Expr *));
     int changed = 0;
 
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type == NODE_FIELD_ASSIGN) {
             int need_delete = 0;
@@ -965,7 +965,7 @@ static int expr_uses_var(Expr *e, Str *name) {
     if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_IDENT && Str_eq(e->data.str_val, name)) return 1;
     if (e->type == NODE_ASSIGN && Str_eq(e->data.str_val, name)) return 1;
-    for (int i = 0; i < e->children.len; i++) {
+    for (int i = 0; i < e->children.count; i++) {
         if (expr_uses_var(expr_child(e, i), name)) return 1;
     }
     return 0;
@@ -974,7 +974,7 @@ static int expr_uses_var(Expr *e, Str *name) {
 static int expr_contains_decl(Expr *e, Str *name) {
     if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_DECL && Str_eq(e->data.decl.name, name)) return 1;
-    for (int i = 0; i < e->children.len; i++) {
+    for (int i = 0; i < e->children.count; i++) {
         if (expr_contains_decl(expr_child(e, i), name)) return 1;
     }
     return 0;
@@ -985,7 +985,7 @@ static int check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
     bool *po = fdef->data.func_def.param_owns;
     if (!po) return 0;
     int np = fdef->data.func_def.nparam;
-    for (int i = 0; i < np && i + 1 < fcall->children.len; i++) {
+    for (int i = 0; i < np && i + 1 < fcall->children.count; i++) {
         if (po[i] && expr_child(fcall, i + 1)->type == NODE_IDENT &&
             Str_eq(expr_child(fcall, i + 1)->data.str_val, var_name)) {
             return 1;
@@ -995,7 +995,7 @@ static int check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
 }
 
 static int fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
-    if (fcall->type != NODE_FCALL || fcall->children.len < 2) return 0;
+    if (fcall->type != NODE_FCALL || fcall->children.count < 2) return 0;
     // Struct constructor: check if var is in an own field position
     if (fcall->struct_name && expr_child(fcall, 0)->type == NODE_IDENT &&
         Str_eq(expr_child(fcall, 0)->data.str_val, fcall->struct_name)) {
@@ -1003,12 +1003,12 @@ static int fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
         if (sdef) {
             Expr *body = expr_child(sdef, 0);
             int fi = 0;
-            for (int i = 0; i < body->children.len; i++) {
+            for (int i = 0; i < body->children.count; i++) {
                 if (expr_child(body, i)->type != NODE_DECL ||
                     expr_child(body, i)->data.decl.is_namespace) continue;
                 int arg_idx = fi + 1;
                 fi++;
-                if (arg_idx < fcall->children.len &&
+                if (arg_idx < fcall->children.count &&
                     expr_child(fcall, arg_idx)->type == NODE_IDENT &&
                     Str_eq(expr_child(fcall, arg_idx)->data.str_val, var_name) &&
                     expr_child(body, i)->data.decl.is_own) {
@@ -1032,7 +1032,7 @@ static int fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
         Expr *sdef = tscope_get_struct(scope, type_node->data.str_val);
         if (!sdef) return 0;
         Expr *body = expr_child(sdef, 0);
-        for (int i = 0; i < body->children.len; i++) {
+        for (int i = 0; i < body->children.count; i++) {
             Expr *field = expr_child(body, i);
             if (field->type == NODE_DECL && field->data.decl.is_namespace &&
                 Str_eq(field->data.decl.name, method) &&
@@ -1053,7 +1053,7 @@ static int expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
         Str_eq(expr_child(e, 1)->data.str_val, var_name)) {
         return 1;
     }
-    for (int i = 0; i < e->children.len; i++) {
+    for (int i = 0; i < e->children.count; i++) {
         if (expr_transfers_own(expr_child(e, i), var_name, scope)) return 1;
     }
     return 0;
@@ -1073,10 +1073,10 @@ typedef struct {
 // since break/continue don't leave the parent scope).
 static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live, int return_only) {
     Vec new_ch = Vec_new(sizeof(Expr *));
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type == NODE_IF) {
-            for (int c = 1; c < stmt->children.len; c++)
+            for (int c = 1; c < stmt->children.count; c++)
                 insert_exit_deletes(expr_child(stmt, c), live, n_live, return_only);
         }
         if (stmt->type == NODE_WHILE) {
@@ -1085,7 +1085,7 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live, int ret
         if (stmt->type == NODE_RETURN ||
             (!return_only && (stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE))) {
             for (int j = 0; j < n_live; j++) {
-                if (stmt->children.len > 0 &&
+                if (stmt->children.count > 0 &&
                     expr_uses_var(expr_child(stmt, 0), live[j].name)) continue;
                 Expr *del = make_delete_call(
                     live[j].name, live[j].type, live[j].struct_name,
@@ -1095,7 +1095,7 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live, int ret
         }
         Vec_push(&new_ch, &stmt);
     }
-    if (new_ch.len != body->children.len) {
+    if (new_ch.count != body->children.count) {
         Vec_delete(&body->children);
         body->children = new_ch;
     } else {
@@ -1115,7 +1115,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
 
         // Find decl_index: direct child first, then nested
         int decl_idx = -1;
-        for (int j = 0; j < body->children.len; j++) {
+        for (int j = 0; j < body->children.count; j++) {
             Expr *s = expr_child(body, j);
             if (s->type == NODE_DECL && Str_eq(s->data.decl.name, b->name)) {
                 decl_idx = j;
@@ -1123,7 +1123,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
             }
         }
         if (decl_idx == -1) {
-            for (int j = 0; j < body->children.len; j++) {
+            for (int j = 0; j < body->children.count; j++) {
                 if (expr_contains_decl(expr_child(body, j), b->name)) {
                     decl_idx = j;
                     break;
@@ -1135,7 +1135,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
         int last_use = -1;
         int own_transfer = -1;
         int scan_from = decl_idx >= 0 ? decl_idx + 1 : 0;
-        for (int j = scan_from; j < body->children.len; j++) {
+        for (int j = scan_from; j < body->children.count; j++) {
             if (expr_uses_var(expr_child(body, j), b->name)) {
                 last_use = j;
             }
@@ -1148,26 +1148,26 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
         Vec_push(&locals_vec, &li);
     }
 
-    if (locals_vec.len == 0) { Vec_delete(&locals_vec); return; }
-    int n_locals = locals_vec.len;
+    if (locals_vec.count == 0) { Vec_delete(&locals_vec); return; }
+    int n_locals = locals_vec.count;
     LocalInfo *locals = Vec_take(&locals_vec);
 
     // Extend lifetimes for args to ref-returning calls:
     // If ref m := f(x, y), then x and y must outlive m
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type != NODE_DECL || !stmt->data.decl.is_ref) continue;
         Expr *rhs = expr_child(stmt, 0);
         if (rhs->type != NODE_FCALL) continue;
         // Find ref var's last_use (scan forward from decl)
         int ref_last = -1;
-        for (int j = i + 1; j < body->children.len; j++) {
+        for (int j = i + 1; j < body->children.count; j++) {
             if (expr_uses_var(expr_child(body, j), stmt->data.decl.name))
                 ref_last = j;
         }
         if (ref_last == -1) ref_last = i; // at least until the decl itself
         // Extend last_use of all ident args in the fcall
-        for (int a = 1; a < rhs->children.len; a++) {
+        for (int a = 1; a < rhs->children.count; a++) {
             if (expr_child(rhs, a)->type != NODE_IDENT) continue;
             Str *aname = expr_child(rhs, a)->data.str_val;
             for (int j = 0; j < n_locals; j++) {
@@ -1196,13 +1196,13 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
     // Phase 2: rebuild body with ASAP frees
     Vec new_ch = Vec_new(sizeof(Expr *));
 
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
 
         // Before NODE_RETURN/NODE_BREAK/NODE_CONTINUE: free locals not yet freed
         if (stmt->type == NODE_RETURN || stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE) {
             for (int j = 0; j < n_locals; j++) {
-                if (stmt->children.len > 0 && expr_uses_var(expr_child(stmt, 0), locals[j].name)) continue;
+                if (stmt->children.count > 0 && expr_uses_var(expr_child(stmt, 0), locals[j].name)) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < i &&
                     (locals[j].last_use >= i || locals[j].last_use == -1)) {
@@ -1222,11 +1222,11 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                     Vec_push(&live_vec, &locals[j]);
                 }
             }
-            if (live_vec.len > 0) {
-                int n_live = live_vec.len;
+            if (live_vec.count > 0) {
+                int n_live = live_vec.count;
                 LocalInfo *live = Vec_take(&live_vec);
                 if (stmt->type == NODE_IF) {
-                    for (int c = 1; c < stmt->children.len; c++)
+                    for (int c = 1; c < stmt->children.count; c++)
                         insert_exit_deletes(expr_child(stmt, c), live, n_live, 0);
                 } else {
                     // While: only free before return (break/continue stay in parent scope)
@@ -1279,12 +1279,12 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
 
 static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_func, int owns_scope, int in_loop) {
     body->til_type = TIL_TYPE_NONE;
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         switch (stmt->type) {
         case NODE_DECL:
             // Skip variant registry entries (payload enum: no children)
-            if (stmt->children.len == 0) break;
+            if (stmt->children.count == 0) break;
             infer_expr(scope, expr_child(stmt, 0), path, in_func);
             // For struct/enum defs, register type in scope
             if (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
@@ -1477,7 +1477,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 if (sdef) {
                     Expr *body = expr_child(sdef, 0);
                     int found = 0;
-                    for (int i = 0; i < body->children.len; i++) {
+                    for (int i = 0; i < body->children.count; i++) {
                         Expr *field = expr_child(body, i);
                         if (Str_eq(field->data.decl.name, fname)) {
                             found = 1;
@@ -1527,7 +1527,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
             infer_expr(scope, stmt, path, in_func);
             break;
         case NODE_RETURN:
-            if (stmt->children.len > 0) {
+            if (stmt->children.count > 0) {
                 infer_expr(scope, expr_child(stmt, 0), path, in_func);
                 stmt->til_type = expr_child(stmt, 0)->til_type;
             } else {
@@ -1560,7 +1560,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 infer_body(then_scope, expr_child(stmt, 1), path, in_func, 1, in_loop);
                 tscope_free(then_scope);
             }
-            if (stmt->children.len > 2) {
+            if (stmt->children.count > 2) {
                 TypeScope *else_scope = tscope_new(scope);
                 infer_body(else_scope, expr_child(stmt, 2), path, in_func, 1, in_loop);
                 tscope_free(else_scope);
@@ -1620,7 +1620,7 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 Vec new_ch = Vec_new(sizeof(Expr *));
                 Vec_push(&new_ch, &decl);
                 Vec_push(&new_ch, &if_node);
-                for (int j = 0; j < body->children.len; j++) {
+                for (int j = 0; j < body->children.count; j++) {
                     Expr *ch = expr_child(body, j);
                     Vec_push(&new_ch, &ch);
                 }

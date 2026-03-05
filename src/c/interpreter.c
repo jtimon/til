@@ -19,7 +19,7 @@ static Map ns_fields; // Str* "Type.field" → Value
 static Vec ns_keys;   // owns the qualified-name Str*s
 
 static Str *ns_qname(Str *sname, Str *fname) {
-    int len = sname->len + 1 + fname->len;
+    int len = sname->cap + 1 + fname->cap;
     char *buf = malloc(len + 1);
     snprintf(buf, len + 1, "%s.%s", sname->c_str, fname->c_str);
     Str *s = Str_new(buf);
@@ -171,7 +171,7 @@ Value eval_call(Scope *scope, Expr *e, const char *path) {
                     if (enum_method_dispatch(callee_expr->data.str_val, scope,
                             tc->val.func, parent_sname, e, path, &eresult)) {
                         // Null cells of own-arg idents
-                        for (int i = 1; i < e->children.len; i++) {
+                        for (int i = 1; i < e->children.count; i++) {
                             if (expr_child(e, i)->type == NODE_IDENT && expr_child(e, i)->is_own_arg) {
                                 Cell *c = scope_get(scope, expr_child(e, i)->data.str_val);
                                 if (c) c->val = val_none();
@@ -184,7 +184,7 @@ Value eval_call(Scope *scope, Expr *e, const char *path) {
             static char flat_name_buf[256];
             int flen = snprintf(flat_name_buf, sizeof(flat_name_buf), "%s_%s",
                      expr_child(callee_expr, 0)->struct_name->c_str, callee_expr->data.str_val->c_str);
-            Str flat_str = {.c_str = flat_name_buf, .len = flen};
+            Str flat_str = {.c_str = flat_name_buf, .cap = flen};
             Expr *orig_callee = expr_child(e, 0);
             Expr flat_ident = *orig_callee;
             flat_ident.type = NODE_IDENT;
@@ -200,7 +200,7 @@ Value eval_call(Scope *scope, Expr *e, const char *path) {
         if (func_def->data.func_def.nparam > 0 &&
             func_def->data.func_def.param_owns &&
             func_def->data.func_def.param_owns[0] &&
-            e->children.len > 1 && expr_child(e, 1)->type == NODE_IDENT) {
+            e->children.count > 1 && expr_child(e, 1)->type == NODE_IDENT) {
             Cell *fc = scope_get(scope, expr_child(e, 1)->data.str_val);
             if (fc && fc->val.type == VAL_NONE) return val_none();
         }
@@ -233,7 +233,7 @@ Value eval_call(Scope *scope, Expr *e, const char *path) {
     Value ext_result;
     if (ext_function_dispatch(name, scope, e, path, &ext_result)) {
         // Null cells of own-arg idents (ext dispatch evaluates by value, not borrowed cell)
-        for (int i = 1; i < e->children.len; i++) {
+        for (int i = 1; i < e->children.count; i++) {
             if (expr_child(e, i)->type == NODE_IDENT && expr_child(e, i)->is_own_arg) {
                 Cell *c = scope_get(scope, expr_child(e, i)->data.str_val);
                 if (c) c->val = val_none();
@@ -255,7 +255,7 @@ Value eval_call(Scope *scope, Expr *e, const char *path) {
         Expr *sdef = fn_cell->val.func;
         Expr *body = expr_child(sdef, 0);
         int nfields = 0;
-        for (int i = 0; i < body->children.len; i++)
+        for (int i = 0; i < body->children.count; i++)
             if (!expr_child(body, i)->data.decl.is_namespace) nfields++;
         StructInstance *inst = malloc(sizeof(StructInstance));
         inst->struct_name = name;
@@ -265,7 +265,7 @@ Value eval_call(Scope *scope, Expr *e, const char *path) {
         inst->field_values = malloc(nfields * sizeof(Value));
         int arg_idx = 1;
         int fi = 0;
-        for (int i = 0; i < body->children.len; i++) {
+        for (int i = 0; i < body->children.count; i++) {
             Expr *field = expr_child(body, i);
             if (field->data.decl.is_namespace) continue;
             inst->field_names[fi] = field->data.decl.name;
@@ -297,7 +297,7 @@ Value eval_call(Scope *scope, Expr *e, const char *path) {
     if (func_def->data.func_def.nparam > 0 &&
         func_def->data.func_def.param_owns &&
         func_def->data.func_def.param_owns[0] &&
-        e->children.len > 1 && expr_child(e, 1)->type == NODE_IDENT) {
+        e->children.count > 1 && expr_child(e, 1)->type == NODE_IDENT) {
         Cell *fc = scope_get(scope, expr_child(e, 1)->data.str_val);
         if (fc && fc->val.type == VAL_NONE) return val_none();
     }
@@ -392,7 +392,13 @@ Value eval_expr(Scope *scope, Expr *e, const char *path) {
         }
         for (int i = 0; i < obj.instance->nfields; i++) {
             if (Str_eq(obj.instance->field_names[i], fname)) {
-                return obj.instance->field_values[i];
+                Value fv = obj.instance->field_values[i];
+                // Clone primitives to avoid shared heap pointers;
+                // structs/ptrs must stay as-is for chained access
+                if (fv.type == VAL_I64 || fv.type == VAL_U8 ||
+                    fv.type == VAL_BOOL || fv.type == VAL_STR)
+                    return clone_value(fv);
+                return fv;
             }
         }
         fprintf(stderr, "%s:%d:%d: runtime error: no field '%s'\n",
@@ -407,7 +413,7 @@ Value eval_expr(Scope *scope, Expr *e, const char *path) {
 }
 
 static void eval_body(Scope *scope, Expr *body, const char *path) {
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         if (has_return || has_break || has_continue) return;
         Expr *stmt = expr_child(body, i);
         switch (stmt->type) {
@@ -535,7 +541,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
                 Scope *then_scope = scope_new(scope);
                 eval_body(then_scope, expr_child(stmt, 1), path);
                 scope_free(then_scope);
-            } else if (stmt->children.len > 2) {
+            } else if (stmt->children.count > 2) {
                 Scope *else_scope = scope_new(scope);
                 eval_body(else_scope, expr_child(stmt, 2), path);
                 scope_free(else_scope);
@@ -562,7 +568,7 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
             has_continue = 1;
             return;
         case NODE_RETURN:
-            if (stmt->children.len > 0) {
+            if (stmt->children.count > 0) {
                 return_value = eval_expr(scope, expr_child(stmt, 0), path);
             } else {
                 return_value = val_none();
@@ -580,13 +586,13 @@ static void eval_body(Scope *scope, Expr *body, const char *path) {
 void interpreter_init_ns(Scope *global, Expr *program, const char *path) {
     ns_fields = Map_new(sizeof(Str *), sizeof(Value), str_ptr_cmp);
     ns_keys = Vec_new(sizeof(Str *));
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
                                         expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
             Expr *body = expr_child(expr_child(stmt, 0), 0);
-            for (int j = 0; j < body->children.len; j++) {
+            for (int j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
                 if (field->data.decl.is_namespace) {
                     Value fval = eval_expr(global, expr_child(field, 0), path);
@@ -607,7 +613,7 @@ int interpret(Expr *program, Str *mode, const char *path, const char *user_c_pat
     Scope *global = scope_new(NULL);
 
     // Pre-register all top-level func/proc/struct definitions for forward references
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL &&
             (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
@@ -626,7 +632,7 @@ int interpret(Expr *program, Str *mode, const char *path, const char *user_c_pat
 
     // In cli mode, call main()
     if (mode && Str_eq_c(mode, "cli")) {
-        Str main_name = {.c_str = (char *)"main", .len = 4};
+        Str main_name = {.c_str = (char *)"main", .cap = 4};
         Cell *main_cell = scope_get(global, &main_name);
         if (!main_cell || main_cell->val.type != VAL_FUNC) {
             fprintf(stderr, "%s: error: mode 'cli' requires a 'main' proc\n", path);

@@ -5,7 +5,7 @@
 
 typedef struct {
     void *data;
-    int len;
+    int count;
     int cap;
     int elem_size;
 } Vec;

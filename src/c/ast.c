@@ -38,7 +38,7 @@ Expr *expr_clone(Expr *e) {
     Expr *c = calloc(1, sizeof(Expr));
     *c = *e;
     c->children = Vec_new(sizeof(Expr *));
-    for (int i = 0; i < e->children.len; i++) {
+    for (int i = 0; i < e->children.count; i++) {
         Expr *cloned = expr_clone(expr_child(e, i));
         Vec_push(&c->children, &cloned);
     }
@@ -47,7 +47,7 @@ Expr *expr_clone(Expr *e) {
 
 void expr_free(Expr *e) {
     if (!e) return;
-    for (int i = 0; i < e->children.len; i++) {
+    for (int i = 0; i < e->children.count; i++) {
         expr_free(expr_child(e, i));
     }
     Vec_delete(&e->children);
@@ -119,9 +119,9 @@ void ast_print(Expr *e, int indent) {
     default:
         break;
     }
-    if (e->children.len > 0) {
+    if (e->children.count > 0) {
         printf("\n");
-        for (int i = 0; i < e->children.len; i++) {
+        for (int i = 0; i < e->children.count; i++) {
             ast_print(expr_child(e, i), indent + 1);
         }
         for (int i = 0; i < indent; i++) printf("  ");

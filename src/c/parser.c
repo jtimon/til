@@ -134,7 +134,7 @@ static Expr *parse_func_def(Parser *p) {
 
     Expr *def = expr_new(NODE_FUNC_DEF, kw->line, kw->col);
     def->data.func_def.func_type = ft;
-    def->data.func_def.nparam = pnames.len;
+    def->data.func_def.nparam = pnames.count;
     def->data.func_def.param_names = Vec_take(&pnames);
     def->data.func_def.param_types = Vec_take(&ptypes);
     def->data.func_def.param_muts = Vec_take(&pmuts);
@@ -562,7 +562,7 @@ static Expr *parse_statement(Parser *p) {
         // own expression (call-site ownership marker)
         Expr *expr = parse_expression(p);
         Expr *primary = expr;
-        while (primary->children.len > 0 &&
+        while (primary->children.count > 0 &&
                (primary->type == NODE_FCALL || primary->type == NODE_FIELD_ACCESS)) {
             primary = expr_child(primary, 0);
         }

@@ -80,7 +80,7 @@ static int is_known(Expr *e, Value *out) {
 // Check if a NODE_FCALL is a macro call
 static int is_macro_call(Expr *e) {
     return e->type == NODE_FCALL &&
-           e->children.len > 0 &&
+           e->children.count > 0 &&
            expr_child(e, 0)->type == NODE_IDENT &&
            Set_has(&macros, &expr_child(e, 0)->data.str_val);
 }
@@ -88,7 +88,7 @@ static int is_macro_call(Expr *e) {
 // Check if a NODE_FCALL is a pure func call
 static int is_func_call(Expr *e) {
     return e->type == NODE_FCALL &&
-           e->children.len > 0 &&
+           e->children.count > 0 &&
            expr_child(e, 0)->type == NODE_IDENT &&
            Set_has(&funcs, &expr_child(e, 0)->data.str_val);
 }
@@ -98,7 +98,7 @@ static int is_func_call(Expr *e) {
 static Expr *try_eval_call(Scope *scope, Expr *fcall,
                            const char *path, int require_known) {
     // Build a call with literal args for the interpreter
-    int nargs = fcall->children.len - 1;
+    int nargs = fcall->children.count - 1;
     Expr *eval_call = expr_new(NODE_FCALL, fcall->line, fcall->col);
     eval_call->til_type = fcall->til_type;
     eval_call->struct_name = fcall->struct_name;
@@ -114,7 +114,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall,
             }
             // Clean up: detach callee so it's not double-freed
             expr_child(eval_call, 0) = NULL;
-            eval_call->children.len = 0;
+            eval_call->children.count = 0;
             expr_free(eval_call);
             return NULL;
         }
@@ -128,7 +128,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall,
 
     // Clean up eval_call (detach callee ident first — it's shared with original)
     expr_child(eval_call, 0) = NULL;
-    for (int i = 1; i < eval_call->children.len; i++)
+    for (int i = 1; i < eval_call->children.count; i++)
         expr_free(expr_child(eval_call, i));
     Vec_delete(&eval_call->children);
     free(eval_call);
@@ -154,18 +154,18 @@ static void track_literal(Str *name, Expr *rhs) {
 
 // Process a body, replacing macro calls with literals
 static void process_body(Scope *scope, Expr *body, const char *path) {
-    for (int i = 0; i < body->children.len; i++) {
+    for (int i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
 
         switch (stmt->type) {
         case NODE_DECL:
-            if (stmt->children.len == 0) break; // variant registry (payload enums)
+            if (stmt->children.count == 0) break; // variant registry (payload enums)
             if (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
                 expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
                 expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
                 // Recurse into func/proc/macro bodies
                 if (expr_child(stmt, 0)->type == NODE_FUNC_DEF &&
-                    expr_child(stmt, 0)->children.len > 0) {
+                    expr_child(stmt, 0)->children.count > 0) {
                     process_body(scope, expr_child(expr_child(stmt, 0), 0), path);
                 }
                 break;
@@ -196,14 +196,14 @@ static void process_body(Scope *scope, Expr *body, const char *path) {
             break;
 
         case NODE_IF:
-            if (stmt->children.len > 1)
+            if (stmt->children.count > 1)
                 process_body(scope, expr_child(stmt, 1), path);
-            if (stmt->children.len > 2)
+            if (stmt->children.count > 2)
                 process_body(scope, expr_child(stmt, 2), path);
             break;
 
         case NODE_WHILE:
-            if (stmt->children.len > 1)
+            if (stmt->children.count > 1)
                 process_body(scope, expr_child(stmt, 1), path);
             break;
 
@@ -234,9 +234,9 @@ void precomp(Expr *program, const char *path) {
     // 1. Collect macro and pure func names
     macros = Set_new(sizeof(Str *), str_ptr_cmp);
     funcs = Set_new(sizeof(Str *), str_ptr_cmp);
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type == NODE_DECL && stmt->children.len > 0 && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
+        if (stmt->type == NODE_DECL && stmt->children.count > 0 && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
             FuncType ft = expr_child(stmt, 0)->data.func_def.func_type;
             if (ft == FUNC_MACRO)
                 Set_add(&macros, &stmt->data.decl.name);
@@ -254,7 +254,7 @@ void precomp(Expr *program, const char *path) {
 
     // 2. Set up interpreter scope (same as interpret() does)
     Scope *global = scope_new(NULL);
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL &&
             (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||

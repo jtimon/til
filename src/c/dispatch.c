@@ -120,7 +120,7 @@ static int h_Str_substr(Scope *s, Expr *e, const char *p, Value *r) {
 // === Variadic handlers ===
 
 static int h_println(Scope *s, Expr *e, const char *p, Value *r) {
-    for (int i = 1; i < e->children.len; i++) {
+    for (int i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e, i), p);
         printf("%s", arg.str->c_str);
     }
@@ -129,7 +129,7 @@ static int h_println(Scope *s, Expr *e, const char *p, Value *r) {
 }
 
 static int h_print(Scope *s, Expr *e, const char *p, Value *r) {
-    for (int i = 1; i < e->children.len; i++) {
+    for (int i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e, i), p);
         printf("%s", arg.str->c_str);
     }
@@ -137,24 +137,24 @@ static int h_print(Scope *s, Expr *e, const char *p, Value *r) {
 }
 
 static int h_format(Scope *s, Expr *e, const char *p, Value *r) {
-    int nargs = e->children.len - 1;
+    int nargs = e->children.count - 1;
     Str *strs[64];
     int total = 0;
     for (int i = 0; i < nargs; i++) {
         Value v = eval_expr(s, expr_child(e, i + 1), p);
         strs[i] = v.str;
-        total += v.str->len;
+        total += v.str->cap;
     }
     char *buf = malloc(total + 1);
     int off = 0;
     for (int i = 0; i < nargs; i++) {
-        memcpy(buf + off, strs[i]->c_str, strs[i]->len);
-        off += strs[i]->len;
+        memcpy(buf + off, strs[i]->c_str, strs[i]->cap);
+        off += strs[i]->cap;
     }
     buf[off] = '\0';
     Str *out = malloc(sizeof(Str));
     out->c_str = buf;
-    out->len = total;
+    out->cap = total;
     *r = val_str(out);
     return 1;
 }
@@ -249,7 +249,7 @@ static int h_dyn_call_func(Scope *s, Expr *e, const char *p, Value *r) {
     Expr *fa_ptr = &field_access;
     Vec_push(&fake_call.children, &fa_ptr);
     // Pass remaining args (val, and any defaults like call_free)
-    for (int i = 3; i < e->children.len; i++) {
+    for (int i = 3; i < e->children.count; i++) {
         Expr *arg = expr_child(e, i);
         Vec_push(&fake_call.children, &arg);
     }
@@ -259,7 +259,7 @@ static int h_dyn_call_func(Scope *s, Expr *e, const char *p, Value *r) {
     if (fn_val.type == VAL_FUNC && fn_val.func->type == NODE_FUNC_DEF) {
         Expr *fdef = fn_val.func;
         int nparam = fdef->data.func_def.nparam;
-        int nargs = fake_call.children.len - 1; // subtract callee
+        int nargs = fake_call.children.count - 1; // subtract callee
         for (int i = nargs; i < nparam; i++) {
             if (fdef->data.func_def.param_defaults &&
                 fdef->data.func_def.param_defaults[i]) {
@@ -278,7 +278,7 @@ static int h_dyn_call_func(Scope *s, Expr *e, const char *p, Value *r) {
 
 // === Pointer primitive handlers ===
 
-static int h_alloc(Scope *s, Expr *e, const char *p, Value *r) {
+static int h_malloc(Scope *s, Expr *e, const char *p, Value *r) {
     Value count = eval_expr(s, expr_child(e, 1), p);
     int nbytes = (int)*count.i64;
     // In interpreter, allocate slots (nbytes / 8)
@@ -394,7 +394,7 @@ static void dispatch_init(void) {
     REG("free", h_free);
 
     // Pointer primitives
-    REG("alloc", h_alloc);
+    REG("malloc", h_malloc);
     REG("realloc", h_realloc);
     REG("ptr_at", h_ptr_at);
     REG("ptr_set", h_ptr_set);
@@ -419,7 +419,7 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
     if (ffi_loaded) {
         FFIEntry *fe = Map_get(&ffi_map, &name);
         if (fe) {
-            int nargs = e->children.len - 1;
+            int nargs = e->children.count - 1;
             void *args[8];
             for (int i = 0; i < nargs; i++) {
                 Value v = eval_expr(scope, expr_child(e, i + 1), path);
@@ -491,8 +491,8 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
             *result = val_bool(values_equal(a, b));
             return 1;
         }
-        if (method->len > 3 && memcmp(method->c_str, "is_", 3) == 0) {
-            Str var_name = {.c_str = method->c_str + 3, .len = method->len - 3};
+        if (method->cap > 3 && memcmp(method->c_str, "is_", 3) == 0) {
+            Str var_name = {.c_str = method->c_str + 3, .cap = method->cap - 3};
             int tag = enum_variant_tag(enum_def, &var_name);
             Value v = eval_expr(scope, expr_child(e, 1), path);
             if (v.type == VAL_ENUM)
@@ -501,7 +501,7 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                 *result = val_bool((int)*v.i64 == tag);
             return 1;
         }
-        if (method->len > 4 && memcmp(method->c_str, "get_", 4) == 0) {
+        if (method->cap > 4 && memcmp(method->c_str, "get_", 4) == 0) {
             Value v = eval_expr(scope, expr_child(e, 1), path);
             *result = clone_value(v.enum_inst->payload);
             return 1;
@@ -544,7 +544,7 @@ int ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
 
     // Scan program for non-core ext_func/ext_proc, dlsym each
     ffi_map = Map_new(sizeof(Str *), sizeof(FFIEntry), str_ptr_cmp);
-    for (int i = 0; i < program->children.len; i++) {
+    for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->is_core) continue;
         if (stmt->type != NODE_DECL || expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
