@@ -497,6 +497,8 @@ static void emit_struct_def(FILE *f, Str *name, Expr *struct_def) {
             if (field->data.decl.is_namespace) continue;
             if (field->data.decl.is_own && field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
                 fprintf(f, "    til_%s *%s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
+            } else if (field->data.decl.is_own) {
+                fprintf(f, "    %s *%s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
             } else if (field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
                 fprintf(f, "    til_%s %s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
             } else {

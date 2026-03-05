@@ -106,10 +106,10 @@ ptr_at := ext_func(buf: Dynamic, offset: I64) returns ref Dynamic {}
 ptr_set := ext_func(buf: Dynamic, offset: I64, own val: Dynamic) {}
 
 Vec := struct {
-    mut data : Dynamic = 0
+    own mut data : U8 = 0
     mut len := 0
     mut cap := 0
-    elem_size := 8
+    elem_size := 0
 
     namespace:
     new := func(elem_size: I64) returns Vec {
@@ -134,19 +134,12 @@ Vec := struct {
     }
 
     delete := proc(own self: Vec, call_free: Bool = true) {
-        mut i := 0
-        while i.lt(self.len) {
-            free(own ptr_at(self.data, i.mul(self.elem_size)))
-            i = i.add(1)
-        }
         free(own self.data)
-        if call_free {
-            free(own self)
-        }
+        if call_free { free(own self) }
     }
 
     clone := func(self: Vec) returns Vec {
-        new_data := alloc(self.cap.mul(self.elem_size))
+        own new_data : U8 = alloc(self.cap.mul(self.elem_size))
         mut i := 0
         while i.lt(self.len) {
             ptr_set(new_data, i.mul(self.elem_size), own ptr_at(self.data, i.mul(self.elem_size)))
@@ -157,9 +150,9 @@ Vec := struct {
 }
 
 Array := struct {
-    mut data : Dynamic = 0
+    own mut data : U8 = 0
     len := 0
-    elem_size := 8
+    elem_size := 0
 
     namespace:
     new := func(elem_size: I64, len: I64) returns Array {
@@ -184,17 +177,12 @@ Array := struct {
     }
 
     delete := proc(own self: Array, call_free: Bool = true) {
-        mut i := 0
-        while i.lt(self.len) {
-            free(own ptr_at(self.data, i.mul(self.elem_size)))
-            i = i.add(1)
-        }
         free(own self.data)
         if call_free { free(own self) }
     }
 
     clone := func(self: Array) returns Array {
-        new_data := alloc(self.len.mul(self.elem_size))
+        own new_data : U8 = alloc(self.len.mul(self.elem_size))
         mut i := 0
         while i.lt(self.len) {
             ptr_set(new_data, i.mul(self.elem_size),
