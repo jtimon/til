@@ -21,10 +21,12 @@ typedef enum {
     VAL_FUNC,   // pointer to a func/proc AST node
     VAL_STRUCT, // struct instance
     VAL_ENUM,   // enum instance (tagged union with optional payload)
+    VAL_PTR,    // raw buffer (pointer array for alloc/ptr_at/ptr_set)
 } ValType;
 
 typedef struct StructInstance StructInstance;
 typedef struct EnumInstance EnumInstance;
+typedef struct PtrInst PtrInst;
 typedef struct Value Value;
 
 struct StructInstance {
@@ -45,7 +47,13 @@ struct Value {
         Expr *func;
         StructInstance *instance;
         EnumInstance *enum_inst;
+        PtrInst *ptr;
     };
+};
+
+struct PtrInst {
+    Value *data;
+    int cap;
 };
 
 struct EnumInstance {
@@ -67,6 +75,14 @@ static inline Value val_enum(Str *enum_name, int tag, Value payload) {
     ei->tag = tag;
     ei->payload = payload;
     return (Value){.type = VAL_ENUM, .enum_inst = ei};
+}
+
+static inline Value val_ptr(int cap) {
+    PtrInst *p = malloc(sizeof(PtrInst));
+    p->data = calloc(cap > 0 ? cap : 1, sizeof(Value));
+    p->cap = cap;
+    for (int i = 0; i < cap; i++) p->data[i] = val_none();
+    return (Value){.type = VAL_PTR, .ptr = p};
 }
 
 // --- Cells ---

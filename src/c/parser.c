@@ -472,10 +472,20 @@ static Expr *parse_statement(Parser *p) {
         advance(p); // consume 'ref'
         Token *ident = expect(p, TOK_IDENT);
         Str *name = tok_str(ident);
-        expect(p, TOK_COLONEQ);
         Expr *decl = expr_new(NODE_DECL, ident->line, ident->col);
         decl->data.decl.name = name;
         decl->data.decl.is_ref = true;
+        if (check(p, TOK_COLON)) {
+            // ref name : Type = expr
+            advance(p); // consume :
+            Token *type_tok = peek(p);
+            decl->data.decl.explicit_type = tok_str(type_tok);
+            advance(p); // consume type name
+            expect(p, TOK_EQ); // consume =
+        } else {
+            // ref name := expr
+            expect(p, TOK_COLONEQ);
+        }
         expr_add_child(decl, parse_expression(p));
         return decl;
     }

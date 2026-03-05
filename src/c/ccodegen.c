@@ -124,8 +124,9 @@ static const char *til_type_to_c(TilType t) {
     case TIL_TYPE_U8:   return "til_U8";
     case TIL_TYPE_STR:  return "Str";
     case TIL_TYPE_BOOL: return "til_Bool";
-    case TIL_TYPE_NONE: return "void";
-    default:            return "til_I64"; // fallback
+    case TIL_TYPE_NONE:    return "void";
+    case TIL_TYPE_DYNAMIC: return "void *";
+    default:               return "til_I64"; // fallback
     }
 }
 
@@ -136,6 +137,7 @@ static const char *c_type_name(TilType t, Str *struct_name) {
         snprintf(buf, sizeof(buf), "til_%s", struct_name->c_str);
         return buf;
     }
+    if (t == TIL_TYPE_DYNAMIC) return "void";
     return til_type_to_c(t);
 }
 
@@ -145,6 +147,7 @@ static const char *type_name_to_c(Str *name) {
     if (Str_eq_c(name, "U8"))   return "til_U8 *";
     if (Str_eq_c(name, "Str"))  return "Str *";
     if (Str_eq_c(name, "Bool")) return "til_Bool *";
+    if (Str_eq_c(name, "Dynamic")) return "void *";
     // User-defined struct type — pointer
     static char buf[128];
     snprintf(buf, sizeof(buf), "til_%s *", name->c_str);
@@ -152,7 +155,10 @@ static const char *type_name_to_c(Str *name) {
 }
 
 static void emit_deref(FILE *f, Expr *e, int depth) {
-    if (e->type == NODE_IDENT) {
+    if (e->til_type == TIL_TYPE_DYNAMIC) {
+        // Dynamic (void *) IS the value — no dereference needed
+        emit_expr(f, e, depth);
+    } else if (e->type == NODE_IDENT) {
         fprintf(f, "(*");
         emit_expr(f, e, depth);
         fprintf(f, ")");
@@ -175,8 +181,10 @@ static void emit_as_ptr(FILE *f, Expr *e, int depth) {
     if (e->type == NODE_IDENT || e->type == NODE_FCALL || e->type == NODE_LITERAL_STR) {
         emit_expr(f, e, depth);
     } else if (e->type == NODE_FIELD_ACCESS) {
-        // Own field is already a pointer; enum ns_field constructor returns pointer; inline field needs address-of
-        if (e->is_own_field || (e->is_ns_field && e->til_type == TIL_TYPE_ENUM)) {
+        // Own field is already a pointer; enum ns_field constructor returns pointer;
+        // Dynamic field is void* (already a pointer); inline field needs address-of
+        if (e->is_own_field || (e->is_ns_field && e->til_type == TIL_TYPE_ENUM) ||
+            e->til_type == TIL_TYPE_DYNAMIC) {
             emit_expr(f, e, depth);
         } else {
             fprintf(f, "&");

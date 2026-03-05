@@ -170,7 +170,11 @@ static int h_exit(Scope *s, Expr *e, const char *p, Value *r) {
 static int h_free(Scope *s, Expr *e, const char *p, Value *r) {
     (void)p;
     if (expr_child(e, 1)->type != NODE_IDENT) {
-        fprintf(stderr, "free() requires identifier argument\n"); exit(1);
+        // Non-identifier argument: evaluate and free the value directly
+        Value val = eval_expr(s, expr_child(e, 1), p);
+        free_value(val);
+        *r = val_none();
+        return 1;
     }
     Cell *cell = scope_get(s, expr_child(e, 1)->data.str_val);
     if (cell->val.type == VAL_STRUCT && cell->val.instance) {
@@ -193,8 +197,68 @@ static int h_free(Scope *s, Expr *e, const char *p, Value *r) {
         til_free(cell->val.boolean);
     } else if (cell->val.type == VAL_STR) {
         Str_delete(cell->val.str);
+    } else if (cell->val.type == VAL_PTR) {
+        for (int i = 0; i < cell->val.ptr->cap; i++)
+            free_value(cell->val.ptr->data[i]);
+        free(cell->val.ptr->data);
+        free(cell->val.ptr);
     }
     cell->val = val_none();
+    *r = val_none();
+    return 1;
+}
+
+// === Pointer primitive handlers ===
+
+static int h_alloc(Scope *s, Expr *e, const char *p, Value *r) {
+    Value count = eval_expr(s, expr_child(e, 1), p);
+    int nbytes = (int)*count.i64;
+    // In interpreter, allocate slots (nbytes / 8)
+    int nslots = nbytes / (int)sizeof(void *);
+    if (nslots < 1) nslots = 1;
+    *r = val_ptr(nslots);
+    return 1;
+}
+
+static int h_realloc(Scope *s, Expr *e, const char *p, Value *r) {
+    Value buf = eval_expr(s, expr_child(e, 1), p);
+    Value count = eval_expr(s, expr_child(e, 2), p);
+    int nbytes = (int)*count.i64;
+    int new_slots = nbytes / (int)sizeof(void *);
+    if (new_slots < 1) new_slots = 1;
+    PtrInst *old_pi = buf.ptr;
+    int old_cap = old_pi->cap;
+    Value *new_data = realloc(old_pi->data, new_slots * sizeof(Value));
+    for (int i = old_cap; i < new_slots; i++) new_data[i] = val_none();
+    // Detach old PtrInst from data so free_value on it won't destroy the buffer
+    old_pi->data = NULL;
+    old_pi->cap = 0;
+    // Return a new PtrInst wrapping the realloc'd data
+    PtrInst *new_pi = malloc(sizeof(PtrInst));
+    new_pi->data = new_data;
+    new_pi->cap = new_slots;
+    *r = (Value){.type = VAL_PTR, .ptr = new_pi};
+    return 1;
+}
+
+static int h_ptr_at(Scope *s, Expr *e, const char *p, Value *r) {
+    Value buf = eval_expr(s, expr_child(e, 1), p);
+    Value offset = eval_expr(s, expr_child(e, 2), p);
+    int slot = (int)*offset.i64 / (int)sizeof(void *);
+    *r = buf.ptr->data[slot]; // return the Value (ref — not cloned)
+    return 1;
+}
+
+static int h_ptr_set(Scope *s, Expr *e, const char *p, Value *r) {
+    Value buf = eval_expr(s, expr_child(e, 1), p);
+    Value offset = eval_expr(s, expr_child(e, 2), p);
+    Value val = eval_expr(s, expr_child(e, 3), p);
+    int slot = (int)*offset.i64 / (int)sizeof(void *);
+    // Free old value if present
+    if (buf.ptr->data[slot].type != VAL_NONE) {
+        free_value(buf.ptr->data[slot]);
+    }
+    buf.ptr->data[slot] = val;
     *r = val_none();
     return 1;
 }
@@ -261,6 +325,13 @@ static void dispatch_init(void) {
     REG("exit", h_exit);
     REG("free", h_free);
 
+    // Pointer primitives
+    REG("alloc", h_alloc);
+    REG("realloc", h_realloc);
+    REG("ptr_at", h_ptr_at);
+    REG("ptr_set", h_ptr_set);
+
+
     #undef REG
     dispatch_inited = 1;
 }
@@ -286,6 +357,7 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
                     case VAL_U8:   args[i] = v.u8; break;
                     case VAL_STR:  args[i] = v.str; break;
                     case VAL_BOOL: args[i] = v.boolean; break;
+                    case VAL_PTR:  args[i] = v.ptr; break;
                     default:       args[i] = NULL; break;
                 }
             }

@@ -80,6 +80,12 @@ void til_Pair_delete(til_Pair *self, til_Bool *call_free);
 til_Bool *til_Bool_clone(til_Bool *v);
 void til_Bool_delete(til_Bool *v, til_Bool *call_free);
 
+// Pointer primitives
+void *til_alloc(til_I64 *count);
+void *til_realloc(void *buf, til_I64 *count);
+void *til_ptr_at(void *buf, til_I64 *offset);
+void til_ptr_set(void *buf, til_I64 *offset, void *val);
+
 // Variadic builtins
 Str *til_format(int n, ...);
 void til_println(int n, ...);

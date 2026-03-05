@@ -93,6 +93,13 @@ Value clone_value(Value v) {
     case VAL_BOOL: return val_bool(*v.boolean);
     case VAL_ENUM: return val_enum(v.enum_inst->enum_name, v.enum_inst->tag,
                                     clone_value(v.enum_inst->payload));
+    case VAL_PTR: {
+        PtrInst *p = malloc(sizeof(PtrInst));
+        p->cap = v.ptr->cap;
+        p->data = malloc(p->cap * sizeof(Value));
+        for (int i = 0; i < p->cap; i++) p->data[i] = clone_value(v.ptr->data[i]);
+        return (Value){.type = VAL_PTR, .ptr = p};
+    }
     case VAL_NONE: return val_none();
     default:       return val_none();
     }
@@ -109,6 +116,10 @@ void free_value(Value v) {
         free_value(v.enum_inst->payload);
         free(v.enum_inst);
         break;
+    case VAL_PTR:
+        free(v.ptr->data);
+        free(v.ptr);
+        break;
     default: break;
     }
 }
@@ -124,6 +135,7 @@ int values_equal(Value a, Value b) {
     case VAL_ENUM:
         if (a.enum_inst->tag != b.enum_inst->tag) return 0;
         return values_equal(a.enum_inst->payload, b.enum_inst->payload);
+    case VAL_PTR:  return a.ptr == b.ptr;
     case VAL_NONE:
         return 1;
     default:       return 0;

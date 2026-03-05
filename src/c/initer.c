@@ -810,6 +810,70 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         Vec_delete(&variant_types);
     }
 
+    // Pass 1.9: auto-generate size methods for structs and enums
+    for (int i = 0; i < program->children.len; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->type != NODE_DECL) continue;
+        Expr *def = expr_child(stmt, 0);
+        if (def->type != NODE_STRUCT_DEF && def->type != NODE_ENUM_DEF) continue;
+
+        Str *sname = stmt->data.decl.name;
+
+        // Skip meta-types
+        if (Str_eq_c(sname, "StructDef") ||
+            Str_eq_c(sname, "FunctionDef") ||
+            Str_eq_c(sname, "Dynamic")) continue;
+
+        // Skip ext_structs (they define size in core.til)
+        if (def->is_ext) continue;
+
+        Expr *body = expr_child(def, 0); // NODE_BODY
+
+        // Check if size already exists in namespace
+        int has_size = 0;
+        for (int j = 0; j < body->children.len; j++) {
+            Expr *field = expr_child(body, j);
+            if (field->type == NODE_DECL && field->data.decl.is_namespace &&
+                Str_eq_c(field->data.decl.name, "size")) {
+                has_size = 1;
+                break;
+            }
+        }
+        if (has_size) continue;
+
+        int line = stmt->line;
+        int col = stmt->col;
+
+        // size := func() returns I64 { return 8 }
+        Expr *func_body = expr_new(NODE_BODY, line, col);
+        Expr *lit = expr_new(NODE_LITERAL_NUM, line, col);
+        lit->data.str_val = Str_new("8");
+        Expr *ret = expr_new(NODE_RETURN, line, col);
+        expr_add_child(ret, lit);
+        expr_add_child(func_body, ret);
+
+        Expr *func_def = expr_new(NODE_FUNC_DEF, line, col);
+        func_def->data.func_def.func_type = FUNC_FUNC;
+        func_def->data.func_def.nparam = 0;
+        func_def->data.func_def.param_names = NULL;
+        func_def->data.func_def.param_types = NULL;
+        func_def->data.func_def.param_muts = NULL;
+        func_def->data.func_def.param_owns = NULL;
+        func_def->data.func_def.param_defaults = NULL;
+        func_def->data.func_def.return_type = Str_new("I64");
+        func_def->data.func_def.is_variadic = false;
+        expr_add_child(func_def, func_body);
+
+        Expr *decl = expr_new(NODE_DECL, line, col);
+        decl->data.decl.name = Str_new("size");
+        decl->data.decl.is_namespace = true;
+        decl->data.decl.is_mut = false;
+        decl->data.decl.explicit_type = NULL;
+        expr_add_child(decl, func_def);
+
+        expr_add_child(body, decl);
+    }
+
     // Pass 2: register all func/proc definitions
     for (int i = 0; i < program->children.len; i++) {
         Expr *stmt = expr_child(program, i);

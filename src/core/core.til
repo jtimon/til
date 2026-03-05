@@ -35,6 +35,7 @@ U8 : StructDef = ext_struct {
     xor := ext_func(a: U8, b: U8) returns U8 {}
     clone := ext_func(val: U8) returns U8 {}
     delete := ext_proc(own self: U8, call_free: Bool = true) {}
+    size := func() returns I64 { return 1 }
 }
 I64 : StructDef = ext_struct {
     namespace:
@@ -64,6 +65,7 @@ I64 : StructDef = ext_struct {
     xor := ext_func(a: I64, b: I64) returns I64 {}
     clone := ext_func(val: I64) returns I64 {}
     delete := ext_proc(own self: I64, call_free: Bool = true) {}
+    size := func() returns I64 { return 8 }
 }
 Str : StructDef = ext_struct {
     namespace:
@@ -77,6 +79,7 @@ Str : StructDef = ext_struct {
     contains := ext_func(a: Str, b: Str) returns Bool {}
     starts_with := ext_func(a: Str, b: Str) returns Bool {}
     ends_with := ext_func(a: Str, b: Str) returns Bool {}
+    size := func() returns I64 { return 8 }
 }
 Bool : StructDef = ext_struct {
     namespace:
@@ -88,6 +91,7 @@ Bool : StructDef = ext_struct {
     not := ext_func(a: Bool) returns Bool {}
     clone := ext_func(val: Bool) returns Bool {}
     delete := ext_proc(own self: Bool, call_free: Bool = true) {}
+    size := func() returns I64 { return 1 }
 }
 
 // builtin functions and procs
@@ -96,6 +100,61 @@ println := ext_proc(args: ..Str) {}
 print := ext_proc(args: ..Str) {}
 exit := ext_func(code: I64) {}
 free := ext_proc(own elem: Dynamic) {}
+alloc := ext_func(count: I64) returns Dynamic {}
+realloc := ext_func(own buf: Dynamic, count: I64) returns Dynamic {}
+ptr_at := ext_func(buf: Dynamic, offset: I64) returns ref Dynamic {}
+ptr_set := ext_func(buf: Dynamic, offset: I64, own val: Dynamic) {}
+
+Vec := struct {
+    mut data : Dynamic = 0
+    mut len := 0
+    mut cap := 0
+    elem_size := 8
+
+    namespace:
+    new := func(elem_size: I64) returns Vec {
+        return Vec(data = alloc(32), cap = 4, elem_size = elem_size)
+    }
+
+    push := proc(mut self: Vec, own val: Dynamic) {
+        if self.len.eq(self.cap) {
+            new_cap := self.cap.mul(2)
+            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.cap = new_cap
+        }
+        ptr_set(self.data, self.len.mul(self.elem_size), own val)
+        self.len = self.len.add(1)
+    }
+
+    get := func(self: Vec, i: I64) returns ref Dynamic {
+        if i.lt(0).or(i.gte(self.len)) {
+            panic("Vec.get", format("index ", i.to_str(), " out of bounds (len ", self.len.to_str(), ")"))
+        }
+        return ptr_at(self.data, i.mul(self.elem_size))
+    }
+
+    delete := proc(own self: Vec, call_free: Bool = true) {
+        mut i := 0
+        while i.lt(self.len) {
+            free(own ptr_at(self.data, i.mul(self.elem_size)))
+            i = i.add(1)
+        }
+        free(own self.data)
+        if call_free {
+            free(own self)
+        }
+    }
+
+    clone := func(self: Vec) returns Vec {
+        new_data := alloc(self.cap.mul(self.elem_size))
+        mut i := 0
+        while i.lt(self.len) {
+            ptr_set(new_data, i.mul(self.elem_size), own ptr_at(self.data, i.mul(self.elem_size)))
+            i = i.add(1)
+        }
+        return Vec(data = new_data, len = self.len, cap = self.cap, elem_size = self.elem_size)
+    }
+}
 
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str, ": panic: ", msg)

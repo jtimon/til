@@ -1,0 +1,62 @@
+mode script
+
+test_vec_push_get := proc() {
+    v := Vec.new(I64.size())
+    v.push(own 42)
+    v.push(own 99)
+    v.push(own 7)
+
+    ref a : I64 = v.get(0)
+    ref b : I64 = v.get(1)
+    ref c : I64 = v.get(2)
+
+    assert_eq(loc(), a, 42)
+    assert_eq(loc(), b, 99)
+    assert_eq(loc(), c, 7)
+    assert_eq(loc(), v.len, 3)
+}
+
+test_vec_grow := proc() {
+    v := Vec.new(I64.size())
+    // default cap is 4, push 8 to force growth
+    v.push(own 1)
+    v.push(own 2)
+    v.push(own 3)
+    v.push(own 4)
+    v.push(own 5)
+    v.push(own 6)
+    v.push(own 7)
+    v.push(own 8)
+
+    assert_eq(loc(), v.len, 8)
+    ref first : I64 = v.get(0)
+    ref last : I64 = v.get(7)
+    assert_eq(loc(), first, 1)
+    assert_eq(loc(), last, 8)
+}
+
+test_vec_strings := proc() {
+    v := Vec.new(Str.size())
+    v.push(own "hello")
+    v.push(own "world")
+
+    ref a : Str = v.get(0)
+    ref b : Str = v.get(1)
+
+    assert_eq_str(loc(), a, "hello")
+    assert_eq_str(loc(), b, "world")
+    assert_eq(loc(), v.len, 2)
+}
+
+test_vec_size := proc() {
+    assert_eq(loc(), I64.size(), 8)
+    assert_eq(loc(), U8.size(), 1)
+    assert_eq(loc(), Str.size(), 8)
+    assert_eq(loc(), Bool.size(), 1)
+    assert_eq(loc(), Vec.size(), 8)
+}
+
+test_vec_push_get()
+test_vec_grow()
+test_vec_strings()
+test_vec_size()

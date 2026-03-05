@@ -1079,7 +1079,7 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, int n_live, int ret
                 Expr *del = make_delete_call(
                     live[j].name, live[j].type, live[j].struct_name,
                     stmt->line, stmt->col);
-                Vec_push(&new_ch, &del);
+                if (del) Vec_push(&new_ch, &del);
             }
         }
         Vec_push(&new_ch, &stmt);
@@ -1196,7 +1196,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                 if (locals[j].decl_index < i &&
                     (locals[j].last_use >= i || locals[j].last_use == -1)) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
-                    Vec_push(&new_ch, &del);
+                    if (del) Vec_push(&new_ch, &del);
                 }
             }
         }
@@ -1235,7 +1235,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                 TilType t = locals[j].type;
                 if (t == TIL_TYPE_STR || t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
-                    Vec_push(&new_ch, &del);
+                    if (del) Vec_push(&new_ch, &del);
                 }
                 break;
             }
@@ -1250,12 +1250,12 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit, cons
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == i) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
-                    Vec_push(&new_ch, &del);
+                    if (del) Vec_push(&new_ch, &del);
                 }
                 // Never used after declaration: free immediately
                 if (locals[j].last_use == -1 && locals[j].decl_index == i) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt->line, stmt->col);
-                    Vec_push(&new_ch, &del);
+                    if (del) Vec_push(&new_ch, &del);
                 }
             }
         }
@@ -1349,10 +1349,11 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                     snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
                     type_error(path, stmt, buf);
                 } else if (expr_child(stmt, 0)->type == NODE_LITERAL_NUM &&
-                           (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8)) {
-                    // Numeric literals can be used with any numeric type
+                           (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8 || declared == TIL_TYPE_DYNAMIC)) {
+                    // Numeric literals can be used with numeric types and Dynamic (0 = null)
                     expr_child(stmt, 0)->til_type = declared;
-                } else if (expr_child(stmt, 0)->til_type != declared) {
+                } else if (expr_child(stmt, 0)->til_type != declared &&
+                           expr_child(stmt, 0)->til_type != TIL_TYPE_DYNAMIC) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
                              stmt->data.decl.name->c_str, til_type_name_c(declared),
@@ -1466,7 +1467,8 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                                 type_error(path, stmt, buf);
                             }
                             if (expr_child(stmt, 1)->til_type != field->til_type &&
-                                expr_child(stmt, 1)->til_type != TIL_TYPE_UNKNOWN) {
+                                expr_child(stmt, 1)->til_type != TIL_TYPE_UNKNOWN &&
+                                expr_child(stmt, 1)->til_type != TIL_TYPE_DYNAMIC) {
                                 char buf[128];
                                 snprintf(buf, sizeof(buf), "field '%s' is %s but assigned %s",
                                          fname->c_str, til_type_name_c(field->til_type),

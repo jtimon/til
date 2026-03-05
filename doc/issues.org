@@ -18,7 +18,7 @@
   Depends on most open issues:
   - #1 (consistency): clean backends make porting easier
   - #2 (ref): needed for efficient arg passing without clone overhead
-  - #5 (arrays): needed for token lists, AST children, string buffers
+  - #5 (pointers/Vec): FIXED — token lists, AST children, string buffers
   - #8 (variadic): needed for format/println in the self-hosted version
 
   Does NOT depend on #10 (REPL) or #11 (GUI mode).
@@ -69,32 +69,6 @@
   - Desugaring println/print in the typer (the replacement needs to be variadic)
   - User-defined variadic functions (e.g. custom logging, string builders)
   - Variadic macros for compile-time code generation
-
-* OPEN #5 Pointers and arrays: unlock C-level memory access
-  :DEPENDENCIES: #2 #3
-  After #2 (ref) and #3 (own fields), til will have single-pointer semantics
-  for structs, args, and returns — but still no way to work with multi-element
-  allocations. C has malloc(sizeof(Elem)*n), pointer[i] indexing, pointer
-  arithmetic, and dereference. Some of this is needed for self-hosting since
-  the current C implementation uses these features (e.g. Expr.children, field
-  arrays).
-
-  own and ref will replace C's raw * for single pointers, giving the typer
-  enough information for compile-time garbage collection (no explicit free).
-  Arrays need the same treatment: the user gets power without the responsibility
-  of manual free — ASAP and auto-generated delete handle cleanup.
-
-  What's needed:
-  - Array type: own arr: [I64] or similar — contiguous heap allocation of N elements
-  - Indexed access: arr[i] or arr.get(i)
-  - Length: arr.len()
-  - Construction: [1, 2, 3] or Array(I64, size=10)
-  - Ownership: arrays are owned by default, clone deep-copies, delete frees
-
-  What's probably NOT needed (at least initially):
-  - Raw pointer arithmetic (arrays with bounds checking are safer)
-  - Manual dereference (* operator)
-  - Void pointers
 
 
 * WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields

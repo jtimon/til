@@ -1,5 +1,115 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #5 Pointers and Vec: unlock C-level memory access
+  :DEPENDENCIES: #2 #3
+  Added 4 pointer primitives operating on Dynamic (til's void*), auto-generated
+  Type.size() methods, and Vec as a regular til struct in core.til. No new types
+  — Dynamic IS the raw pointer type. No bracket indexing — ptr_at/ptr_set for
+  pointer arithmetic. Vec.get returns ref Dynamic — caller provides explicit type
+  via ref t : Type = v.get(i).
+
+** FIXED Pointer primitives (4 ext_func)
+   Added to core.til, implemented in ext.c, dispatch.c handles interpreter:
+
+   alloc := ext_func(count: I64) returns Dynamic {}
+   realloc := ext_func(own buf: Dynamic, count: I64) returns Dynamic {}
+   ptr_at := ext_func(buf: Dynamic, offset: I64) returns ref Dynamic {}
+   ptr_set := ext_func(buf: Dynamic, offset: I64, own val: Dynamic) {}
+
+   - alloc(count): calloc count bytes, returns raw buffer
+   - realloc(own buf, count): grows/shrinks buffer to count bytes
+   - ptr_at(buf, offset): returns ref to pointer-sized value at byte offset
+   - ptr_set(buf, offset, own val): stores pointer-sized value at byte offset
+   - ptr_set is ext_func (not ext_proc) so Vec.clone (a func) can call it
+
+   Interpreter: VAL_PTR value type wrapping PtrInst (Value *data + int cap).
+   Byte offsets divided by sizeof(void*) to get slot indices.
+
+   ext.c: C implementations use (char*)buf + offset pointer arithmetic.
+   dispatch.c: h_alloc, h_realloc, h_ptr_at, h_ptr_set handlers + REG().
+
+** FIXED Dynamic as a real type
+   - ccodegen.c: TIL_TYPE_DYNAMIC → "void *" in til_type_to_c, "void" in
+     c_type_name (without pointer — codegen adds * for variable decls).
+     type_name_to_c: "Dynamic" → "void *".
+   - emit_as_ptr: Dynamic fields skip & prefix (already a pointer).
+   - emit_deref: Dynamic values skip dereference (void* IS the value).
+   - typer.c: Dynamic compatibility — numeric literal 0 accepted for Dynamic
+     type (null pointer), Dynamic RHS accepted for explicit-typed declarations
+     and field assignments.
+
+** FIXED Parser: ref with explicit type annotation
+   Extended ref declaration parsing to support:
+     ref name : Type = expr    (new — explicit type for Dynamic)
+     ref name := expr          (existing — inferred type)
+   After parsing ident, checks for TOK_COLON vs TOK_COLONEQ.
+
+** FIXED Type.size() auto-generation
+   - Hardcoded in core.til as plain func for primitives: I64(8), U8(1),
+     Str(8), Bool(1).
+   - Auto-generated in initer.c (Pass 1.9) for structs/enums that don't
+     define their own: size := func() returns I64 { return 8 }.
+     All user types are pointer-sized (8 bytes) since til values are heap
+     pointers. Skips meta-types (StructDef, FunctionDef, Dynamic) and
+     ext_structs.
+
+** FIXED Vec struct in core.til
+   Implemented as a regular til struct following C Vec conventions:
+
+   Vec := struct {
+       mut data : Dynamic = 0
+       mut len := 0
+       mut cap := 0
+       elem_size := 8
+
+       namespace:
+       new := func(elem_size: I64) returns Vec { ... }
+       push := proc(mut self: Vec, own val: Dynamic) { ... }
+       get := func(self: Vec, i: I64) returns ref Dynamic { ... }
+       delete := proc(own self: Vec, call_free: Bool = true) { ... }
+       clone := func(self: Vec) returns Vec { ... }
+   }
+
+   - new(elem_size): allocates initial buffer (cap=4), stores elem_size
+   - push(mut self, own val): appends value, doubles capacity on growth
+   - get(self, i): bounds-checked access, panics on out-of-range
+   - delete: deep — frees each element, then buffer, then struct
+   - clone: deep — clones each element into new buffer
+
+   Usage: v := Vec.new(I64.size()); v.push(own 42); ref x : I64 = v.get(0)
+
+** FIXED Typer fixes for Dynamic/pointer support
+   - make_delete_call returns NULL for Dynamic type (no clone/delete methods).
+     Added if(del) NULL guards at 5 locations in insert_free_calls and
+     insert_exit_deletes to prevent NULL Expr pushes into body children.
+   - h_free extended for non-identifier arguments (free(own ptr_at(...))):
+     evaluates the expression and free_values directly instead of requiring
+     NODE_IDENT.
+
+** FIXED Interpreter bugs for Vec
+   - h_realloc: was returning the same PtrInst, causing use-after-free when
+     field assignment did free_value(old) before setting new (same object).
+     Fixed: returns a new PtrInst, detaches old from its data array.
+   - free_value(VAL_PTR): was recursively freeing contained elements, causing
+     double-free when Vec.delete explicitly freed elements then freed the
+     buffer. Fixed: VAL_PTR free_value only frees the data array and struct,
+     not contained values (raw buffers don't own elements).
+
+** Files modified
+   | File             | Action                                        |
+   | src/c/ext.h      | Added alloc/realloc/ptr_at/ptr_set declarations |
+   | src/c/ext.c      | Added C implementations                       |
+   | src/c/interpreter.h | Added VAL_PTR, PtrInst                     |
+   | src/c/interpreter.c | VAL_PTR in clone_value/free_value/values_equal |
+   | src/c/dispatch.c | Pointer handlers, h_free non-ident, h_realloc fix |
+   | src/c/typer.c    | Dynamic compat, NULL guards for make_delete_call |
+   | src/c/parser.c   | ref with explicit type annotation              |
+   | src/c/ccodegen.c | Dynamic type mapping, emit_as_ptr, emit_deref  |
+   | src/c/initer.c   | Pass 1.9: auto-generate size() for structs/enums |
+   | src/core/core.til | Pointer primitives, Type.size(), Vec struct    |
+   | src/test/vecs.til | Vec tests (push/get, grow, strings, size)      |
+   | tests.sh         | Added vecs.til to test list                    |
+
 * FIXED #4 FFI: call external C functions from til
   The ext_func/ext_proc syntax already works for builtins. Users can now call
   arbitrary C functions by providing a .c file alongside their .til program.

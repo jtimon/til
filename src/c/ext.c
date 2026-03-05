@@ -101,6 +101,17 @@ void til_Pair_delete(til_Pair *self, til_Bool *call_free) {
     if (*call_free) free(self);
 }
 
+// Pointer primitives
+void *til_alloc(til_I64 *count) { return calloc(1, (size_t)*count); }
+void *til_realloc(void *buf, til_I64 *count) { return realloc(buf, (size_t)*count); }
+void *til_ptr_at(void *buf, til_I64 *offset) {
+    return *(void **)((char *)buf + *offset);
+}
+void til_ptr_set(void *buf, til_I64 *offset, void *val) {
+    void **slot = (void **)((char *)buf + *offset);
+    *slot = val;
+}
+
 // Variadic builtins
 Str *til_format(int n, ...) {
     va_list ap; va_start(ap, n);
