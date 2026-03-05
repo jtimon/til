@@ -156,6 +156,56 @@ Vec := struct {
     }
 }
 
+Array := struct {
+    mut data : Dynamic = 0
+    len := 0
+    elem_size := 8
+
+    namespace:
+    new := func(elem_size: I64, len: I64) returns Array {
+        return Array(data = alloc(len.mul(elem_size)), len = len,
+                     elem_size = elem_size)
+    }
+
+    get := func(self: Array, i: I64) returns ref Dynamic {
+        if i.lt(0).or(i.gte(self.len)) {
+            panic("Array.get", format("index ", i.to_str(),
+                  " out of bounds (len ", self.len.to_str(), ")"))
+        }
+        return ptr_at(self.data, i.mul(self.elem_size))
+    }
+
+    set := proc(self: Array, i: I64, own val: Dynamic) {
+        if i.lt(0).or(i.gte(self.len)) {
+            panic("Array.set", format("index ", i.to_str(),
+                  " out of bounds (len ", self.len.to_str(), ")"))
+        }
+        ptr_set(self.data, i.mul(self.elem_size), own val)
+    }
+
+    delete := proc(own self: Array, call_free: Bool = true) {
+        mut i := 0
+        while i.lt(self.len) {
+            free(own ptr_at(self.data, i.mul(self.elem_size)))
+            i = i.add(1)
+        }
+        free(own self.data)
+        if call_free { free(own self) }
+    }
+
+    clone := func(self: Array) returns Array {
+        new_data := alloc(self.len.mul(self.elem_size))
+        mut i := 0
+        while i.lt(self.len) {
+            ptr_set(new_data, i.mul(self.elem_size),
+                    own ptr_at(self.data, i.mul(self.elem_size)))
+            i = i.add(1)
+        }
+        return Array(data = new_data, len = self.len,
+                     elem_size = self.elem_size)
+    }
+}
+
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str, ": panic: ", msg)
     exit(1)
