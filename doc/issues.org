@@ -1,11 +1,56 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 13
+# NEXT_ISSUE: 14
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
+* OPEN #13 Test runner in til: parallel execution, mode comparison
+  :DEPENDENCIES: #5
+  Replace tests.sh with a til-based test runner that runs tests in parallel,
+  compares interpreter vs codegen output, and reports timing. Inspired by
+  rstil/src/tests.til which spawns processes, polls completion, and diffs
+  outputs across multiple execution modes.
+
+  Currently tests.sh is a linear bash script that runs each test sequentially
+  in both modes. A til-based runner would be faster (parallel), more capable
+  (output diffing, timing, better reporting), and serve as a real-world
+  exercise for Vec, Str, and the new pointer primitives.
+
+** System primitives needed
+   New ext_func/ext_proc in core.til + ext.c + dispatch.c:
+
+   - spawn_cmd(cmd: Str) returns I64 — fork+exec, return child PID
+   - check_cmd_status(pid: I64) returns I64 — non-blocking waitpid,
+     returns exit code or -1 if still running
+   - sleep(ms: I64) — millisecond sleep for poll loops
+   - run_cmd(cmd: Str) returns I64 — synchronous popen, captures stdout
+     into a Str (via mut param or return)
+   - readfile(path: Str) returns Str — read file contents
+   - writefile(path: Str, content: Str) — write file contents
+
+   Also useful: clock_ms() for timing, getenv(name: Str) returns Str.
+
+** Test runner design
+   A til program (src/tests.til or similar) that:
+
+   1. Collects test file paths (src/test/*.til)
+   2. For each test, spawns both interpret and run modes in parallel
+   3. Polls for completion, collects exit codes and output
+   4. Compares outputs between modes (interpret vs run must match)
+   5. Reports pass/fail with diffs on mismatch, timing per test
+   6. Configurable parallelism (e.g. 4-8 concurrent processes)
+
+   The old rstil runner used .out files for expected output. Simpler
+   approach for ctil: just assert both modes produce identical output
+   and exit code 0 (or expected non-zero for error tests).
+
+** Why this blocks self-hosting
+   The self-hosted compiler needs to pass the same tests as the C
+   implementation. A proper test runner that compares outputs across
+   modes is essential for validating correctness during the rewrite.
+
 * OPEN #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2 #5 #8
+  :DEPENDENCIES: #1 #2 #5 #8 #13
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
