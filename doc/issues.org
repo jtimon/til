@@ -1,11 +1,29 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 14
+# NEXT_ISSUE: 15
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
+* OPEN #14 Function pointers: first-class functions as values
+  til currently has no way to pass functions as values. func/proc
+  definitions are bound to names and can only be called directly.
+  Function pointers would allow storing and passing functions as
+  arguments — needed for comparators (Map), callbacks, and generic
+  algorithms.
+
+  What's needed:
+  - A function pointer type syntax (e.g. Fn(I64, I64) returns I64)
+  - Storing func/proc references as values
+  - Calling through function pointer variables
+  - Type checking: parameter/return types must match at call sites
+  - Interpreter: Value variant for function pointers
+  - ccodegen: emit C function pointer types and indirect calls
+
+  Blocks Map (needs comparator), generic sort, event handlers,
+  and many patterns needed for self-hosting (visitor, dispatch tables).
+
 * OPEN #13 Test runner in til: parallel execution, mode comparison
-  :DEPENDENCIES: #5
+  :DEPENDENCIES: #5 #14
   Replace tests.sh with a til-based test runner that runs tests in parallel,
   compares interpreter vs codegen output, and reports timing. Inspired by
   rstil/src/tests.til which spawns processes, polls completion, and diffs
@@ -50,7 +68,7 @@
    modes is essential for validating correctness during the rewrite.
 
 * OPEN #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2 #5 #8 #13
+  :DEPENDENCIES: #1 #2 #5 #8 #13 #14
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
