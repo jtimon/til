@@ -195,16 +195,55 @@
   Currently `..Type` variadic parameters only work in ext_func and ext_proc
   (format, println, print). Regular funcs, procs, and macros can't use them.
 
-  What's needed:
-  - Parser: allow `..Type` in func/proc/macro parameter lists
-  - Typer: validate variadic calls, ensure args match the element type
-  - Interpreter: collect variadic args into an array-like structure
-  - ccodegen: emit variadic C calls or array-based passing
+  Three phases:
 
-  This blocks several improvements:
-  - Desugaring println/print in the typer (the replacement needs to be variadic)
-  - User-defined variadic functions (e.g. custom logging, string builders)
-  - Variadic macros for compile-time code generation
+** Phase 1: General variadic args for user-defined functions
+   Support `..Type` in regular func/proc/macro parameter lists, any type.
+   Example: variadic_and := func(args: ..Bool) returns Bool {}
+
+   Internally, variadic args are stored as a til Array. At the call site, an
+   Array is built from the passed variadic arguments. Inside the definition,
+   the parameter has Array type and the user accesses elements via the Array
+   interface:
+
+     print_points := proc(points: ..Point) {
+       i := 0
+       while i.lt(points.len()) {
+         ref p: Point = points.get(i)
+         println(p.x, ", ", p.y)
+         i = i.add(1)
+       }
+     }
+     print_points(a, b, c)  -- builds Array[Point] from a, b, c
+
+   Ownership: variadic params are implicitly own, non-mut. No need to write
+   `own` or `mut` on `..T` params — reject those keywords if present. Callers
+   don't write `own` either; ownership transfer is implicit for variadic args.
+   Zero and single variadic args are allowed and still use an Array (cap=0/1).
+
+   Parameter ordering: no positional params allowed after the variadic param.
+   Only params with defaults (which use named syntax at call site) are allowed
+   after it. Without this rule, ambiguous cases would be hard to resolve.
+
+   What's needed:
+   - Parser: allow `..Type` in func/proc/macro parameter lists, reject own/mut.
+     No positional params after variadic, only params with defaults allowed
+   - Typer: resolve `..T` param to Array[T], validate call args match T
+   - Interpreter: build Array from variadic args, bind as param
+   - ccodegen: emit Array construction at call site, pass as single Array arg
+
+   This blocks:
+   - Desugaring println/print in the typer (the replacement needs to be variadic)
+   - User-defined variadic functions (e.g. custom logging, string builders)
+   - Variadic macros for compile-time code generation
+
+** Phase 2: main proc CLI args (including variadic)
+   main := proc(args: ..Str) must work in both compiled and interpreted modes.
+   Needed for #12 (self-hosting) and #13 (test runner in til).
+
+** Phase 3: Variadic args in FFI functions
+   Related to #4. Support `..Type` in ext_func/ext_proc parameter lists
+   for user-defined companion .c files.
 
 
 * WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
