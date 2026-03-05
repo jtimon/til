@@ -1348,6 +1348,11 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
                     type_error(path, stmt, buf);
+                } else if (declared == TIL_TYPE_DYNAMIC) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add explicit type annotation",
+                             stmt->data.decl.name->c_str);
+                    type_error(path, stmt, buf);
                 } else if (expr_child(stmt, 0)->type == NODE_LITERAL_NUM &&
                            (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8 || declared == TIL_TYPE_DYNAMIC)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)
@@ -1374,6 +1379,12 @@ static void infer_body(TypeScope *scope, Expr *body, const char *path, int in_fu
                 }
             } else {
                 stmt->til_type = expr_child(stmt, 0)->til_type;
+                if (stmt->til_type == TIL_TYPE_DYNAMIC) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add explicit type annotation",
+                             stmt->data.decl.name->c_str);
+                    type_error(path, stmt, buf);
+                }
             }
             tscope_set(scope, stmt->data.decl.name, stmt->til_type, -1, stmt->data.decl.is_mut, stmt->line, stmt->col, 0, 0);
             if ((stmt->til_type == TIL_TYPE_STRUCT || stmt->til_type == TIL_TYPE_ENUM) && expr_child(stmt, 0)->struct_name) {

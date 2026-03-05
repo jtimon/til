@@ -151,3 +151,9 @@ bad_ref_fn := func(a: I64) returns ref I64 {
     b := a
     return b
 }
+
+// cannot store Dynamic: explicit type annotation
+bad_dyn : Dynamic = 0
+
+// cannot store Dynamic: inferred from alloc
+bad_dyn2 := alloc(32)
