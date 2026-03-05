@@ -1,9 +1,59 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 10
+# NEXT_ISSUE: 13
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
+* OPEN #12 Self-hosting: rewrite ctil in til
+  :DEPENDENCIES: #1 #2 #5 #8
+  Rewrite the til compiler/interpreter in til itself. This is the ultimate
+  test of the language — if til can compile itself, it's expressive enough
+  for real systems programming.
+
+  The current C implementation is the reference: lexer, parser, initer,
+  typer, interpreter, ccodegen, precomp, scavenger (~6000 lines of C).
+  Self-hosting means reimplementing all of these in til, using til's own
+  features (structs, enums, ownership, FFI for I/O).
+
+  Depends on most open issues:
+  - #1 (consistency): clean backends make porting easier
+  - #2 (ref): needed for efficient arg passing without clone overhead
+  - #5 (arrays): needed for token lists, AST children, string buffers
+  - #8 (variadic): needed for format/println in the self-hosted version
+
+  Does NOT depend on #10 (REPL) or #11 (GUI mode).
+
+* OPEN #11 Mode GUI: raylib integration via FFI
+  :DEPENDENCIES: #4
+  Add a `mode gui` that auto-includes ext_func/ext_proc declarations for
+  raylib, so users can build graphical applications. Similar to how `mode cli`
+  calls main(), `mode gui` would call a main loop with raylib setup/teardown.
+
+  Now that #4 (FFI) is done, the mechanism exists: ctil compiles and links
+  user .c files, and the interpreter can dlopen shared libraries. For mode gui:
+  - Auto-include a til file with raylib ext_func/ext_proc signatures
+    (InitWindow, CloseWindow, BeginDrawing, DrawText, etc.)
+  - Auto-link raylib (-lraylib) during compilation
+  - For the interpreter, dlopen libraylib.so and register all functions
+  - Potentially use libffi for the interpreter path to avoid manual
+    trampoline entries for each raylib function (raylib has ~500 functions)
+
+  Must work for both `bin/ctil run` and `bin/ctil interpret`.
+
+* OPEN #10 REPL: interactive read-eval-print loop
+  Add a `bin/ctil repl` command (or just `bin/ctil` with no args) that starts
+  an interactive session. Each line is parsed, type-checked, and interpreted
+  incrementally, with results printed.
+
+  Use rlwrap for line editing and history (ctil itself just reads stdin).
+  Core.til is loaded once at startup. Declarations persist across lines.
+  Expressions are evaluated and their results printed.
+
+  What's needed:
+  - ctil.c: new "repl" command, read-eval loop
+  - Incremental parsing: parse one statement at a time
+  - Persistent scope: declarations accumulate across inputs
+  - Result display: print expression values (needs to_str for all types)
 
 * OPEN #8 Variadic args for funcs, procs, and macros
   Currently `..Type` variadic parameters only work in ext_func and ext_proc
@@ -146,12 +196,11 @@
    Moved to ast.h as static inline, along with enum_variant_tag and
    enum_variant_type. Both backends and dispatch.c use the shared versions.
 
-** interpreter: dispatch.c still uses strcmp chain
-   Linear scan of 47 string comparisons. Could be a sorted array + binary
-   search, or a function pointer hash table. Special cases that don't fit
-   a simple table: free (accesses scope), println/print/format (variadic).
-   Low priority — interpreter perf isn't critical. Could revisit if
-   self-hosting makes dispatch a hot path.
+** FIXED interpreter: dispatch.c strcmp chain replaced with Map
+   Was linear scan of 47 string comparisons. Now a Map of DispatchFn
+   function pointers, lazy-initialized on first call. Handlers generated
+   via H1/H2/HDEL/HCLONE macros. Special cases (free, println, print,
+   format) kept as explicit handler functions.
 
 ** ccodegen: declaration emission branches on RHS type
    3 branches: struct constructor (malloc + fields), fcall/str (pointer-assign),
