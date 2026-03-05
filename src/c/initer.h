@@ -41,6 +41,6 @@ int tscope_is_mut(TypeScope *s, Str *name);
 
 // Pre-scan top-level declarations (structs and functions) into scope.
 // Returns number of errors.
-int init_declarations(Expr *program, TypeScope *scope, const char *path);
+int init_declarations(Expr *program, TypeScope *scope);
 
 #endif

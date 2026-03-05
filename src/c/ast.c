@@ -19,13 +19,28 @@ const char *til_type_name_c(TilType t) {
     return "?";
 }
 
-Expr *expr_new(NodeType type, int line, int col) {
+Expr *expr_new(NodeType type, int line, int col, Str *path) {
     Expr *e = calloc(1, sizeof(Expr));
     e->type = type;
     e->children = Vec_new(sizeof(Expr *));
     e->line = line;
     e->col = col;
+    e->path = path;
     return e;
+}
+
+void expr_error(Expr *e, const char *msg) {
+    fprintf(stderr, "%s:%d:%d: error: %s\n", e->path->c_str, e->line, e->col, msg);
+}
+
+void expr_todo_error(Expr *e, const char *msg) {
+    fprintf(stderr, "%s:%d:%d: error: %s\n", e->path->c_str, e->line, e->col, msg);
+    fprintf(stderr, "  note: this language feature is not implemented yet\n");
+}
+
+void expr_lang_error(Expr *e, const char *msg) {
+    fprintf(stderr, "%s:%d:%d: error: %s\n", e->path->c_str, e->line, e->col, msg);
+    fprintf(stderr, "  note: this is a bug in the language, please report it\n");
 }
 
 void expr_add_child(Expr *parent, Expr *child) {

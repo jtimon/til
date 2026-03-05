@@ -10,11 +10,13 @@ static Map known;
 
 // --- Value → Expr conversion ---
 
-static Expr *value_to_expr(Value val, int line, int col) {
+static Expr *value_to_expr(Value val, Expr *src) {
+    int line = src->line, col = src->col;
+    Str *path = src->path;
     Expr *e;
     switch (val.type) {
     case VAL_I64: {
-        e = expr_new(NODE_LITERAL_NUM, line, col);
+        e = expr_new(NODE_LITERAL_NUM, line, col, path);
         char buf[32];
         snprintf(buf, sizeof(buf), "%lld", (long long)*val.i64);
         e->data.str_val = Str_new(buf);
@@ -22,7 +24,7 @@ static Expr *value_to_expr(Value val, int line, int col) {
         return e;
     }
     case VAL_U8: {
-        e = expr_new(NODE_LITERAL_NUM, line, col);
+        e = expr_new(NODE_LITERAL_NUM, line, col, path);
         char buf[32];
         snprintf(buf, sizeof(buf), "%u", (unsigned)*val.u8);
         e->data.str_val = Str_new(buf);
@@ -30,14 +32,14 @@ static Expr *value_to_expr(Value val, int line, int col) {
         return e;
     }
     case VAL_STR: {
-        e = expr_new(NODE_LITERAL_STR, line, col);
+        e = expr_new(NODE_LITERAL_STR, line, col, path);
         e->data.str_val = Str_clone(val.str);
         e->til_type = TIL_TYPE_STRUCT;
         e->struct_name = Str_new("Str");
         return e;
     }
     case VAL_BOOL: {
-        e = expr_new(NODE_LITERAL_BOOL, line, col);
+        e = expr_new(NODE_LITERAL_BOOL, line, col, path);
         e->data.str_val = Str_new(*val.boolean ? "true" : "false");
         e->til_type = TIL_TYPE_BOOL;
         return e;
@@ -96,11 +98,10 @@ static int is_func_call(Expr *e) {
 
 // Try to evaluate a call at compile time.
 // require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
-static Expr *try_eval_call(Scope *scope, Expr *fcall,
-                           const char *path, int require_known) {
+static Expr *try_eval_call(Scope *scope, Expr *fcall, int require_known) {
     // Build a call with literal args for the interpreter
     int nargs = fcall->children.count - 1;
-    Expr *eval_call = expr_new(NODE_FCALL, fcall->line, fcall->col);
+    Expr *eval_call = expr_new(NODE_FCALL, fcall->line, fcall->col, fcall->path);
     eval_call->til_type = fcall->til_type;
     eval_call->struct_name = fcall->struct_name;
     expr_add_child(eval_call, expr_child(fcall, 0)); // callee ident
@@ -110,8 +111,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall,
         Value arg_val;
         if (!is_known(arg, &arg_val)) {
             if (require_known) {
-                fprintf(stderr, "%s:%d:%d: error: macro argument must be known at compile time\n",
-                        path, arg->line, arg->col);
+                expr_error(arg, "macro argument must be known at compile time");
             }
             // Clean up: detach callee so it's not double-freed
             expr_child(eval_call, 0) = NULL;
@@ -120,12 +120,12 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall,
             return NULL;
         }
         // Create a literal expression from the value
-        Expr *lit = value_to_expr(arg_val, arg->line, arg->col);
+        Expr *lit = value_to_expr(arg_val, arg);
         expr_add_child(eval_call, lit);
     }
 
     // Evaluate the call using the interpreter
-    Value result = eval_expr(scope, eval_call, path);
+    Value result = eval_expr(scope, eval_call);
 
     // Clean up eval_call (detach callee ident first — it's shared with original)
     expr_child(eval_call, 0) = NULL;
@@ -135,11 +135,10 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall,
     free(eval_call);
 
     // Convert result to AST
-    Expr *lit = value_to_expr(result, fcall->line, fcall->col);
+    Expr *lit = value_to_expr(result, fcall);
     if (!lit) {
         if (require_known) {
-            fprintf(stderr, "%s:%d:%d: error: macro returned non-primitive type\n",
-                    path, fcall->line, fcall->col);
+            expr_error(fcall, "macro returned non-primitive type");
         }
     }
     return lit;
@@ -154,7 +153,7 @@ static void track_literal(Str *name, Expr *rhs) {
 }
 
 // Process a body, replacing macro calls with literals
-static void process_body(Scope *scope, Expr *body, const char *path) {
+static void process_body(Scope *scope, Expr *body) {
     for (int i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
 
@@ -167,7 +166,7 @@ static void process_body(Scope *scope, Expr *body, const char *path) {
                 // Recurse into func/proc/macro bodies
                 if (expr_child(stmt, 0)->type == NODE_FUNC_DEF &&
                     expr_child(stmt, 0)->children.count > 0) {
-                    process_body(scope, expr_child(expr_child(stmt, 0), 0), path);
+                    process_body(scope, expr_child(expr_child(stmt, 0), 0));
                 }
                 break;
             }
@@ -175,14 +174,14 @@ static void process_body(Scope *scope, Expr *body, const char *path) {
             if (stmt->data.decl.is_ref) break;
             // Check if RHS is a macro or pure func call
             if (is_macro_call(expr_child(stmt, 0))) {
-                Expr *lit = try_eval_call(scope, expr_child(stmt, 0), path, 1);
+                Expr *lit = try_eval_call(scope, expr_child(stmt, 0), 1);
                 if (lit) {
                     expr_free(expr_child(stmt, 0));
                     expr_child(stmt, 0) = lit;
                     track_literal(stmt->data.decl.name, lit);
                 }
             } else if (is_func_call(expr_child(stmt, 0))) {
-                Expr *lit = try_eval_call(scope, expr_child(stmt, 0), path, 0);
+                Expr *lit = try_eval_call(scope, expr_child(stmt, 0), 0);
                 if (lit) {
                     expr_free(expr_child(stmt, 0));
                     expr_child(stmt, 0) = lit;
@@ -198,26 +197,26 @@ static void process_body(Scope *scope, Expr *body, const char *path) {
 
         case NODE_IF:
             if (stmt->children.count > 1)
-                process_body(scope, expr_child(stmt, 1), path);
+                process_body(scope, expr_child(stmt, 1));
             if (stmt->children.count > 2)
-                process_body(scope, expr_child(stmt, 2), path);
+                process_body(scope, expr_child(stmt, 2));
             break;
 
         case NODE_WHILE:
             if (stmt->children.count > 1)
-                process_body(scope, expr_child(stmt, 1), path);
+                process_body(scope, expr_child(stmt, 1));
             break;
 
         case NODE_FCALL:
             // Bare macro or pure func call (not in a declaration)
             if (is_macro_call(stmt)) {
-                Expr *lit = try_eval_call(scope, stmt, path, 1);
+                Expr *lit = try_eval_call(scope, stmt, 1);
                 if (lit) {
                     expr_free(stmt);
                     expr_child(body, i) = lit;
                 }
             } else if (is_func_call(stmt)) {
-                Expr *lit = try_eval_call(scope, stmt, path, 0);
+                Expr *lit = try_eval_call(scope, stmt, 0);
                 if (lit) {
                     expr_free(stmt);
                     expr_child(body, i) = lit;
@@ -231,7 +230,7 @@ static void process_body(Scope *scope, Expr *body, const char *path) {
     }
 }
 
-void precomp(Expr *program, const char *path) {
+void precomp(Expr *program) {
     // 1. Collect macro and pure func names
     macros = Set_new(sizeof(Str *), str_ptr_cmp);
     funcs = Set_new(sizeof(Str *), str_ptr_cmp);
@@ -265,11 +264,11 @@ void precomp(Expr *program, const char *path) {
             scope_set_owned(global, stmt->data.decl.name, val);
         }
     }
-    interpreter_init_ns(global, program, path);
+    interpreter_init_ns(global, program);
 
     // 3. Process the program body
     known = Map_new(sizeof(Str *), sizeof(Value), str_ptr_cmp);
-    process_body(global, program, path);
+    process_body(global, program);
 
     // Cleanup
     Map_delete(&known);

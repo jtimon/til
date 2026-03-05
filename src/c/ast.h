@@ -91,10 +91,16 @@ struct Expr {
     Vec children;                   // Vec of Expr* child pointers
     int line;
     int col;
+    Str *path;                      // source file path
 };
 
 // Allocate a new Expr node
-Expr *expr_new(NodeType type, int line, int col);
+Expr *expr_new(NodeType type, int line, int col, Str *path);
+
+// Error reporting helpers (print to stderr)
+void expr_error(Expr *e, const char *msg);
+void expr_todo_error(Expr *e, const char *msg);
+void expr_lang_error(Expr *e, const char *msg);
 
 // Add a child to an Expr
 void expr_add_child(Expr *parent, Expr *child);

@@ -6,6 +6,6 @@
 // Run type inference and type checking on the AST (in-place).
 // Scope should be pre-populated by init_declarations.
 // Returns 0 on success, non-zero if type errors were found.
-int type_check(Expr *program, const char *path, TypeScope *scope);
+int type_check(Expr *program, TypeScope *scope);
 
 #endif

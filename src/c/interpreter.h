@@ -93,8 +93,8 @@ struct Scope {
 };
 
 // Functions used by dispatch and precomp
-Value eval_expr(Scope *scope, Expr *e, const char *path);
-Value eval_call(Scope *scope, Expr *e, const char *path);
+Value eval_expr(Scope *scope, Expr *e);
+Value eval_call(Scope *scope, Expr *e);
 Value clone_value(Value v);
 void free_value(Value v);
 int values_equal(Value a, Value b);
@@ -102,7 +102,7 @@ Cell *scope_get(Scope *s, Str *name);
 Scope *scope_new(Scope *parent);
 void scope_set_owned(Scope *s, Str *name, Value val);
 void scope_free(Scope *s);
-void interpreter_init_ns(Scope *global, Expr *program, const char *path);
+void interpreter_init_ns(Scope *global, Expr *program);
 Value *ns_get(Str *sname, Str *fname);
 
 #endif

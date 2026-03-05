@@ -6,7 +6,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 
-typedef int (*DispatchFn)(Scope *, Expr *, const char *, Value *);
+typedef int (*DispatchFn)(Scope *, Expr *, Value *);
 
 // --- Dispatch state ---
 static Map dispatch_map;
@@ -27,30 +27,30 @@ static int ffi_loaded;
 
 // 2-arg handler: eval both args, call cfn(xa, xb), wrap result
 #define H2(hname, cfn, xa, xb, w) \
-static int h_##hname(Scope *s, Expr *e, const char *p, Value *r) { \
-    Value a = eval_expr(s, expr_child(e, 1), p); \
-    Value b = eval_expr(s, expr_child(e, 2), p); \
+static int h_##hname(Scope *s, Expr *e, Value *r) { \
+    Value a = eval_expr(s, expr_child(e,1)); \
+    Value b = eval_expr(s, expr_child(e,2)); \
     *r = w(cfn(xa, xb)); return 1; }
 
 // 1-arg handler: eval one arg, call cfn(xv), wrap result
 #define H1(hname, cfn, xv, w) \
-static int h_##hname(Scope *s, Expr *e, const char *p, Value *r) { \
-    Value v = eval_expr(s, expr_child(e, 1), p); \
+static int h_##hname(Scope *s, Expr *e, Value *r) { \
+    Value v = eval_expr(s, expr_child(e,1)); \
     *r = w(cfn(xv)); return 1; }
 
 // Delete handler: check VAL_NONE, eval call_free flag, conditionally delete
 #define HDEL(hname, dfn, xv) \
-static int h_##hname(Scope *s, Expr *e, const char *p, Value *r) { \
-    Value v = eval_expr(s, expr_child(e, 1), p); \
+static int h_##hname(Scope *s, Expr *e, Value *r) { \
+    Value v = eval_expr(s, expr_child(e,1)); \
     if (v.type == VAL_NONE) { *r = val_none(); return 1; } \
-    Value cf = eval_expr(s, expr_child(e, 2), p); \
+    Value cf = eval_expr(s, expr_child(e,2)); \
     if (*cf.boolean) dfn(xv); \
     *r = val_none(); return 1; }
 
 // Clone handler: eval one arg, copy raw value
 #define HCLONE(hname, xv, w) \
-static int h_##hname(Scope *s, Expr *e, const char *p, Value *r) { \
-    Value v = eval_expr(s, expr_child(e, 1), p); \
+static int h_##hname(Scope *s, Expr *e, Value *r) { \
+    Value v = eval_expr(s, expr_child(e,1)); \
     *r = w(xv); return 1; }
 
 // === I64 handlers ===
@@ -84,8 +84,8 @@ H1(U8_to_i64, U8_to_i64, *v.u8, val_i64)
 HCLONE(U8_clone, *v.u8, val_u8)
 HDEL(U8_delete, U8_delete, v.u8)
 
-static int h_U8_from_i64(Scope *s, Expr *e, const char *p, Value *r) {
-    Value v = eval_expr(s, expr_child(e, 1), p);
+static int h_U8_from_i64(Scope *s, Expr *e, Value *r) {
+    Value v = eval_expr(s, expr_child(e,1));
     *r = val_u8(U8_from_i64(*v.i64)); return 1;
 }
 
@@ -101,29 +101,29 @@ static void *val_to_ptr(Value v);
 
 // === Variadic handlers ===
 
-static int h_println(Scope *s, Expr *e, const char *p, Value *r) {
+static int h_println(Scope *s, Expr *e, Value *r) {
     for (int i = 1; i < e->children.count; i++) {
-        Value arg = eval_expr(s, expr_child(e, i), p);
+        Value arg = eval_expr(s, expr_child(e,i));
         fwrite(arg.str->c_str, 1, arg.str->cap, stdout);
     }
     putchar('\n');
     *r = val_none(); return 1;
 }
 
-static int h_print(Scope *s, Expr *e, const char *p, Value *r) {
+static int h_print(Scope *s, Expr *e, Value *r) {
     for (int i = 1; i < e->children.count; i++) {
-        Value arg = eval_expr(s, expr_child(e, i), p);
+        Value arg = eval_expr(s, expr_child(e,i));
         fwrite(arg.str->c_str, 1, arg.str->cap, stdout);
     }
     *r = val_none(); return 1;
 }
 
-static int h_format(Scope *s, Expr *e, const char *p, Value *r) {
+static int h_format(Scope *s, Expr *e, Value *r) {
     int nargs = e->children.count - 1;
     Str *strs[64];
     int total = 0;
     for (int i = 0; i < nargs; i++) {
-        Value v = eval_expr(s, expr_child(e, i + 1), p);
+        Value v = eval_expr(s, expr_child(e,i + 1));
         strs[i] = v.str;
         total += v.str->cap;
     }
@@ -142,18 +142,17 @@ static int h_format(Scope *s, Expr *e, const char *p, Value *r) {
 
 // === Misc handlers ===
 
-static int h_exit(Scope *s, Expr *e, const char *p, Value *r) {
-    Value a = eval_expr(s, expr_child(e, 1), p);
+static int h_exit(Scope *s, Expr *e, Value *r) {
+    Value a = eval_expr(s, expr_child(e,1));
     til_exit(a.i64);
     *r = val_none(); return 1;
 }
 
-static int h_free(Scope *s, Expr *e, const char *p, Value *r) {
-    (void)p;
+static int h_free(Scope *s, Expr *e, Value *r) {
     if (expr_child(e, 1)->type != NODE_IDENT) {
         // Non-identifier argument: evaluate and free the raw pointer
         // (matches codegen: til_free just calls C free on the pointer)
-        Value val = eval_expr(s, expr_child(e, 1), p);
+        Value val = eval_expr(s, expr_child(e,1));
         void *ptr = val_to_ptr(val);
         if (ptr) free(ptr);
         *r = val_none();
@@ -191,10 +190,10 @@ static int h_free(Scope *s, Expr *e, const char *p, Value *r) {
 // === Dynamic dispatch handler ===
 
 // Shared helper for all dyn_call variants
-static int h_dyn_call(Scope *s, Expr *e, const char *p, Value *r) {
-    Value type_name_val = eval_expr(s, expr_child(e, 1), p);
+static int h_dyn_call(Scope *s, Expr *e, Value *r) {
+    Value type_name_val = eval_expr(s, expr_child(e,1));
     Str *type_name = type_name_val.str;
-    Value method_val = eval_expr(s, expr_child(e, 2), p);
+    Value method_val = eval_expr(s, expr_child(e,2));
     Str *method = method_val.str;
 
     Expr type_ident = {0};
@@ -226,7 +225,7 @@ static int h_dyn_call(Scope *s, Expr *e, const char *p, Value *r) {
         Vec_push(&fake_call.children, &arg);
     }
 
-    Value fn_val = eval_expr(s, &field_access, p);
+    Value fn_val = eval_expr(s, &field_access);
     if (fn_val.type == VAL_FUNC && fn_val.func->type == NODE_FUNC_DEF) {
         Expr *fdef = fn_val.func;
         int nparam = fdef->data.func_def.nparam;
@@ -240,7 +239,7 @@ static int h_dyn_call(Scope *s, Expr *e, const char *p, Value *r) {
         }
     }
 
-    *r = eval_call(s, &fake_call, p);
+    *r = eval_call(s, &fake_call);
 
     Vec_delete(&fake_call.children);
     Vec_delete(&field_access.children);
@@ -248,9 +247,9 @@ static int h_dyn_call(Scope *s, Expr *e, const char *p, Value *r) {
 }
 
 // dyn_has_method(type_name, "method") → Bool
-static int h_dyn_has_method(Scope *s, Expr *e, const char *p, Value *r) {
-    Value type_name_val = eval_expr(s, expr_child(e, 1), p);
-    Value method_val = eval_expr(s, expr_child(e, 2), p);
+static int h_dyn_has_method(Scope *s, Expr *e, Value *r) {
+    Value type_name_val = eval_expr(s, expr_child(e,1));
+    Value method_val = eval_expr(s, expr_child(e,2));
     Str *type_name = type_name_val.str;
     Str *method = method_val.str;
     Value *nsv = ns_get(type_name, method);
@@ -273,41 +272,41 @@ static void *val_to_ptr(Value v) {
     }
 }
 
-static int h_malloc(Scope *s, Expr *e, const char *p, Value *r) {
-    Value count = eval_expr(s, expr_child(e, 1), p);
+static int h_malloc(Scope *s, Expr *e, Value *r) {
+    Value count = eval_expr(s, expr_child(e,1));
     int nbytes = (int)*count.i64;
     *r = (Value){.type = VAL_PTR, .ptr = calloc(1, nbytes)};
     return 1;
 }
 
-static int h_realloc(Scope *s, Expr *e, const char *p, Value *r) {
-    Value buf = eval_expr(s, expr_child(e, 1), p);
-    Value count = eval_expr(s, expr_child(e, 2), p);
+static int h_realloc(Scope *s, Expr *e, Value *r) {
+    Value buf = eval_expr(s, expr_child(e,1));
+    Value count = eval_expr(s, expr_child(e,2));
     int nbytes = (int)*count.i64;
     *r = (Value){.type = VAL_PTR, .ptr = realloc(buf.ptr, nbytes)};
     return 1;
 }
 
-static int h_ptr_add(Scope *s, Expr *e, const char *p, Value *r) {
-    Value buf = eval_expr(s, expr_child(e, 1), p);
-    Value offset = eval_expr(s, expr_child(e, 2), p);
+static int h_ptr_add(Scope *s, Expr *e, Value *r) {
+    Value buf = eval_expr(s, expr_child(e,1));
+    Value offset = eval_expr(s, expr_child(e,2));
     *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + (int)*offset.i64};
     return 1;
 }
 
-static int h_memcpy(Scope *s, Expr *e, const char *p, Value *r) {
-    Value dest = eval_expr(s, expr_child(e, 1), p);
-    Value src = eval_expr(s, expr_child(e, 2), p);
-    Value len = eval_expr(s, expr_child(e, 3), p);
+static int h_memcpy(Scope *s, Expr *e, Value *r) {
+    Value dest = eval_expr(s, expr_child(e,1));
+    Value src = eval_expr(s, expr_child(e,2));
+    Value len = eval_expr(s, expr_child(e,3));
     memcpy(val_to_ptr(dest), val_to_ptr(src), (size_t)*len.i64);
     *r = val_none();
     return 1;
 }
 
-static int h_memmove(Scope *s, Expr *e, const char *p, Value *r) {
-    Value dest = eval_expr(s, expr_child(e, 1), p);
-    Value src = eval_expr(s, expr_child(e, 2), p);
-    Value len = eval_expr(s, expr_child(e, 3), p);
+static int h_memmove(Scope *s, Expr *e, Value *r) {
+    Value dest = eval_expr(s, expr_child(e,1));
+    Value src = eval_expr(s, expr_child(e,2));
+    Value len = eval_expr(s, expr_child(e,3));
     memmove(val_to_ptr(dest), val_to_ptr(src), (size_t)*len.i64);
     *r = val_none();
     return 1;
@@ -382,11 +381,11 @@ static void dispatch_init(void) {
 
 // === Main dispatch ===
 
-int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Value *result) {
+int ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     if (!dispatch_inited) dispatch_init();
 
     DispatchFn *fn = Map_get(&dispatch_map, &name);
-    if (fn) return (*fn)(scope, e, path, result);
+    if (fn) return (*fn)(scope, e, result);
 
     // FFI trampoline
     if (ffi_loaded) {
@@ -395,7 +394,7 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
             int nargs = e->children.count - 1;
             void *args[8];
             for (int i = 0; i < nargs; i++) {
-                Value v = eval_expr(scope, expr_child(e, i + 1), path);
+                Value v = eval_expr(scope, expr_child(e, i + 1));
                 switch (v.type) {
                     case VAL_I64:  args[i] = v.i64; break;
                     case VAL_U8:   args[i] = v.u8; break;
@@ -434,15 +433,15 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, const char *path, Va
 }
 
 int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
-                         Str *enum_name, Expr *e, const char *path,
+                         Str *enum_name, Expr *e,
                          Value *result) {
     int hp = enum_has_payloads(enum_def);
 
     if (!hp) {
         // Simple enum: stored as I64
         if (Str_eq_c(method, "eq")) {
-            Value a = eval_expr(scope, expr_child(e, 1), path);
-            Value b = eval_expr(scope, expr_child(e, 2), path);
+            Value a = eval_expr(scope, expr_child(e, 1));
+            Value b = eval_expr(scope, expr_child(e, 2));
             *result = val_bool(*a.i64 == *b.i64);
             return 1;
         }
@@ -451,7 +450,7 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         int ctor_tag = enum_variant_tag(enum_def, method);
         if (ctor_tag >= 0) {
             if (enum_variant_type(enum_def, ctor_tag)) {
-                Value payload = eval_expr(scope, expr_child(e, 1), path);
+                Value payload = eval_expr(scope, expr_child(e, 1));
                 *result = val_enum(enum_name, ctor_tag, clone_value(payload));
             } else {
                 *result = val_enum(enum_name, ctor_tag, val_none());
@@ -459,15 +458,15 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
             return 1;
         }
         if (Str_eq_c(method, "eq")) {
-            Value a = eval_expr(scope, expr_child(e, 1), path);
-            Value b = eval_expr(scope, expr_child(e, 2), path);
+            Value a = eval_expr(scope, expr_child(e, 1));
+            Value b = eval_expr(scope, expr_child(e, 2));
             *result = val_bool(values_equal(a, b));
             return 1;
         }
         if (method->cap > 3 && memcmp(method->c_str, "is_", 3) == 0) {
             Str var_name = {.c_str = method->c_str + 3, .cap = method->cap - 3};
             int tag = enum_variant_tag(enum_def, &var_name);
-            Value v = eval_expr(scope, expr_child(e, 1), path);
+            Value v = eval_expr(scope, expr_child(e, 1));
             if (v.type == VAL_ENUM)
                 *result = val_bool(v.enum_inst->tag == tag);
             else
@@ -475,7 +474,7 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
             return 1;
         }
         if (method->cap > 4 && memcmp(method->c_str, "get_", 4) == 0) {
-            Value v = eval_expr(scope, expr_child(e, 1), path);
+            Value v = eval_expr(scope, expr_child(e, 1));
             *result = clone_value(v.enum_inst->payload);
             return 1;
         }

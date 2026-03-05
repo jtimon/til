@@ -81,8 +81,7 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
 
 // --- Init phase: pre-scan top-level declarations ---
 
-int init_declarations(Expr *program, TypeScope *scope, const char *path) {
-    (void)path;
+int init_declarations(Expr *program, TypeScope *scope) {
     // Pass 1: register all struct definitions
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
@@ -147,55 +146,56 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         int line = stmt->line;
         int col = stmt->col;
-        Expr *func_body = expr_new(NODE_BODY, line, col);
+        Str *path = stmt->path;
+        Expr *func_body = expr_new(NODE_BODY, line, col, path);
 
         if (field_names.count == 0) {
             // No instance fields: return Type()
-            Expr *ctor = expr_new(NODE_FCALL, line, col);
-            Expr *ctor_name = expr_new(NODE_IDENT, line, col);
+            Expr *ctor = expr_new(NODE_FCALL, line, col, path);
+            Expr *ctor_name = expr_new(NODE_IDENT, line, col, path);
             ctor_name->data.str_val = sname;
             expr_add_child(ctor, ctor_name);
 
-            Expr *ret = expr_new(NODE_RETURN, line, col);
+            Expr *ret = expr_new(NODE_RETURN, line, col, path);
             expr_add_child(ret, ctor);
             expr_add_child(func_body, ret);
         } else {
             // With fields: return StructName(f1=self.f1.clone(), ...)
-            Expr *ctor = expr_new(NODE_FCALL, line, col);
-            Expr *ctor_name = expr_new(NODE_IDENT, line, col);
+            Expr *ctor = expr_new(NODE_FCALL, line, col, path);
+            Expr *ctor_name = expr_new(NODE_IDENT, line, col, path);
             ctor_name->data.str_val = sname;
             expr_add_child(ctor, ctor_name);
 
             for (int j = 0; j < field_names.count; j++) {
                 Str *fname = *(Str **)Vec_get(&field_names, j);
                 // self.field_name
-                Expr *self_id = expr_new(NODE_IDENT, line, col);
+                Expr *self_id = expr_new(NODE_IDENT, line, col, path);
                 self_id->data.str_val = Str_new("self");
-                Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                 field_acc->data.str_val = fname;
                 expr_add_child(field_acc, self_id);
 
                 // self.field_name.clone()
-                Expr *clone_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                Expr *clone_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                 clone_acc->data.str_val = Str_new("clone");
                 expr_add_child(clone_acc, field_acc);
-                Expr *clone_call = expr_new(NODE_FCALL, line, col);
+                Expr *clone_call = expr_new(NODE_FCALL, line, col, path);
                 expr_add_child(clone_call, clone_acc);
 
                 // Named arg: field_name=self.field_name.clone()
-                Expr *named = expr_new(NODE_NAMED_ARG, line, col);
+                Expr *named = expr_new(NODE_NAMED_ARG, line, col, path);
                 named->data.str_val = fname;
                 expr_add_child(named, clone_call);
                 expr_add_child(ctor, named);
             }
 
-            Expr *ret = expr_new(NODE_RETURN, line, col);
+            Expr *ret = expr_new(NODE_RETURN, line, col, path);
             expr_add_child(ret, ctor);
             expr_add_child(func_body, ret);
         }
 
         // func def
-        Expr *func_def = expr_new(NODE_FUNC_DEF, line, col);
+        Expr *func_def = expr_new(NODE_FUNC_DEF, line, col, path);
         func_def->data.func_def.func_type = FUNC_FUNC;
         func_def->data.func_def.nparam = 1;
         func_def->data.func_def.param_names = malloc(sizeof(Str *));
@@ -210,7 +210,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         expr_add_child(func_def, func_body);
 
         // clone := func(...)  (namespace decl)
-        Expr *decl = expr_new(NODE_DECL, line, col);
+        Expr *decl = expr_new(NODE_DECL, line, col, path);
         decl->data.decl.name = Str_new("clone");
         decl->data.decl.is_namespace = true;
         decl->data.decl.is_mut = false;
@@ -265,27 +265,28 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         int line = stmt->line;
         int col = stmt->col;
-        Expr *proc_body = expr_new(NODE_BODY, line, col);
+        Str *path = stmt->path;
+        Expr *proc_body = expr_new(NODE_BODY, line, col, path);
 
         // For each field: self.field.delete(call_free=<true for own, false for inline>)
         for (int j = 0; j < field_names.count; j++) {
             Str *fname = *(Str **)Vec_get(&field_names, j);
             int fown = *(int *)Vec_get(&field_owns, j);
-            Expr *self_id = expr_new(NODE_IDENT, line, col);
+            Expr *self_id = expr_new(NODE_IDENT, line, col, path);
             self_id->data.str_val = Str_new("self");
-            Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+            Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
             field_acc->data.str_val = fname;
             field_acc->is_own_arg = true; // delete takes own self
             expr_add_child(field_acc, self_id);
 
-            Expr *del_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+            Expr *del_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
             del_acc->data.str_val = Str_new("delete");
             expr_add_child(del_acc, field_acc);
-            Expr *del_call = expr_new(NODE_FCALL, line, col);
+            Expr *del_call = expr_new(NODE_FCALL, line, col, path);
             expr_add_child(del_call, del_acc);
 
             // call_free=true for own fields (separate allocation), false for inline
-            Expr *cf_lit = expr_new(NODE_LITERAL_BOOL, line, col);
+            Expr *cf_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
             cf_lit->data.str_val = Str_new(fown ? "true" : "false");
             expr_add_child(del_call, cf_lit);
 
@@ -293,28 +294,28 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         }
 
         // if call_free { free(own self) }
-        Expr *cond = expr_new(NODE_IDENT, line, col);
+        Expr *cond = expr_new(NODE_IDENT, line, col, path);
         cond->data.str_val = Str_new("call_free");
-        Expr *then_body = expr_new(NODE_BODY, line, col);
-        Expr *free_call = expr_new(NODE_FCALL, line, col);
-        Expr *free_id = expr_new(NODE_IDENT, line, col);
+        Expr *then_body = expr_new(NODE_BODY, line, col, path);
+        Expr *free_call = expr_new(NODE_FCALL, line, col, path);
+        Expr *free_id = expr_new(NODE_IDENT, line, col, path);
         free_id->data.str_val = Str_new("free");
         expr_add_child(free_call, free_id);
-        Expr *self_arg = expr_new(NODE_IDENT, line, col);
+        Expr *self_arg = expr_new(NODE_IDENT, line, col, path);
         self_arg->data.str_val = Str_new("self");
         self_arg->is_own_arg = true;
         expr_add_child(free_call, self_arg);
         expr_add_child(then_body, free_call);
-        Expr *if_node = expr_new(NODE_IF, line, col);
+        Expr *if_node = expr_new(NODE_IF, line, col, path);
         expr_add_child(if_node, cond);
         expr_add_child(if_node, then_body);
         expr_add_child(proc_body, if_node);
 
         // proc def: delete(own self: Type, call_free: Bool = true)
-        Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col);
+        Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col, path);
         default_true->data.str_val = Str_new("true");
 
-        Expr *proc_def = expr_new(NODE_FUNC_DEF, line, col);
+        Expr *proc_def = expr_new(NODE_FUNC_DEF, line, col, path);
         proc_def->data.func_def.func_type = FUNC_PROC;
         proc_def->data.func_def.nparam = 2;
         proc_def->data.func_def.param_names = malloc(2 * sizeof(Str *));
@@ -333,7 +334,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         expr_add_child(proc_def, proc_body);
 
         // delete := proc(...)  (namespace decl)
-        Expr *decl = expr_new(NODE_DECL, line, col);
+        Expr *decl = expr_new(NODE_DECL, line, col, path);
         decl->data.decl.name = Str_new("delete");
         decl->data.decl.is_namespace = true;
         decl->data.decl.is_mut = false;
@@ -354,6 +355,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         Str *ename = stmt->data.decl.name;
         int line = stmt->line, col = stmt->col;
+        Str *path = stmt->path;
 
         // Register in type scope
         tscope_set(scope, ename, TIL_TYPE_ENUM, -1, 0, line, col, 0, 0);
@@ -379,11 +381,11 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
             // Add I64 namespace fields for each variant
             for (int j = 0; j < variant_names.count; j++) {
-                Expr *lit = expr_new(NODE_LITERAL_NUM, line, col);
+                Expr *lit = expr_new(NODE_LITERAL_NUM, line, col, path);
                 char buf[16];
                 snprintf(buf, sizeof(buf), "%d", j);
                 lit->data.str_val = Str_new(buf);
-                Expr *decl = expr_new(NODE_DECL, line, col);
+                Expr *decl = expr_new(NODE_DECL, line, col, path);
                 decl->data.decl.name = *(Str **)Vec_get(&variant_names, j);
                 decl->data.decl.is_namespace = true;
                 expr_add_child(decl, lit);
@@ -397,7 +399,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                 if (*(Str **)Vec_get(&variant_types, j)) {
                     // Payload variant: ext_func constructor
                     // e.g. Num := ext_func(val: I64) returns Token {}
-                    Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+                    Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
                     fdef->data.func_def.func_type = FUNC_EXT_FUNC;
                     fdef->data.func_def.nparam = 1;
                     fdef->data.func_def.param_names = malloc(sizeof(Str *));
@@ -409,8 +411,8 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                     fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
                     fdef->data.func_def.return_type = ename;
                     fdef->data.func_def.is_variadic = false;
-                    expr_add_child(fdef, expr_new(NODE_BODY, line, col));
-                    Expr *decl = expr_new(NODE_DECL, line, col);
+                    expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
+                    Expr *decl = expr_new(NODE_DECL, line, col, path);
                     decl->data.decl.name = *(Str **)Vec_get(&variant_names, j);
                     decl->data.decl.is_namespace = true;
                     expr_add_child(decl, fdef);
@@ -418,7 +420,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                 } else {
                     // No-payload variant: zero-arg ext_func constructor
                     // e.g. Eof := ext_func() returns Token {}
-                    Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+                    Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
                     fdef->data.func_def.func_type = FUNC_EXT_FUNC;
                     fdef->data.func_def.nparam = 0;
                     fdef->data.func_def.param_names = NULL;
@@ -428,8 +430,8 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                     fdef->data.func_def.param_defaults = NULL;
                     fdef->data.func_def.return_type = ename;
                     fdef->data.func_def.is_variadic = false;
-                    expr_add_child(fdef, expr_new(NODE_BODY, line, col));
-                    Expr *decl = expr_new(NODE_DECL, line, col);
+                    expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
+                    Expr *decl = expr_new(NODE_DECL, line, col, path);
                     decl->data.decl.name = *(Str **)Vec_get(&variant_names, j);
                     decl->data.decl.is_namespace = true;
                     expr_add_child(decl, fdef);
@@ -441,7 +443,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             for (int j = 0; j < variant_names.count; j++) {
                 char name_buf[256];
                 snprintf(name_buf, sizeof(name_buf), "is_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
-                Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+                Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
                 fdef->data.func_def.func_type = FUNC_EXT_FUNC;
                 fdef->data.func_def.nparam = 1;
                 fdef->data.func_def.param_names = malloc(sizeof(Str *));
@@ -453,8 +455,8 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                 fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
                 fdef->data.func_def.return_type = Str_new("Bool");
                 fdef->data.func_def.is_variadic = false;
-                expr_add_child(fdef, expr_new(NODE_BODY, line, col));
-                Expr *decl = expr_new(NODE_DECL, line, col);
+                expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
+                Expr *decl = expr_new(NODE_DECL, line, col, path);
                 decl->data.decl.name = Str_new(name_buf);
                 decl->data.decl.is_namespace = true;
                 expr_add_child(decl, fdef);
@@ -466,7 +468,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                 if (!*(Str **)Vec_get(&variant_types, j)) continue;
                 char name_buf[256];
                 snprintf(name_buf, sizeof(name_buf), "get_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
-                Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+                Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
                 fdef->data.func_def.func_type = FUNC_EXT_FUNC;
                 fdef->data.func_def.nparam = 1;
                 fdef->data.func_def.param_names = malloc(sizeof(Str *));
@@ -478,8 +480,8 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                 fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
                 fdef->data.func_def.return_type = *(Str **)Vec_get(&variant_types, j);
                 fdef->data.func_def.is_variadic = false;
-                expr_add_child(fdef, expr_new(NODE_BODY, line, col));
-                Expr *decl = expr_new(NODE_DECL, line, col);
+                expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
+                Expr *decl = expr_new(NODE_DECL, line, col, path);
                 decl->data.decl.name = Str_new(name_buf);
                 decl->data.decl.is_namespace = true;
                 expr_add_child(decl, fdef);
@@ -501,7 +503,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // Auto-generate eq := ext_func(self: E, other: E) returns Bool {}
         if (!has_eq) {
-            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
             fdef->data.func_def.func_type = FUNC_EXT_FUNC;
             fdef->data.func_def.nparam = 2;
             fdef->data.func_def.param_names = malloc(2 * sizeof(Str *));
@@ -515,8 +517,8 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             fdef->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
             fdef->data.func_def.return_type = Str_new("Bool");
             fdef->data.func_def.is_variadic = false;
-            expr_add_child(fdef, expr_new(NODE_BODY, line, col));
-            Expr *decl = expr_new(NODE_DECL, line, col);
+            expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
+            Expr *decl = expr_new(NODE_DECL, line, col, path);
             decl->data.decl.name = Str_new("eq");
             decl->data.decl.is_namespace = true;
             expr_add_child(decl, fdef);
@@ -527,29 +529,29 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         // Payload: if self.is_V() { return E.V(self.get_V()) } ... return E.Vn()
         // Simple:  if self.eq(E.V()) { return E.V() } ... return E.Vn()
         if (!has_clone) {
-            Expr *func_body = expr_new(NODE_BODY, line, col);
+            Expr *func_body = expr_new(NODE_BODY, line, col, path);
             for (int j = 0; j < variant_names.count; j++) {
                 // Build variant expression: E.V(self.get_V()) for payload, E.V for no-payload
-                Expr *ename_id = expr_new(NODE_IDENT, line, col);
+                Expr *ename_id = expr_new(NODE_IDENT, line, col, path);
                 ename_id->data.str_val = ename;
-                Expr *ctor_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                Expr *ctor_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                 ctor_acc->data.str_val = *(Str **)Vec_get(&variant_names, j);
                 expr_add_child(ctor_acc, ename_id);
 
                 Expr *ctor_expr;
                 if (*(Str **)Vec_get(&variant_types, j)) {
                     // Payload variant: E.V(self.get_V())
-                    Expr *ctor_call = expr_new(NODE_FCALL, line, col);
+                    Expr *ctor_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(ctor_call, ctor_acc);
-                    Expr *self_g = expr_new(NODE_IDENT, line, col);
+                    Expr *self_g = expr_new(NODE_IDENT, line, col, path);
                     self_g->data.str_val = Str_new("self");
                     char get_buf[256];
                     snprintf(get_buf, sizeof(get_buf), "get_%s",
                              (*(Str **)Vec_get(&variant_names, j))->c_str);
-                    Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                    Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                     get_acc->data.str_val = Str_new(get_buf);
                     expr_add_child(get_acc, self_g);
-                    Expr *get_call = expr_new(NODE_FCALL, line, col);
+                    Expr *get_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(get_call, get_acc);
                     expr_add_child(ctor_call, get_call);
                     ctor_expr = ctor_call;
@@ -558,46 +560,46 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                     ctor_expr = ctor_acc;
                 }
 
-                Expr *ret = expr_new(NODE_RETURN, line, col);
+                Expr *ret = expr_new(NODE_RETURN, line, col, path);
                 expr_add_child(ret, ctor_expr);
 
                 if (j < variant_names.count - 1) {
                     // Condition: payload uses is_V(), simple uses eq(E.V())
                     Expr *cond;
                     if (has_payloads) {
-                        Expr *self_id = expr_new(NODE_IDENT, line, col);
+                        Expr *self_id = expr_new(NODE_IDENT, line, col, path);
                         self_id->data.str_val = Str_new("self");
                         char is_buf[256];
                         snprintf(is_buf, sizeof(is_buf), "is_%s",
                                  (*(Str **)Vec_get(&variant_names, j))->c_str);
-                        Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                        Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                         is_acc->data.str_val = Str_new(is_buf);
                         expr_add_child(is_acc, self_id);
-                        cond = expr_new(NODE_FCALL, line, col);
+                        cond = expr_new(NODE_FCALL, line, col, path);
                         expr_add_child(cond, is_acc);
                     } else {
                         // self.eq(E.V) — bare field access as eq arg
-                        Expr *self_id = expr_new(NODE_IDENT, line, col);
+                        Expr *self_id = expr_new(NODE_IDENT, line, col, path);
                         self_id->data.str_val = Str_new("self");
-                        Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                        Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                         eq_acc->data.str_val = Str_new("eq");
                         expr_add_child(eq_acc, self_id);
 
-                        Expr *en2 = expr_new(NODE_IDENT, line, col);
+                        Expr *en2 = expr_new(NODE_IDENT, line, col, path);
                         en2->data.str_val = ename;
-                        Expr *va2 = expr_new(NODE_FIELD_ACCESS, line, col);
+                        Expr *va2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
                         va2->data.str_val = *(Str **)Vec_get(&variant_names, j);
                         expr_add_child(va2, en2);
 
-                        cond = expr_new(NODE_FCALL, line, col);
+                        cond = expr_new(NODE_FCALL, line, col, path);
                         expr_add_child(cond, eq_acc);
                         expr_add_child(cond, va2);
                     }
 
-                    Expr *then_body = expr_new(NODE_BODY, line, col);
+                    Expr *then_body = expr_new(NODE_BODY, line, col, path);
                     expr_add_child(then_body, ret);
 
-                    Expr *if_node = expr_new(NODE_IF, line, col);
+                    Expr *if_node = expr_new(NODE_IF, line, col, path);
                     expr_add_child(if_node, cond);
                     expr_add_child(if_node, then_body);
                     expr_add_child(func_body, if_node);
@@ -607,7 +609,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                 }
             }
 
-            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
             fdef->data.func_def.func_type = FUNC_FUNC;
             fdef->data.func_def.nparam = 1;
             fdef->data.func_def.param_names = malloc(sizeof(Str *));
@@ -621,7 +623,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             fdef->data.func_def.is_variadic = false;
             expr_add_child(fdef, func_body);
 
-            Expr *decl = expr_new(NODE_DECL, line, col);
+            Expr *decl = expr_new(NODE_DECL, line, col, path);
             decl->data.decl.name = Str_new("clone");
             decl->data.decl.is_namespace = true;
             expr_add_child(decl, fdef);
@@ -634,27 +636,27 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         // }
         // free() builtin handles payload cleanup for VAL_ENUM
         if (!has_delete) {
-            Expr *proc_body = expr_new(NODE_BODY, line, col);
-            Expr *cond = expr_new(NODE_IDENT, line, col);
+            Expr *proc_body = expr_new(NODE_BODY, line, col, path);
+            Expr *cond = expr_new(NODE_IDENT, line, col, path);
             cond->data.str_val = Str_new("call_free");
-            Expr *then_body = expr_new(NODE_BODY, line, col);
-            Expr *free_call = expr_new(NODE_FCALL, line, col);
-            Expr *free_id = expr_new(NODE_IDENT, line, col);
+            Expr *then_body = expr_new(NODE_BODY, line, col, path);
+            Expr *free_call = expr_new(NODE_FCALL, line, col, path);
+            Expr *free_id = expr_new(NODE_IDENT, line, col, path);
             free_id->data.str_val = Str_new("free");
             expr_add_child(free_call, free_id);
-            Expr *self_arg = expr_new(NODE_IDENT, line, col);
+            Expr *self_arg = expr_new(NODE_IDENT, line, col, path);
             self_arg->data.str_val = Str_new("self");
             self_arg->is_own_arg = true;
             expr_add_child(free_call, self_arg);
             expr_add_child(then_body, free_call);
-            Expr *if_node = expr_new(NODE_IF, line, col);
+            Expr *if_node = expr_new(NODE_IF, line, col, path);
             expr_add_child(if_node, cond);
             expr_add_child(if_node, then_body);
             expr_add_child(proc_body, if_node);
 
-            Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col);
+            Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col, path);
             default_true->data.str_val = Str_new("true");
-            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
             fdef->data.func_def.func_type = FUNC_PROC;
             fdef->data.func_def.nparam = 2;
             fdef->data.func_def.param_names = malloc(2 * sizeof(Str *));
@@ -671,7 +673,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             fdef->data.func_def.return_type = NULL;
             fdef->data.func_def.is_variadic = false;
             expr_add_child(fdef, proc_body);
-            Expr *decl = expr_new(NODE_DECL, line, col);
+            Expr *decl = expr_new(NODE_DECL, line, col, path);
             decl->data.decl.name = Str_new("delete");
             decl->data.decl.is_namespace = true;
             expr_add_child(decl, fdef);
@@ -680,112 +682,112 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         // Auto-generate to_str := func(self: E) returns Str { if-chain }
         if (!has_to_str) {
-            Expr *func_body = expr_new(NODE_BODY, line, col);
+            Expr *func_body = expr_new(NODE_BODY, line, col, path);
             for (int j = 0; j < variant_names.count; j++) {
                 if (has_payloads) {
                     // Payload enum to_str uses is_/get_ methods
                     // if self.is_Variant() { ... }
-                    Expr *self_id = expr_new(NODE_IDENT, line, col);
+                    Expr *self_id = expr_new(NODE_IDENT, line, col, path);
                     self_id->data.str_val = Str_new("self");
                     char is_buf[256];
                     snprintf(is_buf, sizeof(is_buf), "is_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
-                    Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                    Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                     is_acc->data.str_val = Str_new(is_buf);
                     expr_add_child(is_acc, self_id);
-                    Expr *is_call = expr_new(NODE_FCALL, line, col);
+                    Expr *is_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(is_call, is_acc);
 
-                    Expr *then_body = expr_new(NODE_BODY, line, col);
+                    Expr *then_body = expr_new(NODE_BODY, line, col, path);
                     if (*(Str **)Vec_get(&variant_types, j)) {
                         // return format("Variant(", self.get_Variant().to_str(), ")")
-                        Expr *fmt_call = expr_new(NODE_FCALL, line, col);
-                        Expr *fmt_id = expr_new(NODE_IDENT, line, col);
+                        Expr *fmt_call = expr_new(NODE_FCALL, line, col, path);
+                        Expr *fmt_id = expr_new(NODE_IDENT, line, col, path);
                         fmt_id->data.str_val = Str_new("format");
                         expr_add_child(fmt_call, fmt_id);
 
                         char prefix_buf[256];
                         snprintf(prefix_buf, sizeof(prefix_buf), "%s(", (*(Str **)Vec_get(&variant_names, j))->c_str);
-                        Expr *prefix = expr_new(NODE_LITERAL_STR, line, col);
+                        Expr *prefix = expr_new(NODE_LITERAL_STR, line, col, path);
                         prefix->data.str_val = Str_new(prefix_buf);
                         expr_add_child(fmt_call, prefix);
 
                         // self.get_Variant().to_str()
-                        Expr *self2 = expr_new(NODE_IDENT, line, col);
+                        Expr *self2 = expr_new(NODE_IDENT, line, col, path);
                         self2->data.str_val = Str_new("self");
                         char get_buf[256];
                         snprintf(get_buf, sizeof(get_buf), "get_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
-                        Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                        Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                         get_acc->data.str_val = Str_new(get_buf);
                         expr_add_child(get_acc, self2);
-                        Expr *get_call = expr_new(NODE_FCALL, line, col);
+                        Expr *get_call = expr_new(NODE_FCALL, line, col, path);
                         expr_add_child(get_call, get_acc);
-                        Expr *tostr_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                        Expr *tostr_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                         tostr_acc->data.str_val = Str_new("to_str");
                         expr_add_child(tostr_acc, get_call);
-                        Expr *tostr_call = expr_new(NODE_FCALL, line, col);
+                        Expr *tostr_call = expr_new(NODE_FCALL, line, col, path);
                         expr_add_child(tostr_call, tostr_acc);
                         expr_add_child(fmt_call, tostr_call);
 
-                        Expr *suffix = expr_new(NODE_LITERAL_STR, line, col);
+                        Expr *suffix = expr_new(NODE_LITERAL_STR, line, col, path);
                         suffix->data.str_val = Str_new(")");
                         expr_add_child(fmt_call, suffix);
 
-                        Expr *ret = expr_new(NODE_RETURN, line, col);
+                        Expr *ret = expr_new(NODE_RETURN, line, col, path);
                         expr_add_child(ret, fmt_call);
                         expr_add_child(then_body, ret);
                     } else {
                         // return "VariantName"
-                        Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col);
+                        Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
                         ret_str->data.str_val = *(Str **)Vec_get(&variant_names, j);
-                        Expr *ret = expr_new(NODE_RETURN, line, col);
+                        Expr *ret = expr_new(NODE_RETURN, line, col, path);
                         expr_add_child(ret, ret_str);
                         expr_add_child(then_body, ret);
                     }
 
-                    Expr *if_node = expr_new(NODE_IF, line, col);
+                    Expr *if_node = expr_new(NODE_IF, line, col, path);
                     expr_add_child(if_node, is_call);
                     expr_add_child(if_node, then_body);
                     expr_add_child(func_body, if_node);
                 } else {
                     // Simple enum: if self.eq(EnumName.VariantName) { return "VariantName" }
-                    Expr *self_id = expr_new(NODE_IDENT, line, col);
+                    Expr *self_id = expr_new(NODE_IDENT, line, col, path);
                     self_id->data.str_val = Str_new("self");
-                    Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                    Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                     eq_acc->data.str_val = Str_new("eq");
                     expr_add_child(eq_acc, self_id);
 
                     // EnumName.VariantName (bare field access)
-                    Expr *ename_id = expr_new(NODE_IDENT, line, col);
+                    Expr *ename_id = expr_new(NODE_IDENT, line, col, path);
                     ename_id->data.str_val = ename;
-                    Expr *var_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                    Expr *var_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                     var_acc->data.str_val = *(Str **)Vec_get(&variant_names, j);
                     expr_add_child(var_acc, ename_id);
 
-                    Expr *eq_call = expr_new(NODE_FCALL, line, col);
+                    Expr *eq_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(eq_call, eq_acc);
                     expr_add_child(eq_call, var_acc);
 
-                    Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col);
+                    Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
                     ret_str->data.str_val = *(Str **)Vec_get(&variant_names, j);
-                    Expr *ret = expr_new(NODE_RETURN, line, col);
+                    Expr *ret = expr_new(NODE_RETURN, line, col, path);
                     expr_add_child(ret, ret_str);
-                    Expr *then_body = expr_new(NODE_BODY, line, col);
+                    Expr *then_body = expr_new(NODE_BODY, line, col, path);
                     expr_add_child(then_body, ret);
 
-                    Expr *if_node = expr_new(NODE_IF, line, col);
+                    Expr *if_node = expr_new(NODE_IF, line, col, path);
                     expr_add_child(if_node, eq_call);
                     expr_add_child(if_node, then_body);
                     expr_add_child(func_body, if_node);
                 }
             }
             // return "unknown"
-            Expr *unk = expr_new(NODE_LITERAL_STR, line, col);
+            Expr *unk = expr_new(NODE_LITERAL_STR, line, col, path);
             unk->data.str_val = Str_new("unknown");
-            Expr *ret_unk = expr_new(NODE_RETURN, line, col);
+            Expr *ret_unk = expr_new(NODE_RETURN, line, col, path);
             expr_add_child(ret_unk, unk);
             expr_add_child(func_body, ret_unk);
 
-            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col);
+            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
             fdef->data.func_def.func_type = FUNC_FUNC;
             fdef->data.func_def.nparam = 1;
             fdef->data.func_def.param_names = malloc(sizeof(Str *));
@@ -799,7 +801,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
             fdef->data.func_def.is_variadic = false;
             expr_add_child(fdef, func_body);
 
-            Expr *decl = expr_new(NODE_DECL, line, col);
+            Expr *decl = expr_new(NODE_DECL, line, col, path);
             decl->data.decl.name = Str_new("to_str");
             decl->data.decl.is_namespace = true;
             expr_add_child(decl, fdef);
@@ -843,6 +845,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
 
         int line = stmt->line;
         int col = stmt->col;
+        Str *path = stmt->path;
 
         // Collect instance field types for size computation
         Vec field_types = Vec_new(sizeof(Str *));
@@ -864,11 +867,11 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         }
 
         // size := func() returns I64 { return F1Type.size().add(F2Type.size())... }
-        Expr *func_body = expr_new(NODE_BODY, line, col);
+        Expr *func_body = expr_new(NODE_BODY, line, col, path);
         Expr *size_expr = NULL;
         if (field_types.count == 0) {
             // No fields: size is 0
-            size_expr = expr_new(NODE_LITERAL_NUM, line, col);
+            size_expr = expr_new(NODE_LITERAL_NUM, line, col, path);
             size_expr->data.str_val = Str_new("0");
         } else {
             for (int j = 0; j < field_types.count; j++) {
@@ -876,41 +879,41 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
                 Expr *field_size;
                 if (fown) {
                     // own fields are pointers: always 8
-                    field_size = expr_new(NODE_LITERAL_NUM, line, col);
+                    field_size = expr_new(NODE_LITERAL_NUM, line, col, path);
                     field_size->data.str_val = Str_new("8");
                 } else {
                     // FieldType.size()
                     Str *ftype = *(Str **)Vec_get(&field_types, j);
-                    Expr *type_id = expr_new(NODE_IDENT, line, col);
+                    Expr *type_id = expr_new(NODE_IDENT, line, col, path);
                     type_id->data.str_val = ftype;
-                    Expr *size_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                    Expr *size_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                     size_acc->data.str_val = Str_new("size");
                     size_acc->is_ns_field = true;
                     expr_add_child(size_acc, type_id);
-                    field_size = expr_new(NODE_FCALL, line, col);
+                    field_size = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(field_size, size_acc);
                 }
                 if (!size_expr) {
                     size_expr = field_size;
                 } else {
                     // size_expr.add(field_size)
-                    Expr *add_acc = expr_new(NODE_FIELD_ACCESS, line, col);
+                    Expr *add_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                     add_acc->data.str_val = Str_new("add");
                     expr_add_child(add_acc, size_expr);
-                    Expr *add_call = expr_new(NODE_FCALL, line, col);
+                    Expr *add_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(add_call, add_acc);
                     expr_add_child(add_call, field_size);
                     size_expr = add_call;
                 }
             }
         }
-        Expr *ret = expr_new(NODE_RETURN, line, col);
+        Expr *ret = expr_new(NODE_RETURN, line, col, path);
         expr_add_child(ret, size_expr);
         expr_add_child(func_body, ret);
         Vec_delete(&field_types);
         Vec_delete(&field_owns);
 
-        Expr *func_def = expr_new(NODE_FUNC_DEF, line, col);
+        Expr *func_def = expr_new(NODE_FUNC_DEF, line, col, path);
         func_def->data.func_def.func_type = FUNC_FUNC;
         func_def->data.func_def.nparam = 0;
         func_def->data.func_def.param_names = NULL;
@@ -922,7 +925,7 @@ int init_declarations(Expr *program, TypeScope *scope, const char *path) {
         func_def->data.func_def.is_variadic = false;
         expr_add_child(func_def, func_body);
 
-        Expr *decl = expr_new(NODE_DECL, line, col);
+        Expr *decl = expr_new(NODE_DECL, line, col, path);
         decl->data.decl.name = Str_new("size");
         decl->data.decl.is_namespace = true;
         decl->data.decl.is_mut = false;

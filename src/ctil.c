@@ -109,10 +109,10 @@ int main(int argc, char **argv) {
 
     // Init phase: pre-scan declarations for forward references
     TypeScope *scope = tscope_new(NULL);
-    init_declarations(ast, scope, path);
+    init_declarations(ast, scope);
 
     // Type checking and inference
-    int type_errors = type_check(ast, path, scope);
+    int type_errors = type_check(ast, scope);
     tscope_free(scope);
     if (type_errors > 0) {
         fprintf(stderr, "%d type error(s) found\n", type_errors);
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    precomp(ast, path);
+    precomp(ast);
     scavenge(ast, mode);
 
     int result = 0;
