@@ -107,6 +107,28 @@ int main(int argc, char **argv) {
         ast->children = merged;
     }
 
+    // Extract link("lib") directives from AST (before type checking)
+    char link_flags[512] = "";
+    I32 link_pos = 0;
+    {
+        Vec kept = Vec_new(sizeof(Expr *));
+        for (I32 i = 0; i < ast->children.count; i++) {
+            Expr *stmt = expr_child(ast, i);
+            if (stmt->type == NODE_FCALL && stmt->children.count == 2 &&
+                expr_child(stmt, 0)->type == NODE_IDENT &&
+                Str_eq_c(expr_child(stmt, 0)->data.str_val, "link") &&
+                expr_child(stmt, 1)->type == NODE_LITERAL_STR) {
+                Str *lib = expr_child(stmt, 1)->data.str_val;
+                link_pos += snprintf(link_flags + link_pos, sizeof(link_flags) - link_pos,
+                                     " -l%.*s", (int)lib->cap, lib->c_str);
+            } else {
+                Vec_push(&kept, &stmt);
+            }
+        }
+        Vec_delete(&ast->children);
+        ast->children = kept;
+    }
+
     // Init phase: pre-scan declarations for forward references
     TypeScope *scope = tscope_new(NULL);
     init_declarations(ast, scope);
@@ -139,14 +161,11 @@ int main(int argc, char **argv) {
         }
     }
 
-    // Separate -l flags from user args (argv[3..])
-    char link_flags[512] = "";
-    I32 link_pos = 0;
+    // Append -l flags from CLI args (argv[3..])
     char *filtered_argv[argc];
     I32 user_argc = 0;
     for (I32 i = 3; i < argc; i++) {
         if (strncmp(argv[i], "-l", 2) == 0) {
-            // -lfoo or -l foo
             const char *lib = argv[i] + 2;
             if (*lib == '\0' && i + 1 < argc) { lib = argv[++i]; }
             link_pos += snprintf(link_flags + link_pos, sizeof(link_flags) - link_pos,

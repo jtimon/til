@@ -1,5 +1,13 @@
 mode script
 
+link("raylib")
+link("GL")
+link("m")
+link("pthread")
+link("dl")
+link("rt")
+link("X11")
+
 init_window := ext_proc(w: I64, h: I64, title: Str) {}
 window_should_close := ext_func() returns Bool {}
 begin_drawing := ext_proc() {}
