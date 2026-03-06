@@ -19,7 +19,7 @@ static Map ns_fields; // Str* "Type.field" → Value
 static Vec ns_keys;   // owns the qualified-name Str*s
 
 static Str *ns_qname(Str *sname, Str *fname) {
-    I32 len = sname->cap + 1 + fname->cap;
+    I64 len = sname->cap + 1 + fname->cap;
     char *buf = malloc(len + 1);
     memcpy(buf, sname->c_str, sname->cap);
     buf[sname->cap] = '.';
@@ -123,7 +123,7 @@ Value make_str_value_own(char *data, I64 cap) {
 Str str_view(Value v) {
     return (Str){
         .c_str = (char *)v.instance->field_values[0].ptr,
-        .cap = (I32)*v.instance->field_values[1].i64
+        .cap = *v.instance->field_values[1].i64
     };
 }
 
@@ -236,7 +236,7 @@ Value eval_call(Scope *scope, Expr *e) {
             static char flat_name_buf[256];
             Str *sn = expr_child(callee_expr, 0)->struct_name;
             Str *fn = callee_expr->data.str_val;
-            int flen = sn->cap + 1 + fn->cap;
+            I64 flen = sn->cap + 1 + fn->cap;
             memcpy(flat_name_buf, sn->c_str, sn->cap);
             flat_name_buf[sn->cap] = '_';
             memcpy(flat_name_buf + sn->cap + 1, fn->c_str, fn->cap);

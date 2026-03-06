@@ -147,14 +147,14 @@ static Bool h_print(Scope *s, Expr *e, Value *r) {
 static Bool h_format(Scope *s, Expr *e, Value *r) {
     I32 nargs = e->children.count - 1;
     Str strs[64];
-    I32 total = 0;
+    I64 total = 0;
     for (I32 i = 0; i < nargs; i++) {
         Value v = eval_expr(s, expr_child(e,i + 1));
         strs[i] = str_view(v);
         total += strs[i].cap;
     }
     char *buf = malloc(total);
-    I32 off = 0;
+    I64 off = 0;
     for (I32 i = 0; i < nargs; i++) {
         memcpy(buf + off, strs[i].c_str, strs[i].cap);
         off += strs[i].cap;
@@ -509,7 +509,7 @@ static Bool h_readfile(Scope *s, Expr *e, Value *r) {
     Str sv = str_view(path);
     FILE *f = fopen(sv.c_str, "rb");
     if (!f) {
-        fprintf(stderr, "readfile: could not open '%.*s'\n", sv.cap, sv.c_str);
+        fprintf(stderr, "readfile: could not open '%.*s'\n", (int)sv.cap, sv.c_str);
         exit(1);
     }
     fseek(f, 0, SEEK_END);
@@ -529,7 +529,7 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
     Str cv = str_view(content);
     FILE *f = fopen(pv.c_str, "wb");
     if (!f) {
-        fprintf(stderr, "writefile: could not open '%.*s'\n", pv.cap, pv.c_str);
+        fprintf(stderr, "writefile: could not open '%.*s'\n", (int)pv.cap, pv.c_str);
         exit(1);
     }
     fwrite(cv.c_str, 1, cv.cap, f);

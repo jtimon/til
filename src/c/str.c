@@ -5,18 +5,18 @@
 #include <string.h>
 
 Str Str_val(const char *data) {
-    I32 len = (I32)strlen(data);
+    I64 len = (I64)strlen(data);
     char *copy = malloc(len + 1);
     memcpy(copy, data, len + 1);
     return (Str){.c_str = copy, .cap = len};
 }
 
 Str *Str_new(const char *data) {
-    I32 len = (I32)strlen(data);
+    I64 len = (I64)strlen(data);
     return Str_new_len(data, len);
 }
 
-Str *Str_new_len(const char *data, I32 len) {
+Str *Str_new_len(const char *data, I64 len) {
     Str *s = malloc(sizeof(Str));
     s->c_str = malloc(len + 1);
     memcpy(s->c_str, data, len);
@@ -39,21 +39,21 @@ Bool Str_eq(Str *a, Str *b) {
     return memcmp(a->c_str, b->c_str, a->cap) == 0;
 }
 
-I32 Str_cmp(Str *a, Str *b) {
-    I32 min = a->cap < b->cap ? a->cap : b->cap;
-    I32 c = memcmp(a->c_str, b->c_str, min);
+I64 Str_cmp(Str *a, Str *b) {
+    I64 min = a->cap < b->cap ? a->cap : b->cap;
+    I64 c = memcmp(a->c_str, b->c_str, min);
     if (c != 0) return c;
     return (a->cap > b->cap) - (a->cap < b->cap);
 }
 
 Bool Str_eq_c(Str *a, const char *b) {
-    I32 blen = (I32)strlen(b);
+    I64 blen = (I64)strlen(b);
     if (a->cap != blen) return 0;
     return memcmp(a->c_str, b, blen) == 0;
 }
 
 Str *Str_concat(Str *a, Str *b) {
-    I32 len = a->cap + b->cap;
+    I64 len = a->cap + b->cap;
     Str *s = malloc(sizeof(Str));
     s->c_str = malloc(len + 1);
     memcpy(s->c_str, a->c_str, a->cap);
@@ -67,11 +67,11 @@ Str *Str_to_str(Str *s) {
     return Str_clone(s);
 }
 
-I32 Str_len(Str *s) {
+I64 Str_len(Str *s) {
     return s->cap;
 }
 
-Str *Str_substr(Str *s, I32 start, I32 len) {
+Str *Str_substr(Str *s, I64 start, I64 len) {
     if (start < 0) start = 0;
     if (start > s->cap) start = s->cap;
     if (len < 0) len = 0;
@@ -103,19 +103,19 @@ Bool Str_is_empty(Str *s) {
     return s->cap == 0;
 }
 
-I32 Str_find(Str *s, Str *needle) {
+I64 Str_find(Str *s, Str *needle) {
     if (needle->cap == 0) return -1;
     if (needle->cap > s->cap) return -1;
     char *p = memmem(s->c_str, s->cap, needle->c_str, needle->cap);
     if (!p) return -1;
-    return (I32)(p - s->c_str);
+    return (I64)(p - s->c_str);
 }
 
-I32 Str_rfind(Str *s, Str *needle) {
+I64 Str_rfind(Str *s, Str *needle) {
     if (needle->cap == 0) return -1;
     if (needle->cap > s->cap) return -1;
-    I32 last = -1;
-    for (I32 i = 0; i <= s->cap - needle->cap; i++) {
+    I64 last = -1;
+    for (I64 i = 0; i <= s->cap - needle->cap; i++) {
         if (memcmp(s->c_str + i, needle->c_str, needle->cap) == 0) {
             last = i;
         }
@@ -125,8 +125,8 @@ I32 Str_rfind(Str *s, Str *needle) {
 
 Str *Str_replace(Str *s, Str *from, Str *to) {
     if (from->cap == 0) return Str_clone(s);
-    I32 count = 0;
-    for (I32 i = 0; i <= s->cap - from->cap; ) {
+    I64 count = 0;
+    for (I64 i = 0; i <= s->cap - from->cap; ) {
         if (memcmp(s->c_str + i, from->c_str, from->cap) == 0) {
             count++;
             i += from->cap;
@@ -135,12 +135,12 @@ Str *Str_replace(Str *s, Str *from, Str *to) {
         }
     }
     if (count == 0) return Str_clone(s);
-    I32 new_len = s->cap - count * from->cap + count * to->cap;
+    I64 new_len = s->cap - count * from->cap + count * to->cap;
     Str *r = malloc(sizeof(Str));
     r->c_str = malloc(new_len + 1);
     r->cap = new_len;
-    I32 di = 0;
-    for (I32 si = 0; si < s->cap; ) {
+    I64 di = 0;
+    for (I64 si = 0; si < s->cap; ) {
         if (si <= s->cap - from->cap && memcmp(s->c_str + si, from->c_str, from->cap) == 0) {
             memcpy(r->c_str + di, to->c_str, to->cap);
             di += to->cap;
@@ -153,7 +153,7 @@ Str *Str_replace(Str *s, Str *from, Str *to) {
     return r;
 }
 
-Str *Str_get_char(Str *s, I32 i) {
+Str *Str_get_char(Str *s, I64 i) {
     return Str_substr(s, i, 1);
 }
 
@@ -188,7 +188,7 @@ I64 Str_to_i64(Str *s) {
     char *end;
     I64 v = strtoll(s->c_str, &end, 10);
     if (end != s->c_str + s->cap) {
-        fprintf(stderr, "Str.to_i64: invalid char in '%.*s'\n", s->cap, s->c_str);
+        fprintf(stderr, "Str.to_i64: invalid char in '%.*s'\n", (int)s->cap, s->c_str);
         exit(1);
     }
     return v;

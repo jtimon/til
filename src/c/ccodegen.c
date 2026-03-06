@@ -113,7 +113,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
     (void)depth;
     switch (e->type) {
     case NODE_LITERAL_STR:
-        fprintf(f, "til_Str_lit(\"%s\", %d)", e->data.str_val->c_str, e->data.str_val->cap);
+        fprintf(f, "til_Str_lit(\"%s\", %lld)", e->data.str_val->c_str, (long long)e->data.str_val->cap);
         break;
     case NODE_LITERAL_NUM:
         fprintf(f, "%s", e->data.str_val->c_str);
@@ -288,8 +288,8 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
         emit_expr(f, e, depth);
         fprintf(f, ")");
     } else if (e->type == NODE_LITERAL_STR) {
-        fprintf(f, "(til_Str){.data=(til_U8*)strndup(\"%s\",%d), .cap=%d}",
-                e->data.str_val->c_str, e->data.str_val->cap, e->data.str_val->cap);
+        fprintf(f, "(til_Str){.data=(til_U8*)strndup(\"%s\",%lld), .cap=%lld}",
+                e->data.str_val->c_str, (long long)e->data.str_val->cap, (long long)e->data.str_val->cap);
     } else if (e->type == NODE_FIELD_ACCESS && e->is_ns_field && e->til_type == TIL_TYPE_ENUM) {
         // Auto-called constructor returns pointer; dereference it
         fprintf(f, "(*");
@@ -616,7 +616,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
                     // Build Array[T] from remaining args
                     const char *et = ptype->c_str;
                     fprintf(f, "    int _va_argc = argc - %d;\n", argi);
-                    fprintf(f, "    til_Str *_va_et = til_Str_lit(\"%s\", %d);\n", et, ptype->cap);
+                    fprintf(f, "    til_Str *_va_et = til_Str_lit(\"%s\", %lld);\n", et, (long long)ptype->cap);
                     fprintf(f, "    til_I64 *_va_esz = malloc(sizeof(til_I64)); *_va_esz = sizeof(til_%s);\n", et);
                     fprintf(f, "    til_I64 *_va_cap = malloc(sizeof(til_I64)); *_va_cap = _va_argc;\n");
                     fprintf(f, "    til_Array *%s = til_Array_new(_va_et, _va_esz, _va_cap);\n", pname->c_str);
@@ -1218,18 +1218,18 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                 if (!has_method) continue;
                 if (info->nargs == 2) {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) return (void *)til_%s_%s(val, arg2);\n",
-                                tname->cap, tname->c_str, tname->cap, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)til_%s_%s(val, arg2);\n",
+                                (long long)tname->cap, tname->c_str, (long long)tname->cap, tname->c_str, method->c_str);
                     else
-                        fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) { til_%s_%s(val, arg2); return; }\n",
-                                tname->cap, tname->c_str, tname->cap, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_%s_%s(val, arg2); return; }\n",
+                                (long long)tname->cap, tname->c_str, (long long)tname->cap, tname->c_str, method->c_str);
                 } else {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) return (void *)til_%s_%s(val);\n",
-                                tname->cap, tname->c_str, tname->cap, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)til_%s_%s(val);\n",
+                                (long long)tname->cap, tname->c_str, (long long)tname->cap, tname->c_str, method->c_str);
                     else
-                        fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) { til_%s_%s(val); return; }\n",
-                                tname->cap, tname->c_str, tname->cap, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_%s_%s(val); return; }\n",
+                                (long long)tname->cap, tname->c_str, (long long)tname->cap, tname->c_str, method->c_str);
                 }
             }
             fprintf(f, "    fprintf(stderr, \"dyn_call: unknown type for %s\\n\");\n", method->c_str);
@@ -1264,8 +1264,8 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                     }
                 }
                 if (!found) continue;
-                fprintf(f, "    if (type_name->cap == %d && memcmp(type_name->data, \"%s\", %d) == 0) { til_Bool *r = malloc(sizeof(til_Bool)); *r = 1; return r; }\n",
-                        tname->cap, tname->c_str, tname->cap);
+                fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_Bool *r = malloc(sizeof(til_Bool)); *r = 1; return r; }\n",
+                        (long long)tname->cap, tname->c_str, (long long)tname->cap);
             }
             fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = 0; return r;\n");
             fprintf(f, "}\n\n");
@@ -1280,10 +1280,10 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         for (I32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, i);
             const char *et = ci->type_name->c_str;
-            I32 et_len = ci->type_name->cap;
+            I64 et_len = ci->type_name->cap;
             if (ci->is_vec) {
                 fprintf(f, "til_Vec *til_vec_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    til_Str *_et = til_Str_lit(\"%s\", %d);\n", et, et_len);
+                fprintf(f, "    til_Str *_et = til_Str_lit(\"%s\", %lld);\n", et, (long long)et_len);
                 fprintf(f, "    til_I64 *_esz = malloc(sizeof(til_I64)); *_esz = sizeof(til_%s);\n", et);
                 fprintf(f, "    til_Vec *_v = til_Vec_new(_et, _esz);\n");
                 fprintf(f, "    til_Str_delete(_et, &(til_Bool){1});\n");
@@ -1298,7 +1298,7 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
                 fprintf(f, "}\n\n");
             } else {
                 fprintf(f, "til_Array *til_array_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    til_Str *_et = til_Str_lit(\"%s\", %d);\n", et, et_len);
+                fprintf(f, "    til_Str *_et = til_Str_lit(\"%s\", %lld);\n", et, (long long)et_len);
                 fprintf(f, "    til_I64 *_esz = malloc(sizeof(til_I64)); *_esz = sizeof(til_%s);\n", et);
                 fprintf(f, "    til_I64 *_cap = malloc(sizeof(til_I64)); *_cap = count;\n");
                 fprintf(f, "    til_Array *_a = til_Array_new(_et, _esz, _cap);\n");
