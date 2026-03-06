@@ -38,8 +38,10 @@ static Value eval_arg(Scope *s, Expr *e) {
             case TIL_TYPE_U8:    return (Value){.type = VAL_U8, .u8 = (til_U8 *)v.ptr};
             case TIL_TYPE_BOOL:  return (Value){.type = VAL_BOOL, .boolean = (til_Bool *)v.ptr};
             case TIL_TYPE_STRUCT:
-                if (e->struct_name && Str_eq_c(e->struct_name, "Str"))
-                    return val_str((Str *)v.ptr);
+                if (e->struct_name && Str_eq_c(e->struct_name, "Str")) {
+                    Str *sp = (Str *)v.ptr;
+                    return make_str_value_own(sp->c_str, sp->cap);
+                }
                 return (Value){.type = VAL_STRUCT, .instance = v.ptr};
             default: break;
         }
@@ -126,7 +128,8 @@ static void *val_to_ptr(Value v);
 static Bool h_println(Scope *s, Expr *e, Value *r) {
     for (I32 i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e,i));
-        fwrite(arg.str->c_str, 1, arg.str->cap, stdout);
+        Str sv = str_view(arg);
+        fwrite(sv.c_str, 1, sv.cap, stdout);
     }
     putchar('\n');
     *r = val_none(); return 1;
@@ -135,30 +138,28 @@ static Bool h_println(Scope *s, Expr *e, Value *r) {
 static Bool h_print(Scope *s, Expr *e, Value *r) {
     for (I32 i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e,i));
-        fwrite(arg.str->c_str, 1, arg.str->cap, stdout);
+        Str sv = str_view(arg);
+        fwrite(sv.c_str, 1, sv.cap, stdout);
     }
     *r = val_none(); return 1;
 }
 
 static Bool h_format(Scope *s, Expr *e, Value *r) {
     I32 nargs = e->children.count - 1;
-    Str *strs[64];
+    Str strs[64];
     I32 total = 0;
     for (I32 i = 0; i < nargs; i++) {
         Value v = eval_expr(s, expr_child(e,i + 1));
-        strs[i] = v.str;
-        total += v.str->cap;
+        strs[i] = str_view(v);
+        total += strs[i].cap;
     }
     char *buf = malloc(total);
     I32 off = 0;
     for (I32 i = 0; i < nargs; i++) {
-        memcpy(buf + off, strs[i]->c_str, strs[i]->cap);
-        off += strs[i]->cap;
+        memcpy(buf + off, strs[i].c_str, strs[i].cap);
+        off += strs[i].cap;
     }
-    Str *out = malloc(sizeof(Str));
-    out->c_str = buf;
-    out->cap = total;
-    *r = val_str(out);
+    *r = make_str_value_own(buf, total);
     return 1;
 }
 
@@ -191,7 +192,6 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
         if (payload.type == VAL_I64)  til_free(payload.i64);
         else if (payload.type == VAL_U8)   til_free(payload.u8);
         else if (payload.type == VAL_BOOL) til_free(payload.boolean);
-        else if (payload.type == VAL_STR)  Str_delete(payload.str);
         til_free(cell->val.enum_inst);
     } else if (cell->val.type == VAL_I64) {
         til_free(cell->val.i64);
@@ -199,8 +199,6 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
         til_free(cell->val.u8);
     } else if (cell->val.type == VAL_BOOL) {
         til_free(cell->val.boolean);
-    } else if (cell->val.type == VAL_STR) {
-        free(cell->val.str);
     } else if (cell->val.type == VAL_PTR) {
         free(cell->val.ptr);
     }
@@ -214,9 +212,11 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
 // Shared helper for all dyn_call variants
 static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e,1));
-    Str *type_name = type_name_val.str;
+    Str _tn = str_view(type_name_val);
+    Str *type_name = &_tn;
     Value method_val = eval_expr(s, expr_child(e,2));
-    Str *method = method_val.str;
+    Str _mn = str_view(method_val);
+    Str *method = &_mn;
 
     Expr type_ident = {0};
     type_ident.type = NODE_IDENT;
@@ -272,8 +272,10 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
 static Bool h_dyn_has_method(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e,1));
     Value method_val = eval_expr(s, expr_child(e,2));
-    Str *type_name = type_name_val.str;
-    Str *method = method_val.str;
+    Str _tn = str_view(type_name_val);
+    Str *type_name = &_tn;
+    Str _mn = str_view(method_val);
+    Str *method = &_mn;
     Value *nsv = ns_get(type_name, method);
     *r = val_bool(nsv != NULL);
     return 1;
@@ -287,7 +289,6 @@ static void *val_raw_ptr(Value v) {
         case VAL_I64:    return v.i64;
         case VAL_U8:     return v.u8;
         case VAL_BOOL:   return v.boolean;
-        case VAL_STR:    return v.str;
         case VAL_STRUCT: return v.instance;
         case VAL_PTR:    return v.ptr;
         default:         return NULL;
@@ -340,7 +341,8 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
 // array("I64", 1, 2, 3)
 static Bool h_array(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e, 1));
-    Str *type_name = type_name_val.str;
+    Str _tn = str_view(type_name_val);
+    Str *type_name = &_tn;
     I32 count = e->children.count - 2;
     I32 elem_size = get_elem_size(s, type_name, e);
 
@@ -353,11 +355,10 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
         Value elem = eval_expr(s, expr_child(e, i + 2));
         void *src = val_raw_ptr(elem);
         if (src) {
-            if (elem.type == VAL_STR) {
-                // Deep copy: clone the Str so the array owns its own data
-                Str *cloned = Str_clone(elem.str);
-                memcpy((char *)data + i * elem_size, cloned, elem_size);
-                free(cloned); // free the Str shell, array buffer owns the contents
+            if (elem.type == VAL_STRUCT && Str_eq_c(elem.instance->struct_name, "Str")) {
+                Str flat = str_view(elem);
+                flat.c_str = strndup(flat.c_str, flat.cap);
+                memcpy((char *)data + i * elem_size, &flat, elem_size);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
             }
@@ -379,7 +380,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     si->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
     si->field_values[1] = val_i64(count);
     si->field_values[2] = val_i64(elem_size);
-    si->field_values[3] = val_str(Str_clone(type_name));
+    si->field_values[3] = make_str_value(type_name->c_str, type_name->cap);
 
     r->type = VAL_STRUCT;
     r->instance = si;
@@ -389,7 +390,8 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
 // vec("I64", 1, 2, 3)
 static Bool h_vec(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e, 1));
-    Str *type_name = type_name_val.str;
+    Str _tn = str_view(type_name_val);
+    Str *type_name = &_tn;
     I32 count = e->children.count - 2;
     I32 elem_size = get_elem_size(s, type_name, e);
 
@@ -403,10 +405,10 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
         Value elem = eval_expr(s, expr_child(e, i + 2));
         void *src = val_raw_ptr(elem);
         if (src) {
-            if (elem.type == VAL_STR) {
-                Str *cloned = Str_clone(elem.str);
-                memcpy((char *)data + i * elem_size, cloned, elem_size);
-                free(cloned);
+            if (elem.type == VAL_STRUCT && Str_eq_c(elem.instance->struct_name, "Str")) {
+                Str flat = str_view(elem);
+                flat.c_str = strndup(flat.c_str, flat.cap);
+                memcpy((char *)data + i * elem_size, &flat, elem_size);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
             }
@@ -432,7 +434,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     si->field_values[1] = val_i64(count);
     si->field_values[2] = val_i64(cap);
     si->field_values[3] = val_i64(elem_size);
-    si->field_values[4] = val_str(Str_clone(type_name));
+    si->field_values[4] = make_str_value(type_name->c_str, type_name->cap);
 
     r->type = VAL_STRUCT;
     r->instance = si;
@@ -448,8 +450,14 @@ static void *val_to_ptr(Value v) {
         case VAL_I64:    return v.i64;
         case VAL_U8:     return v.u8;
         case VAL_BOOL:   return v.boolean;
-        case VAL_STR:    return v.str;
-        case VAL_STRUCT: return v.instance;
+        case VAL_STRUCT:
+            // Str StructInstance → flat C Str for memcpy into array/vec buffers
+            if (Str_eq_c(v.instance->struct_name, "Str")) {
+                static Str flat;
+                flat = str_view(v);
+                return &flat;
+            }
+            return v.instance;
         default:         return NULL;
     }
 }
@@ -498,9 +506,10 @@ static Bool h_memmove(Scope *s, Expr *e, Value *r) {
 
 static Bool h_readfile(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
-    FILE *f = fopen(path.str->c_str, "rb");
+    Str sv = str_view(path);
+    FILE *f = fopen(sv.c_str, "rb");
     if (!f) {
-        fprintf(stderr, "readfile: could not open '%.*s'\n", path.str->cap, path.str->c_str);
+        fprintf(stderr, "readfile: could not open '%.*s'\n", sv.cap, sv.c_str);
         exit(1);
     }
     fseek(f, 0, SEEK_END);
@@ -509,20 +518,21 @@ static Bool h_readfile(Scope *s, Expr *e, Value *r) {
     char *buf = malloc(len);
     fread(buf, 1, len, f);
     fclose(f);
-    *r = val_str(Str_new_len(buf, (I32)len));
-    free(buf);
+    *r = make_str_value_own(buf, (I64)len);
     return 1;
 }
 
 static Bool h_writefile(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     Value content = eval_expr(s, expr_child(e,2));
-    FILE *f = fopen(path.str->c_str, "wb");
+    Str pv = str_view(path);
+    Str cv = str_view(content);
+    FILE *f = fopen(pv.c_str, "wb");
     if (!f) {
-        fprintf(stderr, "writefile: could not open '%.*s'\n", path.str->cap, path.str->c_str);
+        fprintf(stderr, "writefile: could not open '%.*s'\n", pv.cap, pv.c_str);
         exit(1);
     }
-    fwrite(content.str->c_str, 1, content.str->cap, f);
+    fwrite(cv.c_str, 1, cv.cap, f);
     fclose(f);
     *r = val_none();
     return 1;
@@ -532,7 +542,8 @@ static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
     Value cmd = eval_expr(s, expr_child(e,1));
     pid_t pid = fork();
     if (pid == 0) {
-        execl("/bin/sh", "sh", "-c", cmd.str->c_str, NULL);
+        Str sv = str_view(cmd);
+        execl("/bin/sh", "sh", "-c", sv.c_str, NULL);
         _exit(127);
     }
     if (pid < 0) {
@@ -563,7 +574,8 @@ static Bool h_sleep(Scope *s, Expr *e, Value *r) {
 static Bool h_file_mtime(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     struct stat st;
-    if (stat(path.str->c_str, &st) != 0) { *r = val_i64(-1); return 1; }
+    Str sv = str_view(path);
+    if (stat(sv.c_str, &st) != 0) { *r = val_i64(-1); return 1; }
     *r = val_i64((I64)st.st_mtime);
     return 1;
 }
@@ -675,7 +687,6 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 switch (v.type) {
                     case VAL_I64:  args[i] = v.i64; break;
                     case VAL_U8:   args[i] = v.u8; break;
-                    case VAL_STR:  args[i] = v.str; break;
                     case VAL_BOOL: args[i] = v.boolean; break;
                     case VAL_PTR:  args[i] = v.ptr; break;
                     default:       args[i] = NULL; break;
@@ -692,7 +703,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             if (!fe->return_type) {
                 *result = val_none();
             } else if (Str_eq_c(fe->return_type, "Str")) {
-                *result = val_str((Str *)raw);
+                til_Str *ts = (til_Str *)raw;
+                *result = make_str_value_own((char *)ts->data, ts->cap);
             } else if (Str_eq_c(fe->return_type, "I64")) {
                 *result = (Value){.type = VAL_I64, .i64 = (til_I64 *)raw};
             } else if (Str_eq_c(fe->return_type, "U8")) {

@@ -412,10 +412,11 @@
    Need a proper mechanism: command-line flag, pragma, or import directive.
 
 ** TODO: interpreter struct marshaling
-   The FFI trampoline can pass I64/U8/Bool/Str args directly because these
-   have dedicated VAL_I64/VAL_STR/etc types with C-compatible pointer storage.
-   User-defined structs (both ext_struct and regular struct) use the generic
-   VAL_STRUCT/StructInstance representation which is NOT C-compatible.
+   The FFI trampoline can pass I64/U8/Bool args directly because these
+   have dedicated VAL_I64/etc types with C-compatible pointer storage.
+   Str is now VAL_STRUCT like all other structs. User-defined structs
+   (including Str) use the generic VAL_STRUCT/StructInstance representation
+   which is NOT C-compatible layout.
    Need marshaling: convert StructInstance ↔ flat C struct at FFI boundary.
    This blocks interpreter support for ext_struct methods and ext_funcs
    that take/return struct arguments.
@@ -531,16 +532,23 @@
    via H1/H2/HDEL/HCLONE macros. Special cases (free, println, print,
    format) kept as explicit handler functions.
 
-** Interpreter: Str/I64/U8/Bool hardcoded as special value types
-   Str, I64, U8, Bool have dedicated VAL_STR, VAL_I64, VAL_U8, VAL_BOOL
-   types in the interpreter with C-compatible pointer storage (e.g. val.i64
-   is a til_I64*). Str is no longer an ext_struct but the interpreter still
-   stores it as VAL_STR, not VAL_STRUCT. User-defined ext_structs (e.g. Pair)
-   use the generic VAL_STRUCT/StructInstance representation which is NOT
-   C-compatible. This means the FFI trampoline can pass Str/I64/Bool to C
-   functions directly but cannot pass user struct instances without marshaling.
-   Should unify: either make all structs use StructInstance, or give the FFI
-   trampoline a generic struct marshaling layer.
+** FIXED Interpreter: Str was hardcoded as VAL_STR instead of VAL_STRUCT
+   Removed VAL_STR from the interpreter. Str values are now regular
+   VAL_STRUCT StructInstances with 2 fields (data: VAL_PTR, cap: VAL_I64),
+   matching how ccodegen treats Str as a normal struct.
+
+   Added make_str_value/make_str_value_own/str_view helpers. String literals
+   build StructInstances directly (avoiding bootstrap recursion). All
+   dispatch.c handlers use str_view() instead of .str-> access. h_array/h_vec
+   clone Str data into buffers (strndup) to avoid dangling pointers from
+   typer-generated ASAP deletes. Fixed Str_cmp to use memcmp (safe for
+   non-null-terminated buffers from til-level malloc). Fixed ns_qname and
+   flat_name_buf to use memcpy instead of snprintf %s.
+
+   I64/U8/Bool still have dedicated VAL_I64/VAL_U8/VAL_BOOL types with
+   C-compatible pointer storage. User-defined structs use VAL_STRUCT/
+   StructInstance which is NOT C-compatible layout. FFI struct marshaling
+   still needed (see #4).
 
 ** ccodegen: declaration emission branches on RHS type
    3 branches: struct constructor (malloc + fields), fcall/str (pointer-assign),

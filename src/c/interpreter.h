@@ -16,10 +16,9 @@ typedef enum {
     VAL_NONE,
     VAL_I64,
     VAL_U8,
-    VAL_STR,
     VAL_BOOL,
     VAL_FUNC,   // pointer to a func/proc AST node
-    VAL_STRUCT, // struct instance
+    VAL_STRUCT, // struct instance (including Str)
     VAL_ENUM,   // enum instance (tagged union with optional payload)
     VAL_PTR,    // raw buffer (Value array for malloc/ptr_add/memcpy)
 } ValType;
@@ -41,7 +40,6 @@ struct Value {
     union {
         til_I64 *i64;
         til_U8 *u8;
-        Str *str;
         til_Bool *boolean;
         Expr *func;
         StructInstance *instance;
@@ -62,7 +60,6 @@ static inline Value val_none(void) {
 static inline Value val_i64(til_I64 v) { til_I64 *p = malloc(sizeof(til_I64)); *p = v; return (Value){.type = VAL_I64, .i64 = p}; }
 static inline Value val_u8(I64 v) { til_U8 *p = malloc(sizeof(til_U8)); *p = (til_U8)(v & 0xFF); return (Value){.type = VAL_U8, .u8 = p}; }
 static inline Value val_bool(til_Bool v) { til_Bool *p = malloc(sizeof(til_Bool)); *p = v; return (Value){.type = VAL_BOOL, .boolean = p}; }
-static inline Value val_str(Str *v) { return (Value){.type = VAL_STR, .str = v}; }
 static inline Value val_enum(Str *enum_name, I32 tag, Value payload) {
     EnumInstance *ei = malloc(sizeof(EnumInstance));
     ei->enum_name = enum_name;
@@ -104,5 +101,10 @@ void scope_set_owned(Scope *s, Str *name, Value val);
 void scope_free(Scope *s);
 void interpreter_init_ns(Scope *global, Expr *program);
 Value *ns_get(Str *sname, Str *fname);
+
+// Str StructInstance helpers (used by dispatch.c and precomp.c)
+Value make_str_value(const char *data, I64 cap);
+Value make_str_value_own(char *data, I64 cap);
+Str str_view(Value v);
 
 #endif

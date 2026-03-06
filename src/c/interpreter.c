@@ -21,7 +21,10 @@ static Vec ns_keys;   // owns the qualified-name Str*s
 static Str *ns_qname(Str *sname, Str *fname) {
     I32 len = sname->cap + 1 + fname->cap;
     char *buf = malloc(len + 1);
-    snprintf(buf, len + 1, "%s.%s", sname->c_str, fname->c_str);
+    memcpy(buf, sname->c_str, sname->cap);
+    buf[sname->cap] = '.';
+    memcpy(buf + sname->cap + 1, fname->c_str, fname->cap);
+    buf[len] = '\0';
     Str *s = Str_new(buf);
     free(buf);
     Vec_push(&ns_keys, &s);
@@ -84,15 +87,74 @@ Cell *scope_get(Scope *s, Str *name) {
 
 // ext_function_dispatch is in dispatch.c
 
+// Build a Str StructInstance from C string data (copies data via strndup)
+Value make_str_value(const char *data, I64 cap) {
+    StructInstance *inst = malloc(sizeof(StructInstance));
+    inst->struct_name = Str_new("Str");
+    inst->nfields = 2;
+    inst->field_names = malloc(2 * sizeof(Str *));
+    inst->field_names[0] = Str_new("data");
+    inst->field_names[1] = Str_new("cap");
+    inst->field_muts = calloc(2, sizeof(I32));
+    inst->field_muts[0] = 1;
+    inst->field_values = malloc(2 * sizeof(Value));
+    inst->field_values[0] = (Value){.type = VAL_PTR, .ptr = strndup(data, cap)};
+    inst->field_values[1] = val_i64(cap);
+    return (Value){.type = VAL_STRUCT, .instance = inst};
+}
+
+// Build a Str StructInstance taking ownership of buffer (no copy)
+Value make_str_value_own(char *data, I64 cap) {
+    StructInstance *inst = malloc(sizeof(StructInstance));
+    inst->struct_name = Str_new("Str");
+    inst->nfields = 2;
+    inst->field_names = malloc(2 * sizeof(Str *));
+    inst->field_names[0] = Str_new("data");
+    inst->field_names[1] = Str_new("cap");
+    inst->field_muts = calloc(2, sizeof(I32));
+    inst->field_muts[0] = 1;
+    inst->field_values = malloc(2 * sizeof(Value));
+    inst->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
+    inst->field_values[1] = val_i64(cap);
+    return (Value){.type = VAL_STRUCT, .instance = inst};
+}
+
+// Extract a C Str view from a Str StructInstance (stack-local, don't free)
+Str str_view(Value v) {
+    return (Str){
+        .c_str = (char *)v.instance->field_values[0].ptr,
+        .cap = (I32)*v.instance->field_values[1].i64
+    };
+}
+
 // Deep-clone a Value (for payload enum operations and general use)
 Value clone_value(Value v) {
     switch (v.type) {
     case VAL_I64:  return val_i64(*v.i64);
     case VAL_U8:   return val_u8(*v.u8);
-    case VAL_STR:  return val_str(Str_clone(v.str));
     case VAL_BOOL: return val_bool(*v.boolean);
     case VAL_ENUM: return val_enum(v.enum_inst->enum_name, v.enum_inst->tag,
                                     clone_value(v.enum_inst->payload));
+    case VAL_STRUCT: {
+        StructInstance *src = v.instance;
+        // Str needs deep copy of data buffer (was Str_clone before VAL_STR removal)
+        if (Str_eq_c(src->struct_name, "Str")) {
+            Str sv = str_view(v);
+            return make_str_value(sv.c_str, sv.cap);
+        }
+        StructInstance *dst = malloc(sizeof(StructInstance));
+        dst->struct_name = Str_clone(src->struct_name);
+        dst->nfields = src->nfields;
+        dst->field_names = malloc(src->nfields * sizeof(Str *));
+        for (I32 i = 0; i < src->nfields; i++)
+            dst->field_names[i] = Str_clone(src->field_names[i]);
+        dst->field_muts = malloc(src->nfields * sizeof(I32));
+        memcpy(dst->field_muts, src->field_muts, src->nfields * sizeof(I32));
+        dst->field_values = malloc(src->nfields * sizeof(Value));
+        for (I32 i = 0; i < src->nfields; i++)
+            dst->field_values[i] = clone_value(src->field_values[i]);
+        return (Value){.type = VAL_STRUCT, .instance = dst};
+    }
     case VAL_PTR:
         return (Value){.type = VAL_PTR, .ptr = v.ptr};
     case VAL_NONE: return val_none();
@@ -105,7 +167,6 @@ void free_value(Value v) {
     switch (v.type) {
     case VAL_I64:  free(v.i64); break;
     case VAL_U8:   free(v.u8); break;
-    case VAL_STR:  Str_delete(v.str); break;
     case VAL_BOOL: free(v.boolean); break;
     case VAL_ENUM:
         free_value(v.enum_inst->payload);
@@ -123,7 +184,6 @@ Bool values_equal(Value a, Value b) {
     switch (a.type) {
     case VAL_I64:  return *a.i64 == *b.i64;
     case VAL_U8:   return *a.u8 == *b.u8;
-    case VAL_STR:  return Str_eq(a.str, b.str);
     case VAL_BOOL: return *a.boolean == *b.boolean;
     case VAL_ENUM:
         if (a.enum_inst->tag != b.enum_inst->tag) return 0;
@@ -174,8 +234,13 @@ Value eval_call(Scope *scope, Expr *e) {
                 }
             }
             static char flat_name_buf[256];
-            int flen = snprintf(flat_name_buf, sizeof(flat_name_buf), "%s_%s",
-                     expr_child(callee_expr, 0)->struct_name->c_str, callee_expr->data.str_val->c_str);
+            Str *sn = expr_child(callee_expr, 0)->struct_name;
+            Str *fn = callee_expr->data.str_val;
+            int flen = sn->cap + 1 + fn->cap;
+            memcpy(flat_name_buf, sn->c_str, sn->cap);
+            flat_name_buf[sn->cap] = '_';
+            memcpy(flat_name_buf + sn->cap + 1, fn->c_str, fn->cap);
+            flat_name_buf[flen] = '\0';
             Str flat_str = {.c_str = flat_name_buf, .cap = flen};
             Expr *orig_callee = expr_child(e, 0);
             Expr flat_ident = *orig_callee;
@@ -206,8 +271,10 @@ Value eval_call(Scope *scope, Expr *e) {
                 if (arg_cell->val.type == VAL_PTR && func_def->data.func_def.param_types[i]) {
                     Str *ptype = func_def->data.func_def.param_types[i];
                     Value arg = arg_cell->val;
-                    if (Str_eq_c(ptype, "Str"))
-                        arg = val_str((Str *)arg.ptr);
+                    if (Str_eq_c(ptype, "Str")) {
+                        Str *sp = (Str *)arg.ptr;
+                        arg = make_str_value_own(sp->c_str, sp->cap);
+                    }
                     else if (Str_eq_c(ptype, "I64"))
                         arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U8"))
@@ -223,8 +290,10 @@ Value eval_call(Scope *scope, Expr *e) {
                 // Reinterpret VAL_PTR based on param type (same as ref decl)
                 if (arg.type == VAL_PTR && func_def->data.func_def.param_types[i]) {
                     Str *ptype = func_def->data.func_def.param_types[i];
-                    if (Str_eq_c(ptype, "Str"))
-                        arg = val_str((Str *)arg.ptr);
+                    if (Str_eq_c(ptype, "Str")) {
+                        Str *sp = (Str *)arg.ptr;
+                        arg = make_str_value_own(sp->c_str, sp->cap);
+                    }
                     else if (Str_eq_c(ptype, "I64"))
                         arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U8"))
@@ -274,39 +343,6 @@ Value eval_call(Scope *scope, Expr *e) {
     if (fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type == NODE_STRUCT_DEF) {
         Expr *sdef = fn_cell->val.func;
         Expr *body = expr_child(sdef, 0);
-
-        // Str() constructor: create VAL_STR from data + cap args
-        if (Str_eq_c(name, "Str")) {
-            // Str has 2 non-namespace fields: data, cap
-            // arg 1 = data (VAL_PTR), arg 2 = cap (VAL_I64)
-            Value data_val, cap_val;
-            Expr *data_arg = expr_child(e, 1);
-            Expr *cap_arg = expr_child(e, 2);
-            if (data_arg->type == NODE_IDENT) {
-                Cell *src = scope_get(scope, data_arg->data.str_val);
-                data_val = src->val;
-                src->val = val_none();
-            } else {
-                data_val = eval_expr(scope,data_arg);
-            }
-            if (cap_arg->type == NODE_IDENT) {
-                Cell *src = scope_get(scope, cap_arg->data.str_val);
-                cap_val = src->val;
-                src->val = val_none();
-            } else {
-                cap_val = eval_expr(scope,cap_arg);
-            }
-            Str *s = malloc(sizeof(Str));
-            // Extract raw pointer from data_val (could be VAL_PTR or reinterpreted VAL_U8 etc)
-            switch (data_val.type) {
-                case VAL_PTR:  s->c_str = (char *)data_val.ptr; break;
-                case VAL_U8:   s->c_str = (char *)data_val.u8; break;
-                case VAL_I64:  s->c_str = (char *)data_val.i64; break;
-                default:       s->c_str = NULL; break;
-            }
-            s->cap = (I32)*cap_val.i64;
-            return val_str(s);
-        }
 
         I32 nfields = 0;
         for (I32 i = 0; i < body->children.count; i++)
@@ -386,7 +422,7 @@ Value eval_call(Scope *scope, Expr *e) {
 Value eval_expr(Scope *scope, Expr *e) {
     switch (e->type) {
     case NODE_LITERAL_STR:
-        return val_str(Str_clone(e->data.str_val));
+        return make_str_value(e->data.str_val->c_str, e->data.str_val->cap);
     case NODE_LITERAL_NUM:
         if (e->til_type == TIL_TYPE_U8)
             return val_u8(atoll(e->data.str_val->c_str));
@@ -443,17 +479,6 @@ Value eval_expr(Scope *scope, Expr *e) {
             expr_error(e, buf);
             exit(1);
         }
-        // VAL_STR field access: .data → VAL_PTR, .cap → VAL_I64
-        if (obj.type == VAL_STR) {
-            if (Str_eq_c(fname, "data"))
-                return (Value){.type = VAL_PTR, .ptr = obj.str->c_str};
-            if (Str_eq_c(fname, "cap"))
-                return val_i64(obj.str->cap);
-            char buf[128];
-            snprintf(buf, sizeof(buf), "Str has no field '%s'", fname->c_str);
-            expr_error(e, buf);
-            exit(1);
-        }
         if (obj.type != VAL_STRUCT) {
             expr_error(e, "field access on non-struct");
             exit(1);
@@ -464,7 +489,7 @@ Value eval_expr(Scope *scope, Expr *e) {
                 // Clone primitives to avoid shared heap pointers;
                 // structs/ptrs must stay as-is for chained access
                 if (fv.type == VAL_I64 || fv.type == VAL_U8 ||
-                    fv.type == VAL_BOOL || fv.type == VAL_STR)
+                    fv.type == VAL_BOOL)
                     return clone_value(fv);
                 return fv;
             }
@@ -510,7 +535,8 @@ static void eval_body(Scope *scope, Expr *body) {
                     val = eval_expr(scope,rhs);
                 }
                 // Reinterpret VAL_PTR based on declared type (ref a : I64 = ptr_add(...))
-                if (val.type == VAL_PTR && stmt->data.decl.explicit_type) {
+                // Only for ref decls — own decls keep VAL_PTR (they own a buffer, not a single element)
+                if (val.type == VAL_PTR && stmt->data.decl.explicit_type && stmt->data.decl.is_ref) {
                     Str *etype = stmt->data.decl.explicit_type;
                     if (Str_eq_c(etype, "I64"))
                         val = (Value){.type = VAL_I64, .i64 = (til_I64 *)val.ptr};
@@ -518,8 +544,10 @@ static void eval_body(Scope *scope, Expr *body) {
                         val = (Value){.type = VAL_U8, .u8 = (til_U8 *)val.ptr};
                     else if (Str_eq_c(etype, "Bool"))
                         val = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)val.ptr};
-                    else if (Str_eq_c(etype, "Str"))
-                        val = (Value){.type = VAL_STR, .str = (Str *)val.ptr};
+                    else if (Str_eq_c(etype, "Str")) {
+                        Str *sp = (Str *)val.ptr;
+                        val = make_str_value_own(sp->c_str, sp->cap);
+                    }
                 }
                 scope_set_owned(scope, stmt->data.decl.name, val);
             }
@@ -693,7 +721,7 @@ void interpreter_init_ns(Scope *global, Expr *program) {
 }
 
 static Value parse_cli_arg(const char *s, Str *type_name) {
-    if (Str_eq_c(type_name, "Str")) return val_str(Str_new(s));
+    if (Str_eq_c(type_name, "Str")) return make_str_value(s, strlen(s));
     if (Str_eq_c(type_name, "I64")) {
         char *end;
         I64 v = strtoll(s, &end, 10);
@@ -734,7 +762,19 @@ static void value_to_buf(void *dest, Value v, Str *type_name) {
     if (Str_eq_c(type_name, "I64"))       { memcpy(dest, v.i64, sizeof(til_I64)); free(v.i64); }
     else if (Str_eq_c(type_name, "U8"))   { memcpy(dest, v.u8, sizeof(til_U8)); free(v.u8); }
     else if (Str_eq_c(type_name, "Bool")) { memcpy(dest, v.boolean, sizeof(til_Bool)); free(v.boolean); }
-    else if (Str_eq_c(type_name, "Str"))  { memcpy(dest, v.str, sizeof(Str)); free(v.str); }
+    else if (Str_eq_c(type_name, "Str")) {
+        Str flat = str_view(v);
+        memcpy(dest, &flat, sizeof(Str));
+        // Free StructInstance shell but not the data pointer (now in buffer)
+        free(v.instance->field_names[0]);
+        free(v.instance->field_names[1]);
+        free(v.instance->field_names);
+        free(v.instance->field_muts);
+        free_value(v.instance->field_values[1]); // free the I64 cap
+        free(v.instance->field_values);
+        Str_delete(v.instance->struct_name);
+        free(v.instance);
+    }
 }
 
 static Value build_argv_array(I32 argc, char **argv, Str *elem_type) {
@@ -761,7 +801,7 @@ static Value build_argv_array(I32 argc, char **argv, Str *elem_type) {
     inst->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
     inst->field_values[1] = val_i64(argc);
     inst->field_values[2] = val_i64(esz);
-    inst->field_values[3] = val_str(Str_clone(elem_type));
+    inst->field_values[3] = make_str_value(elem_type->c_str, elem_type->cap);
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 

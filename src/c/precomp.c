@@ -31,12 +31,16 @@ static Expr *value_to_expr(Value val, Expr *src) {
         e->til_type = TIL_TYPE_U8;
         return e;
     }
-    case VAL_STR: {
-        e = expr_new(NODE_LITERAL_STR, line, col, path);
-        e->data.str_val = Str_clone(val.str);
-        e->til_type = TIL_TYPE_STRUCT;
-        e->struct_name = Str_new("Str");
-        return e;
+    case VAL_STRUCT: {
+        if (Str_eq_c(val.instance->struct_name, "Str")) {
+            Str sv = str_view(val);
+            e = expr_new(NODE_LITERAL_STR, line, col, path);
+            e->data.str_val = Str_new_len(sv.c_str, sv.cap);
+            e->til_type = TIL_TYPE_STRUCT;
+            e->struct_name = Str_new("Str");
+            return e;
+        }
+        return NULL; // other struct types not supported in precomp
     }
     case VAL_BOOL: {
         e = expr_new(NODE_LITERAL_BOOL, line, col, path);
@@ -58,7 +62,7 @@ static Value expr_to_value(Expr *e) {
             return val_u8(atoll(e->data.str_val->c_str));
         return val_i64(atoll(e->data.str_val->c_str));
     case NODE_LITERAL_STR:
-        return val_str(Str_clone(e->data.str_val));
+        return make_str_value(e->data.str_val->c_str, e->data.str_val->cap);
     case NODE_LITERAL_BOOL:
         return val_bool(strcmp(e->data.str_val->c_str, "true") == 0);
     default:

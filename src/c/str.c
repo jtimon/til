@@ -40,7 +40,10 @@ Bool Str_eq(Str *a, Str *b) {
 }
 
 I32 Str_cmp(Str *a, Str *b) {
-    return strcmp(a->c_str, b->c_str);
+    I32 min = a->cap < b->cap ? a->cap : b->cap;
+    I32 c = memcmp(a->c_str, b->c_str, min);
+    if (c != 0) return c;
+    return (a->cap > b->cap) - (a->cap < b->cap);
 }
 
 Bool Str_eq_c(Str *a, const char *b) {
