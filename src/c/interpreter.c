@@ -686,7 +686,80 @@ void interpreter_init_ns(Scope *global, Expr *program) {
     }
 }
 
-int interpret(Expr *program, Str *mode, const char *path, const char *user_c_path, const char *ext_c_path) {
+static Value parse_cli_arg(const char *s, Str *type_name) {
+    if (Str_eq_c(type_name, "Str")) return val_str(Str_new(s));
+    if (Str_eq_c(type_name, "I64")) {
+        char *end;
+        long long v = strtoll(s, &end, 10);
+        if (*end != '\0') {
+            fprintf(stderr, "error: cannot parse '%s' as I64\n", s);
+            exit(1);
+        }
+        return val_i64(v);
+    }
+    if (Str_eq_c(type_name, "U8")) {
+        char *end;
+        long v = strtol(s, &end, 10);
+        if (*end != '\0' || v < 0 || v > 255) {
+            fprintf(stderr, "error: cannot parse '%s' as U8\n", s);
+            exit(1);
+        }
+        return val_u8(v);
+    }
+    if (Str_eq_c(type_name, "Bool")) {
+        if (strcmp(s, "true") == 0) return val_bool(1);
+        if (strcmp(s, "false") == 0) return val_bool(0);
+        fprintf(stderr, "error: cannot parse '%s' as Bool (expected true/false)\n", s);
+        exit(1);
+    }
+    fprintf(stderr, "error: unsupported CLI argument type '%s'\n", type_name->c_str);
+    exit(1);
+}
+
+static int elem_size_for_type(Str *type_name) {
+    if (Str_eq_c(type_name, "I64")) return (int)sizeof(til_I64);
+    if (Str_eq_c(type_name, "U8"))  return (int)sizeof(til_U8);
+    if (Str_eq_c(type_name, "Bool")) return (int)sizeof(til_Bool);
+    if (Str_eq_c(type_name, "Str")) return (int)sizeof(Str);
+    return 8;
+}
+
+static void value_to_buf(void *dest, Value v, Str *type_name) {
+    if (Str_eq_c(type_name, "I64"))       { memcpy(dest, v.i64, sizeof(til_I64)); free(v.i64); }
+    else if (Str_eq_c(type_name, "U8"))   { memcpy(dest, v.u8, sizeof(til_U8)); free(v.u8); }
+    else if (Str_eq_c(type_name, "Bool")) { memcpy(dest, v.boolean, sizeof(til_Bool)); free(v.boolean); }
+    else if (Str_eq_c(type_name, "Str"))  { memcpy(dest, v.str, sizeof(Str)); free(v.str); }
+}
+
+static Value build_argv_array(int argc, char **argv, Str *elem_type) {
+    int esz = elem_size_for_type(elem_type);
+    void *data = calloc(argc > 0 ? argc : 1, esz);
+    for (int i = 0; i < argc; i++) {
+        Value v = parse_cli_arg(argv[i], elem_type);
+        value_to_buf((char *)data + i * esz, v, elem_type);
+    }
+    StructInstance *inst = malloc(sizeof(StructInstance));
+    inst->struct_name = Str_new("Array");
+    inst->nfields = 4;
+    inst->field_names = malloc(4 * sizeof(Str *));
+    inst->field_names[0] = Str_new("data");
+    inst->field_names[1] = Str_new("cap");
+    inst->field_names[2] = Str_new("elem_size");
+    inst->field_names[3] = Str_new("elem_type");
+    inst->field_muts = malloc(4 * sizeof(int));
+    inst->field_muts[0] = 1;
+    inst->field_muts[1] = 0;
+    inst->field_muts[2] = 0;
+    inst->field_muts[3] = 0;
+    inst->field_values = malloc(4 * sizeof(Value));
+    inst->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
+    inst->field_values[1] = val_i64(argc);
+    inst->field_values[2] = val_i64(esz);
+    inst->field_values[3] = val_str(Str_clone(elem_type));
+    return (Value){.type = VAL_STRUCT, .instance = inst};
+}
+
+int interpret(Expr *program, Str *mode, const char *path, const char *user_c_path, const char *ext_c_path, int user_argc, char **user_argv) {
     // Load user FFI library if provided
     if (user_c_path) {
         int rc = ffi_init(program, user_c_path, ext_c_path);
@@ -723,8 +796,50 @@ int interpret(Expr *program, Str *mode, const char *path, const char *user_c_pat
             return 1;
         }
         Expr *func_def = main_cell->val.func;
+        int nparam = func_def->data.func_def.nparam;
+        int vi = func_def->data.func_def.variadic_index;
         Expr *body = expr_child(func_def, 0);
         Scope *main_scope = scope_new(global);
+
+        // Bind CLI args to main params
+        if (nparam > 0) {
+            int fixed = (vi >= 0) ? nparam - 1 : nparam;
+            if (vi >= 0) {
+                // Variadic: need at least 'fixed' args
+                if (user_argc < fixed) {
+                    fprintf(stderr, "error: main expects at least %d argument(s), got %d\n", fixed, user_argc);
+                    scope_free(main_scope);
+                    scope_free(global);
+                    return 1;
+                }
+            } else {
+                if (user_argc != nparam) {
+                    fprintf(stderr, "error: main expects %d argument(s), got %d\n", nparam, user_argc);
+                    scope_free(main_scope);
+                    scope_free(global);
+                    return 1;
+                }
+            }
+            int argi = 0;
+            for (int i = 0; i < nparam; i++) {
+                if (i == vi) {
+                    int va_count = user_argc - fixed;
+                    Value arr = build_argv_array(va_count, user_argv + argi, func_def->data.func_def.param_types[vi]);
+                    scope_set_owned(main_scope, func_def->data.func_def.param_names[i], arr);
+                    argi += va_count;
+                } else {
+                    Value v = parse_cli_arg(user_argv[argi], func_def->data.func_def.param_types[i]);
+                    scope_set_owned(main_scope, func_def->data.func_def.param_names[i], v);
+                    argi++;
+                }
+            }
+        } else if (user_argc > 0) {
+            fprintf(stderr, "error: main expects no arguments, got %d\n", user_argc);
+            scope_free(main_scope);
+            scope_free(global);
+            return 1;
+        }
+
         eval_body(main_scope, body);
         scope_free(main_scope);
     }

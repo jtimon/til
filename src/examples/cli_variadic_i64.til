@@ -1,0 +1,32 @@
+mode cli
+
+usage := proc() {
+    println("usage: cli_variadic_i64 <add|mul> [numbers...]")
+    println("  add  — sum all numbers (identity: 0)")
+    println("  mul  — multiply all numbers (identity: 1)")
+}
+
+main := proc(op: Str, nums: ..I64) {
+    if op.eq("add") {
+        mut result := 0
+        mut i := 0
+        while i.lt(nums.len()) {
+            ref n: I64 = nums.get(i)
+            result = result.add(n)
+            i = i.add(1)
+        }
+        println(result.to_str())
+    } else if op.eq("mul") {
+        mut result := 1
+        mut i := 0
+        while i.lt(nums.len()) {
+            ref n: I64 = nums.get(i)
+            result = result.mul(n)
+            i = i.add(1)
+        }
+        println(result.to_str())
+    } else {
+        usage()
+        panic("main", format("unknown op: ", op))
+    }
+}

@@ -71,3 +71,29 @@ void til_memmove(void *dest, void *src, til_I64 *len) {
     memmove(dest, src, (size_t)*len);
 }
 
+// CLI arg parsing
+til_I64 *til_cli_parse_i64(const char *s) {
+    char *end;
+    long long v = strtoll(s, &end, 10);
+    if (*end != '\0') {
+        fprintf(stderr, "error: cannot parse '%s' as I64\n", s);
+        exit(1);
+    }
+    return I64_new(v);
+}
+til_U8 *til_cli_parse_u8(const char *s) {
+    char *end;
+    long v = strtol(s, &end, 10);
+    if (*end != '\0' || v < 0 || v > 255) {
+        fprintf(stderr, "error: cannot parse '%s' as U8\n", s);
+        exit(1);
+    }
+    return U8_new((U8)v);
+}
+til_Bool *til_cli_parse_bool(const char *s) {
+    if (strcmp(s, "true") == 0) return Bool_new(1);
+    if (strcmp(s, "false") == 0) return Bool_new(0);
+    fprintf(stderr, "error: cannot parse '%s' as Bool (expected true/false)\n", s);
+    exit(1);
+}
+

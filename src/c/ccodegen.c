@@ -543,7 +543,68 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
     int is_main = mode && Str_eq_c(mode, "cli") && Str_eq_c(name, "main");
 
     if (is_main) {
-        fprintf(f, "int main(void) {\n");
+        int nparam = func_def->data.func_def.nparam;
+        int vi = func_def->data.func_def.variadic_index;
+        if (nparam == 0) {
+            fprintf(f, "int main(int argc, char **argv) {\n");
+            fprintf(f, "    (void)argv;\n");
+            fprintf(f, "    if (argc > 1) { fprintf(stderr, \"error: main expects no arguments, got %%d\\n\", argc - 1); return 1; }\n");
+        } else {
+            fprintf(f, "int main(int argc, char **argv) {\n");
+            int fixed = (vi >= 0) ? nparam - 1 : nparam;
+            if (vi >= 0) {
+                fprintf(f, "    if (argc - 1 < %d) { fprintf(stderr, \"error: main expects at least %d argument(s), got %%d\\n\", argc - 1); return 1; }\n", fixed, fixed);
+            } else {
+                fprintf(f, "    if (argc - 1 != %d) { fprintf(stderr, \"error: main expects %d argument(s), got %%d\\n\", argc - 1); return 1; }\n", nparam, nparam);
+            }
+            // Parse and bind each param
+            int argi = 1; // argv[0] is program name, skip it
+            for (int i = 0; i < nparam; i++) {
+                Str *pname = func_def->data.func_def.param_names[i];
+                Str *ptype = func_def->data.func_def.param_types[i];
+                if (i == vi) {
+                    // Build Array[T] from remaining args
+                    const char *et = ptype->c_str;
+                    fprintf(f, "    int _va_argc = argc - %d;\n", argi);
+                    fprintf(f, "    til_Str *_va_et = til_Str_lit(\"%s\", %d);\n", et, ptype->cap);
+                    fprintf(f, "    til_I64 *_va_esz = malloc(sizeof(til_I64)); *_va_esz = sizeof(til_%s);\n", et);
+                    fprintf(f, "    til_I64 *_va_cap = malloc(sizeof(til_I64)); *_va_cap = _va_argc;\n");
+                    fprintf(f, "    til_Array *%s = til_Array_new(_va_et, _va_esz, _va_cap);\n", pname->c_str);
+                    fprintf(f, "    til_Str_delete(_va_et, &(til_Bool){1});\n");
+                    fprintf(f, "    til_I64_delete(_va_esz, &(til_Bool){1});\n");
+                    fprintf(f, "    til_I64_delete(_va_cap, &(til_Bool){1});\n");
+                    fprintf(f, "    for (int _i = 0; _i < _va_argc; _i++) {\n");
+                    fprintf(f, "        til_I64 *_idx = malloc(sizeof(til_I64)); *_idx = _i;\n");
+                    if (Str_eq_c(ptype, "Str"))
+                        fprintf(f, "        til_Str *_val = til_Str_lit(argv[%d + _i], strlen(argv[%d + _i]));\n", argi, argi);
+                    else if (Str_eq_c(ptype, "I64"))
+                        fprintf(f, "        til_I64 *_val = til_cli_parse_i64(argv[%d + _i]);\n", argi);
+                    else if (Str_eq_c(ptype, "U8"))
+                        fprintf(f, "        til_U8 *_val = til_cli_parse_u8(argv[%d + _i]);\n", argi);
+                    else if (Str_eq_c(ptype, "Bool"))
+                        fprintf(f, "        til_Bool *_val = til_cli_parse_bool(argv[%d + _i]);\n", argi);
+                    fprintf(f, "        til_Array_set(%s, _idx, _val);\n", pname->c_str);
+                    fprintf(f, "        til_I64_delete(_idx, &(til_Bool){1});\n");
+                    fprintf(f, "    }\n");
+                } else if (Str_eq_c(ptype, "Str")) {
+                    fprintf(f, "    til_Str *%s = til_Str_lit(argv[%d], strlen(argv[%d]));\n", pname->c_str, argi, argi);
+                    argi++;
+                } else if (Str_eq_c(ptype, "I64")) {
+                    fprintf(f, "    til_I64 *%s = til_cli_parse_i64(argv[%d]);\n", pname->c_str, argi);
+                    argi++;
+                } else if (Str_eq_c(ptype, "U8")) {
+                    fprintf(f, "    til_U8 *%s = til_cli_parse_u8(argv[%d]);\n", pname->c_str, argi);
+                    argi++;
+                } else if (Str_eq_c(ptype, "Bool")) {
+                    fprintf(f, "    til_Bool *%s = til_cli_parse_bool(argv[%d]);\n", pname->c_str, argi);
+                    argi++;
+                } else {
+                    fprintf(f, "    // unsupported CLI arg type: %s\n", ptype->c_str);
+                    fprintf(f, "    fprintf(stderr, \"error: unsupported CLI argument type '%s'\\n\"); return 1;\n", ptype->c_str);
+                    argi++;
+                }
+            }
+        }
         emit_ns_inits(f, 1);
         emit_body(f, body, 1);
         fprintf(f, "    return 0;\n");

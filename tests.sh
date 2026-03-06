@@ -39,6 +39,50 @@ if [ "$errors" -ne 36 ]; then
     FAIL=1
 fi
 
+# CLI args tests: check output and exit codes for both interpret and codegen
+cli_test() {
+    local file="$1" expected="$2" exit_expected="$3"
+    shift 3
+    local name=$(basename "$file" .til)
+
+    got=$($CTIL interpret "$file" "$@" 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne "$exit_expected" ]; then
+        echo "FAIL (interpret): cli/$name (exit $rc, expected $exit_expected)"
+        FAIL=1
+    elif [ "$exit_expected" -eq 0 ] && [ "$got" != "$expected" ]; then
+        echo "FAIL (interpret): cli/$name"
+        echo "  expected: $expected"
+        echo "  got:      $got"
+        FAIL=1
+    fi
+
+    got=$($CTIL run "$file" "$@" 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne "$exit_expected" ]; then
+        echo "FAIL (codegen):   cli/$name (exit $rc, expected $exit_expected)"
+        FAIL=1
+    elif [ "$exit_expected" -eq 0 ] && [ "$got" != "$expected" ]; then
+        echo "FAIL (codegen):   cli/$name"
+        echo "  expected: $expected"
+        echo "  got:      $got"
+        FAIL=1
+    fi
+}
+
+cli_test src/examples/cli_args.til "hello
+world" 0 hello world
+cli_test src/examples/cli_args.til "" 0
+cli_test src/examples/cli_typed.til "alice 42" 0 alice 42
+cli_test src/examples/hello_cli.til "Hello World!" 0
+cli_test src/examples/cli_variadic_i64.til "60" 0 add 10 20 30
+cli_test src/examples/cli_variadic_i64.til "24" 0 mul 2 3 4
+cli_test src/examples/cli_variadic_i64.til "0" 0 add
+cli_test src/examples/cli_variadic_bool.til "false" 0 true true false
+cli_test src/examples/cli_variadic_bool.til "true" 0 true true
+# Error cases (nonzero exit)
+cli_test src/examples/cli_typed.til "" 1 alice
+cli_test src/examples/cli_typed.til "" 1 a b c
+cli_test src/examples/hello_cli.til "" 1 extra
+
 if [ $FAIL -eq 0 ]; then
     echo "all tests passed"
 fi

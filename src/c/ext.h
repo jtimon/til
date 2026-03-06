@@ -75,4 +75,9 @@ void *til_realloc(void *buf, til_I64 *count);
 void *til_ptr_add(void *buf, til_I64 *offset);
 void til_memcpy(void *dest, void *src, til_I64 *len);
 
+// CLI arg parsing
+til_I64 *til_cli_parse_i64(const char *s);
+til_U8 *til_cli_parse_u8(const char *s);
+til_Bool *til_cli_parse_bool(const char *s);
+
 #endif

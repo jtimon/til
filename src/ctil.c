@@ -139,8 +139,12 @@ int main(int argc, char **argv) {
         }
     }
 
+    // User args: everything after command and path
+    int user_argc = (argc > 3) ? argc - 3 : 0;
+    char **user_argv = (argc > 3) ? argv + 3 : NULL;
+
     if (strcmp(command, "interpret") == 0) {
-        result = interpret(ast, mode, path, user_c, ext_c_path);
+        result = interpret(ast, mode, path, user_c, ext_c_path, user_argc, user_argv);
     } else if (strcmp(command, "translate") == 0 || strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
         const char *basename = strrchr(path, '/');
@@ -162,7 +166,16 @@ int main(int argc, char **argv) {
             result = compile_c(c_path, bin_path, ext_c_path, user_c);
         }
         if (result == 0 && strcmp(command, "run") == 0) {
-            int status = system(bin_path);
+            // Build command with user args appended
+            int cmdlen = (int)strlen(bin_path);
+            for (int i = 0; i < user_argc; i++)
+                cmdlen += 1 + (int)strlen(user_argv[i]) + 2; // space + quotes
+            char *cmd = malloc(cmdlen + 1);
+            int pos = snprintf(cmd, cmdlen + 1, "%s", bin_path);
+            for (int i = 0; i < user_argc; i++)
+                pos += snprintf(cmd + pos, cmdlen + 1 - pos, " '%s'", user_argv[i]);
+            int status = system(cmd);
+            free(cmd);
             if (WIFEXITED(status))
                 result = WEXITSTATUS(status);
             else

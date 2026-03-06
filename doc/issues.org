@@ -236,9 +236,19 @@
    - Interpreter: simplified — just binds args positionally (desugaring done)
    - Codegen: emits `til_Array` param type; call sites desugared in AST
 
-** Phase 2: main proc CLI args (including variadic)
-   main := proc(args: ..Str) must work in both compiled and interpreted modes.
+** DONE Phase 2: main proc CLI args (including variadic)
+   main := proc(args: ..Str) works in both compiled and interpreted modes.
    Needed for #12 (self-hosting) and #13 (test runner in til).
+
+   CLI args (argv[1..]) are validated and parsed at runtime:
+   - Arg count checked against param count (or minimum for variadic)
+   - Supported param types: Str (identity), I64 (atoll), U8 (range-checked),
+     Bool ("true"/"false"). Struct parsing deferred.
+   - Variadic ..Str builds Array[Str] from remaining args
+   - main := proc() rejects any CLI args
+
+   ctil forwards argv[3..] to both interpret and run commands.
+   Parse helpers (til_cli_parse_i64/u8/bool) in ext.c, shared by both paths.
 
 ** Phase 3: Variadic args in FFI functions
    Related to #4. Support `..Type` in ext_func/ext_proc parameter lists
