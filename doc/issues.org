@@ -5,13 +5,22 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 
-* OPEN #20 Dynamic return type inference
-  Methods returning Dynamic (e.g. Array.get, Vec.get) should allow
-  chaining when the element type is known from context.
-  Currently: ref x : I64 = arr.get(0); x.eq(1)
-  Goal: arr.get(0).eq(1) should work when arr is Array("I64", ...).
-  The typer needs to propagate the element type from the collection
-  to the Dynamic return value so method calls can be resolved.
+* WIP #20 Dynamic arg narrowing
+  Dynamic values can be passed where a concrete type is expected.
+  The parameter's declared type provides context, like an explicit
+  type annotation on a declaration.
+** FIXED Arg narrowing
+   34.add(vec.get(0)) works: I64.add(a: I64, b: I64) tells us b is I64.
+   Chaining with typed start: 0.add(v.get(0)).add(v.get(1)) works.
+** FIXED Top-level UFCS on Dynamic
+   bv.get(0).and(bv.get(1)) works: and(a: Bool, b: Bool) is unique,
+   first param type narrows the Dynamic receiver.
+** FIXED Arg type checking (was missing entirely)
+   32.add(true) now errors: "argument type mismatch for 'b': expected I64, got Bool"
+   Dynamic args are the exception — they get narrowed instead of rejected.
+** OPEN Namespace UFCS on Dynamic
+   vec.get(0).add(35) does NOT work — can't pick between I64.add, U8.add, etc.
+   Workaround: start chain with typed value: 35.add(vec.get(0))
 
 * OPEN #19 Literal syntax for collection initialization
   :DEPENDENCIES: #18

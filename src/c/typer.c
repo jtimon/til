@@ -38,6 +38,17 @@ static const char *type_to_name(TilType type, Str *struct_name);
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Expr *src);
 static int fcall_returns_ref(Expr *fcall, TypeScope *scope);
 
+// Narrow a Dynamic-typed expression to a concrete target type.
+// Used for both declarations with explicit types and function arguments.
+static void narrow_dynamic(Expr *expr, TilType target, Str *target_struct_name) {
+    if (expr->til_type != TIL_TYPE_DYNAMIC || target == TIL_TYPE_DYNAMIC ||
+        target == TIL_TYPE_UNKNOWN)
+        return;
+    expr->til_type = target;
+    if (target == TIL_TYPE_STRUCT || target == TIL_TYPE_ENUM)
+        expr->struct_name = target_struct_name;
+}
+
 static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
     switch (e->type) {
     case NODE_LITERAL_STR:
@@ -178,11 +189,21 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
                 if (!ns_func) {
                     // UFCS fallback: check top-level for f(a: T, ...)
                     TypeBinding *top = tscope_find(scope, method);
+                    int ufcs_match = 0;
                     if (top && top->func_def &&
                         top->func_def->data.func_def.nparam > 0 &&
-                        top->func_def->data.func_def.param_types[0] &&
-                        type_name &&
-                        Str_eq(top->func_def->data.func_def.param_types[0], type_name)) {
+                        top->func_def->data.func_def.param_types[0]) {
+                        Str *first_param = top->func_def->data.func_def.param_types[0];
+                        if (type_name && Str_eq(first_param, type_name)) {
+                            ufcs_match = 1; // known type matches first param
+                        } else if (!type_name && obj->til_type == TIL_TYPE_DYNAMIC) {
+                            // Dynamic receiver: narrow to first param type
+                            TilType pt = type_from_name(first_param, scope);
+                            narrow_dynamic(obj, pt, first_param);
+                            ufcs_match = 1;
+                        }
+                    }
+                    if (ufcs_match) {
                         // Rewrite: a.f(b) → f(a, b)
                         Expr *fn_ident = expr_new(NODE_IDENT, fa->line, fa->col, fa->path);
                         fn_ident->data.str_val = method;
@@ -314,6 +335,37 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
             // Infer arg types
             for (int i = 1; i < e->children.count; i++) {
                 infer_expr(scope, expr_child(e, i), in_func);
+            }
+            // Narrow Dynamic args to parameter types
+            for (int i = 1; i < e->children.count && i - 1 < ns_func->data.func_def.nparam; i++) {
+                Str *ptype = ns_func->data.func_def.param_types[i - 1];
+                if (ptype)
+                    narrow_dynamic(expr_child(e, i), type_from_name(ptype, scope), ptype);
+            }
+            // Validate arg types against param types
+            for (int i = 1; i < e->children.count && i - 1 < ns_func->data.func_def.nparam; i++) {
+                Str *ptype_name = ns_func->data.func_def.param_types[i - 1];
+                if (!ptype_name) continue;
+                Expr *arg = expr_child(e, i);
+                if (arg->til_type == TIL_TYPE_DYNAMIC) continue;
+                TilType ptype = type_from_name(ptype_name, scope);
+                if (ptype == TIL_TYPE_DYNAMIC) continue;
+                if (arg->type == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8))
+                    continue;
+                if (arg->til_type != ptype) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
+                             ns_func->data.func_def.param_names[i - 1]->c_str,
+                             ptype_name->c_str, til_type_name_c(arg->til_type));
+                    type_error(arg, buf);
+                } else if ((ptype == TIL_TYPE_STRUCT || ptype == TIL_TYPE_ENUM) &&
+                           arg->struct_name && !Str_eq(ptype_name, arg->struct_name)) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
+                             ns_func->data.func_def.param_names[i - 1]->c_str,
+                             ptype_name->c_str, arg->struct_name->c_str);
+                    type_error(arg, buf);
+                }
             }
             // Validate 'own' markers on arguments
             {
@@ -551,6 +603,48 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
         // Infer types of all arguments
         for (int i = 1; i < e->children.count; i++) {
             infer_expr(scope, expr_child(e, i), in_func);
+        }
+        // Narrow Dynamic args to parameter types, then validate arg types
+        if (callee_bind && callee_bind->func_def) {
+            Expr *fdef = callee_bind->func_def;
+            int fvi = fdef->data.func_def.variadic_index;
+            int fvc = (fvi >= 0) ? e->variadic_count : 0;
+            int ci = 1;
+            for (int pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
+                if (fvi >= 0 && pi == fvi) { ci += fvc; continue; }
+                Str *ptype = fdef->data.func_def.param_types[pi];
+                if (ptype)
+                    narrow_dynamic(expr_child(e, ci), type_from_name(ptype, scope), ptype);
+                ci++;
+            }
+            // Validate arg types against param types
+            ci = 1;
+            for (int pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
+                if (fvi >= 0 && pi == fvi) { ci += fvc; continue; }
+                Str *ptype_name = fdef->data.func_def.param_types[pi];
+                if (!ptype_name) { ci++; continue; }
+                Expr *arg = expr_child(e, ci);
+                if (arg->til_type == TIL_TYPE_DYNAMIC) { ci++; continue; }
+                TilType ptype = type_from_name(ptype_name, scope);
+                if (ptype == TIL_TYPE_DYNAMIC) { ci++; continue; }
+                if (arg->type == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8))
+                    { ci++; continue; }
+                if (arg->til_type != ptype) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
+                             fdef->data.func_def.param_names[pi]->c_str,
+                             ptype_name->c_str, til_type_name_c(arg->til_type));
+                    type_error(arg, buf);
+                } else if ((ptype == TIL_TYPE_STRUCT || ptype == TIL_TYPE_ENUM) &&
+                           arg->struct_name && !Str_eq(ptype_name, arg->struct_name)) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
+                             fdef->data.func_def.param_names[pi]->c_str,
+                             ptype_name->c_str, arg->struct_name->c_str);
+                    type_error(arg, buf);
+                }
+                ci++;
+            }
         }
         // dyn_call variants: method (2nd arg) must be a string literal
         if ((Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
@@ -1728,6 +1822,8 @@ static void infer_body(TypeScope *scope, Expr *body, int in_func, int owns_scope
                     type_error(stmt, buf);
                 }
                 stmt->til_type = declared;
+                // Narrow Dynamic RHS to declared type
+                narrow_dynamic(expr_child(stmt, 0), declared, etn);
                 // For struct/enum types, propagate struct_name from explicit type
                 if (declared == TIL_TYPE_STRUCT || declared == TIL_TYPE_ENUM) {
                     expr_child(stmt, 0)->struct_name = etn;

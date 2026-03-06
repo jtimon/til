@@ -161,3 +161,13 @@ bad_dyn2 := malloc(32)
 // dyn_call: method must be a string literal
 method_var := "clone"
 dyn_call1_ret("I64", method_var, 42)
+
+// argument type mismatch: I64 method with Bool arg
+32.add(true)
+
+// argument type mismatch: Bool top-level func with I64 arg
+and(true, 42)
+
+// argument type mismatch: user-defined function
+type_test := func(a: I64, b: Bool) returns I64 { return a }
+type_test(1, 2)

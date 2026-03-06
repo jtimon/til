@@ -21,7 +21,7 @@ h := proc() {
     println(y.to_str())
 }
 
-assert(f().eq(42), "func should see global x")
+assert(loc(), f().eq(42))
 g()
 h()
 

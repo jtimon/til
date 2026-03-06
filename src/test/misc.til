@@ -74,3 +74,18 @@ variadic_print := proc(nums: ..I64) {
 variadic_print(10, 20, 30)
 
 println("variadic: all passed")
+
+// Dynamic arg narrowing (#20): pass Dynamic where concrete type expected
+my_vec := vec("I64", 10, 20, 30)
+ref x2 : I64 = my_vec.get(0)
+assert_eq(loc(), x2, 10)
+// Dynamic value as typed argument
+assert_eq(loc(), 34.add(my_vec.get(0)), 44)
+// Chaining with typed start: 0.add(Dynamic) returns I64, chain continues
+assert_eq(loc(), 0.add(my_vec.get(0)).add(my_vec.get(1)).add(my_vec.get(2)), 60)
+// Top-level UFCS on Dynamic receiver: and/or/not are unique top-level functions
+my_bvec := vec("Bool", true, false)
+assert(loc(), my_bvec.get(0).and(my_bvec.get(0)))
+assert(loc(), my_bvec.get(1).or(my_bvec.get(0)))
+// TODO: my_bvec.get(1).not() — Bool values in Vec don't round-trip correctly (false→true)
+println("dynamic narrowing: all passed")

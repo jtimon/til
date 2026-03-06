@@ -26,34 +26,55 @@ static Map ffi_map;          // name -> FFIEntry
 static void *ffi_handle;     // dlopen handle
 static int ffi_loaded;
 
+// === Eval helper for Dynamic narrowing ===
+// When the typer narrows a Dynamic arg to a concrete type, the expression's
+// til_type is the target. If the runtime value is VAL_PTR (from ptr_add/malloc),
+// reinterpret it as the narrowed type so dispatch handlers see the right union field.
+static Value eval_arg(Scope *s, Expr *e) {
+    Value v = eval_expr(s, e);
+    if (v.type == VAL_PTR && e->til_type != TIL_TYPE_DYNAMIC) {
+        switch (e->til_type) {
+            case TIL_TYPE_I64:    return (Value){.type = VAL_I64, .i64 = (til_I64 *)v.ptr};
+            case TIL_TYPE_U8:    return (Value){.type = VAL_U8, .u8 = (til_U8 *)v.ptr};
+            case TIL_TYPE_BOOL:  return (Value){.type = VAL_BOOL, .boolean = (til_Bool *)v.ptr};
+            case TIL_TYPE_STRUCT:
+                if (e->struct_name && Str_eq_c(e->struct_name, "Str"))
+                    return val_str((Str *)v.ptr);
+                return (Value){.type = VAL_STRUCT, .instance = v.ptr};
+            default: break;
+        }
+    }
+    return v;
+}
+
 // === Handler macros ===
 
 // 2-arg handler: eval both args, call cfn(xa, xb), wrap result
 #define H2(hname, cfn, xa, xb, w) \
 static int h_##hname(Scope *s, Expr *e, Value *r) { \
-    Value a = eval_expr(s, expr_child(e,1)); \
-    Value b = eval_expr(s, expr_child(e,2)); \
+    Value a = eval_arg(s, expr_child(e,1)); \
+    Value b = eval_arg(s, expr_child(e,2)); \
     *r = w(cfn(xa, xb)); return 1; }
 
 // 1-arg handler: eval one arg, call cfn(xv), wrap result
 #define H1(hname, cfn, xv, w) \
 static int h_##hname(Scope *s, Expr *e, Value *r) { \
-    Value v = eval_expr(s, expr_child(e,1)); \
+    Value v = eval_arg(s, expr_child(e,1)); \
     *r = w(cfn(xv)); return 1; }
 
 // Delete handler: check VAL_NONE, eval call_free flag, conditionally delete
 #define HDEL(hname, dfn, xv) \
 static int h_##hname(Scope *s, Expr *e, Value *r) { \
-    Value v = eval_expr(s, expr_child(e,1)); \
+    Value v = eval_arg(s, expr_child(e,1)); \
     if (v.type == VAL_NONE) { *r = val_none(); return 1; } \
-    Value cf = eval_expr(s, expr_child(e,2)); \
+    Value cf = eval_arg(s, expr_child(e,2)); \
     if (*cf.boolean) dfn(xv); \
     *r = val_none(); return 1; }
 
 // Clone handler: eval one arg, copy raw value
 #define HCLONE(hname, xv, w) \
 static int h_##hname(Scope *s, Expr *e, Value *r) { \
-    Value v = eval_expr(s, expr_child(e,1)); \
+    Value v = eval_arg(s, expr_child(e,1)); \
     *r = w(xv); return 1; }
 
 // === I64 handlers ===
