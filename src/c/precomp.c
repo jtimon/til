@@ -96,9 +96,39 @@ static int is_func_call(Expr *e) {
            Set_has(&funcs, &expr_child(e, 0)->data.str_val);
 }
 
+// Check if a func body references identifiers not available at precomp time.
+// Something is available if it's a parameter, in the known map, or in the precomp scope
+// (funcs, structs, enums are pre-registered there).
+static int func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_scope) {
+    if (e->type == NODE_FUNC_DEF) return 0; // don't recurse into nested funcs
+    if (e->type == NODE_IDENT) {
+        Str *name = e->data.str_val;
+        for (int i = 0; i < func_def->data.func_def.nparam; i++) {
+            if (Str_eq(func_def->data.func_def.param_names[i], name)) return 0;
+        }
+        if (Map_get(&known, &name)) return 0;
+        if (scope_get(precomp_scope, name)) return 0;
+        return 1;
+    }
+    for (int i = 0; i < e->children.count; i++) {
+        if (func_uses_unknown_globals(expr_child(e, i), func_def, precomp_scope)) return 1;
+    }
+    return 0;
+}
+
 // Try to evaluate a call at compile time.
 // require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
 static Expr *try_eval_call(Scope *scope, Expr *fcall, int require_known) {
+    // Check if the function body references unknown globals
+    Str *callee_name = expr_child(fcall, 0)->data.str_val;
+    Cell *fn_cell = scope_get(scope, callee_name);
+    if (fn_cell && fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type == NODE_FUNC_DEF) {
+        Expr *fdef = fn_cell->val.func;
+        if (fdef->children.count > 0 && func_uses_unknown_globals(expr_child(fdef, 0), fdef, scope)) {
+            return NULL;
+        }
+    }
+
     // Build a call with literal args for the interpreter
     int nargs = fcall->children.count - 1;
     Expr *eval_call = expr_new(NODE_FCALL, fcall->line, fcall->col, fcall->path);
@@ -144,11 +174,13 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, int require_known) {
     return lit;
 }
 
-// Track a literal value from a declaration
-static void track_literal(Str *name, Expr *rhs) {
+// Track a literal value from a declaration — also add to precomp scope
+// so the interpreter can find it when folding func calls
+static void track_literal(Scope *scope, Str *name, Expr *rhs) {
     Value v;
     if (is_known(rhs, &v)) {
         Map_set(&known, &name, &v);
+        scope_set_owned(scope, name, v);
     }
 }
 
@@ -178,20 +210,20 @@ static void process_body(Scope *scope, Expr *body) {
                 if (lit) {
                     expr_free(expr_child(stmt, 0));
                     expr_child(stmt, 0) = lit;
-                    track_literal(stmt->data.decl.name, lit);
+                    track_literal(scope, stmt->data.decl.name, lit);
                 }
             } else if (is_func_call(expr_child(stmt, 0))) {
                 Expr *lit = try_eval_call(scope, expr_child(stmt, 0), 0);
                 if (lit) {
                     expr_free(expr_child(stmt, 0));
                     expr_child(stmt, 0) = lit;
-                    track_literal(stmt->data.decl.name, lit);
+                    track_literal(scope, stmt->data.decl.name, lit);
                 } else {
-                    track_literal(stmt->data.decl.name, expr_child(stmt, 0));
+                    track_literal(scope, stmt->data.decl.name, expr_child(stmt, 0));
                 }
             } else {
                 // Track compile-time known value
-                track_literal(stmt->data.decl.name, expr_child(stmt, 0));
+                track_literal(scope, stmt->data.decl.name, expr_child(stmt, 0));
             }
             break;
 

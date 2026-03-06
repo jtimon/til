@@ -7,6 +7,8 @@
 
 static Expr *codegen_program; // set during codegen for ns_init lookups
 static Map struct_bodies; // Str* name → Expr* body (NODE_BODY)
+static Set script_globals; // names of top-level vars emitted as file-scope globals
+static int has_script_globals; // whether script_globals is initialized
 
 // Collect unique dyn_call method literals from AST
 typedef struct { Str *method; int nargs; int returns; } DynCallInfo;
@@ -365,21 +367,31 @@ static void emit_stmt(FILE *f, Expr *e, int depth) {
         } else {
             const char *ctype = c_type_name(e->til_type, expr_child(e, 0)->struct_name);
             Expr *rhs = expr_child(e, 0);
+            int is_global = has_script_globals && Set_has(&script_globals, &e->data.decl.name);
             if (rhs->type == NODE_FCALL && rhs->struct_name &&
                 Str_eq(expr_child(rhs, 0)->data.str_val, rhs->struct_name)) {
                 // Struct constructor — malloc + field-by-field assignment
                 const char *var = e->data.decl.name->c_str;
-                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
+                if (is_global)
+                    fprintf(f, "%s = malloc(sizeof(%s));\n", var, ctype);
+                else
+                    fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
                 emit_ctor_fields(f, var, rhs, depth);
             } else if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR ||
                        (rhs->type == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
                 // Function calls / enum constructors already return a fresh heap pointer
-                fprintf(f, "%s *%s = ", ctype, e->data.decl.name->c_str);
+                if (is_global)
+                    fprintf(f, "%s = ", e->data.decl.name->c_str);
+                else
+                    fprintf(f, "%s *%s = ", ctype, e->data.decl.name->c_str);
                 emit_expr(f, rhs, depth);
                 fprintf(f, ";\n");
             } else {
                 // Literals and idents: allocate new memory and copy the value
-                fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name->c_str, ctype);
+                if (is_global)
+                    fprintf(f, "%s = malloc(sizeof(%s));\n", e->data.decl.name->c_str, ctype);
+                else
+                    fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.decl.name->c_str, ctype);
                 emit_indent(f, depth);
                 fprintf(f, "*%s = ", e->data.decl.name->c_str);
                 emit_deref(f, rhs, depth);
@@ -606,6 +618,17 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
             }
         }
         emit_ns_inits(f, 1);
+        // Initialize root-scope globals before main body
+        if (has_script_globals) {
+            for (int i = 0; i < codegen_program->children.count; i++) {
+                Expr *gs = expr_child(codegen_program, i);
+                if (gs->type != NODE_DECL) continue;
+                Expr *rhs = expr_child(gs, 0);
+                if (rhs->type == NODE_FUNC_DEF || rhs->type == NODE_STRUCT_DEF ||
+                    rhs->type == NODE_ENUM_DEF) continue;
+                emit_stmt(f, gs, 1);
+            }
+        }
         emit_body(f, body, 1);
         fprintf(f, "    return 0;\n");
         fprintf(f, "}\n");
@@ -1074,6 +1097,24 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     fprintf(f, "    return r;\n");
     fprintf(f, "}\n\n");
 
+    // Emit top-level variable declarations as file-scope globals
+    // so they're accessible from functions/procs defined at the same level
+    {
+        script_globals = Set_new(sizeof(Str *), str_ptr_cmp);
+        has_script_globals = 1;
+        for (int i = 0; i < program->children.count; i++) {
+            Expr *stmt = expr_child(program, i);
+            if (stmt->type != NODE_DECL) continue;
+            Expr *rhs = expr_child(stmt, 0);
+            if (rhs->type == NODE_FUNC_DEF || rhs->type == NODE_STRUCT_DEF ||
+                rhs->type == NODE_ENUM_DEF) continue;
+            const char *ctype = c_type_name(stmt->til_type, rhs->struct_name);
+            fprintf(f, "static %s *%s;\n", ctype, stmt->data.decl.name->c_str);
+            Set_add(&script_globals, &stmt->data.decl.name);
+        }
+        fprintf(f, "\n");
+    }
+
     // Emit all function bodies: struct namespace, enum, top-level
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
@@ -1194,6 +1235,8 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         }
         fprintf(f, "    return 0;\n");
         fprintf(f, "}\n");
+        Set_delete(&script_globals);
+        has_script_globals = 0;
     }
 
     fclose(f);

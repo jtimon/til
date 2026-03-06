@@ -9,7 +9,7 @@
   (TypeScope chains via parent pointers and finds the variable), but the
   interpreter crashes or errors.
 
-  Reproduction: src/test/globals.til
+  Reproduction: src/test/globals.til, src/test/globals_cli.til
 
   func case: "error: undefined variable 'x'" — clean error from NODE_IDENT
   NULL check. proc case: SEGFAULT — NODE_DECL move-semantics path has no
@@ -38,17 +38,24 @@
    eval_expr hits the error path and exit(1)s before the interpreter
    even runs.
 
-** Phase 1: Fix global variable access
+** DONE Phase 1: Fix global variable access
 
-   1. Fix expr_uses_var (typer.c:1239): recurse into NODE_FUNC_DEF bodies
-      to find references to outer-scope variables. Variables captured by
-      nested functions should not be ASAP-deleted. Their lifetime extends
-      to at least the end of the enclosing scope (or to the nested
-      function's last use).
-   2. Add NULL checks in NODE_DECL move-semantics path (interpreter.c ~498)
-      to prevent segfault — should give clean error like NODE_IDENT does.
-   3. Fix precomp: skip folding func calls whose body references variables
-      not in the precomp scope (i.e. non-const, non-func globals).
+   1. Added expr_used_in_nested_func() in typer.c: scans for variable
+      references inside nested func/proc bodies (excluding shadowed params).
+      ASAP pass skips captured variables entirely (no delete inserted),
+      so they survive until scope exit — needed because the capturing
+      function may run after the enclosing body finishes (e.g. cli mode main).
+   2. Added NULL check in interpreter.c NODE_DECL move-semantics path.
+   3. Fixed precomp: added func_uses_unknown_globals() to skip folding
+      func calls whose body references variables not in the precomp scope.
+      Also made track_literal() populate the precomp interpreter scope
+      with known constant values (not just the known map).
+   4. Fixed ccodegen: top-level variable declarations are emitted as
+      file-scope C globals (before function definitions) so they're
+      accessible from emitted til functions/procs. In cli mode, globals
+      are initialized at the start of main() before the user's main body.
+
+   Tests: src/test/globals.til (script mode), src/test/globals_cli.til (cli mode).
 
 ** Phase 2: Explicit capture syntax
 

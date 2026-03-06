@@ -1245,6 +1245,24 @@ static int expr_uses_var(Expr *e, Str *name) {
     return 0;
 }
 
+// Check if name is referenced inside any nested func/proc body in this subtree,
+// excluding cases where the name is shadowed by a parameter of that function.
+static int expr_used_in_nested_func(Expr *e, Str *name) {
+    if (e->type == NODE_FUNC_DEF) {
+        // Check if name is shadowed by a parameter
+        for (int i = 0; i < e->data.func_def.nparam; i++) {
+            if (Str_eq(e->data.func_def.param_names[i], name)) return 0;
+        }
+        // Not a param — recurse into body to find uses
+        if (e->children.count > 0) return expr_uses_var(expr_child(e, 0), name);
+        return 0;
+    }
+    for (int i = 0; i < e->children.count; i++) {
+        if (expr_used_in_nested_func(expr_child(e, i), name)) return 1;
+    }
+    return 0;
+}
+
 static int expr_contains_decl(Expr *e, Str *name) {
     if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_DECL && Str_eq(e->data.decl.name, name)) return 1;
@@ -1416,6 +1434,17 @@ static void insert_free_calls(Expr *body, TypeScope *scope, int scope_exit) {
                 own_transfer = j;
             }
         }
+
+        // If captured by a nested func/proc, don't ASAP-delete — the nested
+        // function may be called after this scope's body finishes (e.g. cli mode main)
+        int captured = 0;
+        for (int j = scan_from; j < body->children.count; j++) {
+            if (expr_used_in_nested_func(expr_child(body, j), b->name)) {
+                captured = 1;
+                break;
+            }
+        }
+        if (captured) continue;
 
         LocalInfo li = {b->name, b->type, b->struct_name, decl_idx, last_use, own_transfer};
         Vec_push(&locals_vec, &li);

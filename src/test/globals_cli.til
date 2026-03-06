@@ -1,0 +1,26 @@
+mode cli
+
+// Test: global variables accessible from functions and procs (cli mode)
+// See issue #17
+
+x := 42
+
+f := func() returns I64 {
+    return x
+}
+
+g := proc() {
+    println(x.to_str())
+}
+
+h := proc() {
+    y := x
+    println(y.to_str())
+}
+
+main := proc() {
+    println(f().to_str())
+    g()
+    h()
+    println("globals cli: ok")
+}

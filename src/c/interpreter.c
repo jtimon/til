@@ -498,6 +498,12 @@ static void eval_body(Scope *scope, Expr *body) {
                 if (rhs->type == NODE_IDENT) {
                     // Move semantics: transfer value from source, null source
                     Cell *src = scope_get(scope, rhs->data.str_val);
+                    if (!src) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "undefined variable '%s'", rhs->data.str_val->c_str);
+                        expr_error(rhs, buf);
+                        exit(1);
+                    }
                     val = src->val;
                     src->val = val_none();
                 } else {
