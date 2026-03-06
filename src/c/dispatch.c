@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <ffi.h>
 
 typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
@@ -20,9 +21,12 @@ typedef struct {
     void *fn;           // dlsym'd function pointer
     Str *return_type;   // NULL for proc (void return)
     I32 nparam;
+    ffi_cif cif;
+    ffi_type **arg_types;
 } FFIEntry;
 
 static Map ffi_map;          // name -> FFIEntry
+static Map ffi_struct_defs;  // Str* name -> Expr* struct_def (for return type lookup)
 static void *ffi_handle;     // dlopen handle
 static Bool ffi_loaded;
 
@@ -660,12 +664,13 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     DispatchFn *fn = Map_get(&dispatch_map, &name);
     if (fn) return (*fn)(scope, e, result);
 
-    // FFI trampoline
+    // FFI dispatch via libffi
     if (ffi_loaded) {
         FFIEntry *fe = Map_get(&ffi_map, &name);
         if (fe) {
             I32 nargs = e->children.count - 1;
-            void *args[8];
+            void *args[nargs > 0 ? nargs : 1];
+            void *arg_ptrs[nargs > 0 ? nargs : 1];
             for (I32 i = 0; i < nargs; i++) {
                 Value v = eval_expr(scope, expr_child(e, i + 1));
                 switch (v.type) {
@@ -676,15 +681,10 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                     case VAL_STRUCT: args[i] = v.instance->data; break;
                     default:         args[i] = NULL; break;
                 }
+                arg_ptrs[i] = &args[i];
             }
             void *raw = NULL;
-            switch (nargs) {
-                case 0: raw = ((void *(*)(void))fe->fn)(); break;
-                case 1: raw = ((void *(*)(void *))fe->fn)(args[0]); break;
-                case 2: raw = ((void *(*)(void *, void *))fe->fn)(args[0], args[1]); break;
-                case 3: raw = ((void *(*)(void *, void *, void *))fe->fn)(args[0], args[1], args[2]); break;
-                case 4: raw = ((void *(*)(void *, void *, void *, void *))fe->fn)(args[0], args[1], args[2], args[3]); break;
-            }
+            ffi_call(&fe->cif, FFI_FN(fe->fn), &raw, nargs > 0 ? arg_ptrs : NULL);
             if (!fe->return_type) {
                 *result = val_none();
             } else if (Str_eq_c(fe->return_type, "Str")) {
@@ -697,7 +697,17 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             } else if (Str_eq_c(fe->return_type, "Bool")) {
                 *result = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)raw};
             } else {
-                *result = val_none();
+                // Struct return — look up struct def by return type name
+                Expr **sdef = Map_get(&ffi_struct_defs, &fe->return_type);
+                if (sdef) {
+                    StructInstance *inst = malloc(sizeof(StructInstance));
+                    inst->struct_name = fe->return_type;
+                    inst->struct_def = *sdef;
+                    inst->data = raw;
+                    *result = (Value){.type = VAL_STRUCT, .instance = inst};
+                } else {
+                    *result = val_none();
+                }
             }
             return 1;
         }
@@ -788,6 +798,16 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
         return 1;
     }
 
+    // Build struct def map for return type lookup
+    ffi_struct_defs = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
+    for (I32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->type != NODE_DECL || stmt->children.count == 0) continue;
+        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
+        Expr *sdef = expr_child(stmt, 0);
+        Map_set(&ffi_struct_defs, &stmt->data.decl.name, &sdef);
+    }
+
     // Scan program for non-core ext_func/ext_proc, dlsym each
     ffi_map = Map_new(sizeof(Str *), sizeof(FFIEntry), str_ptr_cmp);
     for (I32 i = 0; i < program->children.count; i++) {
@@ -810,11 +830,17 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
                 ffi_handle = NULL;
                 return 1;
             }
+            I32 np = fdef->data.func_def.nparam;
+            ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
+            for (I32 k = 0; k < np; k++) atypes[k] = &ffi_type_pointer;
             FFIEntry entry = {
                 .fn = fn,
                 .return_type = fdef->data.func_def.return_type,
-                .nparam = fdef->data.func_def.nparam,
+                .nparam = np,
+                .arg_types = atypes,
             };
+            ffi_type *rtype = entry.return_type ? &ffi_type_pointer : &ffi_type_void;
+            ffi_prep_cif(&entry.cif, FFI_DEFAULT_ABI, np, rtype, atypes);
             Map_set(&ffi_map, &stmt->data.decl.name, &entry);
         }
 
@@ -841,11 +867,17 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
                     ffi_handle = NULL;
                     return 1;
                 }
+                I32 np = fdef->data.func_def.nparam;
+                ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
+                for (I32 k = 0; k < np; k++) atypes[k] = &ffi_type_pointer;
                 FFIEntry entry = {
                     .fn = fn,
                     .return_type = fdef->data.func_def.return_type,
-                    .nparam = fdef->data.func_def.nparam,
+                    .nparam = np,
+                    .arg_types = atypes,
                 };
+                ffi_type *rtype = entry.return_type ? &ffi_type_pointer : &ffi_type_void;
+                ffi_prep_cif(&entry.cif, FFI_DEFAULT_ABI, np, rtype, atypes);
                 Str *key = Str_new(flat_name);
                 Map_set(&ffi_map, &key, &entry);
             }
@@ -865,6 +897,7 @@ void ffi_cleanup(void) {
     }
     if (ffi_loaded) {
         Map_delete(&ffi_map);
+        Map_delete(&ffi_struct_defs);
         ffi_loaded = 0;
     }
 }

@@ -17,12 +17,19 @@ for t in $TESTS; do
     fi
 done
 
-# FFI + ext_struct tests: codegen only (interpreter lacks struct marshaling for FFI, see #1)
+# FFI + ext_struct tests: both interpret and codegen
 FFI_TESTS="src/examples/ffi/ext_module.til"
 for t in $FFI_TESTS; do
     name=$(basename "$t" .til)
     expected="hello world
 hello universe"
+    got=$($CTIL interpret "$t" 2>&1)
+    if [ "$got" != "$expected" ]; then
+        echo "FAIL (interpret): ffi/$name"
+        echo "  expected: $expected"
+        echo "  got:      $got"
+        FAIL=1
+    fi
     got=$($CTIL run "$t" 2>&1)
     if [ "$got" != "$expected" ]; then
         echo "FAIL (codegen):   ffi/$name"

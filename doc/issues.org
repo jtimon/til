@@ -429,10 +429,12 @@
      (core ext_structs like I64/U8/Bool are provided by ext.h).
    - Namespace ext methods (ext_func inside ext_struct) forward-declared.
 
-** Done: interpreter path (partial)
+** Done: interpreter path
    - dispatch.c: ffi_init compiles user .c to .so, dlopen/dlsym into FFIEntry map.
-   - Arity-based trampoline (0-4 args) calls through void* function pointers.
+   - libffi-based calling (no arity cap). ffi_cif precomputed per function.
    - ffi_init scans both top-level ext_func/ext_proc and ext_struct namespace methods.
+   - Flat struct representation: StructInstance.data is C-layout-compatible,
+     passed directly as args and wrapped on return (including ext_struct types).
 
 ** TODO: companion .c file detection is broken
    ctil.c hardcodes program.c next to program.til (replaces .til with .c).
@@ -440,21 +442,10 @@
    Won't work for real use cases (e.g. raylib bindings, multi-file C modules).
    Need a proper mechanism: command-line flag, pragma, or import directive.
 
-** TODO: interpreter struct marshaling
-   The FFI trampoline can pass I64/U8/Bool args directly because these
-   have dedicated VAL_I64/etc types with C-compatible pointer storage.
-   Str is now VAL_STRUCT like all other structs. User-defined structs
-   (including Str) use the generic VAL_STRUCT/StructInstance representation
-   which is NOT C-compatible layout.
-   Need marshaling: convert StructInstance ↔ flat C struct at FFI boundary.
-   This blocks interpreter support for ext_struct methods and ext_funcs
-   that take/return struct arguments.
-   See also #1 (interpreter special-cases for built-in types).
-
 ** Test
    - src/examples/ffi/ext_module.til + ext_module.c: top-level ext_funcs
      (greet, greet_print), ext_struct (Pair with ext methods), regular struct
-     in FFI (Point with add_points). Currently codegen-only in tests.sh.
+     in FFI (Point with add_points). Both interpret and codegen in tests.sh.
 
 * WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
   Currently all returns are owned by the caller (heap-allocated, caller must

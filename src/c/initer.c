@@ -89,7 +89,6 @@ static I32 align_up(I32 offset, I32 align) {
 // Recursive: if a field is an inline struct, compute its layout first.
 static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
     if (struct_def->total_struct_size > 0) return; // already computed
-    if (struct_def->is_ext) return; // ext_struct — no fields to compute
 
     Expr *body = expr_child(struct_def, 0);
     I32 offset = 0;
