@@ -1,6 +1,8 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
 # NEXT_ISSUE: 22
+# Fixed issues are moved to fixed.org, cancelled to cancelled.org.
+#+TODO: OPEN WIP | FIXED CANCELLED
 
 * OPEN #21 Universal UFCS: method syntax for top-level functions
   UFCS (Uniform Function Call Syntax) currently only resolves methods
@@ -219,8 +221,6 @@
   dyn_has_method, array, and vec calls. For array/vec, mark
   "TypeName.size" and "TypeName.clone" and "TypeName.delete" as
   referenced based on the type_name string literal arg.
-# Fixed issues are moved to fixed.org, cancelled to cancelled.org.
-#+TODO: OPEN WIP | FIXED CANCELLED
 
 * OPEN #14 Function pointers: first-class functions as values
   til currently has no way to pass functions as values. func/proc
