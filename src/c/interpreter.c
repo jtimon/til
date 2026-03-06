@@ -887,12 +887,12 @@ I32 interpret(Expr *program, Str *mode, const char *path, const char *user_c_pat
     // Evaluate top-level declarations
     eval_body(global, program);
 
-    // In cli mode, call main()
-    if (mode && Str_eq_c(mode, "cli")) {
+    // In cli/gui mode, call main()
+    if (mode && (Str_eq_c(mode, "cli") || Str_eq_c(mode, "gui"))) {
         Str main_name = {.c_str = (char *)"main", .cap = 4};
         Cell *main_cell = scope_get(global, &main_name);
         if (!main_cell || main_cell->val.type != VAL_FUNC) {
-            fprintf(stderr, "%s: error: mode 'cli' requires a 'main' proc\n", path);
+            fprintf(stderr, "%s: error: mode '%s' requires a 'main' proc\n", path, mode->c_str);
             scope_free(global);
             return 1;
         }

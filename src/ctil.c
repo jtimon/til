@@ -65,16 +65,20 @@ int main(int argc, char **argv) {
     }
 
     // Resolve paths relative to binary location
-    char core_path[256], ext_c_path[256];
+    char core_path[256], ext_c_path[256], gui_til_path[256], gui_c_path[256];
     {
         const char *slash = strrchr(argv[0], '/');
         if (slash) {
             I32 dir_len = (int)(slash - argv[0]);
             snprintf(core_path, sizeof(core_path), "%.*s/../src/core/core.til", dir_len, argv[0]);
             snprintf(ext_c_path, sizeof(ext_c_path), "%.*s/../src/c/ext.c", dir_len, argv[0]);
+            snprintf(gui_til_path, sizeof(gui_til_path), "%.*s/../src/modes/gui.til", dir_len, argv[0]);
+            snprintf(gui_c_path, sizeof(gui_c_path), "%.*s/../src/modes/gui.c", dir_len, argv[0]);
         } else {
             snprintf(core_path, sizeof(core_path), "../src/core/core.til");
             snprintf(ext_c_path, sizeof(ext_c_path), "../src/c/ext.c");
+            snprintf(gui_til_path, sizeof(gui_til_path), "../src/modes/gui.til");
+            snprintf(gui_c_path, sizeof(gui_c_path), "../src/modes/gui.c");
         }
     }
     char *core_source = read_file(core_path);
@@ -91,7 +95,20 @@ int main(int argc, char **argv) {
     Str *mode = NULL;
     Expr *ast = parse(tokens, count, path, &mode);
 
-    // Prepend core declarations to program AST
+    // If mode is "gui", load gui.til declarations
+    Expr *gui_ast = NULL;
+    if (mode && strcmp(mode->c_str, "gui") == 0) {
+        char *gui_source = read_file(gui_til_path);
+        if (!gui_source) {
+            fprintf(stderr, "error: mode 'gui' requires gui.til (not found at '%s')\n", gui_til_path);
+            return 1;
+        }
+        I32 gui_count;
+        Token *gui_tokens = tokenize(gui_source, gui_til_path, &gui_count);
+        gui_ast = parse(gui_tokens, gui_count, gui_til_path, NULL);
+    }
+
+    // Prepend core declarations (and gui if mode gui) to program AST
     if (core_ast && core_ast->children.count > 0) {
         Vec merged = Vec_new(sizeof(Expr *));
         for (I32 i = 0; i < core_ast->children.count; i++) {
@@ -99,6 +116,12 @@ int main(int argc, char **argv) {
             ch->is_core = true;
             if (ch->children.count > 0) expr_child(ch, 0)->is_core = true;
             Vec_push(&merged, &ch);
+        }
+        if (gui_ast) {
+            for (I32 i = 0; i < gui_ast->children.count; i++) {
+                Expr *ch = expr_child(gui_ast, i);
+                Vec_push(&merged, &ch);
+            }
         }
         for (I32 i = 0; i < ast->children.count; i++) {
             Expr *ch = expr_child(ast, i);
@@ -160,6 +183,17 @@ int main(int argc, char **argv) {
             FILE *uf = fopen(user_c_path, "r");
             if (uf) { fclose(uf); user_c = user_c_path; }
         }
+    }
+
+    // For gui mode: set gui.c as the FFI companion (combine with user .c if present)
+    char combined_c_paths[512];
+    if (mode && strcmp(mode->c_str, "gui") == 0) {
+        if (user_c) {
+            snprintf(combined_c_paths, sizeof(combined_c_paths), "%s %s", gui_c_path, user_c);
+        } else {
+            snprintf(combined_c_paths, sizeof(combined_c_paths), "%s", gui_c_path);
+        }
+        user_c = combined_c_paths;
     }
 
     // Append -l flags from CLI args (argv[3..])

@@ -1,5 +1,29 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #11 Mode GUI: raylib integration via FFI
+  `mode gui` auto-provides raylib FFI bindings. Users write only app logic
+  with a main proc — no link() directives, ext_func declarations, or
+  companion .c files needed.
+
+  Implementation: `src/modes/gui.til` (raylib declarations + link directives)
+  and `src/modes/gui.c` (C wrappers bridging til pointer convention to raylib
+  value types) are auto-loaded by ctil.c when mode is "gui".
+
+  gui.til AST is merged after core.til but before user code. Declarations are
+  NOT marked is_core so they go through normal FFI paths (dlsym in interpreter,
+  forward declarations in codegen). The existing link() extraction handles
+  gui.til's link directives automatically.
+
+  Mode "gui" behaves like "cli" for entry point: requires a main proc,
+  scavenger seeds from "main", codegen generates C main(). The scavenger
+  prunes unused raylib functions.
+
+  gui.c is set as the companion .c file. If the user also has their own
+  companion .c, both are compiled together (space-separated in cc command).
+
+  Files: src/modes/gui.til, src/modes/gui.c, src/examples/gui_hello.til.
+  Works in both `bin/ctil run` and `bin/ctil interpret`.
+
 * FIXED #8 Variadic args for funcs, procs, and macros
   `..Type` variadic parameters for all function types: regular func/proc,
   macros, ext_func/ext_proc, and main CLI args.

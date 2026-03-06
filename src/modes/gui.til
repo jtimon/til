@@ -1,0 +1,22 @@
+link("raylib")
+link("GL")
+link("m")
+link("pthread")
+link("dl")
+link("rt")
+link("X11")
+
+init_window := ext_proc(w: I64, h: I64, title: Str) {}
+window_should_close := ext_func() returns Bool {}
+begin_drawing := ext_proc() {}
+end_drawing := ext_proc() {}
+close_window := ext_proc() {}
+clear_background := ext_proc(r: I64, g: I64, b: I64, a: I64) {}
+set_target_fps := ext_proc(fps: I64) {}
+draw_rectangle := ext_proc(x: I64, y: I64, w: I64, h: I64, r: I64, g: I64, b: I64, a: I64) {}
+draw_text := ext_proc(text: Str, x: I64, y: I64, font_size: I64, r: I64, g: I64, b: I64, a: I64) {}
+get_screen_width := ext_func() returns I64 {}
+get_screen_height := ext_func() returns I64 {}
+get_frame_time := ext_func() returns I64 {}
+is_key_pressed := ext_func(key: I64) returns Bool {}
+is_key_down := ext_func(key: I64) returns Bool {}

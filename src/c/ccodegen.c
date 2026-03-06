@@ -590,7 +590,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
     Expr *body = expr_child(func_def, 0);
 
     // In cli mode, main proc becomes C main()
-    Bool is_main = mode && Str_eq_c(mode, "cli") && Str_eq_c(name, "main");
+    Bool is_main = mode && (Str_eq_c(mode, "cli") || Str_eq_c(mode, "gui")) && Str_eq_c(name, "main");
 
     if (is_main) {
         I32 nparam = func_def->data.func_def.nparam;
@@ -1011,7 +1011,7 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             FuncType fft = func_def->data.func_def.func_type;
             if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
             Str *name = stmt->data.decl.name;
-            Bool is_main = mode && Str_eq_c(mode, "cli") && Str_eq_c(name, "main");
+            Bool is_main = mode && (Str_eq_c(mode, "cli") || Str_eq_c(mode, "gui")) && Str_eq_c(name, "main");
             if (is_main) continue;
             const char *ret = "void";
             if (func_def->data.func_def.return_type)

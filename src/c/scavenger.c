@@ -145,7 +145,7 @@ static void collect_refs(Expr *e, Vec *refs) {
 }
 
 void scavenge(Expr *program, Str *mode) {
-    Bool is_cli = mode && strcmp(mode->c_str, "cli") == 0;
+    Bool is_cli = mode && (strcmp(mode->c_str, "cli") == 0 || strcmp(mode->c_str, "gui") == 0);
 
     gc_strs = Vec_new(sizeof(Str *));
 

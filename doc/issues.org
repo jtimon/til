@@ -6,7 +6,6 @@
 
 
 * OPEN #23 shallow keyword: direct C calling convention for ext_func/ext_proc
-  :DEPENDENCIES_OF: #11
   til's FFI currently uses a pointer calling convention: all args are heap
   pointers (til_I64 *, til_Str *, etc.) and returns are heap-allocated.
   External C libraries (raylib, SDL, etc.) use natural C types — int, float,
@@ -358,22 +357,6 @@
 
   Does NOT depend on #10 (REPL) or #11 (GUI mode).
 
-* OPEN #11 Mode GUI: raylib integration via FFI
-  :DEPENDENCIES: #23
-  Add a `mode gui` that auto-includes ext_func/ext_proc declarations for
-  raylib, so users can build graphical applications. Similar to how `mode cli`
-  calls main(), `mode gui` would call a main loop with raylib setup/teardown.
-
-  Now that #4 (FFI) is done, the mechanism exists: ctil compiles and links
-  user .c files, and the interpreter can dlopen shared libraries. For mode gui:
-  - Auto-include a til file with raylib ext_func/ext_proc signatures
-    (InitWindow, CloseWindow, BeginDrawing, DrawText, etc.)
-  - Auto-link raylib (-lraylib) during compilation
-  - For the interpreter, dlopen libraylib.so and register all functions
-  - Potentially use libffi for the interpreter path to avoid manual
-    trampoline entries for each raylib function (raylib has ~500 functions)
-
-  Must work for both `bin/ctil run` and `bin/ctil interpret`.
 
 * OPEN #10 REPL: interactive read-eval-print loop
   Add a `bin/ctil repl` command (or just `bin/ctil` with no args) that starts
