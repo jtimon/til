@@ -52,9 +52,9 @@ void til_U8_delete(til_U8 *v, til_Bool *call_free) { if (*call_free) U8_delete(v
 
 // Bool ops
 til_Bool *til_Bool_eq(til_Bool *a, til_Bool *b) { return Bool_new(Bool_eq(*a, *b)); }
-til_Bool *til_Bool_and(til_Bool *a, til_Bool *b) { return Bool_new(Bool_and(*a, *b)); }
-til_Bool *til_Bool_or(til_Bool *a, til_Bool *b) { return Bool_new(Bool_or(*a, *b)); }
-til_Bool *til_Bool_not(til_Bool *a) { return Bool_new(Bool_not(*a)); }
+til_Bool *til_and(til_Bool *a, til_Bool *b) { return Bool_new(Bool_and(*a, *b)); }
+til_Bool *til_or(til_Bool *a, til_Bool *b) { return Bool_new(Bool_or(*a, *b)); }
+til_Bool *til_not(til_Bool *a) { return Bool_new(Bool_not(*a)); }
 
 // Bool clone/delete
 til_Bool *til_Bool_clone(til_Bool *v) { return Bool_clone(v); }

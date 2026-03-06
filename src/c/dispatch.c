@@ -595,8 +595,8 @@ static void dispatch_init(void) {
 
     // Bool
     REG("Bool_eq", h_Bool_eq);
-    REG("Bool_and", h_Bool_and); REG("Bool_or", h_Bool_or);
-    REG("Bool_not", h_Bool_not);
+    REG("and", h_Bool_and); REG("or", h_Bool_or);
+    REG("not", h_Bool_not);
     REG("Bool_clone", h_Bool_clone);
     REG("Bool_delete", h_Bool_delete);
 

@@ -57,9 +57,9 @@ void til_U8_delete(til_U8 *v, til_Bool *call_free);
 
 // Bool ops
 til_Bool *til_Bool_eq(til_Bool *a, til_Bool *b);
-til_Bool *til_Bool_and(til_Bool *a, til_Bool *b);
-til_Bool *til_Bool_or(til_Bool *a, til_Bool *b);
-til_Bool *til_Bool_not(til_Bool *a);
+til_Bool *til_and(til_Bool *a, til_Bool *b);
+til_Bool *til_or(til_Bool *a, til_Bool *b);
+til_Bool *til_not(til_Bool *a);
 
 void til_memmove(void *dest, void *src, til_I64 *len);
 

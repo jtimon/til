@@ -1,0 +1,46 @@
+mode cli
+
+test_and := proc() {
+    assert(loc(), and(true, true))
+    assert(loc(), and(true, false).not())
+    assert(loc(), and(false, true).not())
+    assert(loc(), and(false, false).not())
+    assert(loc(), true.and(true))
+    assert(loc(), true.and(false).not())
+    println("and: passed")
+}
+
+test_or := proc() {
+    assert(loc(), or(true, false))
+    assert(loc(), or(false, true))
+    assert(loc(), or(true, true))
+    assert(loc(), or(false, false).not())
+    assert(loc(), false.or(true))
+    assert(loc(), false.or(false).not())
+    println("or: passed")
+}
+
+test_not := proc() {
+    assert(loc(), not(false))
+    assert(loc(), not(true).not())
+    assert(loc(), false.not())
+    assert(loc(), true.not().not())
+    println("not: passed")
+}
+
+test_chaining := proc() {
+    assert(loc(), true.and(true).or(false))
+    assert(loc(), false.or(true).and(true))
+    assert(loc(), false.and(true).or(true))
+    assert(loc(), not(and(false, true)))
+    assert(loc(), or(not(true), true))
+    println("chaining: passed")
+}
+
+main := proc() {
+    test_and()
+    test_or()
+    test_not()
+    test_chaining()
+    println("all boolean tests passed")
+}

@@ -300,9 +300,6 @@ Bool : StructDef = ext_struct {
     to_str := func(b: Bool) returns Str {
         if b { return "true" } else { return "false" }
     }
-    and := ext_func(a: Bool, b: Bool) returns Bool {}
-    or := ext_func(a: Bool, b: Bool) returns Bool {}
-    not := ext_func(a: Bool) returns Bool {}
     eq := ext_func(a: Bool, b: Bool) returns Bool {}
     cmp := func(a: Bool, b: Bool) returns I64 {
         if a.eq(b) { return 0 }
@@ -315,6 +312,9 @@ Bool : StructDef = ext_struct {
 }
 
 // builtin functions and procs
+and := ext_func(a: Bool, b: Bool) returns Bool {}
+or := ext_func(a: Bool, b: Bool) returns Bool {}
+not := ext_func(a: Bool) returns Bool {}
 format := ext_func(parts: ..Str) returns Str {}
 println := ext_proc(args: ..Str) {}
 print := ext_proc(args: ..Str) {}
