@@ -1,0 +1,21 @@
+mode script
+
+arr := array("I64", 1, 2, 3)
+assert_eq(loc(), arr.len(), 3)
+ref a0 : I64 = arr.get(0)
+ref a1 : I64 = arr.get(1)
+ref a2 : I64 = arr.get(2)
+assert_eq(loc(), a0, 1)
+assert_eq(loc(), a1, 2)
+assert_eq(loc(), a2, 3)
+
+myvec := vec("I64", 10, 20, 30)
+assert_eq(loc(), myvec.len(), 3)
+ref v0 : I64 = myvec.get(0)
+ref v1 : I64 = myvec.get(1)
+ref v2 : I64 = myvec.get(2)
+assert_eq(loc(), v0, 10)
+assert_eq(loc(), v1, 20)
+assert_eq(loc(), v2, 30)
+
+println("array/vec literals: ok")

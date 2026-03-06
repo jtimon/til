@@ -260,6 +260,149 @@ static int h_dyn_has_method(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
+// === Collection builtin handlers ===
+
+// Get raw pointer from a Value (for memcpy into Array/Vec data buffer)
+static void *val_raw_ptr(Value v) {
+    switch (v.type) {
+        case VAL_I64:    return v.i64;
+        case VAL_U8:     return v.u8;
+        case VAL_BOOL:   return v.boolean;
+        case VAL_STR:    return v.str;
+        case VAL_STRUCT: return v.instance;
+        case VAL_PTR:    return v.ptr;
+        default:         return NULL;
+    }
+}
+
+// Get element size via dyn_call to Type.size()
+// Workaround: the scavenger may remove Type.size() if not directly referenced
+// in user code (see issue #15). Users must reference Type.size() explicitly.
+static int get_elem_size(Scope *s, Str *type_name, Expr *src) {
+    Value *size_fn = ns_get(type_name, Str_new("size"));
+    if (!size_fn) {
+        fprintf(stderr, "%s:%d:%d: error: array/vec: type '%s' has no size() method "
+                "(hint: add %s.size() somewhere to prevent scavenger removal, see #15)\n",
+                src->path->c_str, src->line, src->col, type_name->c_str, type_name->c_str);
+        exit(1);
+    }
+    // Build fake call: Type.size()
+    Expr type_ident = {0};
+    type_ident.type = NODE_IDENT;
+    type_ident.data.str_val = type_name;
+    type_ident.struct_name = type_name;
+    type_ident.line = src->line; type_ident.col = src->col;
+    type_ident.path = src->path;
+
+    Expr field_access = {0};
+    field_access.type = NODE_FIELD_ACCESS;
+    field_access.data.str_val = Str_new("size");
+    field_access.is_ns_field = 1;
+    field_access.line = src->line; field_access.col = src->col;
+    field_access.path = src->path;
+    field_access.children = Vec_new(sizeof(Expr *));
+    Expr *ti = &type_ident;
+    Vec_push(&field_access.children, &ti);
+
+    Expr fake_call = {0};
+    fake_call.type = NODE_FCALL;
+    fake_call.line = src->line; fake_call.col = src->col;
+    fake_call.path = src->path;
+    fake_call.children = Vec_new(sizeof(Expr *));
+    Expr *fa = &field_access;
+    Vec_push(&fake_call.children, &fa);
+
+    Value result = eval_call(s, &fake_call);
+    Vec_delete(&fake_call.children);
+    Vec_delete(&field_access.children);
+    return (int)*result.i64;
+}
+
+// array("I64", 1, 2, 3)
+static int h_array(Scope *s, Expr *e, Value *r) {
+    Value type_name_val = eval_expr(s, expr_child(e, 1));
+    Str *type_name = type_name_val.str;
+    int count = e->children.count - 2;
+    int elem_size = get_elem_size(s, type_name, e);
+
+    // Allocate array data
+    void *data = malloc(count * elem_size);
+    memset(data, 0, count * elem_size);
+
+    // Evaluate each element and copy into data buffer
+    for (int i = 0; i < count; i++) {
+        Value elem = eval_expr(s, expr_child(e, i + 2));
+        void *src = val_raw_ptr(elem);
+        if (src) memcpy((char *)data + i * elem_size, src, elem_size);
+    }
+
+    // Build Array struct: {data, cap, elem_size, elem_type}
+    StructInstance *si = malloc(sizeof(StructInstance));
+    si->struct_name = Str_new("Array");
+    si->nfields = 4;
+    si->field_names = malloc(4 * sizeof(Str *));
+    si->field_muts = calloc(4, sizeof(int));
+    si->field_muts[0] = 1; // data is mut
+    si->field_values = malloc(4 * sizeof(Value));
+    si->field_names[0] = Str_new("data");
+    si->field_names[1] = Str_new("cap");
+    si->field_names[2] = Str_new("elem_size");
+    si->field_names[3] = Str_new("elem_type");
+    si->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
+    si->field_values[1] = val_i64(count);
+    si->field_values[2] = val_i64(elem_size);
+    si->field_values[3] = val_str(Str_clone(type_name));
+
+    r->type = VAL_STRUCT;
+    r->instance = si;
+    return 1;
+}
+
+// vec("I64", 1, 2, 3)
+static int h_vec(Scope *s, Expr *e, Value *r) {
+    Value type_name_val = eval_expr(s, expr_child(e, 1));
+    Str *type_name = type_name_val.str;
+    int count = e->children.count - 2;
+    int elem_size = get_elem_size(s, type_name, e);
+
+    // Allocate vec data with exact capacity
+    int cap = count > 0 ? count : 1;
+    void *data = malloc(cap * elem_size);
+    memset(data, 0, cap * elem_size);
+
+    // Evaluate each element and copy into data buffer
+    for (int i = 0; i < count; i++) {
+        Value elem = eval_expr(s, expr_child(e, i + 2));
+        void *src = val_raw_ptr(elem);
+        if (src) memcpy((char *)data + i * elem_size, src, elem_size);
+    }
+
+    // Build Vec struct: {data, count, cap, elem_size, elem_type}
+    StructInstance *si = malloc(sizeof(StructInstance));
+    si->struct_name = Str_new("Vec");
+    si->nfields = 5;
+    si->field_names = malloc(5 * sizeof(Str *));
+    si->field_muts = calloc(5, sizeof(int));
+    si->field_muts[0] = 1; // data is mut
+    si->field_muts[1] = 1; // count is mut
+    si->field_muts[2] = 1; // cap is mut
+    si->field_values = malloc(5 * sizeof(Value));
+    si->field_names[0] = Str_new("data");
+    si->field_names[1] = Str_new("count");
+    si->field_names[2] = Str_new("cap");
+    si->field_names[3] = Str_new("elem_size");
+    si->field_names[4] = Str_new("elem_type");
+    si->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
+    si->field_values[1] = val_i64(count);
+    si->field_values[2] = val_i64(cap);
+    si->field_values[3] = val_i64(elem_size);
+    si->field_values[4] = val_str(Str_clone(type_name));
+
+    r->type = VAL_STRUCT;
+    r->instance = si;
+    return 1;
+}
+
 // === Pointer primitive handlers ===
 
 // Extract raw void* from any Value type
@@ -452,6 +595,10 @@ static void dispatch_init(void) {
     REG("ptr_add", h_ptr_add);
     REG("memcpy", h_memcpy);
     REG("memmove", h_memmove);
+
+    // Collection builtins
+    REG("array", h_array);
+    REG("vec", h_vec);
 
     // Dynamic dispatch
     REG("dyn_call1", h_dyn_call);

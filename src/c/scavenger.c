@@ -62,6 +62,34 @@ static void collect_refs(Expr *e, Vec *refs) {
                 collect_refs(expr_child(e, i), refs);
             return;
         }
+        // array()/vec() builtins need Array/Vec constructor methods
+        if (e->children.count >= 2 && expr_child(e, 0)->type == NODE_IDENT) {
+            Str *cn = expr_child(e, 0)->data.str_val;
+            if (strcmp(cn->c_str, "array") == 0) {
+                Str *arr = gc_str(Str_new("Array"));
+                vec_push_str(refs, arr);
+                vec_push_str(refs, qualified_name(arr, gc_str(Str_new("new"))));
+                vec_push_str(refs, qualified_name(arr, gc_str(Str_new("set"))));
+                vec_push_str(refs, qualified_name(arr, gc_str(Str_new("delete"))));
+                // Type.size() for element type
+                if (expr_child(e, 1)->type == NODE_LITERAL_STR) {
+                    Str *et = gc_str(Str_new(expr_child(e, 1)->data.str_val->c_str));
+                    vec_push_str(refs, et);
+                    vec_push_str(refs, qualified_name(et, gc_str(Str_new("size"))));
+                }
+            } else if (strcmp(cn->c_str, "vec") == 0) {
+                Str *vec = gc_str(Str_new("Vec"));
+                vec_push_str(refs, vec);
+                vec_push_str(refs, qualified_name(vec, gc_str(Str_new("new"))));
+                vec_push_str(refs, qualified_name(vec, gc_str(Str_new("push"))));
+                vec_push_str(refs, qualified_name(vec, gc_str(Str_new("delete"))));
+                if (expr_child(e, 1)->type == NODE_LITERAL_STR) {
+                    Str *et = gc_str(Str_new(expr_child(e, 1)->data.str_val->c_str));
+                    vec_push_str(refs, et);
+                    vec_push_str(refs, qualified_name(et, gc_str(Str_new("size"))));
+                }
+            }
+        }
         break;
 
     case NODE_FUNC_DEF: {

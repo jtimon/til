@@ -541,6 +541,14 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
                 type_error(method_arg, "dyn_call method argument must be a string literal");
             }
         }
+        // array/vec builtins: type_name (1st arg) must be a string literal
+        if ((Str_eq_c(name, "array") || Str_eq_c(name, "vec")) &&
+            e->children.count >= 2) {
+            Expr *type_arg = expr_child(e, 1);
+            if (type_arg->type != NODE_LITERAL_STR) {
+                type_error(type_arg, "array/vec type_name argument must be a string literal");
+            }
+        }
         // Validate 'own' markers on arguments (variadic-aware)
         if (callee_bind && callee_bind->func_def) {
             Expr *fdef = callee_bind->func_def;
@@ -669,7 +677,14 @@ static Expr *find_variadic_fcall(Expr *e) {
     if (!e) return NULL;
     if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF ||
         e->type == NODE_ENUM_DEF || e->type == NODE_BODY) return NULL;
-    if (e->type == NODE_FCALL && e->variadic_index >= 0) return e;
+    if (e->type == NODE_FCALL && e->variadic_index >= 0) {
+        // Skip array/vec builtins — handled specially like dyn_call
+        if (expr_child(e, 0)->type == NODE_IDENT) {
+            Str *cn = expr_child(e, 0)->data.str_val;
+            if (Str_eq_c(cn, "array") || Str_eq_c(cn, "vec")) return NULL;
+        }
+        return e;
+    }
     for (int i = 0; i < e->children.count; i++) {
         Expr *found = find_variadic_fcall(expr_child(e, i));
         if (found) return found;
@@ -970,9 +985,15 @@ static void hoist_expr(Expr *e, Expr ***hoisted, int *nhoisted, int *cap, TypeSc
                       Str_eq_c(cn, "dyn_call1_ret") || Str_eq_c(cn, "dyn_call2_ret") ||
                       Str_eq_c(cn, "dyn_has_method");
     }
+    int is_array_vec = 0;
+    if (expr_child(e, 0)->type == NODE_IDENT) {
+        Str *cn = expr_child(e, 0)->data.str_val;
+        is_array_vec = Str_eq_c(cn, "array") || Str_eq_c(cn, "vec");
+    }
     int fi = 0; // instance field index for struct constructors
     for (int i = 1; i < e->children.count; i++) {
         if (is_dyn_call && i == 2) continue; // keep method as NODE_LITERAL_STR
+        if (is_array_vec && i == 1) continue; // keep type_name as NODE_LITERAL_STR
         if (expr_child(e, i)->type != NODE_FCALL &&
             expr_child(e, i)->type != NODE_LITERAL_NUM &&
             expr_child(e, i)->type != NODE_LITERAL_STR &&

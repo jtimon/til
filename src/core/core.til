@@ -378,6 +378,8 @@ dyn_call2 := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) 
 dyn_call1_ret := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dynamic {}
 dyn_call2_ret := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) returns Dynamic {}
 dyn_has_method := ext_func(type_name: Str, method: Str) returns Bool {}
+array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
+vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
 
 // System primitives
 spawn_cmd := ext_proc(cmd: Str) returns I64 {}

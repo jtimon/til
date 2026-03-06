@@ -10,6 +10,32 @@ static Map struct_bodies; // Str* name → Expr* body (NODE_BODY)
 static Set script_globals; // names of top-level vars emitted as file-scope globals
 static int has_script_globals; // whether script_globals is initialized
 
+// Collect unique array/vec builtin type names from AST
+typedef struct { Str *type_name; int is_vec; } CollectionInfo;
+
+static void collect_collection_builtins(Expr *e, Vec *infos) {
+    if (!e) return;
+    if (e->type == NODE_FCALL && expr_child(e, 0)->type == NODE_IDENT &&
+        e->children.count >= 2 && expr_child(e, 1)->type == NODE_LITERAL_STR) {
+        Str *name = expr_child(e, 0)->data.str_val;
+        int is_vec = -1;
+        if (Str_eq_c(name, "array")) is_vec = 0;
+        else if (Str_eq_c(name, "vec")) is_vec = 1;
+        if (is_vec >= 0) {
+            Str *type_name = expr_child(e, 1)->data.str_val;
+            for (int i = 0; i < infos->count; i++) {
+                CollectionInfo *existing = Vec_get(infos, i);
+                if (Str_eq(existing->type_name, type_name) && existing->is_vec == is_vec) return;
+            }
+            CollectionInfo info = {type_name, is_vec};
+            Vec_push(infos, &info);
+        }
+    }
+    for (int i = 0; i < e->children.count; i++) {
+        collect_collection_builtins(expr_child(e, i), infos);
+    }
+}
+
 // Collect unique dyn_call method literals from AST
 typedef struct { Str *method; int nargs; int returns; } DynCallInfo;
 
@@ -142,6 +168,18 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
             emit_as_ptr(f, expr_child(e, 1), depth);
             // Emit remaining args (val, and any extra args like call_free)
             for (int i = 3; i < e->children.count; i++) {
+                fprintf(f, ", ");
+                emit_as_ptr(f, expr_child(e, i), depth);
+            }
+            fprintf(f, ")");
+        } else if (Str_eq_c(name, "array") || Str_eq_c(name, "vec")) {
+            // array("I64", 1, 2, 3) → til_array_of_I64(3, v1, v2, v3)
+            // vec("I64", 1, 2, 3)   → til_vec_of_I64(3, v1, v2, v3)
+            Str *elem_type = expr_child(e, 1)->data.str_val;
+            int count = e->children.count - 2;
+            const char *prefix = Str_eq_c(name, "array") ? "array" : "vec";
+            fprintf(f, "til_%s_of_%s(%d", prefix, elem_type->c_str, count);
+            for (int i = 2; i < e->children.count; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
@@ -1050,6 +1088,21 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         Vec_delete(&has_methods);
     }
 
+    // Forward declarations for array/vec builtin helpers
+    {
+        Vec coll_infos = Vec_new(sizeof(CollectionInfo));
+        collect_collection_builtins(program, &coll_infos);
+        for (int i = 0; i < coll_infos.count; i++) {
+            CollectionInfo *ci = Vec_get(&coll_infos, i);
+            const char *prefix = ci->is_vec ? "vec" : "array";
+            const char *ret = ci->is_vec ? "til_Vec" : "til_Array";
+            fprintf(f, "%s *til_%s_of_%s(int count, ...);\n",
+                    ret, prefix, ci->type_name->c_str);
+        }
+        if (coll_infos.count) fprintf(f, "\n");
+        Vec_delete(&coll_infos);
+    }
+
     // Emit struct typedefs only (no function bodies)
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
@@ -1217,6 +1270,53 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             fprintf(f, "}\n\n");
         }
         Vec_delete(&has_methods);
+    }
+
+    // Emit array/vec builtin helper function bodies
+    {
+        Vec coll_infos = Vec_new(sizeof(CollectionInfo));
+        collect_collection_builtins(program, &coll_infos);
+        for (int i = 0; i < coll_infos.count; i++) {
+            CollectionInfo *ci = Vec_get(&coll_infos, i);
+            const char *et = ci->type_name->c_str;
+            int et_len = ci->type_name->cap;
+            if (ci->is_vec) {
+                fprintf(f, "til_Vec *til_vec_of_%s(int count, ...) {\n", et);
+                fprintf(f, "    til_Str *_et = til_Str_lit(\"%s\", %d);\n", et, et_len);
+                fprintf(f, "    til_I64 *_esz = malloc(sizeof(til_I64)); *_esz = sizeof(til_%s);\n", et);
+                fprintf(f, "    til_Vec *_v = til_Vec_new(_et, _esz);\n");
+                fprintf(f, "    til_Str_delete(_et, &(til_Bool){1});\n");
+                fprintf(f, "    til_I64_delete(_esz, &(til_Bool){1});\n");
+                fprintf(f, "    va_list ap; va_start(ap, count);\n");
+                fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
+                fprintf(f, "        til_%s *_val = til_%s_clone(va_arg(ap, til_%s *));\n", et, et, et);
+                fprintf(f, "        til_Vec_push(_v, _val);\n");
+                fprintf(f, "    }\n");
+                fprintf(f, "    va_end(ap);\n");
+                fprintf(f, "    return _v;\n");
+                fprintf(f, "}\n\n");
+            } else {
+                fprintf(f, "til_Array *til_array_of_%s(int count, ...) {\n", et);
+                fprintf(f, "    til_Str *_et = til_Str_lit(\"%s\", %d);\n", et, et_len);
+                fprintf(f, "    til_I64 *_esz = malloc(sizeof(til_I64)); *_esz = sizeof(til_%s);\n", et);
+                fprintf(f, "    til_I64 *_cap = malloc(sizeof(til_I64)); *_cap = count;\n");
+                fprintf(f, "    til_Array *_a = til_Array_new(_et, _esz, _cap);\n");
+                fprintf(f, "    til_Str_delete(_et, &(til_Bool){1});\n");
+                fprintf(f, "    til_I64_delete(_esz, &(til_Bool){1});\n");
+                fprintf(f, "    til_I64_delete(_cap, &(til_Bool){1});\n");
+                fprintf(f, "    va_list ap; va_start(ap, count);\n");
+                fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
+                fprintf(f, "        til_I64 *_idx = malloc(sizeof(til_I64)); *_idx = _i;\n");
+                fprintf(f, "        til_%s *_val = til_%s_clone(va_arg(ap, til_%s *));\n", et, et, et);
+                fprintf(f, "        til_Array_set(_a, _idx, _val);\n");
+                fprintf(f, "        til_I64_delete(_idx, &(til_Bool){1});\n");
+                fprintf(f, "    }\n");
+                fprintf(f, "    va_end(ap);\n");
+                fprintf(f, "    return _a;\n");
+                fprintf(f, "}\n\n");
+            }
+        }
+        Vec_delete(&coll_infos);
     }
 
     // Script mode: wrap top-level statements in main()

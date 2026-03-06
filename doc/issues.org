@@ -1,18 +1,29 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 20
+# NEXT_ISSUE: 21
+
+* OPEN #20 Dynamic return type inference
+  Methods returning Dynamic (e.g. Array.get, Vec.get) should allow
+  chaining when the element type is known from context.
+  Currently: ref x : I64 = arr.get(0); x.eq(1)
+  Goal: arr.get(0).eq(1) should work when arr is Array("I64", ...).
+  The typer needs to propagate the element type from the collection
+  to the Dynamic return value so method calls can be resolved.
 
 * OPEN #19 Literal syntax for collection initialization
   :DEPENDENCIES: #18
   Sugar for initializing Array, Vec, Set, Map, and List with values
   instead of repeated .set()/.push()/.add() calls.
 
-** Phase 1: Array and Vec literals
-   arr := [1, 2, 3]          // Array[I64] with len=3
-   v := vec[1, 2, 3]         // Vec[I64] with 3 elements
+** DONE Phase 1: array() and vec() builtins
+   arr := array("I64", 1, 2, 3)
+   v := vec("I64", 10, 20, 30)
 
-   Desugars to Array.new(3) + set calls / Vec.new() + push calls.
-   Type inferred from elements (all must be same type).
+   Current implementation: ext_func builtins following the dyn_call
+   pattern — hardcoded in typer, dispatch.c, and ccodegen.c.
+   This is a temporary solution. The final Phase 1 implementation
+   should use macros once they are powerful enough to handle this
+   (array/vec as core.til macros instead of C-side builtins).
 
 ** Phase 2: Set and Map literals
    s := set{1, 2, 3}         // Set[I64]
@@ -153,21 +164,24 @@
   - Codegen/interpreter: handle merged program
   - Cycle detection for circular imports
 
-* OPEN #15 Scavenger doesn't understand dyn_call/dyn_has_method
+* OPEN #15 Scavenger doesn't understand dyn_call/dyn_has_method/array/vec
   The scavenger removes namespace methods not reachable from used code.
-  But it doesn't recognize dyn_call and dyn_has_method as references to
-  namespace methods — the method name is a string literal, not a
-  Type.method field access, so collect_refs doesn't pick it up.
+  But it doesn't recognize dyn_call, dyn_has_method, array(), or vec()
+  as references to namespace methods — the type/method name is a string
+  literal, not a Type.method field access, so collect_refs doesn't pick
+  it up.
 
   This means dyn_has_method("I64", "cmp") only works if cmp is also
   referenced directly (e.g. via I64.cmp(...) or dyn_call with cmp
-  elsewhere). In practice dyn_has_method is always paired with dyn_call
-  for the same method, so it works, but it's fragile.
+  elsewhere). Similarly, array("I64", 1, 2, 3) needs I64.size() to be
+  referenced somewhere, or the scavenger removes it.
 
-  Fix: extend collect_refs in scavenger.c to recognize dyn_call* and
-  dyn_has_method calls. For a literal method arg "foo", mark "Type.foo"
-  as referenced for all known struct/enum types (since type_name is
-  runtime).
+  Workaround: explicitly reference Type.size() in user code.
+
+  Fix: extend collect_refs in scavenger.c to recognize dyn_call*,
+  dyn_has_method, array, and vec calls. For array/vec, mark
+  "TypeName.size" and "TypeName.clone" and "TypeName.delete" as
+  referenced based on the type_name string literal arg.
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
