@@ -516,9 +516,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             e->struct_name = name;
             break;
         }
-        // Desugar named/optional args for user-defined functions (skip builtins)
+        // Desugar named/optional args for user-defined functions (skip core builtins)
         TypeBinding *callee_bind = tscope_find(scope, name);
-        if (callee_bind && callee_bind->func_def && !callee_bind->is_builtin) {
+        if (callee_bind && callee_bind->func_def &&
+            (!callee_bind->is_builtin || !callee_bind->func_def->is_core)) {
             Expr *fdef = callee_bind->func_def;
             I32 nparam = fdef->data.func_def.nparam;
             I32 vi = fdef->data.func_def.variadic_index; // -1 if not variadic

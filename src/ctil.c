@@ -97,6 +97,7 @@ int main(int argc, char **argv) {
         for (I32 i = 0; i < core_ast->children.count; i++) {
             Expr *ch = expr_child(core_ast, i);
             ch->is_core = true;
+            if (ch->children.count > 0) expr_child(ch, 0)->is_core = true;
             Vec_push(&merged, &ch);
         }
         for (I32 i = 0; i < ast->children.count; i++) {

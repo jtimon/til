@@ -354,7 +354,7 @@
   - #1 (consistency): clean backends make porting easier
   - #2 (ref): needed for efficient arg passing without clone overhead
   - #5 (pointers/Vec): FIXED — token lists, AST children, string buffers
-  - #8 (variadic): needed for format/println in the self-hosted version
+  - #8 (variadic): FIXED — format/println/user variadics all work
 
   Does NOT depend on #10 (REPL) or #11 (GUI mode).
 
@@ -390,68 +390,6 @@
   - Persistent scope: declarations accumulate across inputs
   - Result display: print expression values (needs to_str for all types)
 
-* OPEN #8 Variadic args for funcs, procs, and macros
-  Currently `..Type` variadic parameters only work in ext_func and ext_proc
-  (format, println, print). Regular funcs, procs, and macros can't use them.
-
-  Three phases:
-
-** DONE Phase 1: General variadic args for user-defined functions
-   Support `..Type` in regular func/proc/macro parameter lists, any type.
-   Example: variadic_and := func(args: ..Bool) returns Bool {}
-
-   Internally, variadic args are stored as a til Array. At the call site, an
-   Array is built from the passed variadic arguments. Inside the definition,
-   the parameter has Array type and the user accesses elements via the Array
-   interface:
-
-     print_points := proc(points: ..Point) {
-       i := 0
-       while i.lt(points.len()) {
-         ref p: Point = points.get(i)
-         println(p.x, ", ", p.y)
-         i = i.add(1)
-       }
-     }
-     print_points(a, b, c)  -- builds Array[Point] from a, b, c
-
-   Ownership: variadic params are implicitly own, non-mut. No need to write
-   `own` or `mut` on `..T` params — reject those keywords if present. Callers
-   don't write `own` either; ownership transfer is implicit for variadic args.
-   Zero and single variadic args are allowed and still use an Array (cap=0/1).
-
-   Parameter ordering: no positional params allowed after the variadic param.
-   Only params with defaults (which use named syntax at call site) are allowed
-   after it. Without this rule, ambiguous cases would be hard to resolve.
-
-   Implementation: the typer desugars variadic calls into Array.new + Array.set
-   statements before the original call, replacing the variadic args with a
-   single `_vaN` temp variable. Both interpreter and codegen then see normal
-   Array code — no special variadic handling needed in either backend.
-
-   - Parser: rejects own/mut on `..T`, rejects positional params after variadic
-   - Typer: `desugar_variadic_calls` transforms call sites before hoisting;
-     variadic param typed as Array in function scope; `param_owns[vi] = true`
-   - Interpreter: simplified — just binds args positionally (desugaring done)
-   - Codegen: emits `til_Array` param type; call sites desugared in AST
-
-** DONE Phase 2: main proc CLI args (including variadic)
-   main := proc(args: ..Str) works in both compiled and interpreted modes.
-   Needed for #12 (self-hosting) and #13 (test runner in til).
-
-   CLI args (argv[1..]) are validated and parsed at runtime:
-   - Arg count checked against param count (or minimum for variadic)
-   - Supported param types: Str (identity), I64 (atoll), U8 (range-checked),
-     Bool ("true"/"false"). Struct parsing deferred.
-   - Variadic ..Str builds Array[Str] from remaining args
-   - main := proc() rejects any CLI args
-
-   ctil forwards argv[3..] to both interpret and run commands.
-   Parse helpers (til_cli_parse_i64/u8/bool) in ext.c, shared by both paths.
-
-** Phase 3: Variadic args in FFI functions
-   Related to #4. Support `..Type` in ext_func/ext_proc parameter lists
-   for user-defined companion .c files.
 
 
 * WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields

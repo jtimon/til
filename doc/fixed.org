@@ -1,5 +1,26 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #8 Variadic args for funcs, procs, and macros
+  `..Type` variadic parameters for all function types: regular func/proc,
+  macros, ext_func/ext_proc, and main CLI args.
+
+** Phase 1: General variadic args for user-defined functions
+   Variadic args stored as til Array. Typer desugars call sites into
+   Array.new + Array.set + single Array arg. Both backends see normal code.
+   Parser rejects own/mut on `..T` and positional params after variadic.
+
+** Phase 2: main proc CLI args (including variadic)
+   main := proc(args: ..Str) works in both compiled and interpreted modes.
+   CLI args validated and parsed at runtime (Str, I64, U8, Bool types).
+
+** Phase 3: Variadic args in FFI functions
+   Typer desugaring now applies to non-core ext_func/ext_proc. C side
+   receives til_Array* and iterates via til_Array_elem() helper from ext.h.
+   Fixes: typer guard changed to `!is_builtin || !func_def->is_core`,
+   is_core propagated to func_def children, Array typedef/forward-decl
+   skipped in codegen (provided by ext.h).
+   Tested with sum_all(nums: ..I64) in ext_module.til/ext_module.c.
+
 * FIXED #4 FFI: call external C functions from til
   Users can call C functions by providing a .c file alongside their .til program.
   Declare signatures in til with ext_func/ext_proc, implement in C with til_

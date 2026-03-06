@@ -12,6 +12,18 @@ typedef struct til_Str {
     til_I64 cap;
 } til_Str;
 
+typedef struct til_Array {
+    til_U8 *data;       // raw element buffer
+    til_I64 cap;        // number of elements
+    til_I64 elem_size;  // bytes per element
+    til_Str elem_type;  // element type name
+} til_Array;
+
+// Get pointer to element i in a til_Array (C-side helper, not the til function)
+static inline void *til_Array_elem(til_Array *a, til_I64 i) {
+    return a->data + i * a->elem_size;
+}
+
 void til_free(void *ptr);
 void til_exit(til_I64 *code);
 

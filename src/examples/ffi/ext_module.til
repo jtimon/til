@@ -106,6 +106,9 @@ Point := struct {
 
 add_points := ext_func(a: Point, b: Point) returns Point {}
 
+// Variadic ext_func
+sum_all := ext_func(nums: ..I64) returns I64 {}
+
 test_add_points := proc() {
     a := Point(x=1, y=2)
     b := Point(x=3, y=4)
@@ -114,8 +117,15 @@ test_add_points := proc() {
     assert_eq(loc(), c.y, 6)
 }
 
+test_variadic := proc() {
+    assert_eq(loc(), sum_all(10, 20, 30), 60)
+    assert_eq(loc(), sum_all(1, 2, 3, 4, 5), 15)
+    assert_eq(loc(), sum_all(42), 42)
+}
+
 test_greet()
 test_add_points()
+test_variadic()
 test_instantiation()
 test_field_mutation()
 test_ext_methods()

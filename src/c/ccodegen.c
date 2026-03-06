@@ -688,7 +688,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
 static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def, Bool is_core) {
     Expr *body = expr_child(struct_def, 0);
     if (struct_def->is_ext && is_core) return; // core ext_structs defined in ext.h
-    if (Str_eq_c(name, "Str")) return; // Str typedef provided by ext.h
+    if (Str_eq_c(name, "Str") || Str_eq_c(name, "Array")) return; // typedefs provided by ext.h
     Bool has_instance_fields = 0;
     for (I32 i = 0; i < body->children.count; i++)
         if (!expr_child(body, i)->data.decl.is_namespace) { has_instance_fields = 1; break; }
@@ -921,7 +921,7 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
             if (expr_child(stmt, 0)->is_ext && stmt->is_core) continue;
-            if (Str_eq_c(stmt->data.decl.name, "Str")) continue;
+            if (Str_eq_c(stmt->data.decl.name, "Str") || Str_eq_c(stmt->data.decl.name, "Array")) continue;
             fprintf(f, "typedef struct til_%s til_%s;\n", stmt->data.decl.name->c_str, stmt->data.decl.name->c_str);
         }
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
