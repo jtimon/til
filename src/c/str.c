@@ -1,4 +1,5 @@
 #include "str.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -89,4 +90,104 @@ int Str_starts_with(Str *a, Str *b) {
 int Str_ends_with(Str *a, Str *b) {
     if (b->cap > a->cap) return 0;
     return memcmp(a->c_str + a->cap - b->cap, b->c_str, b->cap) == 0;
+}
+
+int Str_neq(Str *a, Str *b) {
+    return !Str_eq(a, b);
+}
+
+int Str_is_empty(Str *s) {
+    return s->cap == 0;
+}
+
+int Str_find(Str *s, Str *needle) {
+    if (needle->cap == 0) return -1;
+    if (needle->cap > s->cap) return -1;
+    char *p = memmem(s->c_str, s->cap, needle->c_str, needle->cap);
+    if (!p) return -1;
+    return (int)(p - s->c_str);
+}
+
+int Str_rfind(Str *s, Str *needle) {
+    if (needle->cap == 0) return -1;
+    if (needle->cap > s->cap) return -1;
+    int last = -1;
+    for (int i = 0; i <= s->cap - needle->cap; i++) {
+        if (memcmp(s->c_str + i, needle->c_str, needle->cap) == 0) {
+            last = i;
+        }
+    }
+    return last;
+}
+
+Str *Str_replace(Str *s, Str *from, Str *to) {
+    if (from->cap == 0) return Str_clone(s);
+    // Count occurrences
+    int count = 0;
+    for (int i = 0; i <= s->cap - from->cap; ) {
+        if (memcmp(s->c_str + i, from->c_str, from->cap) == 0) {
+            count++;
+            i += from->cap;
+        } else {
+            i++;
+        }
+    }
+    if (count == 0) return Str_clone(s);
+    int new_len = s->cap - count * from->cap + count * to->cap;
+    Str *r = malloc(sizeof(Str));
+    r->c_str = malloc(new_len + 1);
+    r->cap = new_len;
+    int di = 0;
+    for (int si = 0; si < s->cap; ) {
+        if (si <= s->cap - from->cap && memcmp(s->c_str + si, from->c_str, from->cap) == 0) {
+            memcpy(r->c_str + di, to->c_str, to->cap);
+            di += to->cap;
+            si += from->cap;
+        } else {
+            r->c_str[di++] = s->c_str[si++];
+        }
+    }
+    r->c_str[new_len] = '\0';
+    return r;
+}
+
+Str *Str_get_char(Str *s, int i) {
+    return Str_substr(s, i, 1);
+}
+
+Str *Str_strip_prefix(Str *s, Str *prefix) {
+    if (Str_starts_with(s, prefix)) {
+        return Str_substr(s, prefix->cap, s->cap - prefix->cap);
+    }
+    return Str_clone(s);
+}
+
+Str *Str_strip_suffix(Str *s, Str *suffix) {
+    if (Str_ends_with(s, suffix)) {
+        return Str_substr(s, 0, s->cap - suffix->cap);
+    }
+    return Str_clone(s);
+}
+
+Str *Str_from_byte(unsigned char byte) {
+    Str *s = malloc(sizeof(Str));
+    s->c_str = malloc(2);
+    s->c_str[0] = (char)byte;
+    s->c_str[1] = '\0';
+    s->cap = 1;
+    return s;
+}
+
+long long Str_to_i64(Str *s) {
+    if (s->cap == 0) {
+        fprintf(stderr, "Str.to_i64: empty string\n");
+        exit(1);
+    }
+    char *end;
+    long long v = strtoll(s->c_str, &end, 10);
+    if (end != s->c_str + s->cap) {
+        fprintf(stderr, "Str.to_i64: invalid char in '%.*s'\n", s->cap, s->c_str);
+        exit(1);
+    }
+    return v;
 }

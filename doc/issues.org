@@ -82,8 +82,19 @@
    - clock_ms() returns I64 — monotonic clock in milliseconds
    - wait_cmd(pid: I64) returns I64 — pure-til helper (poll + sleep loop)
 
-   run_cmd special-cased in ccodegen (va_args like println).
+   run_cmd reimplemented in pure til using spawn+wait+readfile.
    ext.c uses til_Str for codegen; dispatch.c uses Str for interpreter.
+
+** DONE String utilities
+   Added to Str namespace in core.til (pure til implementations):
+   neq, is_empty, find, rfind, replace, get_char, strip_prefix,
+   strip_suffix, from_byte, to_i64.
+
+   Added as top-level functions (depend on Vec, defined after Str):
+   split(s, delim), join(parts, sep).
+
+   Also added C equivalents in str.c/str.h for potential codegen use.
+   Tests in src/test/strings.til cover all new utilities.
 
 ** Test runner design
    A til program (src/tests.til or similar) that:

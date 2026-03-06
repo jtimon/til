@@ -226,6 +226,122 @@ Str := struct {
         }
         return true
     }
+
+    neq := func(a: Str, b: Str) returns Bool {
+        return a.eq(b).not()
+    }
+
+    is_empty := func(self: Str) returns Bool {
+        return self.cap.eq(0)
+    }
+
+    find := func(self: Str, needle: Str) returns I64 {
+        if needle.cap.eq(0) { return 0.sub(1) }
+        if needle.cap.gt(self.cap) { return 0.sub(1) }
+        mut i := 0
+        while i.lte(self.cap.sub(needle.cap)) {
+            mut j := 0
+            mut found := true
+            while j.lt(needle.cap) {
+                ref ac : U8 = self.char_at(i.add(j))
+                ref bc : U8 = needle.char_at(j)
+                if ac.neq(bc) { found = false }
+                j = j.add(1)
+            }
+            if found { return i }
+            i = i.add(1)
+        }
+        return 0.sub(1)
+    }
+
+    rfind := func(self: Str, needle: Str) returns I64 {
+        if needle.cap.eq(0) { return 0.sub(1) }
+        if needle.cap.gt(self.cap) { return 0.sub(1) }
+        mut last := 0.sub(1)
+        mut i := 0
+        while i.lte(self.cap.sub(needle.cap)) {
+            mut j := 0
+            mut found := true
+            while j.lt(needle.cap) {
+                ref ac : U8 = self.char_at(i.add(j))
+                ref bc : U8 = needle.char_at(j)
+                if ac.neq(bc) { found = false }
+                j = j.add(1)
+            }
+            if found { last = i }
+            i = i.add(1)
+        }
+        return last
+    }
+
+    replace := func(self: Str, from: Str, to: Str) returns Str {
+        if from.cap.eq(0) { return self.clone() }
+        mut result := ""
+        mut start := 0
+        while start.lte(self.cap.sub(from.cap)) {
+            rest := self.substr(start, self.cap.sub(start))
+            pos := rest.find(from)
+            if pos.eq(0.sub(1)) {
+                result = result.concat(rest)
+                return result
+            }
+            result = result.concat(self.substr(start, pos))
+            result = result.concat(to)
+            start = start.add(pos).add(from.cap)
+        }
+        if start.lt(self.cap) {
+            result = result.concat(self.substr(start, self.cap.sub(start)))
+        }
+        return result
+    }
+
+    get_char := func(self: Str, i: I64) returns Str {
+        return self.substr(i, 1)
+    }
+
+    strip_prefix := func(self: Str, prefix: Str) returns Str {
+        if self.starts_with(prefix) {
+            return self.substr(prefix.cap, self.cap.sub(prefix.cap))
+        }
+        return self.clone()
+    }
+
+    strip_suffix := func(self: Str, suffix: Str) returns Str {
+        if self.ends_with(suffix) {
+            return self.substr(0, self.cap.sub(suffix.cap))
+        }
+        return self.clone()
+    }
+
+    from_byte := func(byte: U8) returns Str {
+        own buf : U8 = malloc(1)
+        memcpy(buf, byte, 1)
+        return Str(data = buf, cap = 1)
+    }
+
+    to_i64 := func(self: Str) returns I64 {
+        if self.cap.eq(0) { panic("Str.to_i64", "empty string") }
+        mut result := 0
+        mut i := 0
+        mut neg := false
+        ref first : U8 = self.char_at(0)
+        if first.eq(U8.from_i64(45)) {
+            neg = true
+            i = 1
+        }
+        if i.eq(self.cap) { panic("Str.to_i64", "no digits") }
+        while i.lt(self.cap) {
+            ref ch : U8 = self.char_at(i)
+            d := ch.to_i64().sub(48)
+            if d.lt(0).or(d.gt(9)) {
+                panic("Str.to_i64", format("invalid char in '", self, "'"))
+            }
+            result = result.mul(10).add(d)
+            i = i.add(1)
+        }
+        if neg { return 0.sub(result) }
+        return result
+    }
 }
 Bool : StructDef = ext_struct {
     namespace:
@@ -357,6 +473,40 @@ Vec := struct {
         return Vec(data = new_data, count = self.count, cap = self.cap,
                    elem_size = self.elem_size, elem_type = self.elem_type)
     }
+}
+
+split := func(s: Str, delim: Str) returns Vec {
+    parts := Vec.new("Str", Str.size())
+    if delim.len().eq(0) {
+        parts.push(own s.clone())
+        return parts
+    }
+    mut start := 0
+    mut pos := 0
+    while pos.lte(s.len().sub(delim.len())) {
+        if s.substr(pos, delim.len()).eq(delim) {
+            parts.push(own s.substr(start, pos.sub(start)))
+            start = pos.add(delim.len())
+            pos = start
+        } else {
+            pos = pos.add(1)
+        }
+    }
+    parts.push(own s.substr(start, s.len().sub(start)))
+    return parts
+}
+
+join := func(parts: Vec, sep: Str) returns Str {
+    if parts.len().eq(0) { return "" }
+    mut result := ""
+    mut i := 0
+    while i.lt(parts.len()) {
+        if i.gt(0) { result = result.concat(sep) }
+        ref p : Str = parts.get(i)
+        result = result.concat(p)
+        i = i.add(1)
+    }
+    return result
 }
 
 Array := struct {

@@ -67,6 +67,128 @@ test_ends_with := proc() {
     assert(loc(), "hi".ends_with("hello").not())
 }
 
+test_neq := proc() {
+    assert(loc(), "hello".neq("world"))
+    assert(loc(), "hello".neq("hello").not())
+    assert(loc(), "".neq("").not())
+    assert(loc(), "a".neq("b"))
+}
+
+test_is_empty := proc() {
+    assert(loc(), "".is_empty())
+    assert(loc(), "a".is_empty().not())
+    assert(loc(), "hello".is_empty().not())
+}
+
+test_find := proc() {
+    assert_eq(loc(), "hello world".find("world"), 6)
+    assert_eq(loc(), "hello".find("ell"), 1)
+    assert_eq(loc(), "hello".find("hello"), 0)
+    assert_eq(loc(), "hello".find("xyz"), 0.sub(1))
+    assert_eq(loc(), "hello".find(""), 0.sub(1))
+    assert_eq(loc(), "".find("a"), 0.sub(1))
+    assert_eq(loc(), "aaa".find("a"), 0)
+    assert_eq(loc(), "abcabc".find("bc"), 1)
+}
+
+test_rfind := proc() {
+    assert_eq(loc(), "abcabc".rfind("bc"), 4)
+    assert_eq(loc(), "abcabc".rfind("a"), 3)
+    assert_eq(loc(), "hello".rfind("ell"), 1)
+    assert_eq(loc(), "hello".rfind("xyz"), 0.sub(1))
+    assert_eq(loc(), "hello".rfind(""), 0.sub(1))
+    assert_eq(loc(), "aaa".rfind("a"), 2)
+}
+
+test_replace := proc() {
+    assert_eq_str(loc(), "hello world".replace("world", "til"), "hello til")
+    assert_eq_str(loc(), "aaa".replace("a", "bb"), "bbbbbb")
+    assert_eq_str(loc(), "hello".replace("xyz", "abc"), "hello")
+    assert_eq_str(loc(), "hello".replace("", "abc"), "hello")
+    assert_eq_str(loc(), "abab".replace("ab", "c"), "cc")
+    assert_eq_str(loc(), "hello".replace("hello", ""), "")
+    assert_eq_str(loc(), "a.b.c".replace(".", "/"), "a/b/c")
+}
+
+test_get_char := proc() {
+    assert_eq_str(loc(), "hello".get_char(0), "h")
+    assert_eq_str(loc(), "hello".get_char(4), "o")
+    assert_eq_str(loc(), "abc".get_char(1), "b")
+}
+
+test_strip_prefix := proc() {
+    assert_eq_str(loc(), "hello world".strip_prefix("hello "), "world")
+    assert_eq_str(loc(), "hello".strip_prefix("xyz"), "hello")
+    assert_eq_str(loc(), "hello".strip_prefix(""), "hello")
+    assert_eq_str(loc(), "hello".strip_prefix("hello"), "")
+}
+
+test_strip_suffix := proc() {
+    assert_eq_str(loc(), "hello world".strip_suffix(" world"), "hello")
+    assert_eq_str(loc(), "hello".strip_suffix("xyz"), "hello")
+    assert_eq_str(loc(), "hello".strip_suffix(""), "hello")
+    assert_eq_str(loc(), "hello".strip_suffix("hello"), "")
+}
+
+test_from_byte := proc() {
+    assert_eq_str(loc(), Str.from_byte(U8.from_i64(65)), "A")
+    assert_eq_str(loc(), Str.from_byte(U8.from_i64(48)), "0")
+    assert_eq_str(loc(), Str.from_byte(U8.from_i64(97)), "a")
+}
+
+test_to_i64 := proc() {
+    assert_eq(loc(), "42".to_i64(), 42)
+    assert_eq(loc(), "0".to_i64(), 0)
+    assert_eq(loc(), "123456".to_i64(), 123456)
+    assert_eq(loc(), "-7".to_i64(), 0.sub(7))
+    assert_eq(loc(), "-100".to_i64(), 0.sub(100))
+}
+
+test_split := proc() {
+    parts := split("a,b,c", ",")
+    assert_eq(loc(), parts.len(), 3)
+    ref p0 : Str = parts.get(0)
+    ref p1 : Str = parts.get(1)
+    ref p2 : Str = parts.get(2)
+    assert_eq_str(loc(), p0, "a")
+    assert_eq_str(loc(), p1, "b")
+    assert_eq_str(loc(), p2, "c")
+
+    parts2 := split("hello", ",")
+    assert_eq(loc(), parts2.len(), 1)
+    ref q0 : Str = parts2.get(0)
+    assert_eq_str(loc(), q0, "hello")
+
+    parts3 := split("a::b", "::")
+    assert_eq(loc(), parts3.len(), 2)
+    ref r0 : Str = parts3.get(0)
+    ref r1 : Str = parts3.get(1)
+    assert_eq_str(loc(), r0, "a")
+    assert_eq_str(loc(), r1, "b")
+
+    parts4 := split(",a,", ",")
+    assert_eq(loc(), parts4.len(), 3)
+    ref s0 : Str = parts4.get(0)
+    ref s1 : Str = parts4.get(1)
+    ref s2 : Str = parts4.get(2)
+    assert_eq_str(loc(), s0, "")
+    assert_eq_str(loc(), s1, "a")
+    assert_eq_str(loc(), s2, "")
+}
+
+test_join := proc() {
+    parts := split("a,b,c", ",")
+    assert_eq_str(loc(), join(parts, ","), "a,b,c")
+    assert_eq_str(loc(), join(parts, " - "), "a - b - c")
+
+    single := Vec.new("Str", Str.size())
+    single.push(own "hello".clone())
+    assert_eq_str(loc(), join(single, ","), "hello")
+
+    empty := Vec.new("Str", Str.size())
+    assert_eq_str(loc(), join(empty, ","), "")
+}
+
 test_eq()
 test_concat()
 test_clone()
@@ -76,3 +198,15 @@ test_substr()
 test_contains()
 test_starts_with()
 test_ends_with()
+test_neq()
+test_is_empty()
+test_find()
+test_rfind()
+test_replace()
+test_get_char()
+test_strip_prefix()
+test_strip_suffix()
+test_from_byte()
+test_to_i64()
+test_split()
+test_join()

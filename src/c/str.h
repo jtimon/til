@@ -21,5 +21,15 @@ Str *Str_substr(Str *s, int start, int len);
 int Str_contains(Str *a, Str *b);
 int Str_starts_with(Str *a, Str *b);
 int Str_ends_with(Str *a, Str *b);
+int Str_neq(Str *a, Str *b);
+int Str_is_empty(Str *s);
+int Str_find(Str *s, Str *needle);
+int Str_rfind(Str *s, Str *needle);
+Str *Str_replace(Str *s, Str *from, Str *to);
+Str *Str_get_char(Str *s, int i);
+Str *Str_strip_prefix(Str *s, Str *prefix);
+Str *Str_strip_suffix(Str *s, Str *suffix);
+Str *Str_from_byte(unsigned char byte);
+long long Str_to_i64(Str *s);
 
 #endif
