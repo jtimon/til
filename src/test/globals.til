@@ -1,0 +1,28 @@
+mode script
+
+// Test: global variables accessible from functions and procs
+// See issue #17
+
+x := 42
+
+// func accessing global
+f := func() returns I64 {
+    return x
+}
+
+// proc accessing global
+g := proc() {
+    println(x.to_str())
+}
+
+// proc accessing global via declaration
+h := proc() {
+    y := x
+    println(y.to_str())
+}
+
+assert(f().eq(42), "func should see global x")
+g()
+h()
+
+println("globals: ok")

@@ -1,6 +1,84 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 17
+# NEXT_ISSUE: 18
+
+* OPEN #17 Global/outer-scope variable access from functions and procs
+  :DEPENDENCIES_OF: #12 #13
+  Variables declared in script-mode root scope (or any outer scope) are
+  invisible at runtime inside function/proc bodies. The typer passes
+  (TypeScope chains via parent pointers and finds the variable), but the
+  interpreter crashes or errors.
+
+  Reproduction: src/test/globals.til
+
+  func case: "error: undefined variable 'x'" — clean error from NODE_IDENT
+  NULL check. proc case: SEGFAULT — NODE_DECL move-semantics path has no
+  NULL check on scope_get result.
+
+** Root cause
+
+   expr_uses_var() in typer.c (line 1239) returns 0 for NODE_FUNC_DEF,
+   meaning the ASAP pass doesn't see variable references inside nested
+   function/proc bodies. When x is declared at top level and referenced
+   only inside a proc body, ASAP thinks x is unused and inserts
+   I64.delete(x) right after the declaration. When the proc later runs
+   and tries to access x, the value has already been freed/nulled.
+
+   func case: I64.clone(x) inside the function body tries to clone x
+   whose value is val_none → clean "undefined variable" error (from
+   precomp, which also can't find x in its limited scope).
+
+   proc case: I64.clone(x) dereferences v.i64 which is NULL → SEGFAULT.
+   The NODE_DECL move-semantics path also lacks a NULL check on
+   scope_get result, which would be a secondary crash path.
+
+   Secondary issue: precomp creates its own interpreter scope with only
+   func/struct/enum defs (no variable decls), then tries to fold pure
+   func calls. If the func accesses a global variable, precomp's
+   eval_expr hits the error path and exit(1)s before the interpreter
+   even runs.
+
+** Phase 1: Fix global variable access
+
+   1. Fix expr_uses_var (typer.c:1239): recurse into NODE_FUNC_DEF bodies
+      to find references to outer-scope variables. Variables captured by
+      nested functions should not be ASAP-deleted. Their lifetime extends
+      to at least the end of the enclosing scope (or to the nested
+      function's last use).
+   2. Add NULL checks in NODE_DECL move-semantics path (interpreter.c ~498)
+      to prevent segfault — should give clean error like NODE_IDENT does.
+   3. Fix precomp: skip folding func calls whose body references variables
+      not in the precomp scope (i.e. non-const, non-func globals).
+
+** Phase 2: Explicit capture syntax
+
+   Add syntax for listing captured variables from outer scopes, both for
+   function definitions and anonymous blocks. Based on rstil/doc/first_class.org.
+
+   Function captures (closures):
+     scale := 10
+     f := func(a: I64) returns I64 [scale] { return a.mul(scale) }
+
+   Capture modifiers:
+     [x]      — const reference (default)
+     [mut x]  — mutable reference
+     [copy x] — snapshot (clone at capture time)
+     [own x]  — ownership transfer
+
+   Block captures (restrict access):
+     [total, data] {
+         // can only see total and data, not other locals
+     }
+
+   This enables Jai-inspired mechanical refactoring:
+   inline code -> block with captures -> lambda -> pure function
+
+   Implementation:
+   - Parser: recognize [ident, ...] before { in func defs and bare blocks
+   - AST: store capture list on NODE_FUNC_DEF and NODE_BODY
+   - Typer: validate captures exist in outer scope, enforce modifier rules
+   - Interpreter: bind captured variables in call_scope from definition scope
+   - Codegen: emit closure structs or pass captures as hidden parameters
 
 * OPEN #16 Imports: multi-file programs and modular core.til
   til programs are currently single-file. There's no way to split code
@@ -58,7 +136,7 @@
   and many patterns needed for self-hosting (visitor, dispatch tables).
 
 * OPEN #13 Test runner in til: parallel execution, mode comparison
-  :DEPENDENCIES: #5
+  :DEPENDENCIES: #5 #17
   Replace tests.sh with a til-based test runner that runs tests in parallel,
   compares interpreter vs codegen output, and reports timing. Inspired by
   rstil/src/tests.til which spawns processes, polls completion, and diffs
@@ -116,7 +194,7 @@
    modes is essential for validating correctness during the rewrite.
 
 * OPEN #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2 #5 #8 #13 #15 #16
+  :DEPENDENCIES: #1 #2 #5 #8 #13 #15 #16 #17
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
