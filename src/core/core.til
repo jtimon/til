@@ -264,7 +264,6 @@ dyn_call2_ret := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynam
 dyn_has_method := ext_func(type_name: Str, method: Str) returns Bool {}
 
 // System primitives
-run_cmd := ext_proc(mut output: Str, args: ..Str) returns I64 {}
 spawn_cmd := ext_proc(cmd: Str) returns I64 {}
 check_cmd_status := ext_func(pid: I64) returns I64 {}
 sleep := ext_proc(ms: I64) {}
@@ -279,6 +278,28 @@ wait_cmd := proc(pid: I64) returns I64 {
         if status.neq(0.sub(1)) { return status }
         sleep(50)
     }
+}
+
+run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
+    mut cmd := ""
+    mut i := 0
+    while i.lt(args.len()) {
+        ref arg: Str = args.get(i)
+        if i.gt(0) {
+            cmd = cmd.concat(" '").concat(arg).concat("'")
+        } else {
+            cmd = arg.clone()
+        }
+        i = i.add(1)
+    }
+    tmpf := "tmp/_run_cmd_out"
+    pid := spawn_cmd(cmd.concat(" > ").concat(tmpf).concat(" 2>&1"))
+    ec := wait_cmd(pid)
+    content := readfile(tmpf)
+    // Copy content data into output (transfer ownership via memcpy)
+    memcpy(output, content, 16)
+    free(own content)
+    return ec
 }
 
 Vec := struct {

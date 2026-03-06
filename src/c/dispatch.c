@@ -397,80 +397,6 @@ static int h_clock_ms(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-static int h_run_cmd(Scope *s, Expr *e, Value *r) {
-    // First arg is the mut output Str identifier
-    Expr *out_expr = expr_child(e, 1);
-    Cell *out_cell = scope_get(s, out_expr->data.str_val);
-
-    // Collect remaining args as Str values
-    int nargs = e->children.count - 2;
-    if (nargs <= 0) { *r = val_i64(-1); return 1; }
-
-    Str *strs[64];
-    for (int i = 0; i < nargs && i < 64; i++) {
-        Value v = eval_expr(s, expr_child(e, i + 2));
-        strs[i] = v.str;
-    }
-
-    // Build command string with quoted args
-    char cmd_buf[8192];
-    size_t cmd_len = 0;
-    for (int i = 0; i < nargs; i++) {
-        if (i > 0) {
-            if (cmd_len < sizeof(cmd_buf) - 1) cmd_buf[cmd_len++] = ' ';
-            if (cmd_len < sizeof(cmd_buf) - 1) cmd_buf[cmd_len++] = '\'';
-        }
-        if (i == 0) {
-            size_t alen = (size_t)strs[i]->cap;
-            if (cmd_len + alen < sizeof(cmd_buf) - 1) {
-                memcpy(cmd_buf + cmd_len, strs[i]->c_str, alen);
-                cmd_len += alen;
-            }
-        } else {
-            for (int j = 0; j < strs[i]->cap && cmd_len < sizeof(cmd_buf) - 5; j++) {
-                if (strs[i]->c_str[j] == '\'') {
-                    cmd_buf[cmd_len++] = '\''; cmd_buf[cmd_len++] = '\\';
-                    cmd_buf[cmd_len++] = '\''; cmd_buf[cmd_len++] = '\'';
-                } else {
-                    cmd_buf[cmd_len++] = strs[i]->c_str[j];
-                }
-            }
-            if (cmd_len < sizeof(cmd_buf) - 1) cmd_buf[cmd_len++] = '\'';
-        }
-    }
-    cmd_buf[cmd_len] = '\0';
-
-    // popen + capture
-    FILE *f = popen(cmd_buf, "r");
-    if (!f) {
-        out_cell->val = val_str(Str_new(""));
-        *r = val_i64(-1);
-        return 1;
-    }
-
-    size_t buf_size = 65536;
-    char *buf = malloc(buf_size);
-    size_t total = 0;
-    while (total < buf_size - 1) {
-        size_t n = fread(buf + total, 1, buf_size - 1 - total, f);
-        if (n == 0) break;
-        total += n;
-    }
-    buf[total] = '\0';
-    char drain[4096];
-    while (fread(drain, 1, sizeof(drain), f) > 0) {}
-    int status;
-    status = pclose(f);
-    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-
-    // Write back to mut output cell
-    out_cell->val = val_str(Str_new_len(buf, (int)total));
-    free(buf);
-
-    *r = val_i64(exit_code);
-    return 1;
-}
-
 #undef H1
 #undef H2
 #undef HDEL
@@ -542,7 +468,6 @@ static void dispatch_init(void) {
     REG("sleep", h_sleep);
     REG("file_mtime", h_file_mtime);
     REG("clock_ms", h_clock_ms);
-    REG("run_cmd", h_run_cmd);
 
     #undef REG
     dispatch_inited = 1;

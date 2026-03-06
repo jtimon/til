@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -172,77 +171,4 @@ til_I64 *til_clock_ms(void) {
     return I64_new((I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000);
 }
 
-// run_cmd: codegen entry point
-// til_run_cmd(output_str, nargs, str1, str2, ...)
-til_I64 *til_run_cmd(til_Str *output_str, int nargs, ...) {
-    til_Str *args[64];
-    va_list ap;
-    va_start(ap, nargs);
-    for (int i = 0; i < nargs && i < 64; i++)
-        args[i] = va_arg(ap, til_Str *);
-    va_end(ap);
-
-    if (nargs <= 0) {
-        if (output_str->data) free(output_str->data);
-        output_str->data = (til_U8 *)strdup("");
-        output_str->cap = 0;
-        return I64_new(-1);
-    }
-
-    // Build command string with quoted args
-    char cmd_buf[8192];
-    size_t cmd_len = 0;
-    for (int i = 0; i < nargs; i++) {
-        if (i > 0) {
-            if (cmd_len < sizeof(cmd_buf) - 1) cmd_buf[cmd_len++] = ' ';
-            if (cmd_len < sizeof(cmd_buf) - 1) cmd_buf[cmd_len++] = '\'';
-        }
-        char *s = (char *)args[i]->data;
-        int slen = (int)args[i]->cap;
-        if (i == 0) {
-            if (cmd_len + (size_t)slen < sizeof(cmd_buf) - 1) {
-                memcpy(cmd_buf + cmd_len, s, slen);
-                cmd_len += slen;
-            }
-        } else {
-            for (int j = 0; j < slen && cmd_len < sizeof(cmd_buf) - 5; j++) {
-                if (s[j] == '\'') {
-                    cmd_buf[cmd_len++] = '\''; cmd_buf[cmd_len++] = '\\';
-                    cmd_buf[cmd_len++] = '\''; cmd_buf[cmd_len++] = '\'';
-                } else {
-                    cmd_buf[cmd_len++] = s[j];
-                }
-            }
-            if (cmd_len < sizeof(cmd_buf) - 1) cmd_buf[cmd_len++] = '\'';
-        }
-    }
-    cmd_buf[cmd_len] = '\0';
-
-    FILE *f = popen(cmd_buf, "r");
-    if (!f) {
-        if (output_str->data) free(output_str->data);
-        output_str->data = (til_U8 *)strdup("");
-        output_str->cap = 0;
-        return I64_new(-1);
-    }
-
-    size_t buf_size = 65536;
-    char *buf = malloc(buf_size);
-    size_t total = 0;
-    while (total < buf_size - 1) {
-        size_t n = fread(buf + total, 1, buf_size - 1 - total, f);
-        if (n == 0) break;
-        total += n;
-    }
-    buf[total] = '\0';
-    char drain[4096];
-    while (fread(drain, 1, sizeof(drain), f) > 0) {}
-    int status = pclose(f);
-    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-
-    if (output_str->data) free(output_str->data);
-    output_str->data = (til_U8 *)buf;
-    output_str->cap = (I64)total;
-    return I64_new(exit_code);
-}
 
