@@ -333,7 +333,16 @@ static int h_array(Scope *s, Expr *e, Value *r) {
     for (int i = 0; i < count; i++) {
         Value elem = eval_expr(s, expr_child(e, i + 2));
         void *src = val_raw_ptr(elem);
-        if (src) memcpy((char *)data + i * elem_size, src, elem_size);
+        if (src) {
+            if (elem.type == VAL_STR) {
+                // Deep copy: clone the Str so the array owns its own data
+                Str *cloned = Str_clone(elem.str);
+                memcpy((char *)data + i * elem_size, cloned, elem_size);
+                free(cloned); // free the Str shell, array buffer owns the contents
+            } else {
+                memcpy((char *)data + i * elem_size, src, elem_size);
+            }
+        }
     }
 
     // Build Array struct: {data, cap, elem_size, elem_type}
@@ -374,7 +383,15 @@ static int h_vec(Scope *s, Expr *e, Value *r) {
     for (int i = 0; i < count; i++) {
         Value elem = eval_expr(s, expr_child(e, i + 2));
         void *src = val_raw_ptr(elem);
-        if (src) memcpy((char *)data + i * elem_size, src, elem_size);
+        if (src) {
+            if (elem.type == VAL_STR) {
+                Str *cloned = Str_clone(elem.str);
+                memcpy((char *)data + i * elem_size, cloned, elem_size);
+                free(cloned);
+            } else {
+                memcpy((char *)data + i * elem_size, src, elem_size);
+            }
+        }
     }
 
     // Build Vec struct: {data, count, cap, elem_size, elem_type}

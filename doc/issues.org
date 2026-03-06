@@ -110,8 +110,16 @@
       with known constant values (not just the known map).
    4. Fixed ccodegen: top-level variable declarations are emitted as
       file-scope C globals (before function definitions) so they're
-      accessible from emitted til functions/procs. In cli mode, globals
-      are initialized at the start of main() before the user's main body.
+      accessible from emitted til functions/procs. This is necessary
+      because til functions are emitted as separate C functions, and C
+      doesn't support nested functions capturing locals — so top-level
+      vars must be file-scope for functions to reference them. The
+      values are then assigned inside main() where initialization runs.
+      In cli mode, globals are initialized at the start of main()
+      before the user's main body.
+      Note: ref declarations are skipped from file-scope globals since
+      they are pointer aliases (local to main), not owned values that
+      other functions need to access.
 
    Tests: src/test/globals.til (script mode), src/test/globals_cli.til (cli mode).
 

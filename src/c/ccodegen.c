@@ -1161,6 +1161,7 @@ int codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             Expr *rhs = expr_child(stmt, 0);
             if (rhs->type == NODE_FUNC_DEF || rhs->type == NODE_STRUCT_DEF ||
                 rhs->type == NODE_ENUM_DEF) continue;
+            if (stmt->data.decl.is_ref) continue;
             const char *ctype = c_type_name(stmt->til_type, rhs->struct_name);
             fprintf(f, "static %s *%s;\n", ctype, stmt->data.decl.name->c_str);
             Set_add(&script_globals, &stmt->data.decl.name);
