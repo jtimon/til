@@ -28,11 +28,9 @@ typedef struct EnumInstance EnumInstance;
 typedef struct Value Value;
 
 struct StructInstance {
-    Str *struct_name;
-    Str **field_names;
-    I32 *field_muts;
-    I32 nfields;
-    Value *field_values;
+    Str *struct_name;       // borrowed from AST (no alloc, no free)
+    Expr *struct_def;       // borrowed pointer to NODE_STRUCT_DEF
+    void *data;             // flat buffer, same layout as C struct
 };
 
 struct Value {
@@ -106,5 +104,19 @@ Value *ns_get(Str *sname, Str *fname);
 Value make_str_value(const char *data, I64 cap);
 Value make_str_value_own(char *data, I64 cap);
 Str str_view(Value v);
+
+// Cached struct defs for C-side construction (set during interpreter_init_ns)
+extern Expr *cached_str_def;
+extern Str *cached_str_name;
+extern Expr *cached_array_def;
+extern Str *cached_array_name;
+extern Expr *cached_vec_def;
+extern Str *cached_vec_name;
+
+// Find a non-namespace field decl by name in a struct_def
+Expr *find_field_decl(Expr *struct_def, Str *fname);
+
+// Write a Value into flat buffer at a field decl's offset
+void write_field(StructInstance *inst, Expr *fdecl, Value val);
 
 #endif

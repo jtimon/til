@@ -87,44 +87,109 @@ Cell *scope_get(Scope *s, Str *name) {
 
 // ext_function_dispatch is in dispatch.c
 
+// --- Cached struct defs for C-side construction ---
+Expr *cached_str_def;
+Str *cached_str_name;
+Expr *cached_array_def;
+Str *cached_array_name;
+Expr *cached_vec_def;
+Str *cached_vec_name;
+
+// Find a non-namespace field decl by name in a struct_def
+Expr *find_field_decl(Expr *struct_def, Str *fname) {
+    Expr *body = expr_child(struct_def, 0);
+    for (I32 i = 0; i < body->children.count; i++) {
+        Expr *f = expr_child(body, i);
+        if (f->type == NODE_DECL && !f->data.decl.is_namespace &&
+            Str_eq(f->data.decl.name, fname))
+            return f;
+    }
+    return NULL;
+}
+
+// Read a Value from flat buffer at a field decl's offset
+static Value read_field(StructInstance *inst, Expr *fdecl) {
+    void *ptr = (char *)inst->data + fdecl->data.decl.field_offset;
+    if (fdecl->data.decl.is_own) {
+        void *owned = *(void **)ptr;
+        // If the own field has a struct def, wrap in StructInstance for field access
+        if (fdecl->data.decl.field_struct_def) {
+            Expr *nested = fdecl->data.decl.field_struct_def;
+            Str *ftype = fdecl->data.decl.explicit_type;
+            StructInstance *sub = malloc(sizeof(StructInstance));
+            sub->struct_name = ftype;
+            sub->struct_def = nested;
+            sub->data = owned; // borrowed — points into the owning struct's heap alloc
+            return (Value){.type = VAL_STRUCT, .instance = sub};
+        }
+        return (Value){.type = VAL_PTR, .ptr = owned};
+    }
+    Str *ftype = fdecl->data.decl.explicit_type;
+    if (ftype && Str_eq_c(ftype, "I64"))  return val_i64(*(I64 *)ptr);
+    if (ftype && Str_eq_c(ftype, "U8"))   return val_u8(*(U8 *)ptr);
+    if (ftype && Str_eq_c(ftype, "Bool")) return val_bool(*(Bool *)ptr);
+    // Inline struct: shallow copy of flat bytes into new StructInstance
+    if (fdecl->data.decl.field_struct_def) {
+        Expr *nested = fdecl->data.decl.field_struct_def;
+        StructInstance *sub = malloc(sizeof(StructInstance));
+        sub->struct_name = ftype; // borrowed — set by initer for inferred struct types
+        sub->struct_def = nested;
+        sub->data = malloc(nested->total_struct_size);
+        memcpy(sub->data, ptr, nested->total_struct_size);
+        return (Value){.type = VAL_STRUCT, .instance = sub};
+    }
+    // Fallback: treat as I64
+    return val_i64(*(I64 *)ptr);
+}
+
+// Write a Value into flat buffer at a field decl's offset
+void write_field(StructInstance *inst, Expr *fdecl, Value val) {
+    void *ptr = (char *)inst->data + fdecl->data.decl.field_offset;
+    I32 fsz = fdecl->data.decl.field_size;
+    if (fdecl->data.decl.is_own) {
+        *(void **)ptr = val.type == VAL_STRUCT ? val.instance->data : val.ptr;
+        if (val.type == VAL_STRUCT) { free(val.instance); }
+        return;
+    }
+    switch (val.type) {
+    case VAL_I64:  *(I64 *)ptr = *val.i64; free(val.i64); break;
+    case VAL_U8:   *(U8 *)ptr = *val.u8; free(val.u8); break;
+    case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
+    case VAL_STRUCT:
+        memcpy(ptr, val.instance->data, fsz);
+        free(val.instance->data);
+        free(val.instance);
+        break;
+    case VAL_PTR:  *(void **)ptr = val.ptr; break;
+    default: break;
+    }
+}
+
 // Build a Str StructInstance from C string data (copies data via strndup)
 Value make_str_value(const char *data, I64 cap) {
     StructInstance *inst = malloc(sizeof(StructInstance));
-    inst->struct_name = Str_new("Str");
-    inst->nfields = 2;
-    inst->field_names = malloc(2 * sizeof(Str *));
-    inst->field_names[0] = Str_new("data");
-    inst->field_names[1] = Str_new("cap");
-    inst->field_muts = calloc(2, sizeof(I32));
-    inst->field_muts[0] = 1;
-    inst->field_values = malloc(2 * sizeof(Value));
-    inst->field_values[0] = (Value){.type = VAL_PTR, .ptr = strndup(data, cap)};
-    inst->field_values[1] = val_i64(cap);
+    inst->struct_name = cached_str_name;
+    inst->struct_def = cached_str_def;
+    inst->data = malloc(16); // Str = {char *c_str, I64 cap}
+    *(char **)inst->data = strndup(data, cap);
+    *(I64 *)((char *)inst->data + 8) = cap;
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
 // Build a Str StructInstance taking ownership of buffer (no copy)
 Value make_str_value_own(char *data, I64 cap) {
     StructInstance *inst = malloc(sizeof(StructInstance));
-    inst->struct_name = Str_new("Str");
-    inst->nfields = 2;
-    inst->field_names = malloc(2 * sizeof(Str *));
-    inst->field_names[0] = Str_new("data");
-    inst->field_names[1] = Str_new("cap");
-    inst->field_muts = calloc(2, sizeof(I32));
-    inst->field_muts[0] = 1;
-    inst->field_values = malloc(2 * sizeof(Value));
-    inst->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
-    inst->field_values[1] = val_i64(cap);
+    inst->struct_name = cached_str_name;
+    inst->struct_def = cached_str_def;
+    inst->data = malloc(16);
+    *(char **)inst->data = data;
+    *(I64 *)((char *)inst->data + 8) = cap;
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
 // Extract a C Str view from a Str StructInstance (stack-local, don't free)
 Str str_view(Value v) {
-    return (Str){
-        .c_str = (char *)v.instance->field_values[0].ptr,
-        .cap = *v.instance->field_values[1].i64
-    };
+    return *(Str *)v.instance->data;
 }
 
 // Deep-clone a Value (for payload enum operations and general use)
@@ -137,22 +202,17 @@ Value clone_value(Value v) {
                                     clone_value(v.enum_inst->payload));
     case VAL_STRUCT: {
         StructInstance *src = v.instance;
-        // Str needs deep copy of data buffer (was Str_clone before VAL_STR removal)
-        if (Str_eq_c(src->struct_name, "Str")) {
-            Str sv = str_view(v);
-            return make_str_value(sv.c_str, sv.cap);
-        }
         StructInstance *dst = malloc(sizeof(StructInstance));
-        dst->struct_name = Str_clone(src->struct_name);
-        dst->nfields = src->nfields;
-        dst->field_names = malloc(src->nfields * sizeof(Str *));
-        for (I32 i = 0; i < src->nfields; i++)
-            dst->field_names[i] = Str_clone(src->field_names[i]);
-        dst->field_muts = malloc(src->nfields * sizeof(I32));
-        memcpy(dst->field_muts, src->field_muts, src->nfields * sizeof(I32));
-        dst->field_values = malloc(src->nfields * sizeof(Value));
-        for (I32 i = 0; i < src->nfields; i++)
-            dst->field_values[i] = clone_value(src->field_values[i]);
+        dst->struct_name = src->struct_name; // borrowed
+        dst->struct_def = src->struct_def;
+        I32 sz = src->struct_def->total_struct_size;
+        dst->data = malloc(sz);
+        memcpy(dst->data, src->data, sz);
+        // Deep-clone Str's data pointer
+        if (Str_eq_c(src->struct_name, "Str")) {
+            Str *s = (Str *)src->data;
+            *(char **)dst->data = strndup(s->c_str, s->cap);
+        }
         return (Value){.type = VAL_STRUCT, .instance = dst};
     }
     case VAL_PTR:
@@ -344,32 +404,24 @@ Value eval_call(Scope *scope, Expr *e) {
         Expr *sdef = fn_cell->val.func;
         Expr *body = expr_child(sdef, 0);
 
-        I32 nfields = 0;
-        for (I32 i = 0; i < body->children.count; i++)
-            if (!expr_child(body, i)->data.decl.is_namespace) nfields++;
         StructInstance *inst = malloc(sizeof(StructInstance));
-        inst->struct_name = name;
-        inst->nfields = nfields;
-        inst->field_names = malloc(nfields * sizeof(Str *));
-        inst->field_muts = malloc(nfields * sizeof(I32));
-        inst->field_values = malloc(nfields * sizeof(Value));
+        inst->struct_name = name;   // borrowed from AST
+        inst->struct_def = sdef;
+        inst->data = calloc(1, sdef->total_struct_size);
         I32 arg_idx = 1;
-        I32 fi = 0;
         for (I32 i = 0; i < body->children.count; i++) {
             Expr *field = expr_child(body, i);
             if (field->data.decl.is_namespace) continue;
-            inst->field_names[fi] = field->data.decl.name;
-            inst->field_muts[fi] = field->data.decl.is_mut;
             Expr *arg = expr_child(e, arg_idx++);
+            Value val;
             if (arg->type == NODE_IDENT) {
-                // Move semantics: struct takes ownership of ident's value
                 Cell *src = scope_get(scope, arg->data.str_val);
-                inst->field_values[fi] = src->val;
+                val = src->val;
                 src->val = val_none();
             } else {
-                inst->field_values[fi] = eval_expr(scope,arg);
+                val = eval_expr(scope, arg);
             }
-            fi++;
+            write_field(inst, field, val);
         }
         return (Value){.type = VAL_STRUCT, .instance = inst};
     }
@@ -483,21 +535,14 @@ Value eval_expr(Scope *scope, Expr *e) {
             expr_error(e, "field access on non-struct");
             exit(1);
         }
-        for (I32 i = 0; i < obj.instance->nfields; i++) {
-            if (Str_eq(obj.instance->field_names[i], fname)) {
-                Value fv = obj.instance->field_values[i];
-                // Clone primitives to avoid shared heap pointers;
-                // structs/ptrs must stay as-is for chained access
-                if (fv.type == VAL_I64 || fv.type == VAL_U8 ||
-                    fv.type == VAL_BOOL)
-                    return clone_value(fv);
-                return fv;
-            }
+        Expr *fdecl = find_field_decl(obj.instance->struct_def, fname);
+        if (!fdecl) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "no field '%s'", fname->c_str);
+            expr_error(e, buf);
+            exit(1);
         }
-        char buf[128];
-        snprintf(buf, sizeof(buf), "no field '%s'", fname->c_str);
-        expr_error(e, buf);
-        exit(1);
+        return read_field(obj.instance, fdecl);
     }
     default:
         char buf[128];
@@ -580,29 +625,31 @@ static void eval_body(Scope *scope, Expr *body) {
             Value val;
             Cell *move_src = NULL;
             if (val_expr->type == NODE_IDENT) {
-                // Move semantics: transfer value from source
                 move_src = scope_get(scope, val_expr->data.str_val);
                 val = move_src->val;
             } else {
-                val = eval_expr(scope,val_expr);
+                val = eval_expr(scope, val_expr);
             }
             Str *fname = stmt->data.str_val;
             if (stmt->is_ns_field) {
-                Value obj = eval_expr(scope,expr_child(stmt, 0));
+                Value obj = eval_expr(scope, expr_child(stmt, 0));
                 Str *sname = obj.type == VAL_STRUCT
                     ? obj.instance->struct_name : expr_child(stmt, 0)->data.str_val;
                 ns_set(sname, fname, val);
                 if (move_src) move_src->val = val_none();
             } else {
-                // Resolve the object to a mutable StructInstance without copying
-                StructInstance *inst = NULL;
+                // Resolve to the flat buffer + struct_def where the field lives
+                void *base = NULL;
+                Expr *cur_sdef = NULL;
                 Expr *obj_expr = expr_child(stmt, 0);
                 if (obj_expr->type == NODE_IDENT) {
                     Cell *cell = scope_get(scope, obj_expr->data.str_val);
-                    if (cell && cell->val.type == VAL_STRUCT) inst = cell->val.instance;
+                    if (cell && cell->val.type == VAL_STRUCT) {
+                        base = cell->val.instance->data;
+                        cur_sdef = cell->val.instance->struct_def;
+                    }
                 } else if (obj_expr->type == NODE_FIELD_ACCESS) {
-                    // Chained: e.g. l1.start.x — resolve l1.start to its StructInstance
-                    // Walk the chain: find root ident, then follow fields
+                    // Chained: e.g. l1.start.x — walk chain to compute offset
                     Expr *chain[32]; I32 depth = 0;
                     Expr *cur = obj_expr;
                     while (cur->type == NODE_FIELD_ACCESS) {
@@ -611,34 +658,47 @@ static void eval_body(Scope *scope, Expr *body) {
                     }
                     Cell *cell = scope_get(scope, cur->data.str_val);
                     if (cell && cell->val.type == VAL_STRUCT) {
-                        inst = cell->val.instance;
+                        base = cell->val.instance->data;
+                        cur_sdef = cell->val.instance->struct_def;
                         for (I32 d = depth - 1; d >= 0; d--) {
-                            Str *fn = chain[d]->data.str_val;
-                            StructInstance *next = NULL;
-                            for (I32 j = 0; j < inst->nfields; j++) {
-                                if (Str_eq(inst->field_names[j], fn) &&
-                                    inst->field_values[j].type == VAL_STRUCT) {
-                                    next = inst->field_values[j].instance;
-                                    break;
-                                }
+                            Expr *fd = find_field_decl(cur_sdef, chain[d]->data.str_val);
+                            if (!fd) { base = NULL; break; }
+                            if (fd->data.decl.is_own) {
+                                base = *(void **)((char *)base + fd->data.decl.field_offset);
+                            } else {
+                                base = (char *)base + fd->data.decl.field_offset;
                             }
-                            inst = next;
-                            if (!inst) break;
+                            cur_sdef = fd->data.decl.field_struct_def;
+                            if (!cur_sdef) { base = NULL; break; }
                         }
                     }
                 }
-                if (!inst) {
+                if (!base || !cur_sdef) {
                     expr_error(stmt, "field assign on non-struct");
                     exit(1);
                 }
-                for (I32 i = 0; i < inst->nfields; i++) {
-                    if (Str_eq(inst->field_names[i], fname)) {
-                        free_value(inst->field_values[i]);
-                        inst->field_values[i] = val;
-                        if (move_src) move_src->val = val_none();
+                Expr *fdecl = find_field_decl(cur_sdef, fname);
+                void *ptr = (char *)base + fdecl->data.decl.field_offset;
+                // Write value directly at computed address
+                I32 fsz = fdecl->data.decl.field_size;
+                if (fdecl->data.decl.is_own) {
+                    *(void **)ptr = val.type == VAL_STRUCT ? val.instance->data : val.ptr;
+                    if (val.type == VAL_STRUCT) free(val.instance);
+                } else {
+                    switch (val.type) {
+                    case VAL_I64:  *(I64 *)ptr = *val.i64; free(val.i64); break;
+                    case VAL_U8:   *(U8 *)ptr = *val.u8; free(val.u8); break;
+                    case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
+                    case VAL_STRUCT:
+                        memcpy(ptr, val.instance->data, fsz);
+                        free(val.instance->data);
+                        free(val.instance);
                         break;
+                    case VAL_PTR: *(void **)ptr = val.ptr; break;
+                    default: break;
                     }
                 }
+                if (move_src) move_src->val = val_none();
             }
             break;
         }
@@ -708,7 +768,14 @@ void interpreter_init_ns(Scope *global, Expr *program) {
         if (stmt->type == NODE_DECL && (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
                                         expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
             Str *sname = stmt->data.decl.name;
-            Expr *body = expr_child(expr_child(stmt, 0), 0);
+            Expr *sdef = expr_child(stmt, 0);
+            // Cache struct defs for C-side construction
+            if (sdef->type == NODE_STRUCT_DEF) {
+                if (Str_eq_c(sname, "Str"))   { cached_str_def = sdef; cached_str_name = sname; }
+                if (Str_eq_c(sname, "Array")) { cached_array_def = sdef; cached_array_name = sname; }
+                if (Str_eq_c(sname, "Vec"))   { cached_vec_def = sdef; cached_vec_name = sname; }
+            }
+            Expr *body = expr_child(sdef, 0);
             for (I32 j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
                 if (field->data.decl.is_namespace) {
@@ -762,17 +829,10 @@ static void value_to_buf(void *dest, Value v, Str *type_name) {
     if (Str_eq_c(type_name, "I64"))       { memcpy(dest, v.i64, sizeof(til_I64)); free(v.i64); }
     else if (Str_eq_c(type_name, "U8"))   { memcpy(dest, v.u8, sizeof(til_U8)); free(v.u8); }
     else if (Str_eq_c(type_name, "Bool")) { memcpy(dest, v.boolean, sizeof(til_Bool)); free(v.boolean); }
-    else if (Str_eq_c(type_name, "Str")) {
-        Str flat = str_view(v);
-        memcpy(dest, &flat, sizeof(Str));
-        // Free StructInstance shell but not the data pointer (now in buffer)
-        free(v.instance->field_names[0]);
-        free(v.instance->field_names[1]);
-        free(v.instance->field_names);
-        free(v.instance->field_muts);
-        free_value(v.instance->field_values[1]); // free the I64 cap
-        free(v.instance->field_values);
-        Str_delete(v.instance->struct_name);
+    else if (v.type == VAL_STRUCT) {
+        I32 sz = v.instance->struct_def->total_struct_size;
+        memcpy(dest, v.instance->data, sz);
+        free(v.instance->data);
         free(v.instance);
     }
 }
@@ -785,23 +845,18 @@ static Value build_argv_array(I32 argc, char **argv, Str *elem_type) {
         value_to_buf((char *)data + i * esz, v, elem_type);
     }
     StructInstance *inst = malloc(sizeof(StructInstance));
-    inst->struct_name = Str_new("Array");
-    inst->nfields = 4;
-    inst->field_names = malloc(4 * sizeof(Str *));
-    inst->field_names[0] = Str_new("data");
-    inst->field_names[1] = Str_new("cap");
-    inst->field_names[2] = Str_new("elem_size");
-    inst->field_names[3] = Str_new("elem_type");
-    inst->field_muts = malloc(4 * sizeof(I32));
-    inst->field_muts[0] = 1;
-    inst->field_muts[1] = 0;
-    inst->field_muts[2] = 0;
-    inst->field_muts[3] = 0;
-    inst->field_values = malloc(4 * sizeof(Value));
-    inst->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
-    inst->field_values[1] = val_i64(argc);
-    inst->field_values[2] = val_i64(esz);
-    inst->field_values[3] = make_str_value(elem_type->c_str, elem_type->cap);
+    inst->struct_name = cached_array_name;
+    inst->struct_def = cached_array_def;
+    inst->data = calloc(1, cached_array_def->total_struct_size);
+    // Write fields: data, cap, elem_size, elem_type
+    Str fn_data = {.c_str = "data", .cap = 4};
+    Str fn_cap = {.c_str = "cap", .cap = 3};
+    Str fn_esz = {.c_str = "elem_size", .cap = 9};
+    Str fn_et = {.c_str = "elem_type", .cap = 9};
+    write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
+    write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_i64(argc));
+    write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_i64(esz));
+    write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value(elem_type->c_str, elem_type->cap));
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 

@@ -67,6 +67,9 @@ struct Expr {
             bool is_namespace;     // true for fields after namespace: in a struct
             bool is_ref;           // true for ref declarations (borrowed, no delete)
             bool is_own;           // true for own field declarations (heap pointer)
+            I32 field_offset;      // byte offset in flat struct layout (set by initer)
+            I32 field_size;        // byte size of this field in flat layout
+            Expr *field_struct_def; // for inline struct fields: nested struct's NODE_STRUCT_DEF
         } decl;
         struct {                    // for FUNC_DEF
             FuncType func_type;
@@ -87,6 +90,7 @@ struct Expr {
     bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
     bool is_ext;                    // NODE_STRUCT_DEF: externally-implemented struct
     bool is_core;                   // declaration came from core.til
+    I32 total_struct_size;          // NODE_STRUCT_DEF: total byte size of flat buffer
     I32 variadic_index;             // NODE_FCALL: index of first variadic arg in children (-1 if none)
     I32 variadic_count;             // NODE_FCALL: number of variadic args
     Vec children;                   // Vec of Expr* child pointers

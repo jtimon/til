@@ -183,9 +183,7 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
     }
     Cell *cell = scope_get(s, expr_child(e, 1)->data.str_val);
     if (cell->val.type == VAL_STRUCT && cell->val.instance) {
-        til_free(cell->val.instance->field_names);
-        til_free(cell->val.instance->field_muts);
-        til_free(cell->val.instance->field_values);
+        til_free(cell->val.instance->data);
         til_free(cell->val.instance);
     } else if (cell->val.type == VAL_ENUM && cell->val.enum_inst) {
         Value payload = cell->val.enum_inst->payload;
@@ -289,7 +287,7 @@ static void *val_raw_ptr(Value v) {
         case VAL_I64:    return v.i64;
         case VAL_U8:     return v.u8;
         case VAL_BOOL:   return v.boolean;
-        case VAL_STRUCT: return v.instance;
+        case VAL_STRUCT: return v.instance->data;
         case VAL_PTR:    return v.ptr;
         default:         return NULL;
     }
@@ -356,9 +354,10 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
         void *src = val_raw_ptr(elem);
         if (src) {
             if (elem.type == VAL_STRUCT && Str_eq_c(elem.instance->struct_name, "Str")) {
-                Str flat = str_view(elem);
-                flat.c_str = strndup(flat.c_str, flat.cap);
-                memcpy((char *)data + i * elem_size, &flat, elem_size);
+                // Deep-copy Str: copy flat bytes then strndup the data pointer
+                memcpy((char *)data + i * elem_size, src, elem_size);
+                Str *sp = (Str *)((char *)data + i * elem_size);
+                sp->c_str = strndup(sp->c_str, sp->cap);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
             }
@@ -367,20 +366,17 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
 
     // Build Array struct: {data, cap, elem_size, elem_type}
     StructInstance *si = malloc(sizeof(StructInstance));
-    si->struct_name = Str_new("Array");
-    si->nfields = 4;
-    si->field_names = malloc(4 * sizeof(Str *));
-    si->field_muts = calloc(4, sizeof(I32));
-    si->field_muts[0] = 1; // data is mut
-    si->field_values = malloc(4 * sizeof(Value));
-    si->field_names[0] = Str_new("data");
-    si->field_names[1] = Str_new("cap");
-    si->field_names[2] = Str_new("elem_size");
-    si->field_names[3] = Str_new("elem_type");
-    si->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
-    si->field_values[1] = val_i64(count);
-    si->field_values[2] = val_i64(elem_size);
-    si->field_values[3] = make_str_value(type_name->c_str, type_name->cap);
+    si->struct_name = cached_array_name;
+    si->struct_def = cached_array_def;
+    si->data = calloc(1, cached_array_def->total_struct_size);
+    Str fn_data = {.c_str = "data", .cap = 4};
+    Str fn_cap = {.c_str = "cap", .cap = 3};
+    Str fn_esz = {.c_str = "elem_size", .cap = 9};
+    Str fn_et = {.c_str = "elem_type", .cap = 9};
+    write_field(si, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
+    write_field(si, find_field_decl(cached_array_def, &fn_cap), val_i64(count));
+    write_field(si, find_field_decl(cached_array_def, &fn_esz), val_i64(elem_size));
+    write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value(type_name->c_str, type_name->cap));
 
     r->type = VAL_STRUCT;
     r->instance = si;
@@ -406,9 +402,9 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
         void *src = val_raw_ptr(elem);
         if (src) {
             if (elem.type == VAL_STRUCT && Str_eq_c(elem.instance->struct_name, "Str")) {
-                Str flat = str_view(elem);
-                flat.c_str = strndup(flat.c_str, flat.cap);
-                memcpy((char *)data + i * elem_size, &flat, elem_size);
+                memcpy((char *)data + i * elem_size, src, elem_size);
+                Str *sp = (Str *)((char *)data + i * elem_size);
+                sp->c_str = strndup(sp->c_str, sp->cap);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
             }
@@ -417,24 +413,19 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
 
     // Build Vec struct: {data, count, cap, elem_size, elem_type}
     StructInstance *si = malloc(sizeof(StructInstance));
-    si->struct_name = Str_new("Vec");
-    si->nfields = 5;
-    si->field_names = malloc(5 * sizeof(Str *));
-    si->field_muts = calloc(5, sizeof(I32));
-    si->field_muts[0] = 1; // data is mut
-    si->field_muts[1] = 1; // count is mut
-    si->field_muts[2] = 1; // cap is mut
-    si->field_values = malloc(5 * sizeof(Value));
-    si->field_names[0] = Str_new("data");
-    si->field_names[1] = Str_new("count");
-    si->field_names[2] = Str_new("cap");
-    si->field_names[3] = Str_new("elem_size");
-    si->field_names[4] = Str_new("elem_type");
-    si->field_values[0] = (Value){.type = VAL_PTR, .ptr = data};
-    si->field_values[1] = val_i64(count);
-    si->field_values[2] = val_i64(cap);
-    si->field_values[3] = val_i64(elem_size);
-    si->field_values[4] = make_str_value(type_name->c_str, type_name->cap);
+    si->struct_name = cached_vec_name;
+    si->struct_def = cached_vec_def;
+    si->data = calloc(1, cached_vec_def->total_struct_size);
+    Str fn_data = {.c_str = "data", .cap = 4};
+    Str fn_count = {.c_str = "count", .cap = 5};
+    Str fn_cap = {.c_str = "cap", .cap = 3};
+    Str fn_esz = {.c_str = "elem_size", .cap = 9};
+    Str fn_et = {.c_str = "elem_type", .cap = 9};
+    write_field(si, find_field_decl(cached_vec_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
+    write_field(si, find_field_decl(cached_vec_def, &fn_count), val_i64(count));
+    write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_i64(cap));
+    write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_i64(elem_size));
+    write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value(type_name->c_str, type_name->cap));
 
     r->type = VAL_STRUCT;
     r->instance = si;
@@ -450,14 +441,7 @@ static void *val_to_ptr(Value v) {
         case VAL_I64:    return v.i64;
         case VAL_U8:     return v.u8;
         case VAL_BOOL:   return v.boolean;
-        case VAL_STRUCT:
-            // Str StructInstance → flat C Str for memcpy into array/vec buffers
-            if (Str_eq_c(v.instance->struct_name, "Str")) {
-                static Str flat;
-                flat = str_view(v);
-                return &flat;
-            }
-            return v.instance;
+        case VAL_STRUCT: return v.instance->data;
         default:         return NULL;
     }
 }
@@ -685,11 +669,12 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             for (I32 i = 0; i < nargs; i++) {
                 Value v = eval_expr(scope, expr_child(e, i + 1));
                 switch (v.type) {
-                    case VAL_I64:  args[i] = v.i64; break;
-                    case VAL_U8:   args[i] = v.u8; break;
-                    case VAL_BOOL: args[i] = v.boolean; break;
-                    case VAL_PTR:  args[i] = v.ptr; break;
-                    default:       args[i] = NULL; break;
+                    case VAL_I64:    args[i] = v.i64; break;
+                    case VAL_U8:     args[i] = v.u8; break;
+                    case VAL_BOOL:   args[i] = v.boolean; break;
+                    case VAL_PTR:    args[i] = v.ptr; break;
+                    case VAL_STRUCT: args[i] = v.instance->data; break;
+                    default:         args[i] = NULL; break;
                 }
             }
             void *raw = NULL;
@@ -703,8 +688,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             if (!fe->return_type) {
                 *result = val_none();
             } else if (Str_eq_c(fe->return_type, "Str")) {
-                til_Str *ts = (til_Str *)raw;
-                *result = make_str_value_own((char *)ts->data, ts->cap);
+                Str *sp = (Str *)raw;
+                *result = make_str_value_own(sp->c_str, sp->cap);
             } else if (Str_eq_c(fe->return_type, "I64")) {
                 *result = (Value){.type = VAL_I64, .i64 = (til_I64 *)raw};
             } else if (Str_eq_c(fe->return_type, "U8")) {

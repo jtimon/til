@@ -79,6 +79,108 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     return TIL_TYPE_UNKNOWN;
 }
 
+// --- Flat struct layout computation ---
+
+static I32 align_up(I32 offset, I32 align) {
+    return (offset + align - 1) & ~(align - 1);
+}
+
+// Compute field offsets and total size for a struct def.
+// Recursive: if a field is an inline struct, compute its layout first.
+static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
+    if (struct_def->total_struct_size > 0) return; // already computed
+    if (struct_def->is_ext) return; // ext_struct — no fields to compute
+
+    Expr *body = expr_child(struct_def, 0);
+    I32 offset = 0;
+    I32 max_align = 1;
+
+    for (I32 i = 0; i < body->children.count; i++) {
+        Expr *field = expr_child(body, i);
+        if (field->type != NODE_DECL || field->data.decl.is_namespace) continue;
+
+        I32 fsz, falign;
+
+        if (field->data.decl.is_own) {
+            // own fields are pointers
+            fsz = 8; falign = 8;
+            // Resolve the pointed-to struct for field access
+            Str *ftype = field->data.decl.explicit_type;
+            if (!ftype && field->children.count > 0) {
+                Expr *def_val = expr_child(field, 0);
+                if (def_val->type == NODE_FCALL && def_val->children.count > 0 &&
+                    expr_child(def_val, 0)->type == NODE_IDENT)
+                    ftype = expr_child(def_val, 0)->data.str_val;
+                if (ftype) field->data.decl.explicit_type = ftype;
+            }
+            if (ftype && !Str_eq_c(ftype, "I64") && !Str_eq_c(ftype, "U8") && !Str_eq_c(ftype, "Bool")) {
+                Expr *nested_def = tscope_get_struct(scope, ftype);
+                if (nested_def && !nested_def->is_ext) {
+                    compute_struct_layout(nested_def, scope);
+                    field->data.decl.field_struct_def = nested_def;
+                }
+            }
+        } else {
+            // Determine type name
+            Str *ftype = field->data.decl.explicit_type;
+            if (!ftype && field->children.count > 0) {
+                Expr *def_val = expr_child(field, 0);
+                if (def_val->type == NODE_LITERAL_NUM) ftype = Str_new("I64");
+                else if (def_val->type == NODE_LITERAL_STR) ftype = Str_new("Str");
+                else if (def_val->type == NODE_LITERAL_BOOL) ftype = Str_new("Bool");
+                else if (def_val->struct_name) ftype = def_val->struct_name;
+                // FCALL default (e.g. Point()): callee ident is the struct name
+                else if (def_val->type == NODE_FCALL && def_val->children.count > 0 &&
+                         expr_child(def_val, 0)->type == NODE_IDENT)
+                    ftype = expr_child(def_val, 0)->data.str_val;
+                // Store resolved type for interpreter's read_field
+                if (ftype) field->data.decl.explicit_type = ftype;
+            }
+            if (!ftype) { fsz = 8; falign = 8; } // fallback
+            else if (Str_eq_c(ftype, "I64"))  { fsz = 8; falign = 8; }
+            else if (Str_eq_c(ftype, "U8"))   { fsz = 1; falign = 1; }
+            else if (Str_eq_c(ftype, "Bool")) { fsz = 1; falign = 1; }
+            else {
+                // Inline struct field — recursively compute its layout
+                Expr *nested_def = tscope_get_struct(scope, ftype);
+                if (nested_def) {
+                    compute_struct_layout(nested_def, scope);
+                    fsz = nested_def->total_struct_size;
+                    falign = 8; // structs are 8-aligned
+                    field->data.decl.field_struct_def = nested_def;
+                } else {
+                    fsz = 8; falign = 8; // unknown — treat as pointer
+                }
+            }
+        }
+
+        offset = align_up(offset, falign);
+        field->data.decl.field_offset = offset;
+        field->data.decl.field_size = fsz;
+        if (falign > max_align) max_align = falign;
+        offset += fsz;
+    }
+
+    struct_def->total_struct_size = align_up(offset, max_align);
+    if (struct_def->total_struct_size == 0)
+        struct_def->total_struct_size = 1; // empty structs need at least 1 byte
+}
+
+static void compute_all_struct_layouts(Expr *program, TypeScope *scope) {
+    for (I32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->type != NODE_DECL) continue;
+        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
+
+        Str *sname = stmt->data.decl.name;
+        if (Str_eq_c(sname, "StructDef") ||
+            Str_eq_c(sname, "FunctionDef") ||
+            Str_eq_c(sname, "Dynamic")) continue;
+
+        compute_struct_layout(expr_child(stmt, 0), scope);
+    }
+}
+
 // --- Init phase: pre-scan top-level declarations ---
 
 I32 init_declarations(Expr *program, TypeScope *scope) {
@@ -934,6 +1036,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         expr_add_child(body, decl);
     }
+
+    // Pass 1.92: compute flat struct layout (field offsets and sizes)
+    compute_all_struct_layouts(program, scope);
 
     // Pass 1.95: auto-generate comparison methods from cmp
     // Any struct/enum with cmp gets: eq, neq, lt, gt, lte, gte (if missing)
