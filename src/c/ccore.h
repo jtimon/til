@@ -1,6 +1,7 @@
 #ifndef CCORE_H
 #define CCORE_H
 
+#include <stdbool.h>
 #include "str.h"
 
 // --- I64 ---
@@ -45,7 +46,7 @@ void U8_delete(U8 *v);
 
 // --- Bool ---
 
-typedef int Bool;
+typedef bool Bool;
 
 Bool Bool_eq(Bool a, Bool b);
 Bool Bool_and(Bool a, Bool b);
