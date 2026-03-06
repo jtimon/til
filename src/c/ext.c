@@ -105,11 +105,14 @@ til_Bool *til_cli_parse_bool(const char *s) {
 // For the interpreter, dispatch.c has its own handlers using Str directly.
 
 til_Str *til_readfile(til_Str *path) {
-    FILE *f = fopen((char *)path->data, "rb");
+    char *p = strndup((char *)path->data, path->cap);
+    FILE *f = fopen(p, "rb");
     if (!f) {
-        fprintf(stderr, "readfile: could not open '%.*s'\n", (int)path->cap, (char *)path->data);
+        fprintf(stderr, "readfile: could not open '%s'\n", p);
+        free(p);
         exit(1);
     }
+    free(p);
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
@@ -123,21 +126,26 @@ til_Str *til_readfile(til_Str *path) {
 }
 
 void til_writefile(til_Str *path, til_Str *content) {
-    FILE *f = fopen((char *)path->data, "wb");
+    char *p = strndup((char *)path->data, path->cap);
+    FILE *f = fopen(p, "wb");
     if (!f) {
-        fprintf(stderr, "writefile: could not open '%.*s'\n", (int)path->cap, (char *)path->data);
+        fprintf(stderr, "writefile: could not open '%s'\n", p);
+        free(p);
         exit(1);
     }
+    free(p);
     fwrite(content->data, 1, content->cap, f);
     fclose(f);
 }
 
 til_I64 *til_spawn_cmd(til_Str *cmd) {
+    char *c = strndup((char *)cmd->data, cmd->cap);
     pid_t pid = fork();
     if (pid == 0) {
-        execl("/bin/sh", "sh", "-c", (char *)cmd->data, NULL);
+        execl("/bin/sh", "sh", "-c", c, NULL);
         _exit(127);
     }
+    free(c);
     if (pid < 0) {
         fprintf(stderr, "spawn_cmd: fork failed\n");
         exit(1);
@@ -158,8 +166,11 @@ void til_sleep(til_I64 *ms) {
 }
 
 til_I64 *til_file_mtime(til_Str *path) {
+    char *p = strndup((char *)path->data, path->cap);
     struct stat st;
-    if (stat((char *)path->data, &st) != 0) return I64_new(-1);
+    int rc = stat(p, &st);
+    free(p);
+    if (rc != 0) return I64_new(-1);
     return I64_new((I64)st.st_mtime);
 }
 

@@ -495,11 +495,14 @@ static Bool h_memmove(Scope *s, Expr *e, Value *r) {
 static Bool h_readfile(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     Str sv = str_view(path);
-    FILE *f = fopen(sv.c_str, "rb");
+    char *p = strndup(sv.c_str, sv.cap);
+    FILE *f = fopen(p, "rb");
     if (!f) {
-        fprintf(stderr, "readfile: could not open '%.*s'\n", (int)sv.cap, sv.c_str);
+        fprintf(stderr, "readfile: could not open '%s'\n", p);
+        free(p);
         exit(1);
     }
+    free(p);
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
@@ -515,11 +518,14 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
     Value content = eval_expr(s, expr_child(e,2));
     Str pv = str_view(path);
     Str cv = str_view(content);
-    FILE *f = fopen(pv.c_str, "wb");
+    char *p = strndup(pv.c_str, pv.cap);
+    FILE *f = fopen(p, "wb");
     if (!f) {
-        fprintf(stderr, "writefile: could not open '%.*s'\n", (int)pv.cap, pv.c_str);
+        fprintf(stderr, "writefile: could not open '%s'\n", p);
+        free(p);
         exit(1);
     }
+    free(p);
     fwrite(cv.c_str, 1, cv.cap, f);
     fclose(f);
     *r = val_none();
@@ -528,12 +534,14 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
 
 static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
     Value cmd = eval_expr(s, expr_child(e,1));
+    Str sv = str_view(cmd);
+    char *c = strndup(sv.c_str, sv.cap);
     pid_t pid = fork();
     if (pid == 0) {
-        Str sv = str_view(cmd);
-        execl("/bin/sh", "sh", "-c", sv.c_str, NULL);
+        execl("/bin/sh", "sh", "-c", c, NULL);
         _exit(127);
     }
+    free(c);
     if (pid < 0) {
         fprintf(stderr, "spawn_cmd: fork failed\n");
         exit(1);
@@ -561,9 +569,12 @@ static Bool h_sleep(Scope *s, Expr *e, Value *r) {
 
 static Bool h_file_mtime(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
-    struct stat st;
     Str sv = str_view(path);
-    if (stat(sv.c_str, &st) != 0) { *r = val_i64(-1); return 1; }
+    char *p = strndup(sv.c_str, sv.cap);
+    struct stat st;
+    int rc = stat(p, &st);
+    free(p);
+    if (rc != 0) { *r = val_i64(-1); return 1; }
     *r = val_i64((I64)st.st_mtime);
     return 1;
 }

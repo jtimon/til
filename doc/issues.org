@@ -319,24 +319,27 @@
    Also added C equivalents in str.c/str.h for potential codegen use.
    Tests in src/test/strings.til cover all new utilities.
 
-** Test runner design
-   A til program (src/tests.til or similar) that:
+** DONE Sequential test runner (src/tests.til)
+   Replaced tests.sh with src/tests.til. Runs via `make test`
+   (`bin/ctil interpret src/tests.til`). Sequential execution,
+   4 test sections:
 
-   1. Collects test file paths (src/test/*.til)
-   2. For each test, spawns both interpret and run modes in parallel
-   3. Polls for completion, collects exit codes and output
-   4. Compares outputs between modes (interpret vs run must match)
-   5. Reports pass/fail with diffs on mismatch, timing per test
-   6. Configurable parallelism (e.g. 4-8 concurrent processes)
+   1. Normal tests: 23 test files, both interpret and run modes, exit 0
+   2. FFI test: ext_module.til, both modes, output comparison
+   3. Typer errors: count "type error:" occurrences (40 expected)
+   4. CLI arg tests: 12 cases with output and exit code checks
 
-   The old rstil runner used .out files for expected output. Simpler
-   approach for ctil: just assert both modes produce identical output
-   and exit code 0 (or expected non-zero for error tests).
+   Also fixed a bug: spawn_cmd/readfile/writefile/file_mtime passed
+   non-null-terminated til Str data to C APIs (execl, fopen, stat).
+   Fixed with strndup in both ext.c and dispatch.c.
 
-** Why this blocks self-hosting
-   The self-hosted compiler needs to pass the same tests as the C
-   implementation. A proper test runner that compares outputs across
-   modes is essential for validating correctness during the rewrite.
+** Phase 2: Parallel execution and timing
+   Spawn interpret + run modes in parallel per test file.
+   Report timing per test. Configurable parallelism.
+
+** Phase 3: Output comparison across modes
+   Compare interpreter vs codegen output for each test.
+   Report diffs on mismatch.
 
 * OPEN #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #1 #2 #5 #8 #13 #15 #16 #17
