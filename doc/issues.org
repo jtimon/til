@@ -69,19 +69,21 @@
   (output diffing, timing, better reporting), and serve as a real-world
   exercise for Vec, Str, and the new pointer primitives.
 
-** System primitives needed
-   New ext_func/ext_proc in core.til + ext.c + dispatch.c:
+** DONE System primitives
+   Added ext_func/ext_proc in core.til + ext.c + dispatch.c + ccodegen.c:
 
+   - run_cmd(mut output: Str, args: ..Str) returns I64 — popen, capture output
    - spawn_cmd(cmd: Str) returns I64 — fork+exec, return child PID
-   - check_cmd_status(pid: I64) returns I64 — non-blocking waitpid,
-     returns exit code or -1 if still running
-   - sleep(ms: I64) — millisecond sleep for poll loops
-   - run_cmd(cmd: Str) returns I64 — synchronous popen, captures stdout
-     into a Str (via mut param or return)
+   - check_cmd_status(pid: I64) returns I64 — non-blocking waitpid
+   - sleep(ms: I64) — millisecond sleep
    - readfile(path: Str) returns Str — read file contents
    - writefile(path: Str, content: Str) — write file contents
+   - file_mtime(path: Str) returns I64 — file modification time, -1 if missing
+   - clock_ms() returns I64 — monotonic clock in milliseconds
+   - wait_cmd(pid: I64) returns I64 — pure-til helper (poll + sleep loop)
 
-   Also useful: clock_ms() for timing, getenv(name: Str) returns Str.
+   run_cmd special-cased in ccodegen (va_args like println).
+   ext.c uses til_Str for codegen; dispatch.c uses Str for interpreter.
 
 ** Test runner design
    A til program (src/tests.til or similar) that:

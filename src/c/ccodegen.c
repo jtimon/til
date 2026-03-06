@@ -131,6 +131,16 @@ static void emit_expr(FILE *f, Expr *e, int depth) {
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
             fprintf(f, ")");
+        } else if (Str_eq_c(name, "run_cmd")) {
+            // run_cmd(mut output, arg1, arg2, ...) → til_run_cmd(output, nargs, arg1, arg2, ...)
+            fprintf(f, "til_run_cmd(");
+            emit_as_ptr(f, expr_child(e, 1), depth); // output Str*
+            fprintf(f, ", %d", e->children.count - 2); // nargs (excluding output)
+            for (int i = 2; i < e->children.count; i++) {
+                fprintf(f, ", ");
+                emit_as_ptr(f, expr_child(e, i), depth);
+            }
+            fprintf(f, ")");
         } else if (Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
                    Str_eq_c(name, "dyn_call1_ret") || Str_eq_c(name, "dyn_call2_ret")) {
             // dyn_call*(type_name, "method", val, ...) → til_dyn_call_method(type_name, val, ...)

@@ -2,6 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <time.h>
 
 void til_free(void *ptr) { free(ptr); }
 void til_exit(til_I64 *code) { exit((int)*code); }
@@ -95,5 +100,149 @@ til_Bool *til_cli_parse_bool(const char *s) {
     if (strcmp(s, "false") == 0) return Bool_new(0);
     fprintf(stderr, "error: cannot parse '%s' as Bool (expected true/false)\n", s);
     exit(1);
+}
+
+// --- System primitives ---
+// These use til_Str (codegen layout: { U8 *data, I64 cap }) rather than
+// Str (interpreter layout: { char *c_str, int cap }).
+// For the interpreter, dispatch.c has its own handlers using Str directly.
+
+til_Str *til_readfile(til_Str *path) {
+    FILE *f = fopen((char *)path->data, "rb");
+    if (!f) {
+        fprintf(stderr, "readfile: could not open '%.*s'\n", (int)path->cap, (char *)path->data);
+        exit(1);
+    }
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *buf = malloc(len);
+    fread(buf, 1, len, f);
+    fclose(f);
+    til_Str *s = malloc(sizeof(til_Str));
+    s->data = (til_U8 *)buf;
+    s->cap = len;
+    return s;
+}
+
+void til_writefile(til_Str *path, til_Str *content) {
+    FILE *f = fopen((char *)path->data, "wb");
+    if (!f) {
+        fprintf(stderr, "writefile: could not open '%.*s'\n", (int)path->cap, (char *)path->data);
+        exit(1);
+    }
+    fwrite(content->data, 1, content->cap, f);
+    fclose(f);
+}
+
+til_I64 *til_spawn_cmd(til_Str *cmd) {
+    pid_t pid = fork();
+    if (pid == 0) {
+        execl("/bin/sh", "sh", "-c", (char *)cmd->data, NULL);
+        _exit(127);
+    }
+    if (pid < 0) {
+        fprintf(stderr, "spawn_cmd: fork failed\n");
+        exit(1);
+    }
+    return I64_new((I64)pid);
+}
+
+til_I64 *til_check_cmd_status(til_I64 *pid) {
+    int status;
+    pid_t result = waitpid((pid_t)*pid, &status, WNOHANG);
+    if (result == 0) return I64_new(-1);
+    if (WIFEXITED(status)) return I64_new(WEXITSTATUS(status));
+    return I64_new(-1);
+}
+
+void til_sleep(til_I64 *ms) {
+    usleep((useconds_t)(*ms * 1000));
+}
+
+til_I64 *til_file_mtime(til_Str *path) {
+    struct stat st;
+    if (stat((char *)path->data, &st) != 0) return I64_new(-1);
+    return I64_new((I64)st.st_mtime);
+}
+
+til_I64 *til_clock_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return I64_new((I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000);
+}
+
+// run_cmd: codegen entry point
+// til_run_cmd(output_str, nargs, str1, str2, ...)
+til_I64 *til_run_cmd(til_Str *output_str, int nargs, ...) {
+    til_Str *args[64];
+    va_list ap;
+    va_start(ap, nargs);
+    for (int i = 0; i < nargs && i < 64; i++)
+        args[i] = va_arg(ap, til_Str *);
+    va_end(ap);
+
+    if (nargs <= 0) {
+        if (output_str->data) free(output_str->data);
+        output_str->data = (til_U8 *)strdup("");
+        output_str->cap = 0;
+        return I64_new(-1);
+    }
+
+    // Build command string with quoted args
+    char cmd_buf[8192];
+    size_t cmd_len = 0;
+    for (int i = 0; i < nargs; i++) {
+        if (i > 0) {
+            if (cmd_len < sizeof(cmd_buf) - 1) cmd_buf[cmd_len++] = ' ';
+            if (cmd_len < sizeof(cmd_buf) - 1) cmd_buf[cmd_len++] = '\'';
+        }
+        char *s = (char *)args[i]->data;
+        int slen = (int)args[i]->cap;
+        if (i == 0) {
+            if (cmd_len + (size_t)slen < sizeof(cmd_buf) - 1) {
+                memcpy(cmd_buf + cmd_len, s, slen);
+                cmd_len += slen;
+            }
+        } else {
+            for (int j = 0; j < slen && cmd_len < sizeof(cmd_buf) - 5; j++) {
+                if (s[j] == '\'') {
+                    cmd_buf[cmd_len++] = '\''; cmd_buf[cmd_len++] = '\\';
+                    cmd_buf[cmd_len++] = '\''; cmd_buf[cmd_len++] = '\'';
+                } else {
+                    cmd_buf[cmd_len++] = s[j];
+                }
+            }
+            if (cmd_len < sizeof(cmd_buf) - 1) cmd_buf[cmd_len++] = '\'';
+        }
+    }
+    cmd_buf[cmd_len] = '\0';
+
+    FILE *f = popen(cmd_buf, "r");
+    if (!f) {
+        if (output_str->data) free(output_str->data);
+        output_str->data = (til_U8 *)strdup("");
+        output_str->cap = 0;
+        return I64_new(-1);
+    }
+
+    size_t buf_size = 65536;
+    char *buf = malloc(buf_size);
+    size_t total = 0;
+    while (total < buf_size - 1) {
+        size_t n = fread(buf + total, 1, buf_size - 1 - total, f);
+        if (n == 0) break;
+        total += n;
+    }
+    buf[total] = '\0';
+    char drain[4096];
+    while (fread(drain, 1, sizeof(drain), f) > 0) {}
+    int status = pclose(f);
+    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
+    if (output_str->data) free(output_str->data);
+    output_str->data = (til_U8 *)buf;
+    output_str->cap = (I64)total;
+    return I64_new(exit_code);
 }
 

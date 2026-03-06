@@ -263,6 +263,24 @@ dyn_call1_ret := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dyn
 dyn_call2_ret := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) returns Dynamic {}
 dyn_has_method := ext_func(type_name: Str, method: Str) returns Bool {}
 
+// System primitives
+run_cmd := ext_proc(mut output: Str, args: ..Str) returns I64 {}
+spawn_cmd := ext_proc(cmd: Str) returns I64 {}
+check_cmd_status := ext_func(pid: I64) returns I64 {}
+sleep := ext_proc(ms: I64) {}
+readfile := ext_func(path: Str) returns Str {}
+writefile := ext_proc(path: Str, content: Str) {}
+file_mtime := ext_func(path: Str) returns I64 {}
+clock_ms := ext_func() returns I64 {}
+
+wait_cmd := proc(pid: I64) returns I64 {
+    while true {
+        status := check_cmd_status(pid)
+        if status.neq(0.sub(1)) { return status }
+        sleep(50)
+    }
+}
+
 Vec := struct {
     own mut data : U8 = 0
     mut count := 0

@@ -80,4 +80,14 @@ til_I64 *til_cli_parse_i64(const char *s);
 til_U8 *til_cli_parse_u8(const char *s);
 til_Bool *til_cli_parse_bool(const char *s);
 
+// System primitives
+til_Str *til_readfile(til_Str *path);
+void til_writefile(til_Str *path, til_Str *content);
+til_I64 *til_spawn_cmd(til_Str *cmd);
+til_I64 *til_check_cmd_status(til_I64 *pid);
+void til_sleep(til_I64 *ms);
+til_I64 *til_file_mtime(til_Str *path);
+til_I64 *til_clock_ms(void);
+til_I64 *til_run_cmd(til_Str *output_str, int nargs, ...);
+
 #endif
