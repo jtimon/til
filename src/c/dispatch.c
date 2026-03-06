@@ -66,8 +66,7 @@ H2(I64_and, I64_and, *a.i64, *b.i64, val_i64)
 H2(I64_or,  I64_or,  *a.i64, *b.i64, val_i64)
 H2(I64_xor, I64_xor, *a.i64, *b.i64, val_i64)
 H2(I64_eq, I64_eq, *a.i64, *b.i64, val_bool)
-H2(I64_lt, I64_lt, *a.i64, *b.i64, val_bool)
-H2(I64_gt, I64_gt, *a.i64, *b.i64, val_bool)
+H2(I64_cmp, I64_cmp, *a.i64, *b.i64, val_i64)
 HCLONE(I64_clone, *v.i64, val_i64)
 HDEL(I64_delete, I64_delete, v.i64)
 
@@ -81,8 +80,7 @@ H2(U8_and, U8_and, *a.u8, *b.u8, val_u8)
 H2(U8_or,  U8_or,  *a.u8, *b.u8, val_u8)
 H2(U8_xor, U8_xor, *a.u8, *b.u8, val_u8)
 H2(U8_eq, U8_eq, *a.u8, *b.u8, val_bool)
-H2(U8_lt, U8_lt, *a.u8, *b.u8, val_bool)
-H2(U8_gt, U8_gt, *a.u8, *b.u8, val_bool)
+H2(U8_cmp, U8_cmp, *a.u8, *b.u8, val_i64)
 H1(U8_to_i64, U8_to_i64, *v.u8, val_i64)
 HCLONE(U8_clone, *v.u8, val_u8)
 HDEL(U8_delete, U8_delete, v.u8)
@@ -579,7 +577,7 @@ static void dispatch_init(void) {
     REG("I64_mul", h_I64_mul); REG("I64_div", h_I64_div);
     REG("I64_mod", h_I64_mod);
     REG("I64_and", h_I64_and); REG("I64_or", h_I64_or); REG("I64_xor", h_I64_xor);
-    REG("I64_eq", h_I64_eq); REG("I64_lt", h_I64_lt); REG("I64_gt", h_I64_gt);
+    REG("I64_eq", h_I64_eq); REG("I64_cmp", h_I64_cmp);
     REG("I64_clone", h_I64_clone);
     REG("I64_delete", h_I64_delete);
 
@@ -588,7 +586,7 @@ static void dispatch_init(void) {
     REG("U8_mul", h_U8_mul); REG("U8_div", h_U8_div);
     REG("U8_mod", h_U8_mod);
     REG("U8_and", h_U8_and); REG("U8_or", h_U8_or); REG("U8_xor", h_U8_xor);
-    REG("U8_eq", h_U8_eq); REG("U8_lt", h_U8_lt); REG("U8_gt", h_U8_gt);
+    REG("U8_eq", h_U8_eq); REG("U8_cmp", h_U8_cmp);
     REG("U8_to_i64", h_U8_to_i64);
     REG("U8_from_i64", h_U8_from_i64);
     REG("U8_from_i64_ext", h_U8_from_i64);

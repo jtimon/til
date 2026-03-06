@@ -21,22 +21,12 @@ U8 : StructDef = ext_struct {
     div := ext_func(a: U8, b: U8) returns U8 {}
     mod := ext_func(a: U8, b: U8) returns U8 {}
     eq := ext_func(a: U8, b: U8) returns Bool {}
-    lt := ext_func(a: U8, b: U8) returns Bool {}
-    gt := ext_func(a: U8, b: U8) returns Bool {}
-    cmp := func(a: U8, b: U8) returns I64 {
-        if a.lt(b) { return 0.sub(1) }
-        if a.gt(b) { return 1 }
-        return 0
-    }
-    lte := func(a: U8, b: U8) returns Bool {
-        return a.lt(b).or(a.eq(b))
-    }
-    gte := func(a: U8, b: U8) returns Bool {
-        return a.gt(b).or(a.eq(b))
-    }
-    neq := func(a: U8, b: U8) returns Bool {
-        return a.eq(b).not()
-    }
+    cmp := ext_func(a: U8, b: U8) returns I64 {}
+    lt := func(a: U8, b: U8) returns Bool { return a.cmp(b).eq(0.sub(1)) }
+    gt := func(a: U8, b: U8) returns Bool { return a.cmp(b).eq(1) }
+    lte := func(a: U8, b: U8) returns Bool { return a.gt(b).not() }
+    gte := func(a: U8, b: U8) returns Bool { return a.lt(b).not() }
+    neq := func(a: U8, b: U8) returns Bool { return a.eq(b).not() }
     and := ext_func(a: U8, b: U8) returns U8 {}
     or := ext_func(a: U8, b: U8) returns U8 {}
     xor := ext_func(a: U8, b: U8) returns U8 {}
@@ -84,25 +74,13 @@ I64 : StructDef = ext_struct {
     div := ext_func(a: I64, b: I64) returns I64 {}
     mod := ext_func(a: I64, b: I64) returns I64 {}
     eq := ext_func(a: I64, b: I64) returns Bool {}
-    lt := ext_func(a: I64, b: I64) returns Bool {}
-    gt := ext_func(a: I64, b: I64) returns Bool {}
-    cmp := func(a: I64, b: I64) returns I64 {
-        if a.lt(b) { return 0.sub(1) }
-        if a.gt(b) { return 1 }
-        return 0
-    }
-    lte := func(a: I64, b: I64) returns Bool {
-        return a.lt(b).or(a.eq(b))
-    }
-    gte := func(a: I64, b: I64) returns Bool {
-        return a.gt(b).or(a.eq(b))
-    }
-    neg := func(a: I64) returns I64 {
-        return 0.sub(a)
-    }
-    neq := func(a: I64, b: I64) returns Bool {
-        return a.eq(b).not()
-    }
+    cmp := ext_func(a: I64, b: I64) returns I64 {}
+    lt := func(a: I64, b: I64) returns Bool { return a.cmp(b).eq(0.sub(1)) }
+    gt := func(a: I64, b: I64) returns Bool { return a.cmp(b).eq(1) }
+    lte := func(a: I64, b: I64) returns Bool { return a.gt(b).not() }
+    gte := func(a: I64, b: I64) returns Bool { return a.lt(b).not() }
+    neq := func(a: I64, b: I64) returns Bool { return a.eq(b).not() }
+    neg := func(a: I64) returns I64 { return 0.sub(a) }
     and := ext_func(a: I64, b: I64) returns I64 {}
     or := ext_func(a: I64, b: I64) returns I64 {}
     xor := ext_func(a: I64, b: I64) returns I64 {}
@@ -122,18 +100,6 @@ Str := struct {
             panic("Str.char_at", "index out of bounds")
         }
         return ptr_add(self.data, i)
-    }
-
-    eq := func(a: Str, b: Str) returns Bool {
-        if a.cap.neq(b.cap) { return false }
-        mut i := 0
-        while i.lt(a.cap) {
-            ref ab : U8 = a.char_at(i)
-            ref bb : U8 = b.char_at(i)
-            if ab.neq(bb) { return false }
-            i = i.add(1)
-        }
-        return true
     }
 
     cmp := func(a: Str, b: Str) returns I64 {
@@ -227,9 +193,12 @@ Str := struct {
         return true
     }
 
-    neq := func(a: Str, b: Str) returns Bool {
-        return a.eq(b).not()
-    }
+    eq := func(a: Str, b: Str) returns Bool { return a.cmp(b).eq(0) }
+    neq := func(a: Str, b: Str) returns Bool { return a.eq(b).not() }
+    lt := func(a: Str, b: Str) returns Bool { return a.cmp(b).eq(0.sub(1)) }
+    gt := func(a: Str, b: Str) returns Bool { return a.cmp(b).eq(1) }
+    lte := func(a: Str, b: Str) returns Bool { return a.gt(b).not() }
+    gte := func(a: Str, b: Str) returns Bool { return a.lt(b).not() }
 
     is_empty := func(self: Str) returns Bool {
         return self.cap.eq(0)

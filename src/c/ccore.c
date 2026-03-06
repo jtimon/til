@@ -15,8 +15,7 @@ I64 I64_or(I64 a, I64 b) { return a | b; }
 I64 I64_xor(I64 a, I64 b) { return a ^ b; }
 
 int I64_eq(I64 a, I64 b) { return a == b; }
-int I64_lt(I64 a, I64 b) { return a < b; }
-int I64_gt(I64 a, I64 b) { return a > b; }
+I64 I64_cmp(I64 a, I64 b) { return a < b ? -1 : (a > b ? 1 : 0); }
 
 Str *I64_to_str(I64 v) {
     char buf[32];
@@ -45,8 +44,7 @@ U8 U8_or(U8 a, U8 b) { return a | b; }
 U8 U8_xor(U8 a, U8 b) { return a ^ b; }
 
 int U8_eq(U8 a, U8 b) { return a == b; }
-int U8_lt(U8 a, U8 b) { return a < b; }
-int U8_gt(U8 a, U8 b) { return a > b; }
+I64 U8_cmp(U8 a, U8 b) { return a < b ? -1 : (a > b ? 1 : 0); }
 
 Str *U8_to_str(U8 v) {
     char buf[4];
