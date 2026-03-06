@@ -5,22 +5,17 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 
-* WIP #20 Dynamic arg narrowing
+* FIXED #20 Dynamic arg narrowing
   Dynamic values can be passed where a concrete type is expected.
   The parameter's declared type provides context, like an explicit
   type annotation on a declaration.
-** FIXED Arg narrowing
-   34.add(vec.get(0)) works: I64.add(a: I64, b: I64) tells us b is I64.
-   Chaining with typed start: 0.add(v.get(0)).add(v.get(1)) works.
-** FIXED Top-level UFCS on Dynamic
-   bv.get(0).and(bv.get(1)) works: and(a: Bool, b: Bool) is unique,
-   first param type narrows the Dynamic receiver.
-** FIXED Arg type checking (was missing entirely)
-   32.add(true) now errors: "argument type mismatch for 'b': expected I64, got Bool"
-   Dynamic args are the exception — they get narrowed instead of rejected.
-** OPEN Namespace UFCS on Dynamic
-   vec.get(0).add(35) does NOT work — can't pick between I64.add, U8.add, etc.
-   Workaround: start chain with typed value: 35.add(vec.get(0))
+  - 34.add(vec.get(0)) works (param type narrows Dynamic arg)
+  - 0.add(v.get(0)).add(v.get(1)) works (typed start, chain continues)
+  - bv.get(0).and(bv.get(1)) works (top-level UFCS, unique func name)
+  - vec.get(0).add(35) errors with suggestion to use ref declaration
+    (namespace UFCS on Dynamic is genuinely ambiguous)
+  Also added arg type checking (was missing entirely):
+  32.add(true) now errors instead of producing garbage.
 
 * OPEN #19 Literal syntax for collection initialization
   :DEPENDENCIES: #18

@@ -171,3 +171,7 @@ and(true, 42)
 // argument type mismatch: user-defined function
 type_test := func(a: I64, b: Bool) returns I64 { return a }
 type_test(1, 2)
+
+// cannot call method on Dynamic value (namespace UFCS ambiguous)
+dyn_vec := vec("I64", 10, 20)
+dyn_bad := dyn_vec.get(0).add(35)

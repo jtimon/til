@@ -217,9 +217,16 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
                         expr_child(e, 1) = instance;
                         goto regular_call;
                     }
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "no method '%s' for type '%s'",
-                             method->c_str, type_name ? type_name->c_str : "unknown");
+                    char buf[256];
+                    if (!type_name && obj->til_type == TIL_TYPE_DYNAMIC) {
+                        snprintf(buf, sizeof(buf),
+                                 "cannot call method '%s' on Dynamic value; "
+                                 "use 'ref x : Type = ...' to declare with an explicit type first",
+                                 method->c_str);
+                    } else {
+                        snprintf(buf, sizeof(buf), "no method '%s' for type '%s'",
+                                 method->c_str, type_name ? type_name->c_str : "unknown");
+                    }
                     type_error(e, buf);
                     e->til_type = TIL_TYPE_UNKNOWN;
                     break;
