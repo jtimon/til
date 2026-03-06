@@ -531,6 +531,19 @@ Value eval_expr(Scope *scope, Expr *e) {
             expr_error(e, buf);
             exit(1);
         }
+        if (obj.type == VAL_PTR) {
+            Expr *obj_expr = expr_child(e, 0);
+            if (obj_expr->struct_name) {
+                Cell *tc = scope_get(scope, obj_expr->struct_name);
+                if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_STRUCT_DEF) {
+                    StructInstance *inst = malloc(sizeof(StructInstance));
+                    inst->struct_name = obj_expr->struct_name;
+                    inst->struct_def = tc->val.func;
+                    inst->data = obj.ptr;
+                    obj = (Value){.type = VAL_STRUCT, .instance = inst};
+                }
+            }
+        }
         if (obj.type != VAL_STRUCT) {
             expr_error(e, "field access on non-struct");
             exit(1);
@@ -592,6 +605,17 @@ static void eval_body(Scope *scope, Expr *body) {
                     else if (Str_eq_c(etype, "Str")) {
                         Str *sp = (Str *)val.ptr;
                         val = make_str_value_own(sp->c_str, sp->cap);
+                    }
+                    else {
+                        // User-defined struct: wrap ptr in borrowed StructInstance
+                        Cell *tc = scope_get(scope, etype);
+                        if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_STRUCT_DEF) {
+                            StructInstance *inst = malloc(sizeof(StructInstance));
+                            inst->struct_name = etype;
+                            inst->struct_def = tc->val.func;
+                            inst->data = val.ptr;
+                            val = (Value){.type = VAL_STRUCT, .instance = inst};
+                        }
                     }
                 }
                 scope_set_owned(scope, stmt->data.decl.name, val);

@@ -69,6 +69,13 @@ run_test("src/test/cmp.til")
 run_test("src/test/ufcs.til")
 run_test("src/test/booleans.til")
 
+// Interpret-only (codegen has simple-enum-in-struct bug)
+ec_lex := run(CTIL.concat(" interpret src/test/lexing.til > /dev/null 2>&1"))
+if ec_lex.neq(0) {
+    println("FAIL (interpret): src/test/lexing.til")
+    fail = 1
+}
+
 // --- Section 2: FFI test (interpret + codegen, check output) ---
 
 ffi_expected := "hello world".concat(NL).concat("hello universe").concat(NL)

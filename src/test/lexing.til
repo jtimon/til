@@ -1,0 +1,509 @@
+mode script
+
+// --- TokenType enum ---
+
+TokenType := enum {
+    Eof,
+    LParen, RParen, LBrace, RBrace, LBracket, RBracket,
+    Comma, Colon, Question, Bang,
+    Minus, Plus, Star, Slash,
+    Dot, DotDot,
+    Eq, EqEq, Neq,
+    Lt, LtEq, Gt, GtEq,
+    ColonEq,
+    Ident, StringTok, Number,
+    KwMode, KwMut, KwOwn, KwRef,
+    KwStruct, KwExtStruct, KwEnum, KwNamespace,
+    KwFunc, KwProc, KwMacro, KwExtFunc, KwExtProc,
+    KwReturns, KwThrows,
+    KwIf, KwElse,
+    KwWhile, KwFor, KwIn,
+    KwSwitch, KwMatch, KwCase, KwDefault,
+    KwReturn, KwThrow, KwCatch,
+    KwBreak, KwContinue, KwDefer,
+    KwTrue, KwFalse,
+    Error,
+}
+
+// --- Token struct ---
+
+Token := struct {
+    type := TokenType.Eof
+    text := ""
+    line := 0
+    col := 0
+}
+
+// --- Character constants ---
+
+CH_NL     := U8.from_i64(10)
+CH_CR     := U8.from_i64(13)
+CH_TAB    := U8.from_i64(9)
+CH_SPACE  := U8.from_i64(32)
+CH_SEMI   := U8.from_i64(59)
+CH_HASH   := U8.from_i64(35)
+CH_SLASH  := U8.from_i64(47)
+CH_STAR   := U8.from_i64(42)
+CH_QUOTE  := U8.from_i64(34)
+CH_BSLASH := U8.from_i64(92)
+CH_DOT    := U8.from_i64(46)
+CH_BANG   := U8.from_i64(33)
+CH_EQ     := U8.from_i64(61)
+CH_LT     := U8.from_i64(60)
+CH_GT     := U8.from_i64(62)
+CH_COLON  := U8.from_i64(58)
+CH_LPAREN := U8.from_i64(40)
+CH_RPAREN := U8.from_i64(41)
+CH_LBRACE := U8.from_i64(123)
+CH_RBRACE := U8.from_i64(125)
+CH_LBRACK := U8.from_i64(91)
+CH_RBRACK := U8.from_i64(93)
+CH_COMMA  := U8.from_i64(44)
+CH_QMARK  := U8.from_i64(63)
+CH_PLUS   := U8.from_i64(43)
+CH_MINUS  := U8.from_i64(45)
+CH_UNDER  := U8.from_i64(95)
+CH_0      := U8.from_i64(48)
+CH_9      := U8.from_i64(57)
+CH_A      := U8.from_i64(65)
+CH_Z      := U8.from_i64(90)
+CH_a      := U8.from_i64(97)
+CH_z      := U8.from_i64(122)
+
+// --- Character helpers ---
+
+is_digit := func(c: U8) returns Bool {
+    return c.gte(CH_0).and(c.lte(CH_9))
+}
+
+is_alpha := func(c: U8) returns Bool {
+    return c.gte(CH_a).and(c.lte(CH_z))
+        .or(c.gte(CH_A).and(c.lte(CH_Z)))
+        .or(c.eq(CH_UNDER))
+}
+
+is_alnum := func(c: U8) returns Bool {
+    return is_alpha(c).or(is_digit(c))
+}
+
+// --- Keyword lookup ---
+
+lookup_keyword := func(word: Str) returns TokenType {
+    if word.eq("mode") { return TokenType.KwMode }
+    if word.eq("mut") { return TokenType.KwMut }
+    if word.eq("own") { return TokenType.KwOwn }
+    if word.eq("ref") { return TokenType.KwRef }
+    if word.eq("struct") { return TokenType.KwStruct }
+    if word.eq("ext_struct") { return TokenType.KwExtStruct }
+    if word.eq("enum") { return TokenType.KwEnum }
+    if word.eq("namespace") { return TokenType.KwNamespace }
+    if word.eq("func") { return TokenType.KwFunc }
+    if word.eq("proc") { return TokenType.KwProc }
+    if word.eq("macro") { return TokenType.KwMacro }
+    if word.eq("ext_func") { return TokenType.KwExtFunc }
+    if word.eq("ext_proc") { return TokenType.KwExtProc }
+    if word.eq("returns") { return TokenType.KwReturns }
+    if word.eq("throws") { return TokenType.KwThrows }
+    if word.eq("if") { return TokenType.KwIf }
+    if word.eq("else") { return TokenType.KwElse }
+    if word.eq("while") { return TokenType.KwWhile }
+    if word.eq("for") { return TokenType.KwFor }
+    if word.eq("in") { return TokenType.KwIn }
+    if word.eq("switch") { return TokenType.KwSwitch }
+    if word.eq("match") { return TokenType.KwMatch }
+    if word.eq("case") { return TokenType.KwCase }
+    if word.eq("default") { return TokenType.KwDefault }
+    if word.eq("return") { return TokenType.KwReturn }
+    if word.eq("throw") { return TokenType.KwThrow }
+    if word.eq("catch") { return TokenType.KwCatch }
+    if word.eq("break") { return TokenType.KwBreak }
+    if word.eq("continue") { return TokenType.KwContinue }
+    if word.eq("defer") { return TokenType.KwDefer }
+    if word.eq("true") { return TokenType.KwTrue }
+    if word.eq("false") { return TokenType.KwFalse }
+    return TokenType.Ident
+}
+
+// --- Tokenizer ---
+
+tokenize := proc(source: Str, path: Str) returns Vec {
+    mut tokens := Vec.new("Token", Token.size())
+    mut pos := 0
+    mut line_num := 1
+    mut line_start := 0
+    src_len := source.len()
+
+    while pos.lt(src_len) {
+        ref c : U8 = source.char_at(pos)
+
+        // Skip whitespace (space, tab, \r, semicolons)
+        if c.eq(CH_SPACE).or(c.eq(CH_TAB)).or(c.eq(CH_CR)).or(c.eq(CH_SEMI)) {
+            pos = pos.add(1)
+            continue
+        }
+        if c.eq(CH_NL) {
+            pos = pos.add(1)
+            line_num = line_num.add(1)
+            line_start = pos
+            continue
+        }
+
+        col := pos.sub(line_start).add(1)
+        start := pos
+
+        // Line comments: // or #
+        if c.eq(CH_HASH) {
+            while pos.lt(src_len) {
+                if source.char_at(pos).eq(CH_NL) { break }
+                pos = pos.add(1)
+            }
+            continue
+        }
+        if c.eq(CH_SLASH).and(pos.add(1).lt(src_len)) {
+            ref c2 : U8 = source.char_at(pos.add(1))
+            if c2.eq(CH_SLASH) {
+                while pos.lt(src_len) {
+                    if source.char_at(pos).eq(CH_NL) { break }
+                    pos = pos.add(1)
+                }
+                continue
+            }
+            // Block comments: /* ... */ (nestable)
+            if c2.eq(CH_STAR) {
+                pos = pos.add(2)
+                mut depth := 1
+                while pos.lt(src_len) {
+                    if depth.lte(0) { break }
+                    if pos.add(1).lt(src_len) {
+                        ref b1 : U8 = source.char_at(pos)
+                        ref b2 : U8 = source.char_at(pos.add(1))
+                        if b1.eq(CH_SLASH).and(b2.eq(CH_STAR)) {
+                            depth = depth.add(1)
+                            pos = pos.add(2)
+                            continue
+                        }
+                        if b1.eq(CH_STAR).and(b2.eq(CH_SLASH)) {
+                            depth = depth.sub(1)
+                            pos = pos.add(2)
+                            continue
+                        }
+                    }
+                    if source.char_at(pos).eq(CH_NL) {
+                        line_num = line_num.add(1)
+                        line_start = pos.add(1)
+                    }
+                    pos = pos.add(1)
+                }
+                continue
+            }
+        }
+
+        // Numbers
+        if is_digit(c) {
+            while pos.lt(src_len) {
+                if is_digit(source.char_at(pos)).not() { break }
+                pos = pos.add(1)
+            }
+            // Check for decimal point
+            if pos.add(1).lt(src_len) {
+                if source.char_at(pos).eq(CH_DOT).and(is_digit(source.char_at(pos.add(1)))) {
+                    pos = pos.add(1)
+                    while pos.lt(src_len) {
+                        if is_digit(source.char_at(pos)).not() { break }
+                        pos = pos.add(1)
+                    }
+                }
+            }
+            tokens.push(own Token(type = TokenType.Number,
+                text = source.substr(start, pos.sub(start)),
+                line = line_num, col = col))
+            continue
+        }
+
+        // Identifiers and keywords
+        if is_alpha(c) {
+            while pos.lt(src_len) {
+                if is_alnum(source.char_at(pos)).not() { break }
+                pos = pos.add(1)
+            }
+            word := source.substr(start, pos.sub(start))
+            tt := lookup_keyword(word)
+            tokens.push(own Token(type = tt, text = word, line = line_num, col = col))
+            continue
+        }
+
+        // Strings
+        if c.eq(CH_QUOTE) {
+            pos = pos.add(1)
+            while pos.lt(src_len) {
+                if source.char_at(pos).eq(CH_QUOTE) { break }
+                if source.char_at(pos).eq(CH_BSLASH).and(pos.add(1).lt(src_len)) {
+                    pos = pos.add(1)
+                }
+                if source.char_at(pos).eq(CH_NL) {
+                    line_num = line_num.add(1)
+                    line_start = pos.add(1)
+                }
+                pos = pos.add(1)
+            }
+            if pos.lt(src_len).and(source.char_at(pos).eq(CH_QUOTE)) {
+                pos = pos.add(1)
+                tokens.push(own Token(type = TokenType.StringTok,
+                    text = source.substr(start.add(1), pos.sub(start).sub(2)),
+                    line = line_num, col = col))
+            } else {
+                println("error: unterminated string at ", path, ":", line_num.to_str(), ":", col.to_str())
+                tokens.push(own Token(type = TokenType.Error,
+                    text = source.substr(start, pos.sub(start)),
+                    line = line_num, col = col))
+            }
+            continue
+        }
+
+        // Two-character tokens
+        if pos.add(1).lt(src_len) {
+            ref c2 : U8 = source.char_at(pos.add(1))
+            mut two := TokenType.Eof
+            if c.eq(CH_COLON).and(c2.eq(CH_EQ)) { two = TokenType.ColonEq }
+            if c.eq(CH_EQ).and(c2.eq(CH_EQ)) { two = TokenType.EqEq }
+            if c.eq(CH_BANG).and(c2.eq(CH_EQ)) { two = TokenType.Neq }
+            if c.eq(CH_LT).and(c2.eq(CH_EQ)) { two = TokenType.LtEq }
+            if c.eq(CH_GT).and(c2.eq(CH_EQ)) { two = TokenType.GtEq }
+            if c.eq(CH_DOT).and(c2.eq(CH_DOT)) { two = TokenType.DotDot }
+            if two.eq(TokenType.Eof).not() {
+                tokens.push(own Token(type = two,
+                    text = source.substr(start, 2),
+                    line = line_num, col = col))
+                pos = pos.add(2)
+                continue
+            }
+        }
+
+        // Single-character tokens
+        mut single := TokenType.Eof
+        if c.eq(CH_LPAREN) { single = TokenType.LParen }
+        if c.eq(CH_RPAREN) { single = TokenType.RParen }
+        if c.eq(CH_LBRACE) { single = TokenType.LBrace }
+        if c.eq(CH_RBRACE) { single = TokenType.RBrace }
+        if c.eq(CH_LBRACK) { single = TokenType.LBracket }
+        if c.eq(CH_RBRACK) { single = TokenType.RBracket }
+        if c.eq(CH_COMMA) { single = TokenType.Comma }
+        if c.eq(CH_COLON) { single = TokenType.Colon }
+        if c.eq(CH_DOT) { single = TokenType.Dot }
+        if c.eq(CH_QMARK) { single = TokenType.Question }
+        if c.eq(CH_BANG) { single = TokenType.Bang }
+        if c.eq(CH_PLUS) { single = TokenType.Plus }
+        if c.eq(CH_MINUS) { single = TokenType.Minus }
+        if c.eq(CH_STAR) { single = TokenType.Star }
+        if c.eq(CH_SLASH) { single = TokenType.Slash }
+        if c.eq(CH_EQ) { single = TokenType.Eq }
+        if c.eq(CH_LT) { single = TokenType.Lt }
+        if c.eq(CH_GT) { single = TokenType.Gt }
+
+        if single.eq(TokenType.Eof).not() {
+            tokens.push(own Token(type = single,
+                text = source.substr(start, 1),
+                line = line_num, col = col))
+            pos = pos.add(1)
+            continue
+        }
+
+        // Unknown character
+        println("error: unexpected character at ", path, ":", line_num.to_str(), ":", col.to_str())
+        tokens.push(own Token(type = TokenType.Error,
+            text = source.substr(start, 1),
+            line = line_num, col = col))
+        pos = pos.add(1)
+    }
+
+    // EOF token
+    col := pos.sub(line_start).add(1)
+    tokens.push(own Token(type = TokenType.Eof, text = "", line = line_num, col = col))
+    return tokens
+}
+
+// === Tests ===
+
+// Helper: check token at index
+check_tok := proc(tokens: Vec, i: I64, expected_type: TokenType, expected_text: Str) {
+    ref t : Token = tokens.get(i)
+    tt := t.type
+    test(loc(), tt.eq(expected_type),
+        format("token ", i.to_str(), " type: expected ", expected_type.to_str(),
+               " got ", tt.to_str()))
+    assert_eq_str(loc(), t.text, expected_text)
+}
+
+// Test: empty source
+test_empty := proc() {
+    tokens := tokenize("", "test")
+    assert_eq(loc(), tokens.len(), 1)
+    check_tok(tokens, 0, TokenType.Eof, "")
+}
+
+// Test: single-character tokens
+test_singles := proc() {
+    tokens := tokenize("( ) { } [ ] , : . ? ! + - * /", "test")
+    check_tok(tokens, 0, TokenType.LParen, "(")
+    check_tok(tokens, 1, TokenType.RParen, ")")
+    check_tok(tokens, 2, TokenType.LBrace, "{")
+    check_tok(tokens, 3, TokenType.RBrace, "}")
+    check_tok(tokens, 4, TokenType.LBracket, "[")
+    check_tok(tokens, 5, TokenType.RBracket, "]")
+    check_tok(tokens, 6, TokenType.Comma, ",")
+    check_tok(tokens, 7, TokenType.Colon, ":")
+    check_tok(tokens, 8, TokenType.Dot, ".")
+    check_tok(tokens, 9, TokenType.Question, "?")
+    check_tok(tokens, 10, TokenType.Bang, "!")
+    check_tok(tokens, 11, TokenType.Plus, "+")
+    check_tok(tokens, 12, TokenType.Minus, "-")
+    check_tok(tokens, 13, TokenType.Star, "*")
+    check_tok(tokens, 14, TokenType.Slash, "/")
+    check_tok(tokens, 15, TokenType.Eof, "")
+}
+
+// Test: two-character tokens
+test_doubles := proc() {
+    tokens := tokenize(":= == != <= >= ..", "test")
+    check_tok(tokens, 0, TokenType.ColonEq, ":=")
+    check_tok(tokens, 1, TokenType.EqEq, "==")
+    check_tok(tokens, 2, TokenType.Neq, "!=")
+    check_tok(tokens, 3, TokenType.LtEq, "<=")
+    check_tok(tokens, 4, TokenType.GtEq, ">=")
+    check_tok(tokens, 5, TokenType.DotDot, "..")
+    check_tok(tokens, 6, TokenType.Eof, "")
+}
+
+// Test: single = < > (not two-char)
+test_single_ops := proc() {
+    tokens := tokenize("= < >", "test")
+    check_tok(tokens, 0, TokenType.Eq, "=")
+    check_tok(tokens, 1, TokenType.Lt, "<")
+    check_tok(tokens, 2, TokenType.Gt, ">")
+}
+
+// Test: numbers
+test_numbers := proc() {
+    tokens := tokenize("42 0 123", "test")
+    check_tok(tokens, 0, TokenType.Number, "42")
+    check_tok(tokens, 1, TokenType.Number, "0")
+    check_tok(tokens, 2, TokenType.Number, "123")
+}
+
+// Test: identifiers
+test_idents := proc() {
+    tokens := tokenize("foo bar_baz _x ABC", "test")
+    check_tok(tokens, 0, TokenType.Ident, "foo")
+    check_tok(tokens, 1, TokenType.Ident, "bar_baz")
+    check_tok(tokens, 2, TokenType.Ident, "_x")
+    check_tok(tokens, 3, TokenType.Ident, "ABC")
+}
+
+// Test: keywords
+test_keywords := proc() {
+    tokens := tokenize("if else while return func proc struct enum", "test")
+    check_tok(tokens, 0, TokenType.KwIf, "if")
+    check_tok(tokens, 1, TokenType.KwElse, "else")
+    check_tok(tokens, 2, TokenType.KwWhile, "while")
+    check_tok(tokens, 3, TokenType.KwReturn, "return")
+    check_tok(tokens, 4, TokenType.KwFunc, "func")
+    check_tok(tokens, 5, TokenType.KwProc, "proc")
+    check_tok(tokens, 6, TokenType.KwStruct, "struct")
+    check_tok(tokens, 7, TokenType.KwEnum, "enum")
+}
+
+// Test: string literals
+test_strings := proc() {
+    src := Str.from_byte(CH_QUOTE).concat("hello world").concat(Str.from_byte(CH_QUOTE))
+    tokens := tokenize(src, "test")
+    check_tok(tokens, 0, TokenType.StringTok, "hello world")
+    check_tok(tokens, 1, TokenType.Eof, "")
+}
+
+// Test: line comments
+test_line_comment := proc() {
+    NL := Str.from_byte(CH_NL)
+    src := "x // comment".concat(NL).concat("y")
+    tokens := tokenize(src, "test")
+    check_tok(tokens, 0, TokenType.Ident, "x")
+    check_tok(tokens, 1, TokenType.Ident, "y")
+    check_tok(tokens, 2, TokenType.Eof, "")
+}
+
+// Test: hash comments
+test_hash_comment := proc() {
+    NL := Str.from_byte(CH_NL)
+    src := "# comment".concat(NL).concat("x")
+    tokens := tokenize(src, "test")
+    check_tok(tokens, 0, TokenType.Ident, "x")
+    check_tok(tokens, 1, TokenType.Eof, "")
+}
+
+// Test: block comments
+test_block_comment := proc() {
+    tokens := tokenize("a /* comment */ b", "test")
+    check_tok(tokens, 0, TokenType.Ident, "a")
+    check_tok(tokens, 1, TokenType.Ident, "b")
+    check_tok(tokens, 2, TokenType.Eof, "")
+}
+
+// Test: full statement
+test_statement := proc() {
+    tokens := tokenize("x := 42", "test")
+    check_tok(tokens, 0, TokenType.Ident, "x")
+    check_tok(tokens, 1, TokenType.ColonEq, ":=")
+    check_tok(tokens, 2, TokenType.Number, "42")
+    check_tok(tokens, 3, TokenType.Eof, "")
+}
+
+// Test: line and column tracking
+test_positions := proc() {
+    NL := Str.from_byte(CH_NL)
+    src := "a".concat(NL).concat("  b")
+    tokens := tokenize(src, "test")
+    ref t0 : Token = tokens.get(0)
+    assert_eq(loc(), t0.line, 1)
+    assert_eq(loc(), t0.col, 1)
+    ref t1 : Token = tokens.get(1)
+    assert_eq(loc(), t1.line, 2)
+    assert_eq(loc(), t1.col, 3)
+}
+
+// Test: semicolons treated as whitespace
+test_semicolons := proc() {
+    tokens := tokenize("a;b;c", "test")
+    check_tok(tokens, 0, TokenType.Ident, "a")
+    check_tok(tokens, 1, TokenType.Ident, "b")
+    check_tok(tokens, 2, TokenType.Ident, "c")
+    check_tok(tokens, 3, TokenType.Eof, "")
+}
+
+// Test: more keywords
+test_more_keywords := proc() {
+    tokens := tokenize("mut own ref mode true false returns", "test")
+    check_tok(tokens, 0, TokenType.KwMut, "mut")
+    check_tok(tokens, 1, TokenType.KwOwn, "own")
+    check_tok(tokens, 2, TokenType.KwRef, "ref")
+    check_tok(tokens, 3, TokenType.KwMode, "mode")
+    check_tok(tokens, 4, TokenType.KwTrue, "true")
+    check_tok(tokens, 5, TokenType.KwFalse, "false")
+    check_tok(tokens, 6, TokenType.KwReturns, "returns")
+}
+
+test_empty()
+test_singles()
+test_doubles()
+test_single_ops()
+test_numbers()
+test_idents()
+test_keywords()
+test_strings()
+test_line_comment()
+test_hash_comment()
+test_block_comment()
+test_statement()
+test_positions()
+test_semicolons()
+test_more_keywords()
+
+println("lexing: ok")

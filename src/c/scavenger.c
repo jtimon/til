@@ -212,6 +212,9 @@ void scavenge(Expr *program, Str *mode) {
                     if (!expr_child(body, i)->data.decl.is_namespace)
                         collect_refs(expr_child(body, i), &worklist);
                 }
+                // Always keep delete/clone — Vec uses dyn_call which scavenger can't trace
+                vec_push_str(&worklist, qualified_name(name, gc_str(Str_new("delete"))));
+                vec_push_str(&worklist, qualified_name(name, gc_str(Str_new("clone"))));
             } else {
                 collect_refs(expr_child(decl, 0), &worklist);
             }
