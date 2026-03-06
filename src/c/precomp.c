@@ -11,7 +11,7 @@ static Map known;
 // --- Value → Expr conversion ---
 
 static Expr *value_to_expr(Value val, Expr *src) {
-    int line = src->line, col = src->col;
+    I32 line = src->line, col = src->col;
     Str *path = src->path;
     Expr *e;
     switch (val.type) {
@@ -67,7 +67,7 @@ static Value expr_to_value(Expr *e) {
 }
 
 // Check if an expression is compile-time known and return its value
-static int is_known(Expr *e, Value *out) {
+static Bool is_known(Expr *e, Value *out) {
     if (e->type == NODE_LITERAL_NUM || e->type == NODE_LITERAL_STR ||
         e->type == NODE_LITERAL_BOOL) {
         *out = expr_to_value(e);
@@ -81,7 +81,7 @@ static int is_known(Expr *e, Value *out) {
 }
 
 // Check if a NODE_FCALL is a macro call
-static int is_macro_call(Expr *e) {
+static Bool is_macro_call(Expr *e) {
     return e->type == NODE_FCALL &&
            e->children.count > 0 &&
            expr_child(e, 0)->type == NODE_IDENT &&
@@ -89,7 +89,7 @@ static int is_macro_call(Expr *e) {
 }
 
 // Check if a NODE_FCALL is a pure func call
-static int is_func_call(Expr *e) {
+static Bool is_func_call(Expr *e) {
     return e->type == NODE_FCALL &&
            e->children.count > 0 &&
            expr_child(e, 0)->type == NODE_IDENT &&
@@ -99,18 +99,18 @@ static int is_func_call(Expr *e) {
 // Check if a func body references identifiers not available at precomp time.
 // Something is available if it's a parameter, in the known map, or in the precomp scope
 // (funcs, structs, enums are pre-registered there).
-static int func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_scope) {
+static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_scope) {
     if (e->type == NODE_FUNC_DEF) return 0; // don't recurse into nested funcs
     if (e->type == NODE_IDENT) {
         Str *name = e->data.str_val;
-        for (int i = 0; i < func_def->data.func_def.nparam; i++) {
+        for (I32 i = 0; i < func_def->data.func_def.nparam; i++) {
             if (Str_eq(func_def->data.func_def.param_names[i], name)) return 0;
         }
         if (Map_get(&known, &name)) return 0;
         if (scope_get(precomp_scope, name)) return 0;
         return 1;
     }
-    for (int i = 0; i < e->children.count; i++) {
+    for (I32 i = 0; i < e->children.count; i++) {
         if (func_uses_unknown_globals(expr_child(e, i), func_def, precomp_scope)) return 1;
     }
     return 0;
@@ -118,7 +118,7 @@ static int func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_sco
 
 // Try to evaluate a call at compile time.
 // require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
-static Expr *try_eval_call(Scope *scope, Expr *fcall, int require_known) {
+static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Check if the function body references unknown globals
     Str *callee_name = expr_child(fcall, 0)->data.str_val;
     Cell *fn_cell = scope_get(scope, callee_name);
@@ -130,13 +130,13 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, int require_known) {
     }
 
     // Build a call with literal args for the interpreter
-    int nargs = fcall->children.count - 1;
+    I32 nargs = fcall->children.count - 1;
     Expr *eval_call = expr_new(NODE_FCALL, fcall->line, fcall->col, fcall->path);
     eval_call->til_type = fcall->til_type;
     eval_call->struct_name = fcall->struct_name;
     expr_add_child(eval_call, expr_child(fcall, 0)); // callee ident
 
-    for (int i = 0; i < nargs; i++) {
+    for (I32 i = 0; i < nargs; i++) {
         Expr *arg = expr_child(fcall, i + 1);
         Value arg_val;
         if (!is_known(arg, &arg_val)) {
@@ -159,7 +159,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, int require_known) {
 
     // Clean up eval_call (detach callee ident first — it's shared with original)
     expr_child(eval_call, 0) = NULL;
-    for (int i = 1; i < eval_call->children.count; i++)
+    for (I32 i = 1; i < eval_call->children.count; i++)
         expr_free(expr_child(eval_call, i));
     Vec_delete(&eval_call->children);
     free(eval_call);
@@ -186,7 +186,7 @@ static void track_literal(Scope *scope, Str *name, Expr *rhs) {
 
 // Process a body, replacing macro calls with literals
 static void process_body(Scope *scope, Expr *body) {
-    for (int i = 0; i < body->children.count; i++) {
+    for (I32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
 
         switch (stmt->type) {
@@ -266,7 +266,7 @@ void precomp(Expr *program) {
     // 1. Collect macro and pure func names
     macros = Set_new(sizeof(Str *), str_ptr_cmp);
     funcs = Set_new(sizeof(Str *), str_ptr_cmp);
-    for (int i = 0; i < program->children.count; i++) {
+    for (I32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && stmt->children.count > 0 && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
             FuncType ft = expr_child(stmt, 0)->data.func_def.func_type;
@@ -286,7 +286,7 @@ void precomp(Expr *program) {
 
     // 2. Set up interpreter scope (same as interpret() does)
     Scope *global = scope_new(NULL);
-    for (int i = 0; i < program->children.count; i++) {
+    for (I32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL &&
             (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||

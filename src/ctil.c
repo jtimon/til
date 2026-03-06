@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
     {
         const char *slash = strrchr(argv[0], '/');
         if (slash) {
-            int dir_len = (int)(slash - argv[0]);
+            I32 dir_len = (int)(slash - argv[0]);
             snprintf(core_path, sizeof(core_path), "%.*s/../src/core/core.til", dir_len, argv[0]);
             snprintf(ext_c_path, sizeof(ext_c_path), "%.*s/../src/c/ext.c", dir_len, argv[0]);
         } else {
@@ -78,14 +78,14 @@ int main(int argc, char **argv) {
         }
     }
     char *core_source = read_file(core_path);
-    int core_count;
+    I32 core_count;
     Token *core_tokens = core_source ? tokenize(core_source, core_path, &core_count) : NULL;
     Expr *core_ast = core_tokens ? parse(core_tokens, core_count, core_path, NULL) : NULL;
 
     char *source = read_file(path);
     if (!source) return 1;
 
-    int count;
+    I32 count;
     Token *tokens = tokenize(source, path, &count);
 
     Str *mode = NULL;
@@ -94,12 +94,12 @@ int main(int argc, char **argv) {
     // Prepend core declarations to program AST
     if (core_ast && core_ast->children.count > 0) {
         Vec merged = Vec_new(sizeof(Expr *));
-        for (int i = 0; i < core_ast->children.count; i++) {
+        for (I32 i = 0; i < core_ast->children.count; i++) {
             Expr *ch = expr_child(core_ast, i);
             ch->is_core = true;
             Vec_push(&merged, &ch);
         }
-        for (int i = 0; i < ast->children.count; i++) {
+        for (I32 i = 0; i < ast->children.count; i++) {
             Expr *ch = expr_child(ast, i);
             Vec_push(&merged, &ch);
         }
@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
     init_declarations(ast, scope);
 
     // Type checking and inference
-    int type_errors = type_check(ast, scope);
+    I32 type_errors = type_check(ast, scope);
     tscope_free(scope);
     if (type_errors > 0) {
         fprintf(stderr, "%d type error(s) found\n", type_errors);
@@ -125,13 +125,13 @@ int main(int argc, char **argv) {
     precomp(ast);
     scavenge(ast, mode);
 
-    int result = 0;
+    I32 result = 0;
 
     // Check for user FFI .c file (same name as .til but with .c extension)
     char user_c_path[256];
     const char *user_c = NULL;
     {
-        int plen = (int)strlen(path);
+        I32 plen = (int)strlen(path);
         if (plen > 4 && strcmp(path + plen - 4, ".til") == 0) {
             snprintf(user_c_path, sizeof(user_c_path), "%.*s.c", plen - 4, path);
             FILE *uf = fopen(user_c_path, "r");
@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
     }
 
     // User args: everything after command and path
-    int user_argc = (argc > 3) ? argc - 3 : 0;
+    I32 user_argc = (argc > 3) ? argc - 3 : 0;
     char **user_argv = (argc > 3) ? argv + 3 : NULL;
 
     if (strcmp(command, "interpret") == 0) {
@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
         const char *basename = strrchr(path, '/');
         basename = basename ? basename + 1 : path;
-        int name_len = (int)(strlen(basename) - 4); // strip .til
+        I32 name_len = (int)(strlen(basename) - 4); // strip .til
         if (name_len <= 0) name_len = (int)strlen(basename);
 
         char c_path[256], bin_path[256];
@@ -167,12 +167,12 @@ int main(int argc, char **argv) {
         }
         if (result == 0 && strcmp(command, "run") == 0) {
             // Build command with user args appended
-            int cmdlen = (int)strlen(bin_path);
-            for (int i = 0; i < user_argc; i++)
-                cmdlen += 1 + (int)strlen(user_argv[i]) + 2; // space + quotes
+            I32 cmdlen = (int)strlen(bin_path);
+            for (I32 i = 0; i < user_argc; i++)
+                cmdlen += 1 + (I32)strlen(user_argv[i]) + 2; // space + quotes
             char *cmd = malloc(cmdlen + 1);
-            int pos = snprintf(cmd, cmdlen + 1, "%s", bin_path);
-            for (int i = 0; i < user_argc; i++)
+            I32 pos = snprintf(cmd, cmdlen + 1, "%s", bin_path);
+            for (I32 i = 0; i < user_argc; i++)
                 pos += snprintf(cmd + pos, cmdlen + 1 - pos, " '%s'", user_argv[i]);
             int status = system(cmd);
             free(cmd);

@@ -9,22 +9,22 @@
 #include <sys/stat.h>
 #include <time.h>
 
-typedef int (*DispatchFn)(Scope *, Expr *, Value *);
+typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
 // --- Dispatch state ---
 static Map dispatch_map;
-static int dispatch_inited;
+static Bool dispatch_inited;
 
 // --- FFI state ---
 typedef struct {
     void *fn;           // dlsym'd function pointer
     Str *return_type;   // NULL for proc (void return)
-    int nparam;
+    I32 nparam;
 } FFIEntry;
 
 static Map ffi_map;          // name -> FFIEntry
 static void *ffi_handle;     // dlopen handle
-static int ffi_loaded;
+static Bool ffi_loaded;
 
 // === Eval helper for Dynamic narrowing ===
 // When the typer narrows a Dynamic arg to a concrete type, the expression's
@@ -51,20 +51,20 @@ static Value eval_arg(Scope *s, Expr *e) {
 
 // 2-arg handler: eval both args, call cfn(xa, xb), wrap result
 #define H2(hname, cfn, xa, xb, w) \
-static int h_##hname(Scope *s, Expr *e, Value *r) { \
+static Bool h_##hname(Scope *s, Expr *e, Value *r) { \
     Value a = eval_arg(s, expr_child(e,1)); \
     Value b = eval_arg(s, expr_child(e,2)); \
     *r = w(cfn(xa, xb)); return 1; }
 
 // 1-arg handler: eval one arg, call cfn(xv), wrap result
 #define H1(hname, cfn, xv, w) \
-static int h_##hname(Scope *s, Expr *e, Value *r) { \
+static Bool h_##hname(Scope *s, Expr *e, Value *r) { \
     Value v = eval_arg(s, expr_child(e,1)); \
     *r = w(cfn(xv)); return 1; }
 
 // Delete handler: check VAL_NONE, eval call_free flag, conditionally delete
 #define HDEL(hname, dfn, xv) \
-static int h_##hname(Scope *s, Expr *e, Value *r) { \
+static Bool h_##hname(Scope *s, Expr *e, Value *r) { \
     Value v = eval_arg(s, expr_child(e,1)); \
     if (v.type == VAL_NONE) { *r = val_none(); return 1; } \
     Value cf = eval_arg(s, expr_child(e,2)); \
@@ -73,7 +73,7 @@ static int h_##hname(Scope *s, Expr *e, Value *r) { \
 
 // Clone handler: eval one arg, copy raw value
 #define HCLONE(hname, xv, w) \
-static int h_##hname(Scope *s, Expr *e, Value *r) { \
+static Bool h_##hname(Scope *s, Expr *e, Value *r) { \
     Value v = eval_arg(s, expr_child(e,1)); \
     *r = w(xv); return 1; }
 
@@ -106,7 +106,7 @@ H1(U8_to_i64, U8_to_i64, *v.u8, val_i64)
 HCLONE(U8_clone, *v.u8, val_u8)
 HDEL(U8_delete, U8_delete, v.u8)
 
-static int h_U8_from_i64(Scope *s, Expr *e, Value *r) {
+static Bool h_U8_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, expr_child(e,1));
     *r = val_u8(U8_from_i64(*v.i64)); return 1;
 }
@@ -123,8 +123,8 @@ static void *val_to_ptr(Value v);
 
 // === Variadic handlers ===
 
-static int h_println(Scope *s, Expr *e, Value *r) {
-    for (int i = 1; i < e->children.count; i++) {
+static Bool h_println(Scope *s, Expr *e, Value *r) {
+    for (I32 i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e,i));
         fwrite(arg.str->c_str, 1, arg.str->cap, stdout);
     }
@@ -132,26 +132,26 @@ static int h_println(Scope *s, Expr *e, Value *r) {
     *r = val_none(); return 1;
 }
 
-static int h_print(Scope *s, Expr *e, Value *r) {
-    for (int i = 1; i < e->children.count; i++) {
+static Bool h_print(Scope *s, Expr *e, Value *r) {
+    for (I32 i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e,i));
         fwrite(arg.str->c_str, 1, arg.str->cap, stdout);
     }
     *r = val_none(); return 1;
 }
 
-static int h_format(Scope *s, Expr *e, Value *r) {
-    int nargs = e->children.count - 1;
+static Bool h_format(Scope *s, Expr *e, Value *r) {
+    I32 nargs = e->children.count - 1;
     Str *strs[64];
-    int total = 0;
-    for (int i = 0; i < nargs; i++) {
+    I32 total = 0;
+    for (I32 i = 0; i < nargs; i++) {
         Value v = eval_expr(s, expr_child(e,i + 1));
         strs[i] = v.str;
         total += v.str->cap;
     }
     char *buf = malloc(total);
-    int off = 0;
-    for (int i = 0; i < nargs; i++) {
+    I32 off = 0;
+    for (I32 i = 0; i < nargs; i++) {
         memcpy(buf + off, strs[i]->c_str, strs[i]->cap);
         off += strs[i]->cap;
     }
@@ -164,13 +164,13 @@ static int h_format(Scope *s, Expr *e, Value *r) {
 
 // === Misc handlers ===
 
-static int h_exit(Scope *s, Expr *e, Value *r) {
+static Bool h_exit(Scope *s, Expr *e, Value *r) {
     Value a = eval_expr(s, expr_child(e,1));
     til_exit(a.i64);
     *r = val_none(); return 1;
 }
 
-static int h_free(Scope *s, Expr *e, Value *r) {
+static Bool h_free(Scope *s, Expr *e, Value *r) {
     if (expr_child(e, 1)->type != NODE_IDENT) {
         // Non-identifier argument: evaluate and free the raw pointer
         // (matches codegen: til_free just calls C free on the pointer)
@@ -212,7 +212,7 @@ static int h_free(Scope *s, Expr *e, Value *r) {
 // === Dynamic dispatch handler ===
 
 // Shared helper for all dyn_call variants
-static int h_dyn_call(Scope *s, Expr *e, Value *r) {
+static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e,1));
     Str *type_name = type_name_val.str;
     Value method_val = eval_expr(s, expr_child(e,2));
@@ -242,7 +242,7 @@ static int h_dyn_call(Scope *s, Expr *e, Value *r) {
     fake_call.children = Vec_new(sizeof(Expr *));
     Expr *fa_ptr = &field_access;
     Vec_push(&fake_call.children, &fa_ptr);
-    for (int i = 3; i < e->children.count; i++) {
+    for (I32 i = 3; i < e->children.count; i++) {
         Expr *arg = expr_child(e, i);
         Vec_push(&fake_call.children, &arg);
     }
@@ -250,9 +250,9 @@ static int h_dyn_call(Scope *s, Expr *e, Value *r) {
     Value fn_val = eval_expr(s, &field_access);
     if (fn_val.type == VAL_FUNC && fn_val.func->type == NODE_FUNC_DEF) {
         Expr *fdef = fn_val.func;
-        int nparam = fdef->data.func_def.nparam;
-        int nargs = fake_call.children.count - 1;
-        for (int i = nargs; i < nparam; i++) {
+        I32 nparam = fdef->data.func_def.nparam;
+        I32 nargs = fake_call.children.count - 1;
+        for (I32 i = nargs; i < nparam; i++) {
             if (fdef->data.func_def.param_defaults &&
                 fdef->data.func_def.param_defaults[i]) {
                 Expr *def_arg = fdef->data.func_def.param_defaults[i];
@@ -269,7 +269,7 @@ static int h_dyn_call(Scope *s, Expr *e, Value *r) {
 }
 
 // dyn_has_method(type_name, "method") → Bool
-static int h_dyn_has_method(Scope *s, Expr *e, Value *r) {
+static Bool h_dyn_has_method(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e,1));
     Value method_val = eval_expr(s, expr_child(e,2));
     Str *type_name = type_name_val.str;
@@ -297,7 +297,7 @@ static void *val_raw_ptr(Value v) {
 // Get element size via dyn_call to Type.size()
 // Workaround: the scavenger may remove Type.size() if not directly referenced
 // in user code (see issue #15). Users must reference Type.size() explicitly.
-static int get_elem_size(Scope *s, Str *type_name, Expr *src) {
+static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     Value *size_fn = ns_get(type_name, Str_new("size"));
     if (!size_fn) {
         fprintf(stderr, "%s:%d:%d: error: array/vec: type '%s' has no size() method "
@@ -334,22 +334,22 @@ static int get_elem_size(Scope *s, Str *type_name, Expr *src) {
     Value result = eval_call(s, &fake_call);
     Vec_delete(&fake_call.children);
     Vec_delete(&field_access.children);
-    return (int)*result.i64;
+    return (I32)*result.i64;
 }
 
 // array("I64", 1, 2, 3)
-static int h_array(Scope *s, Expr *e, Value *r) {
+static Bool h_array(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e, 1));
     Str *type_name = type_name_val.str;
-    int count = e->children.count - 2;
-    int elem_size = get_elem_size(s, type_name, e);
+    I32 count = e->children.count - 2;
+    I32 elem_size = get_elem_size(s, type_name, e);
 
     // Allocate array data
     void *data = malloc(count * elem_size);
     memset(data, 0, count * elem_size);
 
     // Evaluate each element and copy into data buffer
-    for (int i = 0; i < count; i++) {
+    for (I32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, expr_child(e, i + 2));
         void *src = val_raw_ptr(elem);
         if (src) {
@@ -369,7 +369,7 @@ static int h_array(Scope *s, Expr *e, Value *r) {
     si->struct_name = Str_new("Array");
     si->nfields = 4;
     si->field_names = malloc(4 * sizeof(Str *));
-    si->field_muts = calloc(4, sizeof(int));
+    si->field_muts = calloc(4, sizeof(I32));
     si->field_muts[0] = 1; // data is mut
     si->field_values = malloc(4 * sizeof(Value));
     si->field_names[0] = Str_new("data");
@@ -387,19 +387,19 @@ static int h_array(Scope *s, Expr *e, Value *r) {
 }
 
 // vec("I64", 1, 2, 3)
-static int h_vec(Scope *s, Expr *e, Value *r) {
+static Bool h_vec(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e, 1));
     Str *type_name = type_name_val.str;
-    int count = e->children.count - 2;
-    int elem_size = get_elem_size(s, type_name, e);
+    I32 count = e->children.count - 2;
+    I32 elem_size = get_elem_size(s, type_name, e);
 
     // Allocate vec data with exact capacity
-    int cap = count > 0 ? count : 1;
+    I32 cap = count > 0 ? count : 1;
     void *data = malloc(cap * elem_size);
     memset(data, 0, cap * elem_size);
 
     // Evaluate each element and copy into data buffer
-    for (int i = 0; i < count; i++) {
+    for (I32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, expr_child(e, i + 2));
         void *src = val_raw_ptr(elem);
         if (src) {
@@ -418,7 +418,7 @@ static int h_vec(Scope *s, Expr *e, Value *r) {
     si->struct_name = Str_new("Vec");
     si->nfields = 5;
     si->field_names = malloc(5 * sizeof(Str *));
-    si->field_muts = calloc(5, sizeof(int));
+    si->field_muts = calloc(5, sizeof(I32));
     si->field_muts[0] = 1; // data is mut
     si->field_muts[1] = 1; // count is mut
     si->field_muts[2] = 1; // cap is mut
@@ -454,29 +454,29 @@ static void *val_to_ptr(Value v) {
     }
 }
 
-static int h_malloc(Scope *s, Expr *e, Value *r) {
+static Bool h_malloc(Scope *s, Expr *e, Value *r) {
     Value count = eval_expr(s, expr_child(e,1));
-    int nbytes = (int)*count.i64;
+    I32 nbytes = (I32)*count.i64;
     *r = (Value){.type = VAL_PTR, .ptr = calloc(1, nbytes)};
     return 1;
 }
 
-static int h_realloc(Scope *s, Expr *e, Value *r) {
+static Bool h_realloc(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, expr_child(e,1));
     Value count = eval_expr(s, expr_child(e,2));
-    int nbytes = (int)*count.i64;
+    I32 nbytes = (I32)*count.i64;
     *r = (Value){.type = VAL_PTR, .ptr = realloc(buf.ptr, nbytes)};
     return 1;
 }
 
-static int h_ptr_add(Scope *s, Expr *e, Value *r) {
+static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, expr_child(e,1));
     Value offset = eval_expr(s, expr_child(e,2));
-    *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + (int)*offset.i64};
+    *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + (I32)*offset.i64};
     return 1;
 }
 
-static int h_memcpy(Scope *s, Expr *e, Value *r) {
+static Bool h_memcpy(Scope *s, Expr *e, Value *r) {
     Value dest = eval_expr(s, expr_child(e,1));
     Value src = eval_expr(s, expr_child(e,2));
     Value len = eval_expr(s, expr_child(e,3));
@@ -485,7 +485,7 @@ static int h_memcpy(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-static int h_memmove(Scope *s, Expr *e, Value *r) {
+static Bool h_memmove(Scope *s, Expr *e, Value *r) {
     Value dest = eval_expr(s, expr_child(e,1));
     Value src = eval_expr(s, expr_child(e,2));
     Value len = eval_expr(s, expr_child(e,3));
@@ -496,7 +496,7 @@ static int h_memmove(Scope *s, Expr *e, Value *r) {
 
 // === System primitive handlers ===
 
-static int h_readfile(Scope *s, Expr *e, Value *r) {
+static Bool h_readfile(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     FILE *f = fopen(path.str->c_str, "rb");
     if (!f) {
@@ -509,12 +509,12 @@ static int h_readfile(Scope *s, Expr *e, Value *r) {
     char *buf = malloc(len);
     fread(buf, 1, len, f);
     fclose(f);
-    *r = val_str(Str_new_len(buf, (int)len));
+    *r = val_str(Str_new_len(buf, (I32)len));
     free(buf);
     return 1;
 }
 
-static int h_writefile(Scope *s, Expr *e, Value *r) {
+static Bool h_writefile(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     Value content = eval_expr(s, expr_child(e,2));
     FILE *f = fopen(path.str->c_str, "wb");
@@ -528,7 +528,7 @@ static int h_writefile(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-static int h_spawn_cmd(Scope *s, Expr *e, Value *r) {
+static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
     Value cmd = eval_expr(s, expr_child(e,1));
     pid_t pid = fork();
     if (pid == 0) {
@@ -543,7 +543,7 @@ static int h_spawn_cmd(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-static int h_check_cmd_status(Scope *s, Expr *e, Value *r) {
+static Bool h_check_cmd_status(Scope *s, Expr *e, Value *r) {
     Value pidv = eval_expr(s, expr_child(e,1));
     int status;
     pid_t result = waitpid((pid_t)*pidv.i64, &status, WNOHANG);
@@ -553,14 +553,14 @@ static int h_check_cmd_status(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-static int h_sleep(Scope *s, Expr *e, Value *r) {
+static Bool h_sleep(Scope *s, Expr *e, Value *r) {
     Value ms = eval_expr(s, expr_child(e,1));
     usleep((useconds_t)(*ms.i64 * 1000));
     *r = val_none();
     return 1;
 }
 
-static int h_file_mtime(Scope *s, Expr *e, Value *r) {
+static Bool h_file_mtime(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     struct stat st;
     if (stat(path.str->c_str, &st) != 0) { *r = val_i64(-1); return 1; }
@@ -568,7 +568,7 @@ static int h_file_mtime(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-static int h_clock_ms(Scope *s, Expr *e, Value *r) {
+static Bool h_clock_ms(Scope *s, Expr *e, Value *r) {
     (void)s; (void)e;
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -658,7 +658,7 @@ static void dispatch_init(void) {
 
 // === Main dispatch ===
 
-int ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
+Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     if (!dispatch_inited) dispatch_init();
 
     DispatchFn *fn = Map_get(&dispatch_map, &name);
@@ -668,9 +668,9 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     if (ffi_loaded) {
         FFIEntry *fe = Map_get(&ffi_map, &name);
         if (fe) {
-            int nargs = e->children.count - 1;
+            I32 nargs = e->children.count - 1;
             void *args[8];
-            for (int i = 0; i < nargs; i++) {
+            for (I32 i = 0; i < nargs; i++) {
                 Value v = eval_expr(scope, expr_child(e, i + 1));
                 switch (v.type) {
                     case VAL_I64:  args[i] = v.i64; break;
@@ -709,10 +709,10 @@ int ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     return 0;
 }
 
-int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
+Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                          Str *enum_name, Expr *e,
                          Value *result) {
-    int hp = enum_has_payloads(enum_def);
+    Bool hp = enum_has_payloads(enum_def);
 
     if (!hp) {
         // Simple enum: stored as I64
@@ -724,7 +724,7 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         }
     } else {
         // Payload enum: constructor, eq, clone, delete, is_Variant, get_Variant
-        int ctor_tag = enum_variant_tag(enum_def, method);
+        I32 ctor_tag = enum_variant_tag(enum_def, method);
         if (ctor_tag >= 0) {
             if (enum_variant_type(enum_def, ctor_tag)) {
                 Value payload = eval_expr(scope, expr_child(e, 1));
@@ -742,12 +742,12 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         }
         if (method->cap > 3 && memcmp(method->c_str, "is_", 3) == 0) {
             Str var_name = {.c_str = method->c_str + 3, .cap = method->cap - 3};
-            int tag = enum_variant_tag(enum_def, &var_name);
+            I32 tag = enum_variant_tag(enum_def, &var_name);
             Value v = eval_expr(scope, expr_child(e, 1));
             if (v.type == VAL_ENUM)
                 *result = val_bool(v.enum_inst->tag == tag);
             else
-                *result = val_bool((int)*v.i64 == tag);
+                *result = val_bool((I32)*v.i64 == tag);
             return 1;
         }
         if (method->cap > 4 && memcmp(method->c_str, "get_", 4) == 0) {
@@ -759,12 +759,12 @@ int enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
     return 0;
 }
 
-int ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
+I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
     // Extract include dir from ext_c_path
     char ext_dir[256];
     const char *last_slash = strrchr(ext_c_path, '/');
     if (last_slash) {
-        int dlen = (int)(last_slash - ext_c_path);
+        I32 dlen = (I32)(last_slash - ext_c_path);
         snprintf(ext_dir, sizeof(ext_dir), "%.*s", dlen, ext_c_path);
     } else {
         snprintf(ext_dir, sizeof(ext_dir), ".");
@@ -793,7 +793,7 @@ int ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
 
     // Scan program for non-core ext_func/ext_proc, dlsym each
     ffi_map = Map_new(sizeof(Str *), sizeof(FFIEntry), str_ptr_cmp);
-    for (int i = 0; i < program->children.count; i++) {
+    for (I32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->is_core) continue;
         if (stmt->type != NODE_DECL || stmt->children.count == 0) continue;
@@ -825,7 +825,7 @@ int ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
         if (expr_child(stmt, 0)->type == NODE_STRUCT_DEF && expr_child(stmt, 0)->is_ext) {
             Str *sname = stmt->data.decl.name;
             Expr *body = expr_child(expr_child(stmt, 0), 0);
-            for (int j = 0; j < body->children.count; j++) {
+            for (I32 j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
                 if (!field->data.decl.is_namespace) continue;
                 if (field->children.count == 0) continue;

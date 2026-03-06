@@ -1,12 +1,10 @@
 #ifndef CCORE_H
 #define CCORE_H
 
-#include <stdbool.h>
+#include "aliases.h"
 #include "str.h"
 
 // --- I64 ---
-
-typedef long long I64;
 
 I64 I64_add(I64 a, I64 b);
 I64 I64_sub(I64 a, I64 b);
@@ -16,7 +14,7 @@ I64 I64_mod(I64 a, I64 b);
 I64 I64_and(I64 a, I64 b);
 I64 I64_or(I64 a, I64 b);
 I64 I64_xor(I64 a, I64 b);
-int I64_eq(I64 a, I64 b);
+Bool I64_eq(I64 a, I64 b);
 I64 I64_cmp(I64 a, I64 b);
 Str *I64_to_str(I64 v);
 I64 *I64_new(I64 val);
@@ -24,8 +22,6 @@ I64 *I64_clone(I64 *v);
 void I64_delete(I64 *v);
 
 // --- U8 ---
-
-typedef unsigned char U8;
 
 U8 U8_add(U8 a, U8 b);
 U8 U8_sub(U8 a, U8 b);
@@ -35,7 +31,7 @@ U8 U8_mod(U8 a, U8 b);
 U8 U8_and(U8 a, U8 b);
 U8 U8_or(U8 a, U8 b);
 U8 U8_xor(U8 a, U8 b);
-int U8_eq(U8 a, U8 b);
+Bool U8_eq(U8 a, U8 b);
 I64 U8_cmp(U8 a, U8 b);
 Str *U8_to_str(U8 v);
 I64 U8_to_i64(U8 v);
@@ -45,8 +41,6 @@ U8 *U8_clone(U8 *v);
 void U8_delete(U8 *v);
 
 // --- Bool ---
-
-typedef bool Bool;
 
 Bool Bool_eq(Bool a, Bool b);
 Bool Bool_and(Bool a, Bool b);

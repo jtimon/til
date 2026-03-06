@@ -76,7 +76,7 @@ void til_memmove(void *dest, void *src, til_I64 *len) {
 // CLI arg parsing
 til_I64 *til_cli_parse_i64(const char *s) {
     char *end;
-    long long v = strtoll(s, &end, 10);
+    I64 v = strtoll(s, &end, 10);
     if (*end != '\0') {
         fprintf(stderr, "error: cannot parse '%s' as I64\n", s);
         exit(1);
@@ -101,7 +101,7 @@ til_Bool *til_cli_parse_bool(const char *s) {
 
 // --- System primitives ---
 // These use til_Str (codegen layout: { U8 *data, I64 cap }) rather than
-// Str (interpreter layout: { char *c_str, int cap }).
+// Str (interpreter layout: { char *c_str, I32 cap }).
 // For the interpreter, dispatch.c has its own handlers using Str directly.
 
 til_Str *til_readfile(til_Str *path) {
@@ -146,7 +146,7 @@ til_I64 *til_spawn_cmd(til_Str *cmd) {
 }
 
 til_I64 *til_check_cmd_status(til_I64 *pid) {
-    int status;
+    I32 status;
     pid_t result = waitpid((pid_t)*pid, &status, WNOHANG);
     if (result == 0) return I64_new(-1);
     if (WIFEXITED(status)) return I64_new(WEXITSTATUS(status));

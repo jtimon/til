@@ -115,9 +115,9 @@ static const Keyword keywords[] = {
     {NULL, TOK_EOF},
 };
 
-static TokenType lookup_keyword(const char *start, int len) {
+static TokenType lookup_keyword(const char *start, I32 len) {
     for (const Keyword *kw = keywords; kw->word; kw++) {
-        if ((int)strlen(kw->word) == len && memcmp(kw->word, start, len) == 0) {
+        if ((I32)strlen(kw->word) == len && memcmp(kw->word, start, len) == 0) {
             return kw->type;
         }
     }
@@ -126,10 +126,10 @@ static TokenType lookup_keyword(const char *start, int len) {
 
 // --- Tokenizer ---
 
-Token *tokenize(const char *source, const char *path, int *count_out) {
+Token *tokenize(const char *source, const char *path, I32 *count_out) {
     Vec tokens = Vec_new(sizeof(Token));
     const char *pos = source;
-    int line = 1;
+    I32 line = 1;
     const char *line_start = source;
 
     while (*pos) {
@@ -145,7 +145,7 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
             continue;
         }
 
-        int col = (int)(pos - line_start) + 1;
+        I32 col = (I32)(pos - line_start) + 1;
         const char *start = pos;
 
         // Line comments: // or #
@@ -157,7 +157,7 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
         // Block comments: /* ... */ (nestable)
         if (*pos == '/' && pos[1] == '*') {
             pos += 2;
-            int depth = 1;
+            I32 depth = 1;
             while (*pos && depth > 0) {
                 if (pos[0] == '/' && pos[1] == '*') { depth++; pos += 2; }
                 else if (pos[0] == '*' && pos[1] == '/') { depth--; pos += 2; }
@@ -176,14 +176,14 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
                 pos++;
                 while (isdigit(*pos)) pos++;
             }
-            Vec_push(&tokens, &(Token){TOK_NUMBER, start, (int)(pos - start), line, col});
+            Vec_push(&tokens, &(Token){TOK_NUMBER, start, (I32)(pos - start), line, col});
             continue;
         }
 
         // Identifiers and keywords
         if (isalpha(*pos) || *pos == '_') {
             while (isalpha(*pos) || isdigit(*pos) || *pos == '_') pos++;
-            int len = (int)(pos - start);
+            I32 len = (I32)(pos - start);
             TokenType type = lookup_keyword(start, len);
             Vec_push(&tokens, &(Token){type, start, len, line, col});
             continue;
@@ -200,10 +200,10 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
             if (*pos == '"') {
                 pos++; // skip closing quote
                 // start+1 to skip opening quote, len excludes both quotes
-                Vec_push(&tokens, &(Token){TOK_STRING, start + 1, (int)(pos - start - 2), line, col});
+                Vec_push(&tokens, &(Token){TOK_STRING, start + 1, (I32)(pos - start - 2), line, col});
             } else {
                 fprintf(stderr, "%s:%d:%d: error: unterminated string\n", path, line, col);
-                Vec_push(&tokens, &(Token){TOK_ERROR, start, (int)(pos - start), line, col});
+                Vec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
             }
             continue;
         }
@@ -262,7 +262,7 @@ Token *tokenize(const char *source, const char *path, int *count_out) {
     }
 
     // EOF
-    int col = (int)(pos - line_start) + 1;
+    I32 col = (I32)(pos - line_start) + 1;
     Vec_push(&tokens, &(Token){TOK_EOF, pos, 0, line, col});
 
     if (count_out) *count_out = tokens.count;

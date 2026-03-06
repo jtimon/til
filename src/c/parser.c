@@ -8,8 +8,8 @@
 
 typedef struct {
     Token *tokens;
-    int count;
-    int pos;
+    I32 count;
+    I32 pos;
     const char *path;
     Str *spath;  // path as Str* (for Expr nodes)
 } Parser;
@@ -24,7 +24,7 @@ static Token *advance(Parser *p) {
     return t;
 }
 
-static int check(Parser *p, TokenType type) {
+static I32 check(Parser *p, TokenType type) {
     return peek(p)->type == type;
 }
 
@@ -84,7 +84,7 @@ static Expr *parse_func_def(Parser *p) {
     Vec pmuts = Vec_new(sizeof(bool));
     Vec powns = Vec_new(sizeof(bool));
     Vec pdefs = Vec_new(sizeof(Expr *));
-    int variadic_index = -1;
+    I32 variadic_index = -1;
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
         bool is_own = false;
         if (check(p, TOK_OWN)) {
@@ -182,7 +182,7 @@ static Expr *parse_struct_def(Parser *p) {
     expect(p, TOK_LBRACE);
     // Parse struct body with namespace: support
     Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->spath);
-    int in_namespace = 0;
+    I32 in_namespace = 0;
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         if (check(p, TOK_NAMESPACE)) {
             advance(p); // consume 'namespace'
@@ -208,7 +208,7 @@ static Expr *parse_enum_def(Parser *p) {
     Expr *def = expr_new(NODE_ENUM_DEF, kw->line, kw->col, p->spath);
     expect(p, TOK_LBRACE);
     Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->spath);
-    int in_namespace = 0;
+    I32 in_namespace = 0;
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         if (check(p, TOK_NAMESPACE)) {
             advance(p);
@@ -242,7 +242,7 @@ static Expr *parse_enum_def(Parser *p) {
 }
 
 // parse_call: identifier already consumed, current token is '('
-static Expr *parse_call(Parser *p, Str *name, int line, int col) {
+static Expr *parse_call(Parser *p, Str *name, I32 line, I32 col) {
     advance(p); // consume '('
 
     // loc() — replaced with "path:line:col" string literal
@@ -376,7 +376,7 @@ static Expr *parse_expression(Parser *p) {
 }
 
 // parse_statement_ident: identifier is current token
-static Expr *parse_statement_ident(Parser *p, int is_mut, int is_own) {
+static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     Token *t = advance(p); // consume identifier
     Str *name = tok_str(t);
 
@@ -566,7 +566,7 @@ static Expr *parse_statement(Parser *p) {
         advance(p); // consume 'own'
         // own field declaration: own name := value  or  own mut name := value
         if (check(p, TOK_IDENT) || check(p, TOK_MUT)) {
-            int own_mut = 0;
+            I32 own_mut = 0;
             if (check(p, TOK_MUT)) { advance(p); own_mut = 1; }
             if (check(p, TOK_IDENT)) {
                 Token *next = &p->tokens[p->pos + 1];
@@ -607,7 +607,7 @@ static Expr *parse_statement(Parser *p) {
     }
 }
 
-Expr *parse(Token *tokens, int count, const char *path, Str **mode_out) {
+Expr *parse(Token *tokens, I32 count, const char *path, Str **mode_out) {
     Parser p = {tokens, count, 0, path, Str_new(path)};
 
     // Parse optional mode declaration

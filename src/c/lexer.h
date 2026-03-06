@@ -1,6 +1,8 @@
 #ifndef TIL_LEXER_H
 #define TIL_LEXER_H
 
+#include "aliases.h"
+
 typedef enum {
     TOK_EOF,
 
@@ -45,9 +47,9 @@ typedef enum {
 typedef struct {
     TokenType type;
     const char *start;  // pointer into source buffer
-    int len;            // length of lexeme
-    int line;
-    int col;
+    I32 len;            // length of lexeme
+    I32 line;
+    I32 col;
 } Token;
 
 // Returns a null-terminated name for a token type (for debug printing)
@@ -56,6 +58,6 @@ const char *tok_name(TokenType type);
 // Tokenize a source string. Returns a malloc'd array of tokens ending with TOK_EOF.
 // The caller owns the returned array. `path` is used for error messages.
 // `count_out` receives the number of tokens (including TOK_EOF).
-Token *tokenize(const char *source, const char *path, int *count_out);
+Token *tokenize(const char *source, const char *path, I32 *count_out);
 
 #endif
