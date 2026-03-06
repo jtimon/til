@@ -1,0 +1,53 @@
+mode cli
+
+test_i64 := proc() {
+    assert(loc(), 1.lt(2))
+    assert(loc(), 2.gt(1))
+    assert(loc(), 1.lte(1))
+    assert(loc(), 1.lte(2))
+    assert(loc(), 2.gte(2))
+    assert(loc(), 2.gte(1))
+    assert(loc(), 1.neq(2))
+    assert(loc(), 1.eq(1))
+    println("i64: passed")
+}
+
+test_u8 := proc() {
+    u1 : U8 = U8.from_i64(10)
+    u2 : U8 = U8.from_i64(20)
+    assert(loc(), u1.lt(u2))
+    assert(loc(), u2.gt(u1))
+    assert(loc(), u1.lte(u1))
+    assert(loc(), u2.gte(u1))
+    assert(loc(), u1.neq(u2))
+    println("u8: passed")
+}
+
+test_str := proc() {
+    assert(loc(), "apple".lt("banana"))
+    assert(loc(), "banana".gt("apple"))
+    assert(loc(), "hello".lte("hello"))
+    assert(loc(), "hello".gte("hello"))
+    assert(loc(), "a".lte("b"))
+    assert(loc(), "b".gte("a"))
+    assert(loc(), "hello".eq("hello"))
+    assert(loc(), "hello".neq("world"))
+    println("str: passed")
+}
+
+test_bool := proc() {
+    assert(loc(), true.eq(true))
+    assert(loc(), false.eq(false))
+    assert(loc(), true.neq(false))
+    assert(loc(), true.gt(false))
+    assert(loc(), false.lt(true))
+    println("bool: passed")
+}
+
+main := proc() {
+    test_i64()
+    test_u8()
+    test_str()
+    test_bool()
+    println("all cmp tests passed")
+}

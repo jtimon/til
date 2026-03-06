@@ -935,6 +935,121 @@ int init_declarations(Expr *program, TypeScope *scope) {
         expr_add_child(body, decl);
     }
 
+    // Pass 1.95: auto-generate comparison methods from cmp
+    // Any struct/enum with cmp gets: eq, neq, lt, gt, lte, gte (if missing)
+    for (int i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->type != NODE_DECL) continue;
+        Expr *def = expr_child(stmt, 0);
+        if (def->type != NODE_STRUCT_DEF && def->type != NODE_ENUM_DEF) continue;
+
+        Str *sname = stmt->data.decl.name;
+        if (Str_eq_c(sname, "StructDef") || Str_eq_c(sname, "FunctionDef") ||
+            Str_eq_c(sname, "Dynamic")) continue;
+
+        Expr *body = expr_child(def, 0);
+        int has_cmp = 0, has_eq = 0, has_neq = 0;
+        int has_lt = 0, has_gt = 0, has_lte = 0, has_gte = 0;
+        for (int j = 0; j < body->children.count; j++) {
+            Expr *f = expr_child(body, j);
+            if (f->type != NODE_DECL || !f->data.decl.is_namespace) continue;
+            if (f->children.count == 0 || expr_child(f, 0)->type != NODE_FUNC_DEF) continue;
+            if (Str_eq_c(f->data.decl.name, "cmp")) has_cmp = 1;
+            if (Str_eq_c(f->data.decl.name, "eq")) has_eq = 1;
+            if (Str_eq_c(f->data.decl.name, "neq")) has_neq = 1;
+            if (Str_eq_c(f->data.decl.name, "lt")) has_lt = 1;
+            if (Str_eq_c(f->data.decl.name, "gt")) has_gt = 1;
+            if (Str_eq_c(f->data.decl.name, "lte")) has_lte = 1;
+            if (Str_eq_c(f->data.decl.name, "gte")) has_gte = 1;
+        }
+        if (!has_cmp) continue;
+
+        int line = stmt->line;
+        int col = stmt->col;
+        Str *path = stmt->path;
+
+        // Helper macros for building AST nodes inline
+        #define MK(type) expr_new(type, line, col, path)
+        #define ID(s) ({ Expr *_e = MK(NODE_IDENT); _e->data.str_val = Str_new(s); _e; })
+        #define NUM(s) ({ Expr *_e = MK(NODE_LITERAL_NUM); _e->data.str_val = Str_new(s); _e; })
+        #define ACC(obj, field) ({ Expr *_e = MK(NODE_FIELD_ACCESS); _e->data.str_val = Str_new(field); expr_add_child(_e, obj); _e; })
+        #define CALL0(callee) ({ Expr *_e = MK(NODE_FCALL); expr_add_child(_e, callee); _e; })
+        #define CALL1(callee, arg1) ({ Expr *_e = MK(NODE_FCALL); expr_add_child(_e, callee); expr_add_child(_e, arg1); _e; })
+        #define RET(val) ({ Expr *_e = MK(NODE_RETURN); expr_add_child(_e, val); _e; })
+
+        // a.cmp(b).eq(N) — build: call(acc(call(acc(id("a"), "cmp"), id("b")), "eq"), N)
+        #define CMP_EQ(n) RET(CALL1(ACC(CALL1(ACC(ID("a"), "cmp"), ID("b")), "eq"), n))
+        // 0.sub(1) for -1
+        #define NEG1() CALL1(ACC(NUM("0"), "sub"), NUM("1"))
+
+        // Generate a 2-param func decl in namespace
+        #define GEN_CMP_FUNC(method_name, body_expr) do { \
+            Expr *fb = MK(NODE_BODY); \
+            expr_add_child(fb, body_expr); \
+            Expr *fd = MK(NODE_FUNC_DEF); \
+            fd->data.func_def.func_type = FUNC_FUNC; \
+            fd->data.func_def.nparam = 2; \
+            fd->data.func_def.param_names = malloc(2 * sizeof(Str *)); \
+            fd->data.func_def.param_names[0] = Str_new("a"); \
+            fd->data.func_def.param_names[1] = Str_new("b"); \
+            fd->data.func_def.param_types = malloc(2 * sizeof(Str *)); \
+            fd->data.func_def.param_types[0] = sname; \
+            fd->data.func_def.param_types[1] = sname; \
+            fd->data.func_def.param_muts = calloc(2, sizeof(bool)); \
+            fd->data.func_def.param_owns = calloc(2, sizeof(bool)); \
+            fd->data.func_def.param_defaults = calloc(2, sizeof(Expr *)); \
+            fd->data.func_def.return_type = Str_new("Bool"); \
+            fd->data.func_def.variadic_index = -1; \
+            expr_add_child(fd, fb); \
+            Expr *dc = MK(NODE_DECL); \
+            dc->data.decl.name = Str_new(method_name); \
+            dc->data.decl.is_namespace = true; \
+            expr_add_child(dc, fd); \
+            expr_add_child(body, dc); \
+        } while(0)
+
+        // eq(a, b) → a.cmp(b).eq(0)
+        if (!has_eq) {
+            GEN_CMP_FUNC("eq", CMP_EQ(NUM("0")));
+        }
+
+        // lt(a, b) → a.cmp(b).eq(0.sub(1))
+        if (!has_lt) {
+            GEN_CMP_FUNC("lt", CMP_EQ(NEG1()));
+        }
+
+        // gt(a, b) → a.cmp(b).eq(1)
+        if (!has_gt) {
+            GEN_CMP_FUNC("gt", CMP_EQ(NUM("1")));
+        }
+
+        // neq(a, b) → a.eq(b).not()
+        if (!has_neq) {
+            GEN_CMP_FUNC("neq", RET(CALL0(ACC(CALL1(ACC(ID("a"), "eq"), ID("b")), "not"))));
+        }
+
+        // lte(a, b) → a.gt(b).not()
+        if (!has_lte) {
+            GEN_CMP_FUNC("lte", RET(CALL0(ACC(CALL1(ACC(ID("a"), "gt"), ID("b")), "not"))));
+        }
+
+        // gte(a, b) → a.lt(b).not()
+        if (!has_gte) {
+            GEN_CMP_FUNC("gte", RET(CALL0(ACC(CALL1(ACC(ID("a"), "lt"), ID("b")), "not"))));
+        }
+
+        #undef MK
+        #undef ID
+        #undef NUM
+        #undef ACC
+        #undef CALL0
+        #undef CALL1
+        #undef RET
+        #undef CMP_EQ
+        #undef NEG1
+        #undef GEN_CMP_FUNC
+    }
+
     // Pass 2: register all func/proc definitions
     for (int i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);

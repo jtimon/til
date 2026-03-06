@@ -2,7 +2,7 @@
 set -e
 
 CTIL=bin/ctil
-TESTS="src/test/types.til src/test/operators.til src/test/functions.til src/test/structs.til src/test/optional_args.til src/test/forward_refs.til src/test/flow.til src/test/strings.til src/test/ref.til src/test/own_fields.til src/test/macros.til src/test/enums.til src/test/vecs.til src/test/arrays.til src/test/sets.til src/test/maps.til src/test/globals.til src/test/globals_cli.til src/test/misc.til src/test/array_lit.til"
+TESTS="src/test/types.til src/test/operators.til src/test/functions.til src/test/structs.til src/test/optional_args.til src/test/forward_refs.til src/test/flow.til src/test/strings.til src/test/ref.til src/test/own_fields.til src/test/macros.til src/test/enums.til src/test/vecs.til src/test/arrays.til src/test/sets.til src/test/maps.til src/test/globals.til src/test/globals_cli.til src/test/misc.til src/test/array_lit.til src/test/cmp.til"
 FAIL=0
 
 for t in $TESTS; do
