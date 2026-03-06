@@ -1,9 +1,45 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 23
+# NEXT_ISSUE: 24
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
+
+* OPEN #23 shallow keyword: direct C calling convention for ext_func/ext_proc
+  :DEPENDENCIES_OF: #11
+  til's FFI currently uses a pointer calling convention: all args are heap
+  pointers (til_I64 *, til_Str *, etc.) and returns are heap-allocated.
+  External C libraries (raylib, SDL, etc.) use natural C types — int, float,
+  const char *, structs by value. This mismatch forces users to write wrapper
+  .c files that dereference pointers and convert types.
+
+  A `shallow` keyword on ext_func/ext_proc would tell the FFI to use C's
+  native calling convention instead of til's pointer convention. C doesn't
+  distinguish ref from own — it's all just pointers or values — so the user
+  maps til types to C semantics, and the FFI handles the conversion:
+
+    init_window := shallow ext_proc(w: I64, h: I64, title: Str) {}
+    // FFI passes: (int64_t)w, (int64_t)h, null-terminated char* from title
+    // Instead of: til_I64*, til_I64*, til_Str*
+
+  Type mapping for shallow:
+  - I64 → int64_t by value (dereference the pointer)
+  - U8 → uint8_t by value
+  - Bool → bool by value
+  - Str → const char * (null-terminated copy of data)
+  - Struct → pointer to flat buffer (same as current, already C-compatible)
+
+  This eliminates the need for wrapper .c files for most external libraries.
+  The companion .c file (#4 TODO) would only be needed for complex cases
+  (custom memory management, opaque types, callbacks).
+
+  Implementation:
+  - Parser: recognize `shallow` before ext_func/ext_proc
+  - AST: flag on FUNC_DEF (e.g. is_shallow)
+  - dispatch.c: use ffi_type_sint64/uint8/etc. instead of ffi_type_pointer,
+    dereference values before passing, handle Str null-termination
+  - ccodegen.c: emit direct C types instead of til_* wrappers
+  - dlsym: look up function name directly (no til_ prefix)
 
 * OPEN #22 Operator syntax: desugar operators to method calls
   :DEPENDENCIES: #12
@@ -323,7 +359,7 @@
   Does NOT depend on #10 (REPL) or #11 (GUI mode).
 
 * OPEN #11 Mode GUI: raylib integration via FFI
-  :DEPENDENCIES: #4
+  :DEPENDENCIES: #23
   Add a `mode gui` that auto-includes ext_func/ext_proc declarations for
   raylib, so users can build graphical applications. Similar to how `mode cli`
   calls main(), `mode gui` would call a main loop with raylib setup/teardown.
@@ -417,35 +453,6 @@
    Related to #4. Support `..Type` in ext_func/ext_proc parameter lists
    for user-defined companion .c files.
 
-* OPEN #4 FFI: call external C functions from til
-  Users can call C functions by providing a .c file alongside their .til program.
-  Declare signatures in til with ext_func/ext_proc, implement in C with til_
-  prefix and pointer calling convention.
-
-** Done: codegen path
-   - ccodegen.c: emits forward declarations for non-core ext_func/ext_proc,
-     compile_c links user .c alongside ext.c/str.c/ccore.c.
-   - Non-core ext_structs: codegen emits typedefs and forward declarations
-     (core ext_structs like I64/U8/Bool are provided by ext.h).
-   - Namespace ext methods (ext_func inside ext_struct) forward-declared.
-
-** Done: interpreter path
-   - dispatch.c: ffi_init compiles user .c to .so, dlopen/dlsym into FFIEntry map.
-   - libffi-based calling (no arity cap). ffi_cif precomputed per function.
-   - ffi_init scans both top-level ext_func/ext_proc and ext_struct namespace methods.
-   - Flat struct representation: StructInstance.data is C-layout-compatible,
-     passed directly as args and wrapped on return (including ext_struct types).
-
-** TODO: companion .c file detection is broken
-   ctil.c hardcodes program.c next to program.til (replaces .til with .c).
-   This means the .c file MUST have the same name as the .til file.
-   Won't work for real use cases (e.g. raylib bindings, multi-file C modules).
-   Need a proper mechanism: command-line flag, pragma, or import directive.
-
-** Test
-   - src/examples/ffi/ext_module.til + ext_module.c: top-level ext_funcs
-     (greet, greet_print), ext_struct (Pair with ext methods), regular struct
-     in FFI (Point with add_points). Both interpret and codegen in tests.sh.
 
 * WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
   Currently all returns are owned by the caller (heap-allocated, caller must

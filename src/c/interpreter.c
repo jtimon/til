@@ -860,10 +860,10 @@ static Value build_argv_array(I32 argc, char **argv, Str *elem_type) {
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
-I32 interpret(Expr *program, Str *mode, const char *path, const char *user_c_path, const char *ext_c_path, I32 user_argc, char **user_argv) {
+I32 interpret(Expr *program, Str *mode, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, I32 user_argc, char **user_argv) {
     // Load user FFI library if provided
     if (user_c_path) {
-        I32 rc = ffi_init(program, user_c_path, ext_c_path);
+        I32 rc = ffi_init(program, user_c_path, ext_c_path, link_flags);
         if (rc != 0) return rc;
     }
 

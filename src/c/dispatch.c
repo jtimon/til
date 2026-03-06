@@ -766,7 +766,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
     return 0;
 }
 
-I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
+I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, const char *link_flags) {
     // Extract include dir from ext_c_path
     char ext_dir[256];
     const char *last_slash = strrchr(ext_c_path, '/');
@@ -781,9 +781,10 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
     char so_path[256];
     snprintf(so_path, sizeof(so_path), "tmp/ffi_%d.so", (int)getpid());
     system("mkdir -p tmp");
-    int cmdlen = snprintf(NULL, 0, "cc -shared -fPIC -I%s -o %s %s", ext_dir, so_path, user_c_path);
+    const char *lf = link_flags ? link_flags : "";
+    int cmdlen = snprintf(NULL, 0, "cc -shared -fPIC -I%s -o %s %s%s", ext_dir, so_path, user_c_path, lf);
     char *cmd = malloc(cmdlen + 1);
-    snprintf(cmd, cmdlen + 1, "cc -shared -fPIC -I%s -o %s %s", ext_dir, so_path, user_c_path);
+    snprintf(cmd, cmdlen + 1, "cc -shared -fPIC -I%s -o %s %s%s", ext_dir, so_path, user_c_path, lf);
     int rc = system(cmd);
     free(cmd);
     if (rc != 0) {

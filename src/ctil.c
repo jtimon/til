@@ -139,12 +139,27 @@ int main(int argc, char **argv) {
         }
     }
 
-    // User args: everything after command and path
-    I32 user_argc = (argc > 3) ? argc - 3 : 0;
-    char **user_argv = (argc > 3) ? argv + 3 : NULL;
+    // Separate -l flags from user args (argv[3..])
+    char link_flags[512] = "";
+    I32 link_pos = 0;
+    char *filtered_argv[argc];
+    I32 user_argc = 0;
+    for (I32 i = 3; i < argc; i++) {
+        if (strncmp(argv[i], "-l", 2) == 0) {
+            // -lfoo or -l foo
+            const char *lib = argv[i] + 2;
+            if (*lib == '\0' && i + 1 < argc) { lib = argv[++i]; }
+            link_pos += snprintf(link_flags + link_pos, sizeof(link_flags) - link_pos,
+                                 " -l%s", lib);
+        } else {
+            filtered_argv[user_argc++] = argv[i];
+        }
+    }
+    char **user_argv = user_argc > 0 ? filtered_argv : NULL;
+    const char *lflags = link_flags[0] ? link_flags : NULL;
 
     if (strcmp(command, "interpret") == 0) {
-        result = interpret(ast, mode, path, user_c, ext_c_path, user_argc, user_argv);
+        result = interpret(ast, mode, path, user_c, ext_c_path, lflags, user_argc, user_argv);
     } else if (strcmp(command, "translate") == 0 || strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
         const char *basename = strrchr(path, '/');
@@ -163,7 +178,7 @@ int main(int argc, char **argv) {
             printf("Generated: %s\n", c_path);
         }
         if (result == 0 && strcmp(command, "translate") != 0) {
-            result = compile_c(c_path, bin_path, ext_c_path, user_c);
+            result = compile_c(c_path, bin_path, ext_c_path, user_c, lflags);
         }
         if (result == 0 && strcmp(command, "run") == 0) {
             // Build command with user args appended

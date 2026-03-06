@@ -14,7 +14,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                          Value *result);
 
 // FFI: load user .c as shared library, register function pointers
-I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path);
+I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, const char *link_flags);
 void ffi_cleanup(void);
 
 #endif

@@ -1,5 +1,32 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #4 FFI: call external C functions from til
+  Users can call C functions by providing a .c file alongside their .til program.
+  Declare signatures in til with ext_func/ext_proc, implement in C with til_
+  prefix and pointer calling convention.
+
+  Codegen path: ccodegen.c emits forward declarations, compile_c links user .c.
+  Non-core ext_structs get typedefs and forward declarations.
+
+  Interpreter path: dispatch.c compiles user .c to .so, dlopen/dlsym into
+  FFIEntry map. libffi-based calling (no arity cap). ffi_cif precomputed per
+  function. Flat struct representation (StructInstance.data is C-layout-compatible)
+  passed directly as args and wrapped on return (including ext_struct types).
+
+  CLI -l flag support: ctil parses -l flags from argv, forwards to both
+  compile_c and ffi_init cc commands. Enables linking external libraries
+  (e.g. -l raylib -l GL -l m).
+
+  Companion .c file detection: ctil.c checks for program.c next to program.til.
+  Limited but functional. Proper mechanism (command-line flag, pragma) deferred.
+
+  Remaining limitation: til's pointer calling convention (til_I64 *, til_Str *)
+  doesn't match natural C conventions (int, const char *). External libraries
+  still require wrapper .c files. See #23 (shallow keyword) for the fix.
+
+  Tests: src/examples/ffi/ext_module.til (both interpret and codegen).
+  Demo: src/examples/raylib.til + raylib.c (raylib via FFI, both modes).
+
 * FIXED #20 Dynamic arg narrowing
   Dynamic values can be passed where a concrete type is expected.
   The parameter's declared type provides context, like an explicit

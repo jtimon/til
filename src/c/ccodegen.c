@@ -1345,7 +1345,7 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
     return 0;
 }
 
-I32 compile_c(const char *c_path, const char *bin_path, const char *ext_c_path, const char *user_c_path) {
+I32 compile_c(const char *c_path, const char *bin_path, const char *ext_c_path, const char *user_c_path, const char *link_flags) {
     // Extract directory from ext_c_path for -I flag
     char ext_dir[256];
     const char *last_slash = strrchr(ext_c_path, '/');
@@ -1361,11 +1361,12 @@ I32 compile_c(const char *c_path, const char *bin_path, const char *ext_c_path, 
     snprintf(str_c_path, sizeof(str_c_path), "%s/str.c", ext_dir);
     snprintf(ccore_c_path, sizeof(ccore_c_path), "%s/ccore.c", ext_dir);
     const char *user_part = user_c_path ? user_c_path : "";
-    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s %s %s",
-                       ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path, user_part);
+    const char *lf = link_flags ? link_flags : "";
+    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s %s %s%s",
+                       ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path, user_part, lf);
     char *cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s %s %s",
-             ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path, user_part);
+    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s %s %s%s",
+             ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path, user_part, lf);
 
     int result = system(cmd);
     free(cmd);

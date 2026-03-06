@@ -1,0 +1,25 @@
+mode script
+
+init_window := ext_proc(w: I64, h: I64, title: Str) {}
+window_should_close := ext_func() returns Bool {}
+begin_drawing := ext_proc() {}
+end_drawing := ext_proc() {}
+close_window := ext_proc() {}
+clear_background := ext_proc(r: I64, g: I64, b: I64, a: I64) {}
+set_target_fps := ext_proc(fps: I64) {}
+draw_rectangle := ext_proc(x: I64, y: I64, w: I64, h: I64, r: I64, g: I64, b: I64, a: I64) {}
+
+init_window(800, 450, "hello from til!")
+set_target_fps(60)
+
+mut x := 0
+mut y := 0
+while window_should_close().not() {
+    x = x.add(2)
+    y = y.add(1)
+    begin_drawing()
+    clear_background(0, 0, 0, 255)
+    draw_rectangle(x, y, 50, 50, 230, 41, 55, 255)
+    end_drawing()
+}
+close_window()
