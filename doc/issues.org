@@ -1,6 +1,53 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 18
+# NEXT_ISSUE: 20
+
+* OPEN #19 Literal syntax for collection initialization
+  :DEPENDENCIES: #18
+  Sugar for initializing Array, Vec, Set, Map, and List with values
+  instead of repeated .set()/.push()/.add() calls.
+
+** Phase 1: Array and Vec literals
+   arr := [1, 2, 3]          // Array[I64] with len=3
+   v := vec[1, 2, 3]         // Vec[I64] with 3 elements
+
+   Desugars to Array.new(3) + set calls / Vec.new() + push calls.
+   Type inferred from elements (all must be same type).
+
+** Phase 2: Set and Map literals
+   s := set{1, 2, 3}         // Set[I64]
+   m := map{"a": 1, "b": 2}  // Map[Str, I64]
+
+   Desugars to Set.new()/Map.new() + add/set calls.
+
+** Phase 3: Tuple literals
+   t := (1, "hello", true)   // Tuple[I64, Str, Bool]
+
+   Requires #18 (Tuple type).
+
+* OPEN #18 Tuple/List: fixed-size heterogeneous collections
+  TBD: name (Tuple or List).
+  Holds a fixed number of elements of different types.
+  The type encodes all element types: Tuple[I64, Str, Bool] is a
+  3-element collection.
+
+  Example:
+    point := (10, 20)            // Tuple[I64, I64]
+    record := (42, "alice", true) // Tuple[I64, Str, Bool]
+    x := record.0                // I64, value 42
+    name := record.1             // Str, value "alice"
+
+  Access by numeric index (compile-time checked). Tuples are immutable
+  (elements set at construction, no push/pop).
+
+  What's needed:
+  - Type system: Tuple[T1, T2, ...] parameterized type with N type params
+  - Parser: (expr, expr, ...) syntax for construction
+  - Field access: .0, .1, .N syntax with compile-time bounds checking
+  - Typer: each .N accessor returns the corresponding element type
+  - Interpreter: store as ordered array of heterogeneous Values
+  - Codegen: emit as C struct with typed fields (field0, field1, ...)
+  - clone/delete: per-element based on each element's type
 
 * OPEN #17 Global/outer-scope variable access from functions and procs
   :DEPENDENCIES_OF: #12 #13
