@@ -44,10 +44,46 @@ test_bool := proc() {
     println("bool: passed")
 }
 
+Point := struct {
+    mut x := 0
+    mut y := 0
+}
+
+Line := struct {
+    mut start := Point()
+    mut end := Point()
+    namespace:
+    length_sq := func(self: Line) returns I64 {
+        dx := self.end.x.sub(self.start.x)
+        dy := self.end.y.sub(self.start.y)
+        return dx.mul(dx).add(dy.mul(dy))
+    }
+    cmp := func(a: Line, b: Line) returns I64 {
+        return a.length_sq().cmp(b.length_sq())
+    }
+}
+
+test_line := proc() {
+    s := Line(end=Point(x=3, y=4))    // length_sq = 25
+    l := Line(end=Point(x=6, y=8))   // length_sq = 100
+    same := Line(end=Point(x=4, y=3))  // length_sq = 25
+
+    assert(loc(), s.lt(l))
+    assert(loc(), l.gt(s))
+    assert(loc(), s.eq(same))
+    assert(loc(), s.lte(same))
+    assert(loc(), s.gte(same))
+    assert(loc(), s.lte(l))
+    assert(loc(), l.gte(s))
+    assert(loc(), s.neq(l))
+    println("line: passed")
+}
+
 main := proc() {
     test_i64()
     test_u8()
     test_str()
     test_bool()
+    test_line()
     println("all cmp tests passed")
 }
