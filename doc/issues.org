@@ -2,44 +2,6 @@
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
 # NEXT_ISSUE: 17
 
-* OPEN #4 FFI: call external C functions from til
-  Users can call C functions by providing a .c file alongside their .til program.
-  Declare signatures in til with ext_func/ext_proc, implement in C with til_
-  prefix and pointer calling convention.
-
-** Done: codegen path
-   - ccodegen.c: emits forward declarations for non-core ext_func/ext_proc,
-     compile_c links user .c alongside ext.c/str.c/ccore.c.
-   - Non-core ext_structs: codegen emits typedefs and forward declarations
-     (core ext_structs like I64/U8/Bool are provided by ext.h).
-   - Namespace ext methods (ext_func inside ext_struct) forward-declared.
-
-** Done: interpreter path (partial)
-   - dispatch.c: ffi_init compiles user .c to .so, dlopen/dlsym into FFIEntry map.
-   - Arity-based trampoline (0-4 args) calls through void* function pointers.
-   - ffi_init scans both top-level ext_func/ext_proc and ext_struct namespace methods.
-
-** TODO: companion .c file detection is broken
-   ctil.c hardcodes program.c next to program.til (replaces .til with .c).
-   This means the .c file MUST have the same name as the .til file.
-   Won't work for real use cases (e.g. raylib bindings, multi-file C modules).
-   Need a proper mechanism: command-line flag, pragma, or import directive.
-
-** TODO: interpreter struct marshaling
-   The FFI trampoline can pass I64/U8/Bool/Str args directly because these
-   have dedicated VAL_I64/VAL_STR/etc types with C-compatible pointer storage.
-   User-defined structs (both ext_struct and regular struct) use the generic
-   VAL_STRUCT/StructInstance representation which is NOT C-compatible.
-   Need marshaling: convert StructInstance ↔ flat C struct at FFI boundary.
-   This blocks interpreter support for ext_struct methods and ext_funcs
-   that take/return struct arguments.
-   See also #1 (interpreter special-cases for built-in types).
-
-** Test
-   - src/examples/ffi/ext_module.til + ext_module.c: top-level ext_funcs
-     (greet, greet_print), ext_struct (Pair with ext methods), regular struct
-     in FFI (Point with add_points). Currently codegen-only in tests.sh.
-
 * OPEN #16 Imports: multi-file programs and modular core.til
   til programs are currently single-file. There's no way to split code
   across files or reuse libraries. core.til is a single monolithic file
@@ -254,6 +216,43 @@
    Related to #4. Support `..Type` in ext_func/ext_proc parameter lists
    for user-defined companion .c files.
 
+* OPEN #4 FFI: call external C functions from til
+  Users can call C functions by providing a .c file alongside their .til program.
+  Declare signatures in til with ext_func/ext_proc, implement in C with til_
+  prefix and pointer calling convention.
+
+** Done: codegen path
+   - ccodegen.c: emits forward declarations for non-core ext_func/ext_proc,
+     compile_c links user .c alongside ext.c/str.c/ccore.c.
+   - Non-core ext_structs: codegen emits typedefs and forward declarations
+     (core ext_structs like I64/U8/Bool are provided by ext.h).
+   - Namespace ext methods (ext_func inside ext_struct) forward-declared.
+
+** Done: interpreter path (partial)
+   - dispatch.c: ffi_init compiles user .c to .so, dlopen/dlsym into FFIEntry map.
+   - Arity-based trampoline (0-4 args) calls through void* function pointers.
+   - ffi_init scans both top-level ext_func/ext_proc and ext_struct namespace methods.
+
+** TODO: companion .c file detection is broken
+   ctil.c hardcodes program.c next to program.til (replaces .til with .c).
+   This means the .c file MUST have the same name as the .til file.
+   Won't work for real use cases (e.g. raylib bindings, multi-file C modules).
+   Need a proper mechanism: command-line flag, pragma, or import directive.
+
+** TODO: interpreter struct marshaling
+   The FFI trampoline can pass I64/U8/Bool/Str args directly because these
+   have dedicated VAL_I64/VAL_STR/etc types with C-compatible pointer storage.
+   User-defined structs (both ext_struct and regular struct) use the generic
+   VAL_STRUCT/StructInstance representation which is NOT C-compatible.
+   Need marshaling: convert StructInstance ↔ flat C struct at FFI boundary.
+   This blocks interpreter support for ext_struct methods and ext_funcs
+   that take/return struct arguments.
+   See also #1 (interpreter special-cases for built-in types).
+
+** Test
+   - src/examples/ffi/ext_module.til + ext_module.c: top-level ext_funcs
+     (greet, greet_print), ext_struct (Pair with ext methods), regular struct
+     in FFI (Point with add_points). Currently codegen-only in tests.sh.
 
 * WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
   Currently all returns are owned by the caller (heap-allocated, caller must
@@ -444,4 +443,3 @@
 
 ** FIXED namespace call path
    Full named-arg resolution in both namespace and regular call paths.
-
