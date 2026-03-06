@@ -4,34 +4,6 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* OPEN #21 Universal UFCS: method syntax for top-level functions
-  UFCS (Uniform Function Call Syntax) currently only resolves methods
-  in the type's namespace (struct/ext_struct body). A call like
-  a.method(b) checks the namespace of a's type and fails if method
-  isn't found there — it never falls back to top-level functions.
-
-  This means:
-  - "hello".println() fails — println is top-level, not in Str namespace
-  - true.and(false) only works because and is in Bool namespace
-  - Any top-level function taking T as first param can't use dot syntax
-
-  True UFCS: a.f(b) should first check a's type namespace, then fall
-  back to top-level f(a, b) if not found. This is how D, Nim, and
-  other UFCS languages work.
-
-  What's needed:
-  - Typer (typer.c ~178): when namespace lookup fails, search top-level
-    scope for a func/proc whose name matches and whose first param type
-    matches the object's type. If found, rewrite to f(a, b).
-  - Codegen: no changes needed — the AST rewrite handles it.
-  - Interpreter: no changes needed — same reason.
-
-  Benefits:
-  - Bool.and/or/not can move to top-level, enabling both a.or(b) and
-    or(a, b) without needing Bool.or(a, b) for non-UFCS calls.
-  - User functions work with dot syntax: to_json(x) and x.to_json().
-  - Chaining: x.transform().validate().save() where these are all
-    top-level functions.
 
 * OPEN #20 Dynamic return type inference
   Methods returning Dynamic (e.g. Array.get, Vec.get) should allow

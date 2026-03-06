@@ -1,5 +1,19 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #21 Universal UFCS: method syntax for top-level functions
+  a.f(b) now falls back to top-level f(a, b) when f is not found in
+  a's type namespace. The typer checks the top-level scope for a
+  func/proc whose first parameter type matches a's type. If found,
+  rewrites the AST from a field_access call to a plain function call.
+  Namespace methods still take priority.
+
+  Single change in typer.c (~line 178): added fallback before the
+  "no method" error. Uses goto to jump to the regular call path after
+  rewriting. No changes needed in interpreter or codegen.
+
+  Enables: "hello".println(), 5.double(), x.transform().validate()
+  where these are all top-level functions.
+
 * FIXED #5 Pointers, Vec, Array, native Str: C-level memory and dynamic structures
   :DEPENDENCIES: #2 #3
   Evolved from 4 pointer primitives into a full inline-value memory model.

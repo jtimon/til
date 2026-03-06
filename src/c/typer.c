@@ -176,6 +176,26 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
                     }
                 }
                 if (!ns_func) {
+                    // UFCS fallback: check top-level for f(a: T, ...)
+                    TypeBinding *top = tscope_find(scope, method);
+                    if (top && top->func_def &&
+                        top->func_def->data.func_def.nparam > 0 &&
+                        top->func_def->data.func_def.param_types[0] &&
+                        type_name &&
+                        Str_eq(top->func_def->data.func_def.param_types[0], type_name)) {
+                        // Rewrite: a.f(b) → f(a, b)
+                        Expr *fn_ident = expr_new(NODE_IDENT, fa->line, fa->col, fa->path);
+                        fn_ident->data.str_val = method;
+                        expr_child(e, 0) = fn_ident;
+                        // Insert instance as first arg
+                        Expr *instance = obj;
+                        Expr *dummy = NULL;
+                        Vec_push(&e->children, &dummy);
+                        memmove(&expr_child(e, 2), &expr_child(e, 1),
+                                (e->children.count - 2) * sizeof(Expr *));
+                        expr_child(e, 1) = instance;
+                        goto regular_call;
+                    }
                     char buf[128];
                     snprintf(buf, sizeof(buf), "no method '%s' for type '%s'",
                              method->c_str, type_name ? type_name->c_str : "unknown");
@@ -331,6 +351,7 @@ static void infer_expr(TypeScope *scope, Expr *e, int in_func) {
             }
             break;
         }
+        regular_call:;
         // Resolve callee
         Str *name = expr_child(e, 0)->data.str_val;
         // Struct instantiation: Point() or Point(x=1, y=2)
