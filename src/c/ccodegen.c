@@ -1213,7 +1213,7 @@ int compile_c(const char *c_path, const char *bin_path, const char *ext_c_path, 
     }
 
     // Build the cc command — also compile str.c and ccore.c
-    char str_c_path[256], ccore_c_path[256];
+    char str_c_path[272], ccore_c_path[272];
     snprintf(str_c_path, sizeof(str_c_path), "%s/str.c", ext_dir);
     snprintf(ccore_c_path, sizeof(ccore_c_path), "%s/ccore.c", ext_dir);
     const char *user_part = user_c_path ? user_c_path : "";

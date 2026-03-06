@@ -651,7 +651,7 @@ int ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path) {
                 FuncType fft = fdef->data.func_def.func_type;
                 if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
 
-                char flat_name[256], sym_name[256];
+                char flat_name[256], sym_name[264];
                 snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->data.decl.name->c_str);
                 snprintf(sym_name, sizeof(sym_name), "til_%s", flat_name);
                 void *fn = dlsym(ffi_handle, sym_name);
