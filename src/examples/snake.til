@@ -1,0 +1,189 @@
+mode gui
+
+main := proc() {
+    cols := 32
+    rows := 24
+    cell := 20
+    w := cols.mul(cell)
+    h := rows.mul(cell)
+
+    init_window(w, h, "snake")
+    set_target_fps(60)
+
+    // Snake body as encoded positions (y * cols + x)
+    max_len := cols.mul(rows)
+    mut body := Array.new("I64", 8, max_len)
+    mut snake_len := 3
+    mut dx := 1
+    mut dy := 0
+    mut next_dx := 1
+    mut next_dy := 0
+    mut frame := 0
+    mut speed := 8
+    mut score := 0
+    mut game_over := false
+
+    // Place snake in center
+    center_x := cols.div(2)
+    center_y := rows.div(2)
+    body.set(0, own center_y.mul(cols).add(center_x))
+    body.set(1, own center_y.mul(cols).add(center_x.sub(1)))
+    body.set(2, own center_y.mul(cols).add(center_x.sub(2)))
+
+    // Place first food
+    mut food_x := get_random_value(0, cols.sub(1))
+    mut food_y := get_random_value(0, rows.sub(1))
+
+    while window_should_close().not() {
+        // Input
+        if game_over {
+            if is_key_pressed(82) {
+                // R = restart
+                snake_len = 3
+                dx = 1
+                dy = 0
+                next_dx = 1
+                next_dy = 0
+                frame = 0
+                speed = 8
+                score = 0
+                game_over = false
+                body.set(0, own center_y.mul(cols).add(center_x))
+                body.set(1, own center_y.mul(cols).add(center_x.sub(1)))
+                body.set(2, own center_y.mul(cols).add(center_x.sub(2)))
+                food_x = get_random_value(0, cols.sub(1))
+                food_y = get_random_value(0, rows.sub(1))
+            }
+        } else {
+            // WASD - prevent 180 reversal
+            if is_key_pressed(87) {
+                if dy.eq(1).not() {
+                    next_dx = 0
+                    next_dy = 0.sub(1)
+                }
+            }
+            if is_key_pressed(83) {
+                if dy.eq(0.sub(1)).not() {
+                    next_dx = 0
+                    next_dy = 1
+                }
+            }
+            if is_key_pressed(65) {
+                if dx.eq(1).not() {
+                    next_dx = 0.sub(1)
+                    next_dy = 0
+                }
+            }
+            if is_key_pressed(68) {
+                if dx.eq(0.sub(1)).not() {
+                    next_dx = 1
+                    next_dy = 0
+                }
+            }
+
+            // Tick
+            frame = frame.add(1)
+            if frame.gte(speed) {
+                frame = 0
+                dx = next_dx
+                dy = next_dy
+
+                // Get current head
+                ref head_pos : I64 = body.get(0)
+                head_x := head_pos.mod(cols)
+                head_y := head_pos.div(cols)
+
+                // New head
+                new_x := head_x.add(dx)
+                new_y := head_y.add(dy)
+
+                // Wall collision
+                if new_x.lt(0).or(new_x.gte(cols)).or(new_y.lt(0)).or(new_y.gte(rows)) {
+                    game_over = true
+                } else {
+                    new_pos := new_y.mul(cols).add(new_x)
+
+                    // Self collision
+                    mut i := 0
+                    while i.lt(snake_len) {
+                        ref seg : I64 = body.get(i)
+                        if seg.eq(new_pos) {
+                            game_over = true
+                        }
+                        i = i.add(1)
+                    }
+
+                    if game_over.not() {
+                        // Shift body
+                        mut j := snake_len.sub(1)
+                        while j.gt(0) {
+                            ref prev_ref : I64 = body.get(j.sub(1))
+                            prev_val := prev_ref
+                            body.set(j, own prev_val)
+                            j = j.sub(1)
+                        }
+                        body.set(0, own new_pos)
+
+                        // Food collision
+                        if new_x.eq(food_x).and(new_y.eq(food_y)) {
+                            // Grow: duplicate tail
+                            ref tail_ref : I64 = body.get(snake_len.sub(1))
+                            tail_val := tail_ref
+                            body.set(snake_len, own tail_val)
+                            snake_len = snake_len.add(1)
+                            score = score.add(10)
+
+                            // Speed up every 50 points
+                            if speed.gt(3) {
+                                if score.mod(50).eq(0) {
+                                    speed = speed.sub(1)
+                                }
+                            }
+
+                            // New food (simple: no overlap check)
+                            food_x = get_random_value(0, cols.sub(1))
+                            food_y = get_random_value(0, rows.sub(1))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Draw
+        begin_drawing()
+        clear_background(0, 0, 0, 255)
+
+        // Food
+        draw_rectangle(food_x.mul(cell).add(2), food_y.mul(cell).add(2),
+                       cell.sub(4), cell.sub(4), 0, 200, 0, 255)
+
+        // Body segments (skip head)
+        mut k := 1
+        while k.lt(snake_len) {
+            ref seg : I64 = body.get(k)
+            sx := seg.mod(cols).mul(cell).add(2)
+            sy := seg.div(cols).mul(cell).add(2)
+            draw_rectangle(sx, sy, cell.sub(4), cell.sub(4), 255, 255, 0, 255)
+            k = k.add(1)
+        }
+
+        // Head (yellow circle)
+        ref head : I64 = body.get(0)
+        hx := head.mod(cols).mul(cell).add(cell.div(2))
+        hy := head.div(cols).mul(cell).add(cell.div(2))
+        draw_circle(hx, hy, cell.div(2).sub(1), 255, 255, 0, 255)
+
+        // Score
+        draw_text(format("score: ", score.to_str()), 4, 4, 16, 255, 255, 255, 255)
+
+        // Game over overlay
+        if game_over {
+            draw_text("GAME OVER", w.div(2).sub(100), h.div(2).sub(20), 40, 230, 41, 55, 255)
+            draw_text("press R to restart", w.div(2).sub(90), h.div(2).add(30), 20, 200, 200, 200, 255)
+        }
+
+        end_drawing()
+    }
+
+    close_window()
+}

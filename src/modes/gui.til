@@ -20,3 +20,5 @@ get_screen_height := ext_func() returns I64 {}
 get_frame_time := ext_func() returns I64 {}
 is_key_pressed := ext_func(key: I64) returns Bool {}
 is_key_down := ext_func(key: I64) returns Bool {}
+draw_circle := ext_proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I64) {}
+get_random_value := ext_func(min: I64, max: I64) returns I64 {}

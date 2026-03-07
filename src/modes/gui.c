@@ -72,3 +72,16 @@ til_Bool *til_is_key_down(til_I64 *key) {
     *r = IsKeyDown((int)*key);
     return r;
 }
+
+void til_draw_circle(til_I64 *cx, til_I64 *cy, til_I64 *radius,
+                     til_I64 *r, til_I64 *g, til_I64 *b, til_I64 *a) {
+    DrawCircle((int)*cx, (int)*cy, (float)*radius,
+               (Color){(unsigned char)*r, (unsigned char)*g,
+                        (unsigned char)*b, (unsigned char)*a});
+}
+
+til_I64 *til_get_random_value(til_I64 *min, til_I64 *max) {
+    til_I64 *r = malloc(sizeof(til_I64));
+    *r = GetRandomValue((int)*min, (int)*max);
+    return r;
+}
