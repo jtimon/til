@@ -671,151 +671,58 @@
    Function args are borrowed (ref) unless explicitly marked own.
    No change needed for args.
 
-* OPEN #1 builder/interpreter consistency: eliminate unnecessary special cases
+* WIP #1 builder/interpreter consistency: eliminate unnecessary special cases
   The builder and interpreter should be as similar and minimal as possible.
   The typer/initer should do more AST rewriting so backends can be dumb and uniform.
 
-  Architecture has 3 layers:
-  - ccore.h/c (168 lines): raw C types (Str, I64, U8, Bool) + raw functions
-    with natural C semantics (value params, raw int returns)
-  - ext.h/c (131 lines): til_* typedefs + pointer-boxing wrappers for
-    builder's calling convention (all args/returns are heap pointers)
-  - dispatch.h/c (157 lines): interpreter's ext_function_dispatch, calls
-    ccore directly via strcmp chain (47 functions)
+** TODO Generate enum eq/is_Variant/get_Variant as real til in initer
+   The initer already generates clone, delete, and to_str as real til AST
+   for all enums. But eq, is_Variant(), and get_Variant() are still
+   hardcoded in C: builder generates them as C functions (~160 lines in
+   emit_enum_def), interpreter dispatches them in dispatch.c.
 
-  builder (959 lines) links ext.c + ccore.c and emits calls to til_* wrappers.
-  The interpreter (725 lines) calls raw ccore functions via dispatch.c.
-  core.til uses direct ext_func namespace fields. println/print/format live in
-  ext.c as variadic C functions.
+   If the initer generated these as real til too, both backends would just
+   execute/emit them like any other namespace method. This is the biggest
+   remaining actionable item — would eliminate the most special-case code
+   from both backends.
 
-  The typer (1650 lines) does all type-aware AST rewriting: clone insertion at
-  4 copy sites, ASAP delete insertion, hoisting, delete before reassignment.
-  The initer (766 lines) auto-generates clone/delete/enum methods as AST.
-  Both backends are largely "dumb" — they execute/emit the pre-rewritten AST.
+** TODO println/print/format special cases
+   Both backends special-case these variadic ext_funcs: builder emits
+   til_println(n, args...), interpreter dispatches to C handlers.
+   Partially inherent to variadic C calling conventions, but worth
+   investigating if the typer could desugar these into a loop over
+   an array of args.
 
-  Remaining differences fall into 3 categories: actionable, low-priority, and
-  acceptable (inherent to having an interpreter vs a C emitter).
+** Acceptable: dyn_call/dyn_has_method/array/vec
+   Both backends special-case these. Builder generates dispatch switch
+   functions on type_name strings. Interpreter uses dispatch.c handlers.
+   Inherent to the dynamic dispatch mechanism — type names are runtime
+   strings, not static AST nodes the typer can rewrite.
 
-** FIXED Enum clone/delete/to_str are real til for ALL enums
-   The initer now generates real til-level clone/delete/to_str for all
-   enums (both simple and payload). Tagged union structs used in builder
-   for all enums. No-payload variants use bare field access syntax
-   (Color.Red, Token.Eof — no parens needed).
-
-   Simple enum variants are I64 namespace literals with copy-on-access
-   in the interpreter. Payload enum no-payload variants are zero-arg
-   ext_func constructors auto-called on field access.
-
-   Clone: payload uses is_/get_/constructor chain, simple uses eq chain.
-   Delete: same real til proc for all — free() handles payloads.
-   Eliminated ~120 lines of C generation from builder, clone/delete
-   dispatch from dispatch.c.
-
-** FIXED Enum method dispatch moved from eval_call to dispatch.c
-   Both simple and payload enum methods (constructor, eq, clone, delete,
-   is_Variant, get_Variant) were hard-coded inline in eval_call (~65 lines).
-   Moved to enum_method_dispatch() in dispatch.c. eval_call now detects
-   "this is an enum" and delegates in ~5 lines.
-
-** FIXED enum_has_payloads and variant helpers shared via ast.h
-   enum_has_payloads was duplicated in interpreter.c and builder.c.
-   Moved to ast.h as static inline, along with enum_variant_tag and
-   enum_variant_type. Both backends and dispatch.c use the shared versions.
-
-** FIXED interpreter: dispatch.c strcmp chain replaced with Map
-   Was linear scan of 47 string comparisons. Now a Map of DispatchFn
-   function pointers, lazy-initialized on first call. Handlers generated
-   via H1/H2/HDEL/HCLONE macros. Special cases (free, println, print,
-   format) kept as explicit handler functions.
-
-** FIXED Interpreter: Str was hardcoded as VAL_STR instead of VAL_STRUCT
-   Removed VAL_STR from the interpreter. Str values are now regular
-   VAL_STRUCT StructInstances with 2 fields (data: VAL_PTR, cap: VAL_I64),
-   matching how builder treats Str as a normal struct.
-
-   Added make_str_value/make_str_value_own/str_view helpers. String literals
-   build StructInstances directly (avoiding bootstrap recursion). All
-   dispatch.c handlers use str_view() instead of .str-> access. h_array/h_vec
-   clone Str data into buffers (strndup) to avoid dangling pointers from
-   typer-generated ASAP deletes. Fixed Str_cmp to use memcmp (safe for
-   non-null-terminated buffers from til-level malloc). Fixed ns_qname and
-   flat_name_buf to use memcpy instead of snprintf %s.
-
-   I64/U8/Bool still have dedicated VAL_I64/VAL_U8/VAL_BOOL types with
-   C-compatible pointer storage. User-defined structs use VAL_STRUCT/
-   StructInstance which is NOT C-compatible layout. FFI struct marshaling
-   still needed (see #4).
-
-** builder: declaration emission branches on RHS type
-   3 branches: struct constructor (malloc + fields), fcall/str (pointer-assign),
-   literal/ident (malloc + deref-copy). After hoisting, most RHS are NODE_IDENT
-   or NODE_FCALL, so branching is minimal. Accepted.
+** Acceptable: primitive type name checks
+   Both backends have hardcoded checks for "I64", "U8", "I16", "I32",
+   "U32", "Bool" in field read/write, VAL_PTR reinterpretation, CLI arg
+   parsing, and enum payload handling. Inherent to the fact that
+   primitives have dedicated C types and Value variants.
 
 ** Acceptable: struct constructor emission
-   Interpreter (eval_call 352-384) allocates StructInstance, iterates fields,
-   move semantics for ident args. builder (emit_ctor_fields 203-259) emits
-   malloc + field-by-field C assignment with own/inline/nested handling.
-   Logic is isomorphic but inherently different — one runs, one emits C.
+   Interpreter allocates StructInstance and iterates fields with move
+   semantics. Builder emits malloc + field-by-field C assignment with
+   own/inline/nested handling. Isomorphic but inherently different —
+   one runs, one emits C.
 
 ** Acceptable: ownership tracking
-   Interpreter manually tracks ownership via Value types, scope_set_borrowed
-   vs scope_set_owned, free_value on reassignment, val_none guards. builder
-   delegates to C calling conventions — pointer-assign for compound types,
-   deref-assign for scalars, typer-inserted delete calls handle cleanup.
+   Interpreter: scope_set_borrowed vs scope_set_owned, free_value,
+   val_none guards. Builder: pointer-assign for compound types,
+   deref-assign for scalars, typer-inserted delete calls.
    Fundamentally different execution models.
 
 ** Acceptable: namespace field initialization
-   Both scan struct/enum defs for non-func namespace fields (interpreter:
-   interpreter_init_ns → ns_fields[] array; builder: emit_ns_inits → C
-   globals). Could extract shared field iterator but minimal benefit.
+   Both scan struct/enum defs for non-func namespace fields.
+   Interpreter: interpreter_init_ns → ns_fields map.
+   Builder: emit_ns_inits → C globals.
 
-** FIXED builder: free() and exit() special cases
-   Moved to ext.c as til_free() and til_exit(). Both backends use generic
-   call paths — no special-cased emission or dispatch.
-
-** FIXED builder: i64_to_str, u8_to_str, str_eq emitted inline
-   Raw implementations in ccore.c. builder links via ext.c wrappers.
-   Interpreter calls ccore functions directly via dispatch.c.
-
-** FIXED bool_to_str was a needless builtin
-   Replaced with pure til: if b { return "true" } else { return "false" }.
-   Removed ext_func, C wrapper from builder, and strcmp case from interpreter.
-
-** FIXED type aliases and PascalCase ext naming
-   Added typedefs in ext.h: til_I64, til_U8, til_Bool. PascalCase function
-   names (til_I64_add, til_U8_eq) match builder's natural emission.
-
-** FIXED U8 stored as I64 in interpreter
-   Interpreter Value union now has a .u8 field (til_U8 *). Clean one-liners.
-
-** FIXED trivial ext_func wrappers in core.til
-   Direct ext_func namespace declarations. No wrapper generated in C,
-   call sites go straight to ext.c. Eliminated ~50 lines of core.til boilerplate.
-
-** FIXED println/print/format moved to ext.c
-   Was type-aware special cases in both backends. Now variadic C functions
-   in ext.c. builder emits til_println(n, args...). Interpreter simplified
-   to printf loop.
-
-** FIXED builder: struct constructors
-   Replaced per-struct til_X_new() constructor functions with malloc +
-   field-by-field assignment via emit_ctor_fields(). Handles own fields
-   (pointer-assign), inline compound fields (deref + free wrapper), and
-   nested constructors (recursive). Fieldless structs just malloc.
-   Interpreter uses positional args (typer fills all fields with defaults).
-
-** FIXED builder: deref-copy and reassignment
-   Typer inserts Type.delete() before compound-type variable and field
-   reassignment. builder uses pointer-assign for compound NODE_ASSIGN,
-   deref + free-wrapper for inline NODE_FIELD_ASSIGN. Hoisting skips
-   compound-type locals and inline compound constructor/field-assign args.
-   Interpreter: free_value before overwriting, ext dispatch nulls own-arg
-   cells, evaluates RHS before freeing old value.
-
-** FIXED interpreter: value_deep_copy removed
-   Move semantics: NODE_IDENT RHS transfers ownership (copies value, nulls
-   source cell). ASAP deletes of moved values are no-ops. Function args
-   use scope_set_borrowed (shared cell), matching builder pointer-passing.
-
-** FIXED namespace call path
-   Full named-arg resolution in both namespace and regular call paths.
+** Acceptable: declaration/assignment emission branches
+   Builder branches on RHS type (struct ctor vs fcall vs literal).
+   After hoisting, most RHS are NODE_IDENT or NODE_FCALL, so
+   branching is minimal. Interpreter just evaluates and moves/copies.
