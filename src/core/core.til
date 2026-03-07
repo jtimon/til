@@ -253,6 +253,10 @@ panic := proc(loc_str: Str, msg: Str) {
     exit(1)
 }
 
+TODO := proc(loc_str: Str, msg: Str) {
+    panic(loc_str, format("TODO: ", msg))
+}
+
 assertm := func(loc_str: Str, cond: Bool, msg: Str) returns Bool {
     if cond.not() {
         panic(loc_str, format("assert failed: ", msg))

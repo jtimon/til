@@ -43,10 +43,9 @@
   via strcmp chain; builder skips them (ext.c provides the symbol directly).
   Direct namespace ext_funcs eliminated ~50 lines of trivial wrappers in core.til.
 
-* TRUE Variadic parameters (..Type) only work in ext_func and ext_proc
-  format (..Str), println (..Str), and print (..Str) use variadic params.
-  Regular funcs, procs, and macros cannot use ..Type — the parser, typer,
-  interpreter, and builder don't support it outside ext declarations.
+* NOT_ANYMORE Variadic parameters (..Type) only work in ext_func and ext_proc
+  Fixed by #8: variadic params now work in regular funcs, procs, and macros.
+  Variadic args are received as an Array inside the function body.
 
 * TRUE Everything is immutable by default, mut opts in to mutation
   Applies to variable declarations (mut x := 5), struct fields (mut x := 0),
