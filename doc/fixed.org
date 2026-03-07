@@ -1,5 +1,38 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #27 Test functions and mode test
+  New function kind: test (FUNC_TEST). Like proc but auto-run by
+  runtime, cannot be called manually, root-scope only, no params,
+  no return type. Typer enforces all constraints.
+
+  mode test: decls_only=yes, needs_main=no. Runtime auto-runs all
+  test functions in declaration order, reports pass/fail.
+
+  bin/ctil test: universal test execution on any file regardless of
+  mode. Ignores main/top-level statements, runs only test functions.
+
+  Renamed core.til `test` proc to `expect` to free the keyword.
+
+* FIXED #26 Mode struct: eliminate string-based mode checks
+  Replaced ad-hoc strcmp/Str_eq_c mode checks across 5 files with a
+  Mode struct in modes.h with properties: name, needs_main, decls_only,
+  auto_import. All backends receive const Mode* instead of Str*.
+
+  Adding a new mode now means one struct definition in modes.h instead
+  of touching every backend file. auto_import field generalizes the
+  gui.til/gui.c loading pattern to any mode.
+
+* FIXED #16 Imports: multi-file programs
+  import "path.til" syntax loads declarations from other files into the
+  program scope. Flat include with dedup (realpath + Set), cycle detection
+  with clear error chain, companion .c file accumulation for FFI.
+
+  Path resolution: relative to importing file, then src/lib/ (standard
+  library). Imported files cannot declare mode. Zero downstream changes
+  — init, typer, precomp, scavenger, codegen, interpreter all untouched.
+
+  Tests: src/test/imports.til, src/test/import_diamond.til (+ helpers).
+
 * FIXED #11 Mode GUI: raylib integration via FFI
   `mode gui` auto-provides raylib FFI bindings. Users write only app logic
   with a main proc — no link() directives, ext_func declarations, or

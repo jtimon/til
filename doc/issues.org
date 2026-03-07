@@ -31,96 +31,6 @@
   by ASAP (same as ref declarations today). The typer/ASAP already
   handles ref lifetime correctly — this extends it to auto-detected cases.
 
-* OPEN #27 Test functions and mode test
-  New function kind: test. Like proc (side effects allowed) but with
-  restrictions that make it suitable for automated testing.
-
-  Test function rules:
-  - Can only be declared in the root scope (not nested inside other
-    functions/procs/blocks — unlike func/proc which can be nested for
-    encapsulation)
-  - Cannot be called by func, proc, or other test functions. The typer
-    enforces this the same way it enforces "func can't call proc"
-  - Auto-run by the runtime when the execution strategy is "test"
-
-  Test functions are allowed in any mode, not just mode test. In non-test
-  execution they are inert — no one can call them and the runtime doesn't
-  auto-run them.
-
-** Phase 1: Mode struct with properties
-   :DEPENDENCIES_OF: #27
-   Currently modes are raw strings compared with strcmp/Str_eq_c in 5
-   files (ctil.c, ccodegen.c, interpreter.c, scavenger.c, typer.c).
-   This doesn't scale — adding a new mode requires touching every file.
-
-   Replace with a Mode struct in modes.h with boolean properties:
-   - name: Str — for error messages and debug output
-   - needs_main: Bool — cli, gui: yes. script, test: no
-   - decls_only: Bool — cli, gui, test: yes. script: no
-
-   All mode checks in the codebase become property checks:
-   - `Str_eq_c(mode, "cli") || Str_eq_c(mode, "gui")` → mode.needs_main
-   - `Str_eq_c(mode, "script")` → !mode.decls_only
-   - scavenger entry points: mode.needs_main → main, else all top-level
-
-   The parser returns the mode name string, ctil.c resolves it to a
-   Mode struct, and passes the struct (or pointer) to all backends.
-
-   Current mode properties:
-   | Mode   | needs_main | decls_only |
-   | script | no         | no         |
-   | cli    | yes        | yes        |
-   | gui    | yes        | yes        |
-   | test   | no         | yes        |
-
-** Phase 2: test function kind
-   Add test as a third function kind alongside func and proc.
-
-   Syntax:
-     my_test := test() { ... }
-
-   Typer rules:
-   - Cannot be called from func, proc, or test (error if attempted)
-   - Must be declared in root scope (error if nested)
-   - Side effects allowed (like proc)
-
-   AST: new flag or kind on NODE_FUNC_DEF (e.g. FUNC_KIND_TEST alongside
-   FUNC_KIND_FUNC and FUNC_KIND_PROC).
-
-** Phase 3: mode test
-   A new mode for files that contain only test declarations.
-
-   mode test
-
-   my_add_test := test() {
-       result := add(1, 2)
-       assert(result.eq(3))
-   }
-
-   Properties: needs_main=no, decls_only=yes.
-   Runtime: auto-runs all test functions in declaration order.
-   Reports pass/fail per test function.
-
-** Phase 4: bin/ctil test command
-   Universal test execution: `bin/ctil test file.til` works on any file
-   regardless of its mode.
-
-   - Ignores main (cli/gui), ignores top-level statements (script)
-   - Finds and runs all test functions in the file
-   - If no test functions found, reports "no tests" and exits cleanly
-
-   This means you can write test functions alongside normal code in any
-   mode. `bin/ctil run music.til` runs the app, `bin/ctil test music.til`
-   runs its tests.
-
-* OPEN #26 Mode struct: eliminate string-based mode checks
-  :DEPENDENCIES_OF: #27
-  Prerequisite refactor extracted from #27 Phase 1. Currently modes are
-  raw Str* compared with strcmp/Str_eq_c ad hoc across 5 files. Replace
-  with a Mode struct in modes.h so adding new modes only requires
-  defining properties, not touching every backend file.
-
-  See #27 Phase 1 for full details.
 
 * OPEN #25 Support for the 4 main operative systems
   :DEPENDENCIES: #12
@@ -458,24 +368,6 @@
    - Interpreter: bind captured variables in call_scope from definition scope
    - Codegen: emit closure structs or pass captures as hidden parameters
 
-* OPEN #16 Imports: multi-file programs and modular core.til
-  til programs are currently single-file. There's no way to split code
-  across files or reuse libraries. core.til is a single monolithic file
-  that gets prepended to every program.
-
-  An import system would allow:
-  - Programs split across multiple .til files
-  - core.til split into focused modules (e.g. vec.til, array.til, str.til)
-    with a top-level core.til that imports them
-  - User libraries shared across projects
-
-  What's needed:
-  - Syntax: import "path/to/file.til" or similar
-  - Lexer/parser: recognize import statements, resolve paths
-  - Pipeline: parse imported files, merge ASTs (handle duplicates)
-  - Typer: cross-file type resolution
-  - Codegen/interpreter: handle merged program
-  - Cycle detection for circular imports
 
 * OPEN #15 Scavenger doesn't understand dyn_call/dyn_has_method/array/vec
   The scavenger removes namespace methods not reachable from used code.
@@ -576,7 +468,7 @@
    Report diffs on mismatch.
 
 * OPEN #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2 #5 #8 #13 #15 #16 #17
+  :DEPENDENCIES: #1 #2 #13 #15 #17
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
@@ -586,11 +478,12 @@
   Self-hosting means reimplementing all of these in til, using til's own
   features (structs, enums, ownership, FFI for I/O).
 
-  Depends on most open issues:
+  Depends on:
   - #1 (consistency): clean backends make porting easier
   - #2 (ref): needed for efficient arg passing without clone overhead
-  - #5 (pointers/Vec): FIXED — token lists, AST children, string buffers
-  - #8 (variadic): FIXED — format/println/user variadics all work
+  - #5 (pointers/Vec): FIXED
+  - #8 (variadic): FIXED
+  - #16 (imports): FIXED
 
   Does NOT depend on #10 (REPL) or #11 (GUI mode).
 
