@@ -8,6 +8,7 @@ mode gui
 // -- Layout: change only these two --
 WINDOW_WIDTH := 1920
 WINDOW_HEIGHT := 1080
+FPS := 320
 
 // -- Derived metrics --
 MARGIN := WINDOW_WIDTH.div(48)
@@ -45,7 +46,7 @@ HINT_Y := WINDOW_HEIGHT.sub(MARGIN)
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "music")
-    set_target_fps(60)
+    set_target_fps(FPS)
     init_audio_device()
 
     // Mode intervals (7 modes x 7 steps = 49), brightest to darkest
