@@ -1,0 +1,218 @@
+Str := struct {
+    own mut data : U8 = 0
+    mut len := 0
+    cap := 0
+
+    namespace:
+    len := func(self: Str) returns I64 { return self.len }
+
+    char_at := func(self: Str, i: I64) returns ref U8 {
+        if i.lt(0).or(i.gte(self.len)) {
+            panic("Str.char_at", "index out of bounds")
+        }
+        return ptr_add(self.data, i)
+    }
+
+    cmp := func(a: Str, b: Str) returns I64 {
+        mut i := 0
+        mut min_len := a.len
+        if b.len.lt(a.len) { min_len = b.len }
+        while i.lt(min_len) {
+            ref ab : U8 = a.char_at(i)
+            ref bb : U8 = b.char_at(i)
+            own c := ab.cmp(bb)
+            if c.neq(0) { return c }
+            i = i.add(1)
+        }
+        return a.len.cmp(b.len)
+    }
+
+    concat := func(a: Str, b: Str) returns Str {
+        new_len := a.len.add(b.len)
+        own new_data : U8 = malloc(new_len)
+        memcpy(new_data, a.data, a.len)
+        memcpy(ptr_add(new_data, a.len), b.data, b.len)
+        return Str(data = new_data, len = new_len, cap = new_len)
+    }
+
+    clone := func(val: Str) returns Str {
+        own new_data : U8 = malloc(val.len)
+        memcpy(new_data, val.data, val.len)
+        return Str(data = new_data, len = val.len, cap = val.len)
+    }
+
+    delete := proc(own self: Str, call_free: Bool = true) {
+        if self.cap.gte(0) { free(own self.data) }
+        if call_free { free(own self) }
+    }
+
+    to_str := func(val: Str) returns Str { return val.clone() }
+
+    substr := func(s: Str, start: I64, n: I64) returns Str {
+        mut st := start
+        mut ln := n
+        if st.lt(0) { st = 0 }
+        if st.gt(s.len) { st = s.len }
+        if ln.lt(0) { ln = 0 }
+        if st.add(ln).gt(s.len) { ln = s.len.sub(st) }
+        own new_data : U8 = malloc(ln)
+        memcpy(new_data, ptr_add(s.data, st), ln)
+        return Str(data = new_data, len = ln, cap = ln)
+    }
+
+    contains := func(a: Str, b: Str) returns Bool {
+        if b.len.eq(0) { return true }
+        if b.len.gt(a.len) { return false }
+        mut i := 0
+        while i.lte(a.len.sub(b.len)) {
+            mut j := 0
+            mut found := true
+            while j.lt(b.len) {
+                ref ac : U8 = a.char_at(i.add(j))
+                ref bc : U8 = b.char_at(j)
+                if ac.neq(bc) { found = false }
+                j = j.add(1)
+            }
+            if found { return true }
+            i = i.add(1)
+        }
+        return false
+    }
+
+    starts_with := func(a: Str, b: Str) returns Bool {
+        if b.len.gt(a.len) { return false }
+        mut i := 0
+        while i.lt(b.len) {
+            ref ac : U8 = a.char_at(i)
+            ref bc : U8 = b.char_at(i)
+            if ac.neq(bc) { return false }
+            i = i.add(1)
+        }
+        return true
+    }
+
+    ends_with := func(a: Str, b: Str) returns Bool {
+        if b.len.gt(a.len) { return false }
+        offset := a.len.sub(b.len)
+        mut i := 0
+        while i.lt(b.len) {
+            ref ac : U8 = a.char_at(offset.add(i))
+            ref bc : U8 = b.char_at(i)
+            if ac.neq(bc) { return false }
+            i = i.add(1)
+        }
+        return true
+    }
+
+    is_empty := func(self: Str) returns Bool {
+        return self.len.eq(0)
+    }
+
+    find := func(self: Str, needle: Str) returns I64 {
+        if needle.len.eq(0) { return 0.sub(1) }
+        if needle.len.gt(self.len) { return 0.sub(1) }
+        mut i := 0
+        while i.lte(self.len.sub(needle.len)) {
+            mut j := 0
+            mut found := true
+            while j.lt(needle.len) {
+                ref ac : U8 = self.char_at(i.add(j))
+                ref bc : U8 = needle.char_at(j)
+                if ac.neq(bc) { found = false }
+                j = j.add(1)
+            }
+            if found { return i }
+            i = i.add(1)
+        }
+        return 0.sub(1)
+    }
+
+    rfind := func(self: Str, needle: Str) returns I64 {
+        if needle.len.eq(0) { return 0.sub(1) }
+        if needle.len.gt(self.len) { return 0.sub(1) }
+        mut last := 0.sub(1)
+        mut i := 0
+        while i.lte(self.len.sub(needle.len)) {
+            mut j := 0
+            mut found := true
+            while j.lt(needle.len) {
+                ref ac : U8 = self.char_at(i.add(j))
+                ref bc : U8 = needle.char_at(j)
+                if ac.neq(bc) { found = false }
+                j = j.add(1)
+            }
+            if found { last = i }
+            i = i.add(1)
+        }
+        return last
+    }
+
+    replace := func(self: Str, from: Str, to: Str) returns Str {
+        if from.len.eq(0) { return self.clone() }
+        mut result := ""
+        mut start := 0
+        while start.lte(self.len.sub(from.len)) {
+            rest := self.substr(start, self.len.sub(start))
+            pos := rest.find(from)
+            if pos.eq(0.sub(1)) {
+                result = result.concat(rest)
+                return result
+            }
+            result = result.concat(self.substr(start, pos))
+            result = result.concat(to)
+            start = start.add(pos).add(from.len)
+        }
+        if start.lt(self.len) {
+            result = result.concat(self.substr(start, self.len.sub(start)))
+        }
+        return result
+    }
+
+    get_char := func(self: Str, i: I64) returns Str {
+        return self.substr(i, 1)
+    }
+
+    strip_prefix := func(self: Str, prefix: Str) returns Str {
+        if self.starts_with(prefix) {
+            return self.substr(prefix.len, self.len.sub(prefix.len))
+        }
+        return self.clone()
+    }
+
+    strip_suffix := func(self: Str, suffix: Str) returns Str {
+        if self.ends_with(suffix) {
+            return self.substr(0, self.len.sub(suffix.len))
+        }
+        return self.clone()
+    }
+
+    from_byte := func(byte: U8) returns Str {
+        own buf : U8 = malloc(1)
+        memcpy(buf, byte, 1)
+        return Str(data = buf, len = 1, cap = 1)
+    }
+
+    to_i64 := func(self: Str) returns I64 {
+        if self.len.eq(0) { panic("Str.to_i64", "empty string") }
+        mut result := 0
+        mut i := 0
+        mut neg := false
+        ref first : U8 = self.char_at(0)
+        if first.eq(U8.from_i64(45)) {
+            neg = true
+            i = 1
+        }
+        if i.eq(self.len) { panic("Str.to_i64", "no digits") }
+        while i.lt(self.len) {
+            ref ch : U8 = self.char_at(i)
+            d := ch.to_i64().sub(48)
+            if d.lt(0).or(d.gt(9)) {
+                panic("Str.to_i64", format("invalid char in '", self, "'"))
+            }
+            result = result.mul(10).add(d)
+            i = i.add(1)
+        }
+        if neg { return 0.sub(result) }
+        return result
+    }
+}
