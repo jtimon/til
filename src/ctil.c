@@ -20,6 +20,7 @@ static const Mode *mode_resolve(const char *name) {
     if (strcmp(name, "gui") == 0)    return &MODE_GUI;
     if (strcmp(name, "test") == 0)   return &MODE_TEST;
     if (strcmp(name, "pure") == 0)   return &MODE_PURE;
+    if (strcmp(name, "lib") == 0)    return &MODE_LIB;
     return NULL;
 }
 
@@ -105,9 +106,12 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
         Expr *sub_ast = parse(toks, tok_count, abs, &sub_mode, &sub_imports);
 
         if (sub_mode) {
-            fprintf(stderr, "error: imported file '%s' cannot declare a mode\n", abs);
-            free(abs);
-            return 1;
+            const Mode *sm = mode_resolve(sub_mode->c_str);
+            if (!sm || !(sm == &MODE_LIB || sm == &MODE_PURE)) {
+                fprintf(stderr, "error: imported file '%s' cannot use mode '%s'\n", abs, sub_mode->c_str);
+                free(abs);
+                return 1;
+            }
         }
 
         // Check for companion .c file

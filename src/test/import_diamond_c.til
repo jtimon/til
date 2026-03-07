@@ -1,3 +1,4 @@
+mode lib
 import "import_diamond_d.til"
 
 from_c := func() returns I64 {

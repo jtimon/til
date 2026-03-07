@@ -16,5 +16,6 @@ static const Mode MODE_CLI    = {"cli",    1, 1, NULL, 0};
 static const Mode MODE_GUI    = {"gui",    1, 1, "gui", 0};
 static const Mode MODE_TEST   = {"test",   0, 1, NULL, 0};
 static const Mode MODE_PURE   = {"pure",   0, 1, NULL, 1};
+static const Mode MODE_LIB    = {"lib",    0, 1, NULL, 0};
 
 #endif
