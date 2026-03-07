@@ -230,6 +230,7 @@ static const char *til_type_to_c(TilType t) {
     switch (t) {
     case TIL_TYPE_I64:  return "til_I64";
     case TIL_TYPE_U8:   return "til_U8";
+    case TIL_TYPE_U32:  return "til_U32";
     case TIL_TYPE_BOOL: return "til_Bool";
     case TIL_TYPE_NONE:    return "void";
     case TIL_TYPE_DYNAMIC: return "void *";
@@ -252,6 +253,7 @@ static const char *c_type_name(TilType t, Str *struct_name) {
 static const char *type_name_to_c(Str *name) {
     if (Str_eq_c(name, "I64"))  return "til_I64 *";
     if (Str_eq_c(name, "U8"))   return "til_U8 *";
+    if (Str_eq_c(name, "U32"))  return "til_U32 *";
     if (Str_eq_c(name, "Bool")) return "til_Bool *";
     if (Str_eq_c(name, "Dynamic")) return "void *";
     // User-defined struct type — pointer
@@ -631,6 +633,8 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
                         fprintf(f, "        til_I64 *_val = til_cli_parse_i64(argv[%d + _i]);\n", argi);
                     else if (Str_eq_c(ptype, "U8"))
                         fprintf(f, "        til_U8 *_val = til_cli_parse_u8(argv[%d + _i]);\n", argi);
+                    else if (Str_eq_c(ptype, "U32"))
+                        fprintf(f, "        til_U32 *_val = til_cli_parse_u32(argv[%d + _i]);\n", argi);
                     else if (Str_eq_c(ptype, "Bool"))
                         fprintf(f, "        til_Bool *_val = til_cli_parse_bool(argv[%d + _i]);\n", argi);
                     fprintf(f, "        til_Array_set(%s, _idx, _val);\n", pname->c_str);
@@ -644,6 +648,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
                     argi++;
                 } else if (Str_eq_c(ptype, "U8")) {
                     fprintf(f, "    til_U8 *%s = til_cli_parse_u8(argv[%d]);\n", pname->c_str, argi);
+                    argi++;
+                } else if (Str_eq_c(ptype, "U32")) {
+                    fprintf(f, "    til_U32 *%s = til_cli_parse_u32(argv[%d]);\n", pname->c_str, argi);
                     argi++;
                 } else if (Str_eq_c(ptype, "Bool")) {
                     fprintf(f, "    til_Bool *%s = til_cli_parse_bool(argv[%d]);\n", pname->c_str, argi);
@@ -807,6 +814,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
                 fprintf(f, "    r->data.%s = malloc(sizeof(til_I64)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
             } else if (Str_eq_c(vt, "U8")) {
                 fprintf(f, "    r->data.%s = malloc(sizeof(til_U8)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
+            } else if (Str_eq_c(vt, "U32")) {
+                fprintf(f, "    r->data.%s = malloc(sizeof(til_U32)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
             } else if (Str_eq_c(vt, "Bool")) {
                 fprintf(f, "    r->data.%s = malloc(sizeof(til_Bool)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
             } else {
@@ -838,6 +847,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
                 fprintf(f, "    til_I64 *r = malloc(sizeof(til_I64)); *r = *self->data.%s; return r;\n", vn->c_str);
             } else if (Str_eq_c(vt, "U8")) {
                 fprintf(f, "    til_U8 *r = malloc(sizeof(til_U8)); *r = *self->data.%s; return r;\n", vn->c_str);
+            } else if (Str_eq_c(vt, "U32")) {
+                fprintf(f, "    til_U32 *r = malloc(sizeof(til_U32)); *r = *self->data.%s; return r;\n", vn->c_str);
             } else if (Str_eq_c(vt, "Bool")) {
                 fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = *self->data.%s; return r;\n", vn->c_str);
             } else {
@@ -857,7 +868,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             Str *vt = *(Str **)Vec_get(&vtypes, i);
             fprintf(f, "    case til_%s_TAG_%s:\n", name->c_str, vn->c_str);
             if (vt) {
-                if (Str_eq_c(vt, "I64") || Str_eq_c(vt, "U8") || Str_eq_c(vt, "Bool")) {
+                if (Str_eq_c(vt, "I64") || Str_eq_c(vt, "U8") || Str_eq_c(vt, "U32") || Str_eq_c(vt, "Bool")) {
                     fprintf(f, "        *r = (*a->data.%s == *b->data.%s); break;\n", vn->c_str, vn->c_str);
                 } else {
                     fprintf(f, "        { til_Bool *t = til_%s_eq(a->data.%s, b->data.%s); *r = *t; free(t); break; }\n", vt->c_str, vn->c_str, vn->c_str);

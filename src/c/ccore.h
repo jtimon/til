@@ -40,6 +40,24 @@ U8 *U8_new(U8 val);
 U8 *U8_clone(U8 *v);
 void U8_delete(U8 *v);
 
+// --- U32 ---
+
+U32 U32_add(U32 a, U32 b);
+U32 U32_sub(U32 a, U32 b);
+U32 U32_mul(U32 a, U32 b);
+U32 U32_div(U32 a, U32 b);
+U32 U32_mod(U32 a, U32 b);
+U32 U32_and(U32 a, U32 b);
+U32 U32_or(U32 a, U32 b);
+U32 U32_xor(U32 a, U32 b);
+Bool U32_eq(U32 a, U32 b);
+I64 U32_cmp(U32 a, U32 b);
+I64 U32_to_i64(U32 v);
+U32 U32_from_i64(I64 v);
+U32 *U32_new(U32 val);
+U32 *U32_clone(U32 *v);
+void U32_delete(U32 *v);
+
 // --- Bool ---
 
 Bool Bool_eq(Bool a, Bool b);

@@ -50,6 +50,28 @@ til_U8 *til_U8_from_i64_ext(til_I64 *a) { return U8_new(U8_from_i64(*a)); }
 til_U8 *til_U8_clone(til_U8 *v) { return U8_clone(v); }
 void til_U8_delete(til_U8 *v, til_Bool *call_free) { if (*call_free) U8_delete(v); }
 
+// U32 arithmetic
+til_U32 *til_U32_add(til_U32 *a, til_U32 *b) { return U32_new(U32_add(*a, *b)); }
+til_U32 *til_U32_sub(til_U32 *a, til_U32 *b) { return U32_new(U32_sub(*a, *b)); }
+til_U32 *til_U32_mul(til_U32 *a, til_U32 *b) { return U32_new(U32_mul(*a, *b)); }
+til_U32 *til_U32_div(til_U32 *a, til_U32 *b) { return U32_new(U32_div(*a, *b)); }
+til_U32 *til_U32_mod(til_U32 *a, til_U32 *b) { return U32_new(U32_mod(*a, *b)); }
+til_U32 *til_U32_and(til_U32 *a, til_U32 *b) { return U32_new(U32_and(*a, *b)); }
+til_U32 *til_U32_or(til_U32 *a, til_U32 *b) { return U32_new(U32_or(*a, *b)); }
+til_U32 *til_U32_xor(til_U32 *a, til_U32 *b) { return U32_new(U32_xor(*a, *b)); }
+
+// U32 comparisons
+til_Bool *til_U32_eq(til_U32 *a, til_U32 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = U32_eq(*a, *b); return r; }
+til_I64 *til_U32_cmp(til_U32 *a, til_U32 *b) { return I64_new(U32_cmp(*a, *b)); }
+
+// U32 conversions
+til_I64 *til_U32_to_i64(til_U32 *a) { return I64_new(U32_to_i64(*a)); }
+til_U32 *til_U32_from_i64_ext(til_I64 *a) { return U32_new(U32_from_i64(*a)); }
+
+// U32 clone/delete
+til_U32 *til_U32_clone(til_U32 *v) { return U32_clone(v); }
+void til_U32_delete(til_U32 *v, til_Bool *call_free) { if (*call_free) U32_delete(v); }
+
 // Bool ops
 til_Bool *til_Bool_eq(til_Bool *a, til_Bool *b) { return Bool_new(Bool_eq(*a, *b)); }
 til_Bool *til_and(til_Bool *a, til_Bool *b) { return Bool_new(Bool_and(*a, *b)); }
@@ -91,6 +113,15 @@ til_U8 *til_cli_parse_u8(const char *s) {
         exit(1);
     }
     return U8_new((U8)v);
+}
+til_U32 *til_cli_parse_u32(const char *s) {
+    char *end;
+    unsigned long v = strtoul(s, &end, 10);
+    if (*end != '\0' || v > 0xFFFFFFFF) {
+        fprintf(stderr, "error: cannot parse '%s' as U32\n", s);
+        exit(1);
+    }
+    return U32_new((U32)v);
 }
 til_Bool *til_cli_parse_bool(const char *s) {
     if (strcmp(s, "true") == 0) return Bool_new(1);

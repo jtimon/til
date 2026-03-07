@@ -5,6 +5,7 @@
 
 typedef I64 til_I64;
 typedef U8 til_U8;
+typedef U32 til_U32;
 typedef Bool til_Bool;
 
 typedef struct til_Str {
@@ -68,6 +69,28 @@ til_U8 *til_U8_from_i64_ext(til_I64 *a);
 til_U8 *til_U8_clone(til_U8 *v);
 void til_U8_delete(til_U8 *v, til_Bool *call_free);
 
+// U32 arithmetic
+til_U32 *til_U32_add(til_U32 *a, til_U32 *b);
+til_U32 *til_U32_sub(til_U32 *a, til_U32 *b);
+til_U32 *til_U32_mul(til_U32 *a, til_U32 *b);
+til_U32 *til_U32_div(til_U32 *a, til_U32 *b);
+til_U32 *til_U32_mod(til_U32 *a, til_U32 *b);
+til_U32 *til_U32_and(til_U32 *a, til_U32 *b);
+til_U32 *til_U32_or(til_U32 *a, til_U32 *b);
+til_U32 *til_U32_xor(til_U32 *a, til_U32 *b);
+
+// U32 comparisons
+til_Bool *til_U32_eq(til_U32 *a, til_U32 *b);
+til_I64 *til_U32_cmp(til_U32 *a, til_U32 *b);
+
+// U32 conversions
+til_I64 *til_U32_to_i64(til_U32 *a);
+til_U32 *til_U32_from_i64_ext(til_I64 *a);
+
+// U32 clone/delete
+til_U32 *til_U32_clone(til_U32 *v);
+void til_U32_delete(til_U32 *v, til_Bool *call_free);
+
 // Bool ops
 til_Bool *til_Bool_eq(til_Bool *a, til_Bool *b);
 til_Bool *til_and(til_Bool *a, til_Bool *b);
@@ -89,6 +112,7 @@ void til_memcpy(void *dest, void *src, til_I64 *len);
 // CLI arg parsing
 til_I64 *til_cli_parse_i64(const char *s);
 til_U8 *til_cli_parse_u8(const char *s);
+til_U32 *til_cli_parse_u32(const char *s);
 til_Bool *til_cli_parse_bool(const char *s);
 
 // System primitives

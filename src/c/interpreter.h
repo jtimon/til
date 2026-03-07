@@ -17,6 +17,7 @@ typedef enum {
     VAL_NONE,
     VAL_I64,
     VAL_U8,
+    VAL_U32,
     VAL_BOOL,
     VAL_FUNC,   // pointer to a func/proc AST node
     VAL_STRUCT, // struct instance (including Str)
@@ -40,6 +41,7 @@ struct Value {
     union {
         til_I64 *i64;
         til_U8 *u8;
+        til_U32 *u32;
         til_Bool *boolean;
         Expr *func;
         StructInstance *instance;
@@ -59,6 +61,7 @@ static inline Value val_none(void) {
 }
 static inline Value val_i64(til_I64 v) { til_I64 *p = malloc(sizeof(til_I64)); *p = v; return (Value){.type = VAL_I64, .i64 = p}; }
 static inline Value val_u8(I64 v) { til_U8 *p = malloc(sizeof(til_U8)); *p = (til_U8)(v & 0xFF); return (Value){.type = VAL_U8, .u8 = p}; }
+static inline Value val_u32(I64 v) { til_U32 *p = malloc(sizeof(til_U32)); *p = (til_U32)(v & 0xFFFFFFFF); return (Value){.type = VAL_U32, .u32 = p}; }
 static inline Value val_bool(til_Bool v) { til_Bool *p = malloc(sizeof(til_Bool)); *p = v; return (Value){.type = VAL_BOOL, .boolean = p}; }
 static inline Value val_enum(Str *enum_name, I32 tag, Value payload) {
     EnumInstance *ei = malloc(sizeof(EnumInstance));

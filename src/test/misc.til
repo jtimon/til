@@ -91,3 +91,35 @@ test_dynamic_narrowing := test() {
     assert(loc(), my_bvec.get(1).or(my_bvec.get(0)))
     // TODO: my_bvec.get(1).not() — Bool values in Vec don't round-trip correctly (false→true)
 }
+
+test_u32 := test() {
+    // Arithmetic
+    a : U32 = U32.from_i64(100)
+    b : U32 = U32.from_i64(42)
+    assert_eq(loc(), a.add(b).to_i64(), 142)
+    assert_eq(loc(), a.sub(b).to_i64(), 58)
+    assert_eq(loc(), a.mul(b).to_i64(), 4200)
+    assert_eq(loc(), a.div(b).to_i64(), 2)
+    assert_eq(loc(), a.mod(b).to_i64(), 16)
+
+    // Comparisons (auto-generated from cmp)
+    assert(loc(), a.gt(b))
+    assert(loc(), b.lt(a))
+    assert(loc(), a.gte(a))
+    assert(loc(), a.lte(a))
+    assert(loc(), a.neq(b))
+    assert(loc(), a.eq(a))
+
+    // Bitwise (0xFF00=65280, 0x0FF0=4080, AND=3840, OR=65520, XOR=61680)
+    x : U32 = U32.from_i64(65280)
+    y : U32 = U32.from_i64(4080)
+    assert_eq(loc(), x.and(y).to_i64(), 3840)
+    assert_eq(loc(), x.or(y).to_i64(), 65520)
+    assert_eq(loc(), x.xor(y).to_i64(), 61680)
+
+    // to_str
+    assert_eq_str(loc(), U32.from_i64(12345).to_str(), "12345")
+
+    // size
+    assert_eq(loc(), U32.size(), 4)
+}

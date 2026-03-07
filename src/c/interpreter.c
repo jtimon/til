@@ -128,6 +128,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     Str *ftype = fdecl->data.decl.explicit_type;
     if (ftype && Str_eq_c(ftype, "I64"))  return val_i64(*(I64 *)ptr);
     if (ftype && Str_eq_c(ftype, "U8"))   return val_u8(*(U8 *)ptr);
+    if (ftype && Str_eq_c(ftype, "U32"))  return val_u32(*(U32 *)ptr);
     if (ftype && Str_eq_c(ftype, "Bool")) return val_bool(*(Bool *)ptr);
     // Inline struct: borrow if parent is borrowed, copy otherwise
     if (fdecl->data.decl.field_struct_def) {
@@ -161,6 +162,7 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
     switch (val.type) {
     case VAL_I64:  *(I64 *)ptr = *val.i64; free(val.i64); break;
     case VAL_U8:   *(U8 *)ptr = *val.u8; free(val.u8); break;
+    case VAL_U32:  *(U32 *)ptr = *val.u32; free(val.u32); break;
     case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
     case VAL_STRUCT:
         memcpy(ptr, val.instance->data, fsz);
@@ -210,6 +212,7 @@ Value clone_value(Value v) {
     switch (v.type) {
     case VAL_I64:  return val_i64(*v.i64);
     case VAL_U8:   return val_u8(*v.u8);
+    case VAL_U32:  return val_u32(*v.u32);
     case VAL_BOOL: return val_bool(*v.boolean);
     case VAL_ENUM: return val_enum(v.enum_inst->enum_name, v.enum_inst->tag,
                                     clone_value(v.enum_inst->payload));
@@ -241,6 +244,7 @@ void free_value(Value v) {
     switch (v.type) {
     case VAL_I64:  free(v.i64); break;
     case VAL_U8:   free(v.u8); break;
+    case VAL_U32:  free(v.u32); break;
     case VAL_BOOL: free(v.boolean); break;
     case VAL_ENUM:
         free_value(v.enum_inst->payload);
@@ -257,6 +261,7 @@ Bool values_equal(Value a, Value b) {
     if (a.type != b.type) return 0;
     switch (a.type) {
     case VAL_I64:  return *a.i64 == *b.i64;
+    case VAL_U32:  return *a.u32 == *b.u32;
     case VAL_U8:   return *a.u8 == *b.u8;
     case VAL_BOOL: return *a.boolean == *b.boolean;
     case VAL_ENUM:
@@ -361,6 +366,8 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U8"))
                         arg = (Value){.type = VAL_U8, .u8 = (til_U8 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "U32"))
+                        arg = (Value){.type = VAL_U32, .u32 = (til_U32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "Bool"))
                         arg = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)arg.ptr};
                     scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
@@ -380,6 +387,8 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U8"))
                         arg = (Value){.type = VAL_U8, .u8 = (til_U8 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "U32"))
+                        arg = (Value){.type = VAL_U32, .u32 = (til_U32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "Bool"))
                         arg = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)arg.ptr};
                 }
@@ -632,6 +641,8 @@ static void eval_body(Scope *scope, Expr *body) {
                         val = (Value){.type = VAL_I64, .i64 = (til_I64 *)val.ptr};
                     else if (Str_eq_c(etype, "U8"))
                         val = (Value){.type = VAL_U8, .u8 = (til_U8 *)val.ptr};
+                    else if (Str_eq_c(etype, "U32"))
+                        val = (Value){.type = VAL_U32, .u32 = (til_U32 *)val.ptr};
                     else if (Str_eq_c(etype, "Bool"))
                         val = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)val.ptr};
                     else if (Str_eq_c(etype, "Str")) {
@@ -745,6 +756,7 @@ static void eval_body(Scope *scope, Expr *body) {
                     switch (val.type) {
                     case VAL_I64:  *(I64 *)ptr = *val.i64; free(val.i64); break;
                     case VAL_U8:   *(U8 *)ptr = *val.u8; free(val.u8); break;
+                    case VAL_U32:  *(U32 *)ptr = *val.u32; free(val.u32); break;
                     case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
                     case VAL_STRUCT:
                         memcpy(ptr, val.instance->data, fsz);
@@ -864,6 +876,15 @@ static Value parse_cli_arg(const char *s, Str *type_name) {
         }
         return val_u8(v);
     }
+    if (Str_eq_c(type_name, "U32")) {
+        char *end;
+        unsigned long v = strtoul(s, &end, 10);
+        if (*end != '\0' || v > 0xFFFFFFFF) {
+            fprintf(stderr, "error: cannot parse '%s' as U32\n", s);
+            exit(1);
+        }
+        return val_u32(v);
+    }
     if (Str_eq_c(type_name, "Bool")) {
         if (strcmp(s, "true") == 0) return val_bool(1);
         if (strcmp(s, "false") == 0) return val_bool(0);
@@ -877,6 +898,7 @@ static Value parse_cli_arg(const char *s, Str *type_name) {
 static I32 elem_size_for_type(Str *type_name) {
     if (Str_eq_c(type_name, "I64")) return (I32)sizeof(til_I64);
     if (Str_eq_c(type_name, "U8"))  return (I32)sizeof(til_U8);
+    if (Str_eq_c(type_name, "U32")) return (I32)sizeof(til_U32);
     if (Str_eq_c(type_name, "Bool")) return (I32)sizeof(til_Bool);
     if (Str_eq_c(type_name, "Str")) return 24; // til Str = {U8*, I64 len, I64 cap}
     return 8;
@@ -885,6 +907,7 @@ static I32 elem_size_for_type(Str *type_name) {
 static void value_to_buf(void *dest, Value v, Str *type_name) {
     if (Str_eq_c(type_name, "I64"))       { memcpy(dest, v.i64, sizeof(til_I64)); free(v.i64); }
     else if (Str_eq_c(type_name, "U8"))   { memcpy(dest, v.u8, sizeof(til_U8)); free(v.u8); }
+    else if (Str_eq_c(type_name, "U32"))  { memcpy(dest, v.u32, sizeof(til_U32)); free(v.u32); }
     else if (Str_eq_c(type_name, "Bool")) { memcpy(dest, v.boolean, sizeof(til_Bool)); free(v.boolean); }
     else if (v.type == VAL_STRUCT) {
         I32 sz = v.instance->struct_def->total_struct_size;
