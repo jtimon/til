@@ -1,0 +1,506 @@
+* C-to-til Translation Reference
+
+Reference for translating the ctil compiler from C to til (self-hosting #12).
+
+The self-hosted file structure mirrors the C one:
+- ~src/ctil.c~ -> ~src/til.til~
+- ~src/c/lexer.c~ -> ~src/self/lexer.til~
+- ~src/c/parser.c~ -> ~src/self/parser.til~
+- ~src/c/typer.c~ -> ~src/self/typer.til~
+- ~src/c/interpreter.c~ -> ~src/self/interpreter.til~
+- ~src/c/ccodegen.c~ -> ~src/self/ccodegen.til~
+
+The generated C output stays exactly the same — ccodegen string emissions
+just become til string operations that emit the same text.
+
+** Types
+
+| C                        | til                          |
+|--------------------------+------------------------------|
+| ~int~, ~long~, ~I64~    | ~I64~                        |
+| ~I32~, ~int32_t~        | ~I32~                        |
+| ~U32~, ~uint32_t~       | ~U32~                        |
+| ~I16~, ~int16_t~        | ~I16~                        |
+| ~char~, ~unsigned char~  | ~U8~                         |
+| ~bool~                   | ~Bool~                       |
+| ~char *~, ~const char *~ | ~Str~                        |
+| ~void *~                 | ~Dynamic~                    |
+| ~void~ (return type)     | proc with no ~returns~ clause |
+
+** Variables
+
+#+begin_src c
+int x = 5;            // mutable
+const int X = 5;      // constant
+#define CONST 42      // macro constant
+#+end_src
+
+#+begin_src til
+mut x := 5            // mutable (must opt in)
+X := 5                // immutable (default)
+CONST := 42           // same as const
+#+end_src
+
+Type annotations when needed:
+
+#+begin_src til
+x : I64 = 0
+name : Str = "hello"
+#+end_src
+
+** Pointers & Memory
+
+*** Owned pointers
+
+#+begin_src c
+Point *p = malloc(sizeof(Point));
+p->x = 5;
+free(p);
+#+end_src
+
+#+begin_src til
+own p := Point(x = 5)
+// freed automatically (ASAP destruction)
+// or explicitly: own p.delete()
+#+end_src
+
+*** Borrowed references
+
+#+begin_src c
+void read_point(const Point *p) { printf("%d", p->x); }
+#+end_src
+
+#+begin_src til
+read_point := proc(p: Point) { println(p.x.to_str()) }
+// all args passed by reference already
+#+end_src
+
+To bind a reference explicitly:
+
+#+begin_src til
+ref val : I64 = vec.get(0)
+#+end_src
+
+*** NULL
+
+No null in til. Use sentinels:
+
+#+begin_src c
+Expr *def_val = NULL;
+if (def_val != NULL) { ... }
+#+end_src
+
+#+begin_src til
+NONE := 0.sub(1)
+mut def_val := NONE
+if def_val.neq(NONE) { ... }
+// for optional strings, use ""
+#+end_src
+
+*** Low-level memory
+
+All available in til: ~malloc(n)~, ~free(own p)~, ~realloc(own p, n)~,
+~memcpy(dst, src, n)~, ~memmove(dst, src, n)~, ~ptr_add(buf, offset)~.
+
+~sizeof(Type)~ becomes ~Type.size()~.
+
+** Functions
+
+*** Pure functions (no side effects, must return)
+
+#+begin_src c
+int double_it(int x) { return x * 2; }
+#+end_src
+
+#+begin_src til
+double_it := func(x: I64) returns I64 { return x.mul(2) }
+#+end_src
+
+*** Procedures (side effects, optional return)
+
+#+begin_src c
+void greet(const char *name) { printf("hello %s\n", name); }
+#+end_src
+
+#+begin_src til
+greet := proc(name: Str) { println("hello ", name) }
+#+end_src
+
+*** Mutable parameters
+
+#+begin_src c
+void increment(int *x) { (*x)++; }
+#+end_src
+
+#+begin_src til
+increment := proc(mut x: I64) { x = x.add(1) }
+#+end_src
+
+*** Ownership transfer
+
+#+begin_src c
+void consume(Point *p) { /* takes ownership */ free(p); }
+#+end_src
+
+#+begin_src til
+consume := proc(own p: Point) { /* p freed automatically */ }
+#+end_src
+
+*** Forward declarations
+
+Not needed — til's typer resolves forward references automatically.
+
+*** Static functions
+
+Just regular funcs/procs (no visibility modifiers in til).
+
+** Structs
+
+*** Definition
+
+#+begin_src c
+typedef struct { int x; int y; } Point;
+#+end_src
+
+#+begin_src til
+Point := struct {
+    mut x := 0
+    mut y := 0
+}
+#+end_src
+
+Fields are immutable by default; use ~mut~ to allow assignment.
+
+*** Instantiation
+
+#+begin_src c
+Point p = {5, 10};
+// or: Point p; p.x = 5; p.y = 10;
+#+end_src
+
+#+begin_src til
+p := Point(x = 5, y = 10)
+// or with defaults: p := Point()
+#+end_src
+
+*** Nested structs
+
+#+begin_src c
+typedef struct { Point *start; Point *end; } Line;  // heap-allocated
+typedef struct { Point center; int r; } Circle;       // inline
+#+end_src
+
+#+begin_src til
+Line := struct {
+    own mut start := Point()    // heap-allocated, owned
+    own mut end := Point()
+}
+Circle := struct {
+    mut center := Point()       // inline (no own)
+    mut r := 0
+}
+#+end_src
+
+*** Methods and static members
+
+#+begin_src c
+// In C, methods are standalone functions
+int point_sum(Point *p) { return p->x + p->y; }
+// Static data stored in globals
+static int point_count = 0;
+#+end_src
+
+#+begin_src til
+Point := struct {
+    mut x := 0
+    mut y := 0
+    namespace:
+    mut count := 0              // static member
+    sum := func(self: Point) returns I64 {
+        return self.x.add(self.y)
+    }
+}
+// call: p.sum() or Point.sum(p)
+// access: Point.count
+#+end_src
+
+*** Auto-generated methods
+
+Structs automatically get ~.clone()~, ~.delete()~, ~.to_str()~, ~.eq()~
+unless you define your own in the ~namespace:~ section.
+
+** Enums
+
+*** Simple enum
+
+#+begin_src c
+typedef enum { RED, GREEN, BLUE } Color;
+Color c = RED;
+if (c == RED) { ... }
+#+end_src
+
+#+begin_src til
+Color := enum { Red, Green, Blue }
+c := Color.Red
+if c.eq(Color.Red) { ... }
+#+end_src
+
+*** Tagged union (C struct + enum + union -> til payload enum)
+
+#+begin_src c
+typedef enum { TOK_NUM, TOK_NAME, TOK_EOF } TokenType;
+typedef struct {
+    TokenType type;
+    union {
+        int num_val;
+        char *str_val;
+    };
+} Token;
+
+Token t = { .type = TOK_NUM, .num_val = 42 };
+if (t.type == TOK_NUM) { printf("%d", t.num_val); }
+#+end_src
+
+#+begin_src til
+Token := enum { Num: I64, Name: Str, Eof }
+
+t := Token.Num(42)
+if t.is_Num() { println(t.get_Num().to_str()) }
+#+end_src
+
+Auto-generated: ~.is_Variant()~, ~.get_Variant()~, ~.to_str()~, ~.eq()~.
+
+*** Enum with methods
+
+#+begin_src til
+Direction := enum {
+    Up, Down, Left, Right
+    namespace:
+    is_vertical := func(self: Direction) returns Bool {
+        if self.eq(Direction.Up) { return true }
+        if self.eq(Direction.Down) { return true }
+        return false
+    }
+}
+#+end_src
+
+** Operators
+
+All C operators become method calls in til. No infix operators.
+
+| C              | til             |
+|----------------+-----------------|
+| ~a + b~        | ~a.add(b)~      |
+| ~a - b~        | ~a.sub(b)~      |
+| ~a * b~        | ~a.mul(b)~      |
+| ~a / b~        | ~a.div(b)~      |
+| ~a % b~        | ~a.mod(b)~      |
+| ~-a~           | ~a.neg()~       |
+| ~a == b~       | ~a.eq(b)~       |
+| ~a != b~       | ~a.neq(b)~      |
+| ~a < b~        | ~a.lt(b)~       |
+| ~a <= b~       | ~a.lte(b)~      |
+| ~a > b~        | ~a.gt(b)~       |
+| ~a >= b~       | ~a.gte(b)~      |
+| ~a && b~       | ~a.and(b)~      |
+| ~a \vert\vert b~ | ~a.or(b)~     |
+| ~!a~           | ~a.not()~       |
+| ~a & b~        | ~a.and(b)~      |
+| ~a \vert b~    | ~a.or(b)~       |
+| ~a ^ b~        | ~a.xor(b)~      |
+| ~x++~          | ~x = x.add(1)~  |
+| ~x += n~       | ~x = x.add(n)~  |
+
+Note: bitwise ~and~, ~or~ and boolean ~and~, ~or~ use the same method
+names but operate on different types (I64 vs Bool).
+
+** Control Flow
+
+*** if/else
+
+#+begin_src c
+if (x > 0) { ... } else if (x == 0) { ... } else { ... }
+#+end_src
+
+#+begin_src til
+if x.gt(0) { ... } else if x.eq(0) { ... } else { ... }
+#+end_src
+
+No parentheses around the condition.
+
+*** while
+
+#+begin_src c
+while (i < n) { i++; }
+#+end_src
+
+#+begin_src til
+while i.lt(n) { i = i.add(1) }
+#+end_src
+
+*** for loop
+
+#+begin_src c
+for (int i = 0; i < n; i++) { ... }
+#+end_src
+
+#+begin_src til
+mut i := 0
+while i.lt(n) {
+    // ...
+    i = i.add(1)
+}
+#+end_src
+
+*** switch
+
+#+begin_src c
+switch (type) {
+    case TOK_NUM:  ...; break;
+    case TOK_EOF:  ...; break;
+    default:       ...; break;
+}
+#+end_src
+
+#+begin_src til
+if type.eq(TokenType.Num) { ... }
+else if type.eq(TokenType.Eof) { ... }
+else { ... }
+#+end_src
+
+*** Other
+
+~break~, ~continue~, ~return~ work the same.
+
+No ~goto~, ~do-while~, or ternary ~?:~ in til.
+
+** Strings
+
+| C                              | til                                          |
+|--------------------------------+----------------------------------------------|
+| ~strlen(s)~                    | ~s.len()~                                    |
+| ~strcmp(a, b) == 0~            | ~a.eq(b)~                                    |
+| ~strncmp(a, b, n) == 0~       | ~a.substr(0, n).eq(b.substr(0, n))~          |
+| ~memcmp(a, b, n)~             | ~a.eq(b)~ or compare substrings              |
+| ~s[i]~                        | ~s.char_at(i)~ (returns U8)                  |
+| ~strcat~ / concatenation       | ~a.concat(b)~                                |
+| ~strstr(hay, needle)~         | ~hay.find(needle)~ (returns I64, -1 if none) |
+| ~snprintf(buf, n, "%s%s", a, b)~ | ~format(a, b)~ or ~a.concat(b)~          |
+| ~strdup(s)~                   | ~s.clone()~                                  |
+| ~strrchr(s, '/')~             | ~s.rfind("/")~                               |
+| ~strtol(s, &end, 10)~         | ~s.to_i64()~                                 |
+| ~'a'~ (char literal)          | ~U8.from_i64(97)~                            |
+| ~isdigit(c)~                  | custom func checking U8 range                |
+| ~isalpha(c)~                  | custom func checking U8 range                |
+
+Character classification example:
+
+#+begin_src til
+is_digit := func(c: U8) returns Bool {
+    return c.gte(U8.from_i64(48)).and(c.lte(U8.from_i64(57)))
+}
+is_alpha := func(c: U8) returns Bool {
+    if c.gte(U8.from_i64(65)).and(c.lte(U8.from_i64(90))) { return true }
+    if c.gte(U8.from_i64(97)).and(c.lte(U8.from_i64(122))) { return true }
+    return c.eq(U8.from_i64(95))
+}
+#+end_src
+
+** Built-in Data Structures
+
+These C types already exist as til built-ins with the same semantics:
+
+*** Vec (dynamic array)
+
+#+begin_src c
+Vec v = Vec_new(sizeof(I64));
+Vec_push(&v, &val);
+I64 *elem = Vec_get(&v, i);
+v.count;
+#+end_src
+
+#+begin_src til
+v := Vec.new("I64", I64.size())
+v.push(own val)
+ref elem : I64 = v.get(i)
+v.len()
+#+end_src
+
+*** Map (sorted key-value)
+
+#+begin_src c
+Map m = Map_new(sizeof(Str), sizeof(I64), Str_cmp);
+Map_set(&m, &key, &val);
+I64 *val = Map_get(&m, &key);
+Map_has(&m, &key);
+#+end_src
+
+#+begin_src til
+m := Map.new("Str", Str.size(), "I64", I64.size())
+m.set(own key, own val)
+ref val : I64 = m.get(key)
+m.has(key)
+#+end_src
+
+*** Set
+
+#+begin_src til
+s := Set.new("Str", Str.size())
+s.add(own "hello")
+s.has("hello")
+#+end_src
+
+*** Str
+
+Same internal struct (data, len, cap). Built-in with all methods.
+
+*** Array (fixed-size)
+
+#+begin_src til
+a := Array.new("I64", I64.size(), 10)
+a.set(0, own 42)
+ref val : I64 = a.get(0)
+#+end_src
+
+** I/O & System
+
+| C                            | til                                     |
+|------------------------------+-----------------------------------------|
+| ~printf(...)~                | ~println(...)~ or ~print(...)~          |
+| ~fprintf(stderr, ...)~       | ~println(...)~ (no stderr)              |
+| ~fopen~ + ~fread~ + ~fclose~ | ~readfile(path)~ returns Str            |
+| ~fwrite~                     | ~writefile(path, content)~              |
+| ~system(cmd)~                | ~spawn_cmd(cmd)~ + ~wait_cmd(pid)~      |
+| ~exit(code)~                 | ~exit(code)~                            |
+
+** Modules
+
+#+begin_src c
+#include "lexer.h"
+#ifndef LEXER_H
+#define LEXER_H
+// ...
+#endif
+#+end_src
+
+#+begin_src til
+import("lexer.til")
+// no header guards needed
+#+end_src
+
+File modes set at the top:
+- ~mode script~ — executable, top-level code runs
+- ~mode cli~ — requires ~main~ function
+- ~mode lib~ — importable library
+- ~mode test~ — test file, test functions run automatically
+- ~mode pure~ — only funcs allowed (no procs)
+
+** Casts & Conversions
+
+| C                    | til                                   |
+|----------------------+---------------------------------------|
+| ~(I64)x~             | ~x.to_i64()~                          |
+| ~(U8)x~              | ~U8.from_i64(x)~ (with range check)   |
+| ~(I32)x~             | ~I32.from_i64(x)~                     |
+| ~(void *)p~          | Dynamic type                          |
+| ~(Type *)void_ptr~   | ~ref val : Type = vec.get(i)~         |
