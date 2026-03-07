@@ -1,7 +1,7 @@
 Str := struct {
     own mut data : U8 = 0
     mut len := 0
-    cap := 0
+    mut cap := 0
 
     namespace:
     len := func(self: Str) returns I64 { return self.len }
@@ -33,6 +33,22 @@ Str := struct {
         memcpy(new_data, a.data, a.len)
         memcpy(ptr_add(new_data, a.len), b.data, b.len)
         return Str(data = new_data, len = new_len, cap = new_len)
+    }
+
+    with_capacity := func(n: I64) returns Str {
+        own buf : U8 = malloc(n)
+        return Str(data = buf, len = 0, cap = n)
+    }
+
+    push_str := proc(mut self: Str, s: Str) {
+        new_len := self.len.add(s.len)
+        if new_len.gt(self.cap) {
+            new_cap := new_len.mul(2)
+            self.data = realloc(own self.data, new_cap)
+            self.cap = new_cap
+        }
+        memcpy(ptr_add(self.data, self.len), s.data, s.len)
+        self.len = new_len
     }
 
     clone := func(val: Str) returns Str {

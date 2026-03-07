@@ -205,14 +205,23 @@ print := proc(parts: ..Str) {
 }
 
 format := func(parts: ..Str) returns Str {
-    mut result := ""
+    mut total := 0
     mut i := 0
     while i.lt(parts.len()) {
         ref s : Str = parts.get(i)
-        result = result.concat(s)
+        total = total.add(s.len())
         i = i.add(1)
     }
-    return result
+    own buf : U8 = malloc(total)
+    mut offset := 0
+    i = 0
+    while i.lt(parts.len()) {
+        ref s : Str = parts.get(i)
+        memcpy(ptr_add(buf, offset), s.data, s.len())
+        offset = offset.add(s.len())
+        i = i.add(1)
+    }
+    return Str(data = buf, len = total, cap = total)
 }
 exit := ext_func(code: I64) {}
 free := ext_func(own elem: Dynamic) {}
