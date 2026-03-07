@@ -272,6 +272,39 @@
 
    Desugars to Set.new()/Map.new() + add/set calls.
 
+*** Map literal details
+    Syntax: {key_expr: val_expr, key_expr: val_expr, ...}
+
+    Examples:
+      {0: 1, 1: 2, 2: 3}                                  // Map[I64, I64]
+      {"a": 1, "b": 2}                                     // Map[Str, I64]
+      {Point(x=1, y=1): "unit", Point(x=0, y=0): "origin"} // Map[Point, Str]
+
+    Any key type works as long as it implements cmp (Map uses sorted
+    arrays with binary search, not hashing). I64, Str, Bool have cmp
+    built-in. User structs need user-defined cmp (which then auto-
+    generates eq/lt/gt/etc via initer.c).
+
+    Typer validates at compile time:
+    - All keys are the same type, all values are the same type
+    - Key type has cmp method (checked in typer.c, shared by both
+      interpreter and codegen paths)
+
+    Desugars to: Map.new(key_type, key_size, val_type, val_size)
+    followed by .set(key, val) for each entry.
+
+    Implementation reference: follows the array()/vec() builtin pattern.
+    array/vec are hardcoded in typer.c (validate first arg is string
+    literal), dispatch.c (interpreter C handlers), ccodegen.c (emit as
+    til_array_of_I64(3, v1, v2, v3)). Map literals differ in two ways:
+    1. New parser syntax needed: {key: val} grammar (array/vec reuse
+       function call syntax)
+    2. Richer typer validation: check cmp exists on key type, infer
+       key/val types from first entry, enforce homogeneous types
+    The desugared form is pure til (Map.new + .set calls), so no new
+    dispatch.c handlers or ccodegen.c special cases are needed — unlike
+    array/vec which required C-side builtins.
+
 ** Phase 3: Tuple literals
    t := (1, "hello", true)   // Tuple[I64, Str, Bool]
 
