@@ -675,23 +675,75 @@
   The builder and interpreter should be as similar and minimal as possible.
   The typer/initer should do more AST rewriting so backends can be dumb and uniform.
 
-** TODO Generate enum eq/is_Variant/get_Variant as real til in initer
+** TODO Generate enum eq as real til in initer
    The initer already generates clone, delete, and to_str as real til AST
-   for all enums. But eq, is_Variant(), and get_Variant() are still
-   hardcoded in C: builder generates them as C functions (~160 lines in
-   emit_enum_def), interpreter dispatches them in dispatch.c.
+   for all enums. But eq is still hardcoded in C: builder generates it as
+   a C function (~160 lines in emit_enum_def), interpreter dispatches it
+   in dispatch.c (~49 lines in enum_method_dispatch).
 
-   If the initer generated these as real til too, both backends would just
-   execute/emit them like any other namespace method. This is the biggest
-   remaining actionable item — would eliminate the most special-case code
-   from both backends.
+   eq CAN become real til because is_Variant and get_Variant (which must
+   stay ext_func — they need low-level tag/payload access) provide all
+   the building blocks:
 
-** TODO println/print/format special cases
-   Both backends special-case these variadic ext_funcs: builder emits
-   til_println(n, args...), interpreter dispatches to C handlers.
-   Partially inherent to variadic C calling conventions, but worth
-   investigating if the typer could desugar these into a loop over
-   an array of args.
+   Simple enum (no payloads):
+   #+begin_src til
+   eq := func(a: Color, b: Color) returns Bool {
+       if a.is_Red() { return b.is_Red() }
+       if a.is_Green() { return b.is_Green() }
+       if a.is_Blue() { return b.is_Blue() }
+       return false
+   }
+   #+end_src
+
+   Payload enum:
+   #+begin_src til
+   eq := func(a: Expr, b: Expr) returns Bool {
+       if a.is_Num() {
+           if b.is_Num().not() { return false }
+           return a.get_Num().eq(b.get_Num())
+       }
+       if a.is_Str() {
+           if b.is_Str().not() { return false }
+           return a.get_Str().eq(b.get_Str())
+       }
+       return false
+   }
+   #+end_src
+
+   is_Variant/get_Variant stay as ext_func — they need direct tag/payload
+   memory access that can't be expressed in til. But their C implementations
+   are already compact and uniform across both backends.
+
+** TODO Replace println/print with print_single/print_flush pattern
+   Both backends special-case println/print/format: builder emits
+   til_println/til_print C implementations (~35 lines) and inserts arg
+   count at call sites (~20 lines). Interpreter dispatches to C handlers
+   in dispatch.c (~35 lines).
+
+   Fix: introduce two simple ext_procs — print_single(s: Str) and
+   print_flush() — then implement println and print as real til procs
+   that loop over their variadic Array args:
+
+   #+begin_src til
+   println := proc(parts: ..Str) {
+       i := 0
+       while i.lt(parts.len()) {
+           ref s := parts.get(i)
+           print_single(s)
+           i = i.add(1)
+       }
+       print_flush()
+   }
+   #+end_src
+
+   This eliminates:
+   - builder.c: arg count insertion at call sites (lines 141-161)
+   - builder.c: til_println/til_print C emission (lines 1149-1183)
+   - dispatch.c: h_println/h_print handlers (lines 196-232)
+
+   format stays as ext_func for now — efficient string concatenation
+   without repeated allocations needs #29 (proper strings with
+   len/cap separation and in-place growth).
 
 ** Acceptable: dyn_call/dyn_has_method/array/vec
    Both backends special-case these. Builder generates dispatch switch
