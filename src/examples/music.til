@@ -1,0 +1,388 @@
+mode gui
+
+// Music Scale Viewer
+// Click note + mode buttons to see scale on pentagram and hear it
+
+main := proc() {
+    init_window(700, 520, "music")
+    set_target_fps(60)
+    init_audio_device()
+
+    // Mode intervals (7 modes x 7 steps = 49), brightest to darkest
+    // Lidio, Jonico, Mixolidio, Dorico, Eolico, Frigio, Locrio
+    mut intervals := array("I64",
+        2, 2, 2, 1, 2, 2, 1,
+        2, 2, 1, 2, 2, 2, 1,
+        2, 2, 1, 2, 2, 1, 2,
+        2, 1, 2, 2, 2, 1, 2,
+        2, 1, 2, 2, 1, 2, 2,
+        1, 2, 2, 2, 1, 2, 2,
+        1, 2, 2, 1, 2, 2, 2
+    )
+
+    // Diatonic to chromatic natural mapping: do=0 re=2 mi=4 fa=5 sol=7 la=9 si=11
+    mut naturals := array("I64", 0, 2, 4, 5, 7, 9, 11)
+
+    // Frequencies for chromatic notes C4..B4
+    mut freqs := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
+
+    // Scale result arrays (8 notes: 7 degrees + octave)
+    mut sc_chrom := Array.new("I64", 8, 8)
+    mut sc_diat := Array.new("I64", 8, 8)
+    mut sc_oct := Array.new("I64", 8, 8)
+    mut sc_acc := Array.new("I64", 8, 8)
+    mut sc_freq := Array.new("I64", 8, 8)
+
+    // State
+    mut sel_diatonic := 0
+    mut sel_accidental := 0
+    mut sel_mode := 1
+    mut need_recompute := true
+    mut playing := false
+    mut play_idx := 0
+    mut play_timer := 0
+
+    // Button layout
+    btn_w := 90
+    btn_h := 20
+    note_row_y := 10
+    mode_row_y := 80
+
+    while window_should_close().not() {
+        dt := get_frame_time()
+
+        // Input: mouse clicks
+        if is_mouse_button_pressed(0) {
+            mx := get_mouse_x()
+            my := get_mouse_y()
+
+            // Note buttons: 7 cols x 3 rows
+            if my.gte(note_row_y).and(my.lt(note_row_y.add(btn_h.mul(3)))) {
+                col := mx.sub(20).div(btn_w)
+                row := my.sub(note_row_y).div(btn_h)
+                if col.gte(0).and(col.lt(7)).and(row.gte(0)).and(row.lt(3)).and(mx.gte(20)) {
+                    sel_diatonic = col
+                    if row.eq(0) {
+                        sel_accidental = 0.sub(1)
+                    } else {
+                        if row.eq(1) {
+                            sel_accidental = 0
+                        } else {
+                            sel_accidental = 1
+                        }
+                    }
+                    need_recompute = true
+                    playing = true
+                    play_idx = 0
+                    play_timer = 300
+                }
+            }
+
+            // Mode buttons: 7 cols x 1 row
+            if my.gte(mode_row_y).and(my.lt(mode_row_y.add(btn_h))) {
+                col := mx.sub(20).div(btn_w)
+                if col.gte(0).and(col.lt(7)).and(mx.gte(20)) {
+                    sel_mode = col
+                    need_recompute = true
+                    playing = true
+                    play_idx = 0
+                    play_timer = 300
+                }
+            }
+        }
+
+        // Recompute scale
+        if need_recompute {
+            need_recompute = false
+            ref nat_c : I64 = naturals.get(sel_diatonic)
+            mut root_chromatic := nat_c.add(sel_accidental).add(12).mod(12)
+            mut chrom_pos := root_chromatic
+            mut diat_pos := sel_diatonic
+            mut octave := 0
+            mut prev_diat := sel_diatonic
+
+            mut k := 0
+            while k.lt(8) {
+                cp := chrom_pos
+                dp := diat_pos
+                oc := octave
+                sc_chrom.set(k, own cp)
+                sc_diat.set(k, own dp)
+                sc_oct.set(k, own oc)
+
+                // Compute accidental
+                ref nat_ref : I64 = naturals.get(diat_pos)
+                mut acc := chrom_pos.sub(nat_ref)
+                if acc.gt(6) { acc = acc.sub(12) }
+                if acc.lt(0.sub(6)) { acc = acc.add(12) }
+                sc_acc.set(k, own acc)
+
+                // Frequency
+                ref f : I64 = freqs.get(chrom_pos.mod(12))
+                mut freq := f
+                if octave.gt(0) { freq = freq.mul(2) }
+                sc_freq.set(k, own freq)
+
+                // Next note
+                if k.lt(7) {
+                    ref step : I64 = intervals.get(sel_mode.mul(7).add(k))
+                    step_val := step
+                    chrom_pos = chrom_pos.add(step_val).mod(12)
+                    prev_diat = diat_pos
+                    diat_pos = diat_pos.add(1).mod(7)
+                    if diat_pos.lt(prev_diat) {
+                        octave = octave.add(1)
+                    }
+                }
+                k = k.add(1)
+            }
+        }
+
+        // Playback
+        if playing {
+            play_timer = play_timer.add(dt)
+            if play_timer.gte(300) {
+                play_timer = 0
+                if play_idx.lt(8) {
+                    ref pf : I64 = sc_freq.get(play_idx)
+                    if pf.gt(0) {
+                        play_tone(pf, 250)
+                    }
+                    play_idx = play_idx.add(1)
+                } else {
+                    playing = false
+                }
+            }
+        }
+
+        // Draw
+        begin_drawing()
+        clear_background(0, 0, 0, 255)
+
+        // -- Note buttons (7 cols x 3 rows) --
+        mut row := 0
+        while row.lt(3) {
+            mut col := 0
+            while col.lt(7) {
+                bx := 20.add(col.mul(btn_w))
+                by := note_row_y.add(row.mul(btn_h))
+
+                // Highlight selected
+                mut br := 50
+                mut bg := 50
+                mut bb := 50
+                mut acc_match := 0
+                if row.eq(0) { acc_match = 0.sub(1) }
+                if row.eq(1) { acc_match = 0 }
+                if row.eq(2) { acc_match = 1 }
+                if col.eq(sel_diatonic).and(acc_match.eq(sel_accidental)) {
+                    br = 0
+                    bg = 150
+                    bb = 200
+                }
+                draw_rectangle(bx, by, btn_w.sub(2), btn_h.sub(2), br, bg, bb, 255)
+
+                // Label
+                mut label := ""
+                if col.eq(0) { label = "do" }
+                if col.eq(1) { label = "re" }
+                if col.eq(2) { label = "mi" }
+                if col.eq(3) { label = "fa" }
+                if col.eq(4) { label = "sol" }
+                if col.eq(5) { label = "la" }
+                if col.eq(6) { label = "si" }
+                if row.eq(0) { label = label.concat("b") }
+                if row.eq(2) { label = label.concat("#") }
+                draw_text(label, bx.add(4), by.add(3), 14, 220, 220, 220, 255)
+
+                col = col.add(1)
+            }
+            row = row.add(1)
+        }
+
+        // -- Mode buttons --
+        mut mi := 0
+        while mi.lt(7) {
+            bx := 20.add(mi.mul(btn_w))
+            by := mode_row_y
+
+            mut mr := 50
+            mut mg := 50
+            mut mb := 50
+            if mi.eq(sel_mode) {
+                mr = 180
+                mg = 100
+                mb = 0
+            }
+            draw_rectangle(bx, by, btn_w.sub(2), btn_h.sub(2), mr, mg, mb, 255)
+
+            mut mlabel := ""
+            if mi.eq(0) { mlabel = "lidio" }
+            if mi.eq(1) { mlabel = "jonico" }
+            if mi.eq(2) { mlabel = "mixolid" }
+            if mi.eq(3) { mlabel = "dorico" }
+            if mi.eq(4) { mlabel = "eolico" }
+            if mi.eq(5) { mlabel = "frigio" }
+            if mi.eq(6) { mlabel = "locrio" }
+            draw_text(mlabel, bx.add(4), by.add(3), 14, 220, 220, 220, 255)
+
+            mi = mi.add(1)
+        }
+
+        // -- ASCII scale text --
+        mut scale_text := ""
+        mut ti := 0
+        while ti.lt(8) {
+            if ti.gt(0) { scale_text = scale_text.concat("  ") }
+
+            ref td : I64 = sc_diat.get(ti)
+            mut tname := ""
+            if td.eq(0) { tname = "do" }
+            if td.eq(1) { tname = "re" }
+            if td.eq(2) { tname = "mi" }
+            if td.eq(3) { tname = "fa" }
+            if td.eq(4) { tname = "sol" }
+            if td.eq(5) { tname = "la" }
+            if td.eq(6) { tname = "si" }
+
+            ref ta : I64 = sc_acc.get(ti)
+            if ta.eq(1) { tname = tname.concat("#") }
+            if ta.eq(0.sub(1)) { tname = tname.concat("b") }
+            if ta.eq(2) { tname = tname.concat("##") }
+            if ta.eq(0.sub(2)) { tname = tname.concat("bb") }
+
+            scale_text = scale_text.concat(tname)
+            ti = ti.add(1)
+        }
+        draw_text(scale_text, 20, 115, 18, 255, 255, 0, 255)
+
+        // -- Mode name --
+        mut mode_full := ""
+        if sel_mode.eq(0) { mode_full = "Lidio" }
+        if sel_mode.eq(1) { mode_full = "Jonico (Mayor)" }
+        if sel_mode.eq(2) { mode_full = "Mixolidio" }
+        if sel_mode.eq(3) { mode_full = "Dorico" }
+        if sel_mode.eq(4) { mode_full = "Eolico (Menor)" }
+        if sel_mode.eq(5) { mode_full = "Frigio" }
+        if sel_mode.eq(6) { mode_full = "Locrio" }
+
+        // Root name for title
+        mut root_name := ""
+        if sel_diatonic.eq(0) { root_name = "do" }
+        if sel_diatonic.eq(1) { root_name = "re" }
+        if sel_diatonic.eq(2) { root_name = "mi" }
+        if sel_diatonic.eq(3) { root_name = "fa" }
+        if sel_diatonic.eq(4) { root_name = "sol" }
+        if sel_diatonic.eq(5) { root_name = "la" }
+        if sel_diatonic.eq(6) { root_name = "si" }
+        if sel_accidental.eq(0.sub(1)) { root_name = root_name.concat("b") }
+        if sel_accidental.eq(1) { root_name = root_name.concat("#") }
+
+        mut title := root_name.concat(" ").concat(mode_full)
+        draw_text(title, 20, 145, 16, 150, 150, 150, 255)
+
+        // -- Pentagram --
+        // Staff lines at positions: E4=0, G4=2, B4=4, D5=6, F5=8
+        // staff_pos for a note = diatonic_idx - 2 + octave*7
+        // Pixel Y = 440 - staff_pos * 15
+        staff_base_y := 440
+        staff_sp := 15
+
+        // Draw 5 staff lines
+        mut li := 0
+        while li.lt(5) {
+            line_pos := li.mul(2)
+            ly := staff_base_y.sub(line_pos.mul(staff_sp))
+            draw_rectangle(60, ly, 580, 1, 100, 100, 100, 255)
+            li = li.add(1)
+        }
+
+        // Draw notes
+        mut ni := 0
+        while ni.lt(8) {
+            nx := 100.add(ni.mul(70))
+
+            ref nd : I64 = sc_diat.get(ni)
+            ref no : I64 = sc_oct.get(ni)
+            staff_pos := nd.sub(2).add(no.mul(7))
+            ny := staff_base_y.sub(staff_pos.mul(staff_sp))
+
+            // Ledger lines
+            if staff_pos.lt(0) {
+                mut lp := 0.sub(2)
+                while lp.gte(staff_pos) {
+                    lly := staff_base_y.sub(lp.mul(staff_sp))
+                    draw_rectangle(nx.sub(15), lly, 30, 1, 100, 100, 100, 255)
+                    lp = lp.sub(2)
+                }
+            }
+            if staff_pos.gt(8) {
+                mut lp := 10
+                while lp.lte(staff_pos) {
+                    lly := staff_base_y.sub(lp.mul(staff_sp))
+                    draw_rectangle(nx.sub(15), lly, 30, 1, 100, 100, 100, 255)
+                    lp = lp.add(2)
+                }
+            }
+
+            // Note color
+            mut nr := 255
+            mut ng := 255
+            mut nb := 0
+            if playing.and(play_idx.gt(ni)) {
+                // Already played: dim
+                nr = 100
+                ng = 100
+                nb = 0
+            }
+            if playing.and(play_idx.eq(ni)) {
+                // Currently playing: green
+                nr = 0
+                ng = 255
+                nb = 0
+            }
+
+            draw_circle(nx, ny, 8, nr, ng, nb, 255)
+
+            // Accidental text
+            ref na : I64 = sc_acc.get(ni)
+            if na.eq(1) {
+                draw_text("#", nx.sub(18), ny.sub(8), 16, 255, 255, 255, 255)
+            }
+            if na.eq(0.sub(1)) {
+                draw_text("b", nx.sub(16), ny.sub(8), 16, 255, 255, 255, 255)
+            }
+            if na.eq(2) {
+                draw_text("##", nx.sub(24), ny.sub(8), 14, 255, 255, 255, 255)
+            }
+            if na.eq(0.sub(2)) {
+                draw_text("bb", nx.sub(22), ny.sub(8), 14, 255, 255, 255, 255)
+            }
+
+            // Note name below
+            ref nnd : I64 = sc_diat.get(ni)
+            mut nn := ""
+            if nnd.eq(0) { nn = "do" }
+            if nnd.eq(1) { nn = "re" }
+            if nnd.eq(2) { nn = "mi" }
+            if nnd.eq(3) { nn = "fa" }
+            if nnd.eq(4) { nn = "sol" }
+            if nnd.eq(5) { nn = "la" }
+            if nnd.eq(6) { nn = "si" }
+            ref nna : I64 = sc_acc.get(ni)
+            if nna.eq(1) { nn = nn.concat("#") }
+            if nna.eq(0.sub(1)) { nn = nn.concat("b") }
+            draw_text(nn, nx.sub(10), staff_base_y.add(25), 12, 180, 180, 180, 255)
+
+            ni = ni.add(1)
+        }
+
+        // Hint
+        draw_text("click note + mode to play scale", 200, 500, 14, 80, 80, 80, 255)
+
+        end_drawing()
+    }
+
+    close_audio_device()
+    close_window()
+}
