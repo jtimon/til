@@ -1,9 +1,27 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 24
+# NEXT_ISSUE: 25
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
+
+* OPEN #24 Music scale viewer: ongoing improvements
+  GUI music theory learning tool (src/examples/music.til). Uses mode gui
+  (raylib). Current features: 7x3 note buttons, 7 Greek mode buttons,
+  scale text + triad line, graphical pentagram with notes on staff,
+  audio playback via play_tone, language radio (PT/ES/EN), notation
+  radio (solfege/american), resolution-independent layout.
+
+** DONE Initial GUI with note/mode selection and pentagram
+** DONE Audio playback of scale notes
+** DONE Triad type line (M/m/dim per degree)
+** DONE Language and notation radio buttons
+** DONE Resolution-independent layout (derived from WINDOW_WIDTH/WINDOW_HEIGHT)
+** TODO Verify modal playback correctness with music teacher
+** TODO Richer audio (sustain, chords, drone note under scale)
+** TODO Piano keyboard visualization
+** TODO Chord progressions
+** TODO Key signatures on staff
 
 * OPEN #23 shallow keyword: direct C calling convention for ext_func/ext_proc
   til's FFI currently uses a pointer calling convention: all args are heap
