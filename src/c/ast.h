@@ -98,13 +98,13 @@ struct Expr {
     I32 variadic_index;             // NODE_FCALL: index of first variadic arg in children (-1 if none)
     I32 variadic_count;             // NODE_FCALL: number of variadic args
     Vec children;                   // Vec of Expr* child pointers
-    I32 line;
-    I32 col;
+    U32 line;
+    U32 col;
     Str *path;                      // source file path
 };
 
 // Allocate a new Expr node
-Expr *expr_new(NodeType type, I32 line, I32 col, Str *path);
+Expr *expr_new(NodeType type, U32 line, U32 col, Str *path);
 
 // Error reporting helpers (print to stderr)
 void expr_error(Expr *e, const char *msg);

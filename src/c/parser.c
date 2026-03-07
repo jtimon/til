@@ -31,7 +31,7 @@ static I32 check(Parser *p, TokenType type) {
 static Token *expect(Parser *p, TokenType type) {
     Token *t = peek(p);
     if (t->type != type) {
-        fprintf(stderr, "%s:%d:%d: parse error: expected '%s', found '%.*s'\n",
+        fprintf(stderr, "%s:%u:%u: parse error: expected '%s', found '%.*s'\n",
                 p->path, t->line, t->col, tok_name(type), t->len, t->start);
         exit(1);
     }
@@ -72,7 +72,7 @@ static Expr *parse_func_def(Parser *p) {
     case TOK_EXT_FUNC: ft = FUNC_EXT_FUNC; break;
     case TOK_EXT_PROC: ft = FUNC_EXT_PROC; break;
     default:
-        fprintf(stderr, "%s:%d:%d: parse error: expected function keyword\n",
+        fprintf(stderr, "%s:%u:%u: parse error: expected function keyword\n",
                 p->path, kw->line, kw->col);
         exit(1);
     }
@@ -103,17 +103,17 @@ static Expr *parse_func_def(Parser *p) {
         if (check(p, TOK_DOTDOT)) {
             advance(p); // consume '..'
             if (is_own) {
-                fprintf(stderr, "%s:%d:%d: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
+                fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
                         p->path, pname->line, pname->col, pname->len, pname->start);
                 exit(1);
             }
             if (is_mut) {
-                fprintf(stderr, "%s:%d:%d: parse error: variadic parameter '%.*s' cannot be 'mut'\n",
+                fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'mut'\n",
                         p->path, pname->line, pname->col, pname->len, pname->start);
                 exit(1);
             }
             if (variadic_index >= 0) {
-                fprintf(stderr, "%s:%d:%d: parse error: only one variadic parameter is allowed\n",
+                fprintf(stderr, "%s:%u:%u: parse error: only one variadic parameter is allowed\n",
                         p->path, pname->line, pname->col);
                 exit(1);
             }
@@ -134,7 +134,7 @@ static Expr *parse_func_def(Parser *p) {
             def_val = parse_expression(p);
         }
         if (variadic_index >= 0 && !is_this_variadic && !def_val) {
-            fprintf(stderr, "%s:%d:%d: parse error: positional parameter '%.*s' not allowed after variadic\n",
+            fprintf(stderr, "%s:%u:%u: parse error: positional parameter '%.*s' not allowed after variadic\n",
                     p->path, pname->line, pname->col, pname->len, pname->start);
             exit(1);
         }
@@ -243,14 +243,14 @@ static Expr *parse_enum_def(Parser *p) {
 }
 
 // parse_call: identifier already consumed, current token is '('
-static Expr *parse_call(Parser *p, Str *name, I32 line, I32 col) {
+static Expr *parse_call(Parser *p, Str *name, U32 line, U32 col) {
     advance(p); // consume '('
 
     // loc() — replaced with "path:line:col" string literal
     if (Str_eq_c(name, "loc")) {
         expect(p, TOK_RPAREN);
         char buf[256];
-        snprintf(buf, sizeof(buf), "%s:%d:%d", p->path, line, col);
+        snprintf(buf, sizeof(buf), "%s:%u:%u", p->path, line, col);
         Expr *e = expr_new(NODE_LITERAL_STR, line, col, p->spath);
         e->data.str_val = Str_new(buf);
         return e;
@@ -326,7 +326,7 @@ static Expr *parse_expression(Parser *p) {
     } else if (t->type == TOK_ENUM) {
         return parse_enum_def(p);
     } else {
-        fprintf(stderr, "%s:%d:%d: parse error: unexpected token '%.*s'\n",
+        fprintf(stderr, "%s:%u:%u: parse error: unexpected token '%.*s'\n",
                 p->path, t->line, t->col, t->len, t->start);
         exit(1);
     }
@@ -481,7 +481,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         return parse_call(p, name, t->line, t->col);
     }
 
-    fprintf(stderr, "%s:%d:%d: parse error: expected ':=', ':', '=' or '(' after identifier '%s'\n",
+    fprintf(stderr, "%s:%u:%u: parse error: expected ':=', ':', '=' or '(' after identifier '%s'\n",
             p->path, t->line, t->col, name->c_str);
     exit(1);
 }
@@ -584,7 +584,7 @@ static Expr *parse_statement(Parser *p) {
             // Not a declaration — fall through to own expression
             if (own_mut) {
                 // We consumed 'mut' but it's not a declaration — error
-                fprintf(stderr, "%s:%d:%d: parse error: expected identifier after 'own mut'\n",
+                fprintf(stderr, "%s:%u:%u: parse error: expected identifier after 'own mut'\n",
                         p->path, t->line, t->col);
                 exit(1);
             }
@@ -608,7 +608,7 @@ static Expr *parse_statement(Parser *p) {
         return expr_new(NODE_CONTINUE, t->line, t->col, p->spath);
     }
     default:
-        fprintf(stderr, "%s:%d:%d: parse error: expected statement, found '%.*s'\n",
+        fprintf(stderr, "%s:%u:%u: parse error: expected statement, found '%.*s'\n",
                 p->path, t->line, t->col, t->len, t->start);
         exit(1);
     }

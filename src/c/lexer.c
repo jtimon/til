@@ -131,7 +131,7 @@ static TokenType lookup_keyword(const char *start, I32 len) {
 Token *tokenize(const char *source, const char *path, I32 *count_out) {
     Vec tokens = Vec_new(sizeof(Token));
     const char *pos = source;
-    I32 line = 1;
+    U32 line = 1;
     const char *line_start = source;
 
     while (*pos) {
@@ -147,7 +147,7 @@ Token *tokenize(const char *source, const char *path, I32 *count_out) {
             continue;
         }
 
-        I32 col = (I32)(pos - line_start) + 1;
+        U32 col = (U32)(pos - line_start) + 1;
         const char *start = pos;
 
         // Line comments: // or #
@@ -166,7 +166,7 @@ Token *tokenize(const char *source, const char *path, I32 *count_out) {
                 else { if (*pos == '\n') { line++; line_start = pos + 1; } pos++; }
             }
             if (depth > 0) {
-                fprintf(stderr, "%s:%d:%d: error: unterminated comment\n", path, line, col);
+                fprintf(stderr, "%s:%u:%u: error: unterminated comment\n", path, line, col);
             }
             continue;
         }
@@ -204,7 +204,7 @@ Token *tokenize(const char *source, const char *path, I32 *count_out) {
                 // start+1 to skip opening quote, len excludes both quotes
                 Vec_push(&tokens, &(Token){TOK_STRING, start + 1, (I32)(pos - start - 2), line, col});
             } else {
-                fprintf(stderr, "%s:%d:%d: error: unterminated string\n", path, line, col);
+                fprintf(stderr, "%s:%u:%u: error: unterminated string\n", path, line, col);
                 Vec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
             }
             continue;
@@ -258,13 +258,13 @@ Token *tokenize(const char *source, const char *path, I32 *count_out) {
         }
 
         // Unknown character
-        fprintf(stderr, "%s:%d:%d: error: unexpected character '%c'\n", path, line, col, *pos);
+        fprintf(stderr, "%s:%u:%u: error: unexpected character '%c'\n", path, line, col, *pos);
         Vec_push(&tokens, &(Token){TOK_ERROR, start, 1, line, col});
         pos++;
     }
 
     // EOF
-    I32 col = (I32)(pos - line_start) + 1;
+    U32 col = (U32)(pos - line_start) + 1;
     Vec_push(&tokens, &(Token){TOK_EOF, pos, 0, line, col});
 
     if (count_out) *count_out = tokens.count;

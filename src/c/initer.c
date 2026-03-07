@@ -18,7 +18,7 @@ void tscope_free(TypeScope *s) {
     free(s);
 }
 
-void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut, I32 line, I32 col, Bool is_param, Bool is_own) {
+void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own) {
     TypeBinding *b = Map_get(&s->bindings, &name);
     if (b) {
         b->type = type;

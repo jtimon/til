@@ -11,7 +11,7 @@ static I32 errors;
 static const Mode *current_mode;
 
 static void type_error(Expr *e, const char *msg) {
-    fprintf(stderr, "%s:%d:%d: type error: %s\n", e->path->c_str, e->line, e->col, msg);
+    fprintf(stderr, "%s:%u:%u: type error: %s\n", e->path->c_str, e->line, e->col, msg);
     errors++;
 }
 
@@ -1663,7 +1663,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             snprintf(buf, sizeof(buf), "use of '%s' after ownership transfer", locals[j].name->c_str);
             type_error(stmt, buf);
             Expr *xfer = expr_child(body, locals[j].own_transfer);
-            fprintf(stderr, "%s:%d:%d: note: ownership transferred here\n",
+            fprintf(stderr, "%s:%u:%u: note: ownership transferred here\n",
                     xfer->path->c_str, xfer->line, xfer->col);
             fprintf(stderr, "  help: pass a clone instead: own %s.clone()\n",
                     locals[j].name->c_str);
@@ -1922,10 +1922,10 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 type_error(stmt, buf);
                 TypeBinding *b = tscope_find(scope, aname);
                 if (b && b->is_param) {
-                    fprintf(stderr, "%s:%d:%d: note: '%s' is a function parameter\n",
+                    fprintf(stderr, "%s:%u:%u: note: '%s' is a function parameter\n",
                             stmt->path->c_str, b->line, b->col, aname->c_str);
                 } else if (b) {
-                    fprintf(stderr, "%s:%d:%d: note: '%s' declared here, consider adding 'mut'\n",
+                    fprintf(stderr, "%s:%u:%u: note: '%s' declared here, consider adding 'mut'\n",
                             stmt->path->c_str, b->line, b->col, aname->c_str);
                 }
             } else if (expr_child(stmt, 0)->til_type != existing &&

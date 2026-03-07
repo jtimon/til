@@ -378,7 +378,7 @@ static void *val_raw_ptr(Value v) {
 static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     Value *size_fn = ns_get(type_name, Str_new("size"));
     if (!size_fn) {
-        fprintf(stderr, "%s:%d:%d: error: array/vec: type '%s' has no size() method "
+        fprintf(stderr, "%s:%u:%u: error: array/vec: type '%s' has no size() method "
                 "(hint: add %s.size() somewhere to prevent scavenger removal, see #15)\n",
                 src->path->c_str, src->line, src->col, type_name->c_str, type_name->c_str);
         exit(1);

@@ -48,8 +48,8 @@ typedef struct {
     TokenType type;
     const char *start;  // pointer into source buffer
     I32 len;            // length of lexeme
-    I32 line;
-    I32 col;
+    U32 line;
+    U32 col;
 } Token;
 
 // Returns a null-terminated name for a token type (for debug printing)

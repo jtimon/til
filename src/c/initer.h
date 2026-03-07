@@ -11,8 +11,8 @@ typedef struct {
     TilType type;
     I32 is_proc; // -1 = not a function, 0 = func, 1 = proc
     Bool is_mut;
-    I32 line;
-    I32 col;
+    U32 line;
+    U32 col;
     Bool is_param; // 1 if this is a function parameter
     Bool is_own;   // 1 if this is an 'own' parameter
     Bool is_ref;   // 1 if this is a 'ref' declaration (borrowed, no delete)
@@ -32,7 +32,7 @@ struct TypeScope {
 // Scope operations
 TypeScope *tscope_new(TypeScope *parent);
 void tscope_free(TypeScope *s);
-void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut, I32 line, I32 col, Bool is_param, Bool is_own);
+void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own);
 TilType tscope_get(TypeScope *s, Str *name);
 I32 tscope_is_proc(TypeScope *s, Str *name);
 TypeBinding *tscope_find(TypeScope *s, Str *name);
