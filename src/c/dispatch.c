@@ -191,44 +191,19 @@ HDEL(Bool_delete, Bool_delete, v.boolean)
 
 static void *val_to_ptr(Value v);
 
-// === Variadic handlers ===
+// === Print handlers ===
 
-static Bool h_println(Scope *s, Expr *e, Value *r) {
-    for (U32 i = 1; i < e->children.count; i++) {
-        Value arg = eval_expr(s, expr_child(e,i));
-        Str sv = str_view(arg);
-        fwrite(sv.c_str, 1, sv.cap, stdout);
-    }
+static Bool h_print_single(Scope *s, Expr *e, Value *r) {
+    Value arg = eval_expr(s, expr_child(e, 1));
+    Str sv = str_view(arg);
+    fwrite(sv.c_str, 1, sv.cap, stdout);
+    *r = val_none(); return 1;
+}
+
+static Bool h_print_flush(Scope *s, Expr *e, Value *r) {
+    (void)s; (void)e;
     putchar('\n');
     *r = val_none(); return 1;
-}
-
-static Bool h_print(Scope *s, Expr *e, Value *r) {
-    for (U32 i = 1; i < e->children.count; i++) {
-        Value arg = eval_expr(s, expr_child(e,i));
-        Str sv = str_view(arg);
-        fwrite(sv.c_str, 1, sv.cap, stdout);
-    }
-    *r = val_none(); return 1;
-}
-
-static Bool h_format(Scope *s, Expr *e, Value *r) {
-    U32 nargs = e->children.count - 1;
-    Str strs[64];
-    I64 total = 0;
-    for (U32 i = 0; i < nargs; i++) {
-        Value v = eval_expr(s, expr_child(e,i + 1));
-        strs[i] = str_view(v);
-        total += strs[i].cap;
-    }
-    char *buf = malloc(total);
-    I64 off = 0;
-    for (U32 i = 0; i < nargs; i++) {
-        memcpy(buf + off, strs[i].c_str, strs[i].cap);
-        off += strs[i].cap;
-    }
-    *r = make_str_value_own(buf, total);
-    return 1;
 }
 
 // === Misc handlers ===
@@ -688,10 +663,9 @@ static void dispatch_init(void) {
 
     #define REG(n, fn) do { Str *k = Str_new(n); DispatchFn f = fn; Map_set(&dispatch_map, &k, &f); } while(0)
 
-    // Variadic
-    REG("println", h_println);
-    REG("print", h_print);
-    REG("format", h_format);
+    // Print
+    REG("print_single", h_print_single);
+    REG("print_flush", h_print_flush);
 
     // I64
     REG("I64_add", h_I64_add); REG("I64_sub", h_I64_sub);
@@ -868,16 +842,8 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                          Value *result) {
     Bool hp = enum_has_payloads(enum_def);
 
-    if (!hp) {
-        // Simple enum: stored as I64
-        if (Str_eq_c(method, "eq")) {
-            Value a = eval_expr(scope, expr_child(e, 1));
-            Value b = eval_expr(scope, expr_child(e, 2));
-            *result = val_bool(*a.i64 == *b.i64);
-            return 1;
-        }
-    } else {
-        // Payload enum: constructor, eq, clone, delete, is_Variant, get_Variant
+    if (hp) {
+        // Payload enum: constructor, get_Variant
         I32 ctor_tag = enum_variant_tag(enum_def, method);
         if (ctor_tag >= 0) {
             if (enum_variant_type(enum_def, ctor_tag)) {
@@ -888,28 +854,25 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
             }
             return 1;
         }
-        if (Str_eq_c(method, "eq")) {
-            Value a = eval_expr(scope, expr_child(e, 1));
-            Value b = eval_expr(scope, expr_child(e, 2));
-            *result = val_bool(values_equal(a, b));
-            return 1;
-        }
-        if (method->cap > 3 && memcmp(method->c_str, "is_", 3) == 0) {
-            Str var_name = {.c_str = method->c_str + 3, .cap = method->cap - 3};
-            I32 tag = enum_variant_tag(enum_def, &var_name);
-            Value v = eval_expr(scope, expr_child(e, 1));
-            if (v.type == VAL_ENUM)
-                *result = val_bool(v.enum_inst->tag == tag);
-            else
-                *result = val_bool((I32)*v.i64 == tag);
-            return 1;
-        }
         if (method->cap > 4 && memcmp(method->c_str, "get_", 4) == 0) {
             Value v = eval_expr(scope, expr_child(e, 1));
             *result = clone_value(v.enum_inst->payload);
             return 1;
         }
     }
+
+    // is_Variant: works for both simple and payload enums
+    if (method->cap > 3 && memcmp(method->c_str, "is_", 3) == 0) {
+        Str var_name = {.c_str = method->c_str + 3, .cap = method->cap - 3};
+        I32 tag = enum_variant_tag(enum_def, &var_name);
+        Value v = eval_expr(scope, expr_child(e, 1));
+        if (v.type == VAL_ENUM)
+            *result = val_bool(v.enum_inst->tag == tag);
+        else
+            *result = val_bool((I32)*v.i64 == tag);
+        return 1;
+    }
+
     return 0;
 }
 

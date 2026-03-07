@@ -182,9 +182,38 @@ Bool : StructDef = ext_struct {
 and := ext_func(a: Bool, b: Bool) returns Bool {}
 or := ext_func(a: Bool, b: Bool) returns Bool {}
 not := ext_func(a: Bool) returns Bool {}
-format := ext_func(parts: ..Str) returns Str {}
-println := ext_proc(args: ..Str) {}
-print := ext_proc(args: ..Str) {}
+print_single := ext_proc(s: Str) {}
+print_flush := ext_proc() {}
+
+println := proc(parts: ..Str) {
+    mut i := 0
+    while i.lt(parts.len()) {
+        ref s : Str = parts.get(i)
+        print_single(s)
+        i = i.add(1)
+    }
+    print_flush()
+}
+
+print := proc(parts: ..Str) {
+    mut i := 0
+    while i.lt(parts.len()) {
+        ref s : Str = parts.get(i)
+        print_single(s)
+        i = i.add(1)
+    }
+}
+
+format := func(parts: ..Str) returns Str {
+    mut result := ""
+    mut i := 0
+    while i.lt(parts.len()) {
+        ref s : Str = parts.get(i)
+        result = result.concat(s)
+        i = i.add(1)
+    }
+    return result
+}
 exit := ext_func(code: I64) {}
 free := ext_func(own elem: Dynamic) {}
 malloc := ext_func(count: I64) returns Dynamic {}

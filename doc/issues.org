@@ -524,7 +524,7 @@
   and many patterns needed for self-hosting (visitor, dispatch tables).
 
 * WIP #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2
+  :DEPENDENCIES: #2
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
@@ -535,7 +535,7 @@
   features (structs, enums, ownership, FFI for I/O).
 
   Depends on:
-  - #1 (consistency): clean backends make porting easier
+  - #1 (consistency): FIXED
   - #2 (ref): needed for efficient arg passing without clone overhead
   - #5 (pointers/Vec): FIXED
   - #8 (variadic): FIXED
@@ -671,110 +671,4 @@
    Function args are borrowed (ref) unless explicitly marked own.
    No change needed for args.
 
-* WIP #1 builder/interpreter consistency: eliminate unnecessary special cases
-  The builder and interpreter should be as similar and minimal as possible.
-  The typer/initer should do more AST rewriting so backends can be dumb and uniform.
 
-** TODO Generate enum eq as real til in initer
-   The initer already generates clone, delete, and to_str as real til AST
-   for all enums. But eq is still hardcoded in C: builder generates it as
-   a C function (~160 lines in emit_enum_def), interpreter dispatches it
-   in dispatch.c (~49 lines in enum_method_dispatch).
-
-   eq CAN become real til because is_Variant and get_Variant (which must
-   stay ext_func — they need low-level tag/payload access) provide all
-   the building blocks:
-
-   Simple enum (no payloads):
-   #+begin_src til
-   eq := func(a: Color, b: Color) returns Bool {
-       if a.is_Red() { return b.is_Red() }
-       if a.is_Green() { return b.is_Green() }
-       if a.is_Blue() { return b.is_Blue() }
-       return false
-   }
-   #+end_src
-
-   Payload enum:
-   #+begin_src til
-   eq := func(a: Expr, b: Expr) returns Bool {
-       if a.is_Num() {
-           if b.is_Num().not() { return false }
-           return a.get_Num().eq(b.get_Num())
-       }
-       if a.is_Str() {
-           if b.is_Str().not() { return false }
-           return a.get_Str().eq(b.get_Str())
-       }
-       return false
-   }
-   #+end_src
-
-   is_Variant/get_Variant stay as ext_func — they need direct tag/payload
-   memory access that can't be expressed in til. But their C implementations
-   are already compact and uniform across both backends.
-
-** TODO Replace println/print with print_single/print_flush pattern
-   Both backends special-case println/print/format: builder emits
-   til_println/til_print C implementations (~35 lines) and inserts arg
-   count at call sites (~20 lines). Interpreter dispatches to C handlers
-   in dispatch.c (~35 lines).
-
-   Fix: introduce two simple ext_procs — print_single(s: Str) and
-   print_flush() — then implement println and print as real til procs
-   that loop over their variadic Array args:
-
-   #+begin_src til
-   println := proc(parts: ..Str) {
-       i := 0
-       while i.lt(parts.len()) {
-           ref s := parts.get(i)
-           print_single(s)
-           i = i.add(1)
-       }
-       print_flush()
-   }
-   #+end_src
-
-   This eliminates:
-   - builder.c: arg count insertion at call sites (lines 141-161)
-   - builder.c: til_println/til_print C emission (lines 1149-1183)
-   - dispatch.c: h_println/h_print handlers (lines 196-232)
-
-   format stays as ext_func for now — efficient string concatenation
-   without repeated allocations needs #29 (proper strings with
-   len/cap separation and in-place growth).
-
-** Acceptable: dyn_call/dyn_has_method/array/vec
-   Both backends special-case these. Builder generates dispatch switch
-   functions on type_name strings. Interpreter uses dispatch.c handlers.
-   Inherent to the dynamic dispatch mechanism — type names are runtime
-   strings, not static AST nodes the typer can rewrite.
-
-** Acceptable: primitive type name checks
-   Both backends have hardcoded checks for "I64", "U8", "I16", "I32",
-   "U32", "Bool" in field read/write, VAL_PTR reinterpretation, CLI arg
-   parsing, and enum payload handling. Inherent to the fact that
-   primitives have dedicated C types and Value variants.
-
-** Acceptable: struct constructor emission
-   Interpreter allocates StructInstance and iterates fields with move
-   semantics. Builder emits malloc + field-by-field C assignment with
-   own/inline/nested handling. Isomorphic but inherently different —
-   one runs, one emits C.
-
-** Acceptable: ownership tracking
-   Interpreter: scope_set_borrowed vs scope_set_owned, free_value,
-   val_none guards. Builder: pointer-assign for compound types,
-   deref-assign for scalars, typer-inserted delete calls.
-   Fundamentally different execution models.
-
-** Acceptable: namespace field initialization
-   Both scan struct/enum defs for non-func namespace fields.
-   Interpreter: interpreter_init_ns → ns_fields map.
-   Builder: emit_ns_inits → C globals.
-
-** Acceptable: declaration/assignment emission branches
-   Builder branches on RHS type (struct ctor vs fcall vs literal).
-   After hoisting, most RHS are NODE_IDENT or NODE_FCALL, so
-   branching is minimal. Interpreter just evaluates and moves/copies.

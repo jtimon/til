@@ -138,28 +138,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             break;
         }
         Str *name = expr_child(e, 0)->data.str_val;
-        if (Str_eq_c(name, "println")) {
-            fprintf(f, "til_println(%d", e->children.count - 1);
-            for (U32 i = 1; i < e->children.count; i++) {
-                fprintf(f, ", ");
-                emit_as_ptr(f, expr_child(e, i), depth);
-            }
-            fprintf(f, ")");
-        } else if (Str_eq_c(name, "print")) {
-            fprintf(f, "til_print(%d", e->children.count - 1);
-            for (U32 i = 1; i < e->children.count; i++) {
-                fprintf(f, ", ");
-                emit_as_ptr(f, expr_child(e, i), depth);
-            }
-            fprintf(f, ")");
-        } else if (Str_eq_c(name, "format")) {
-            fprintf(f, "til_format_impl(%d", e->children.count - 1);
-            for (U32 i = 1; i < e->children.count; i++) {
-                fprintf(f, ", ");
-                emit_as_ptr(f, expr_child(e, i), depth);
-            }
-            fprintf(f, ")");
-        } else if (Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
+        if (Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
                    Str_eq_c(name, "dyn_call1_ret") || Str_eq_c(name, "dyn_call2_ret")) {
             // dyn_call*(type_name, "method", val, ...) → til_dyn_call_method(type_name, val, ...)
             Str *method = expr_child(e, 2)->data.str_val;
@@ -788,10 +767,15 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             fprintf(f, "}\n");
         }
 
-        // eq
-        fprintf(f, "til_Bool *til_%s_eq(til_%s *a, til_%s *b) {\n", name->c_str, name->c_str, name->c_str);
-        fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = (a->tag == b->tag); return r;\n");
-        fprintf(f, "}\n");
+        // is_Variant functions
+        for (U32 i = 0; i < vnames.count; i++) {
+            Str *vn = *(Str **)Vec_get(&vnames, i);
+            fprintf(f, "til_Bool *til_%s_is_%s(til_%s *self) {\n", name->c_str, vn->c_str, name->c_str);
+            fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool));\n");
+            fprintf(f, "    *r = (self->tag == til_%s_TAG_%s);\n", name->c_str, vn->c_str);
+            fprintf(f, "    return r;\n");
+            fprintf(f, "}\n");
+        }
 
         Vec_delete(&vnames);
     } else {
@@ -880,29 +864,6 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             }
             fprintf(f, "}\n");
         }
-
-        // eq: compare tags, then payloads
-        fprintf(f, "til_Bool *til_%s_eq(til_%s *a, til_%s *b) {\n", name->c_str, name->c_str, name->c_str);
-        fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool));\n");
-        fprintf(f, "    if (a->tag != b->tag) { *r = 0; return r; }\n");
-        fprintf(f, "    switch (a->tag) {\n");
-        for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, i);
-            Str *vt = *(Str **)Vec_get(&vtypes, i);
-            fprintf(f, "    case til_%s_TAG_%s:\n", name->c_str, vn->c_str);
-            if (vt) {
-                if (Str_eq_c(vt, "I64") || Str_eq_c(vt, "U8") || Str_eq_c(vt, "I16") || Str_eq_c(vt, "I32") || Str_eq_c(vt, "U32") || Str_eq_c(vt, "Bool")) {
-                    fprintf(f, "        *r = (*a->data.%s == *b->data.%s); break;\n", vn->c_str, vn->c_str);
-                } else {
-                    fprintf(f, "        { til_Bool *t = til_%s_eq(a->data.%s, b->data.%s); *r = *t; free(t); break; }\n", vt->c_str, vn->c_str, vn->c_str);
-                }
-            } else {
-                fprintf(f, "        *r = 1; break;\n");
-            }
-        }
-        fprintf(f, "    }\n");
-        fprintf(f, "    return r;\n");
-        fprintf(f, "}\n");
 
         Vec_delete(&vnames);
         Vec_delete(&vtypes);
@@ -1012,12 +973,10 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
     }
     fprintf(f, "\n");
 
-    // Forward-declare string helper functions (implementations after struct defs)
+    // Forward-declare string/print helper functions (implementations after struct defs)
     fprintf(f, "static til_Str *til_Str_lit(const char *s, long long cap);\n");
-    fprintf(f, "static void til_print_str(til_Str *s);\n");
-    fprintf(f, "static void til_println(int n, ...);\n");
-    fprintf(f, "static void til_print(int n, ...);\n");
-    fprintf(f, "static til_Str *til_format_impl(int n, ...);\n\n");
+    fprintf(f, "static void til_print_single(til_Str *s);\n");
+    fprintf(f, "static void til_print_flush();\n\n");
 
     // Forward-declare all functions (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
@@ -1157,33 +1116,12 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
     fprintf(f, "    return r;\n");
     fprintf(f, "}\n");
     fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static void til_print_str(til_Str *s) {\n");
+    fprintf(f, "static void til_print_single(til_Str *s) {\n");
     fprintf(f, "    fwrite(s->data, 1, (size_t)s->len, stdout);\n");
     fprintf(f, "}\n");
     fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static void til_println(int n, ...) {\n");
-    fprintf(f, "    va_list ap; va_start(ap, n);\n");
-    fprintf(f, "    for (int i = 0; i < n; i++) til_print_str(va_arg(ap, til_Str *));\n");
-    fprintf(f, "    va_end(ap); putchar('\\n');\n");
-    fprintf(f, "}\n");
-    fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static void til_print(int n, ...) {\n");
-    fprintf(f, "    va_list ap; va_start(ap, n);\n");
-    fprintf(f, "    for (int i = 0; i < n; i++) til_print_str(va_arg(ap, til_Str *));\n");
-    fprintf(f, "    va_end(ap);\n");
-    fprintf(f, "}\n");
-    fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static til_Str *til_format_impl(int n, ...) {\n");
-    fprintf(f, "    va_list ap; va_start(ap, n);\n");
-    fprintf(f, "    long long total = 0;\n");
-    fprintf(f, "    til_Str *strs[64];\n");
-    fprintf(f, "    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, til_Str *); total += strs[i]->len; }\n");
-    fprintf(f, "    va_end(ap);\n");
-    fprintf(f, "    til_Str *r = malloc(sizeof(til_Str));\n");
-    fprintf(f, "    r->data = malloc(total); r->len = total; r->cap = total;\n");
-    fprintf(f, "    long long off = 0;\n");
-    fprintf(f, "    for (int i = 0; i < n; i++) { memcpy(r->data + off, strs[i]->data, strs[i]->len); off += strs[i]->len; }\n");
-    fprintf(f, "    return r;\n");
+    fprintf(f, "static void til_print_flush() {\n");
+    fprintf(f, "    putchar('\\n');\n");
     fprintf(f, "}\n\n");
 
     // Emit top-level variable declarations as file-scope globals

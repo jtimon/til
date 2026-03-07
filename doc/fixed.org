@@ -1,5 +1,23 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #1 builder/interpreter consistency: eliminate unnecessary special cases
+  Two changes to eliminate backend special cases:
+
+  1. Enum eq generated as real til in initer (was ext_func with C in both
+     backends). Uses is_Variant/get_Variant (which stay ext_func) to build
+     if-chain. Also extended is_Variant to simple enums (was payload-only).
+     Removed ~160 lines from builder, ~49 lines from dispatch.
+
+  2. println/print/format replaced with print_single/print_flush pattern.
+     print_single(Str) and print_flush() are simple ext_procs. println/print
+     are real til procs looping over variadic Array. format is real til func
+     using Str.concat loop. Removed special-case call emission, C
+     implementation emission, and interpreter handlers (~90 lines total).
+
+  Remaining differences (dyn_call, primitive types, struct constructors,
+  ownership tracking, namespace init) are inherent to the execution models
+  and marked as acceptable.
+
 * FIXED #15 Scavenger doesn't understand dyn_call/dyn_has_method/array/vec
   Collections (Vec, Set, Map, Array) call methods dynamically via dyn_call
   with string literal method names, invisible to the scavenger's static

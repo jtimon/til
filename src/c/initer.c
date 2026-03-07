@@ -555,30 +555,6 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 }
             }
 
-            // Generate is_Variant ext_func for every variant
-            for (U32 j = 0; j < variant_names.count; j++) {
-                char name_buf[256];
-                snprintf(name_buf, sizeof(name_buf), "is_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
-                Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-                fdef->data.func_def.func_type = FUNC_EXT_FUNC;
-                fdef->data.func_def.nparam = 1;
-                fdef->data.func_def.param_names = malloc(sizeof(Str *));
-                fdef->data.func_def.param_names[0] = Str_new("self");
-                fdef->data.func_def.param_types = malloc(sizeof(Str *));
-                fdef->data.func_def.param_types[0] = ename;
-                fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
-                fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
-                fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
-                fdef->data.func_def.return_type = Str_new("Bool");
-                fdef->data.func_def.variadic_index = -1;
-                expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
-                Expr *decl = expr_new(NODE_DECL, line, col, path);
-                decl->data.decl.name = Str_new(name_buf);
-                decl->data.decl.is_namespace = true;
-                expr_add_child(decl, fdef);
-                expr_add_child(body, decl);
-            }
-
             // Generate get_Variant ext_func for payload variants
             for (U32 j = 0; j < variant_names.count; j++) {
                 if (!*(Str **)Vec_get(&variant_types, j)) continue;
@@ -605,6 +581,30 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             }
         }
 
+        // Generate is_Variant ext_func for every variant (all enums)
+        for (U32 j = 0; j < variant_names.count; j++) {
+            char name_buf[256];
+            snprintf(name_buf, sizeof(name_buf), "is_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
+            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
+            fdef->data.func_def.func_type = FUNC_EXT_FUNC;
+            fdef->data.func_def.nparam = 1;
+            fdef->data.func_def.param_names = malloc(sizeof(Str *));
+            fdef->data.func_def.param_names[0] = Str_new("self");
+            fdef->data.func_def.param_types = malloc(sizeof(Str *));
+            fdef->data.func_def.param_types[0] = ename;
+            fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
+            fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
+            fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
+            fdef->data.func_def.return_type = Str_new("Bool");
+            fdef->data.func_def.variadic_index = -1;
+            expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
+            Expr *decl = expr_new(NODE_DECL, line, col, path);
+            decl->data.decl.name = Str_new(name_buf);
+            decl->data.decl.is_namespace = true;
+            expr_add_child(decl, fdef);
+            expr_add_child(body, decl);
+        }
+
         // Check existing methods
         Bool has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
         for (U32 j = 0; j < body->children.count; j++) {
@@ -617,10 +617,112 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             if (Str_eq_c(f->data.decl.name, "to_str")) has_to_str = 1;
         }
 
-        // Auto-generate eq := ext_func(self: E, other: E) returns Bool {}
+        // Auto-generate eq := func(self: E, other: E) returns Bool { if-chain }
+        // Uses is_Variant() for all variants, get_Variant().eq() for payloads
         if (!has_eq) {
+            Expr *func_body = expr_new(NODE_BODY, line, col, path);
+            for (U32 j = 0; j < variant_names.count; j++) {
+                // Build self.is_Vj() call
+                Expr *self_id = expr_new(NODE_IDENT, line, col, path);
+                self_id->data.str_val = Str_new("self");
+                char is_buf[256];
+                snprintf(is_buf, sizeof(is_buf), "is_%s",
+                         (*(Str **)Vec_get(&variant_names, j))->c_str);
+                Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                is_acc->data.str_val = Str_new(is_buf);
+                expr_add_child(is_acc, self_id);
+                Expr *is_call = expr_new(NODE_FCALL, line, col, path);
+                expr_add_child(is_call, is_acc);
+
+                Expr *then_body = expr_new(NODE_BODY, line, col, path);
+
+                if (*(Str **)Vec_get(&variant_types, j)) {
+                    // Payload variant:
+                    //   if other.is_Vj().not() { return false }
+                    //   return self.get_Vj().eq(other.get_Vj())
+                    Expr *other_id = expr_new(NODE_IDENT, line, col, path);
+                    other_id->data.str_val = Str_new("other");
+                    Expr *is_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                    is_acc2->data.str_val = Str_new(is_buf);
+                    expr_add_child(is_acc2, other_id);
+                    Expr *is_call2 = expr_new(NODE_FCALL, line, col, path);
+                    expr_add_child(is_call2, is_acc2);
+                    Expr *not_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                    not_acc->data.str_val = Str_new("not");
+                    expr_add_child(not_acc, is_call2);
+                    Expr *not_call = expr_new(NODE_FCALL, line, col, path);
+                    expr_add_child(not_call, not_acc);
+
+                    Expr *ret_false = expr_new(NODE_RETURN, line, col, path);
+                    Expr *false_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
+                    false_lit->data.str_val = Str_new("false");
+                    expr_add_child(ret_false, false_lit);
+                    Expr *guard_body = expr_new(NODE_BODY, line, col, path);
+                    expr_add_child(guard_body, ret_false);
+                    Expr *guard_if = expr_new(NODE_IF, line, col, path);
+                    expr_add_child(guard_if, not_call);
+                    expr_add_child(guard_if, guard_body);
+                    expr_add_child(then_body, guard_if);
+
+                    // return self.get_Vj().eq(other.get_Vj())
+                    char get_buf[256];
+                    snprintf(get_buf, sizeof(get_buf), "get_%s",
+                             (*(Str **)Vec_get(&variant_names, j))->c_str);
+                    Expr *self2 = expr_new(NODE_IDENT, line, col, path);
+                    self2->data.str_val = Str_new("self");
+                    Expr *get_acc1 = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                    get_acc1->data.str_val = Str_new(get_buf);
+                    expr_add_child(get_acc1, self2);
+                    Expr *get_call1 = expr_new(NODE_FCALL, line, col, path);
+                    expr_add_child(get_call1, get_acc1);
+
+                    Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                    eq_acc->data.str_val = Str_new("eq");
+                    expr_add_child(eq_acc, get_call1);
+
+                    Expr *other2 = expr_new(NODE_IDENT, line, col, path);
+                    other2->data.str_val = Str_new("other");
+                    Expr *get_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                    get_acc2->data.str_val = Str_new(get_buf);
+                    expr_add_child(get_acc2, other2);
+                    Expr *get_call2 = expr_new(NODE_FCALL, line, col, path);
+                    expr_add_child(get_call2, get_acc2);
+
+                    Expr *eq_call = expr_new(NODE_FCALL, line, col, path);
+                    expr_add_child(eq_call, eq_acc);
+                    expr_add_child(eq_call, get_call2);
+
+                    Expr *ret_eq = expr_new(NODE_RETURN, line, col, path);
+                    expr_add_child(ret_eq, eq_call);
+                    expr_add_child(then_body, ret_eq);
+                } else {
+                    // No-payload variant: return other.is_Vj()
+                    Expr *other_id = expr_new(NODE_IDENT, line, col, path);
+                    other_id->data.str_val = Str_new("other");
+                    Expr *is_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                    is_acc2->data.str_val = Str_new(is_buf);
+                    expr_add_child(is_acc2, other_id);
+                    Expr *is_call2 = expr_new(NODE_FCALL, line, col, path);
+                    expr_add_child(is_call2, is_acc2);
+                    Expr *ret = expr_new(NODE_RETURN, line, col, path);
+                    expr_add_child(ret, is_call2);
+                    expr_add_child(then_body, ret);
+                }
+
+                Expr *if_node = expr_new(NODE_IF, line, col, path);
+                expr_add_child(if_node, is_call);
+                expr_add_child(if_node, then_body);
+                expr_add_child(func_body, if_node);
+            }
+            // return false
+            Expr *ret_false = expr_new(NODE_RETURN, line, col, path);
+            Expr *false_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
+            false_lit->data.str_val = Str_new("false");
+            expr_add_child(ret_false, false_lit);
+            expr_add_child(func_body, ret_false);
+
             Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-            fdef->data.func_def.func_type = FUNC_EXT_FUNC;
+            fdef->data.func_def.func_type = FUNC_FUNC;
             fdef->data.func_def.nparam = 2;
             fdef->data.func_def.param_names = malloc(2 * sizeof(Str *));
             fdef->data.func_def.param_names[0] = Str_new("self");
@@ -633,7 +735,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             fdef->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
             fdef->data.func_def.return_type = Str_new("Bool");
             fdef->data.func_def.variadic_index = -1;
-            expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
+            expr_add_child(fdef, func_body);
+
             Expr *decl = expr_new(NODE_DECL, line, col, path);
             decl->data.decl.name = Str_new("eq");
             decl->data.decl.is_namespace = true;
