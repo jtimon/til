@@ -72,14 +72,9 @@ run_test("src/test/imports.til")
 run_test("src/test/import_diamond.til")
 run_test("src/test/pure.til")
 run_test("src/test/aliases.til")
+run_test("src/test/lexing.til")
 
-// Interpret-only (codegen has simple-enum-in-struct bug)
-ec_lex := run(CTIL.concat(" interpret src/test/lexing.til > /dev/null 2>&1"))
-if ec_lex.neq(0) {
-    println("FAIL (interpret): src/test/lexing.til")
-    fail = 1
-}
-
+// Interpret-only (codegen has runtime double-free in ref field assignment)
 ec_parse := run(CTIL.concat(" interpret src/test/parsing.til > /dev/null 2>&1"))
 if ec_parse.neq(0) {
     println("FAIL (interpret): src/test/parsing.til")

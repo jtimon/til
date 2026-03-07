@@ -86,6 +86,25 @@ test_payload_clone := test() {
     assert_eq(loc(), t4.get_Num(), 7)
 }
 
+# --- enum as struct field ---
+
+# Simple enum field
+Painted := struct {
+    color := Color.Red
+    mut label := ""
+}
+
+test_simple_enum_field := test() {
+    p := Painted(color = Color.Blue, label = "sky")
+    expect(loc(), p.color.eq(Color.Blue), "simple enum field read")
+    assert_eq_str(loc(), p.label, "sky")
+}
+
+test_simple_enum_field_default := test() {
+    p := Painted()
+    expect(loc(), p.color.eq(Color.Red), "simple enum field default")
+}
+
 get_tag_name := func(tok: Token) returns Str {
     if tok.is_Num() { return "num" }
     if tok.is_Name() { return "name" }

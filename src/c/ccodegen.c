@@ -459,17 +459,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
     case NODE_FIELD_ASSIGN: {
         Expr *obj = expr_child(e, 0);
         Str *fname = e->data.str_val;
-        if (e->is_ns_field) {
-            fprintf(f, "til_%s_%s = ", obj->struct_name->c_str, fname->c_str);
-        } else {
-            emit_expr(f, obj, depth);
-            Bool use_dot = (obj->type == NODE_FIELD_ACCESS && !obj->is_own_field);
-            fprintf(f, "%s%s = ", use_dot ? "." : "->", fname->c_str);
-        }
-        if (e->is_own_field) {
-            emit_expr(f, expr_child(e, 1), depth);
-            fprintf(f, ";\n");
-        } else if (expr_child(e, 1)->type == NODE_FCALL) {
+        if (expr_child(e, 1)->type == NODE_FCALL && !e->is_own_field && !e->is_ns_field) {
             // Unhoisted fcall for inline compound field: deref + free wrapper
             const char *ftype = c_type_name(expr_child(e, 1)->til_type, expr_child(e, 1)->struct_name);
             fprintf(f, "{ %s *_fa = ", ftype);
@@ -479,7 +469,18 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             Bool use_dot = (obj->type == NODE_FIELD_ACCESS && !obj->is_own_field);
             fprintf(f, "%s%s = *_fa; free(_fa); }\n", use_dot ? "." : "->", fname->c_str);
         } else {
-            emit_deref(f, expr_child(e, 1), depth);
+            if (e->is_ns_field) {
+                fprintf(f, "til_%s_%s = ", obj->struct_name->c_str, fname->c_str);
+            } else {
+                emit_expr(f, obj, depth);
+                Bool use_dot = (obj->type == NODE_FIELD_ACCESS && !obj->is_own_field);
+                fprintf(f, "%s%s = ", use_dot ? "." : "->", fname->c_str);
+            }
+            if (e->is_own_field) {
+                emit_expr(f, expr_child(e, 1), depth);
+            } else {
+                emit_deref(f, expr_child(e, 1), depth);
+            }
             fprintf(f, ";\n");
         }
         break;
@@ -720,11 +721,11 @@ static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def, Bool is_co
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = expr_child(body, i);
         if (field->data.decl.is_namespace) continue;
-        if (field->data.decl.is_own && field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
+        if (field->data.decl.is_own && (field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
             fprintf(f, "    til_%s *%s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
         } else if (field->data.decl.is_own) {
             fprintf(f, "    %s *%s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
-        } else if (field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
+        } else if ((field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
             fprintf(f, "    til_%s %s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
         } else {
             fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
@@ -736,7 +737,7 @@ static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def, Bool is_co
         Expr *field = expr_child(body, i);
         if (!field->data.decl.is_namespace) continue;
         if (expr_child(field, 0)->type == NODE_FUNC_DEF) continue;
-        if (field->til_type == TIL_TYPE_STRUCT && expr_child(field, 0)->struct_name) {
+        if ((field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
             fprintf(f, "til_%s til_%s_%s;\n", expr_child(field, 0)->struct_name->c_str, name->c_str, field->data.decl.name->c_str);
         } else {
             fprintf(f, "%s til_%s_%s;\n", til_type_to_c(field->til_type), name->c_str, field->data.decl.name->c_str);
