@@ -411,7 +411,7 @@
    - Boxing overhead for primitives
    - Requires allowing Dynamic fields/locals (currently forbidden)
 
-* OPEN #17 Global/outer-scope variable access from functions and procs
+* WIP #17 Global variable access, explicit capture syntax
   :DEPENDENCIES_OF: #12 #13
   Variables declared in script-mode root scope (or any outer scope) are
   invisible at runtime inside function/proc bodies. The typer passes
@@ -524,7 +524,7 @@
   and many patterns needed for self-hosting (visitor, dispatch tables).
 
 * WIP #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2 #17
+  :DEPENDENCIES: #1 #2
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
