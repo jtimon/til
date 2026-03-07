@@ -12,7 +12,7 @@ typedef Bool til_Bool;
 
 typedef struct til_Str {
     til_U8 *data;
-    til_I64 len;
+    til_I64 count;
     til_I64 cap;
 } til_Str;
 

@@ -48,7 +48,7 @@ static Value eval_arg(Scope *s, Expr *e) {
             case TIL_TYPE_STRUCT:
                 if (e->struct_name && Str_eq_c(e->struct_name, "Str")) {
                     til_Str *sp = (til_Str *)v.ptr;
-                    return make_str_value_own((char *)sp->data, sp->len);
+                    return make_str_value_own((char *)sp->data, sp->count);
                 }
                 return (Value){.type = VAL_STRUCT, .instance = v.ptr};
             default: break;
@@ -196,7 +196,7 @@ static void *val_to_ptr(Value v);
 static Bool h_print_single(Scope *s, Expr *e, Value *r) {
     Value arg = eval_expr(s, expr_child(e, 1));
     Str sv = str_view(arg);
-    fwrite(sv.c_str, 1, sv.cap, stdout);
+    fwrite(sv.c_str, 1, sv.count, stdout);
     *r = val_none(); return 1;
 }
 
@@ -425,14 +425,14 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     si->struct_def = cached_array_def;
     si->borrowed = 0;
     si->data = calloc(1, cached_array_def->total_struct_size);
-    Str fn_data = {.c_str = "data", .cap = 4};
-    Str fn_cap = {.c_str = "cap", .cap = 3};
-    Str fn_esz = {.c_str = "elem_size", .cap = 9};
-    Str fn_et = {.c_str = "elem_type", .cap = 9};
+    Str fn_data = {.c_str = "data", .count = 4};
+    Str fn_cap = {.c_str = "cap", .count = 3};
+    Str fn_esz = {.c_str = "elem_size", .count = 9};
+    Str fn_et = {.c_str = "elem_type", .count = 9};
     write_field(si, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
     write_field(si, find_field_decl(cached_array_def, &fn_cap), val_i64(count));
     write_field(si, find_field_decl(cached_array_def, &fn_esz), val_i64(elem_size));
-    write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value(type_name->c_str, type_name->cap));
+    write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value(type_name->c_str, type_name->count));
 
     r->type = VAL_STRUCT;
     r->instance = si;
@@ -474,16 +474,16 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     si->struct_def = cached_vec_def;
     si->borrowed = 0;
     si->data = calloc(1, cached_vec_def->total_struct_size);
-    Str fn_data = {.c_str = "data", .cap = 4};
-    Str fn_count = {.c_str = "count", .cap = 5};
-    Str fn_cap = {.c_str = "cap", .cap = 3};
-    Str fn_esz = {.c_str = "elem_size", .cap = 9};
-    Str fn_et = {.c_str = "elem_type", .cap = 9};
+    Str fn_data = {.c_str = "data", .count = 4};
+    Str fn_count = {.c_str = "count", .count = 5};
+    Str fn_cap = {.c_str = "cap", .count = 3};
+    Str fn_esz = {.c_str = "elem_size", .count = 9};
+    Str fn_et = {.c_str = "elem_type", .count = 9};
     write_field(si, find_field_decl(cached_vec_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
     write_field(si, find_field_decl(cached_vec_def, &fn_count), val_i64(count));
     write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_i64(cap));
     write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_i64(elem_size));
-    write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value(type_name->c_str, type_name->cap));
+    write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value(type_name->c_str, type_name->count));
 
     r->type = VAL_STRUCT;
     r->instance = si;
@@ -552,7 +552,7 @@ static Bool h_memmove(Scope *s, Expr *e, Value *r) {
 static Bool h_readfile(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     Str sv = str_view(path);
-    char *p = strndup(sv.c_str, sv.cap);
+    char *p = strndup(sv.c_str, sv.count);
     FILE *f = fopen(p, "rb");
     if (!f) {
         fprintf(stderr, "readfile: could not open '%s'\n", p);
@@ -575,7 +575,7 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
     Value content = eval_expr(s, expr_child(e,2));
     Str pv = str_view(path);
     Str cv = str_view(content);
-    char *p = strndup(pv.c_str, pv.cap);
+    char *p = strndup(pv.c_str, pv.count);
     FILE *f = fopen(p, "wb");
     if (!f) {
         fprintf(stderr, "writefile: could not open '%s'\n", p);
@@ -583,7 +583,7 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
         exit(1);
     }
     free(p);
-    fwrite(cv.c_str, 1, cv.cap, f);
+    fwrite(cv.c_str, 1, cv.count, f);
     fclose(f);
     *r = val_none();
     return 1;
@@ -592,7 +592,7 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
 static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
     Value cmd = eval_expr(s, expr_child(e,1));
     Str sv = str_view(cmd);
-    char *c = strndup(sv.c_str, sv.cap);
+    char *c = strndup(sv.c_str, sv.count);
     pid_t pid = fork();
     if (pid == 0) {
         execl("/bin/sh", "sh", "-c", c, NULL);
@@ -627,7 +627,7 @@ static Bool h_sleep(Scope *s, Expr *e, Value *r) {
 static Bool h_file_mtime(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     Str sv = str_view(path);
-    char *p = strndup(sv.c_str, sv.cap);
+    char *p = strndup(sv.c_str, sv.count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
@@ -803,7 +803,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 *result = val_none();
             } else if (Str_eq_c(fe->return_type, "Str")) {
                 til_Str *sp = (til_Str *)raw;
-                *result = make_str_value_own((char *)sp->data, sp->len);
+                *result = make_str_value_own((char *)sp->data, sp->count);
             } else if (Str_eq_c(fe->return_type, "I64")) {
                 *result = (Value){.type = VAL_I64, .i64 = (til_I64 *)raw};
             } else if (Str_eq_c(fe->return_type, "U8")) {
@@ -854,7 +854,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
             }
             return 1;
         }
-        if (method->cap > 4 && memcmp(method->c_str, "get_", 4) == 0) {
+        if (method->count > 4 && memcmp(method->c_str, "get_", 4) == 0) {
             Value v = eval_expr(scope, expr_child(e, 1));
             *result = clone_value(v.enum_inst->payload);
             return 1;
@@ -862,8 +862,8 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
     }
 
     // is_Variant: works for both simple and payload enums
-    if (method->cap > 3 && memcmp(method->c_str, "is_", 3) == 0) {
-        Str var_name = {.c_str = method->c_str + 3, .cap = method->cap - 3};
+    if (method->count > 3 && memcmp(method->c_str, "is_", 3) == 0) {
+        Str var_name = {.c_str = method->c_str + 3, .count = method->count - 3};
         I32 tag = enum_variant_tag(enum_def, &var_name);
         Value v = eval_expr(scope, expr_child(e, 1));
         if (v.type == VAL_ENUM)

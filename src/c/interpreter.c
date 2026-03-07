@@ -19,11 +19,11 @@ static Map ns_fields; // Str* "Type.field" → Value
 static Vec ns_keys;   // owns the qualified-name Str*s
 
 static Str *ns_qname(Str *sname, Str *fname) {
-    I64 len = sname->cap + 1 + fname->cap;
+    I64 len = sname->count + 1 + fname->count;
     char *buf = malloc(len + 1);
-    memcpy(buf, sname->c_str, sname->cap);
-    buf[sname->cap] = '.';
-    memcpy(buf + sname->cap + 1, fname->c_str, fname->cap);
+    memcpy(buf, sname->c_str, sname->count);
+    buf[sname->count] = '.';
+    memcpy(buf + sname->count + 1, fname->c_str, fname->count);
     buf[len] = '\0';
     Str *s = Str_new(buf);
     free(buf);
@@ -177,7 +177,7 @@ Value make_str_value(const char *data, I64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
-    inst->data = malloc(24); // Str = {U8 *data, I64 len, I64 cap}
+    inst->data = malloc(24); // Str = {U8 *data, I64 count, I64 cap}
     inst->borrowed = 0;
     *(char **)inst->data = strndup(data, len);
     *(I64 *)((char *)inst->data + 8) = len;
@@ -202,7 +202,7 @@ Value make_str_value_own(char *data, I64 len) {
 Str str_view(Value v) {
     char *data = *(char **)v.instance->data;
     I64 len = *(I64 *)((char *)v.instance->data + 8);
-    return (Str){.c_str = data, .cap = len};
+    return (Str){.c_str = data, .count = len};
 }
 
 // Deep-clone a Value (for payload enum operations and general use)
@@ -228,7 +228,7 @@ Value clone_value(Value v) {
         // Deep-clone Str's data pointer
         if (Str_eq_c(src->struct_name, "Str")) {
             Str *s = (Str *)src->data;
-            *(char **)dst->data = strndup(s->c_str, s->cap);
+            *(char **)dst->data = strndup(s->c_str, s->count);
         }
         return (Value){.type = VAL_STRUCT, .instance = dst};
     }
@@ -319,12 +319,12 @@ Value eval_call(Scope *scope, Expr *e) {
             static char flat_name_buf[256];
             Str *sn = expr_child(callee_expr, 0)->struct_name;
             Str *fn = callee_expr->data.str_val;
-            I64 flen = sn->cap + 1 + fn->cap;
-            memcpy(flat_name_buf, sn->c_str, sn->cap);
-            flat_name_buf[sn->cap] = '_';
-            memcpy(flat_name_buf + sn->cap + 1, fn->c_str, fn->cap);
+            I64 flen = sn->count + 1 + fn->count;
+            memcpy(flat_name_buf, sn->c_str, sn->count);
+            flat_name_buf[sn->count] = '_';
+            memcpy(flat_name_buf + sn->count + 1, fn->c_str, fn->count);
             flat_name_buf[flen] = '\0';
-            Str flat_str = {.c_str = flat_name_buf, .cap = flen};
+            Str flat_str = {.c_str = flat_name_buf, .count = flen};
             Expr *orig_callee = expr_child(e, 0);
             Expr flat_ident = *orig_callee;
             flat_ident.type = NODE_IDENT;
@@ -364,7 +364,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     Value arg = arg_cell->val;
                     if (Str_eq_c(ptype, "Str")) {
                         Str *sp = (Str *)arg.ptr;
-                        arg = make_str_value_own(sp->c_str, sp->cap);
+                        arg = make_str_value_own(sp->c_str, sp->count);
                     }
                     else if (Str_eq_c(ptype, "I64"))
                         arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
@@ -389,7 +389,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     Str *ptype = func_def->data.func_def.param_types[i];
                     if (Str_eq_c(ptype, "Str")) {
                         Str *sp = (Str *)arg.ptr;
-                        arg = make_str_value_own(sp->c_str, sp->cap);
+                        arg = make_str_value_own(sp->c_str, sp->count);
                     }
                     else if (Str_eq_c(ptype, "I64"))
                         arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
@@ -526,7 +526,7 @@ Value eval_call(Scope *scope, Expr *e) {
 Value eval_expr(Scope *scope, Expr *e) {
     switch (e->type) {
     case NODE_LITERAL_STR:
-        return make_str_value(e->data.str_val->c_str, e->data.str_val->cap);
+        return make_str_value(e->data.str_val->c_str, e->data.str_val->count);
     case NODE_LITERAL_NUM:
         if (e->til_type == TIL_TYPE_U8)
             return val_u8(atoll(e->data.str_val->c_str));
@@ -663,7 +663,7 @@ static void eval_body(Scope *scope, Expr *body) {
                         val = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)val.ptr};
                     else if (Str_eq_c(etype, "Str")) {
                         Str *sp = (Str *)val.ptr;
-                        val = make_str_value_own(sp->c_str, sp->cap);
+                        val = make_str_value_own(sp->c_str, sp->count);
                     }
                     else {
                         // User-defined struct: wrap ptr in borrowed StructInstance
@@ -970,14 +970,14 @@ static Value build_argv_array(U32 argc, char **argv, Str *elem_type) {
     inst->borrowed = 0;
     inst->data = calloc(1, cached_array_def->total_struct_size);
     // Write fields: data, cap, elem_size, elem_type
-    Str fn_data = {.c_str = "data", .cap = 4};
-    Str fn_cap = {.c_str = "cap", .cap = 3};
-    Str fn_esz = {.c_str = "elem_size", .cap = 9};
-    Str fn_et = {.c_str = "elem_type", .cap = 9};
+    Str fn_data = {.c_str = "data", .count = 4};
+    Str fn_cap = {.c_str = "cap", .count = 3};
+    Str fn_esz = {.c_str = "elem_size", .count = 9};
+    Str fn_et = {.c_str = "elem_type", .count = 9};
     write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
     write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_i64(argc));
     write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_i64(esz));
-    write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value(elem_type->c_str, elem_type->cap));
+    write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value(elem_type->c_str, elem_type->count));
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
@@ -1037,7 +1037,7 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
 
     // In needs_main mode, call main()
     if (mode && mode->needs_main) {
-        Str main_name = {.c_str = (char *)"main", .cap = 4};
+        Str main_name = {.c_str = (char *)"main", .count = 4};
         Cell *main_cell = scope_get(global, &main_name);
         if (!main_cell || main_cell->val.type != VAL_FUNC) {
             fprintf(stderr, "%s: error: mode '%s' requires a 'main' proc\n", path, mode->name);

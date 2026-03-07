@@ -231,7 +231,7 @@ tokenize := proc(source: Str, path: Str) returns Vec {
     src_len := source.len()
 
     while pos.lt(src_len) {
-        ref c : U8 = source.char_at(pos)
+        ref c : U8 = source.get(pos)
 
         // Skip whitespace (spaces, tabs, \r, semicolons)
         if c.eq(CH_SPACE).or(c.eq(CH_TAB)).or(c.eq(CH_CR)).or(c.eq(CH_SEMI)) {
@@ -251,16 +251,16 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         // Line comments: // or #
         if c.eq(CH_HASH) {
             while pos.lt(src_len) {
-                if source.char_at(pos).eq(CH_NL) { break }
+                if source.get(pos).eq(CH_NL) { break }
                 pos = pos.add(1)
             }
             continue
         }
         if c.eq(CH_SLASH).and(pos.add(1).lt(src_len)) {
-            ref c2 : U8 = source.char_at(pos.add(1))
+            ref c2 : U8 = source.get(pos.add(1))
             if c2.eq(CH_SLASH) {
                 while pos.lt(src_len) {
-                    if source.char_at(pos).eq(CH_NL) { break }
+                    if source.get(pos).eq(CH_NL) { break }
                     pos = pos.add(1)
                 }
                 continue
@@ -272,8 +272,8 @@ tokenize := proc(source: Str, path: Str) returns Vec {
                 while pos.lt(src_len) {
                     if depth.lte(0) { break }
                     if pos.add(1).lt(src_len) {
-                        ref b1 : U8 = source.char_at(pos)
-                        ref b2 : U8 = source.char_at(pos.add(1))
+                        ref b1 : U8 = source.get(pos)
+                        ref b2 : U8 = source.get(pos.add(1))
                         if b1.eq(CH_SLASH).and(b2.eq(CH_STAR)) {
                             depth = depth.add(1)
                             pos = pos.add(2)
@@ -285,7 +285,7 @@ tokenize := proc(source: Str, path: Str) returns Vec {
                             continue
                         }
                     }
-                    if source.char_at(pos).eq(CH_NL) {
+                    if source.get(pos).eq(CH_NL) {
                         line = line.add(1)
                         line_start = pos.add(1)
                     }
@@ -301,15 +301,15 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         // Numbers
         if is_digit(c) {
             while pos.lt(src_len) {
-                if is_digit(source.char_at(pos)).not() { break }
+                if is_digit(source.get(pos)).not() { break }
                 pos = pos.add(1)
             }
             // Check for decimal point
             if pos.add(1).lt(src_len) {
-                if source.char_at(pos).eq(CH_DOT).and(is_digit(source.char_at(pos.add(1)))) {
+                if source.get(pos).eq(CH_DOT).and(is_digit(source.get(pos.add(1)))) {
                     pos = pos.add(1)
                     while pos.lt(src_len) {
-                        if is_digit(source.char_at(pos)).not() { break }
+                        if is_digit(source.get(pos)).not() { break }
                         pos = pos.add(1)
                     }
                 }
@@ -323,7 +323,7 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         // Identifiers and keywords
         if is_alpha(c) {
             while pos.lt(src_len) {
-                if is_alnum(source.char_at(pos)).not() { break }
+                if is_alnum(source.get(pos)).not() { break }
                 pos = pos.add(1)
             }
             word := source.substr(start, pos.sub(start))
@@ -336,17 +336,17 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         if c.eq(CH_QUOTE) {
             pos = pos.add(1)
             while pos.lt(src_len) {
-                if source.char_at(pos).eq(CH_QUOTE) { break }
-                if source.char_at(pos).eq(CH_BSLASH).and(pos.add(1).lt(src_len)) {
+                if source.get(pos).eq(CH_QUOTE) { break }
+                if source.get(pos).eq(CH_BSLASH).and(pos.add(1).lt(src_len)) {
                     pos = pos.add(1)
                 }
-                if source.char_at(pos).eq(CH_NL) {
+                if source.get(pos).eq(CH_NL) {
                     line = line.add(1)
                     line_start = pos.add(1)
                 }
                 pos = pos.add(1)
             }
-            if pos.lt(src_len).and(source.char_at(pos).eq(CH_QUOTE)) {
+            if pos.lt(src_len).and(source.get(pos).eq(CH_QUOTE)) {
                 pos = pos.add(1)
                 tokens.push(own Token(type = TokenType.StringTok,
                     text = source.substr(start.add(1), pos.sub(start).sub(2)),
@@ -362,7 +362,7 @@ tokenize := proc(source: Str, path: Str) returns Vec {
 
         // Two-character tokens
         if pos.add(1).lt(src_len) {
-            ref c2 : U8 = source.char_at(pos.add(1))
+            ref c2 : U8 = source.get(pos.add(1))
             mut two := TokenType.Eof
             if c.eq(CH_COLON).and(c2.eq(CH_EQ)) { two = TokenType.ColonEq }
             if c.eq(CH_EQ).and(c2.eq(CH_EQ)) { two = TokenType.EqEq }

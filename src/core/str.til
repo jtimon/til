@@ -1,60 +1,60 @@
 Str := struct {
     own mut data : U8 = 0
-    mut len := 0
+    mut count := 0
     mut cap := 0
 
     namespace:
-    len := func(self: Str) returns I64 { return self.len }
+    len := func(self: Str) returns I64 { return self.count }
 
-    char_at := func(self: Str, i: I64) returns ref U8 {
-        if i.lt(0).or(i.gte(self.len)) {
-            panic("Str.char_at", "index out of bounds")
+    get := func(self: Str, i: I64) returns ref U8 {
+        if i.lt(0).or(i.gte(self.count)) {
+            panic("Str.get", "index out of bounds")
         }
         return ptr_add(self.data, i)
     }
 
     cmp := func(a: Str, b: Str) returns I64 {
         mut i := 0
-        mut min_len := a.len
-        if b.len.lt(a.len) { min_len = b.len }
+        mut min_len := a.count
+        if b.count.lt(a.count) { min_len = b.count }
         while i.lt(min_len) {
-            ref ab : U8 = a.char_at(i)
-            ref bb : U8 = b.char_at(i)
+            ref ab : U8 = a.get(i)
+            ref bb : U8 = b.get(i)
             own c := ab.cmp(bb)
             if c.neq(0) { return c }
             i = i.add(1)
         }
-        return a.len.cmp(b.len)
+        return a.count.cmp(b.count)
     }
 
     concat := func(a: Str, b: Str) returns Str {
-        new_len := a.len.add(b.len)
+        new_len := a.count.add(b.count)
         own new_data : U8 = malloc(new_len)
-        memcpy(new_data, a.data, a.len)
-        memcpy(ptr_add(new_data, a.len), b.data, b.len)
-        return Str(data = new_data, len = new_len, cap = new_len)
+        memcpy(new_data, a.data, a.count)
+        memcpy(ptr_add(new_data, a.count), b.data, b.count)
+        return Str(data = new_data, count = new_len, cap = new_len)
     }
 
     with_capacity := func(n: I64) returns Str {
         own buf : U8 = malloc(n)
-        return Str(data = buf, len = 0, cap = n)
+        return Str(data = buf, count = 0, cap = n)
     }
 
     push_str := proc(mut self: Str, s: Str) {
-        new_len := self.len.add(s.len)
+        new_len := self.count.add(s.count)
         if new_len.gt(self.cap) {
             new_cap := new_len.mul(2)
             self.data = realloc(own self.data, new_cap)
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.len), s.data, s.len)
-        self.len = new_len
+        memcpy(ptr_add(self.data, self.count), s.data, s.count)
+        self.count = new_len
     }
 
     clone := func(val: Str) returns Str {
-        own new_data : U8 = malloc(val.len)
-        memcpy(new_data, val.data, val.len)
-        return Str(data = new_data, len = val.len, cap = val.len)
+        own new_data : U8 = malloc(val.count)
+        memcpy(new_data, val.data, val.count)
+        return Str(data = new_data, count = val.count, cap = val.count)
     }
 
     delete := proc(own self: Str, call_free: Bool = true) {
@@ -68,24 +68,24 @@ Str := struct {
         mut st := start
         mut ln := n
         if st.lt(0) { st = 0 }
-        if st.gt(s.len) { st = s.len }
+        if st.gt(s.count) { st = s.count }
         if ln.lt(0) { ln = 0 }
-        if st.add(ln).gt(s.len) { ln = s.len.sub(st) }
+        if st.add(ln).gt(s.count) { ln = s.count.sub(st) }
         own new_data : U8 = malloc(ln)
         memcpy(new_data, ptr_add(s.data, st), ln)
-        return Str(data = new_data, len = ln, cap = ln)
+        return Str(data = new_data, count = ln, cap = ln)
     }
 
     contains := func(a: Str, b: Str) returns Bool {
-        if b.len.eq(0) { return true }
-        if b.len.gt(a.len) { return false }
+        if b.count.eq(0) { return true }
+        if b.count.gt(a.count) { return false }
         mut i := 0
-        while i.lte(a.len.sub(b.len)) {
+        while i.lte(a.count.sub(b.count)) {
             mut j := 0
             mut found := true
-            while j.lt(b.len) {
-                ref ac : U8 = a.char_at(i.add(j))
-                ref bc : U8 = b.char_at(j)
+            while j.lt(b.count) {
+                ref ac : U8 = a.get(i.add(j))
+                ref bc : U8 = b.get(j)
                 if ac.neq(bc) { found = false }
                 j = j.add(1)
             }
@@ -96,11 +96,11 @@ Str := struct {
     }
 
     starts_with := func(a: Str, b: Str) returns Bool {
-        if b.len.gt(a.len) { return false }
+        if b.count.gt(a.count) { return false }
         mut i := 0
-        while i.lt(b.len) {
-            ref ac : U8 = a.char_at(i)
-            ref bc : U8 = b.char_at(i)
+        while i.lt(b.count) {
+            ref ac : U8 = a.get(i)
+            ref bc : U8 = b.get(i)
             if ac.neq(bc) { return false }
             i = i.add(1)
         }
@@ -108,12 +108,12 @@ Str := struct {
     }
 
     ends_with := func(a: Str, b: Str) returns Bool {
-        if b.len.gt(a.len) { return false }
-        offset := a.len.sub(b.len)
+        if b.count.gt(a.count) { return false }
+        offset := a.count.sub(b.count)
         mut i := 0
-        while i.lt(b.len) {
-            ref ac : U8 = a.char_at(offset.add(i))
-            ref bc : U8 = b.char_at(i)
+        while i.lt(b.count) {
+            ref ac : U8 = a.get(offset.add(i))
+            ref bc : U8 = b.get(i)
             if ac.neq(bc) { return false }
             i = i.add(1)
         }
@@ -121,19 +121,19 @@ Str := struct {
     }
 
     is_empty := func(self: Str) returns Bool {
-        return self.len.eq(0)
+        return self.count.eq(0)
     }
 
     find := func(self: Str, needle: Str) returns I64 {
-        if needle.len.eq(0) { return 0.sub(1) }
-        if needle.len.gt(self.len) { return 0.sub(1) }
+        if needle.count.eq(0) { return 0.sub(1) }
+        if needle.count.gt(self.count) { return 0.sub(1) }
         mut i := 0
-        while i.lte(self.len.sub(needle.len)) {
+        while i.lte(self.count.sub(needle.count)) {
             mut j := 0
             mut found := true
-            while j.lt(needle.len) {
-                ref ac : U8 = self.char_at(i.add(j))
-                ref bc : U8 = needle.char_at(j)
+            while j.lt(needle.count) {
+                ref ac : U8 = self.get(i.add(j))
+                ref bc : U8 = needle.get(j)
                 if ac.neq(bc) { found = false }
                 j = j.add(1)
             }
@@ -144,16 +144,16 @@ Str := struct {
     }
 
     rfind := func(self: Str, needle: Str) returns I64 {
-        if needle.len.eq(0) { return 0.sub(1) }
-        if needle.len.gt(self.len) { return 0.sub(1) }
+        if needle.count.eq(0) { return 0.sub(1) }
+        if needle.count.gt(self.count) { return 0.sub(1) }
         mut last := 0.sub(1)
         mut i := 0
-        while i.lte(self.len.sub(needle.len)) {
+        while i.lte(self.count.sub(needle.count)) {
             mut j := 0
             mut found := true
-            while j.lt(needle.len) {
-                ref ac : U8 = self.char_at(i.add(j))
-                ref bc : U8 = needle.char_at(j)
+            while j.lt(needle.count) {
+                ref ac : U8 = self.get(i.add(j))
+                ref bc : U8 = needle.get(j)
                 if ac.neq(bc) { found = false }
                 j = j.add(1)
             }
@@ -164,11 +164,11 @@ Str := struct {
     }
 
     replace := func(self: Str, from: Str, to: Str) returns Str {
-        if from.len.eq(0) { return self.clone() }
+        if from.count.eq(0) { return self.clone() }
         mut result := ""
         mut start := 0
-        while start.lte(self.len.sub(from.len)) {
-            rest := self.substr(start, self.len.sub(start))
+        while start.lte(self.count.sub(from.count)) {
+            rest := self.substr(start, self.count.sub(start))
             pos := rest.find(from)
             if pos.eq(0.sub(1)) {
                 result = result.concat(rest)
@@ -176,10 +176,10 @@ Str := struct {
             }
             result = result.concat(self.substr(start, pos))
             result = result.concat(to)
-            start = start.add(pos).add(from.len)
+            start = start.add(pos).add(from.count)
         }
-        if start.lt(self.len) {
-            result = result.concat(self.substr(start, self.len.sub(start)))
+        if start.lt(self.count) {
+            result = result.concat(self.substr(start, self.count.sub(start)))
         }
         return result
     }
@@ -190,14 +190,14 @@ Str := struct {
 
     strip_prefix := func(self: Str, prefix: Str) returns Str {
         if self.starts_with(prefix) {
-            return self.substr(prefix.len, self.len.sub(prefix.len))
+            return self.substr(prefix.count, self.count.sub(prefix.count))
         }
         return self.clone()
     }
 
     strip_suffix := func(self: Str, suffix: Str) returns Str {
         if self.ends_with(suffix) {
-            return self.substr(0, self.len.sub(suffix.len))
+            return self.substr(0, self.count.sub(suffix.count))
         }
         return self.clone()
     }
@@ -205,22 +205,22 @@ Str := struct {
     from_byte := func(byte: U8) returns Str {
         own buf : U8 = malloc(1)
         memcpy(buf, byte, 1)
-        return Str(data = buf, len = 1, cap = 1)
+        return Str(data = buf, count = 1, cap = 1)
     }
 
     to_i64 := func(self: Str) returns I64 {
-        if self.len.eq(0) { panic("Str.to_i64", "empty string") }
+        if self.count.eq(0) { panic("Str.to_i64", "empty string") }
         mut result := 0
         mut i := 0
         mut neg := false
-        ref first : U8 = self.char_at(0)
+        ref first : U8 = self.get(0)
         if first.eq(U8.from_i64(45)) {
             neg = true
             i = 1
         }
-        if i.eq(self.len) { panic("Str.to_i64", "no digits") }
-        while i.lt(self.len) {
-            ref ch : U8 = self.char_at(i)
+        if i.eq(self.count) { panic("Str.to_i64", "no digits") }
+        while i.lt(self.count) {
+            ref ch : U8 = self.get(i)
             d := ch.to_i64().sub(48)
             if d.lt(0).or(d.gt(9)) {
                 panic("Str.to_i64", format("invalid char in '", self, "'"))

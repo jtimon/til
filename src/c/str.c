@@ -8,7 +8,7 @@ Str Str_val(const char *data) {
     I64 len = (I64)strlen(data);
     char *copy = malloc(len + 1);
     memcpy(copy, data, len + 1);
-    return (Str){.c_str = copy, .cap = len};
+    return (Str){.c_str = copy, .count = len, .cap = len};
 }
 
 Str *Str_new(const char *data) {
@@ -21,12 +21,13 @@ Str *Str_new_len(const char *data, I64 len) {
     s->c_str = malloc(len + 1);
     memcpy(s->c_str, data, len);
     s->c_str[len] = '\0';
+    s->count = len;
     s->cap = len;
     return s;
 }
 
 Str *Str_clone(Str *s) {
-    return Str_new_len(s->c_str, s->cap);
+    return Str_new_len(s->c_str, s->count);
 }
 
 void Str_delete(Str *s) {
@@ -35,30 +36,31 @@ void Str_delete(Str *s) {
 }
 
 Bool Str_eq(Str *a, Str *b) {
-    if (a->cap != b->cap) return 0;
-    return memcmp(a->c_str, b->c_str, a->cap) == 0;
+    if (a->count != b->count) return 0;
+    return memcmp(a->c_str, b->c_str, a->count) == 0;
 }
 
 I64 Str_cmp(Str *a, Str *b) {
-    I64 min = a->cap < b->cap ? a->cap : b->cap;
+    I64 min = a->count < b->count ? a->count : b->count;
     I64 c = memcmp(a->c_str, b->c_str, min);
     if (c != 0) return c;
-    return (a->cap > b->cap) - (a->cap < b->cap);
+    return (a->count > b->count) - (a->count < b->count);
 }
 
 Bool Str_eq_c(Str *a, const char *b) {
     I64 blen = (I64)strlen(b);
-    if (a->cap != blen) return 0;
+    if (a->count != blen) return 0;
     return memcmp(a->c_str, b, blen) == 0;
 }
 
 Str *Str_concat(Str *a, Str *b) {
-    I64 len = a->cap + b->cap;
+    I64 len = a->count + b->count;
     Str *s = malloc(sizeof(Str));
     s->c_str = malloc(len + 1);
-    memcpy(s->c_str, a->c_str, a->cap);
-    memcpy(s->c_str + a->cap, b->c_str, b->cap);
+    memcpy(s->c_str, a->c_str, a->count);
+    memcpy(s->c_str + a->count, b->c_str, b->count);
     s->c_str[len] = '\0';
+    s->count = len;
     s->cap = len;
     return s;
 }
@@ -68,31 +70,31 @@ Str *Str_to_str(Str *s) {
 }
 
 I64 Str_len(Str *s) {
-    return s->cap;
+    return s->count;
 }
 
 Str *Str_substr(Str *s, I64 start, I64 len) {
     if (start < 0) start = 0;
-    if (start > s->cap) start = s->cap;
+    if (start > s->count) start = s->count;
     if (len < 0) len = 0;
-    if (start + len > s->cap) len = s->cap - start;
+    if (start + len > s->count) len = s->count - start;
     return Str_new_len(s->c_str + start, len);
 }
 
 Bool Str_contains(Str *a, Str *b) {
-    if (b->cap == 0) return 1;
-    if (b->cap > a->cap) return 0;
-    return memmem(a->c_str, a->cap, b->c_str, b->cap) != NULL;
+    if (b->count == 0) return 1;
+    if (b->count > a->count) return 0;
+    return memmem(a->c_str, a->count, b->c_str, b->count) != NULL;
 }
 
 Bool Str_starts_with(Str *a, Str *b) {
-    if (b->cap > a->cap) return 0;
-    return memcmp(a->c_str, b->c_str, b->cap) == 0;
+    if (b->count > a->count) return 0;
+    return memcmp(a->c_str, b->c_str, b->count) == 0;
 }
 
 Bool Str_ends_with(Str *a, Str *b) {
-    if (b->cap > a->cap) return 0;
-    return memcmp(a->c_str + a->cap - b->cap, b->c_str, b->cap) == 0;
+    if (b->count > a->count) return 0;
+    return memcmp(a->c_str + a->count - b->count, b->c_str, b->count) == 0;
 }
 
 Bool Str_neq(Str *a, Str *b) {
@@ -100,23 +102,23 @@ Bool Str_neq(Str *a, Str *b) {
 }
 
 Bool Str_is_empty(Str *s) {
-    return s->cap == 0;
+    return s->count == 0;
 }
 
 I64 Str_find(Str *s, Str *needle) {
-    if (needle->cap == 0) return -1;
-    if (needle->cap > s->cap) return -1;
-    char *p = memmem(s->c_str, s->cap, needle->c_str, needle->cap);
+    if (needle->count == 0) return -1;
+    if (needle->count > s->count) return -1;
+    char *p = memmem(s->c_str, s->count, needle->c_str, needle->count);
     if (!p) return -1;
     return (I64)(p - s->c_str);
 }
 
 I64 Str_rfind(Str *s, Str *needle) {
-    if (needle->cap == 0) return -1;
-    if (needle->cap > s->cap) return -1;
+    if (needle->count == 0) return -1;
+    if (needle->count > s->count) return -1;
     I64 last = -1;
-    for (I64 i = 0; i <= s->cap - needle->cap; i++) {
-        if (memcmp(s->c_str + i, needle->c_str, needle->cap) == 0) {
+    for (I64 i = 0; i <= s->count - needle->count; i++) {
+        if (memcmp(s->c_str + i, needle->c_str, needle->count) == 0) {
             last = i;
         }
     }
@@ -124,27 +126,28 @@ I64 Str_rfind(Str *s, Str *needle) {
 }
 
 Str *Str_replace(Str *s, Str *from, Str *to) {
-    if (from->cap == 0) return Str_clone(s);
-    I64 count = 0;
-    for (I64 i = 0; i <= s->cap - from->cap; ) {
-        if (memcmp(s->c_str + i, from->c_str, from->cap) == 0) {
-            count++;
-            i += from->cap;
+    if (from->count == 0) return Str_clone(s);
+    I64 n = 0;
+    for (I64 i = 0; i <= s->count - from->count; ) {
+        if (memcmp(s->c_str + i, from->c_str, from->count) == 0) {
+            n++;
+            i += from->count;
         } else {
             i++;
         }
     }
-    if (count == 0) return Str_clone(s);
-    I64 new_len = s->cap - count * from->cap + count * to->cap;
+    if (n == 0) return Str_clone(s);
+    I64 new_len = s->count - n * from->count + n * to->count;
     Str *r = malloc(sizeof(Str));
     r->c_str = malloc(new_len + 1);
+    r->count = new_len;
     r->cap = new_len;
     I64 di = 0;
-    for (I64 si = 0; si < s->cap; ) {
-        if (si <= s->cap - from->cap && memcmp(s->c_str + si, from->c_str, from->cap) == 0) {
-            memcpy(r->c_str + di, to->c_str, to->cap);
-            di += to->cap;
-            si += from->cap;
+    for (I64 si = 0; si < s->count; ) {
+        if (si <= s->count - from->count && memcmp(s->c_str + si, from->c_str, from->count) == 0) {
+            memcpy(r->c_str + di, to->c_str, to->count);
+            di += to->count;
+            si += from->count;
         } else {
             r->c_str[di++] = s->c_str[si++];
         }
@@ -159,14 +162,14 @@ Str *Str_get_char(Str *s, I64 i) {
 
 Str *Str_strip_prefix(Str *s, Str *prefix) {
     if (Str_starts_with(s, prefix)) {
-        return Str_substr(s, prefix->cap, s->cap - prefix->cap);
+        return Str_substr(s, prefix->count, s->count - prefix->count);
     }
     return Str_clone(s);
 }
 
 Str *Str_strip_suffix(Str *s, Str *suffix) {
     if (Str_ends_with(s, suffix)) {
-        return Str_substr(s, 0, s->cap - suffix->cap);
+        return Str_substr(s, 0, s->count - suffix->count);
     }
     return Str_clone(s);
 }
@@ -176,20 +179,41 @@ Str *Str_from_byte(U8 byte) {
     s->c_str = malloc(2);
     s->c_str[0] = (char)byte;
     s->c_str[1] = '\0';
+    s->count = 1;
     s->cap = 1;
     return s;
 }
 
 I64 Str_to_i64(Str *s) {
-    if (s->cap == 0) {
+    if (s->count == 0) {
         fprintf(stderr, "Str.to_i64: empty string\n");
         exit(1);
     }
     char *end;
     I64 v = strtoll(s->c_str, &end, 10);
-    if (end != s->c_str + s->cap) {
-        fprintf(stderr, "Str.to_i64: invalid char in '%.*s'\n", (int)s->cap, s->c_str);
+    if (end != s->c_str + s->count) {
+        fprintf(stderr, "Str.to_i64: invalid char in '%.*s'\n", (int)s->count, s->c_str);
         exit(1);
     }
     return v;
+}
+
+Str *Str_with_capacity(I64 n) {
+    Str *s = malloc(sizeof(Str));
+    s->c_str = malloc(n + 1);
+    s->c_str[0] = '\0';
+    s->count = 0;
+    s->cap = n;
+    return s;
+}
+
+void Str_push_str(Str *s, Str *other) {
+    I64 new_len = s->count + other->count;
+    if (new_len > s->cap) {
+        s->cap = new_len * 2;
+        s->c_str = realloc(s->c_str, s->cap + 1);
+    }
+    memcpy(s->c_str + s->count, other->c_str, other->count);
+    s->count = new_len;
+    s->c_str[new_len] = '\0';
 }

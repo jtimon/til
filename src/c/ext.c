@@ -197,12 +197,12 @@ til_Bool *til_cli_parse_bool(const char *s) {
 }
 
 // --- System primitives ---
-// These use til_Str (codegen layout: { U8 *data, I64 len, I64 cap }) rather than
-// Str (interpreter layout: { char *c_str, I64 cap }).
+// These use til_Str (codegen layout: { U8 *data, I64 count, I64 cap }) rather than
+// Str (compiler-internal: { char *c_str, I64 count, I64 cap }).
 // For the interpreter, dispatch.c has its own handlers using Str directly.
 
 til_Str *til_readfile(til_Str *path) {
-    char *p = strndup((char *)path->data, path->len);
+    char *p = strndup((char *)path->data, path->count);
     FILE *f = fopen(p, "rb");
     if (!f) {
         fprintf(stderr, "readfile: could not open '%s'\n", p);
@@ -218,13 +218,13 @@ til_Str *til_readfile(til_Str *path) {
     fclose(f);
     til_Str *s = malloc(sizeof(til_Str));
     s->data = (til_U8 *)buf;
-    s->len = len;
+    s->count = len;
     s->cap = len;
     return s;
 }
 
 void til_writefile(til_Str *path, til_Str *content) {
-    char *p = strndup((char *)path->data, path->len);
+    char *p = strndup((char *)path->data, path->count);
     FILE *f = fopen(p, "wb");
     if (!f) {
         fprintf(stderr, "writefile: could not open '%s'\n", p);
@@ -232,12 +232,12 @@ void til_writefile(til_Str *path, til_Str *content) {
         exit(1);
     }
     free(p);
-    fwrite(content->data, 1, content->len, f);
+    fwrite(content->data, 1, content->count, f);
     fclose(f);
 }
 
 til_I64 *til_spawn_cmd(til_Str *cmd) {
-    char *c = strndup((char *)cmd->data, cmd->len);
+    char *c = strndup((char *)cmd->data, cmd->count);
     pid_t pid = fork();
     if (pid == 0) {
         execl("/bin/sh", "sh", "-c", c, NULL);
@@ -264,7 +264,7 @@ void til_sleep(til_I64 *ms) {
 }
 
 til_I64 *til_file_mtime(til_Str *path) {
-    char *p = strndup((char *)path->data, path->len);
+    char *p = strndup((char *)path->data, path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);

@@ -118,7 +118,7 @@ I64 : StructDef = ext_struct {
         if val.eq(0) {
             own buf : U8 = malloc(1)
             memcpy(buf, U8.from_i64(48), 1)
-            return Str(data = buf, len = 1, cap = 1)
+            return Str(data = buf, count = 1, cap = 1)
         }
         mut is_neg := false
         mut v := val
@@ -144,7 +144,7 @@ I64 : StructDef = ext_struct {
             v = v.div(10)
             i = i.sub(1)
         }
-        return Str(data = buf, len = total, cap = total)
+        return Str(data = buf, count = total, cap = total)
     }
     add := ext_func(a: I64, b: I64) returns I64 {}
     sub := ext_func(a: I64, b: I64) returns I64 {}
@@ -221,7 +221,7 @@ format := func(parts: ..Str) returns Str {
         offset = offset.add(s.len())
         i = i.add(1)
     }
-    return Str(data = buf, len = total, cap = total)
+    return Str(data = buf, count = total, cap = total)
 }
 exit := ext_func(code: I64) {}
 free := ext_func(own elem: Dynamic) {}

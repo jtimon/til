@@ -35,7 +35,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
         if (Str_eq_c(val.instance->struct_name, "Str")) {
             Str sv = str_view(val);
             e = expr_new(NODE_LITERAL_STR, line, col, path);
-            e->data.str_val = Str_new_len(sv.c_str, sv.cap);
+            e->data.str_val = Str_new_len(sv.c_str, sv.count);
             e->til_type = TIL_TYPE_STRUCT;
             e->struct_name = Str_new("Str");
             return e;
@@ -62,7 +62,7 @@ static Value expr_to_value(Expr *e) {
             return val_u8(atoll(e->data.str_val->c_str));
         return val_i64(atoll(e->data.str_val->c_str));
     case NODE_LITERAL_STR:
-        return make_str_value(e->data.str_val->c_str, e->data.str_val->cap);
+        return make_str_value(e->data.str_val->c_str, e->data.str_val->count);
     case NODE_LITERAL_BOOL:
         return val_bool(strcmp(e->data.str_val->c_str, "true") == 0);
     default:

@@ -5,6 +5,7 @@
 
 typedef struct {
     char *c_str;
+    I64 count;
     I64 cap;
 } Str;
 
@@ -33,5 +34,7 @@ Str *Str_strip_prefix(Str *s, Str *prefix);
 Str *Str_strip_suffix(Str *s, Str *suffix);
 Str *Str_from_byte(U8 byte);
 I64 Str_to_i64(Str *s);
+Str *Str_with_capacity(I64 n);
+void Str_push_str(Str *s, Str *other);
 
 #endif
