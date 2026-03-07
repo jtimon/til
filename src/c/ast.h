@@ -44,6 +44,7 @@ typedef enum {
     TIL_TYPE_I64,
     TIL_TYPE_U8,
     TIL_TYPE_I16,
+    TIL_TYPE_I32,
     TIL_TYPE_U32,
     TIL_TYPE_BOOL,
     TIL_TYPE_STRUCT,

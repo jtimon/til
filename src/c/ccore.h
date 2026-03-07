@@ -58,6 +58,24 @@ I16 *I16_new(I16 val);
 I16 *I16_clone(I16 *v);
 void I16_delete(I16 *v);
 
+// --- I32 ---
+
+I32 I32_add(I32 a, I32 b);
+I32 I32_sub(I32 a, I32 b);
+I32 I32_mul(I32 a, I32 b);
+I32 I32_div(I32 a, I32 b);
+I32 I32_mod(I32 a, I32 b);
+I32 I32_and(I32 a, I32 b);
+I32 I32_or(I32 a, I32 b);
+I32 I32_xor(I32 a, I32 b);
+Bool I32_eq(I32 a, I32 b);
+I64 I32_cmp(I32 a, I32 b);
+I64 I32_to_i64(I32 v);
+I32 I32_from_i64(I64 v);
+I32 *I32_new(I32 val);
+I32 *I32_clone(I32 *v);
+void I32_delete(I32 *v);
+
 // --- U32 ---
 
 U32 U32_add(U32 a, U32 b);

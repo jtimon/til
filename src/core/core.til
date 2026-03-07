@@ -57,6 +57,34 @@ I16 : StructDef = ext_struct {
     delete := ext_proc(own self: I16, call_free: Bool = true) {}
     size := func() returns I64 { return 2 }
 }
+I32 : StructDef = ext_struct {
+    namespace:
+    to_i64 := ext_func(val: I32) returns I64 {}
+    to_str := func(val: I32) returns Str {
+        return val.to_i64().to_str()
+    }
+    from_i64 := func(val: I64) returns I32 {
+        if val.lt(2147483648.neg()).or(val.gt(2147483647)) {
+            panic("I32.from_i64", "value out of range (-2147483648 to 2147483647)")
+        }
+        I32_from_i64_ext := ext_func(val: I64) returns I32 {}
+        return I32_from_i64_ext(val)
+    }
+    add := ext_func(a: I32, b: I32) returns I32 {}
+    sub := ext_func(a: I32, b: I32) returns I32 {}
+    mul := ext_func(a: I32, b: I32) returns I32 {}
+    div := ext_func(a: I32, b: I32) returns I32 {}
+    mod := ext_func(a: I32, b: I32) returns I32 {}
+    eq := ext_func(a: I32, b: I32) returns Bool {}
+    cmp := ext_func(a: I32, b: I32) returns I64 {}
+    neg := func(a: I32) returns I32 { return I32.from_i64(0.sub(a.to_i64())) }
+    and := ext_func(a: I32, b: I32) returns I32 {}
+    or := ext_func(a: I32, b: I32) returns I32 {}
+    xor := ext_func(a: I32, b: I32) returns I32 {}
+    clone := ext_func(val: I32) returns I32 {}
+    delete := ext_proc(own self: I32, call_free: Bool = true) {}
+    size := func() returns I64 { return 4 }
+}
 U32 : StructDef = ext_struct {
     namespace:
     to_i64 := ext_func(val: U32) returns I64 {}

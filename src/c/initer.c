@@ -68,6 +68,7 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "I64"))  return TIL_TYPE_I64;
     if (Str_eq_c(name, "U8"))   return TIL_TYPE_U8;
     if (Str_eq_c(name, "I16"))  return TIL_TYPE_I16;
+    if (Str_eq_c(name, "I32"))  return TIL_TYPE_I32;
     if (Str_eq_c(name, "U32"))  return TIL_TYPE_U32;
     if (Str_eq_c(name, "Str"))  return TIL_TYPE_STRUCT;
     if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
@@ -114,7 +115,7 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
                     ftype = expr_child(def_val, 0)->data.str_val;
                 if (ftype) field->data.decl.explicit_type = ftype;
             }
-            if (ftype && !Str_eq_c(ftype, "I64") && !Str_eq_c(ftype, "U8") && !Str_eq_c(ftype, "I16") && !Str_eq_c(ftype, "U32") && !Str_eq_c(ftype, "Bool")) {
+            if (ftype && !Str_eq_c(ftype, "I64") && !Str_eq_c(ftype, "U8") && !Str_eq_c(ftype, "I16") && !Str_eq_c(ftype, "I32") && !Str_eq_c(ftype, "U32") && !Str_eq_c(ftype, "Bool")) {
                 Expr *nested_def = tscope_get_struct(scope, ftype);
                 if (nested_def && !nested_def->is_ext) {
                     compute_struct_layout(nested_def, scope);
@@ -141,6 +142,7 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             else if (Str_eq_c(ftype, "I64"))  { fsz = 8; falign = 8; }
             else if (Str_eq_c(ftype, "U8"))   { fsz = 1; falign = 1; }
             else if (Str_eq_c(ftype, "I16"))  { fsz = 2; falign = 2; }
+            else if (Str_eq_c(ftype, "I32"))  { fsz = 4; falign = 4; }
             else if (Str_eq_c(ftype, "U32"))  { fsz = 4; falign = 4; }
             else if (Str_eq_c(ftype, "Bool")) { fsz = 1; falign = 1; }
             else {
@@ -199,6 +201,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (Str_eq_c(sname, "I64"))             { builtin_type = TIL_TYPE_I64;        is_builtin = 1; }
         else if (Str_eq_c(sname, "U8"))         { builtin_type = TIL_TYPE_U8;         is_builtin = 1; }
         else if (Str_eq_c(sname, "I16"))        { builtin_type = TIL_TYPE_I16;        is_builtin = 1; }
+        else if (Str_eq_c(sname, "I32"))        { builtin_type = TIL_TYPE_I32;        is_builtin = 1; }
         else if (Str_eq_c(sname, "U32"))        { builtin_type = TIL_TYPE_U32;        is_builtin = 1; }
         else if (Str_eq_c(sname, "Str"))        { is_builtin = 0; } // Str is a regular struct
         else if (Str_eq_c(sname, "Bool"))       { builtin_type = TIL_TYPE_BOOL;       is_builtin = 1; }

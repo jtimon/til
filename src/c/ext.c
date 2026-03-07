@@ -83,6 +83,39 @@ til_I16 *til_cli_parse_i16(const char *s) {
     return I16_new((I16)v);
 }
 
+// I32 arithmetic
+til_I32 *til_I32_add(til_I32 *a, til_I32 *b) { return I32_new(I32_add(*a, *b)); }
+til_I32 *til_I32_sub(til_I32 *a, til_I32 *b) { return I32_new(I32_sub(*a, *b)); }
+til_I32 *til_I32_mul(til_I32 *a, til_I32 *b) { return I32_new(I32_mul(*a, *b)); }
+til_I32 *til_I32_div(til_I32 *a, til_I32 *b) { return I32_new(I32_div(*a, *b)); }
+til_I32 *til_I32_mod(til_I32 *a, til_I32 *b) { return I32_new(I32_mod(*a, *b)); }
+til_I32 *til_I32_and(til_I32 *a, til_I32 *b) { return I32_new(I32_and(*a, *b)); }
+til_I32 *til_I32_or(til_I32 *a, til_I32 *b) { return I32_new(I32_or(*a, *b)); }
+til_I32 *til_I32_xor(til_I32 *a, til_I32 *b) { return I32_new(I32_xor(*a, *b)); }
+
+// I32 comparisons
+til_Bool *til_I32_eq(til_I32 *a, til_I32 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I32_eq(*a, *b); return r; }
+til_I64 *til_I32_cmp(til_I32 *a, til_I32 *b) { return I64_new(I32_cmp(*a, *b)); }
+
+// I32 conversions
+til_I64 *til_I32_to_i64(til_I32 *a) { return I64_new(I32_to_i64(*a)); }
+til_I32 *til_I32_from_i64_ext(til_I64 *a) { return I32_new(I32_from_i64(*a)); }
+
+// I32 clone/delete
+til_I32 *til_I32_clone(til_I32 *v) { return I32_clone(v); }
+void til_I32_delete(til_I32 *v, til_Bool *call_free) { if (*call_free) I32_delete(v); }
+
+// I32 CLI
+til_I32 *til_cli_parse_i32(const char *s) {
+    char *end;
+    long v = strtol(s, &end, 10);
+    if (*end != '\0' || v < -2147483648L || v > 2147483647L) {
+        fprintf(stderr, "error: cannot parse '%s' as I32\n", s);
+        exit(1);
+    }
+    return I32_new((I32)v);
+}
+
 // U32 arithmetic
 til_U32 *til_U32_add(til_U32 *a, til_U32 *b) { return U32_new(U32_add(*a, *b)); }
 til_U32 *til_U32_sub(til_U32 *a, til_U32 *b) { return U32_new(U32_sub(*a, *b)); }

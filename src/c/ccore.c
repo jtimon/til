@@ -90,6 +90,32 @@ I16 *I16_new(I16 val) {
 I16 *I16_clone(I16 *v) { return I16_new(*v); }
 void I16_delete(I16 *v) { free(v); }
 
+// --- I32 ---
+
+I32 I32_add(I32 a, I32 b) { return a + b; }
+I32 I32_sub(I32 a, I32 b) { return a - b; }
+I32 I32_mul(I32 a, I32 b) { return a * b; }
+I32 I32_div(I32 a, I32 b) { return (b == 0) ? 0 : a / b; }
+I32 I32_mod(I32 a, I32 b) { return (b == 0) ? 0 : a % b; }
+I32 I32_and(I32 a, I32 b) { return a & b; }
+I32 I32_or(I32 a, I32 b) { return a | b; }
+I32 I32_xor(I32 a, I32 b) { return a ^ b; }
+
+Bool I32_eq(I32 a, I32 b) { return a == b; }
+I64 I32_cmp(I32 a, I32 b) { return a < b ? -1 : (a > b ? 1 : 0); }
+
+I64 I32_to_i64(I32 v) { return (I64)v; }
+I32 I32_from_i64(I64 v) { return (I32)v; }
+
+I32 *I32_new(I32 val) {
+    I32 *p = malloc(sizeof(I32));
+    *p = val;
+    return p;
+}
+
+I32 *I32_clone(I32 *v) { return I32_new(*v); }
+void I32_delete(I32 *v) { free(v); }
+
 // --- U32 ---
 
 U32 U32_add(U32 a, U32 b) { return a + b; }
