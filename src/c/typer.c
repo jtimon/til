@@ -2207,7 +2207,11 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
             }
             // Auto-insert clone for declarations from identifiers (skip ref decls)
-            if (expr_child(stmt, 0)->type == NODE_IDENT && !stmt->data.decl.is_ref) {
+            if ((expr_child(stmt, 0)->type == NODE_IDENT ||
+                 (expr_child(stmt, 0)->type == NODE_FIELD_ACCESS &&
+                  (expr_child(stmt, 0)->til_type == TIL_TYPE_STRUCT ||
+                   expr_child(stmt, 0)->til_type == TIL_TYPE_ENUM))) &&
+                !stmt->data.decl.is_ref) {
                 const char *tname = type_to_name(stmt->til_type, expr_child(stmt, 0)->struct_name);
                 if (tname) {
                     expr_child(stmt, 0) = make_clone_call(
@@ -2246,7 +2250,10 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 type_error(stmt, buf);
             }
             // Auto-insert clone for assignments from identifiers
-            if (expr_child(stmt, 0)->type == NODE_IDENT) {
+            if (expr_child(stmt, 0)->type == NODE_IDENT ||
+                (expr_child(stmt, 0)->type == NODE_FIELD_ACCESS &&
+                 (expr_child(stmt, 0)->til_type == TIL_TYPE_STRUCT ||
+                  expr_child(stmt, 0)->til_type == TIL_TYPE_ENUM))) {
                 const char *tname = type_to_name(expr_child(stmt, 0)->til_type, expr_child(stmt, 0)->struct_name);
                 if (tname) {
                     expr_child(stmt, 0) = make_clone_call(
@@ -2301,7 +2308,10 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             stmt->til_type = TIL_TYPE_NONE;
             // Auto-insert clone for field assignments from identifiers
-            if (expr_child(stmt, 1)->type == NODE_IDENT) {
+            if (expr_child(stmt, 1)->type == NODE_IDENT ||
+                (expr_child(stmt, 1)->type == NODE_FIELD_ACCESS &&
+                 (expr_child(stmt, 1)->til_type == TIL_TYPE_STRUCT ||
+                  expr_child(stmt, 1)->til_type == TIL_TYPE_ENUM))) {
                 const char *tname = type_to_name(expr_child(stmt, 1)->til_type,
                                                   expr_child(stmt, 1)->struct_name);
                 if (tname) {

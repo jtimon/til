@@ -253,6 +253,41 @@ test_custom_delete := test() {
     assert_eq(loc(), DeleteCustom.delete_count, 2)
 }
 
+Container := struct {
+    mut items := Vec.new("I64", I64.size())
+}
+
+test_vec_in_struct := test() {
+    c := Container()
+    c.items.push(own 10)
+    c.items.push(own 20)
+    c.items.push(own 30)
+    assert_eq(loc(), c.items.len(), 3)
+    assert_eq(loc(), c.items.get(0), 10)
+    assert_eq(loc(), c.items.get(1), 20)
+    assert_eq(loc(), c.items.get(2), 30)
+}
+
+test_nested_struct_field_mutation := test() {
+    l := Line()
+    l.start.x = 42
+    l.start.y = 99
+    assert_eq(loc(), l.start.x, 42)
+    assert_eq(loc(), l.start.y, 99)
+    assert_eq(loc(), l.end.x, 0)
+    assert_eq(loc(), l.end.y, 0)
+}
+
+test_field_access_copy := test() {
+    c := Container()
+    c.items.push(own 1)
+    c.items.push(own 2)
+    copy := c.items
+    c.items.push(own 3)
+    assert_eq(loc(), c.items.len(), 3)
+    assert_eq(loc(), copy.len(), 2)
+}
+
 test_field_reassign := test() {
     bob := Person()
     assert_eq_str(loc(), bob.name, "unknown")

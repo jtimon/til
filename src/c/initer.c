@@ -135,6 +135,11 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
                 else if (def_val->type == NODE_FCALL && def_val->children.count > 0 &&
                          expr_child(def_val, 0)->type == NODE_IDENT)
                     ftype = expr_child(def_val, 0)->data.str_val;
+                // Namespace FCALL default (e.g. Vec.new(...)): struct name is in field access child
+                else if (def_val->type == NODE_FCALL && def_val->children.count > 0 &&
+                         expr_child(def_val, 0)->type == NODE_FIELD_ACCESS &&
+                         expr_child(expr_child(def_val, 0), 0)->type == NODE_IDENT)
+                    ftype = expr_child(expr_child(def_val, 0), 0)->data.str_val;
                 // Store resolved type for interpreter's read_field
                 if (ftype) field->data.decl.explicit_type = ftype;
             }

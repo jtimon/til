@@ -138,14 +138,8 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         StructInstance *sub = malloc(sizeof(StructInstance));
         sub->struct_name = ftype; // borrowed — set by initer for inferred struct types
         sub->struct_def = nested;
-        if (inst->borrowed) {
-            sub->data = ptr;       // borrowed — points into parent's buffer
-            sub->borrowed = 1;
-        } else {
-            sub->data = malloc(nested->total_struct_size);
-            memcpy(sub->data, ptr, nested->total_struct_size);
-            sub->borrowed = 0;
-        }
+        sub->data = ptr;       // always point into parent buffer
+        sub->borrowed = 1;     // always borrowed — field lives in parent
         return (Value){.type = VAL_STRUCT, .instance = sub};
     }
     // Fallback: treat as I64

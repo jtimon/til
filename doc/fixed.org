@@ -1,5 +1,32 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #30 Vec-in-struct: mutating an inline struct field operates on a copy
+  Accessing a struct field of compound type (Vec, Point, Str, any user-defined
+  struct) returned a copy instead of a reference. Mutations to the copy were
+  discarded. E.g. c.items.push(own 10) pushed into a clone, original unchanged.
+
+** Root causes (three bugs)
+   1. interpreter.c read_field(): copied inline struct fields when parent was
+      not borrowed, instead of always returning a borrowed reference into the
+      parent buffer (which is what codegen does with &(c->items)).
+   2. initer.c compute_struct_layout(): didn't set field_struct_def for fields
+      with namespace constructor defaults (e.g. Vec.new(...)) because the FCALL
+      callee detection only handled NODE_IDENT callees (Point()), not
+      NODE_FIELD_ACCESS callees (Vec.new()). Without field_struct_def,
+      read_field fell through to the I64 fallback.
+   3. typer.c: clone insertion for declarations/assignments only triggered for
+      NODE_IDENT, not NODE_FIELD_ACCESS. After fixing read_field to always
+      borrow, x := c.items needed a clone to get an independent copy.
+
+** Fix
+   - interpreter.c: read_field() always returns borrowed for inline struct
+     fields (sub->data = ptr, sub->borrowed = 1).
+   - initer.c: detect namespace FCALL defaults (Vec.new(...)) by checking
+     for NODE_FIELD_ACCESS callee and extracting struct name from its child.
+   - typer.c: extend 3 clone insertion sites to also clone NODE_FIELD_ACCESS
+     of struct/enum type (not primitives — their struct_name holds the parent
+     struct name, not the field's own type).
+
 * FIXED #19 Literal syntax for collection initialization
   Sugar for initializing Array, Vec, Set, Map, and Tuple with values
   instead of repeated .set()/.push()/.add() calls.
