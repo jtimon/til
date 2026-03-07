@@ -29,34 +29,62 @@ run_capture := proc(cmd: Str) returns I64 {
     return wait_cmd(pid)
 }
 
-// --- Job struct for parallel execution ---
+// --- Helpers ---
+
+ms_to_str := func(ms: I64) returns Str {
+    secs := ms.div(1000)
+    frac := ms.mod(1000).div(10)
+    mut frac_str := frac.to_str()
+    if frac.lt(10) { frac_str = "0".concat(frac_str) }
+    return secs.to_str().concat(".").concat(frac_str).concat("s")
+}
+
+pad_right := func(s: Str, width: I64) returns Str {
+    mut result := s.clone()
+    while result.len().lt(width) {
+        result = result.concat(" ")
+    }
+    return result
+}
+
+// --- Data structures ---
 
 Job := struct {
     mut file := ""
     mut tmode := ""
     mut pid := 0
+    mut outfile := ""
+    mut result_idx := 0
+    mut start_ms := 0
 }
 
-// --- Section 1: Normal tests (interpret + run, exit 0) ---
+TestFile := struct {
+    mut file := ""
+    mut interp_ms := 0
+    mut run_ms := 0
+    mut interp_ok := 0
+    mut run_ok := 0
+    mut output_match := 1
+    mut has_interp := 0
+    mut has_run := 0
+    mut interp_outfile := ""
+    mut run_outfile := ""
+}
 
-run_tests_parallel := proc(files: Vec, j: I64, mut fail: I64) {
-    // Build all jobs: each file gets interpret + run
-    jobs := Vec.new("Job", Job.size())
-    mut fi := 0
-    while fi.lt(files.len()) {
-        ref f : Str = files.get(fi)
-        jobs.push(own Job(file = f.clone(), tmode = "interpret"))
-        jobs.push(own Job(file = f.clone(), tmode = "run"))
-        fi = fi.add(1)
-    }
+// --- Parallel test runner ---
 
-    // Add parsing.til as interpret-only
-    jobs.push(own Job(file = "src/test/parsing.til", tmode = "interpret"))
+spawn_job := proc(job: Job) returns Job {
+    cmd := CTIL.concat(" ").concat(job.tmode).concat(" '").concat(job.file).concat("' > ").concat(job.outfile).concat(" 2>/dev/null")
+    start := clock_ms()
+    pid := spawn_cmd(cmd)
+    return Job(file = job.file.clone(), tmode = job.tmode.clone(), pid = pid,
+               outfile = job.outfile.clone(), result_idx = job.result_idx, start_ms = start)
+}
 
+run_tests_parallel := proc(results: Vec, jobs: Vec, j: I64, mut fail: I64) {
     mut next := 0
     mut active := 0
 
-    // Fixed-size slot array for running jobs
     slots := Array.new("Job", Job.size(), j)
     mut si := 0
     while si.lt(j) {
@@ -68,9 +96,7 @@ run_tests_parallel := proc(files: Vec, j: I64, mut fail: I64) {
     si = 0
     while si.lt(j).and(next.lt(jobs.len())) {
         ref job : Job = jobs.get(next)
-        cmd := CTIL.concat(" ").concat(job.tmode).concat(" '").concat(job.file).concat("' > /dev/null 2>&1")
-        pid := spawn_cmd(cmd)
-        slots.set(si, own Job(file = job.file.clone(), tmode = job.tmode.clone(), pid = pid))
+        slots.set(si, own spawn_job(job))
         active = active.add(1)
         next = next.add(1)
         si = si.add(1)
@@ -84,7 +110,19 @@ run_tests_parallel := proc(files: Vec, j: I64, mut fail: I64) {
             if slot.pid.gt(0) {
                 status := check_cmd_status(slot.pid)
                 if status.neq(0.sub(1)) {
-                    // Job finished
+                    // Record timing
+                    elapsed := clock_ms().sub(slot.start_ms)
+                    ref result : TestFile = results.get(slot.result_idx)
+                    if slot.tmode.eq("interpret") {
+                        result.interp_ms = elapsed
+                        if status.eq(0) { result.interp_ok = 1 }
+                        result.interp_outfile = slot.outfile.clone()
+                    } else {
+                        result.run_ms = elapsed
+                        if status.eq(0) { result.run_ok = 1 }
+                        result.run_outfile = slot.outfile.clone()
+                    }
+
                     if status.neq(0) {
                         mut label := "interpret"
                         if slot.tmode.eq("run") { label = "codegen" }
@@ -96,9 +134,7 @@ run_tests_parallel := proc(files: Vec, j: I64, mut fail: I64) {
                     // Spawn next job in this slot
                     if next.lt(jobs.len()) {
                         ref nj : Job = jobs.get(next)
-                        cmd := CTIL.concat(" ").concat(nj.tmode).concat(" '").concat(nj.file).concat("' > /dev/null 2>&1")
-                        pid := spawn_cmd(cmd)
-                        slots.set(i, own Job(file = nj.file.clone(), tmode = nj.tmode.clone(), pid = pid))
+                        slots.set(i, own spawn_job(nj))
                         active = active.add(1)
                         next = next.add(1)
                     } else {
@@ -159,6 +195,8 @@ cli_test := proc(file: Str, cmd_args: Str, expected: Str, exit_expected: I64, mu
 // --- Main ---
 
 main := proc(args: ..Str) {
+    wall_start := clock_ms()
+
     // Parse -jN from args (default: CPU thread count)
     mut j := get_thread_count()
     mut i := 0
@@ -173,42 +211,131 @@ main := proc(args: ..Str) {
 
     mut fail := 0
 
-    // --- Section 1: Normal tests (interpret + run, exit 0) ---
+    // --- Test categories ---
 
-    files := Vec.new("Str", Str.size())
-    files.push(own "src/test/types.til")
-    files.push(own "src/test/operators.til")
-    files.push(own "src/test/functions.til")
-    files.push(own "src/test/structs.til")
-    files.push(own "src/test/optional_args.til")
-    files.push(own "src/test/forward_refs.til")
-    files.push(own "src/test/flow.til")
-    files.push(own "src/test/strings.til")
-    files.push(own "src/test/ref.til")
-    files.push(own "src/test/own_fields.til")
-    files.push(own "src/test/macros.til")
-    files.push(own "src/test/enums.til")
-    files.push(own "src/test/vecs.til")
-    files.push(own "src/test/arrays.til")
-    files.push(own "src/test/sets.til")
-    files.push(own "src/test/maps.til")
-    files.push(own "src/test/globals.til")
-    files.push(own "src/test/globals_cli.til")
-    files.push(own "src/test/misc.til")
-    files.push(own "src/test/array_lit.til")
-    files.push(own "src/test/cmp.til")
-    files.push(own "src/test/ufcs.til")
-    files.push(own "src/test/booleans.til")
-    files.push(own "src/test/imports.til")
-    files.push(own "src/test/import_diamond.til")
-    files.push(own "src/test/pure.til")
-    files.push(own "src/test/aliases.til")
-    files.push(own "src/test/lexing.til")
+    c_common := Vec.new("Str", Str.size())
+    c_common.push(own "src/test/types.til")
+    c_common.push(own "src/test/operators.til")
+    c_common.push(own "src/test/functions.til")
+    c_common.push(own "src/test/structs.til")
+    c_common.push(own "src/test/optional_args.til")
+    c_common.push(own "src/test/forward_refs.til")
+    c_common.push(own "src/test/flow.til")
+    c_common.push(own "src/test/strings.til")
+    c_common.push(own "src/test/ref.til")
+    c_common.push(own "src/test/own_fields.til")
+    c_common.push(own "src/test/macros.til")
+    c_common.push(own "src/test/enums.til")
+    c_common.push(own "src/test/vecs.til")
+    c_common.push(own "src/test/arrays.til")
+    c_common.push(own "src/test/sets.til")
+    c_common.push(own "src/test/maps.til")
+    c_common.push(own "src/test/globals.til")
+    c_common.push(own "src/test/globals_cli.til")
+    c_common.push(own "src/test/misc.til")
+    c_common.push(own "src/test/array_lit.til")
+    c_common.push(own "src/test/cmp.til")
+    c_common.push(own "src/test/ufcs.til")
+    c_common.push(own "src/test/booleans.til")
+    c_common.push(own "src/test/imports.til")
+    c_common.push(own "src/test/import_diamond.til")
+    c_common.push(own "src/test/pure.til")
+    c_common.push(own "src/test/aliases.til")
+    c_common.push(own "src/test/lexing.til")
 
-    run_tests_parallel(files, j, fail)
+    c_interpreted := Vec.new("Str", Str.size())
+    c_interpreted.push(own "src/test/parsing.til")
 
-    // --- Section 2: FFI test (interpret + codegen, check output) ---
+    // Build results Vec (one TestFile per file)
+    results := Vec.new("TestFile", TestFile.size())
+    mut ri := 0
+    while ri.lt(c_common.len()) {
+        ref f : Str = c_common.get(ri)
+        results.push(own TestFile(file = f.clone(), has_interp = 1, has_run = 1))
+        ri = ri.add(1)
+    }
+    ri = 0
+    while ri.lt(c_interpreted.len()) {
+        ref f : Str = c_interpreted.get(ri)
+        results.push(own TestFile(file = f.clone(), has_interp = 1))
+        ri = ri.add(1)
+    }
 
+    // Build jobs Vec
+    jobs := Vec.new("Job", Job.size())
+    mut ji := 0
+    mut fi := 0
+    while fi.lt(c_common.len()) {
+        ref f : Str = c_common.get(fi)
+        jobs.push(own Job(file = f.clone(), tmode = "interpret", outfile = "tmp/_test_".concat(ji.to_str()), result_idx = fi))
+        ji = ji.add(1)
+        jobs.push(own Job(file = f.clone(), tmode = "run", outfile = "tmp/_test_".concat(ji.to_str()), result_idx = fi))
+        ji = ji.add(1)
+        fi = fi.add(1)
+    }
+    mut ii := 0
+    while ii.lt(c_interpreted.len()) {
+        ref f : Str = c_interpreted.get(ii)
+        ridx := c_common.len().add(ii)
+        jobs.push(own Job(file = f.clone(), tmode = "interpret", outfile = "tmp/_test_".concat(ji.to_str()), result_idx = ridx))
+        ji = ji.add(1)
+        ii = ii.add(1)
+    }
+
+    // Run parallel tests
+    run_tests_parallel(results, jobs, j, fail)
+
+    // --- Output comparison for c_common tests ---
+
+    mut ci := 0
+    while ci.lt(c_common.len()) {
+        ref r : TestFile = results.get(ci)
+        if r.interp_ok.eq(1).and(r.run_ok.eq(1)) {
+            iout := readfile(r.interp_outfile)
+            rout := readfile(r.run_outfile)
+            if iout.neq(rout) {
+                r.output_match = 0
+                println("MISMATCH: ", r.file, " (interpret vs codegen output differs)")
+                fail = 1
+            }
+        }
+        ci = ci.add(1)
+    }
+
+    // --- Print per-file timing ---
+
+    println("")
+    num_files := results.len()
+    mut total_interp := 0
+    mut total_run := 0
+    mut passed := 0
+    mut ti := 0
+    while ti.lt(num_files) {
+        ref r : TestFile = results.get(ti)
+        mut line := pad_right(r.file, 42)
+        mut ok := 1
+        if r.has_interp.eq(1) {
+            line = line.concat("interp: ").concat(pad_right(ms_to_str(r.interp_ms), 9))
+            total_interp = total_interp.add(r.interp_ms)
+            if r.interp_ok.eq(0) { ok = 0 }
+        }
+        if r.has_run.eq(1) {
+            line = line.concat("run: ").concat(pad_right(ms_to_str(r.run_ms), 9))
+            total_run = total_run.add(r.run_ms)
+            if r.run_ok.eq(0) { ok = 0 }
+        }
+        if r.output_match.eq(0) {
+            line = line.concat(" MISMATCH")
+            ok = 0
+        }
+        if ok.eq(1) { passed = passed.add(1) }
+        println(line)
+        ti = ti.add(1)
+    }
+
+    // --- Section 2: FFI test ---
+
+    ffi_start := clock_ms()
     ffi_expected := "hello world".concat(NL).concat("hello universe").concat(NL)
 
     ec_ffi := run_capture(CTIL.concat(" interpret src/examples/ffi/ext_module.til"))
@@ -224,9 +351,11 @@ main := proc(args: ..Str) {
         println("FAIL (codegen):   ffi/ext_module")
         fail = 1
     }
+    ffi_ms := clock_ms().sub(ffi_start)
 
-    // --- Section 3: Typer errors (count "type error:" occurrences) ---
+    // --- Section 3: Typer errors ---
 
+    typer_start := clock_ms()
     run_capture(CTIL.concat(" interpret src/test/typer_errors.til"))
     typer_out := readfile(TMPF)
     errors := count_matches(typer_out, "type error:")
@@ -234,9 +363,11 @@ main := proc(args: ..Str) {
         println("FAIL: typer_errors expected 42 errors, got ", errors.to_str())
         fail = 1
     }
+    typer_ms := clock_ms().sub(typer_start)
 
     // --- Section 4: CLI args tests ---
 
+    cli_start := clock_ms()
     cli_test("src/examples/cli_args.til", "hello world",
         "hello".concat(NL).concat("world").concat(NL), 0, fail)
     cli_test("src/examples/cli_args.til", "",
@@ -259,6 +390,21 @@ main := proc(args: ..Str) {
     cli_test("src/examples/cli_typed.til", "alice", "", 1, fail)
     cli_test("src/examples/cli_typed.til", "a b c", "", 1, fail)
     cli_test("src/examples/hello_cli.til", "extra", "", 1, fail)
+    cli_ms := clock_ms().sub(cli_start)
+
+    // --- Summary ---
+
+    wall_ms := clock_ms().sub(wall_start)
+    println("")
+    println("=== Summary ===")
+    println("Interpreted:  ", ms_to_str(total_interp))
+    println("Compiled:     ", ms_to_str(total_run))
+    println("FFI tests:    ", ms_to_str(ffi_ms))
+    println("Typer errors: ", ms_to_str(typer_ms))
+    println("CLI tests:    ", ms_to_str(cli_ms))
+    println("Wall-clock:   ", ms_to_str(wall_ms))
+    println("Passed:       ", passed.to_str(), "/", num_files.to_str())
+    println("")
 
     if fail.eq(0) {
         println("all tests passed")

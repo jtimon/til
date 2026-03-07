@@ -466,86 +466,8 @@
   Blocks Map (needs comparator), generic sort, event handlers,
   and many patterns needed for self-hosting (visitor, dispatch tables).
 
-* OPEN #13 Test runner in til: parallel execution, mode comparison
-  :DEPENDENCIES: #5 #17
-  Replace tests.sh with a til-based test runner that runs tests in parallel,
-  compares interpreter vs codegen output, and reports timing. Inspired by
-  rstil/src/tests.til which spawns processes, polls completion, and diffs
-  outputs across multiple execution modes.
-
-  Currently tests.sh is a linear bash script that runs each test sequentially
-  in both modes. A til-based runner would be faster (parallel), more capable
-  (output diffing, timing, better reporting), and serve as a real-world
-  exercise for Vec, Str, and the new pointer primitives.
-
-** DONE System primitives
-   Added ext_func/ext_proc in core.til + ext.c + dispatch.c + ccodegen.c:
-
-   - run_cmd(mut output: Str, args: ..Str) returns I64 — popen, capture output
-   - spawn_cmd(cmd: Str) returns I64 — fork+exec, return child PID
-   - check_cmd_status(pid: I64) returns I64 — non-blocking waitpid
-   - sleep(ms: I64) — millisecond sleep
-   - readfile(path: Str) returns Str — read file contents
-   - writefile(path: Str, content: Str) — write file contents
-   - file_mtime(path: Str) returns I64 — file modification time, -1 if missing
-   - clock_ms() returns I64 — monotonic clock in milliseconds
-   - wait_cmd(pid: I64) returns I64 — pure-til helper (poll + sleep loop)
-
-   run_cmd reimplemented in pure til using spawn+wait+readfile.
-   ext.c uses til_Str for codegen; dispatch.c uses Str for interpreter.
-
-** DONE String utilities
-   Added to Str namespace in core.til (pure til implementations):
-   neq, is_empty, find, rfind, replace, get_char, strip_prefix,
-   strip_suffix, from_byte, to_i64.
-
-   Added as top-level functions (depend on Vec, defined after Str):
-   split(s, delim), join(parts, sep).
-
-   Also added C equivalents in str.c/str.h for potential codegen use.
-   Tests in src/test/strings.til cover all new utilities.
-
-** DONE Sequential test runner (src/tests.til)
-   Replaced tests.sh with src/tests.til. Runs via `make test`
-   (`bin/ctil interpret src/tests.til`). Sequential execution,
-   4 test sections:
-
-   1. Normal tests: 23 test files, both interpret and run modes, exit 0
-   2. FFI test: ext_module.til, both modes, output comparison
-   3. Typer errors: count "type error:" occurrences (40 expected)
-   4. CLI arg tests: 12 cases with output and exit code checks
-
-   Also fixed a bug: spawn_cmd/readfile/writefile/file_mtime passed
-   non-null-terminated til Str data to C APIs (execl, fopen, stat).
-   Fixed with strndup in both ext.c and dispatch.c.
-
-** DONE Parallel execution
-   Added -jN flag to tests.til (e.g. -j16). Section 1 (28 test files ×
-   2 modes + parsing.til interpret-only = 57 jobs) runs in parallel with
-   configurable concurrency. Uses spawn_cmd + check_cmd_status polling
-   with fixed-size Array of job slots. Sections 2-4 (FFI, typer errors,
-   CLI tests) stay serial (need output capture).
-
-   Usage: make test J=16, or bin/ctil interpret src/tests.til -j16.
-   Speedup: ~45% faster with -j16 (8.7s → 4.8s on test machine).
-
-   Changed tests.til from mode script to mode cli with main(args: ..Str).
-   Worked around interpreter bug: proc returning I64 produces garbage
-   values when assigned — used mut parameter passing instead.
-
-** TODO Timing per test
-   Report elapsed time per test file. Useful for finding slow tests.
-
-** TODO Output comparison across modes
-   Compare interpreter vs codegen output for each test.
-   Report diffs on mismatch.
-
-** Phase 3: Output comparison across modes
-   Compare interpreter vs codegen output for each test.
-   Report diffs on mismatch.
-
 * OPEN #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2 #13 #15 #17
+  :DEPENDENCIES: #1 #2 #15 #17
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.

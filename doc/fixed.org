@@ -540,3 +540,37 @@
   - Interpreter: no changes needed (all struct instances are heap Values).
   - Tests: src/test/own_fields.til (access, defaults, clone, nested assign,
     replace, clone independence).
+
+* FIXED #13 Test runner in til: parallel execution, mode comparison
+  :DEPENDENCIES: #5 #17
+  Replace tests.sh with a til-based test runner that runs tests in parallel,
+  compares interpreter vs codegen output, and reports timing.
+
+** System primitives
+   spawn_cmd, check_cmd_status, sleep, readfile, writefile, file_mtime,
+   clock_ms, wait_cmd, get_thread_count.
+
+** String utilities
+   neq, is_empty, find, rfind, replace, get_char, strip_prefix,
+   strip_suffix, from_byte, to_i64, split, join.
+
+** Sequential test runner
+   Replaced tests.sh with src/tests.til. 4 test sections: normal tests
+   (both modes), FFI (output check), typer errors (count check), CLI args.
+
+** Parallel execution
+   -jN flag (default: CPU thread count via get_thread_count). Parallel
+   spawning with fixed-size Array of job slots, polling via
+   check_cmd_status. ~45% speedup with -j16.
+
+** Timing per test
+   clock_ms() around each job. Per-file timing report + summary totals
+   (interpreted, compiled, FFI, typer errors, CLI, wall-clock).
+
+** Output comparison across modes
+   Captures stdout to per-job temp files. Compares interpret vs codegen
+   output for c_common tests. Reports MISMATCH on difference.
+
+** Test categories
+   c_common (both modes), c_interpreted (interpret only), c_compiled
+   (run only). TestFile struct tracks per-file results.
