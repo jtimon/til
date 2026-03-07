@@ -493,11 +493,17 @@ static Expr *parse_statement(Parser *p) {
         return parse_statement_ident(p, 0, 0);
     case TOK_REF: {
         advance(p); // consume 'ref'
+        bool ref_mut = false;
+        if (check(p, TOK_MUT)) {
+            advance(p); // consume 'mut'
+            ref_mut = true;
+        }
         Token *ident = expect(p, TOK_IDENT);
         Str *name = tok_str(ident);
         Expr *decl = expr_new(NODE_DECL, ident->line, ident->col, p->spath);
         decl->data.decl.name = name;
         decl->data.decl.is_ref = true;
+        if (ref_mut) decl->data.decl.is_mut = true;
         if (check(p, TOK_COLON)) {
             // ref name : Type = expr
             advance(p); // consume :

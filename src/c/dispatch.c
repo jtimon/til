@@ -177,8 +177,6 @@ static Bool h_exit(Scope *s, Expr *e, Value *r) {
 
 static Bool h_free(Scope *s, Expr *e, Value *r) {
     if (expr_child(e, 1)->type != NODE_IDENT) {
-        // Non-identifier argument: evaluate and free the raw pointer
-        // (matches codegen: til_free just calls C free on the pointer)
         Value val = eval_expr(s, expr_child(e,1));
         void *ptr = val_to_ptr(val);
         if (ptr) free(ptr);
@@ -187,7 +185,8 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
     }
     Cell *cell = scope_get(s, expr_child(e, 1)->data.str_val);
     if (cell->val.type == VAL_STRUCT && cell->val.instance) {
-        til_free(cell->val.instance->data);
+        if (!cell->val.instance->borrowed)
+            til_free(cell->val.instance->data);
         til_free(cell->val.instance);
     } else if (cell->val.type == VAL_ENUM && cell->val.enum_inst) {
         Value payload = cell->val.enum_inst->payload;
@@ -372,6 +371,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     StructInstance *si = malloc(sizeof(StructInstance));
     si->struct_name = cached_array_name;
     si->struct_def = cached_array_def;
+    si->borrowed = 0;
     si->data = calloc(1, cached_array_def->total_struct_size);
     Str fn_data = {.c_str = "data", .cap = 4};
     Str fn_cap = {.c_str = "cap", .cap = 3};
@@ -419,6 +419,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     StructInstance *si = malloc(sizeof(StructInstance));
     si->struct_name = cached_vec_name;
     si->struct_def = cached_vec_def;
+    si->borrowed = 0;
     si->data = calloc(1, cached_vec_def->total_struct_size);
     Str fn_data = {.c_str = "data", .cap = 4};
     Str fn_count = {.c_str = "count", .cap = 5};
@@ -714,6 +715,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                     StructInstance *inst = malloc(sizeof(StructInstance));
                     inst->struct_name = fe->return_type;
                     inst->struct_def = *sdef;
+                    inst->borrowed = 0;
                     inst->data = raw;
                     *result = (Value){.type = VAL_STRUCT, .instance = inst};
                 } else {

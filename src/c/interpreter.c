@@ -120,6 +120,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
             sub->struct_name = ftype;
             sub->struct_def = nested;
             sub->data = owned; // borrowed — points into the owning struct's heap alloc
+            sub->borrowed = 1;
             return (Value){.type = VAL_STRUCT, .instance = sub};
         }
         return (Value){.type = VAL_PTR, .ptr = owned};
@@ -128,14 +129,20 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && Str_eq_c(ftype, "I64"))  return val_i64(*(I64 *)ptr);
     if (ftype && Str_eq_c(ftype, "U8"))   return val_u8(*(U8 *)ptr);
     if (ftype && Str_eq_c(ftype, "Bool")) return val_bool(*(Bool *)ptr);
-    // Inline struct: shallow copy of flat bytes into new StructInstance
+    // Inline struct: borrow if parent is borrowed, copy otherwise
     if (fdecl->data.decl.field_struct_def) {
         Expr *nested = fdecl->data.decl.field_struct_def;
         StructInstance *sub = malloc(sizeof(StructInstance));
         sub->struct_name = ftype; // borrowed — set by initer for inferred struct types
         sub->struct_def = nested;
-        sub->data = malloc(nested->total_struct_size);
-        memcpy(sub->data, ptr, nested->total_struct_size);
+        if (inst->borrowed) {
+            sub->data = ptr;       // borrowed — points into parent's buffer
+            sub->borrowed = 1;
+        } else {
+            sub->data = malloc(nested->total_struct_size);
+            memcpy(sub->data, ptr, nested->total_struct_size);
+            sub->borrowed = 0;
+        }
         return (Value){.type = VAL_STRUCT, .instance = sub};
     }
     // Fallback: treat as I64
@@ -157,7 +164,7 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
     case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
     case VAL_STRUCT:
         memcpy(ptr, val.instance->data, fsz);
-        free(val.instance->data);
+        if (!val.instance->borrowed) free(val.instance->data);
         free(val.instance);
         break;
     case VAL_PTR:  *(void **)ptr = val.ptr; break;
@@ -171,6 +178,7 @@ Value make_str_value(const char *data, I64 cap) {
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
     inst->data = malloc(16); // Str = {char *c_str, I64 cap}
+    inst->borrowed = 0;
     *(char **)inst->data = strndup(data, cap);
     *(I64 *)((char *)inst->data + 8) = cap;
     return (Value){.type = VAL_STRUCT, .instance = inst};
@@ -181,6 +189,7 @@ Value make_str_value_own(char *data, I64 cap) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
+    inst->borrowed = 0;
     inst->data = malloc(16);
     *(char **)inst->data = data;
     *(I64 *)((char *)inst->data + 8) = cap;
@@ -205,6 +214,7 @@ Value clone_value(Value v) {
         StructInstance *dst = malloc(sizeof(StructInstance));
         dst->struct_name = src->struct_name; // borrowed
         dst->struct_def = src->struct_def;
+        dst->borrowed = 0;
         I32 sz = src->struct_def->total_struct_size;
         dst->data = malloc(sz);
         memcpy(dst->data, src->data, sz);
@@ -313,13 +323,21 @@ Value eval_call(Scope *scope, Expr *e) {
         }
         Expr *body = expr_child(func_def, 0);
 
-        // Guard: skip call if first 'own' param is val_none (already moved/deleted)
+        // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
         if (func_def->data.func_def.nparam > 0 &&
             func_def->data.func_def.param_owns &&
             func_def->data.func_def.param_owns[0] &&
             e->children.count > 1 && expr_child(e, 1)->type == NODE_IDENT) {
             Cell *fc = scope_get(scope, expr_child(e, 1)->data.str_val);
             if (fc && fc->val.type == VAL_NONE) return val_none();
+            if (fc && fc->val.type == VAL_STRUCT && fc->val.instance->borrowed) {
+                fc->val = val_none();
+                return val_none();
+            }
+            if (fc && fc->val.type == VAL_PTR) {
+                fc->val = val_none();
+                return val_none();
+            }
         }
 
         Scope *call_scope = scope_new(scope);
@@ -407,6 +425,7 @@ Value eval_call(Scope *scope, Expr *e) {
         StructInstance *inst = malloc(sizeof(StructInstance));
         inst->struct_name = name;   // borrowed from AST
         inst->struct_def = sdef;
+        inst->borrowed = 0;
         inst->data = calloc(1, sdef->total_struct_size);
         I32 arg_idx = 1;
         for (I32 i = 0; i < body->children.count; i++) {
@@ -436,13 +455,21 @@ Value eval_call(Scope *scope, Expr *e) {
     Expr *func_def = fn_cell->val.func;
     Expr *body = expr_child(func_def, 0);
 
-    // Guard: skip call if first 'own' param is val_none (already moved/deleted)
+    // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
     if (func_def->data.func_def.nparam > 0 &&
         func_def->data.func_def.param_owns &&
         func_def->data.func_def.param_owns[0] &&
         e->children.count > 1 && expr_child(e, 1)->type == NODE_IDENT) {
         Cell *fc = scope_get(scope, expr_child(e, 1)->data.str_val);
         if (fc && fc->val.type == VAL_NONE) return val_none();
+        if (fc && fc->val.type == VAL_STRUCT && fc->val.instance->borrowed) {
+            fc->val = val_none();
+            return val_none();
+        }
+        if (fc && fc->val.type == VAL_PTR) {
+            fc->val = val_none();
+            return val_none();
+        }
     }
 
     Scope *call_scope = scope_new(scope);
@@ -540,6 +567,7 @@ Value eval_expr(Scope *scope, Expr *e) {
                     inst->struct_name = obj_expr->struct_name;
                     inst->struct_def = tc->val.func;
                     inst->data = obj.ptr;
+                    inst->borrowed = 1;
                     obj = (Value){.type = VAL_STRUCT, .instance = inst};
                 }
             }
@@ -614,6 +642,7 @@ static void eval_body(Scope *scope, Expr *body) {
                             inst->struct_name = etype;
                             inst->struct_def = tc->val.func;
                             inst->data = val.ptr;
+                            inst->borrowed = stmt->data.decl.is_mut ? 1 : 0;
                             val = (Value){.type = VAL_STRUCT, .instance = inst};
                         }
                     }
@@ -856,7 +885,7 @@ static void value_to_buf(void *dest, Value v, Str *type_name) {
     else if (v.type == VAL_STRUCT) {
         I32 sz = v.instance->struct_def->total_struct_size;
         memcpy(dest, v.instance->data, sz);
-        free(v.instance->data);
+        if (!v.instance->borrowed) free(v.instance->data);
         free(v.instance);
     }
 }
@@ -871,6 +900,7 @@ static Value build_argv_array(I32 argc, char **argv, Str *elem_type) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_array_name;
     inst->struct_def = cached_array_def;
+    inst->borrowed = 0;
     inst->data = calloc(1, cached_array_def->total_struct_size);
     // Write fields: data, cap, elem_size, elem_type
     Str fn_data = {.c_str = "data", .cap = 4};

@@ -31,6 +31,7 @@ struct StructInstance {
     Str *struct_name;       // borrowed from AST (no alloc, no free)
     Expr *struct_def;       // borrowed pointer to NODE_STRUCT_DEF
     void *data;             // flat buffer, same layout as C struct
+    Bool borrowed;          // if true, data points into parent buffer — don't free
 };
 
 struct Value {
