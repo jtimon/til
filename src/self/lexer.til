@@ -1,0 +1,423 @@
+mode lib
+
+// --- TokenType enum ---
+// Matches lexer.h TokenType (TOK_* → PascalCase)
+
+TokenType := enum {
+    Eof,
+
+    // Single-character
+    LParen, RParen,
+    LBrace, RBrace,
+    LBracket, RBracket,
+    Comma, Colon,
+    Question, Bang,
+    Minus, Plus, Star, Slash,
+
+    // One or two character
+    Dot, DotDot,
+    Eq, EqEq,
+    Neq,
+    Lt, LtEq,
+    Gt, GtEq,
+
+    // Assignment
+    ColonEq,
+
+    // Literals
+    Ident, StringTok, Number,
+
+    // Keywords
+    KwMode,
+    KwMut, KwOwn, KwRef,
+    KwStruct, KwExtStruct, KwEnum, KwNamespace,
+    KwFunc, KwProc, KwTest, KwMacro, KwExtFunc, KwExtProc,
+    KwReturns, KwThrows,
+    KwIf, KwElse,
+    KwWhile, KwFor, KwIn,
+    KwSwitch, KwMatch, KwCase, KwDefault,
+    KwReturn, KwThrow, KwCatch,
+    KwBreak, KwContinue, KwDefer,
+    KwTrue, KwFalse,
+
+    // Error tokens
+    Error,
+}
+
+// --- Token struct ---
+// C Token uses start pointer + len (zero-copy into source buffer).
+// til Token uses text: Str (copied substring). Simpler memory model.
+
+Token := struct {
+    type := TokenType.Eof
+    text := ""
+    line := 0
+    col := 0
+}
+
+// --- Character constants ---
+
+CH_NL     := U8.from_i64(10)
+CH_CR     := U8.from_i64(13)
+CH_TAB    := U8.from_i64(9)
+CH_SPACE  := U8.from_i64(32)
+CH_SEMI   := U8.from_i64(59)
+CH_HASH   := U8.from_i64(35)
+CH_SLASH  := U8.from_i64(47)
+CH_STAR   := U8.from_i64(42)
+CH_QUOTE  := U8.from_i64(34)
+CH_BSLASH := U8.from_i64(92)
+CH_DOT    := U8.from_i64(46)
+CH_BANG   := U8.from_i64(33)
+CH_EQ     := U8.from_i64(61)
+CH_LT     := U8.from_i64(60)
+CH_GT     := U8.from_i64(62)
+CH_COLON  := U8.from_i64(58)
+CH_LPAREN := U8.from_i64(40)
+CH_RPAREN := U8.from_i64(41)
+CH_LBRACE := U8.from_i64(123)
+CH_RBRACE := U8.from_i64(125)
+CH_LBRACK := U8.from_i64(91)
+CH_RBRACK := U8.from_i64(93)
+CH_COMMA  := U8.from_i64(44)
+CH_QMARK  := U8.from_i64(63)
+CH_PLUS   := U8.from_i64(43)
+CH_MINUS  := U8.from_i64(45)
+CH_UNDER  := U8.from_i64(95)
+CH_0      := U8.from_i64(48)
+CH_9      := U8.from_i64(57)
+CH_A      := U8.from_i64(65)
+CH_Z      := U8.from_i64(90)
+CH_a      := U8.from_i64(97)
+CH_z      := U8.from_i64(122)
+
+// --- Character helpers ---
+// Replaces C's isdigit(), isalpha() from <ctype.h>
+
+is_digit := func(c: U8) returns Bool {
+    return c.gte(CH_0).and(c.lte(CH_9))
+}
+
+is_alpha := func(c: U8) returns Bool {
+    return c.gte(CH_a).and(c.lte(CH_z))
+        .or(c.gte(CH_A).and(c.lte(CH_Z)))
+        .or(c.eq(CH_UNDER))
+}
+
+is_alnum := func(c: U8) returns Bool {
+    return is_alpha(c).or(is_digit(c))
+}
+
+// --- tok_name ---
+// Returns a human-readable name for a token type.
+// Matches C tok_name() output exactly.
+
+tok_name := func(type: TokenType) returns Str {
+    if type.eq(TokenType.Eof) { return "eof" }
+    if type.eq(TokenType.LParen) { return "(" }
+    if type.eq(TokenType.RParen) { return ")" }
+    if type.eq(TokenType.LBrace) { return "{" }
+    if type.eq(TokenType.RBrace) { return "}" }
+    if type.eq(TokenType.LBracket) { return "[" }
+    if type.eq(TokenType.RBracket) { return "]" }
+    if type.eq(TokenType.Comma) { return "," }
+    if type.eq(TokenType.Colon) { return ":" }
+    if type.eq(TokenType.Question) { return "?" }
+    if type.eq(TokenType.Bang) { return "!" }
+    if type.eq(TokenType.Minus) { return "-" }
+    if type.eq(TokenType.Plus) { return "+" }
+    if type.eq(TokenType.Star) { return "*" }
+    if type.eq(TokenType.Slash) { return "/" }
+    if type.eq(TokenType.Dot) { return "." }
+    if type.eq(TokenType.DotDot) { return ".." }
+    if type.eq(TokenType.Eq) { return "=" }
+    if type.eq(TokenType.EqEq) { return "==" }
+    if type.eq(TokenType.Neq) { return "!=" }
+    if type.eq(TokenType.Lt) { return "<" }
+    if type.eq(TokenType.LtEq) { return "<=" }
+    if type.eq(TokenType.Gt) { return ">" }
+    if type.eq(TokenType.GtEq) { return ">=" }
+    if type.eq(TokenType.ColonEq) { return ":=" }
+    if type.eq(TokenType.Ident) { return "identifier" }
+    if type.eq(TokenType.StringTok) { return "string" }
+    if type.eq(TokenType.Number) { return "number" }
+    if type.eq(TokenType.KwMode) { return "mode" }
+    if type.eq(TokenType.KwMut) { return "mut" }
+    if type.eq(TokenType.KwOwn) { return "own" }
+    if type.eq(TokenType.KwRef) { return "ref" }
+    if type.eq(TokenType.KwStruct) { return "struct" }
+    if type.eq(TokenType.KwExtStruct) { return "ext_struct" }
+    if type.eq(TokenType.KwEnum) { return "enum" }
+    if type.eq(TokenType.KwNamespace) { return "namespace" }
+    if type.eq(TokenType.KwFunc) { return "func" }
+    if type.eq(TokenType.KwProc) { return "proc" }
+    if type.eq(TokenType.KwTest) { return "test" }
+    if type.eq(TokenType.KwMacro) { return "macro" }
+    if type.eq(TokenType.KwExtFunc) { return "ext_func" }
+    if type.eq(TokenType.KwExtProc) { return "ext_proc" }
+    if type.eq(TokenType.KwReturns) { return "returns" }
+    if type.eq(TokenType.KwThrows) { return "throws" }
+    if type.eq(TokenType.KwIf) { return "if" }
+    if type.eq(TokenType.KwElse) { return "else" }
+    if type.eq(TokenType.KwWhile) { return "while" }
+    if type.eq(TokenType.KwFor) { return "for" }
+    if type.eq(TokenType.KwIn) { return "in" }
+    if type.eq(TokenType.KwSwitch) { return "switch" }
+    if type.eq(TokenType.KwMatch) { return "match" }
+    if type.eq(TokenType.KwCase) { return "case" }
+    if type.eq(TokenType.KwDefault) { return "default" }
+    if type.eq(TokenType.KwReturn) { return "return" }
+    if type.eq(TokenType.KwThrow) { return "throw" }
+    if type.eq(TokenType.KwCatch) { return "catch" }
+    if type.eq(TokenType.KwBreak) { return "break" }
+    if type.eq(TokenType.KwContinue) { return "continue" }
+    if type.eq(TokenType.KwDefer) { return "defer" }
+    if type.eq(TokenType.KwTrue) { return "true" }
+    if type.eq(TokenType.KwFalse) { return "false" }
+    if type.eq(TokenType.Error) { return "error" }
+    return "?"
+}
+
+// --- Keyword lookup ---
+// C version uses Keyword struct + static array with memcmp loop.
+// til version uses if/else chain — functionally equivalent.
+
+lookup_keyword := func(word: Str) returns TokenType {
+    if word.eq("mode") { return TokenType.KwMode }
+    if word.eq("mut") { return TokenType.KwMut }
+    if word.eq("own") { return TokenType.KwOwn }
+    if word.eq("ref") { return TokenType.KwRef }
+    if word.eq("struct") { return TokenType.KwStruct }
+    if word.eq("ext_struct") { return TokenType.KwExtStruct }
+    if word.eq("enum") { return TokenType.KwEnum }
+    if word.eq("namespace") { return TokenType.KwNamespace }
+    if word.eq("func") { return TokenType.KwFunc }
+    if word.eq("proc") { return TokenType.KwProc }
+    if word.eq("test") { return TokenType.KwTest }
+    if word.eq("macro") { return TokenType.KwMacro }
+    if word.eq("ext_func") { return TokenType.KwExtFunc }
+    if word.eq("ext_proc") { return TokenType.KwExtProc }
+    if word.eq("returns") { return TokenType.KwReturns }
+    if word.eq("throws") { return TokenType.KwThrows }
+    if word.eq("if") { return TokenType.KwIf }
+    if word.eq("else") { return TokenType.KwElse }
+    if word.eq("while") { return TokenType.KwWhile }
+    if word.eq("for") { return TokenType.KwFor }
+    if word.eq("in") { return TokenType.KwIn }
+    if word.eq("switch") { return TokenType.KwSwitch }
+    if word.eq("match") { return TokenType.KwMatch }
+    if word.eq("case") { return TokenType.KwCase }
+    if word.eq("default") { return TokenType.KwDefault }
+    if word.eq("return") { return TokenType.KwReturn }
+    if word.eq("throw") { return TokenType.KwThrow }
+    if word.eq("catch") { return TokenType.KwCatch }
+    if word.eq("break") { return TokenType.KwBreak }
+    if word.eq("continue") { return TokenType.KwContinue }
+    if word.eq("defer") { return TokenType.KwDefer }
+    if word.eq("true") { return TokenType.KwTrue }
+    if word.eq("false") { return TokenType.KwFalse }
+    return TokenType.Ident
+}
+
+// --- Tokenizer ---
+// Strict translation of C tokenize(). Uses integer index instead of
+// char pointer. Token.text is a copied Str instead of pointer+len.
+
+tokenize := proc(source: Str, path: Str) returns Vec {
+    mut tokens := Vec.new("Token", Token.size())
+    mut pos := 0
+    mut line := 1
+    mut line_start := 0
+    src_len := source.len()
+
+    while pos.lt(src_len) {
+        ref c : U8 = source.char_at(pos)
+
+        // Skip whitespace (spaces, tabs, \r, semicolons)
+        if c.eq(CH_SPACE).or(c.eq(CH_TAB)).or(c.eq(CH_CR)).or(c.eq(CH_SEMI)) {
+            pos = pos.add(1)
+            continue
+        }
+        if c.eq(CH_NL) {
+            pos = pos.add(1)
+            line = line.add(1)
+            line_start = pos
+            continue
+        }
+
+        col := pos.sub(line_start).add(1)
+        start := pos
+
+        // Line comments: // or #
+        if c.eq(CH_HASH) {
+            while pos.lt(src_len) {
+                if source.char_at(pos).eq(CH_NL) { break }
+                pos = pos.add(1)
+            }
+            continue
+        }
+        if c.eq(CH_SLASH).and(pos.add(1).lt(src_len)) {
+            ref c2 : U8 = source.char_at(pos.add(1))
+            if c2.eq(CH_SLASH) {
+                while pos.lt(src_len) {
+                    if source.char_at(pos).eq(CH_NL) { break }
+                    pos = pos.add(1)
+                }
+                continue
+            }
+            // Block comments: /* ... */ (nestable)
+            if c2.eq(CH_STAR) {
+                pos = pos.add(2)
+                mut depth := 1
+                while pos.lt(src_len) {
+                    if depth.lte(0) { break }
+                    if pos.add(1).lt(src_len) {
+                        ref b1 : U8 = source.char_at(pos)
+                        ref b2 : U8 = source.char_at(pos.add(1))
+                        if b1.eq(CH_SLASH).and(b2.eq(CH_STAR)) {
+                            depth = depth.add(1)
+                            pos = pos.add(2)
+                            continue
+                        }
+                        if b1.eq(CH_STAR).and(b2.eq(CH_SLASH)) {
+                            depth = depth.sub(1)
+                            pos = pos.add(2)
+                            continue
+                        }
+                    }
+                    if source.char_at(pos).eq(CH_NL) {
+                        line = line.add(1)
+                        line_start = pos.add(1)
+                    }
+                    pos = pos.add(1)
+                }
+                if depth.gt(0) {
+                    println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated comment")
+                }
+                continue
+            }
+        }
+
+        // Numbers
+        if is_digit(c) {
+            while pos.lt(src_len) {
+                if is_digit(source.char_at(pos)).not() { break }
+                pos = pos.add(1)
+            }
+            // Check for decimal point
+            if pos.add(1).lt(src_len) {
+                if source.char_at(pos).eq(CH_DOT).and(is_digit(source.char_at(pos.add(1)))) {
+                    pos = pos.add(1)
+                    while pos.lt(src_len) {
+                        if is_digit(source.char_at(pos)).not() { break }
+                        pos = pos.add(1)
+                    }
+                }
+            }
+            tokens.push(own Token(type = TokenType.Number,
+                text = source.substr(start, pos.sub(start)),
+                line = line, col = col))
+            continue
+        }
+
+        // Identifiers and keywords
+        if is_alpha(c) {
+            while pos.lt(src_len) {
+                if is_alnum(source.char_at(pos)).not() { break }
+                pos = pos.add(1)
+            }
+            word := source.substr(start, pos.sub(start))
+            type := lookup_keyword(word)
+            tokens.push(own Token(type = type, text = word, line = line, col = col))
+            continue
+        }
+
+        // Strings
+        if c.eq(CH_QUOTE) {
+            pos = pos.add(1)
+            while pos.lt(src_len) {
+                if source.char_at(pos).eq(CH_QUOTE) { break }
+                if source.char_at(pos).eq(CH_BSLASH).and(pos.add(1).lt(src_len)) {
+                    pos = pos.add(1)
+                }
+                if source.char_at(pos).eq(CH_NL) {
+                    line = line.add(1)
+                    line_start = pos.add(1)
+                }
+                pos = pos.add(1)
+            }
+            if pos.lt(src_len).and(source.char_at(pos).eq(CH_QUOTE)) {
+                pos = pos.add(1)
+                tokens.push(own Token(type = TokenType.StringTok,
+                    text = source.substr(start.add(1), pos.sub(start).sub(2)),
+                    line = line, col = col))
+            } else {
+                println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
+                tokens.push(own Token(type = TokenType.Error,
+                    text = source.substr(start, pos.sub(start)),
+                    line = line, col = col))
+            }
+            continue
+        }
+
+        // Two-character tokens
+        if pos.add(1).lt(src_len) {
+            ref c2 : U8 = source.char_at(pos.add(1))
+            mut two := TokenType.Eof
+            if c.eq(CH_COLON).and(c2.eq(CH_EQ)) { two = TokenType.ColonEq }
+            if c.eq(CH_EQ).and(c2.eq(CH_EQ)) { two = TokenType.EqEq }
+            if c.eq(CH_BANG).and(c2.eq(CH_EQ)) { two = TokenType.Neq }
+            if c.eq(CH_LT).and(c2.eq(CH_EQ)) { two = TokenType.LtEq }
+            if c.eq(CH_GT).and(c2.eq(CH_EQ)) { two = TokenType.GtEq }
+            if c.eq(CH_DOT).and(c2.eq(CH_DOT)) { two = TokenType.DotDot }
+            if two.eq(TokenType.Eof).not() {
+                tokens.push(own Token(type = two,
+                    text = source.substr(start, 2),
+                    line = line, col = col))
+                pos = pos.add(2)
+                continue
+            }
+        }
+
+        // Single-character tokens
+        mut single := TokenType.Eof
+        if c.eq(CH_LPAREN) { single = TokenType.LParen }
+        if c.eq(CH_RPAREN) { single = TokenType.RParen }
+        if c.eq(CH_LBRACE) { single = TokenType.LBrace }
+        if c.eq(CH_RBRACE) { single = TokenType.RBrace }
+        if c.eq(CH_LBRACK) { single = TokenType.LBracket }
+        if c.eq(CH_RBRACK) { single = TokenType.RBracket }
+        if c.eq(CH_COMMA) { single = TokenType.Comma }
+        if c.eq(CH_COLON) { single = TokenType.Colon }
+        if c.eq(CH_DOT) { single = TokenType.Dot }
+        if c.eq(CH_QMARK) { single = TokenType.Question }
+        if c.eq(CH_BANG) { single = TokenType.Bang }
+        if c.eq(CH_PLUS) { single = TokenType.Plus }
+        if c.eq(CH_MINUS) { single = TokenType.Minus }
+        if c.eq(CH_STAR) { single = TokenType.Star }
+        if c.eq(CH_SLASH) { single = TokenType.Slash }
+        if c.eq(CH_EQ) { single = TokenType.Eq }
+        if c.eq(CH_LT) { single = TokenType.Lt }
+        if c.eq(CH_GT) { single = TokenType.Gt }
+
+        if single.eq(TokenType.Eof).not() {
+            tokens.push(own Token(type = single,
+                text = source.substr(start, 1),
+                line = line, col = col))
+            pos = pos.add(1)
+            continue
+        }
+
+        // Unknown character
+        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
+        tokens.push(own Token(type = TokenType.Error,
+            text = source.substr(start, 1),
+            line = line, col = col))
+        pos = pos.add(1)
+    }
+
+    // EOF
+    col := pos.sub(line_start).add(1)
+    tokens.push(own Token(type = TokenType.Eof, text = "", line = line, col = col))
+    return tokens
+}

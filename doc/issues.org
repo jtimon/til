@@ -466,7 +466,7 @@
   Blocks Map (needs comparator), generic sort, event handlers,
   and many patterns needed for self-hosting (visitor, dispatch tables).
 
-* OPEN #12 Self-hosting: rewrite ctil in til
+* WIP #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #1 #2 #15 #17
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
@@ -485,6 +485,12 @@
   - #16 (imports): FIXED
 
   Does NOT depend on #10 (REPL) or #11 (GUI mode).
+
+** DONE Lexer (src/self/lexer.til)
+   Strict translation of src/c/lexer.c following c2til.org rules.
+   mode lib. TokenType enum (all 62 variants), Token struct, tok_name(),
+   lookup_keyword(), tokenize(). Tests in src/test/lexing.til (10 tests).
+   Works in both interpret and codegen modes.
 
 
 * OPEN #10 REPL: interactive read-eval-print loop
