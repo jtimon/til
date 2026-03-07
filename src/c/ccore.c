@@ -64,6 +64,32 @@ U8 *U8_new(U8 val) {
 U8 *U8_clone(U8 *v) { return U8_new(*v); }
 void U8_delete(U8 *v) { free(v); }
 
+// --- I16 ---
+
+I16 I16_add(I16 a, I16 b) { return (I16)(a + b); }
+I16 I16_sub(I16 a, I16 b) { return (I16)(a - b); }
+I16 I16_mul(I16 a, I16 b) { return (I16)(a * b); }
+I16 I16_div(I16 a, I16 b) { return (b == 0) ? 0 : (I16)(a / b); }
+I16 I16_mod(I16 a, I16 b) { return (b == 0) ? 0 : (I16)(a % b); }
+I16 I16_and(I16 a, I16 b) { return a & b; }
+I16 I16_or(I16 a, I16 b) { return a | b; }
+I16 I16_xor(I16 a, I16 b) { return a ^ b; }
+
+Bool I16_eq(I16 a, I16 b) { return a == b; }
+I64 I16_cmp(I16 a, I16 b) { return a < b ? -1 : (a > b ? 1 : 0); }
+
+I64 I16_to_i64(I16 v) { return (I64)v; }
+I16 I16_from_i64(I64 v) { return (I16)v; }
+
+I16 *I16_new(I16 val) {
+    I16 *p = malloc(sizeof(I16));
+    *p = val;
+    return p;
+}
+
+I16 *I16_clone(I16 *v) { return I16_new(*v); }
+void I16_delete(I16 *v) { free(v); }
+
 // --- U32 ---
 
 U32 U32_add(U32 a, U32 b) { return a + b; }

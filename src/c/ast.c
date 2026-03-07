@@ -8,6 +8,7 @@ const char *til_type_name_c(TilType t) {
     case TIL_TYPE_NONE:    return "None";
     case TIL_TYPE_I64:     return "I64";
     case TIL_TYPE_U8:      return "U8";
+    case TIL_TYPE_I16:     return "I16";
     case TIL_TYPE_U32:     return "U32";
     case TIL_TYPE_BOOL:    return "Bool";
     case TIL_TYPE_STRUCT:      return "Struct";

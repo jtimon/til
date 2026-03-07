@@ -92,6 +92,39 @@ test_dynamic_narrowing := test() {
     // TODO: my_bvec.get(1).not() — Bool values in Vec don't round-trip correctly (false→true)
 }
 
+test_i16 := test() {
+    // Arithmetic
+    a : I16 = I16.from_i64(100)
+    b : I16 = I16.from_i64(42)
+    assert_eq(loc(), a.add(b).to_i64(), 142)
+    assert_eq(loc(), a.sub(b).to_i64(), 58)
+    assert_eq(loc(), a.mul(b).to_i64(), 4200)
+    assert_eq(loc(), a.div(b).to_i64(), 2)
+    assert_eq(loc(), a.mod(b).to_i64(), 16)
+
+    // Negative values
+    c : I16 = I16.from_i64(100.neg())
+    assert_eq(loc(), c.to_i64(), 100.neg())
+    assert_eq(loc(), c.neg().to_i64(), 100)
+    assert_eq(loc(), c.add(a).to_i64(), 0)
+
+    // Comparisons
+    assert(loc(), a.gt(b))
+    assert(loc(), b.lt(a))
+    assert(loc(), a.gte(a))
+    assert(loc(), a.lte(a))
+    assert(loc(), a.neq(b))
+    assert(loc(), a.eq(a))
+    assert(loc(), c.lt(a))
+
+    // to_str
+    assert_eq_str(loc(), I16.from_i64(12345).to_str(), "12345")
+    assert_eq_str(loc(), I16.from_i64(100.neg()).to_str(), "-100")
+
+    // size
+    assert_eq(loc(), I16.size(), 2)
+}
+
 test_u32 := test() {
     // Arithmetic
     a : U32 = U32.from_i64(100)

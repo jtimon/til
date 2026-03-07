@@ -41,6 +41,7 @@ static Value eval_arg(Scope *s, Expr *e) {
         switch (e->til_type) {
             case TIL_TYPE_I64:    return (Value){.type = VAL_I64, .i64 = (til_I64 *)v.ptr};
             case TIL_TYPE_U8:    return (Value){.type = VAL_U8, .u8 = (til_U8 *)v.ptr};
+            case TIL_TYPE_I16:   return (Value){.type = VAL_I16, .i16 = (til_I16 *)v.ptr};
             case TIL_TYPE_U32:   return (Value){.type = VAL_U32, .u32 = (til_U32 *)v.ptr};
             case TIL_TYPE_BOOL:  return (Value){.type = VAL_BOOL, .boolean = (til_Bool *)v.ptr};
             case TIL_TYPE_STRUCT:
@@ -117,6 +118,26 @@ HDEL(U8_delete, U8_delete, v.u8)
 static Bool h_U8_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, expr_child(e,1));
     *r = val_u8(U8_from_i64(*v.i64)); return 1;
+}
+
+// === I16 handlers ===
+H2(I16_add, I16_add, *a.i16, *b.i16, val_i16)
+H2(I16_sub, I16_sub, *a.i16, *b.i16, val_i16)
+H2(I16_mul, I16_mul, *a.i16, *b.i16, val_i16)
+H2(I16_div, I16_div, *a.i16, *b.i16, val_i16)
+H2(I16_mod, I16_mod, *a.i16, *b.i16, val_i16)
+H2(I16_and, I16_and, *a.i16, *b.i16, val_i16)
+H2(I16_or,  I16_or,  *a.i16, *b.i16, val_i16)
+H2(I16_xor, I16_xor, *a.i16, *b.i16, val_i16)
+H2(I16_eq, I16_eq, *a.i16, *b.i16, val_bool)
+H2(I16_cmp, I16_cmp, *a.i16, *b.i16, val_i64)
+H1(I16_to_i64, I16_to_i64, *v.i16, val_i64)
+HCLONE(I16_clone, *v.i16, val_i16)
+HDEL(I16_delete, I16_delete, v.i16)
+
+static Bool h_I16_from_i64(Scope *s, Expr *e, Value *r) {
+    Value v = eval_expr(s, expr_child(e,1));
+    *r = val_i16(I16_from_i64(*v.i64)); return 1;
 }
 
 // === U32 handlers ===
@@ -214,6 +235,7 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
         Value payload = cell->val.enum_inst->payload;
         if (payload.type == VAL_I64)  til_free(payload.i64);
         else if (payload.type == VAL_U8)   til_free(payload.u8);
+        else if (payload.type == VAL_I16)  til_free(payload.i16);
         else if (payload.type == VAL_U32)  til_free(payload.u32);
         else if (payload.type == VAL_BOOL) til_free(payload.boolean);
         til_free(cell->val.enum_inst);
@@ -221,6 +243,8 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
         til_free(cell->val.i64);
     } else if (cell->val.type == VAL_U8) {
         til_free(cell->val.u8);
+    } else if (cell->val.type == VAL_I16) {
+        til_free(cell->val.i16);
     } else if (cell->val.type == VAL_U32) {
         til_free(cell->val.u32);
     } else if (cell->val.type == VAL_BOOL) {
@@ -314,6 +338,7 @@ static void *val_raw_ptr(Value v) {
     switch (v.type) {
         case VAL_I64:    return v.i64;
         case VAL_U8:     return v.u8;
+        case VAL_I16:    return v.i16;
         case VAL_U32:    return v.u32;
         case VAL_BOOL:   return v.boolean;
         case VAL_STRUCT: return v.instance->data;
@@ -473,6 +498,7 @@ static void *val_to_ptr(Value v) {
         case VAL_PTR:    return v.ptr;
         case VAL_I64:    return v.i64;
         case VAL_U8:     return v.u8;
+        case VAL_I16:    return v.i16;
         case VAL_U32:    return v.u32;
         case VAL_BOOL:   return v.boolean;
         case VAL_STRUCT: return v.instance->data;
@@ -655,6 +681,18 @@ static void dispatch_init(void) {
     REG("U8_clone", h_U8_clone);
     REG("U8_delete", h_U8_delete);
 
+    // I16
+    REG("I16_add", h_I16_add); REG("I16_sub", h_I16_sub);
+    REG("I16_mul", h_I16_mul); REG("I16_div", h_I16_div);
+    REG("I16_mod", h_I16_mod);
+    REG("I16_and", h_I16_and); REG("I16_or", h_I16_or); REG("I16_xor", h_I16_xor);
+    REG("I16_eq", h_I16_eq); REG("I16_cmp", h_I16_cmp);
+    REG("I16_to_i64", h_I16_to_i64);
+    REG("I16_from_i64", h_I16_from_i64);
+    REG("I16_from_i64_ext", h_I16_from_i64);
+    REG("I16_clone", h_I16_clone);
+    REG("I16_delete", h_I16_delete);
+
     // U32
     REG("U32_add", h_U32_add); REG("U32_sub", h_U32_sub);
     REG("U32_mul", h_U32_mul); REG("U32_div", h_U32_div);
@@ -729,6 +767,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 switch (v.type) {
                     case VAL_I64:    args[i] = v.i64; break;
                     case VAL_U8:     args[i] = v.u8; break;
+                    case VAL_I16:    args[i] = v.i16; break;
                     case VAL_U32:    args[i] = v.u32; break;
                     case VAL_BOOL:   args[i] = v.boolean; break;
                     case VAL_PTR:    args[i] = v.ptr; break;
@@ -748,6 +787,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 *result = (Value){.type = VAL_I64, .i64 = (til_I64 *)raw};
             } else if (Str_eq_c(fe->return_type, "U8")) {
                 *result = (Value){.type = VAL_U8, .u8 = (til_U8 *)raw};
+            } else if (Str_eq_c(fe->return_type, "I16")) {
+                *result = (Value){.type = VAL_I16, .i16 = (til_I16 *)raw};
             } else if (Str_eq_c(fe->return_type, "U32")) {
                 *result = (Value){.type = VAL_U32, .u32 = (til_U32 *)raw};
             } else if (Str_eq_c(fe->return_type, "Bool")) {

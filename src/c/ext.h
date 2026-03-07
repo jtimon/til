@@ -5,6 +5,7 @@
 
 typedef I64 til_I64;
 typedef U8 til_U8;
+typedef I16 til_I16;
 typedef U32 til_U32;
 typedef Bool til_Bool;
 
@@ -68,6 +69,31 @@ til_U8 *til_U8_from_i64_ext(til_I64 *a);
 // U8 clone/delete
 til_U8 *til_U8_clone(til_U8 *v);
 void til_U8_delete(til_U8 *v, til_Bool *call_free);
+
+// I16 arithmetic
+til_I16 *til_I16_add(til_I16 *a, til_I16 *b);
+til_I16 *til_I16_sub(til_I16 *a, til_I16 *b);
+til_I16 *til_I16_mul(til_I16 *a, til_I16 *b);
+til_I16 *til_I16_div(til_I16 *a, til_I16 *b);
+til_I16 *til_I16_mod(til_I16 *a, til_I16 *b);
+til_I16 *til_I16_and(til_I16 *a, til_I16 *b);
+til_I16 *til_I16_or(til_I16 *a, til_I16 *b);
+til_I16 *til_I16_xor(til_I16 *a, til_I16 *b);
+
+// I16 comparisons
+til_Bool *til_I16_eq(til_I16 *a, til_I16 *b);
+til_I64 *til_I16_cmp(til_I16 *a, til_I16 *b);
+
+// I16 conversions
+til_I64 *til_I16_to_i64(til_I16 *a);
+til_I16 *til_I16_from_i64_ext(til_I64 *a);
+
+// I16 clone/delete
+til_I16 *til_I16_clone(til_I16 *v);
+void til_I16_delete(til_I16 *v, til_Bool *call_free);
+
+// I16 CLI
+til_I16 *til_cli_parse_i16(const char *s);
 
 // U32 arithmetic
 til_U32 *til_U32_add(til_U32 *a, til_U32 *b);

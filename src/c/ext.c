@@ -50,6 +50,39 @@ til_U8 *til_U8_from_i64_ext(til_I64 *a) { return U8_new(U8_from_i64(*a)); }
 til_U8 *til_U8_clone(til_U8 *v) { return U8_clone(v); }
 void til_U8_delete(til_U8 *v, til_Bool *call_free) { if (*call_free) U8_delete(v); }
 
+// I16 arithmetic
+til_I16 *til_I16_add(til_I16 *a, til_I16 *b) { return I16_new(I16_add(*a, *b)); }
+til_I16 *til_I16_sub(til_I16 *a, til_I16 *b) { return I16_new(I16_sub(*a, *b)); }
+til_I16 *til_I16_mul(til_I16 *a, til_I16 *b) { return I16_new(I16_mul(*a, *b)); }
+til_I16 *til_I16_div(til_I16 *a, til_I16 *b) { return I16_new(I16_div(*a, *b)); }
+til_I16 *til_I16_mod(til_I16 *a, til_I16 *b) { return I16_new(I16_mod(*a, *b)); }
+til_I16 *til_I16_and(til_I16 *a, til_I16 *b) { return I16_new(I16_and(*a, *b)); }
+til_I16 *til_I16_or(til_I16 *a, til_I16 *b) { return I16_new(I16_or(*a, *b)); }
+til_I16 *til_I16_xor(til_I16 *a, til_I16 *b) { return I16_new(I16_xor(*a, *b)); }
+
+// I16 comparisons
+til_Bool *til_I16_eq(til_I16 *a, til_I16 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I16_eq(*a, *b); return r; }
+til_I64 *til_I16_cmp(til_I16 *a, til_I16 *b) { return I64_new(I16_cmp(*a, *b)); }
+
+// I16 conversions
+til_I64 *til_I16_to_i64(til_I16 *a) { return I64_new(I16_to_i64(*a)); }
+til_I16 *til_I16_from_i64_ext(til_I64 *a) { return I16_new(I16_from_i64(*a)); }
+
+// I16 clone/delete
+til_I16 *til_I16_clone(til_I16 *v) { return I16_clone(v); }
+void til_I16_delete(til_I16 *v, til_Bool *call_free) { if (*call_free) I16_delete(v); }
+
+// I16 CLI
+til_I16 *til_cli_parse_i16(const char *s) {
+    char *end;
+    long v = strtol(s, &end, 10);
+    if (*end != '\0' || v < -32768 || v > 32767) {
+        fprintf(stderr, "error: cannot parse '%s' as I16\n", s);
+        exit(1);
+    }
+    return I16_new((I16)v);
+}
+
 // U32 arithmetic
 til_U32 *til_U32_add(til_U32 *a, til_U32 *b) { return U32_new(U32_add(*a, *b)); }
 til_U32 *til_U32_sub(til_U32 *a, til_U32 *b) { return U32_new(U32_sub(*a, *b)); }

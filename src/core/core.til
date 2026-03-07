@@ -29,6 +29,34 @@ U8 : StructDef = ext_struct {
     delete := ext_proc(own self: U8, call_free: Bool = true) {}
     size := func() returns I64 { return 1 }
 }
+I16 : StructDef = ext_struct {
+    namespace:
+    to_i64 := ext_func(val: I16) returns I64 {}
+    to_str := func(val: I16) returns Str {
+        return val.to_i64().to_str()
+    }
+    from_i64 := func(val: I64) returns I16 {
+        if val.lt(32768.neg()).or(val.gt(32767)) {
+            panic("I16.from_i64", "value out of range (-32768 to 32767)")
+        }
+        I16_from_i64_ext := ext_func(val: I64) returns I16 {}
+        return I16_from_i64_ext(val)
+    }
+    add := ext_func(a: I16, b: I16) returns I16 {}
+    sub := ext_func(a: I16, b: I16) returns I16 {}
+    mul := ext_func(a: I16, b: I16) returns I16 {}
+    div := ext_func(a: I16, b: I16) returns I16 {}
+    mod := ext_func(a: I16, b: I16) returns I16 {}
+    eq := ext_func(a: I16, b: I16) returns Bool {}
+    cmp := ext_func(a: I16, b: I16) returns I64 {}
+    neg := func(a: I16) returns I16 { return I16.from_i64(0.sub(a.to_i64())) }
+    and := ext_func(a: I16, b: I16) returns I16 {}
+    or := ext_func(a: I16, b: I16) returns I16 {}
+    xor := ext_func(a: I16, b: I16) returns I16 {}
+    clone := ext_func(val: I16) returns I16 {}
+    delete := ext_proc(own self: I16, call_free: Bool = true) {}
+    size := func() returns I64 { return 2 }
+}
 U32 : StructDef = ext_struct {
     namespace:
     to_i64 := ext_func(val: U32) returns I64 {}
